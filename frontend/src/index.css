@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* â”€â”€ Light theme (default) â”€â”€ */
+:root, [data-theme="light"] {
+  --bg:       #f0f2f7;
+  --surface:  #ffffff;
+  --surface2: #f8f9fc;
+  --border:   #e2e8f0;
+  --text:     #182C53;
+  --text2:    #374151;
+  --muted:    #64748b;
+  --accent:   #FA6414;
+  --accent2:  #515793;
+}
+
+/* â”€â”€ Dark theme â”€â”€ */
+[data-theme="dark"] {
+  --bg:       #0d0d1a;
+  --surface:  #111827;
+  --surface2: #1a2234;
+  --border:   #2d3748;
+  --text:     #f1f5f9;
+  --text2:    #cbd5e1;
+  --muted:    #94a3b8;
+  --accent:   #ff7a3d;
+  --accent2:  #7c85d4;
+}
+
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html {
+    transition: background-color 0.2s ease;
+    color-scheme: light dark;
+  }
+
+  body {
+    font-family: 'Montserrat', Arial, sans-serif;
+    background-color: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 0;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  /* Input autofill â€” prevent white flash in dark mode */
+  input:-webkit-autofill,
+  input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px var(--surface2) inset !important;
+    -webkit-text-fill-color: var(--text) !important;
+    caret-color: var(--text);
+  }
+
+  .skip-link {
+    position: absolute; top: -100px; left: 1rem; z-index: 9999;
+    padding: .5rem 1rem; background: #FA6414; color: #fff;
+    font-weight: 700; border-radius: 0 0 8px 8px; transition: top .15s;
+    text-decoration: none;
+  }
+  .skip-link:focus { top: 0; }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--accent2); border-radius: 4px; }
+}

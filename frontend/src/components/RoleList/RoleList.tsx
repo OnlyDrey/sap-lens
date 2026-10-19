@@ -1,0 +1,711 @@
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import {
+  Search, GitCompare, X, Users, Activity, LayoutGrid,
+  DollarSign, BarChart2, Package, Wrench, TrendingUp, Cog,
+  FolderKanban, CheckCircle, Server, Warehouse, Hash,
+  AlertTriangle, RefreshCw, ArrowUpDown, Zap
+} from 'lucide-react'
+import { useModules } from '@/hooks/useModules'
+import { useRoles } from '@/hooks/useRoles'
+import { RoleCard } from './RoleCard'
+import type { RoleSummary } from '@/api/types'
+import { fetchRolesByTcode } from '@/api/client'
+
+interface Props {
+  selectedRoles: string[]
+  onSelectRole: (n: string) => void
+  onViewDetail: (n: string) => void
+  onCompare: () => void
+}
+
+function useDebounce<T>(v: T, ms: number): T {
+  const [d, setD] = useState(v)
+
+  useEffect(() => {
+    const t = setTimeout(() => setD(v), ms)
+    return () => clearTimeout(t)
+  }, [v, ms])
+
+  return d
+}
+
+const MOD_ICON: Record<string, React.ComponentType<{className?: string}>> = {
+  FI:DollarSign,
+  CO:BarChart2,
+  MM:Package,
+  PM:Wrench,
+  HR:Users,
+  SD:TrendingUp,
+  PP:Cog,
+  PS:FolderKanban,
+  CA:FolderKanban,
+  QM:CheckCircle,
+  BC:Server,
+  WM:Warehouse,
+}
+
+type SortKey =
+  | 'name-asc'
+  | 'name-desc'
+  | 'tcodes-desc'
+  | 'tcodes-asc'
+  | 'singles-desc'
+
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key:'name-asc',     label:'Name A to Z' },
+  { key:'name-desc',    label:'Name Z to A' },
+  { key:'tcodes-desc',  label:'Most T-codes' },
+  { key:'tcodes-asc',   label:'Fewest T-codes' },
+  { key:'singles-desc', label:'Most groups' },
+]
+
+function getName(r: RoleSummary) {
+  return (r.text ?? r.agr_name)
+    .replace(/^[A-Z]{2,3}\s*-\s*/, '')
+    .toLowerCase()
+}
+
+function applySort(roles: RoleSummary[], key: SortKey): RoleSummary[] {
+  const a = [...roles]
+
+  switch (key) {
+    case 'name-asc':
+      return a.sort((x,y) => getName(x).localeCompare(getName(y)))
+
+    case 'name-desc':
+      return a.sort((x,y) => getName(y).localeCompare(getName(x)))
+
+    case 'tcodes-desc':
+      return a.sort((x,y) => y.tcode_count - x.tcode_count)
+
+    case 'tcodes-asc':
+      return a.sort((x,y) => x.tcode_count - y.tcode_count)
+
+    case 'singles-desc':
+      return a.sort(
+        (x,y) => (y.single_role_count ?? 0) - (x.single_role_count ?? 0)
+      )
+
+    default:
+      return a
+  }
+}
+
+function shortenModName(name: string) {
+  return name
+    .replace('Management','Mgmt')
+    .replace('Production','Prod.')
+    .replace('Distribution','Dist.')
+    .replace('Resources','Res.')
+    .replace('Maintenance','Maint.')
+    .replace('Planning','Plan.')
+}
+
+function Skeleton() {
+  return (
+    <div
+      className="rounded-2xl border p-4 animate-pulse flex flex-col gap-3"
+      style={{
+        backgroundColor:'var(--surface)',
+        borderColor:'var(--border)',
+        minHeight:'148px'
+      }}
+    >
+      <div className="flex justify-between items-start">
+        <div
+          className="h-5 rounded-md w-28"
+          style={{ backgroundColor:'var(--surface2)' }}
+        />
+        <div
+          className="w-7 h-7 rounded-full"
+          style={{ backgroundColor:'var(--surface2)' }}
+        />
+      </div>
+
+      <div
+        className="h-5 rounded w-3/4"
+        style={{ backgroundColor:'var(--surface2)' }}
+      />
+
+      <div
+        className="h-3 rounded w-full"
+        style={{ backgroundColor:'var(--surface2)' }}
+      />
+
+      <div className="flex gap-3 pt-2 mt-auto">
+        <div
+          className="h-4 rounded w-24"
+          style={{ backgroundColor:'var(--surface2)' }}
+        />
+        <div
+          className="h-4 rounded w-16"
+          style={{ backgroundColor:'var(--surface2)' }}
+        />
+      </div>
+    </div>
+  )
+}
+
+export function RoleList({
+  selectedRoles,
+  onSelectRole,
+  onViewDetail,
+  onCompare
+}: Props) {
+  const [search, setSearch] = useState('')
+  const [activeModule, setActiveModule] = useState<string | null>(null)
+  const [sortBy, setSortBy] = useState<SortKey>('name-asc')
+  const [sortOpen, setSortOpen] = useState(false)
+
+  const debSearch = useDebounce(search, 300)
+
+  const { data: modules = [] } = useModules()
+
+  const {
+    data: allRolesRaw = [],
+    isLoading,
+    isError,
+    error,
+    refetch
+  } = useRoles()
+
+  const {
+    data: tcodeRoles = [],
+    isFetching: tcodeLoading
+  } = useQuery({
+    queryKey: ['roles', 'tcode', debSearch.trim().toUpperCase()],
+    queryFn: () => fetchRolesByTcode(debSearch.trim()),
+    enabled: debSearch.trim().length >= 2,
+    staleTime: 120_000,
+    placeholderData: [],
+  })
+
+  const moduleNames = useMemo(
+    () => Object.fromEntries(
+      modules.map(m => [m.function_key, m.module_name])
+    ),
+    [modules]
+  )
+
+  const moduleGroups = useMemo(() => {
+    const map: Record<string, number> = {}
+
+    for (const r of allRolesRaw) {
+      const k = r.function_key ?? 'Other'
+      map[k] = (map[k] ?? 0) + 1
+    }
+
+    return Object.entries(map).sort(([a],[b]) => a.localeCompare(b))
+  }, [allRolesRaw])
+
+  const totalTcodes = useMemo(
+    () => allRolesRaw.reduce((s, r) => s + r.tcode_count, 0),
+    [allRolesRaw]
+  )
+
+  const hasTcodeResults =
+    tcodeRoles.length > 0 &&
+    debSearch.trim().length >= 2
+
+  const visible = useMemo(() => {
+    let results: RoleSummary[]
+
+    if (hasTcodeResults) {
+      results = tcodeRoles
+    } else if (debSearch.trim()) {
+      const q = debSearch.trim().toLowerCase()
+
+      results = allRolesRaw.filter(x =>
+        (x.text ?? '').toLowerCase().includes(q) ||
+        x.agr_name.toLowerCase().includes(q) ||
+        (x.module_name ?? '').toLowerCase().includes(q)
+      )
+    } else {
+      results = allRolesRaw
+    }
+
+    if (activeModule) {
+      results = results.filter(
+        x => x.function_key === activeModule
+      )
+    }
+
+    return applySort(results, sortBy)
+  }, [
+    allRolesRaw,
+    tcodeRoles,
+    hasTcodeResults,
+    debSearch,
+    activeModule,
+    sortBy
+  ])
+
+  const isFiltering =
+    !!debSearch.trim() ||
+    !!activeModule
+
+  const currentLabel =
+    SORT_OPTIONS.find(o => o.key === sortBy)?.label ?? 'Sort'
+
+  const clearSel = useCallback(
+    () => selectedRoles.forEach(n => onSelectRole(n)),
+    [selectedRoles, onSelectRole]
+  )
+
+  return (
+    <div className="flex flex-col gap-4">
+
+      {!isLoading && !isError && allRolesRaw.length > 0 && (
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            {
+              label:'Roles',
+              value:allRolesRaw.length.toLocaleString(),
+              color:'var(--accent)',
+              Icon:Users
+            },
+            {
+              label:'Modules',
+              value:moduleGroups.length.toString(),
+              color:'var(--accent2)',
+              Icon:LayoutGrid
+            },
+            {
+              label:'T-code assignments',
+              value:totalTcodes.toLocaleString(),
+              color:'var(--text)',
+              Icon:Activity
+            },
+          ].map(({ label, value, color, Icon }) => (
+            <div
+              key={label}
+              className="rounded-xl border px-4 py-3 shadow-sm flex items-center gap-3"
+              style={{
+                backgroundColor:'var(--surface)',
+                borderColor:'var(--border)'
+              }}
+            >
+              <div
+                className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{ backgroundColor:'var(--surface2)' }}
+              >
+                <Icon className="w-4 h-4" style={{ color }} />
+              </div>
+
+              <div>
+                <p
+                  className="text-xl font-black leading-none"
+                  style={{ color }}
+                >
+                  {value}
+                </p>
+                <p
+                  className="text-[10px] font-medium mt-0.5"
+                  style={{ color:'var(--muted)' }}
+                >
+                  {label}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div
+        className="rounded-2xl border px-4 py-3 flex flex-col gap-3 shadow-sm"
+        style={{
+          backgroundColor:'var(--surface)',
+          borderColor:'var(--border)'
+        }}
+      >
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
+              style={{ color:'var(--muted)' }}
+            />
+
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search roles by name, description or T-code (e.g. ME33K, FB01)..."
+              className="w-full pl-9 pr-8 py-2.5 rounded-xl border text-sm focus:outline-none transition-all"
+              style={{
+                backgroundColor:'var(--surface2)',
+                borderColor:'var(--border)',
+                color:'var(--text)'
+              }}
+              onFocus={e => {
+                e.currentTarget.style.backgroundColor = 'var(--surface)'
+                e.currentTarget.style.borderColor = 'var(--accent2)'
+                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(81,87,147,0.15)'
+              }}
+              onBlur={e => {
+                e.currentTarget.style.backgroundColor = 'var(--surface2)'
+                e.currentTarget.style.borderColor = 'var(--border)'
+                e.currentTarget.style.boxShadow = 'none'
+              }}
+            />
+
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 focus:outline-none"
+                style={{ color:'var(--muted)' }}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          <div className="relative flex-shrink-0">
+            <button
+              onClick={() => setSortOpen(p => !p)}
+              className="flex items-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-semibold focus:outline-none whitespace-nowrap"
+              style={{
+                backgroundColor:'var(--surface2)',
+                borderColor:'var(--border)',
+                color:'var(--text2)'
+              }}
+            >
+              <ArrowUpDown
+                className="w-3.5 h-3.5"
+                style={{ color:'var(--muted)' }}
+              />
+              {currentLabel}
+            </button>
+
+            {sortOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setSortOpen(false)}
+                />
+
+                <div
+                  className="absolute right-0 top-full mt-1 z-30 rounded-xl border shadow-lg overflow-hidden w-44"
+                  style={{
+                    backgroundColor:'var(--surface)',
+                    borderColor:'var(--border)'
+                  }}
+                >
+                  {SORT_OPTIONS.map(opt => (
+                    <button
+                      key={opt.key}
+                      onClick={() => {
+                        setSortBy(opt.key)
+                        setSortOpen(false)
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-xs font-semibold focus:outline-none hover:opacity-80"
+                      style={{
+                        backgroundColor:
+                          sortBy === opt.key
+                            ? 'var(--accent2)'
+                            : 'transparent',
+                        color:
+                          sortBy === opt.key
+                            ? '#fff'
+                            : 'var(--text2)',
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {!isLoading && !isError && (
+          <div className="relative z-20 flex flex-wrap gap-1.5">
+            <button
+              onClick={() => setActiveModule(null)}
+              className="px-3 py-1.5 rounded-full text-xs font-bold border transition-all focus:outline-none"
+              style={
+                activeModule === null
+                  ? {
+                      backgroundColor:'#515793',
+                      color:'#fff',
+                      borderColor:'#1A003B'
+                    }
+                  : {
+                      backgroundColor:'var(--surface2)',
+                      color:'var(--muted)',
+                      borderColor:'var(--border)'
+                    }
+              }
+            >
+              All ({allRolesRaw.length})
+            </button>
+
+            {moduleGroups.map(([key, count]) => {
+              const active = activeModule === key
+              const color = '#515793'
+              const Icon = MOD_ICON[key] ?? Hash
+              const full = moduleNames[key] ?? key
+              const short =
+                full.length > 14
+                  ? shortenModName(full)
+                  : full
+
+              return (
+                <button
+                  key={key}
+                  onClick={() =>
+                    setActiveModule(active ? null : key)
+                  }
+                  title={full}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all focus:outline-none"
+                  style={
+                    active
+                      ? {
+                          backgroundColor:color,
+                          color:'#fff',
+                          borderColor:color
+                        }
+                      : {
+                          backgroundColor:'var(--surface2)',
+                          color:'var(--muted)',
+                          borderColor:'var(--border)'
+                        }
+                  }
+                >
+                  <Icon className="w-3 h-3" />
+                  {key} &ndash; {short}
+
+                  <span className="opacity-60 font-medium">
+                    ({count})
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {!isLoading && !isError && (
+        <div className="flex items-center justify-between px-1">
+          <p className="text-sm" style={{ color:'var(--muted)' }}>
+            <span style={{ fontWeight:700, color:'var(--text)' }}>
+              {visible.length}
+            </span>
+
+            {' '}role{visible.length !== 1 ? 's' : ''} in
+
+            {hasTcodeResults && debSearch.trim() && (
+              <span className="inline-flex items-center gap-1 ml-1">
+                <span style={{ color:'var(--muted)' }}>
+                  containing T-code
+                </span>
+
+                <span
+                  className="font-mono font-black px-1.5 py-0.5 rounded text-[10px]"
+                  style={{
+                    backgroundColor:'rgba(250,100,20,0.15)',
+                    color:'var(--accent)'
+                  }}
+                >
+                  {debSearch.trim().toUpperCase()}
+                </span>
+              </span>
+            )}
+
+            {!hasTcodeResults && debSearch.trim() && (
+              <span
+                style={{
+                  color:'var(--accent2)',
+                  fontWeight:700
+                }}
+              >
+                {' '}matching &ldquo;{debSearch.trim()}&rdquo;
+              </span>
+            )}
+
+            {activeModule && (
+              <span style={{ fontWeight:700 }}>
+                {' '}{moduleNames[activeModule] ?? activeModule}
+              </span>
+            )}
+
+            {!isFiltering && (
+              <span className="text-xs opacity-60">
+                {' '}&mdash; {currentLabel}
+              </span>
+            )}
+          </p>
+
+          <div className="flex items-center gap-2">
+            {tcodeLoading && debSearch.trim() && (
+              <span
+                className="text-[10px] flex items-center gap-1"
+                style={{ color:'var(--muted)' }}
+              >
+                <Zap
+                  className="w-3 h-3 animate-pulse"
+                  style={{ color:'var(--accent)' }}
+                />
+                Searching T-codes...
+              </span>
+            )}
+
+            {isFiltering && (
+              <button
+                onClick={() => {
+                  setSearch('')
+                  setActiveModule(null)
+                }}
+                className="text-xs underline focus:outline-none"
+                style={{ color:'var(--muted)' }}
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {isError && (
+        <div
+          className="flex items-start gap-3 rounded-xl p-4 border"
+          style={{
+            backgroundColor:'var(--surface)',
+            borderColor:'#fca5a5'
+          }}
+        >
+          <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+
+          <div>
+            <p className="text-sm font-bold" style={{ color:'#ef4444' }}>
+              Failed to load roles
+            </p>
+
+            <p className="text-sm mt-0.5" style={{ color:'#f87171' }}>
+              {error?.message}
+            </p>
+
+            <button
+              onClick={() => void refetch()}
+              className="mt-2 inline-flex items-center gap-1 text-sm hover:underline"
+              style={{ color:'#ef4444' }}
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Retry
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isLoading && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} />
+          ))}
+        </div>
+      )}
+
+      {!isLoading && !isError && (
+        visible.length === 0
+          ? (
+            <div
+              className="py-16 text-center rounded-2xl border"
+              style={{
+                backgroundColor:'var(--surface)',
+                borderColor:'var(--border)'
+              }}
+            >
+              <p className="text-lg font-bold" style={{ color:'var(--muted)' }}>
+                {debSearch.trim() && !tcodeLoading
+                  ? 'No matches found'
+                  : 'No roles found'}
+              </p>
+
+              <p className="text-sm mt-1" style={{ color:'var(--muted)' }}>
+                {debSearch.trim()
+                  ? `No roles contain T-code "${debSearch.trim().toUpperCase()}" or match that name`
+                  : 'Try a different filter'}
+              </p>
+
+              {isFiltering && (
+                <button
+                  onClick={() => {
+                    setSearch('')
+                    setActiveModule(null)
+                  }}
+                  className="mt-3 text-sm underline focus:outline-none"
+                  style={{ color:'var(--accent2)' }}
+                >
+                  Clear all filters
+                </button>
+              )}
+            </div>
+          )
+          : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {visible.map(r => (
+                <RoleCard
+                  key={r.agr_name}
+                  role={r}
+                  isSelected={selectedRoles.includes(r.agr_name)}
+                  onSelect={onSelectRole}
+                  onClick={onViewDetail}
+                />
+              ))}
+            </div>
+          )
+      )}
+
+      {selectedRoles.length >= 2 && (
+        <div
+          className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40 flex items-center gap-4 rounded-2xl shadow-2xl border px-6 py-3.5"
+          style={{
+            backgroundColor:'var(--surface)',
+            borderColor:'var(--border)'
+          }}
+        >
+          <div>
+            <p
+              className="text-base font-black leading-none"
+              style={{ color:'var(--text)' }}
+            >
+              <span style={{ color:'var(--accent)' }}>
+                {selectedRoles.length}
+              </span>{' '}
+              roles selected
+            </p>
+
+            <p
+              className="text-[10px] mt-0.5"
+              style={{ color:'var(--muted)' }}
+            >
+              up to 5 total
+            </p>
+          </div>
+
+          <div
+            className="w-px h-8"
+            style={{ backgroundColor:'var(--border)' }}
+          />
+
+          <button
+            onClick={onCompare}
+            className="flex items-center gap-2 text-white font-black px-6 py-2.5 rounded-xl text-sm focus:outline-none hover:opacity-90 active:scale-95"
+            style={{ backgroundColor:'var(--accent)' }}
+          >
+            <GitCompare className="w-4 h-4" />
+            Compare now
+          </button>
+
+          <button
+            onClick={clearSel}
+            className="text-xs font-semibold hover:underline focus:outline-none"
+            style={{ color:'var(--muted)' }}
+          >
+            Clear
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
