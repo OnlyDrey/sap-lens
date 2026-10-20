@@ -5,8 +5,8 @@ interface ModuleFilterProps { modules: ModuleInfo[]; selectedModule: string | nu
 
 export function ModuleFilter({ modules, selectedModule, onSelect }: ModuleFilterProps) {
   const btnCls = (active: boolean) => cn(
-    'px-3 py-1 rounded-full text-sm font-medium border transition-colors focus:outline-none focus:ring-2 focus:ring-[#003366]',
-    active ? 'bg-[#003366] text-white border-[#003366]' : 'bg-white text-gray-600 border-gray-300 hover:bg-blue-50 hover:border-[#003366] hover:text-[#003366]'
+    'px-3 py-1 rounded-full text-sm font-medium border transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--focus)]',
+    active ? 'bg-[var(--accent)] text-[var(--on-accent)] border-[var(--accent)]' : 'bg-[var(--surface)] text-[var(--text2)] border-[var(--border)] hover:bg-[var(--hover)]'
   )
   return (
     <nav className="flex flex-wrap gap-2 py-2">

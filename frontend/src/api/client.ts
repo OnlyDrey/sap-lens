@@ -22,12 +22,15 @@ export function applicationToken(): string { return desktopSession || '1' }
 const apiClient = {
   async request<T>(path: string, method: string, body?: unknown): Promise<{ data: T }> {
     let response: Response
+    const controller = new AbortController()
+    const timer = method === 'GET' ? setTimeout(()=>controller.abort(),10000) : undefined
     try { response = await fetch(path, {
-      method,
+      method, signal: controller.signal,
       headers: { 'Content-Type': 'application/json', 'X-SAP-Lens': applicationToken() },
       body: body === undefined ? undefined : JSON.stringify(body),
       cache: 'no-store',
-    }) } catch { throw new Error('SAP Lens could not connect. Close and reopen the application, then try again.') }
+    }) } catch { throw new Error('SAP Lens could not connect. Retry or close and reopen the application.') }
+    finally { if(timer)clearTimeout(timer) }
     const data = await response.json()
     if (!response.ok) {
       const detail = typeof data.detail === 'string' ? data.detail : Array.isArray(data.detail)

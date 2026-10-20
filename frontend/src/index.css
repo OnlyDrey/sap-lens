@@ -65,3 +65,35 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--accent2); border-radius: 4px; }
 }
+/* A single administration workspace; only its content pane scrolls. */
+.settings-workspace { display:flex; flex:1; min-height:0; color:var(--text); background:var(--bg); }
+.settings-sidebar { width:260px; flex-shrink:0; display:flex; flex-direction:column; padding:24px 16px; border-right:1px solid var(--border); background:var(--surface); overflow-y:auto; }
+.settings-nav-item { display:flex; align-items:center; gap:12px; padding:13px 12px; border-radius:8px; text-align:left; font-size:13px; font-weight:500; color:var(--text2); }
+.settings-nav-item svg { flex-shrink:0; }
+.settings-nav-item:hover { background:var(--surface2); }
+.settings-nav-item.active { background:color-mix(in srgb, var(--accent2) 17%, var(--surface)); color:var(--text); box-shadow:inset 3px 0 var(--accent2); }
+.settings-workspace button:focus-visible,.settings-workspace summary:focus-visible { outline:2px solid var(--accent2); outline-offset:3px; }
+.settings-main { flex:1; min-width:0; min-height:0; display:flex; flex-direction:column; }
+.settings-scroll { overflow-y:auto; flex:1; min-height:0; }
+.settings-content { max-width:1056px; padding:32px 40px; margin:0 auto; }
+.settings-actions { flex-shrink:0; display:flex; align-items:center; gap:12px; padding:16px 40px; background:var(--surface); border-top:1px solid var(--border); }
+.settings-subheading { padding-top:14px; font-size:16px; font-weight:600; }
+.settings-file-summary { display:flex; gap:16px; align-items:center; padding:18px; border-radius:12px; background:var(--surface2); }
+.settings-notice { display:flex; align-items:flex-start; gap:10px; margin-bottom:20px; padding:12px 16px; border-radius:8px; color:var(--text2); background:color-mix(in srgb, #10b981 12%, var(--surface)); font-size:13px; }
+.settings-notice.recovery { background:color-mix(in srgb, #f59e0b 14%, var(--surface)); }
+.settings-advanced { padding:16px 0; border-top:1px solid var(--border); }
+.settings-advanced summary { cursor:pointer; font-weight:600; font-size:14px; }
+.settings-advanced[open] { display:block; }
+.settings-advanced > * + * { margin-top:14px; }
+.module-list-row { display:flex; align-items:center; gap:14px; width:100%; padding:15px 4px; }
+.module-editor { padding:8px 16px 24px 54px; }
+.icon-choice { display:flex; position:relative; flex-direction:column; gap:8px; align-items:center; padding:14px 8px; border-radius:8px; background:var(--surface2); font-size:11px; }
+.icon-choice.selected { background:color-mix(in srgb, var(--accent2) 20%, var(--surface)); box-shadow:inset 0 0 0 2px var(--accent2); }
+@media(max-width:1050px) { .settings-sidebar { width:226px; padding:20px 10px; } .settings-content { padding:28px 24px; } .settings-actions { padding:14px 24px; } }
+@media(max-width:700px) { .settings-sidebar { width:72px; padding:16px 8px; } .settings-sidebar p,.settings-nav-item span { display:none; } .settings-sidebar>button { font-size:0; padding:10px; } .settings-nav-item { justify-content:center; } .settings-content { padding:22px 16px; } .settings-actions { padding:12px 16px; gap:8px; } .module-editor { padding-left:8px; } }
+@media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:0.01ms!important; transition-duration:0.01ms!important; } }
+:root { --primary:#182c53; --on-primary:#ffffff; --on-accent:#ffffff; --focus:#515793; --hover:#eef0f9; --success:#17623c; --warning:#805000; --error:#b42318; --info:#1858a4; --error-bg:#fff1f0; --info-bg:#eaf2ff; }
+[data-theme="dark"] { --primary:#1a003b; --on-primary:#ffffff; --on-accent:#111111; --focus:#7c85d4; --hover:#242b43; --success:#6fe0a0; --warning:#ffd078; --error:#ffb4a9; --info:#9ac7ff; --error-bg:#401f26; --info-bg:#162b44; }
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible,textarea:focus-visible { outline:2px solid var(--focus); outline-offset:3px; }
+.startup-screen { min-height:100dvh; display:grid; place-items:center; padding:28px; background:var(--bg); color:var(--text); }
+.startup-card { max-width:460px; width:100%; text-align:center; padding:36px; border-radius:20px; background:var(--surface); }

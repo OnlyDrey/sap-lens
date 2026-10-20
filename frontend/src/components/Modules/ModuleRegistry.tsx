@@ -5,7 +5,7 @@ import { DollarSign, BarChart2, Package, Wrench, Users, TrendingUp, Cog, FolderK
   Code, FileText, Leaf, Hash } from 'lucide-react'
 import { fetchRegistry, fetchConfiguration, type RegistryEntry } from '@/api/configuration'
 
-const icons = { DollarSign, BarChart2, Package, Wrench, Users, TrendingUp, Cog, FolderKanban,
+export const icons = { DollarSign, BarChart2, Package, Wrench, Users, TrendingUp, Cog, FolderKanban,
   CheckCircle, Server, Warehouse, Layers, Shield, Database, Truck, Building2, Globe, Code, FileText, Leaf, Hash }
 const DomainContext = createContext<Record<string,string>>({})
 const Context = createContext<Record<string,RegistryEntry>>({})

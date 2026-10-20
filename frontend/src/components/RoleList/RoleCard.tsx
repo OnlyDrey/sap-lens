@@ -1,3 +1,4 @@
+import { onColor } from '@/lib/theme'
 import { Plus, Check, ArrowRight, Zap, Layers } from 'lucide-react'
 import { useDomainLabel, useModuleVisual } from '@/components/Modules/ModuleRegistry'
 import { cn } from '@/lib/utils'
@@ -34,15 +35,15 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
       style={{
         backgroundColor: 'var(--surface)',
         border: isSelected
-          ? '2px solid var(--accent)'
+          ? '2px solid var(--accent2)'
           : hasTcodeMatch
-            ? '1.5px solid rgba(250,100,20,0.4)'
+            ? '1.5px solid color-mix(in srgb, var(--accent) 40%, transparent)'
             : '1px solid var(--border)',
         padding: isSelected ? '15px' : '16px',
         boxShadow: isSelected
           ? '0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent)'
           : hasTcodeMatch
-            ? '0 0 0 3px rgba(250,100,20,0.08)'
+            ? '0 0 0 3px color-mix(in srgb, var(--accent) 8%, transparent)'
             : '0 1px 3px rgba(0,0,0,0.06)',
       }}>
       <div className="flex flex-col gap-2.5">
@@ -51,8 +52,8 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
             <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
-              style={{ backgroundColor: color }}>
-              {Icon ? <Icon className="w-3.5 h-3.5 text-white" /> : null}
+              style={{ backgroundColor:color, color:onColor(color) }}>
+              {Icon ? <Icon className="w-3.5 h-3.5 text-current" /> : null}
             </div>
             <span className="text-[11px] font-semibold truncate" style={{ color:'var(--text2)' }}>
               {modName}{domainLabel ? ` · ${domainLabel}` : ''}{role.classification_ambiguous?' · Ambiguous':''}
@@ -63,7 +64,7 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
             aria-label={isSelected ? 'Remove from comparison' : 'Add to comparison'}
             className={cn('w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all focus:outline-none hover:scale-110 active:scale-95')}
             style={isSelected
-              ? { backgroundColor:'var(--accent)', color:'#fff', border:'none' }
+              ? { backgroundColor:'var(--accent)', color:'var(--on-accent)', border:'none' }
               : { backgroundColor:'var(--surface2)', color:'var(--muted)', border:'1.5px solid var(--border)' }}>
             {isSelected
               ? <Check className="w-3.5 h-3.5" strokeWidth={3} />
@@ -92,7 +93,7 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
             {role.matching_tcodes!.slice(0, 4).map(tc => (
               <span key={tc}
                 className="font-mono text-[10px] font-black px-1.5 py-0.5 rounded-md"
-                style={{ backgroundColor:'rgba(250,100,20,0.15)', color:'var(--accent)' }}>
+                style={{ backgroundColor:'color-mix(in srgb, var(--accent) 15%, transparent)', color:'var(--accent2)' }}>
                 {tc}
               </span>
             ))}
@@ -120,7 +121,7 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
           {hasSR && <span style={{ color:'var(--border)', userSelect:'none' }}>|</span>}
 
           <div className="flex items-center gap-1">
-            <Zap className="w-3 h-3 flex-shrink-0" style={{ color:'var(--accent)' }} />
+            <Zap className="w-3 h-3 flex-shrink-0" style={{ color:'var(--accent2)' }} />
             <span className="text-[11px] font-bold tabular-nums" style={{ color:'var(--text2)' }}>
               {role.tcode_count.toLocaleString()}
             </span>

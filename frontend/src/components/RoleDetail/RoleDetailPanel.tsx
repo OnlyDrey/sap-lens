@@ -1,3 +1,4 @@
+import { onColor } from '@/lib/theme'
 import { useState, useEffect, useCallback } from 'react'
 import { X, ChevronDown, ChevronRight, AlertTriangle, Loader2, Layers, Zap } from 'lucide-react'
 import * as ScrollArea from '@radix-ui/react-scroll-area'
@@ -7,7 +8,7 @@ import type { SingleRole, TCode } from '@/api/types'
 
 function RowModIcon({ moduleId }: { moduleId?: string }) {
   const {Icon,color} = useModuleVisual(moduleId)
-  return <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0" style={{backgroundColor:color}}><Icon className="w-3.5 h-3.5 text-white" /></div>
+  return <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0" style={{backgroundColor:color, color:onColor(color)}}><Icon className="w-3.5 h-3.5 text-current" /></div>
 }
 
 function SingleRoleRow({ sr }: { sr: SingleRole }) {
@@ -41,9 +42,9 @@ function SingleRoleRow({ sr }: { sr: SingleRole }) {
 
         {/* T-code count: Zap icon + number (clearer than "8T") */}
         <div className="flex items-center gap-1 flex-shrink-0 px-2 py-0.5 rounded-lg"
-          style={{ backgroundColor: 'rgba(250,100,20,0.12)' }}>
-          <Zap className="w-3 h-3" style={{ color: 'var(--accent)' }} aria-hidden="true" />
-          <span className="text-[11px] font-black tabular-nums" style={{ color: 'var(--accent)' }}>
+          style={{ backgroundColor: 'color-mix(in srgb, var(--accent) 12%, transparent)' }}>
+          <Zap className="w-3 h-3" style={{ color: 'var(--accent2)' }} aria-hidden="true" />
+          <span className="text-[11px] font-black tabular-nums" style={{ color: 'var(--accent2)' }}>
             {sr.tcodes.length}
           </span>
         </div>
@@ -101,28 +102,28 @@ export function RoleDetailPanel({ roleName, onClose }: { roleName: string | null
 
         {/* Header */}
         <div className="flex items-start justify-between gap-3 px-6 py-4 flex-shrink-0"
-          style={{ backgroundColor: '#1A003B', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+          style={{ backgroundColor: 'var(--primary)', color:'var(--on-primary)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
           <div className="min-w-0 flex-1">
-            <p className="text-base font-black text-white leading-snug">
+            <p className="text-base font-black text-current leading-snug">
               {cleanTitle(role?.text ?? null)}
             </p>
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               {role?.function_key && (
-                <span className="text-xs font-bold px-2 py-0.5 rounded-md text-white"
+                <span className="text-xs font-bold px-2 py-0.5 rounded-md text-current"
                   style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}>
                   {role.function_key}
                 </span>
               )}
               {role?.module_name && (
-                <span className="text-xs font-medium" style={{ color: '#8ba3c7' }}>
+                <span className="text-xs font-medium" style={{ color: 'var(--on-primary)' }}>
                   {role.module_name}
                 </span>
               )}
             </div>
-            <p className="font-mono text-[10px] mt-1.5 break-all" style={{ color: '#4a6a8a' }}>{roleName}</p>
+            <p className="font-mono text-[10px] mt-1.5 break-all" style={{ color: 'var(--on-primary)' }}>{roleName}</p>
           </div>
           <button onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0 focus:outline-none">
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-current/60 hover:text-current hover:bg-white/10 transition-colors flex-shrink-0 focus:outline-none">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -133,16 +134,16 @@ export function RoleDetailPanel({ roleName, onClose }: { roleName: string | null
 
               {isLoading && (
                 <div className="flex flex-col items-center py-20 gap-3">
-                  <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--accent)' }} />
+                  <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--accent2)' }} />
                   <p className="text-sm" style={{ color: 'var(--muted)' }}>Loading...</p>
                 </div>
               )}
               {isError && (
-                <div className="flex gap-3 rounded-xl p-4" style={{ backgroundColor: 'var(--surface2)', border: '1px solid #fca5a5' }}>
-                  <AlertTriangle className="w-5 h-5 text-red-500" />
+                <div className="flex gap-3 rounded-xl p-4" style={{ backgroundColor: 'var(--surface2)', border: '1px solid var(--error)' }}>
+                  <AlertTriangle className="w-5 h-5 text-[var(--error)]" />
                   <div>
-                    <p className="text-sm font-bold" style={{ color: '#ef4444' }}>Error</p>
-                    <p className="text-sm" style={{ color: '#f87171' }}>{error?.message}</p>
+                    <p className="text-sm font-bold" style={{ color: 'var(--error)' }}>Error</p>
+                    <p className="text-sm" style={{ color: 'var(--error)' }}>{error?.message}</p>
                   </div>
                 </div>
               )}
@@ -169,8 +170,8 @@ export function RoleDetailPanel({ roleName, onClose }: { roleName: string | null
                     {/* T-codes â€” RIGHT */}
                     <div className="flex-1 text-center">
                       <div className="flex items-center justify-center gap-1.5 mb-1">
-                        <Zap className="w-4 h-4" style={{ color: 'var(--accent)' }} />
-                        <p className="text-3xl font-black leading-none" style={{ color: 'var(--accent)' }}>
+                        <Zap className="w-4 h-4" style={{ color: 'var(--accent2)' }} />
+                        <p className="text-3xl font-black leading-none" style={{ color: 'var(--accent2)' }}>
                           {role.tcode_count.toLocaleString()}
                         </p>
                       </div>

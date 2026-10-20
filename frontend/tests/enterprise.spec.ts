@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { mkdtempSync, copyFileSync, unlinkSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, unlinkSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -9,7 +9,8 @@ test.beforeEach(async ({request}) => { expect((await request.post('/api/configur
 test('system identity, private logo storage, persisted theme and portable backup/restore',async ({page}) => {
   const directory=mkdtempSync(path.join(tmpdir(),'sap-lens-test-logo-'))
   const logoPath=path.join(directory,'synthetic-logo.png')
-  copyFileSync(path.resolve('public/sap-lens.png'),logoPath)
+  const logoData=await page.evaluate(()=>{const canvas=document.createElement('canvas');canvas.width=320;canvas.height=80;const context=canvas.getContext('2d')!;context.fillStyle='#123456';context.fillRect(0,0,320,80);return canvas.toDataURL('image/png').split(',')[1]})
+  writeFileSync(logoPath,Buffer.from(logoData,'base64'))
   page.on('dialog',dialog=>void dialog.accept())
   await page.addInitScript(({logoPath})=>{window.pywebview={api:{choose_csv:async()=>null,choose_logo:async()=>logoPath}}},{logoPath})
   try {
@@ -20,7 +21,7 @@ test('system identity, private logo storage, persisted theme and portable backup
     await page.getByLabel('SAP system ID',{exact:true}).fill('DEMO2')
     await page.getByLabel('SAP client',{exact:true}).fill('200')
     await page.getByRole('button',{name:'Apply settings',exact:true}).click()
-    await expect(page.getByRole('dialog')).toBeHidden()
+    await expect(page.getByRole('region',{name:'SAP Lens settings',exact:true})).toBeHidden()
     await expect(page.getByText('Example Test Organization',{exact:true})).toBeVisible()
     await page.getByRole('button',{name:'Open settings'}).click()
     await page.getByRole('tab',{name:'Appearance & Branding'}).click()
@@ -31,10 +32,15 @@ test('system identity, private logo storage, persisted theme and portable backup
     unlinkSync(logoPath)
     await page.reload()
     await expect(page.locator('html')).toHaveClass(/dark/)
-    await page.getByRole('button',{name:'Close settings'}).click()
-    await expect(page.getByRole('banner').getByRole('img',{name:'SAP Lens',exact:true})).toHaveAttribute('src',/^data:image\/png;base64,/)
+    await page.getByRole('button',{name:'Back to SAP Lens'}).click()
+    await expect(page.getByRole('banner').getByRole('img',{name:'Example Test Organization logo',exact:true})).toHaveAttribute('src',/^data:image\/png;base64,/)
+    const headerLogo=page.getByRole('banner').getByRole('img',{name:'Example Test Organization logo',exact:true})
+    await expect(headerLogo).toHaveJSProperty('naturalWidth',320)
+    await expect(headerLogo).toHaveJSProperty('naturalHeight',80)
+    await expect(headerLogo).toHaveCSS('object-fit','contain')
+    const bounds=await headerLogo.boundingBox();expect(bounds!.width).toBeLessThanOrEqual(160);expect(bounds!.height).toBeLessThanOrEqual(48)
     // No CSV is configured, so the first-run data section remains accessible.
-    if(!(await page.getByRole('dialog').isVisible()))await page.getByRole('button',{name:'Open settings'}).click()
+    if(!(await page.getByRole('region',{name:'SAP Lens settings',exact:true}).isVisible()))await page.getByRole('button',{name:'Open settings'}).click()
     await page.getByRole('tab',{name:'Application & Diagnostics'}).click()
     await page.getByLabel('Include private organization details, profiles and branding in export').check()
     const downloadPromise=page.waitForEvent('download')
@@ -71,7 +77,7 @@ test('custom column mapping, classification preview and registry customization p
     await page.getByRole('button',{name:'Preview import',exact:true}).click()
     await expect(page.getByText(/1 composite roles/)).toBeVisible()
     await page.getByRole('button',{name:'Save and load CSV',exact:true}).click()
-    await expect(page.getByRole('dialog')).toBeHidden()
+    await expect(page.getByRole('region',{name:'SAP Lens settings',exact:true})).toBeHidden()
     await page.getByRole('button',{name:'Open settings'}).click()
     await page.getByRole('tab',{name:'Domains & Classification'}).click()
     await page.getByRole('combobox',{name:'Classification profile',exact:true}).selectOption('custom')
@@ -79,13 +85,14 @@ test('custom column mapping, classification preview and registry customization p
     await page.getByLabel('Domain 1 ID',{exact:true}).fill('finance')
     await page.getByLabel('Domain 1 label',{exact:true}).fill('Synthetic finance')
     await page.getByLabel('Domain 1 module',{exact:true}).selectOption('FI')
+    await page.getByText('Advanced rules and exact overrides',{exact:true}).click()
     await page.getByRole('button',{name:'Add rule',exact:true}).click()
     await page.getByLabel('Rule 1 pattern',{exact:true}).fill('DEMO_')
     await page.getByLabel('Test an individual role name',{exact:true}).fill('DEMO_ROOT')
     await page.getByRole('button',{name:'Preview classification',exact:true}).click()
     await expect(page.getByText('Test role: finance',{exact:true})).toBeVisible()
     await page.getByRole('button',{name:'Apply settings',exact:true}).click()
-    await expect(page.getByRole('dialog')).toBeHidden()
+    await expect(page.getByRole('region',{name:'SAP Lens settings',exact:true})).toBeHidden()
     const detail=await (await request.get('/api/roles/DEMO_ROOT',{headers})).json()
     expect(detail.relationships[0].effective_role).toBe('DEMO_EFFECTIVE')
     expect(detail.single_roles[0].tcodes[0].tcode).toBe('DEMO_TRANSACTION')
@@ -93,11 +100,12 @@ test('custom column mapping, classification preview and registry customization p
     await page.getByRole('button',{name:'Open settings'}).click()
     await page.getByRole('tab',{name:'SAP Modules'}).click()
     await page.getByLabel('Find SAP module or area',{exact:true}).fill('FI')
+    await page.getByRole('button',{name:'Edit FI — Financial Accounting',exact:true}).click()
     await page.getByLabel('FI display name',{exact:true}).fill('Synthetic accounting')
-    await page.getByLabel('FI icon',{exact:true}).selectOption('Layers')
+    await page.getByRole('group',{name:'FI icon choices'}).getByRole('button',{name:'Layers',exact:true}).click()
     await page.getByLabel('FI color',{exact:true}).fill('#123456')
     await page.getByRole('button',{name:'Apply settings',exact:true}).click()
-    await expect(page.getByRole('dialog')).toBeHidden()
+    await expect(page.getByRole('region',{name:'SAP Lens settings',exact:true})).toBeHidden()
     await expect(page.getByRole('article',{name:'DEMO_ROOT',exact:true})).toContainText('Synthetic accounting')
     const registry=(await (await request.get('/api/registry/modules',{headers})).json()).modules
     expect(registry.find((m:{id:string})=>m.id==='FI').color).toBe('#123456')

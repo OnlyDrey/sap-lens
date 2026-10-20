@@ -1,3 +1,4 @@
+import { onColor } from '@/lib/theme'
 import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowLeft, Loader2, AlertTriangle, RefreshCw, GitCompare, Share2,
@@ -26,11 +27,11 @@ function ModLabel({ r, center }: { r: ComparisonRole; center?: boolean }) {
     <div className={`flex items-center gap-1.5 ${center ? 'justify-center' : ''}`}>
       <div
         className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
-        style={{ backgroundColor: color }}
+        style={{ backgroundColor:color, color:onColor(color) }}
       >
         {Icon
-          ? <Icon className="w-3 h-3 text-white" />
-          : <span className="text-[8px] text-white font-black">{r.function_key}</span>}
+          ? <Icon className="w-3 h-3 text-current" />
+          : <span className="text-[8px] text-current font-black">{r.function_key}</span>}
       </div>
       <span
         className="text-[10px] font-semibold truncate"
@@ -45,11 +46,11 @@ function ModLabel({ r, center }: { r: ComparisonRole; center?: boolean }) {
 function cellBg(count: number, max: number): string {
   if (count === 0 || max === 0) return 'transparent'
   const t = Math.sqrt(count / max)
-  if (t < 0.15) return 'rgba(81,87,147,0.18)'
-  if (t < 0.35) return 'rgba(81,87,147,0.35)'
-  if (t < 0.55) return 'rgba(81,87,147,0.54)'
-  if (t < 0.75) return 'rgba(81,87,147,0.72)'
-  return 'rgba(81,87,147,0.90)'
+  if (t < 0.15) return 'color-mix(in srgb, var(--accent) 18%, transparent)'
+  if (t < 0.35) return 'color-mix(in srgb, var(--accent) 35%, transparent)'
+  if (t < 0.55) return 'color-mix(in srgb, var(--accent) 54%, transparent)'
+  if (t < 0.75) return 'color-mix(in srgb, var(--accent) 72%, transparent)'
+  return 'color-mix(in srgb, var(--accent) 90%, transparent)'
 }
 
 function TCodeTable({ rows }: { rows: TCode[] }) {
@@ -120,11 +121,11 @@ function SRRow({ sr, parentRoleName }: { sr: SingleRoleInfo; parentRoleName: str
       >
         <div
           className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
-          style={{ backgroundColor: color }}
+          style={{ backgroundColor:color, color:onColor(color) }}
         >
           {Icon
-            ? <Icon className="w-3.5 h-3.5 text-white" />
-            : <span className="text-[8px] font-black text-white">{mod ?? '?'}</span>}
+            ? <Icon className="w-3.5 h-3.5 text-current" />
+            : <span className="text-[8px] font-black text-current">{mod ?? '?'}</span>}
         </div>
 
         {open
@@ -144,10 +145,10 @@ function SRRow({ sr, parentRoleName }: { sr: SingleRoleInfo; parentRoleName: str
 
         <div
           className="flex items-center gap-1 px-2.5 py-1 rounded-lg flex-shrink-0"
-          style={{ backgroundColor:'rgba(250,100,20,0.12)' }}
+          style={{ backgroundColor:'color-mix(in srgb, var(--accent) 12%, transparent)' }}
         >
-          <Zap className="w-3 h-3" style={{ color:'var(--accent)' }} />
-          <span className="text-[11px] font-black tabular-nums" style={{ color:'var(--accent)' }}>
+          <Zap className="w-3 h-3" style={{ color:'var(--accent2)' }} />
+          <span className="text-[11px] font-black tabular-nums" style={{ color:'var(--accent2)' }}>
             {sr.tcode_count}
           </span>
         </div>
@@ -157,7 +158,7 @@ function SRRow({ sr, parentRoleName }: { sr: SingleRoleInfo; parentRoleName: str
         <div style={{ borderTop:'1px solid var(--border)', backgroundColor:'var(--surface2)' }}>
           {isLoading && (
             <div className="flex items-center gap-2 px-4 py-3">
-              <Loader2 className="w-4 h-4 animate-spin" style={{ color:'var(--accent)' }}/>
+              <Loader2 className="w-4 h-4 animate-spin" style={{ color:'var(--accent2)' }}/>
               <span className="text-xs" style={{ color:'var(--muted)' }}>Loading...</span>
             </div>
           )}
@@ -214,13 +215,13 @@ function PairModal({
         >
           <div
             className="flex items-center justify-between px-5 py-4 flex-shrink-0"
-            style={{ backgroundColor:'#1A003B', borderRadius:'1rem 1rem 0 0' }}
+            style={{ backgroundColor:'var(--primary)', color:'var(--on-primary)', borderRadius:'1rem 1rem 0 0' }}
           >
             <div>
-              <p className="text-sm font-black text-white">
+              <p className="text-sm font-black text-current">
                 {mode === 'single' ? 'Shared single roles' : 'Shared T-codes'}
               </p>
-              <p className="text-xs mt-0.5" style={{ color:'#8ba3c7' }}>
+              <p className="text-xs mt-0.5" style={{ color:'var(--on-primary)' }}>
                 {labelA} &amp; {labelB}
               </p>
             </div>
@@ -228,8 +229,8 @@ function PairModal({
             <div className="flex items-center gap-3">
               {count != null && !isPending && (
                 <span
-                  className="text-xs font-black px-2.5 py-1 rounded-full text-white"
-                  style={{ backgroundColor:'#3d7a4f' }}
+                  className="text-xs font-black px-2.5 py-1 rounded-full text-current"
+                  style={{ backgroundColor:'var(--success)', color:'var(--on-success)' }}
                 >
                   {count} shared
                 </span>
@@ -238,7 +239,7 @@ function PairModal({
               <button
                 onClick={onClose}
                 className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 focus:outline-none"
-                style={{ color:'rgba(255,255,255,0.6)' }}
+                style={{ color:'var(--on-primary)' }}
               >
                 <X className="w-4 h-4" />
               </button>
@@ -248,12 +249,12 @@ function PairModal({
           <div className="flex-1 overflow-hidden">
             {isPending && (
               <div className="flex items-center justify-center py-16">
-                <Loader2 className="w-8 h-8 animate-spin" style={{ color:'var(--accent)' }} />
+                <Loader2 className="w-8 h-8 animate-spin" style={{ color:'var(--accent2)' }} />
               </div>
             )}
 
             {isError && (
-              <div className="p-5 text-sm" style={{ color:'#ef4444' }}>
+              <div className="p-5 text-sm" style={{ color:'var(--error)' }}>
                 Failed to load
               </div>
             )}
@@ -303,7 +304,7 @@ function PairModal({
                 >
                   <ScrollArea.Thumb
                     className="flex-1 rounded-full"
-                    style={{ backgroundColor:'var(--accent2)' }}
+                    style={{ backgroundColor:'var(--accent2)', color:'var(--on-accent2)' }}
                   />
                 </ScrollArea.Scrollbar>
               </ScrollArea.Root>
@@ -386,7 +387,7 @@ function InsightBar({
           label:'T-code overlap',
           value:`${ins.avgTC}%`,
           sub:'access similarity',
-          color:'var(--accent)',
+          color:'var(--accent2)',
           Icon:<Hash className="w-4 h-4"/>
         },
       ].map((item, i) => (
@@ -421,7 +422,7 @@ function InsightBar({
           className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
           style={{ backgroundColor:'var(--surface2)' }}
         >
-          <TrendingUp className="w-4 h-4" style={{ color:'var(--accent)' }} />
+          <TrendingUp className="w-4 h-4" style={{ color:'var(--accent2)' }} />
         </div>
 
         <div>
@@ -431,7 +432,7 @@ function InsightBar({
           <p className="text-sm font-bold mt-0.5" style={{ color:'var(--text)' }}>
             {lbl(ins.mostA!)} &amp; {lbl(ins.mostB!)}
           </p>
-          <p className="text-xs font-bold mt-0.5" style={{ color:'var(--accent)' }}>
+          <p className="text-xs font-bold mt-0.5" style={{ color:'var(--accent2)' }}>
             {ins.most.shared_count} shared ({ins.most.pct}%)
           </p>
         </div>
@@ -442,7 +443,7 @@ function InsightBar({
           className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
           style={{ backgroundColor:'var(--surface2)' }}
         >
-          <TrendingDown className="w-4 h-4 text-blue-500" />
+          <TrendingDown className="w-4 h-4 text-[var(--info)]" />
         </div>
 
         <div>
@@ -491,8 +492,8 @@ function SRMatrix({
           Single role overlap
         </h2>
         <span
-          className="text-[10px] px-2 py-0.5 rounded-full font-black text-white"
-          style={{ backgroundColor:'var(--accent2)' }}
+          className="text-[10px] px-2 py-0.5 rounded-full font-black text-current"
+          style={{ backgroundColor:'var(--accent2)', color:'var(--on-accent2)' }}
         >
           Primary
         </span>
@@ -590,15 +591,15 @@ function SRMatrix({
                         key={col.agr_name}
                         className="px-3 py-4 text-center"
                         style={{
-                          backgroundColor:'#1A003B',
+                          backgroundColor:'var(--primary)', color:'var(--on-primary)',
                           borderBottom:'1px solid var(--border)',
                           borderRight:'1px solid var(--border)'
                         }}
                       >
-                        <p className="font-black text-white text-xl leading-none">
+                        <p className="font-black text-current text-xl leading-none">
                           {row.single_role_count}
                         </p>
-                        <p className="text-[9px] text-white/40 mt-0.5">
+                        <p className="text-[9px] text-current mt-0.5">
                           single roles
                         </p>
                       </td>
@@ -627,7 +628,7 @@ function SRMatrix({
                     >
                       <p
                         className="font-black text-lg leading-none"
-                        style={{ color: count > 0 ? '#fff' : 'var(--muted)' }}
+                        style={{ color: count > 0 ? 'var(--on-accent)' : 'var(--muted)' }}
                       >
                         {count > 0 ? count : ''}
                       </p>
@@ -636,7 +637,7 @@ function SRMatrix({
                         className="text-[9px] mt-0.5 font-semibold"
                         style={{
                           color: count > 0
-                            ? 'rgba(255,255,255,0.7)'
+                            ? 'var(--on-accent)'
                             : 'var(--muted)'
                         }}
                       >
@@ -691,8 +692,8 @@ function ExclusiveColumn({ role }: { role: ComparisonRole }) {
 
         <div className="flex items-center gap-2">
           <span
-            className="text-[10px] font-black px-2 py-0.5 rounded-lg text-white"
-            style={{ backgroundColor:'var(--accent2)' }}
+            className="text-[10px] font-black px-2 py-0.5 rounded-lg text-current"
+            style={{ backgroundColor:'var(--accent2)', color:'var(--on-accent2)' }}
           >
             {role.exclusive_single_roles.length} exclusive
           </span>
@@ -755,9 +756,9 @@ export function ComparisonView({ roleNames, onBack }: Props) {
         </button>
 
         <div className="flex items-center gap-2">
-          <GitCompare className="w-5 h-5" style={{ color:'var(--accent)' }} />
+          <GitCompare className="w-5 h-5" style={{ color:'var(--accent2)' }} />
           <h1 className="text-xl font-black" style={{ color:'var(--text)' }}>
-            Comparing <span style={{ color:'var(--accent)' }}>{roleNames.length}</span> roles
+            Comparing <span style={{ color:'var(--accent2)' }}>{roleNames.length}</span> roles
           </h1>
         </div>
       </div>
@@ -766,8 +767,8 @@ export function ComparisonView({ roleNames, onBack }: Props) {
         {roleNames.map(n => (
           <span
             key={n}
-            className="font-mono text-xs px-3 py-1.5 rounded-xl font-bold text-white"
-            style={{ backgroundColor:'var(--accent2)' }}
+            className="font-mono text-xs px-3 py-1.5 rounded-xl font-bold text-current"
+            style={{ backgroundColor:'var(--accent2)', color:'var(--on-accent2)' }}
           >
             {n}
           </span>
@@ -776,7 +777,7 @@ export function ComparisonView({ roleNames, onBack }: Props) {
 
       {isPending && (
         <div className="flex flex-col items-center py-20 gap-3">
-          <Loader2 className="w-10 h-10 animate-spin" style={{ color:'var(--accent)' }} />
+          <Loader2 className="w-10 h-10 animate-spin" style={{ color:'var(--accent2)' }} />
           <p className="text-sm font-semibold" style={{ color:'var(--muted)' }}>
             Comparing...
           </p>
@@ -788,16 +789,16 @@ export function ComparisonView({ roleNames, onBack }: Props) {
           className="flex gap-3 rounded-2xl p-5"
           style={{
             backgroundColor:'var(--surface)',
-            border:'1px solid #fca5a5'
+            border:'1px solid var(--error)'
           }}
         >
-          <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
+          <AlertTriangle className="w-5 h-5 text-[var(--error)] flex-shrink-0" />
 
           <div>
-            <p className="text-sm font-bold" style={{ color:'#ef4444' }}>
+            <p className="text-sm font-bold" style={{ color:'var(--error)' }}>
               Comparison failed
             </p>
-            <p className="text-sm mt-0.5" style={{ color:'#f87171' }}>
+            <p className="text-sm mt-0.5" style={{ color:'var(--error)' }}>
               {error?.message}
             </p>
             <button
@@ -806,7 +807,7 @@ export function ComparisonView({ roleNames, onBack }: Props) {
                 mutate(roleNames)
               }}
               className="mt-2 inline-flex items-center gap-1.5 text-sm hover:underline"
-              style={{ color:'#ef4444' }}
+              style={{ color:'var(--error)' }}
             >
               <RefreshCw className="w-3.5 h-3.5" /> Retry
             </button>
@@ -832,13 +833,13 @@ export function ComparisonView({ roleNames, onBack }: Props) {
 
           <section>
             <div className="flex items-center gap-2 mb-3">
-              <Lock className="w-4 h-4" style={{ color:'#3d7a4f' }} />
+              <Lock className="w-4 h-4" style={{ color:'var(--success)' }} />
               <h2 className="text-base font-black" style={{ color:'var(--text)' }}>
                 Shared by all {roleNames.length} roles
               </h2>
               <span
-                className="text-xs font-black px-2.5 py-0.5 rounded-full text-white"
-                style={{ backgroundColor:'#3d7a4f' }}
+                className="text-xs font-black px-2.5 py-0.5 rounded-full text-current"
+                style={{ backgroundColor:'var(--success)', color:'var(--on-success)' }}
               >
                 {data.shared_single_roles.length} single role
                 {data.shared_single_roles.length !== 1 ? 's' : ''}
@@ -887,7 +888,7 @@ export function ComparisonView({ roleNames, onBack }: Props) {
                     >
                       <ScrollArea.Thumb
                         className="flex-1 rounded-full"
-                        style={{ backgroundColor:'var(--accent2)' }}
+                        style={{ backgroundColor:'var(--accent2)', color:'var(--on-accent2)' }}
                       />
                     </ScrollArea.Scrollbar>
                   </ScrollArea.Root>
