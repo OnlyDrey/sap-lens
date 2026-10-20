@@ -135,10 +135,6 @@ def clear_cache():
 
 def get_snapshot(): return _cache
 
-def get_all_roles(): return _cache.summaries
-
 def get_role_detail(name): return _cache.roles.get(name)
 
 def get_modules(): return _cache.modules
-
-def get_last_loaded(): return _cache.last_loaded

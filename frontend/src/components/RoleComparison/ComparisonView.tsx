@@ -14,7 +14,6 @@ import type { TCode, SingleRoleInfo, ComparisonRole, PairwiseOverlap } from '@/a
 interface Props { roleNames: string[]; onBack: () => void }
 
 const cleanDesc = (t:string|null) => t ? t.replace(/^[A-Z]{2,3}\s*-\s*/,'').trim() : ''
-const shortAgr = (name:string) => name
 const lbl = (r:ComparisonRole) => cleanDesc(r.text) || r.agr_name
 
 function ModLabel({ r, center }: { r: ComparisonRole; center?: boolean }) {
@@ -530,7 +529,7 @@ function SRMatrix({
                       className="text-[12px] font-bold leading-tight text-center"
                       style={{ color:'var(--text)' }}
                     >
-                      {cleanDesc(r.text) || shortAgr(r.agr_name)}
+                      {cleanDesc(r.text) || r.agr_name}
                     </span>
 
                     <span
@@ -566,7 +565,7 @@ function SRMatrix({
                   <ModLabel r={row} />
 
                   <p className="text-xs font-bold mt-1.5" style={{ color:'var(--text)' }}>
-                    {cleanDesc(row.text) || shortAgr(row.agr_name)}
+                    {cleanDesc(row.text) || row.agr_name}
                   </p>
 
                   <p
@@ -611,8 +610,8 @@ function SRMatrix({
                     ? Math.round((count / row.single_role_count) * 100)
                     : 0
 
-                  const la = cleanDesc(row.text) || shortAgr(row.agr_name)
-                  const lb = cleanDesc(col.text) || shortAgr(col.agr_name)
+                  const la = cleanDesc(row.text) || row.agr_name
+                  const lb = cleanDesc(col.text) || col.agr_name
 
                   return (
                     <td

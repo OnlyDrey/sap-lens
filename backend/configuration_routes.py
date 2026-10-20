@@ -5,10 +5,10 @@ from fastapi import APIRouter, HTTPException
 from pydantic import Field
 
 import cache
-from config import get_settings, save_configuration, configuration_notice, config_dir
+from config import get_settings, save_configuration, configuration_notice
 from config_models import AppConfig, StrictModel, ClassificationProfile, ImportProfile, ICONS
 from classification import Classifier, classification_preview
-from module_registry import REGISTRY, resolve_module, registry_list
+from module_registry import REGISTRY, registry_list
 from branding import image_from_path, logo_bytes
 from daemon_tasks import daemon_call
 from csv_import import CsvImport

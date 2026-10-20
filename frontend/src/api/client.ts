@@ -103,20 +103,6 @@ export async function fetchRolesByTcode(
 
   return data
 }
-export interface AppSettings {
-  data_csv_path: string
-  error: string | null
-  loading: boolean
-}
-
-export async function fetchSettings(): Promise<AppSettings> {
-  return (await apiClient.get<AppSettings>('/api/settings')).data
-}
-
-export async function saveSettings(path: string): Promise<AppSettings> {
-  return (await apiClient.post<AppSettings>('/api/settings', { data_csv_path: path })).data
-}
-
 export async function apiRequest<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
   return (await apiClient.request<T>(path, method, body)).data
 }

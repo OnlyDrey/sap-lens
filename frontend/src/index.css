@@ -55,7 +55,7 @@
 
   .skip-link {
     position: absolute; top: -100px; left: 1rem; z-index: 9999;
-    padding: .5rem 1rem; background: #FA6414; color: #fff;
+    padding: .5rem 1rem; background: var(--accent); color: var(--on-accent);
     font-weight: 700; border-radius: 0 0 8px 8px; transition: top .15s;
     text-decoration: none;
   }

@@ -1,8 +1,5 @@
-import base64
-import json
 import os
 from pathlib import Path
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -14,7 +11,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import cache
 import config
-from config_models import AppConfig, ClassificationProfile, Domain, Rule, ImportProfile, ModuleOverride
+from config_models import AppConfig, ClassificationProfile, Domain, Rule, ModuleOverride
 from classification import Classifier, classification_preview, legacy_child_module
 from module_registry import REGISTRY, resolve_module, module_definition
 from branding import stage_image, logo_bytes, sanitize_image
