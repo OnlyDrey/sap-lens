@@ -20,7 +20,7 @@ class StrictModel(BaseModel):
 
 
 class Organization(StrictModel):
-    name: str = Field(default='Example Inc.', min_length=1, max_length=120)
+    name: str = Field(default='Example Inc.', min_length=0, max_length=120)
     platform: Literal['SAP S/4HANA', 'SAP ECC', 'Other / Custom'] = 'SAP S/4HANA'
     custom_platform: str = Field(default='', max_length=80)
     system_id: str = Field(default='DEMO', max_length=20)
@@ -106,12 +106,47 @@ class ImportProfile(StrictModel):
         return value
 
 
+class ThemePalette(StrictModel):
+    primary: str = Field(default='#1a003b', pattern=r'^#[0-9a-fA-F]{6}$')
+    accent: str = Field(default='#7c85d4', pattern=r'^#[0-9a-fA-F]{6}$')
+    background: str = Field(default='#0d0d1a', pattern=r'^#[0-9a-fA-F]{6}$')
+    surface: str = Field(default='#111827', pattern=r'^#[0-9a-fA-F]{6}$')
+    text: str = Field(default='#f1f5f9', pattern=r'^#[0-9a-fA-F]{6}$')
+
+    @model_validator(mode='after')
+    def readable_text(self):
+        from theme_colors import contrast
+        if min(contrast(self.text, self.background), contrast(self.text, self.surface)) < 4.5:
+            raise ValueError('Primary text must meet WCAG AA contrast (4.5:1) against both application and card backgrounds.')
+        return self
+
+
+class ThemePreset(StrictModel):
+    name: str = Field(min_length=1, max_length=60)
+    mode: Literal['light', 'dark']
+    colors: ThemePalette
+
+
+class ThemeColors(StrictModel):
+    dark: ThemePalette = Field(default_factory=ThemePalette)
+    light: ThemePalette = Field(default_factory=lambda: ThemePalette(primary='#182c53', accent='#515793', background='#f0f2f7', surface='#ffffff', text='#182c53'))
+    custom_presets: list[ThemePreset] = Field(default_factory=list, max_length=20)
+
+    @model_validator(mode='after')
+    def unique_names(self):
+        names = [preset.name.strip().casefold() for preset in self.custom_presets]
+        if any(not name for name in names) or len(names) != len(set(names)):
+            raise ValueError('Custom theme names must be nonempty and unique.')
+        return self
+
+
 class AppConfig(StrictModel):
     schema_version: Literal[2] = 2
     revision: int = Field(default=0, ge=0)
     data_csv_path: str = Field(default='', max_length=4096)
     organization: Organization = Field(default_factory=Organization)
-    theme: Literal['system', 'dark', 'light'] = 'system'
+    theme: Literal['system', 'dark', 'light'] = 'dark'
+    theme_colors: ThemeColors = Field(default_factory=ThemeColors)
     logo_id: str | None = Field(default=None, pattern=r'^[a-f0-9]{64}$')
     module_overrides: dict[str, ModuleOverride] = Field(default_factory=dict, max_length=100)
     classification_profiles: list[ClassificationProfile] = Field(default_factory=lambda: [

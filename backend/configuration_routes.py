@@ -73,6 +73,16 @@ def configuration_router(loader):
         except (OSError,ValueError):
             raise HTTPException(400,'Configuration could not be applied. Validate profiles, file access, logo and current revision; previous settings remain intact.')
 
+    @router.get('/diagnostics')
+    def diagnostics():
+        from diagnostics import diagnostics_snapshot
+        return diagnostics_snapshot(loader, private=True)
+
+    @router.get('/diagnostics/export')
+    def diagnostics_export():
+        from diagnostics import diagnostics_snapshot
+        return diagnostics_snapshot(loader)
+
     @router.get('/configuration')
     def read_config():
         return {'settings':get_settings().model_dump(), 'notice':configuration_notice(),
