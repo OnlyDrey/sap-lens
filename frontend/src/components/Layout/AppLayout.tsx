@@ -1,19 +1,22 @@
-﻿import { type ReactNode, useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { RefreshCw, Sun, Moon } from 'lucide-react'
-import { useQueryClient } from '@tanstack/react-query'
-import { refreshData } from '@/api/client'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { fetchSettings, refreshData } from '@/api/client'
+import { SettingsDialog } from '@/components/Settings/SettingsDialog'
 import { cn } from '@/lib/utils'
 
 interface Props {
   children: ReactNode
   lastLoaded: string | null
   onRefresh: () => void
+  onDataChanged: () => void
   isDark: boolean
   onToggleTheme: () => void
 }
 
-export function AppLayout({ children, lastLoaded, onRefresh, isDark, onToggleTheme }: Props) {
+export function AppLayout({ children, lastLoaded, onRefresh, onDataChanged, isDark, onToggleTheme }: Props) {
   const qc = useQueryClient()
+  const { data: dataState } = useQuery({ queryKey: ['settings'], queryFn: fetchSettings })
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
@@ -39,8 +42,8 @@ export function AppLayout({ children, lastLoaded, onRefresh, isDark, onToggleThe
           <div className="flex items-center gap-3">
             {/* Logo image â€” fallback to styled "E" if file not found */}
             <img
-              src="/logo.png"
-              alt="Company"
+              src="/sap-lens.png"
+              alt="SAP Lens"
               className="h-12 w-auto object-contain flex-shrink-0"
               onError={(e) => {
                 const t = e.currentTarget
@@ -56,7 +59,7 @@ export function AppLayout({ children, lastLoaded, onRefresh, isDark, onToggleThe
               aria-hidden="true">APP
 			</div>
             <div>
-              <p className="text-white text-md leading-tight">Company</p>
+              <p className="text-white text-md leading-tight">SAP Lens</p>
               <p className="text-[10px] font-semibold tracking-widest uppercase" style={{ color: '#6b8cb8' }}>
                 SAP S/4HANA &middot; SAP System
               </p>
@@ -80,6 +83,8 @@ export function AppLayout({ children, lastLoaded, onRefresh, isDark, onToggleThe
               <span className="hidden sm:inline">{isDark ? 'Light' : 'Dark'}</span>
             </button>
 
+            <SettingsDialog onDataChanged={onDataChanged} />
+
             {/* Refresh */}
             <button
               onClick={handleRefresh}
@@ -96,6 +101,7 @@ export function AppLayout({ children, lastLoaded, onRefresh, isDark, onToggleThe
           </div>
         </div>
 
+        {dataState?.loading && <div role="status" className="bg-purple-900 text-white text-sm px-5 py-2">Loading role data…</div>}
         {err && (
           <div role="alert" className="bg-red-700 text-white text-xs px-5 py-2 flex justify-between">
             <span>{err}</span>
@@ -109,7 +115,7 @@ export function AppLayout({ children, lastLoaded, onRefresh, isDark, onToggleThe
       </main>
 
       <footer className="h-20" style={{ backgroundColor: '#1A003B', color: '#ffffff' }}>
-         <p className="text-[11px] py-2.5 text-center font-medium" >&copy; {new Date().getFullYear()} Company &mdash; SAP Role Checker</p>
+         <p className="text-[11px] py-2.5 text-center font-medium" >&copy; {new Date().getFullYear()} Company &mdash; SAP Lens</p>
       </footer>
     </div>
   )

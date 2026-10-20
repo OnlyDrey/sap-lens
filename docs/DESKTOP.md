@@ -1,0 +1,56 @@
+# Windows Desktop 1.0
+
+## Install and launch
+
+Download **SAP-Lens-Windows-x64** from a successful **Build Windows application** Actions run for `work` or `main`. Extract the artifact and open `SAP-Lens.exe`. It is a **single EXE** containing Python, the API, compiled frontend, SAP Lens icon and version metadata. The `.sha256` file is an optional download-integrity check. A PyInstaller one-file launch extracts bundled resources into a temporary directory; this may add a short startup delay.
+
+Windows 10/11 x64, .NET Framework 4.6.2+ (included in supported Windows versions) and the Evergreen Microsoft Edge WebView2 Runtime are required. Python, Node.js and development tools are **not** required on the destination PC. SAP Lens itself needs no administrator privileges. If WebView2 is missing, the app explains the prerequisite and exits without starting its service; install the [official Microsoft runtime](https://developer.microsoft.com/microsoft-edge/webview2/) or contact IT. The launcher does not silently use Internet Explorer/MSHTML.
+
+The EXE is unsigned. Organizations may require signing/approval to satisfy SmartScreen or endpoint policies before distribution. The workflow publishes build artifacts, not a signed release or a Windows installer.
+
+## First launch and daily use
+
+1. Open the application icon. SAP Lens opens in a dedicated branded window with no browser controls or console.
+2. Open **Settings → Browse for CSV…**, choose a readable export, then select **Save and load CSV**. Typed absolute paths and permitted UNC paths are also supported.
+3. Browse, filter, inspect and compare roles as before. **Refresh Data** rereads the export; **Settings** changes it.
+4. Close the window to stop the application and its local service. Relaunching restores the saved file location.
+
+No terminal or manual backend startup is involved. This uses a lightweight pywebview wrapper around Edge WebView2 rather than a PWA that would still need an independently managed server. A second launch activates the existing window instead of spawning another service. Windows may restrict focus stealing; the running window remains available on the taskbar.
+
+The backend is a daemon thread inside the application process, not a separate child process. Its listener is reserved before startup and bound exclusively to `127.0.0.1`. Port `18743` is preferred; if another process owns it, the app reserves a new OS-selected port without contacting or killing that process. CORS is fixed to the selected origin. Each launch generates a new capability for API requests, delivered in a URL fragment, removed from the visible URL and retained only in the private WebView session so an in-window reload works. The native file-picker bridge requires the same capability.
+
+Shutdown requests graceful Uvicorn termination, bounds the wait, closes the owned socket and releases the Windows instance handle. CSV reads use daemon threads and cancellation checks before committing data/settings. A stalled network share cannot leave an orphan backend process. Only resources owned by this application are shut down.
+
+## Troubleshooting
+
+| Symptom | Action |
+| --- | --- |
+| WebView2 prerequisite message | Install/enable the Evergreen runtime from Microsoft or contact IT; no service has been started |
+| Missing/invalid CSV | Choose an accessible UTF-8 CSV with the documented columns in Settings |
+| Share unavailable | Restore share access; the UI remains accessible while loading, and the app can close safely if the filesystem stalls |
+| Port `18743` occupied | No action is normally needed; the desktop automatically chooses another controlled loopback port |
+| Another instance already starting | Wait for its window or switch to it on the taskbar |
+| Other startup failure | Close and reopen; inspect `%LOCALAPPDATA%/SAP Lens/sap-lens.log` for the failed stage/category and check profile permissions |
+| Source-mode development | Activate `.venv`, install desktop requirements and build the frontend, then use `run.bat` |
+
+Settings are stored per user, independently of the EXE. Logs omit source paths, data and launch capabilities. A normal exit removes `runtime.json`. Forced OS termination may leave this non-secret diagnostic file; the next owned launch replaces it. No service worker caches SAP responses.
+
+## Build
+
+`build.bat` delegates to `scripts/build-windows.ps1`. With Python 3.12, Node.js 22.12+ and PowerShell available, the script installs locked frontend dependencies, builds the UI, installs pinned desktop/test Python requirements, runs API/lifecycle and production-browser tests, generates version metadata and builds `backend/dist/SAP-Lens.exe` using PyInstaller `--onefile --windowed`. The icon is converted from the existing logo; `backend/version.py` owns the application version. Local builds also install Chromium for browser tests.
+
+The Actions workflow runs on Windows, pins action commits, disables persisted checkout credentials and requests read-only repository permissions. Pushes to `main`/`work`, `v*` tags, pull requests and manual dispatches run it. Artifacts expire after 14 days. `.env`, SAP exports, user settings and logs are not distribution inputs. Failure diagnostics contain only synthetic test information and sanitized app logs.
+
+The packaged smoke test uses isolated settings, synthetic data and a PATH without Python/Node. It checks PE GUI subsystem, version/branding resources, owned-instance identity, API readiness, exact CORS, capability enforcement, visible app window, duplicate launch, repeated close/relaunch, port conflict fallback and listener cleanup. Cleanup uses handles from its own process tree; it never kills by process name.
+
+## Remaining real Windows checks
+
+Linux tests mock the native GUI, registry and mutex APIs; they do not establish Windows acceptance. Even after a successful Windows CI run, validate these user interactions on a clean target PC:
+
+- Explorer launch, application/taskbar icon and no console; normal Windows focus behavior on duplicate launch.
+- Real **Browse** dialog: selection, cancel, non-ASCII/spaced paths and permitted UNC shares.
+- Local settings persistence across EXE upgrades and reboot; disconnected/slow shares and shutdown during loading.
+- Missing-runtime message on a PC without WebView2; organizational signing, SmartScreen, endpoint and filesystem policies.
+- Visual layout, comparison interactions, theme toggle and keyboard behavior in WebView2.
+
+See [validation record](VALIDATION.md) for measured local results versus pending Windows results.

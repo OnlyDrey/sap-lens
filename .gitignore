@@ -52,3 +52,6 @@ Thumbs.db
 coverage/
 htmlcov/
 .coverage
+# Browser test artifacts
+/frontend/test-results/
+/frontend/playwright-report/

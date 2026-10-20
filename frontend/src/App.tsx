@@ -22,6 +22,12 @@ export function App() {
     <AppLayout
       lastLoaded={lastLoaded}
       onRefresh={() => setLastLoaded(new Date().toISOString())}
+      onDataChanged={() => {
+        setSelectedRoles([])
+        setDetailRole(null)
+        setShowComparison(false)
+        setLastLoaded(new Date().toISOString())
+      }}
       isDark={isDark}
       onToggleTheme={toggle}>
       {showComparison

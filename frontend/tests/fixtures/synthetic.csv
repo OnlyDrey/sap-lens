@@ -1,0 +1,4 @@
+FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT
+FI,DEMO:FI,Synthetic finance viewer,DEMO:SHARED,Synthetic shared role,DEMO_DISPLAY,Synthetic display
+FI,DEMO:FI,Synthetic finance viewer,DEMO:FI:READ,Synthetic finance read,DEMO_FINANCE,Synthetic finance transaction
+MM,DEMO:MM,Synthetic materials viewer,DEMO:SHARED,Synthetic shared role,DEMO_DISPLAY,Synthetic display

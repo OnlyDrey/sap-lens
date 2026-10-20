@@ -2,14 +2,14 @@
 In-memory cache for SAP role and module data.
 Loaded from a CSV file at startup. Thread-safe atomic cache replacement.
 """
+import csv
 import logging
 import sys
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-
-import pandas as pd
 
 from config import get_settings
 from models import ModuleInfo, RoleDetail, RoleSummary, SingleRole, TCode
@@ -35,19 +35,38 @@ class _CacheState:
     roles: dict[str, RoleDetail] = field(default_factory=dict)
     modules: list[ModuleInfo] = field(default_factory=list)
     last_loaded: datetime | None = None
+    summaries: list[RoleSummary] = field(default_factory=list)
+    tcode_index: dict[str, set[str]] = field(default_factory=dict)
 
 
 _cache = _CacheState()
 _load_lock = threading.Lock()
 
 
-def load_cache() -> None:
+def _read_rows(path: Path):
+    # Stream the seven needed columns; avoid a dataframe and a second copy of
+    # every row. csv handles BOMs, quoted commas and multiline descriptions.
+    with path.open(encoding='utf-8-sig', newline='') as stream:
+        reader = csv.DictReader(stream, strict=True)
+        missing = REQUIRED_COLUMNS - set(reader.fieldnames or [])
+        if missing:
+            raise ValueError(f"CSV is missing required columns: {sorted(missing)}")
+        columns = ['AGR_NAME', 'FUNCTION_KEY', 'TEXT', 'CHILD_AGR', 'CHILD_AGR_TEXT', 'TCODE', 'TTEXT']
+        for row in reader:
+            yield tuple((row.get(column) or '').strip() or None for column in columns)
+
+
+def load_cache(path: str | None = None, before_commit: Callable[[], None] | None = None) -> None:
     """Read the SAP role CSV and populate the in-memory cache atomically."""
     global _cache
 
     with _load_lock:
         settings = get_settings()
-        csv_path_str = settings.data_csv_path
+        csv_path_str = path if path is not None else settings.data_csv_path
+        if not csv_path_str:
+            raise ValueError("Choose a SAP role CSV in Settings.")
+        if "://" in csv_path_str:
+            raise ValueError("Use a local CSV path or a mounted network share, not a URL.")
 
         if sys.platform != "win32" and csv_path_str.startswith("//"):
             raise RuntimeError(
@@ -55,8 +74,10 @@ def load_cache() -> None:
                 "Mount the share to a local path on Linux/macOS."
             )
 
-        csv_path = Path(csv_path_str)
-        logger.info("Loading role data from: %s", csv_path)
+        csv_path = Path(csv_path_str).expanduser()
+        if csv_path.suffix.lower() != ".csv":
+            raise ValueError("Select a .csv file.")
+        logger.info("Loading SAP role catalog")
 
         if not csv_path.exists():
             raise FileNotFoundError(
@@ -64,33 +85,9 @@ def load_cache() -> None:
                 "Check the DATA_CSV_PATH value in your .env file."
             )
 
-        df = pd.read_csv(
-            csv_path,
-            sep=",",
-            dtype=str,
-            keep_default_na=False,
-            encoding="utf-8-sig",
-        )
-
-        missing = REQUIRED_COLUMNS - set(df.columns)
-        if missing:
-            raise ValueError(
-                f"CSV is missing required columns: {sorted(missing)}\n"
-                f"Found columns: {list(df.columns)}"
-            )
-
-        logger.info("CSV loaded: %d rows.", len(df))
-
         raw: dict[str, dict] = {}
-
-        for row in df.to_dict("records"):
-            agr_name       = str(row["AGR_NAME"]).strip()       or None
-            function_key   = str(row["FUNCTION_KEY"]).strip()   or None
-            text           = str(row["TEXT"]).strip()           or None
-            child_agr      = str(row["CHILD_AGR"]).strip()      or None
-            child_agr_text = str(row["CHILD_AGR_TEXT"]).strip() or None
-            tcode          = str(row["TCODE"]).strip()          or None
-            ttext          = str(row["TTEXT"]).strip()          or None
+        for values in _read_rows(csv_path):
+            agr_name, function_key, text, child_agr, child_agr_text, tcode, ttext = values
 
             if not agr_name:
                 continue
@@ -105,7 +102,7 @@ def load_cache() -> None:
 
             if not child_agr:
                 if tcode:
-                    logger.warning("Role %s has tcode %s with no child_agr - skipped.", agr_name, tcode)
+                    logger.warning("Ignored a transaction assignment without a child role")
                 continue
 
             if child_agr not in raw[agr_name]["single_roles"]:
@@ -153,19 +150,35 @@ def load_cache() -> None:
                 new_modules.append(ModuleInfo(function_key=fk, module_name=MODULE_MAP.get(fk, fk)))
         new_modules.sort(key=lambda m: m.function_key)
 
+        summaries = [
+            RoleSummary(agr_name=r.agr_name, text=r.text, function_key=r.function_key,
+                        module_name=r.module_name, tcode_count=r.tcode_count,
+                        single_role_count=len(r.single_roles))
+            for r in new_roles.values()
+        ]
+        index: dict[str, set[str]] = {}
+        for role in new_roles.values():
+            for single in role.single_roles:
+                for tc in single.tcodes:
+                    index.setdefault(tc.tcode.upper(), set()).add(role.agr_name)
+        # Persist settings only after validation; readers retain the previous complete state
+        # if reading, validation or persistence fails.
+        if before_commit:
+            before_commit()
         _cache = _CacheState(
-            roles=new_roles, modules=new_modules, last_loaded=datetime.now(timezone.utc)
+            roles=new_roles, modules=new_modules, last_loaded=datetime.now(timezone.utc),
+            summaries=summaries, tcode_index=index,
         )
         logger.info("Cache loaded: %d roles, %d modules.", len(_cache.roles), len(_cache.modules))
 
 
 def get_all_roles() -> list[RoleSummary]:
-    state = _cache
-    return [
-        RoleSummary(agr_name=r.agr_name, text=r.text, function_key=r.function_key,
-                    module_name=r.module_name, tcode_count=r.tcode_count)
-        for r in state.roles.values()
-    ]
+    return _cache.summaries
+
+
+def get_snapshot() -> _CacheState:
+    """Hold one consistent generation for the lifetime of a request."""
+    return _cache
 
 
 def get_role_detail(agr_name: str) -> RoleDetail | None:

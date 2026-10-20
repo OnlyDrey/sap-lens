@@ -1,5 +1,4 @@
-fastapi>=0.111.0,<0.112.0
-uvicorn[standard]>=0.29.0,<0.30.0
-pandas>=2.2.0,<3.0.0
-pydantic>=2.7.0,<3.0.0
-pydantic-settings[dotenv]>=2.2.0,<3.0.0
+fastapi==0.151.0
+uvicorn==0.54.0
+pydantic==2.14.1
+pydantic-settings==2.16.0
