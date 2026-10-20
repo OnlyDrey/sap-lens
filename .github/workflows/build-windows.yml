@@ -1,11 +1,6 @@
 name: Build Windows application
 on:
   workflow_dispatch:
-  push:
-    branches: [main, work]
-    tags: ['v*']
-  pull_request:
-    branches: [main]
 permissions:
   contents: read
 jobs:

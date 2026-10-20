@@ -47,7 +47,7 @@ Nine canonical fields are supported: `FUNCTION_KEY`, `AGR_NAME`, `TEXT`, `CHILD_
 <a id="3"></a>
 ## Build EXE
 
-The [Windows workflow](.github/workflows/build-windows.yml) runs on pushes to `main`/`work`, `v*` tags, pull requests and manual dispatch. It tests, audits, packages a console-free EXE and smoke-tests its lifecycle. Download its artifact and SHA-256 checksum; artifacts expire after 14 days. A push alone does not establish a successful Windows build.
+Start the [Windows workflow](.github/workflows/build-windows.yml) manually through **Actions → Build Windows application → Run workflow** and select the desired branch. It does not run automatically on commits, tags or pull requests. It tests, audits, packages a console-free EXE and smoke-tests its lifecycle. Download its artifact and SHA-256 checksum; artifacts expire after 14 days. The separate [validation workflow](.github/workflows/validate.yml) runs backend tests, frontend type checks and a production dependency audit on pushes and pull requests, without building the frontend or EXE.
 
 For a local build with Python 3.12, Node.js 22.12+ and PowerShell, run `build.bat`. Output: `backend/dist/SAP-Lens.exe`. User settings, CSVs, logos and logs are excluded. See [desktop packaging and Windows acceptance](docs/DESKTOP.md).
 
