@@ -16,7 +16,7 @@ def main():
   ffi=FixedFileInfo(filevers={numbers!r}, prodvers={numbers!r}, mask=0x3f,
     flags=0x0, OS=0x40004, fileType=0x1, subtype=0x0, date=(0, 0)),
   kids=[StringFileInfo([StringTable('040904B0', [
-    StringStruct('CompanyName', 'Company'),
+    StringStruct('CompanyName', 'SAP Lens contributors'),
     StringStruct('FileDescription', 'SAP Lens Windows Desktop'),
     StringStruct('FileVersion', '{VERSION}'),
     StringStruct('InternalName', 'SAP-Lens'),
