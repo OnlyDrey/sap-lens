@@ -1,4 +1,4 @@
-# Windows Desktop 1.0
+# Windows Desktop 1.1
 
 ## Install and launch
 
@@ -11,7 +11,7 @@ The EXE is unsigned. Organizations may require signing/approval to satisfy Smart
 ## First launch and daily use
 
 1. Open the application icon. SAP Lens opens in a dedicated branded window with no browser controls or console.
-2. Open **Settings → Browse for CSV…**, choose a readable export, then select **Save and load CSV**. Typed absolute paths and permitted UNC paths are also supported.
+2. Open **Settings → Data Source & Import → Browse for CSV…**, choose a readable export, then select **Apply settings**. Typed absolute paths and permitted UNC paths are also supported.
 3. Browse, filter, inspect and compare roles as before. **Refresh Data** rereads the export; **Settings** changes it.
 4. Close the window to stop the application and its local service. Relaunching restores the saved file location.
 
@@ -26,8 +26,8 @@ Shutdown requests graceful Uvicorn termination, bounds the wait, closes the owne
 | Symptom | Action |
 | --- | --- |
 | WebView2 prerequisite message | Install/enable the Evergreen runtime from Microsoft or contact IT; no service has been started |
-| Missing/invalid CSV | Choose an accessible UTF-8 CSV with the documented columns in Settings |
-| Share unavailable | Restore share access; the UI remains accessible while loading, and the app can close safely if the filesystem stalls |
+| Missing/invalid CSV | Choose an accessible CSV and preview its mapping, encoding and delimiter in Settings |
+| Share unavailable | Cancel the pending load and choose an accessible source; the app can close safely if the filesystem stalls |
 | Port `18743` occupied | No action is normally needed; the desktop automatically chooses another controlled loopback port |
 | Another instance already starting | Wait for its window or switch to it on the taskbar |
 | Other startup failure | Close and reopen; inspect `%LOCALAPPDATA%/SAP Lens/sap-lens.log` for the failed stage/category and check profile permissions |
@@ -54,3 +54,5 @@ Linux tests mock the native GUI, registry and mutex APIs; they do not establish 
 - Visual layout, comparison interactions, theme toggle and keyboard behavior in WebView2.
 
 See [validation record](VALIDATION.md) for measured local results versus pending Windows results.
+
+The settings UI also supports native logo selection, portable configuration Save dialogs and opening the per-user configuration folder. Saved organization/theme/profile/logo settings survive upgrades; user assets are never bundled into later builds. Test these dialogs and persistence on actual Windows alongside the CSV picker. Unexpected owned-server death is reported and closes the window; a failed service is not left behind a seemingly working interface.

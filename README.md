@@ -23,76 +23,50 @@
 
 ---
 
-SAP Lens browses and compares SAP composite roles from a CSV export. Search by role or T-code, filter by module, inspect single roles, and compare two to five composites. Data stays on your computer; no SAP connection or cloud account is required.
+SAP Lens browses and compares SAP roles from local CSV exports. No SAP connection or cloud account is required. Organization settings and naming rules stay in per-user storage.
 
 <a id="1"></a>
 ## Get started
 
-1. Open the repository's **Actions → Build Windows application** workflow. Choose **Run workflow**, or open a successful run for the development branch (`work`) or `main`.
-2. Download **SAP-Lens-Windows-x64** from its artifacts and extract it.
-3. Open **SAP-Lens.exe** on Windows 10/11 x64 with Microsoft Edge WebView2 Runtime installed.
-4. On first launch, choose your CSV with **Browse for CSV…** (or enter its full path) in **Settings**, then choose **Save and load CSV**.
+Download **SAP-Lens-Windows-x64** from a successful **Build Windows application** GitHub Actions run. Extract and open **SAP-Lens.exe** on Windows 10/11 x64 with Microsoft Edge WebView2 Runtime installed. No Python, Node.js or terminal is needed. Closing the app stops its owned backend; a second launch activates the existing window.
 
-The EXE opens a desktop window with no terminal. It includes the frontend, Python runtime and local API. You do not need Node.js or Python on the destination PC. Keep the app window open while using SAP Lens; closing it stops its backend. Relaunching restores the saved CSV location. A second launch brings the existing window forward.
-
-This is a native WebView desktop wrapper, not an offline PWA: the window owns the server, so there is no terminal to keep alive. No role data is stored in a browser offline cache. The build is unsigned; your organization's Windows policies may require signing before distribution.
+In **Settings**, enter your organization/system details, then use **Data Source & Import** to choose a CSV. Detect columns, map fields and preview before applying. Try [synthetic examples](examples/README.md) first. This is a native desktop wrapper, not an offline PWA. Builds are unsigned; consult your organization's distribution policies.
 
 <a id="2"></a>
 ## File settings
 
-Open **Settings → Browse for CSV…** to choose another file or enter its full path, for example `C:/SAP/exports/sap_roles.csv` or `//server/share/sap_roles.csv`. Windows network-share permissions use your signed-in account. On Linux, mount the share and enter its local path.
+Settings includes organization, import profiles, SAP module appearance, classification, branding and diagnostics. Defaults are **Example Inc.**, **SAP S/4HANA**, **DEMO**, client **100**, and **Example System**. Use absolute local paths or authorized Windows UNC shares. A failed import retains the previous settings/data; cancel a stalled load to choose another file.
 
-Required CSV headers (UTF-8, comma-separated; BOM accepted):
+Nine canonical fields are supported: `FUNCTION_KEY`, `AGR_NAME`, `TEXT`, `CHILD_AGR`, `CHILD_AGR_TEXT`, `PARENT_AGR`, `Effective_Role`, `TCODE`, `TTEXT`. Only `AGR_NAME` is required. Existing seven-column exports remain supported. Mapping, encoding, delimiter and classification previews are read-only.
 
-```csv
-FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT
-FI,DEMO:FI,Synthetic finance role,DEMO:READ,Synthetic single role,DEMO_DISPLAY,Synthetic transaction
-```
-
-The app validates the CSV before saving its location and replacing the cache. An invalid or inaccessible file keeps the previous loaded data. If a share is unavailable at launch, Settings remains available so you can correct the path. **Refresh Data** reloads the current file, including the T-code search index.
-
-Settings and rotating logs are under `%LOCALAPPDATA%/SAP Lens/` on Windows. CSV contents are not copied there. Advanced bootstrap variables and development overrides are described in [configuration](docs/CONFIGURATION.md).
+- [Configuration, backups and portable exports](docs/CONFIGURATION.md)
+- [CSV mappings and relationship semantics](docs/CSV_IMPORT.md)
+- [Legacy, Generic and Custom classification](docs/CLASSIFICATION.md)
+- [Central SAP area registry](docs/MODULES.md)
 
 <a id="3"></a>
-## Build the Windows EXE
+## Build EXE
 
-The [GitHub Actions workflow](.github/workflows/build-windows.yml) builds on Windows for pushes to `main` and `work`, `v*` tags, pull requests and manual runs. It installs dependencies, checks types, builds the frontend, runs backend and production-browser tests, packages a console-free EXE, and smoke-tests its API and window lifecycle before uploading the EXE with SAP Lens icon/version metadata and SHA-256 checksum. Artifacts expire after 14 days; the workflow does not publish a GitHub Release.
+The [Windows workflow](.github/workflows/build-windows.yml) runs on pushes to `main`/`work`, `v*` tags, pull requests and manual dispatch. It tests, audits, packages a console-free EXE and smoke-tests its lifecycle. Download its artifact and SHA-256 checksum; artifacts expire after 14 days. A push alone does not establish a successful Windows build.
 
-To build locally with Python 3.12, Node.js 22.12+ and PowerShell:
-
-```powershell
-.\build.bat
-```
-
-Output: `backend/dist/SAP-Lens.exe`. Run the built EXE directly, or use `run.bat`. Build inputs do not include your CSV, `.env`, per-user settings or logs. See [desktop packaging](docs/DESKTOP.md) for prerequisites, troubleshooting and the Windows validation checklist.
+For a local build with Python 3.12, Node.js 22.12+ and PowerShell, run `build.bat`. Output: `backend/dist/SAP-Lens.exe`. User settings, CSVs, logos and logs are excluded. See [desktop packaging and Windows acceptance](docs/DESKTOP.md).
 
 <a id="4"></a>
 ## Development
 
-Python 3.12 and Node.js 22.12+ are recommended. From the repository root:
-
 ```sh
 python -m venv .venv
-# Activate: .venv/Scripts/Activate.ps1 on Windows; source .venv/bin/activate on Linux
+# Activate .venv before continuing
 python -m pip install -r backend/requirements-dev.txt
 cd frontend
 npm ci
 npm run dev
 ```
 
-The development UI uses port `18743`, proxies API requests to `127.0.0.1:18744`, and uses the same Settings screen as the EXE. Activate the Python environment before running `npm run dev`. Start development first if running both; a desktop launch automatically selects another port when `18743` is occupied.
-
-For production-style web testing, run `npm run build` in `frontend`, then from `backend`:
+Vite uses `127.0.0.1:18743` and proxies the backend at `18744`. Desktop mode automatically selects another port if necessary. For source-mode desktop use, install `backend/requirements-desktop.txt`, build the frontend and run `run.bat` on Windows.
 
 ```sh
-python -m uvicorn main:app --host 127.0.0.1 --port 18743
-```
-
-This source-mode command uses a terminal. Desktop users use the EXE. For source-mode desktop testing on Windows, install `backend/requirements-desktop.txt` into `.venv`, build the frontend, then use `run.bat`.
-
-Validation from the repository root:
-
-```sh
+# From the repository root, with .venv activated
 python -m unittest discover -s backend/tests -v
 python -m pip check
 cd frontend
@@ -104,11 +78,10 @@ npm run test:browser
 <a id="5"></a>
 ## Security & architecture
 
-SAP Lens is a local, single-user application. The packaged API binds exclusively to `127.0.0.1`, prefers port `18743`, and reserves another available port on conflict. CORS allows only the actual desktop origin; API calls require a fresh per-launch session capability. It is not a multi-user or LAN service, and a nonstandard port is not an authentication mechanism.
+The desktop API binds only to `127.0.0.1`, prefers port `18743`, allows the selected origin and requires a fresh launch capability. This is a local single-user application. A nonstandard port is not authentication.
 
 - [Architecture and performance](docs/ARCHITECTURE.md)
 - [API reference](docs/API_REFERENCE.md)
-- [Security review and remaining limitations](docs/SECURITY_REVIEW.md)
-- [Configuration and data handling](docs/CONFIGURATION.md)
-
-Internal tool — Company. For SAP authorisation questions, refer to your SAP Role Owner matrix.
+- [Security review](docs/SECURITY_REVIEW.md)
+- [Privacy and historical exposure](docs/PRIVACY.md)
+- [Validation results and outstanding Windows checks](docs/VALIDATION.md)
