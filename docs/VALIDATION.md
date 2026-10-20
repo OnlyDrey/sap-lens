@@ -2,13 +2,13 @@
 
 ## Repository maintenance validation
 
-The cleanup baseline at `735cc30` passed 59 backend tests, 11 browser tests and the production frontend build. Cleanup passes 65 backend/integrity tests (including relative links, asset references and requirement layers), 11 browser tests, types/build, pip check and workflow lint. The production bundle remains approximately 334 kB / 99 kB gzip. See [cleanup audit](REPOSITORY_CLEANUP.md) for removals, dependency/feed scope, historical privacy and outstanding debt. Windows packaging is verified separately after manual dispatch; automatic EXE triggers remain disabled.
+The cleanup baseline at `735cc30` passed 59 backend tests, 11 browser tests and the production frontend build. Cleanup passes 65 backend/integrity tests (including relative links, asset references and requirement layers), 11 browser tests, types/build, pip check and workflow lint. The production bundle remains approximately 334 kB / 99 kB gzip. See [cleanup audit](REPOSITORY_CLEANUP.md) for removals, dependency/feed scope, historical privacy and outstanding debt. Actual Windows tests/build, package-contents/checksum verification, GUI lifecycle smoke and artifact upload passed in [manual run 39469463871](https://github.com/OnlyDrey/sap-lens/actions/runs/39469463871) for implementation `70a696e`. Automatic EXE triggers remain disabled. Local cloud artifact re-download was blocked; the exact executable was verified on the Windows runner before upload.
 
 ## Desktop UX and theme colors 1.2
 
 On 2026-10-20, the Linux workspace passed 59 backend/API/lifecycle tests, production frontend compilation, and 11 Chromium integration tests for full-window settings, themes and recovery. The current JavaScript bundle is approximately 333 kB / 99 kB gzip. Backend tests include real owned HTTP listeners with mocked native GUI boundaries. Light/dark screenshots cover 1280×720, 1366×768 and 1920×1080; visual review confirms stable sidebar/content scrolling and fully visible action bars, including after a header notification. A stricter viewport-bounds regression check passed after correcting that notification-height case. Tests use synthetic data and include wide-logo containment.
 
-The 1.2 launcher has **not** been run on Windows. The prior successful 1.1 run below does not establish acceptance for these new launcher changes. EXE packaging remains manual-only, per user preference; automatic CI runs validation without building. See [workspace/theme behavior and test scope](UX_AND_THEMES.md) and the [Windows checklist](DESKTOP.md).
+The 1.2 launcher subsequently passed actual automated Windows GUI/lifecycle validation in [cleanup run 39469463871](https://github.com/OnlyDrey/sap-lens/actions/runs/39469463871). This supersedes the original Linux-only limitation; manual target-PC interactions and policies remain unverified. EXE packaging remains manual-only, per user preference; automatic CI runs validation without building. See [workspace/theme behavior and test scope](UX_AND_THEMES.md) and the [Windows checklist](DESKTOP.md).
 
 ## Prior Windows Desktop 1.1 validation record
 

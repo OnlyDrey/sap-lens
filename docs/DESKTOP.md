@@ -57,7 +57,7 @@ See [validation record](VALIDATION.md) for measured local results versus pending
 
 The settings UI also supports native logo selection, portable configuration Save dialogs and opening the per-user configuration folder. Saved organization/theme/profile/logo settings survive upgrades; user assets are never bundled into later builds. Test these dialogs and persistence on actual Windows alongside the CSV picker. Unexpected owned-server death is reported and closes the window; a failed service is not left behind a seemingly working interface.
 
-Version 1.2 introduces a responsive branded startup document, full-window settings, organization-first header and persistent theme colors. See [workspace and themes](UX_AND_THEMES.md). The prior 1.1 Windows success does not validate the changed 1.2 launcher; a new manual Windows workflow and target-PC checks are pending.
+Version 1.2 introduces a responsive branded startup document, full-window settings, organization-first header and persistent theme colors. See [workspace and themes](UX_AND_THEMES.md). The changed 1.2 launcher and canonical build passed automated Windows GUI/lifecycle/package validation in [run 39469463871](https://github.com/OnlyDrey/sap-lens/actions/runs/39469463871); target-PC/native interaction checks remain pending.
 
 ## Requirement ownership
 

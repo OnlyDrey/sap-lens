@@ -54,6 +54,15 @@ Intentionally retained debt: Python transitive dependencies are not fully hash-l
 
 Automatic CI intentionally remains lightweight: the user's manual-build preference takes precedence over adding production builds to every commit. Full production/browser checks run locally and in the manual Windows workflow.
 
-## GitHub verification
+## GitHub verification and delivery
 
-The code changes are delivered on `work` in logical commits. The updated automatic workflow and one manually dispatched Windows build will be checked after pushing. Windows packaging results and artifact integrity are reported separately; local YAML/source checks never establish native runtime success. Manual Explorer/GUI dialog/high-DPI, clean-PC and organizational signing checks remain required even after automated Windows smoke passes.
+Implementation commit: `70a696e5415bc4495471da36b70ca3cd024e95ba`, branch `work`, pushed and verified remotely. Later documentation-only commits record these results without changing the tested application/build code.
+
+- [Automatic validation](https://github.com/OnlyDrey/sap-lens/actions/runs/39469464102): passed.
+- [Manually dispatched Windows build](https://github.com/OnlyDrey/sap-lens/actions/runs/39469463871): passed tests, installed-environment dependency audit, packaging, exact package checks, real Windows GUI/lifecycle smoke and artifact upload.
+- Package verifier inspected 132 archive entries, confirmed all required product assets, rejected known private configuration/CSV/log inputs, checked PE GUI subsystem and matched the generated SHA-256 manifest. Verified EXE SHA-256: `5aa1be8b0fb820e069292f547c75fdfe26e642d086545f4146f4d46c84f9a0be`.
+- Artifact: `SAP-Lens-Windows-x64`, containing EXE and checksum, with 14-day retention. Verification ran on the Windows build output before upload. Local re-download verification from this cloud machine was blocked by its Azure artifact-storage network policy; do not confuse it with the successful runner-side package verification.
+
+The first Windows attempt exposed a test-only CP1252/UTF-8 boundary: subprocess HTML printed a replacement character in a status label. The fixture now writes UTF-8 bytes explicitly, passes a CP1252 reproduction, and the Windows rerun passed. Build-stage failures now produce authored GitHub annotations; no application analysis semantics were changed.
+
+Manual Explorer/native dialog/high-DPI, clean-PC and organizational signing checks remain required. Windows packaging stays manual-only; cleanup did not enable recurring EXE builds. Historical sensitive assets remain in Git history and require owner review, not an automatic rewrite.
