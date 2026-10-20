@@ -1,12 +1,20 @@
-﻿# SAP Role Checker
-
-> **SAP S/4HANA** · Role analysis and comparison tool for Company's internal SAP authorisation landscape.
+<!-- LOGO -->
+<h1>
+<p align="center">
+  <img src="assets/sap-lens.png" alt="Logo" width="200">
+  <br>SAP Lens
+</h1>
+  <p align="center">
+    **SAP S/4HANA** · Role analysis and comparison tool for Company's internal SAP authorisation landscape.
+    <br />
+  </p>
+</p>
 
 ---
 
 ## Overview
 
-SAP Role Checker is an internal web application that lets SAP administrators and auditors **explore, filter, and compare composite roles** from the Company SAP S/4HANA system. It provides instant visibility into role structure, T-code assignments, and single role overlap between composite roles — without needing direct SAP GUI access.
+SAP Lens is an internal web application that lets SAP administrators and auditors **explore, filter, and compare composite roles** from the Company SAP S/4HANA system. It provides instant visibility into role structure, T-code assignments, and single role overlap between composite roles — without needing direct SAP GUI access.
 
 ### Key capabilities
 
