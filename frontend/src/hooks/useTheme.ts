@@ -1,30 +1,29 @@
 import { useEffect, useState, useCallback } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { apiRequest } from '@/api/client'
+import { fetchConfiguration, type ConfigurationResponse } from '@/api/configuration'
 
 export function useTheme() {
-  const [isDark, setIsDark] = useState<boolean>(() => {
-    const saved = localStorage.getItem('sap-viz-theme')
-    if (saved !== null) return saved === 'dark'
-    return window.matchMedia('(prefers-color-scheme: dark)').matches
-  })
-
+  const qc = useQueryClient()
+  const {data} = useQuery({queryKey:['configuration'],queryFn:fetchConfiguration})
+  const [systemDark,setSystemDark] = useState(() => matchMedia('(prefers-color-scheme: dark)').matches)
+  const theme = data?.settings.theme || 'system'
+  const isDark = theme === 'dark' || (theme === 'system' && systemDark)
   useEffect(() => {
     const root = document.documentElement
-    const theme = isDark ? 'dark' : 'light'
-    root.setAttribute('data-theme', theme)
-    // Also keep .dark class in sync for any remaining Tailwind dark: variants
-    root.classList.toggle('dark', isDark)
-    localStorage.setItem('sap-viz-theme', theme)
-  }, [isDark])
-
-  // Sync with OS preference changes (when no saved preference)
+    root.setAttribute('data-theme',isDark?'dark':'light')
+    root.classList.toggle('dark',isDark)
+    try {localStorage.setItem('sap-viz-theme',isDark?'dark':'light')} catch { /* optional pre-render hint */ }
+  },[isDark])
   useEffect(() => {
-    if (localStorage.getItem('sap-viz-theme') !== null) return
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    const handler = (e: MediaQueryListEvent) => setIsDark(e.matches)
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
-  }, [])
-
-  const toggle = useCallback(() => setIsDark(d => !d), [])
-  return { isDark, toggle }
+    const query = matchMedia('(prefers-color-scheme: dark)')
+    const handler = (e:MediaQueryListEvent) => setSystemDark(e.matches)
+    query.addEventListener('change',handler)
+    return () => query.removeEventListener('change',handler)
+  },[])
+  const toggle = useCallback(async () => {
+    const result = await apiRequest<ConfigurationResponse>('/api/configuration/theme','POST',{theme:isDark?'light':'dark'})
+    qc.setQueryData(['configuration'],result)
+  },[isDark,qc])
+  return {isDark,toggle}
 }

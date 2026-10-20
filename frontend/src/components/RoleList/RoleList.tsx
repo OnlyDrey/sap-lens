@@ -2,10 +2,10 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Search, GitCompare, X, Users, Activity, LayoutGrid,
-  DollarSign, BarChart2, Package, Wrench, TrendingUp, Cog,
-  FolderKanban, CheckCircle, Server, Warehouse, Hash,
   AlertTriangle, RefreshCw, ArrowUpDown, Zap
 } from 'lucide-react'
+import { fetchConfiguration } from '@/api/configuration'
+import { useModuleVisual } from '@/components/Modules/ModuleRegistry'
 import { useModules } from '@/hooks/useModules'
 import { useRoles } from '@/hooks/useRoles'
 import { RoleCard } from './RoleCard'
@@ -28,21 +28,6 @@ function useDebounce<T>(v: T, ms: number): T {
   }, [v, ms])
 
   return d
-}
-
-const MOD_ICON: Record<string, React.ComponentType<{className?: string}>> = {
-  FI:DollarSign,
-  CO:BarChart2,
-  MM:Package,
-  PM:Wrench,
-  HR:Users,
-  SD:TrendingUp,
-  PP:Cog,
-  PS:FolderKanban,
-  CA:FolderKanban,
-  QM:CheckCircle,
-  BC:Server,
-  WM:Warehouse,
 }
 
 type SortKey =
@@ -153,7 +138,12 @@ export function RoleList({
   onViewDetail,
   onCompare
 }: Props) {
+  const [page,setPage] = useState(0)
   const [search, setSearch] = useState('')
+  const [activeDomain,setActiveDomain] = useState<string | null>(null)
+  const {data:configuration} = useQuery({queryKey:['configuration'],queryFn:fetchConfiguration})
+  const domains = configuration?.settings.classification_profiles.find(p=>p.id===configuration.settings.active_classification)?.domains || []
+  useEffect(()=>setActiveDomain(null),[configuration?.settings.active_classification])
   const [activeModule, setActiveModule] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<SortKey>('name-asc')
   const [sortOpen, setSortOpen] = useState(false)
@@ -181,23 +171,25 @@ export function RoleList({
     placeholderData: [],
   })
 
+  const domainCounts = useMemo(() => {const counts:Record<string,number>=Object.create(null);for(const r of allRolesRaw){const key=r.domain_id||'$unassigned';counts[key]=(counts[key]||0)+1}return counts},[allRolesRaw])
+
   const moduleNames = useMemo(
-    () => Object.fromEntries(
+    () => Object.assign(Object.create(null),Object.fromEntries(
       modules.map(m => [m.function_key, m.module_name])
-    ),
+    )),
     [modules]
   )
 
   const moduleGroups = useMemo(() => {
-    const map: Record<string, number> = {}
+    const map: Record<string, number> = Object.create(null)
 
     for (const r of allRolesRaw) {
       const k = r.function_key ?? 'Other'
       map[k] = (map[k] ?? 0) + 1
     }
 
-    return Object.entries(map).sort(([a],[b]) => a.localeCompare(b))
-  }, [allRolesRaw])
+    return Object.entries(map).filter(([key]) => modules.find(m=>m.function_key===key)?.enabled !== false).sort(([a],[b]) => a.localeCompare(b))
+  }, [allRolesRaw, modules])
 
   const totalTcodes = useMemo(
     () => allRolesRaw.reduce((s, r) => s + r.tcode_count, 0),
@@ -231,6 +223,7 @@ export function RoleList({
       )
     }
 
+    if (activeDomain) results=results.filter(r=>activeDomain==='$unassigned' ? !r.domain_id : r.domain_id===activeDomain)
     return applySort(results, sortBy)
   }, [
     allRolesRaw,
@@ -238,12 +231,17 @@ export function RoleList({
     hasTcodeResults,
     debSearch,
     activeModule,
+    activeDomain,
     sortBy
   ])
 
+  useEffect(()=>setPage(0),[debSearch,activeModule,activeDomain,sortBy])
+  const pageCount=Math.max(1,Math.ceil(visible.length/100))
+  const currentPage=Math.min(page,pageCount-1)
+
   const isFiltering =
     !!debSearch.trim() ||
-    !!activeModule
+    !!activeModule || !!activeDomain
 
   const currentLabel =
     SORT_OPTIONS.find(o => o.key === sortBy)?.label ?? 'Sort'
@@ -266,13 +264,13 @@ export function RoleList({
               Icon:Users
             },
             {
-              label:'Modules',
+              label:'Enabled areas',
               value:moduleGroups.length.toString(),
               color:'var(--accent2)',
               Icon:LayoutGrid
             },
             {
-              label:'T-code assignments',
+              label:'Role / T-code pairs',
               value:totalTcodes.toLocaleString(),
               color:'var(--text)',
               Icon:Activity
@@ -312,6 +310,13 @@ export function RoleList({
         </div>
       )}
 
+      {domains.length>0 && <label className="flex items-center gap-3 text-sm" style={{color:'var(--text2)'}}>Customer domain
+        <select aria-label="Customer domain" value={activeDomain||''} onChange={e=>setActiveDomain(e.target.value||null)} className="border rounded-lg px-3 py-2" style={{background:'var(--surface)',borderColor:'var(--border)'}}>
+          <option value="">All domains</option>
+          {domains.filter(d=>domainCounts[d.id]).map(d=><option key={d.id} value={d.id}>{d.label} ({domainCounts[d.id]||0})</option>)}
+          <option value="$unassigned">Unclassified domain ({domainCounts['$unassigned']||0})</option>
+        </select>
+      </label>}
       <div
         className="rounded-2xl border px-4 py-3 flex flex-col gap-3 shadow-sm"
         style={{
@@ -422,7 +427,7 @@ export function RoleList({
         {!isLoading && !isError && (
           <div className="relative z-20 flex flex-wrap gap-1.5">
             <button
-              onClick={() => setActiveModule(null)}
+              onClick={() => { setActiveModule(null); setActiveDomain(null) }}
               className="px-3 py-1.5 rounded-full text-xs font-bold border transition-all focus:outline-none"
               style={
                 activeModule === null
@@ -443,8 +448,8 @@ export function RoleList({
 
             {moduleGroups.map(([key, count]) => {
               const active = activeModule === key
-              const color = '#515793'
-              const Icon = MOD_ICON[key] ?? Hash
+              const color = modules.find(m=>m.function_key===key)?.color || '#64748b'
+              const Icon = RegistryIcon
               const full = moduleNames[key] ?? key
               const short =
                 full.length > 14
@@ -473,7 +478,7 @@ export function RoleList({
                         }
                   }
                 >
-                  <Icon className="w-3 h-3" />
+                  <Icon moduleId={key} className="w-3 h-3" />
                   {key} &ndash; {short}
 
                   <span className="opacity-60 font-medium">
@@ -555,7 +560,7 @@ export function RoleList({
               <button
                 onClick={() => {
                   setSearch('')
-                  setActiveModule(null)
+                  setActiveModule(null); setActiveDomain(null)
                 }}
                 className="text-xs underline focus:outline-none"
                 style={{ color:'var(--muted)' }}
@@ -631,7 +636,7 @@ export function RoleList({
                 <button
                   onClick={() => {
                     setSearch('')
-                    setActiveModule(null)
+                    setActiveModule(null); setActiveDomain(null)
                   }}
                   className="mt-3 text-sm underline focus:outline-none"
                   style={{ color:'var(--accent2)' }}
@@ -643,7 +648,7 @@ export function RoleList({
           )
           : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {visible.map(r => (
+              {visible.slice(currentPage*100,(currentPage+1)*100).map(r => (
                 <RoleCard
                   key={r.agr_name}
                   role={r}
@@ -655,6 +660,12 @@ export function RoleList({
             </div>
           )
       )}
+
+      {visible.length>100 && <nav aria-label="Role pages" className="flex items-center justify-center gap-4 text-sm" style={{color:'var(--text2)'}}>
+        <button className="border rounded-lg px-3 py-2 disabled:opacity-40" disabled={currentPage===0} onClick={()=>setPage(currentPage-1)}>Previous page</button>
+        <span>Showing {currentPage*100+1}–{Math.min((currentPage+1)*100,visible.length)} of {visible.length} roles</span>
+        <button className="border rounded-lg px-3 py-2 disabled:opacity-40" disabled={currentPage===pageCount-1} onClick={()=>setPage(currentPage+1)}>Next page</button>
+      </nav>}
 
       {selectedRoles.length >= 2 && (
         <div
@@ -708,4 +719,8 @@ export function RoleList({
       )}
     </div>
   )
+}
+function RegistryIcon({moduleId,className}: {moduleId:string; className?:string}) {
+  const {Icon,color} = useModuleVisual(moduleId)
+  return <Icon className={className} style={{color}} />
 }

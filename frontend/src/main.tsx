@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ModuleRegistryProvider } from './components/Modules/ModuleRegistry'
 import { App } from './App'
 import './index.css'
 
@@ -20,7 +21,7 @@ document.body.insertBefore(skipLink, rootElement)
 createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <ModuleRegistryProvider><App /></ModuleRegistryProvider>
     </QueryClientProvider>
   </StrictMode>
 )

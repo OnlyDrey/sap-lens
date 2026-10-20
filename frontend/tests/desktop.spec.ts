@@ -32,6 +32,7 @@ test('first launch, native picker contract, invalid CSV, persistence and private
   await expect(page.getByText('Synthetic finance viewer', { exact: true })).toBeVisible()
   await expect(page.getByRole('dialog')).toBeHidden()
   await page.getByRole('button', { name: 'Open settings' }).click()
+  await page.getByRole('tab', { name: 'Data Source & Import' }).click()
   await expect(page.getByText(`Current file: ${file}`)).toBeVisible()
   await page.evaluate(() => { window.pywebview!.api.choose_csv = async () => null })
   await page.getByRole('button', { name: 'Browse for CSV…' }).click()

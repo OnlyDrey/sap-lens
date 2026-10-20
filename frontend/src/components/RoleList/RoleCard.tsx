@@ -1,6 +1,5 @@
-import { Plus, Check, ArrowRight, Zap, Layers,
-  DollarSign, BarChart2, Package, Wrench, Users, TrendingUp, Cog,
-  FolderKanban, CheckCircle, Server, Warehouse } from 'lucide-react'
+import { Plus, Check, ArrowRight, Zap, Layers } from 'lucide-react'
+import { useDomainLabel, useModuleVisual } from '@/components/Modules/ModuleRegistry'
 import { cn } from '@/lib/utils'
 import type { RoleSummary } from '@/api/types'
 
@@ -11,26 +10,13 @@ interface Props {
   onClick: (n: string) => void
 }
 
-const MOD_ICON: Record<string, React.ComponentType<{className?: string}>> = {
-  FI:DollarSign, CO:BarChart2,   MM:Package,
-  SD:TrendingUp, PP:Cog,         PM:Wrench,
-  CA:Layers,     HR:Users,       WM:Warehouse,
-  PS:FolderKanban, BC:Server,    QM:CheckCircle,
-}
-const MOD_COLOR: Record<string,string> = {
-  FI:'#3d4d8a', CO:'#5a0090', MM:'#c44d10',
-  SD:'#1d5a6e', PP:'#1a4d28', PM:'#9a6c00',
-  CA:'#4a5568', HR:'#162340', WM:'#0a3848',
-  PS:'#1e2d78', BC:'#374151', QM:'#8b1a1a',
-}
-
 const cleanTitle = (t: string | null) =>
   t ? t.replace(/^[A-Z]{2,3}\s*-\s*/, '').trim() : ''
 
 export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
   const title   = cleanTitle(role.text)
-  const Icon    = role.function_key ? (MOD_ICON[role.function_key] ?? null) : null
-  const color   = role.function_key ? (MOD_COLOR[role.function_key] ?? '#515793') : '#94a3b8'
+  const domainLabel = useDomainLabel(role.domain_id)
+  const { Icon, color } = useModuleVisual(role.function_key)
   const modName = role.module_name ?? role.function_key ?? ''
   const hasSR   = (role.single_role_count ?? 0) > 0
   const hasTcodeMatch = (role.matching_tcodes?.length ?? 0) > 0
@@ -69,7 +55,7 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
               {Icon ? <Icon className="w-3.5 h-3.5 text-white" /> : null}
             </div>
             <span className="text-[11px] font-semibold truncate" style={{ color:'var(--text2)' }}>
-              {modName}
+              {modName}{domainLabel ? ` · ${domainLabel}` : ''}{role.classification_ambiguous?' · Ambiguous':''}
             </span>
           </div>
           <button data-np

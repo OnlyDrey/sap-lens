@@ -2,49 +2,22 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowLeft, Loader2, AlertTriangle, RefreshCw, GitCompare, Share2,
   Lock, X, TrendingDown, TrendingUp, Layers, ChevronDown, ChevronRight,
-  Hash, Zap, DollarSign, BarChart2, Package, Wrench, Users, Cog,
-  FolderKanban, CheckCircle, Server, Warehouse
+  Hash, Zap
 } from 'lucide-react'
 import * as ScrollArea from '@radix-ui/react-scroll-area'
+import { useModuleVisual } from '@/components/Modules/ModuleRegistry'
 import { useComparison } from '@/hooks/useComparison'
 import { useRoleDetail } from '@/hooks/useRoleDetail'
 import type { TCode, SingleRoleInfo, ComparisonRole, PairwiseOverlap } from '@/api/types'
 
 interface Props { roleNames: string[]; onBack: () => void }
 
-const MOD_ICON: Record<string, React.ComponentType<{className?: string}>> = {
-  FI:DollarSign, CO:BarChart2, MM:Package,
-  SD:TrendingUp, PP:Cog, PM:Wrench,
-  CA:Layers, HR:Users, WM:Warehouse,
-  PS:FolderKanban, BC:Server, QM:CheckCircle,
-}
-
-const MOD_COLOR: Record<string,string> = {
-  FI:'#3d4d8a', CO:'#5a0090', MM:'#c44d10',
-  SD:'#1d5a6e', PP:'#1a4d28', PM:'#9a6c00',
-  CA:'#4a5568', HR:'#162340', WM:'#0a3848',
-  PS:'#1e2d78', BC:'#374151', QM:'#8b1a1a',
-}
-
 const cleanDesc = (t:string|null) => t ? t.replace(/^[A-Z]{2,3}\s*-\s*/,'').trim() : ''
-const shortAgr = (a:string) => {
-  const p=a.split(':')
-  return p.length>=3 ? p[2].replace(/^S4_/,'').replace(/_+$/,'').replace(/\*/g,'') : a
-}
-const lbl = (r:ComparisonRole) => cleanDesc(r.text) || shortAgr(r.agr_name)
-
-function srMod(childAgr: string, text: string | null): string | null {
-  if (text) {
-    const m = text.match(/^([A-Z]{2,3})\s*[-:]/)
-    if (m) return m[1]
-  }
-  const p = childAgr.split(':')
-  return p.length >= 2 ? p[1] : null
-}
+const shortAgr = (name:string) => name
+const lbl = (r:ComparisonRole) => cleanDesc(r.text) || r.agr_name
 
 function ModLabel({ r, center }: { r: ComparisonRole; center?: boolean }) {
-  const Icon = r.function_key ? (MOD_ICON[r.function_key] ?? null) : null
-  const color = r.function_key ? (MOD_COLOR[r.function_key] ?? '#515793') : '#515793'
+  const {Icon,color} = useModuleVisual(r.function_key)
   const name = r.module_name ?? r.function_key ?? ''
 
   if (!name) return null
@@ -131,9 +104,8 @@ function SRRow({ sr, parentRoleName }: { sr: SingleRoleInfo; parentRoleName: str
   const [open, setOpen] = useState(false)
   const { data: detail, isLoading } = useRoleDetail(open ? parentRoleName : null)
   const tcodes = detail?.single_roles.find(s => s.child_agr === sr.child_agr)?.tcodes ?? []
-  const mod = srMod(sr.child_agr, sr.child_agr_text)
-  const Icon = mod ? (MOD_ICON[mod] ?? null) : null
-  const color = mod ? (MOD_COLOR[mod] ?? '#515793') : '#515793'
+  const mod = sr.function_key
+  const {Icon,color} = useModuleVisual(mod)
 
   return (
     <div style={{ borderBottom:'1px solid var(--border)' }}>

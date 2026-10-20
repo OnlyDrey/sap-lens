@@ -1,21 +1,31 @@
 export interface TCode {
   tcode: string
   ttext: string | null
+  alternate_texts?: string[]
+  assignment_sources?: {child_agr:string|null;parent_agr:string|null;effective_role:string|null}[]
 }
 
 export interface SingleRole {
+  assignment_kind?: string
+  alternate_descriptions?: string[]
+  function_key?: string
+  module_name?: string
   child_agr: string
   child_agr_text: string | null
   tcodes: TCode[]
 }
 
 export interface SingleRoleInfo {
+  function_key?: string
+  module_name?: string
   child_agr: string
   child_agr_text: string | null
   tcode_count: number
 }
 
 export interface RoleSummary {
+  domain_id?: string | null
+  classification_ambiguous?: boolean
   agr_name: string
   text: string | null
   function_key: string | null
@@ -26,10 +36,16 @@ export interface RoleSummary {
 }
 
 export interface RoleDetail extends RoleSummary {
+  relationships?: {child_agr:string|null; parent_agr:string|null; effective_role:string|null}[]
+  alternate_descriptions?: string[]
+  analysis?: Record<string,unknown>
   single_roles: SingleRole[]
 }
 
 export interface ModuleInfo {
+  enabled?: boolean
+  icon?: string
+  color?: string
   function_key: string
   module_name: string
 }

@@ -1,7 +1,8 @@
 import { type ReactNode, useState } from 'react'
 import { RefreshCw, Sun, Moon } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchSettings, refreshData } from '@/api/client'
+import { fetchSettings, refreshData, apiRequest } from '@/api/client'
+import { fetchConfiguration } from '@/api/configuration'
 import { SettingsDialog } from '@/components/Settings/SettingsDialog'
 import { cn } from '@/lib/utils'
 
@@ -11,12 +12,16 @@ interface Props {
   onRefresh: () => void
   onDataChanged: () => void
   isDark: boolean
-  onToggleTheme: () => void
+  onToggleTheme: () => Promise<void>
 }
 
 export function AppLayout({ children, lastLoaded, onRefresh, onDataChanged, isDark, onToggleTheme }: Props) {
   const qc = useQueryClient()
   const { data: dataState } = useQuery({ queryKey: ['settings'], queryFn: fetchSettings })
+  const { data: configuration } = useQuery({queryKey:['configuration'],queryFn:fetchConfiguration})
+  const organization = configuration?.settings.organization
+  const { data: customLogo } = useQuery({queryKey:['logo',configuration?.settings.logo_id],queryFn:()=>apiRequest<{data_url:string}>('/api/branding/logo'),enabled:Boolean(configuration?.settings.logo_id),retry:false,staleTime:Infinity})
+  const [themeBusy,setThemeBusy] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
@@ -42,15 +47,10 @@ export function AppLayout({ children, lastLoaded, onRefresh, onDataChanged, isDa
           <div className="flex items-center gap-3">
             {/* Logo image â€” fallback to styled "E" if file not found */}
             <img
-              src="/sap-lens.png"
+              src={customLogo?.data_url || '/sap-lens.png'}
               alt="SAP Lens"
-              className="h-12 w-auto object-contain flex-shrink-0"
-              onError={(e) => {
-                const t = e.currentTarget
-                t.style.display = 'none'
-                const fb = t.nextElementSibling as HTMLElement | null
-                if (fb) fb.style.display = 'flex'
-              }}
+              className="h-12 w-auto max-w-40 object-contain flex-shrink-0"
+              onError={e => { if (!e.currentTarget.src.endsWith('/sap-lens.png')) e.currentTarget.src='/sap-lens.png' }}
             />
             {/* Fallback box shown only if logo.png fails to load */}
             <div
@@ -61,8 +61,9 @@ export function AppLayout({ children, lastLoaded, onRefresh, onDataChanged, isDa
             <div>
               <p className="text-white text-md leading-tight">SAP Lens</p>
               <p className="text-[10px] font-semibold tracking-widest uppercase" style={{ color: '#6b8cb8' }}>
-                SAP S/4HANA &middot; SAP System
+                {organization?.platform === 'Other / Custom' ? organization.custom_platform || 'Other / Custom' : organization?.platform || 'SAP S/4HANA'} &middot; {organization?.system_id || 'DEMO'} {organization?.client || '100'}
               </p>
+              <p className="text-[10px] text-white/70">{organization?.name || 'Example Inc.'}</p>
             </div>
           </div>
 
@@ -76,7 +77,8 @@ export function AppLayout({ children, lastLoaded, onRefresh, onDataChanged, isDa
 
             {/* Theme toggle â€” WCAG: descriptive aria-label */}
             <button
-              onClick={onToggleTheme}
+              disabled={themeBusy}
+              onClick={() => {setErr(null);setThemeBusy(true);void onToggleTheme().catch(e=>setErr(e instanceof Error?e.message:'Could not save the theme.')).finally(()=>setThemeBusy(false))}}
               aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
               className="flex items-center gap-1.5 text-white/80 hover:text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg hover:bg-white/10 transition-all focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-1 focus:ring-offset-[#1A003B]">
               {isDark ? <Sun className="w-4 h-4" aria-hidden="true" /> : <Moon className="w-4 h-4" aria-hidden="true" />}
@@ -115,7 +117,7 @@ export function AppLayout({ children, lastLoaded, onRefresh, onDataChanged, isDa
       </main>
 
       <footer className="h-20" style={{ backgroundColor: '#1A003B', color: '#ffffff' }}>
-         <p className="text-[11px] py-2.5 text-center font-medium" >&copy; {new Date().getFullYear()} Company &mdash; SAP Lens</p>
+         <p className="text-[11px] py-2.5 text-center font-medium" >{organization?.footer || `© ${new Date().getFullYear()} ${organization?.name || 'Example Inc.'} — SAP Lens`}</p>
       </footer>
     </div>
   )

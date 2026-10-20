@@ -1,44 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
-import { X, ChevronDown, ChevronRight, AlertTriangle, Loader2, Layers, Zap,
-  DollarSign, BarChart2, Package, Wrench, Users, TrendingUp, Cog,
-  FolderKanban, CheckCircle, Server, Warehouse } from 'lucide-react'
+import { X, ChevronDown, ChevronRight, AlertTriangle, Loader2, Layers, Zap } from 'lucide-react'
 import * as ScrollArea from '@radix-ui/react-scroll-area'
+import { useDomainLabel, useModuleVisual } from '@/components/Modules/ModuleRegistry'
 import { useRoleDetail } from '@/hooks/useRoleDetail'
 import type { SingleRole, TCode } from '@/api/types'
 
-// Module icon helpers
-const MOD_ICON: Record<string, React.ComponentType<{className?: string}>> = {
-  FI:DollarSign, CO:BarChart2,   MM:Package,
-  SD:TrendingUp, PP:Cog,         PM:Wrench,
-  CA:Layers,     HR:Users,       WM:Warehouse,
-  PS:FolderKanban, BC:Server,    QM:CheckCircle,
-}
-const MOD_COLOR: Record<string,string> = {
-  FI:'#3d4d8a', CO:'#5a0090', MM:'#c44d10',
-  SD:'#1d5a6e', PP:'#1a4d28', PM:'#9a6c00',
-  CA:'#4a5568', HR:'#162340', WM:'#0a3848',
-  PS:'#1e2d78', BC:'#374151', QM:'#8b1a1a',
-}
-
-function extractMod(childAgr: string, text: string | null): string | null {
-  if (text) { const m = text.match(/^([A-Z]{2,3})\s*[-:]/); if (m) return m[1] }
-  const p = childAgr.split(':')
-  return p.length >= 2 ? p[1] : null
-}
-
-function RowModIcon({ childAgr, text }: { childAgr: string; text: string | null }) {
-  const mod   = extractMod(childAgr, text)
-  const Icon  = mod ? (MOD_ICON[mod] ?? null) : null
-  const color = mod ? (MOD_COLOR[mod] ?? '#515793') : '#515793'
-  return (
-    <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
-      style={{ backgroundColor: color }}>
-      {Icon
-        ? <Icon className="w-3.5 h-3.5 text-white" aria-hidden="true" />
-        : <span className="text-[8px] font-black text-white">{mod ?? '?'}</span>
-      }
-    </div>
-  )
+function RowModIcon({ moduleId }: { moduleId?: string }) {
+  const {Icon,color} = useModuleVisual(moduleId)
+  return <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0" style={{backgroundColor:color}}><Icon className="w-3.5 h-3.5 text-white" /></div>
 }
 
 function SingleRoleRow({ sr }: { sr: SingleRole }) {
@@ -50,7 +19,7 @@ function SingleRoleRow({ sr }: { sr: SingleRole }) {
         style={{ backgroundColor: open ? 'color-mix(in srgb, var(--accent2) 8%, var(--surface))' : 'var(--surface)' }}>
 
         {/* Module icon */}
-        <RowModIcon childAgr={sr.child_agr} text={sr.child_agr_text} />
+        <RowModIcon moduleId={sr.function_key} />
 
         {/* Expand arrow */}
         {open
@@ -61,7 +30,7 @@ function SingleRoleRow({ sr }: { sr: SingleRole }) {
         {/* Name + description */}
         <div className="min-w-0 flex-1">
           <p className="font-mono text-xs font-bold truncate" style={{ color: 'var(--text)' }}>
-            {sr.child_agr}
+            {sr.child_agr}{sr.assignment_kind==='direct'?' · Direct assignment':sr.assignment_kind==='effective'?' · Effective-role assignment':''}
           </p>
           {sr.child_agr_text && (
             <p className="text-[11px] truncate mt-0.5" style={{ color: 'var(--muted)' }}>
@@ -82,6 +51,7 @@ function SingleRoleRow({ sr }: { sr: SingleRole }) {
 
       {open && (
         <div style={{ borderTop: '1px solid var(--border)', backgroundColor: 'var(--surface2)' }}>
+          {Boolean(sr.alternate_descriptions?.length) && <p className="text-xs px-4 py-2">Alternate descriptions: {sr.alternate_descriptions?.slice(0,5).join(' · ')}</p>}
           {sr.tcodes.length === 0
             ? <p className="px-4 py-3 text-xs italic" style={{ color: 'var(--muted)' }}>No T-codes</p>
             : <table className="w-full">
@@ -115,6 +85,7 @@ function SingleRoleRow({ sr }: { sr: SingleRole }) {
 
 export function RoleDetailPanel({ roleName, onClose }: { roleName: string | null; onClose: () => void }) {
   const { data: role, isLoading, isError, error } = useRoleDetail(roleName)
+  const domainLabel = useDomainLabel(role?.domain_id)
   const onKey = useCallback((e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }, [onClose])
   useEffect(() => { document.addEventListener('keydown', onKey); return () => document.removeEventListener('keydown', onKey) }, [onKey])
   useEffect(() => { document.body.style.overflow = roleName ? 'hidden' : ''; return () => { document.body.style.overflow = '' } }, [roleName])
@@ -207,6 +178,17 @@ export function RoleDetailPanel({ roleName, onClose }: { roleName: string | null
                     </div>
                   </div>
 
+                  <details className="text-xs border rounded-xl p-3">
+                    <summary className="cursor-pointer font-semibold">Relationships &amp; analysis provenance</summary>
+                    <p className="mt-2">Domain: {domainLabel || 'No customer domain'}{role.classification_ambiguous?' · Ambiguous classification':''}</p>
+                    <p className="mt-1 break-all">Profile {String(role.analysis?.profile_id || 'legacy')} · version {String(role.analysis?.profile_version || 1)} · fingerprint {String(role.analysis?.profile_fingerprint || '')}</p>
+                    <p className="mt-1">Alternative descriptions: {role.alternate_descriptions?.join(' · ') || 'None'}</p>
+                    <p className="mt-1">Import profile {String(role.analysis?.import_profile_id || 'default')}</p>
+                    <table className="w-full text-left mt-2"><thead><tr><th>Child</th><th>Parent</th><th>Effective role</th></tr></thead><tbody>
+                      {role.relationships?.slice(0,200).map((r,i)=><tr key={i}><td className="p-1 break-all">{r.child_agr||'—'}</td><td className="p-1 break-all">{r.parent_agr||'—'}</td><td className="p-1 break-all">{r.effective_role||'—'}</td></tr>)}
+                    </tbody></table>
+                    {(role.relationships?.length||0)>200 && <p>Showing 200 of {role.relationships?.length} retained relationships.</p>}
+                  </details>
                   {/* Single role list */}
                   <div>
                     <div className="flex items-center gap-2 mb-3">
