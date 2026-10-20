@@ -59,7 +59,7 @@ htmlcov/
 # User-owned application data (generic fixtures remain versioned)
 *.csv
 !**/fixtures/*.csv
-!examples/*.csv
+!examples/synthetic.csv
 **/settings.json
 **/classification-profiles.json
 **/import-profiles.json
@@ -69,3 +69,4 @@ htmlcov/
 /user-branding/
 /configuration-backups/
 *.sap-lens.json
+!examples/synthetic-profile.sap-lens.json

@@ -2,3 +2,5 @@ fastapi==0.151.0
 uvicorn==0.54.0
 pydantic==2.14.1
 pydantic-settings==2.16.0
+Pillow==13.0.0
+regex==2026.9.29

@@ -36,7 +36,7 @@ class DesktopTests(unittest.TestCase):
         cache._cache = cache._CacheState()
         self.gui = types.ModuleType('webview')
         self.gui.settings = {}
-        self.gui.FileDialog = types.SimpleNamespace(OPEN=10)
+        self.gui.FileDialog = types.SimpleNamespace(OPEN=10,SAVE=30)
         self.window = MagicMock()
         self.gui.create_window = MagicMock(return_value=self.window)
         self.gui.start = MagicMock()
@@ -188,6 +188,38 @@ class DesktopTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 bridge.choose_csv(bad)
         self.assertEqual(self.window.create_file_dialog.call_count, count)
+
+    def test_native_logo_export_and_configuration_folder_are_guarded(self):
+        bridge=desktop.NativeDialogs('private-token');bridge._window=self.window
+        image=str(self.root/'synthetic.png')
+        self.window.create_file_dialog.return_value=[image]
+        self.assertEqual(bridge.choose_logo('private-token'),image)
+        target=self.root/'synthetic.sap-lens.json'
+        self.window.create_file_dialog.return_value=[str(target)]
+        self.assertTrue(bridge.export_configuration('private-token',False))
+        package=json.loads(target.read_text())
+        self.assertEqual(package['settings']['organization']['name'],'Example Inc.')
+        self.assertEqual(package['settings']['data_csv_path'],'')
+        with patch.object(desktop,'is_windows',return_value=True),patch('desktop.os.startfile',create=True) as open_folder:
+            self.assertTrue(bridge.open_configuration_folder('private-token'))
+            open_folder.assert_called_once_with(str(self.root))
+        for method in [bridge.choose_logo,bridge.open_configuration_folder,bridge.export_configuration]:
+            with self.assertRaises(ValueError):method('not-the-token')
+
+    def test_unexpected_backend_exit_reports_error_and_closes_owned_window(self):
+        original=desktop.ManagedBackend
+        managed=[]
+        def factory(*args):
+            instance=original(*args);managed.append(instance);return instance
+        def gui_session(**kwargs):
+            managed[0].server.should_exit=True
+            managed[0].worker.join(2)
+            kwargs['func']()
+        self.gui.start.side_effect=gui_session
+        with patch.object(desktop,'ManagedBackend',side_effect=factory):
+            self.assertEqual(desktop.run(),1)
+        self.window.destroy.assert_called_once()
+        self.assertIn('service stopped',self.report.call_args.args[0])
 
     def test_dynamic_origin_and_launch_capability(self):
         app = create_app(origin='http://127.0.0.1:41234', session_token='secret-session')

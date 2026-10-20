@@ -1,0 +1,6 @@
+FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,PARENT_AGR,Effective_Role,TCODE,TTEXT
+FI,DEMO_FIN_VIEW,Synthetic finance viewer,DEMO:FI:DISPLAY,Synthetic finance child,DEMO_FIN_PARENT,DEMO_FIN_EFFECTIVE,DEMO_DISPLAY,Synthetic display transaction
+FI,DEMO_FIN_VIEW,Synthetic finance viewer,DEMO:FI:DISPLAY,Synthetic finance child,DEMO_FIN_PARENT,DEMO_FIN_EFFECTIVE,DEMO_FINANCE,Synthetic finance transaction
+MM,DEMO_MATERIAL_VIEW,Synthetic materials viewer,DEMO:MM:DISPLAY,Synthetic materials child,DEMO_LOGISTICS_PARENT,DEMO_MATERIAL_EFFECTIVE,DEMO_DISPLAY,Synthetic display transaction
+SD,DEMO_SALES_VIEW,Synthetic sales viewer,DEMO:SD:DISPLAY,Synthetic sales child,DEMO_LOGISTICS_PARENT,DEMO_SALES_EFFECTIVE,DEMO_SALES,Synthetic sales transaction
+,DEMO_MISC_VIEW,Synthetic unclassified viewer,DEMO_MISC_CHILD,Synthetic child with no module evidence,,DEMO_MISC_EFFECTIVE,DEMO_MISC,Synthetic miscellaneous transaction

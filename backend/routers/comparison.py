@@ -50,6 +50,7 @@ def compare_roles(request: CompareRequest) -> ComparisonResult:
         for sr in detail.single_roles:
             sr_set.add(sr.child_agr)
             sr_lookup[sr.child_agr] = SingleRoleInfo(
+                function_key=sr.function_key, module_name=sr.module_name,
                 child_agr=sr.child_agr,
                 child_agr_text=sr.child_agr_text,
                 tcode_count=len(sr.tcodes),
@@ -136,6 +137,7 @@ def compare_roles(request: CompareRequest) -> ComparisonResult:
         ))
 
     return ComparisonResult(
+        analysis=state.analysis,
         roles=comparison_roles,
         shared_single_roles=shared_single_roles,
         pairwise_single_overlaps=pairwise_single,

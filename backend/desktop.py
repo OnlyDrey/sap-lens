@@ -80,6 +80,44 @@ class NativeDialogs:
             self._picker_lock.release()
 
 
+    def choose_logo(self, token: str):
+        if not isinstance(token,str) or not hmac.compare_digest(token.encode(),self._token.encode()):
+            raise ValueError('Application request is not authorized.')
+        if not self._window or not self._picker_lock.acquire(blocking=False): return None
+        try:
+            import webview
+            files = self._window.create_file_dialog(webview.FileDialog.OPEN,allow_multiple=False,
+                                                    file_types=('Images (*.png;*.jpg;*.jpeg;*.webp)',))
+            return str(files[0]) if files else None
+        finally: self._picker_lock.release()
+
+    def open_configuration_folder(self, token: str):
+        if not isinstance(token,str) or not hmac.compare_digest(token.encode(),self._token.encode()):
+            raise ValueError('Application request is not authorized.')
+        if not is_windows(): return False
+        directory = config_dir(); directory.mkdir(parents=True,exist_ok=True)
+        os.startfile(str(directory))
+        return True
+
+    def export_configuration(self, token: str, include_private: bool = False):
+        if not isinstance(token,str) or not hmac.compare_digest(token.encode(),self._token.encode()):
+            raise ValueError('Application request is not authorized.')
+        if not isinstance(include_private,bool): raise ValueError('Invalid export option.')
+        if not self._window or not self._picker_lock.acquire(blocking=False): return False
+        try:
+            import webview
+            from config import get_settings,atomic_write
+            from portable_config import export_configuration
+            files = self._window.create_file_dialog(webview.FileDialog.SAVE,save_filename='SAP-Lens.sap-lens.json',
+                                                    file_types=('Configuration (*.json)',))
+            if not files: return False
+            path = Path(files[0])
+            if not path.is_absolute() or path.suffix.lower() != '.json': raise ValueError('Choose an absolute JSON file path.')
+            atomic_write(path,json.dumps(export_configuration(get_settings(),include_private),indent=2).encode())
+            return True
+        finally: self._picker_lock.release()
+
+
 class ManagedBackend:
     def __init__(self, app, listener):
         import uvicorn
@@ -122,6 +160,8 @@ def run() -> int:
     handler = None
     runtime_file = None
     identity = None
+    closing = threading.Event()
+    crashed = threading.Event()
     stage = 'initialization'
     try:
         if is_windows():
@@ -167,12 +207,21 @@ def run() -> int:
                                        js_api=dialogs, width=1280, height=850,
                                        min_size=(900, 650), background_color='#1A003B')
         dialogs._window = window
+        def watch_backend():
+            while not closing.wait(0.5):
+                if not backend.worker.is_alive():
+                    crashed.set()
+                    logger.error('Local service stopped unexpectedly')
+                    report_error('The local SAP Lens service stopped. Reopen SAP Lens to continue; your settings are retained.')
+                    window.destroy()
+                    return
+        window.events.closed += closing.set
         webview.settings['ALLOW_DOWNLOADS'] = False
         webview.settings['ALLOW_FILE_URLS'] = False
         # No auxiliary HTTP server is enabled; all app resources use our listener.
-        webview.start(gui='edgechromium' if is_windows() else None,
+        webview.start(func=watch_backend, gui='edgechromium' if is_windows() else None,
                       debug=False, private_mode=True, icon=str(resource_path('assets/sap-lens.ico')))
-        return 0
+        return 1 if crashed.is_set() else 0
     except DesktopStartupError as exc:
         report_error(str(exc))
         return 1
@@ -183,6 +232,7 @@ def run() -> int:
                      'then try again. If the problem continues, check the local SAP Lens log and your profile permissions.')
         return 1
     finally:
+        closing.set()
         if backend:
             backend.close()
         elif listener:

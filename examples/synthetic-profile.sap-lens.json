@@ -1,0 +1,104 @@
+{
+  "format": "SAP Lens configuration",
+  "package_version": 1,
+  "settings": {
+    "schema_version": 2,
+    "revision": 0,
+    "data_csv_path": "",
+    "organization": {
+      "name": "Example Inc.",
+      "platform": "SAP S/4HANA",
+      "custom_platform": "",
+      "system_id": "DEMO",
+      "client": "100",
+      "description": "Example System",
+      "footer": ""
+    },
+    "theme": "system",
+    "logo_id": null,
+    "module_overrides": {},
+    "classification_profiles": [
+      {
+        "id": "legacy",
+        "name": "Current / Legacy",
+        "version": 1,
+        "mode": "legacy",
+        "domains": [],
+        "rules": [],
+        "overrides": {},
+        "fallback_domain": null
+      },
+      {
+        "id": "generic",
+        "name": "Generic SAP",
+        "version": 1,
+        "mode": "generic",
+        "domains": [],
+        "rules": [],
+        "overrides": {},
+        "fallback_domain": null
+      },
+      {
+        "id": "custom",
+        "name": "Custom",
+        "version": 1,
+        "mode": "custom",
+        "domains": [],
+        "rules": [],
+        "overrides": {},
+        "fallback_domain": null
+      },
+      {
+        "id": "synthetic",
+        "name": "Synthetic example domains",
+        "version": 1,
+        "mode": "custom",
+        "domains": [
+          {
+            "id": "finance",
+            "label": "Example finance",
+            "module_id": "FI"
+          },
+          {
+            "id": "logistics",
+            "label": "Example logistics",
+            "module_id": "MM"
+          }
+        ],
+        "rules": [
+          {
+            "id": "finance-prefix",
+            "kind": "prefix",
+            "pattern": "DEMO_FIN_",
+            "domain_id": "finance",
+            "priority": 100,
+            "case_sensitive": false
+          },
+          {
+            "id": "materials-prefix",
+            "kind": "prefix",
+            "pattern": "DEMO_MATERIAL_",
+            "domain_id": "logistics",
+            "priority": 100,
+            "case_sensitive": false
+          }
+        ],
+        "overrides": {},
+        "fallback_domain": null
+      }
+    ],
+    "active_classification": "synthetic",
+    "import_profiles": [
+      {
+        "id": "default",
+        "name": "Standard SAP CSV",
+        "version": 1,
+        "mapping": {},
+        "delimiter": "auto",
+        "encoding": "auto"
+      }
+    ],
+    "active_import": "default"
+  },
+  "logo_base64": null
+}
