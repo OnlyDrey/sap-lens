@@ -624,7 +624,7 @@ export function RoleList({
               <p className="text-sm mt-1" style={{ color:'var(--muted)' }}>
                 {debSearch.trim()
                   ? `No roles contain T-code "${debSearch.trim().toUpperCase()}" or match that name`
-                  : 'Try a different filter'}
+                  : 'Open Settings to choose a CSV, or try a different filter'}
               </p>
 
               {isFiltering && (

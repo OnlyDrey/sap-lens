@@ -1,7 +1,7 @@
 """Comparison router â€” single-role-level and T-code-level multi-role comparison."""
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from cache import get_role_detail
+from pydantic import BaseModel, Field
+from cache import get_snapshot
 from models import (
     ComparisonResult, ComparisonRole, SingleRoleInfo,
     PairwiseOverlap, TCode
@@ -11,7 +11,7 @@ router = APIRouter(prefix="/api/compare", tags=["Comparison"])
 
 
 class CompareRequest(BaseModel):
-    roles: list[str]
+    roles: list[str] = Field(min_length=2, max_length=5)
 
 
 @router.post("", response_model=ComparisonResult)
@@ -31,9 +31,10 @@ def compare_roles(request: CompareRequest) -> ComparisonResult:
     if len(set(request.roles)) != len(request.roles):
         raise HTTPException(status_code=400, detail="Duplicate role names are not allowed.")
 
+    state = get_snapshot()
     role_details = []
     for name in request.roles:
-        detail = get_role_detail(name)
+        detail = state.roles.get(name)
         if detail is None:
             raise HTTPException(status_code=404, detail=f"Role '{name}' not found.")
         role_details.append(detail)

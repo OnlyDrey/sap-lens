@@ -7,192 +7,108 @@
   <p align="center">
     <b>SAP S/4HANA</b> · Role analysis and comparison tool for Company's internal SAP authorisation landscape.
     <br />
+    <br />
+    <a href="#1">Get started</a>
+    ·
+    <a href="#2">File settings</a>
+    ·
+    <a href="#3">Build EXE</a>
+    ·
+    <a href="#4">Development</a>
+    ·
+    <a href="#5">Security & architecture</a>
   </p>
 </p>
 
----
-
-## Overview
-
-SAP Lens is an internal web application that lets SAP administrators and auditors **explore, filter, and compare composite roles** from the Company SAP S/4HANA system. It provides instant visibility into role structure, T-code assignments, and single role overlap between composite roles — without needing direct SAP GUI access.
-
-### Key capabilities
-
-| Feature | Description |
-|---|---|
-| **Role browser** | 73 composite roles filterable by module, searchable by name/description, sortable by name or T-code count |
-| **Role detail** | Full single role breakdown per composite, with T-code drill-down per single role |
-| **Role comparison** | Side-by-side comparison of 2–5 roles: single role overlap matrix, shared/exclusive building blocks, T-code overlap |
-| **Module icons** | All 10 confirmed SAP modules (FI, CO, MM, SD, PP, PM, CA, HR, WM, PS) with distinct icons and colours |
-| **Dark / Light theme** | Full theme toggle |
-| **Live data refresh** | Reload role data from the source CSV without restarting the server |
 
 ---
 
-## Architecture
+SAP Lens browses and compares SAP composite roles from a CSV export. Search by role or T-code, filter by module, inspect single roles, and compare two to five composites. Data stays on your computer; no SAP connection or cloud account is required.
 
-```
-sap-role-checker/
-├── backend/                  # FastAPI Python API
-│   ├── main.py               # App entry point, startup cache load
-│   ├── cache.py              # In-memory role cache built from CSV
-│   ├── models.py             # Pydantic data models
-│   └── routers/
-│       ├── roles.py          # GET /api/roles, GET /api/roles/{agr_name}
-│       ├── modules.py        # GET /api/modules
-│       └── compare.py        # POST /api/compare
-│
-└── frontend/                 # React + TypeScript + Vite
-    └── src/
-        ├── api/              # Axios client + TypeScript types
-        ├── hooks/            # TanStack Query hooks (useRoles, useRoleDetail, useComparison)
-        ├── components/
-        │   ├── RoleList/     # Home page: RoleList.tsx, RoleCard.tsx
-        │   ├── RoleDetail/   # Sidebar panel: RoleDetailPanel.tsx
-        │   └── RoleComparison/ # ComparisonView.tsx
-        └── AppLayout.tsx     # Header (Company branding), footer, theme
+<a id="1"></a>
+## Get started
+
+1. Open the repository's **Actions → Build Windows application** workflow. Choose **Run workflow**, or open a successful run for the development branch (`work`) or `main`.
+2. Download **SAP-Lens-Windows-x64** from its artifacts and extract it.
+3. Open **SAP-Lens.exe** on Windows 10/11 x64 with Microsoft Edge WebView2 Runtime installed.
+4. On first launch, choose your CSV with **Browse for CSV…** (or enter its full path) in **Settings**, then choose **Save and load CSV**.
+
+The EXE opens a desktop window with no terminal. It includes the frontend, Python runtime and local API. You do not need Node.js or Python on the destination PC. Keep the app window open while using SAP Lens; closing it stops its backend. Relaunching restores the saved CSV location. A second launch brings the existing window forward.
+
+This is a native WebView desktop wrapper, not an offline PWA: the window owns the server, so there is no terminal to keep alive. No role data is stored in a browser offline cache. The build is unsigned; your organization's Windows policies may require signing before distribution.
+
+<a id="2"></a>
+## File settings
+
+Open **Settings → Browse for CSV…** to choose another file or enter its full path, for example `C:/SAP/exports/sap_roles.csv` or `//server/share/sap_roles.csv`. Windows network-share permissions use your signed-in account. On Linux, mount the share and enter its local path.
+
+Required CSV headers (UTF-8, comma-separated; BOM accepted):
+
+```csv
+FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT
+FI,DEMO:FI,Synthetic finance role,DEMO:READ,Synthetic single role,DEMO_DISPLAY,Synthetic transaction
 ```
 
-**Data flow:**
-1. On startup, `cache.py` loads `sap_roles.csv` from the network share into memory
-2. FastAPI serves the role data via a REST API
-3. React fetches all 73 roles **once** on page load; all filtering, searching, and sorting happen client-side (instant, no round-trips per filter click)
-4. Role detail and comparison results are fetched on demand
+The app validates the CSV before saving its location and replacing the cache. An invalid or inaccessible file keeps the previous loaded data. If a share is unavailable at launch, Settings remains available so you can correct the path. **Refresh Data** reloads the current file, including the T-code search index.
 
----
+Settings and rotating logs are under `%LOCALAPPDATA%/SAP Lens/` on Windows. CSV contents are not copied there. Advanced bootstrap variables and development overrides are described in [configuration](docs/CONFIGURATION.md).
 
-## Tech Stack
+<a id="3"></a>
+## Build the Windows EXE
 
-| Layer | Technology |
-|---|---|
-| Backend | Python 3.12 · FastAPI · Pydantic v2 · Uvicorn |
-| Frontend | React 18 · TypeScript · Vite · Tailwind CSS |
-| UI components | Radix UI (Checkbox, ScrollArea) · Lucide React icons |
-| Data fetching | TanStack Query v5 (React Query) |
-| HTTP client | Axios |
+The [GitHub Actions workflow](.github/workflows/build-windows.yml) builds on Windows for pushes to `main` and `work`, `v*` tags, pull requests and manual runs. It installs dependencies, checks types, builds the frontend, runs backend and production-browser tests, packages a console-free EXE, and smoke-tests its API and window lifecycle before uploading the EXE with SAP Lens icon/version metadata and SHA-256 checksum. Artifacts expire after 14 days; the workflow does not publish a GitHub Release.
 
----
-
-## Data Source
-
-Roles are loaded from a CSV file on the Company network share:
-
-```
-//YOUR-SERVER/YOUR-SHARE/path/to/sap_roles.csv
-```
-
-The CSV is produced by Power Automate and contains SAP AGR_AGRS data (composite roles and their single role children, with T-code assignments). The path is configured in `backend/cache.py`.
-
----
-
-## Running the Application
-
-### Prerequisites
-
-- Python 3.12+
-- Node.js 18+
-- Access to the Company network share (for live data)
-
-### 1 — Backend
+To build locally with Python 3.12, Node.js 22.12+ and PowerShell:
 
 ```powershell
-cd sap-role-checker\backend
-py -m pip install -r requirements.txt
-py -m uvicorn main:app --reload --port 8000
+.\build.bat
 ```
 
-API runs at `http://127.0.0.1:8000`. Swagger docs at `http://127.0.0.1:8000/docs`.
+Output: `backend/dist/SAP-Lens.exe`. Run the built EXE directly, or use `run.bat`. Build inputs do not include your CSV, `.env`, per-user settings or logs. See [desktop packaging](docs/DESKTOP.md) for prerequisites, troubleshooting and the Windows validation checklist.
 
-### 2 — Frontend
+<a id="4"></a>
+## Development
 
-```powershell
-cd sap-role-checker\frontend
-npm install
+Python 3.12 and Node.js 22.12+ are recommended. From the repository root:
+
+```sh
+python -m venv .venv
+# Activate: .venv/Scripts/Activate.ps1 on Windows; source .venv/bin/activate on Linux
+python -m pip install -r backend/requirements-dev.txt
+cd frontend
+npm ci
 npm run dev
 ```
 
-App runs at `http://localhost:5173`.
+The development UI uses port `18743`, proxies API requests to `127.0.0.1:18744`, and uses the same Settings screen as the EXE. Activate the Python environment before running `npm run dev`. Start development first if running both; a desktop launch automatically selects another port when `18743` is occupied.
 
----
+For production-style web testing, run `npm run build` in `frontend`, then from `backend`:
 
-## API Reference
-
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/roles` | List all role summaries. Optional: `?function_key=CO&search=manager` |
-| `GET` | `/api/roles/{agr_name}` | Full detail for one composite role (single roles + T-codes) |
-| `GET` | `/api/modules` | List of SAP module codes and names |
-| `POST` | `/api/compare` | Compare 2–5 roles. Body: `["ZC:CO:...", "ZC:FI:..."]` |
-| `POST` | `/api/refresh` | Reload the CSV cache from the network share |
-| `GET` | `/api/health` | Health check + cache status |
-
----
-
-## Module Map
-
-All 10 modules confirmed from live SAP data (SQL query against `AGR_AGRS`):
-
-| Code | Module | Icon | Colour |
-|---|---|---|---|
-| FI | Finance | DollarSign | `#3d4d8a` |
-| CO | Controlling | BarChart2 | `#5a0090` |
-| MM | Materials Management | Package | `#c44d10` |
-| SD | Sales & Distribution | TrendingUp | `#1d5a6e` |
-| PP | Production Planning | Cog | `#1a4d28` |
-| PM | Plant Maintenance | Wrench | `#9a6c00` |
-| CA | Cross-Application | Layers | `#4a5568` |
-| HR | Human Resources | Users | `#162340` |
-| WM | Warehouse Management | Warehouse | `#0a3848` |
-| PS | Project System | FolderKanban | `#1e2d78` |
-
----
-
-## Features In Detail
-
-### Role Browser (Home)
-- Module filter pills (e.g. `FI – Finance (16)`) — instant client-side filter, no network call per click
-- Full-text search across role name, description, and AGR_NAME
-- Sort by: Name A–Z / Z–A, Most T-codes, Fewest T-codes, Most single roles
-- Role cards show: module icon + name, role title, AGR_NAME, single role count, T-code count
-- Circle `+` button adds role to comparison (up to 5); turns orange with checkmark when selected
-- "Compare now" floating bar appears when 2+ roles are selected
-
-### Role Detail Sidebar
-- Opens on "View details" or card click; press Esc or click backdrop to close
-- Summary stats: single role count (left) + T-code count (right)
-- Lists all single roles with module icon, AGR_NAME, description, T-code count badge (⚡ N)
-- Expand any single role row to see full T-CODE / DESCRIPTION table
-
-### Role Comparison
-- **Insight bar**: average single role overlap %, T-code overlap %, most similar pair, most distinct pair
-- **Single role overlap matrix**: colour-coded heatmap (5 discrete bands). Click any cell to see which single roles are shared between that pair
-- **Shared by all roles**: single roles present in every selected composite
-- **Exclusive single roles per composite**: single roles unique to each composite, expandable to show T-codes
-- All rows use sidebar-style design: module icon · chevron · AGR_NAME · description · ⚡ T-code count
-
----
-
-## Maintenance Scripts
-
-A set of numbered PowerShell scripts (`01_*.ps1` … `28_*.ps1`) in the project root serve as an audit trail of all incremental changes made to the application. To re-apply any change:
-
-```powershell
-powershell.exe -ExecutionPolicy Bypass -File ".\27_rolelist_clientside_filter.ps1"
+```sh
+python -m uvicorn main:app --host 127.0.0.1 --port 18743
 ```
 
-All scripts use `[System.IO.File]::WriteAllText` with UTF-8 (no BOM) encoding to avoid PowerShell 5 character corruption issues with Unicode content.
+This source-mode command uses a terminal. Desktop users use the EXE. For source-mode desktop testing on Windows, install `backend/requirements-desktop.txt` into `.venv`, build the frontend, then use `run.bat`.
 
----
+Validation from the repository root:
 
-## Known Constraints
+```sh
+python -m unittest discover -s backend/tests -v
+python -m pip check
+cd frontend
+npm run build
+npx playwright install chromium
+npm run test:browser
+```
 
-- **Network dependency**: the CSV must be reachable at startup. If the share is unavailable the cache will be empty — use "Refresh Data" once the share is accessible.
-- **Single user / no authentication**: intended for internal use on the Company network only.
-- **Read-only**: the app reads SAP data but does not write back to any SAP system.
+<a id="5"></a>
+## Security & architecture
 
----
+SAP Lens is a local, single-user application. The packaged API binds exclusively to `127.0.0.1`, prefers port `18743`, and reserves another available port on conflict. CORS allows only the actual desktop origin; API calls require a fresh per-launch session capability. It is not a multi-user or LAN service, and a nonstandard port is not an authentication mechanism.
 
-## Contact
+- [Architecture and performance](docs/ARCHITECTURE.md)
+- [API reference](docs/API_REFERENCE.md)
+- [Security review and remaining limitations](docs/SECURITY_REVIEW.md)
+- [Configuration and data handling](docs/CONFIGURATION.md)
 
-Internal tool — Company  
-SAP authorisation questions: refer to the SAP Role Owner matrix in SharePoint.
+Internal tool — Company. For SAP authorisation questions, refer to your SAP Role Owner matrix.

@@ -13,12 +13,6 @@ class SingleRole(BaseModel):
     tcodes: list[TCode] = []
 
 
-class SingleRoleInfo(BaseModel):
-    child_agr: str
-    child_agr_text: str | None = None
-    tcode_count: int
-
-
 class RoleSummary(BaseModel):
     agr_name: str
     text: str | None = None

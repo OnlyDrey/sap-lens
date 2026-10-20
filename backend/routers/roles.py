@@ -6,48 +6,6 @@ from models import RoleSummary, RoleDetail
 
 router = APIRouter(prefix="/api/roles", tags=["Roles"])
 
-# ---------------------------------------------------------------------------
-# Lazy reverse T-code index
-# Built on first T-code search request, then cached for the process lifetime.
-# Structure: { "FB01": ["ZC:FI:...", "ZC:CO:..."], "VA01": [...], ... }
-# ---------------------------------------------------------------------------
-_TCODE_IDX: Optional[dict[str, list[str]]] = None
-
-
-def _get_tcode_index() -> dict[str, list[str]]:
-    """Return the T-code -> [agr_name] index, building it on first call."""
-    global _TCODE_IDX
-    if _TCODE_IDX is not None:
-        return _TCODE_IDX
-
-    idx: dict[str, list[str]] = {}
-    for role in cache.get_all_roles():
-        detail = cache.get_role_detail(role.agr_name)
-        if detail is None:
-            continue
-        for sr in detail.single_roles:
-            for tc in sr.tcodes:
-                key = tc.tcode.upper()
-                if key not in idx:
-                    idx[key] = []
-                if role.agr_name not in idx[key]:
-                    idx[key].append(role.agr_name)
-
-    _TCODE_IDX = idx
-    total = sum(len(v) for v in idx.values())
-    print(f"[cache] T-code index built: {len(idx):,} unique T-codes, {total:,} role assignments")
-    return _TCODE_IDX
-
-
-def _invalidate_tcode_index() -> None:
-    """Call when the role cache is refreshed."""
-    global _TCODE_IDX
-    _TCODE_IDX = None
-
-
-# ---------------------------------------------------------------------------
-# GET /api/roles
-# ---------------------------------------------------------------------------
 @router.get("", response_model=list[RoleSummary])
 def list_roles(
     function_key: Optional[str] = Query(None, description="Filter by module code, e.g. FI"),
@@ -61,14 +19,8 @@ def list_roles(
     - tcode        : exact T-code lookup -- returns roles that contain this transaction
                      Matching T-codes are returned in the matching_tcodes field.
     """
-    all_roles: list[RoleSummary] = cache.get_all_roles()
-
-    # Enrich single_role_count (cache may not set it)
-    for role in all_roles:
-        if not role.single_role_count:
-            detail = cache.get_role_detail(role.agr_name)
-            if detail is not None:
-                role.single_role_count = len(detail.single_roles)
+    state = cache.get_snapshot()
+    all_roles: list[RoleSummary] = state.summaries
 
     # Module filter (applied regardless of search mode)
     if function_key:
@@ -77,23 +29,21 @@ def list_roles(
     # ---- T-code search -------------------------------------------------------
     if tcode and tcode.strip():
         query = tcode.strip().upper()
-        idx = _get_tcode_index()
+        idx = state.tcode_index
 
         # Exact match first; also catch partial prefix matches (e.g. "ME3" -> ME3N, ME33K ...)
         matching_agr: set[str] = set()
-        matched_keys: list[str] = []
 
         for key, agr_names in idx.items():
             if key == query or key.startswith(query):
                 matching_agr.update(agr_names)
-                matched_keys.append(key)
 
         result: list[RoleSummary] = []
         for r in all_roles:
             if r.agr_name not in matching_agr:
                 continue
             # Collect the matching T-code strings for this role
-            detail = cache.get_role_detail(r.agr_name)
+            detail = state.roles.get(r.agr_name)
             tcodes_found: list[str] = []
             if detail:
                 seen: set[str] = set()

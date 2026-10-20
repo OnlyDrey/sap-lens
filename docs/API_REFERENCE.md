@@ -1,65 +1,34 @@
-﻿# SAP Role Access Visualizer — API Reference
+# Local API reference
 
-Base URL: `http://127.0.0.1:8000`  
-Auth: None (internal tool)  
-Interactive docs: http://127.0.0.1:8000/docs
+Desktop: the owned `http://127.0.0.1:<selected-port>` origin, preferring `18743`. Development: Vite on `18743` proxies these routes to `127.0.0.1:18744`. Data/settings/health responses are `Cache-Control: no-store`.
 
-## Endpoints
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/health` | App/version/instance identity, load status, role count, last successful load |
+| GET | `/api/settings` | Current file location, latest safe load error and loading flag |
+| POST | `/api/settings` | Validate/load an absolute CSV path and atomically save its location |
+| GET | `/api/roles` | Role summaries; optional `function_key`, `search`, `tcode` parameters |
+| GET | `/api/roles/{agr_name}` | Role details with single roles and transactions |
+| GET | `/api/modules` | Distinct module labels |
+| POST | `/api/compare` | Compare two to five distinct roles |
+| POST | `/api/refresh` | Reload the configured CSV |
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/health` | Status + cached role count |
-| GET | `/api/modules` | Distinct module list |
-| GET | `/api/roles` | Role list (filterable) |
-| GET | `/api/roles/{name}` | Full role detail + hierarchy |
-| POST | `/api/compare` | Multi-role T-code comparison |
-| POST | `/api/refresh` | Reload cache from CSV |
+Desktop API reads and writes require `X-SAP-Lens: <per-launch-capability>`; the capability is managed by the native window and never written to logs, settings or runtime diagnostics. Source development requires `X-SAP-Lens: 1` for POST. OPTIONS preflight is validated against the exact allowed origin, not a wildcard. Hosts other than localhost/loopback are rejected; desktop binds exclusively to `127.0.0.1`. `/health` and static assets do not reveal the capability or source-file contents.
 
----
+Settings request:
 
-### GET /api/roles
-
-**Query params:** `module=FI` · `search=manager`
-
-```bash
-curl "http://127.0.0.1:8000/api/roles?module=FI&search=manager"
-```
-
-**Response:**
 ```json
-[{"agr_name":"ZC:FI:S4CLNT000:XX:ROLE_A","text":"FI - Comptable AP","function_key":"FI","module_name":"Finance","tcode_count":1567}]
+{"data_csv_path":"C:/SAP/exports/sap_roles.csv"}
 ```
 
----
+Comparison request:
 
-### GET /api/roles/{name}
-
-Role name contains colons — URL-encode it: `ZC%3AFI%3AS4CLNT000%3AXX%3AROLE_A`
-
-```bash
-curl "http://127.0.0.1:8000/api/roles/ZC%3AFI%3AS4CLNT000%3AXX%3AROLE_A"
+```json
+{"roles":["DEMO:A","DEMO:B"]}
 ```
 
-**Response:** Full RoleDetail with `single_roles[].tcodes[]`
+Health `status` is `loading`, `ok`, or `needs_configuration`. CSV loading is independent of API readiness: the server stays usable before a dataset is available. `cached_roles` and `last_loaded` describe the retained cache, even after a later failed refresh.
 
----
+Errors: invalid request shape 422; unreadable/invalid CSV 400 with safe details; unknown role 404; origin/capability failure 403; load already in progress 409; POST body exceeding 16 KiB 413. The application remains accessible after file errors. Built-in CDN-backed Swagger/ReDoc pages are disabled; source schema is at `/openapi.json`.
 
-### POST /api/compare
-
-```bash
-curl -X POST "http://127.0.0.1:8000/api/compare" \
-  -H "Content-Type: application/json" \
-  -d '{"roles":["ZC:FI:S4CLNT000:XX:ROLE_A","ZC:FI:S4CLNT000:XX:ROLE_B"]}'
-```
-
-**Response:** `{roles:[{agr_name,unique_tcodes}], shared_tcodes}`
-
----
-
-## Error codes
-
-| Code | Meaning |
-|---|---|
-| 400 | Fewer than 2 roles in compare / duplicate roles |
-| 404 | Role not found |
-| 503 | Cache not loaded yet — POST /api/refresh |
+The native JavaScript bridge exposes `choose_csv(capability)`, which opens a single-file CSV picker. A selection returns its path, cancellation returns null, and incorrect capabilities are rejected before opening a dialog. It does not directly load or save the selected file; the normal validated settings API performs that action.
