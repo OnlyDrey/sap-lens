@@ -17,7 +17,7 @@ try {
     } finally { Pop-Location }
     & $buildPython -m pip install --upgrade pip
     Assert-Success
-    & $buildPython -m pip install -r backend/requirements-desktop.txt -r backend/requirements-dev.txt
+    & $buildPython -m pip install -r backend/requirements-build.txt -r backend/requirements-dev.txt
     Assert-Success
     & $buildPython -m pip check
     Assert-Success

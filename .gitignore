@@ -70,3 +70,7 @@ htmlcov/
 /configuration-backups/
 *.sap-lens.json
 !examples/synthetic-profile.sap-lens.json
+
+# Compiler and diagnostic exports
+*.tsbuildinfo
+SAP-Lens-diagnostics*.json
