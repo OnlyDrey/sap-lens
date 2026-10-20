@@ -7,3 +7,5 @@ An audit of reachable Git objects found organization logo binaries in older comm
 No history rewrite has been performed. Repository owners should assess disclosure rights and whether historical removal is required. Any rewrite needs explicit authorization, coordination with forks/clones and fresh publication checks. No obvious credential/private-key literals were detected in the initial tracked-text review; this is not a guarantee that every historical object is non-sensitive.
 
 The protected README product branding remains unchanged. The Windows icon and default application logo belong to SAP Lens; custom organization logos affect only the local application interface.
+
+The repository cleanup rechecked 205 reachable text blobs for bounded credential/private-key signatures with no candidates, and confirmed two unique historical nonproduct image blobs. This does not supersede owner review of historical naming conventions, forks, clones or earlier asset exposure. No history was rewritten and no discovered private values are printed in the cleanup report.

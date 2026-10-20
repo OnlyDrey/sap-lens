@@ -30,7 +30,7 @@ On 2026-10-20:
 - `pip-audit -r backend/requirements-desktop.txt --vulnerability-service pypi`: **24 resolved Linux-platform desktop packages, no known advisories**. Windows-only transitive packages are not covered by this Linux resolution; Windows CI runs a separate installed-environment audit. Audit feeds and pinned packages do not prove vulnerability absence.
 - `pip check`: no broken installed requirements.
 
-Vite, its React plugin, concurrently, FastAPI/Uvicorn and transitive frontend packages were updated. Axios and pandas/numpy runtime requirements were removed. Python direct application/desktop versions are pinned; transitive versions are not fully hash-locked. Unsigned executable distribution and dependencies remain supply-chain trust decisions. The repository does not contain credentials, live SAP exports, local settings or runtime logs as build inputs.
+Vite, its React plugin, concurrently, FastAPI/Uvicorn and transitive frontend packages were updated. Axios and pandas/numpy runtime requirements were removed. Python direct application/desktop/build versions are pinned; transitive versions are not fully hash-locked. Unsigned executable distribution and dependencies remain supply-chain trust decisions. The repository does not contain credentials, live SAP exports, local settings or runtime logs as build inputs.
 
 ## Performance and remaining limits
 
@@ -55,3 +55,9 @@ The historical privacy review found organization logo binaries in reachable hist
 The startup WebView uses an in-memory, product-owned document with an embedded image and authored inline status logic. It enables no remote resources or file URL access; the HTTP application retains its strict bundled-script CSP. The service is started off the GUI thread and its owned instance identity is checked before navigating. Native Close, Open logs and Export diagnostics actions require the same per-launch capability. Diagnostic exports use an explicit allowlist and exclude local paths, SAP records, logs, organization identity and credentials.
 
 Theme colors accept only six-digit HEX; both palettes require AA primary-text contrast against their canvas and card surfaces. Foreground/focus/status tokens derive consistently. Configuration limits and atomic write/revision safeguards remain intact. Theme colors and custom preset names are included in both portable export modes; review names before sharing. No formal security scan or real Windows 1.2 runtime validation is claimed by these source/test checks.
+
+## Repository maintenance review
+
+Unused UI packages and legacy launch wrappers have been removed after reference checks. Packaging is consolidated in the existing PowerShell implementation; normal desktop runtime requirements no longer install PyInstaller. Both workflows retain read-only token scope, disabled checkout credential persistence and immutable maintained action SHAs using Node 24. Automatic validation does not start Windows packaging.
+
+The Tailwind 3 toolchain still reports development-only advisories; resolving the remaining chain requires a reviewed styling-tool migration rather than a forced major upgrade during repository cleanup. Dependency feed counts describe packages, not demonstrated remote exploitation of this local application. Python transitive dependencies are not fully hash-locked; direct versions remain pinned and Windows builds audit the installed environment. See REPOSITORY_CLEANUP.md for current measured results and historical privacy scope.

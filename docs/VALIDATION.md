@@ -1,5 +1,9 @@
 # Desktop validation records
 
+## Repository maintenance validation
+
+The cleanup baseline at `735cc30` passed 59 backend tests, 11 browser tests and the production frontend build. Cleanup passes 62 backend/integrity tests (including relative links, asset references and requirement layers), 11 browser tests, types/build, pip check and workflow lint. The production bundle remains approximately 334 kB / 99 kB gzip. See [cleanup audit](REPOSITORY_CLEANUP.md) for removals, dependency/feed scope, historical privacy and outstanding debt. Windows packaging is verified separately after manual dispatch; automatic EXE triggers remain disabled.
+
 ## Desktop UX and theme colors 1.2
 
 On 2026-10-20, the Linux workspace passed 59 backend/API/lifecycle tests, production frontend compilation, and 11 Chromium integration tests for full-window settings, themes and recovery. The current JavaScript bundle is approximately 333 kB / 99 kB gzip. Backend tests include real owned HTTP listeners with mocked native GUI boundaries. Light/dark screenshots cover 1280×720, 1366×768 and 1920×1080; visual review confirms stable sidebar/content scrolling and fully visible action bars, including after a header notification. A stricter viewport-bounds regression check passed after correcting that notification-height case. Tests use synthetic data and include wide-logo containment.

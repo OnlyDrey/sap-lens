@@ -21,3 +21,5 @@ Export defaults to a redacted portable `.sap-lens.json` package. Including priva
 Logs rotate at 2 MB with two backups, contain safe stages/counts and omit source paths, SAP values and capabilities. `runtime.json` contains only process/origin/instance diagnostics and is removed on normal exit. A stale record cannot authorize a connection. Settings, assets and backups use normal per-user filesystem protection, not encryption.
 
 See [CSV import](CSV_IMPORT.md), [classification](CLASSIFICATION.md) and [privacy](PRIVACY.md).
+
+The removed frontend environment template was unused: no VITE_API_URL setting exists. Browser requests are same-origin and development uses the Vite proxy. Keep local data paths in application settings; backend/.env.example documents optional bootstrap variables only.

@@ -50,7 +50,7 @@ Nine canonical fields are supported: `FUNCTION_KEY`, `AGR_NAME`, `TEXT`, `CHILD_
 
 Start the [Windows workflow](.github/workflows/build-windows.yml) manually through **Actions → Build Windows application → Run workflow** and select the desired branch. It does not run automatically on commits, tags or pull requests. It tests, audits, packages a console-free EXE and smoke-tests its lifecycle. Download its artifact and SHA-256 checksum; artifacts expire after 14 days. The separate [validation workflow](.github/workflows/validate.yml) runs backend tests, frontend type checks and a production dependency audit on pushes and pull requests, without building the frontend or EXE.
 
-For a local build with Python 3.12, Node.js 22.12+ and PowerShell, run `build.bat`. Output: `backend/dist/SAP-Lens.exe`. User settings, CSVs, logos and logs are excluded. See [desktop packaging and Windows acceptance](docs/DESKTOP.md).
+For a local build with Python 3.12, Node.js 24 LTS and PowerShell 7, run `pwsh -NoProfile -File scripts/build-windows.ps1`. Output: `backend/dist/SAP-Lens.exe`. User settings, CSVs, logos and logs are excluded. See [desktop packaging and Windows acceptance](docs/DESKTOP.md).
 
 <a id="4"></a>
 ## Development
@@ -64,13 +64,14 @@ npm ci
 npm run dev
 ```
 
-Vite uses `127.0.0.1:18743` and proxies the backend at `18744`. Desktop mode automatically selects another port if necessary. For source-mode desktop use, install `backend/requirements-desktop.txt`, build the frontend and run `run.bat` on Windows.
+Vite uses `127.0.0.1:18743` and proxies the backend at `18744`. Desktop mode automatically selects another port if necessary. For source-mode desktop use, install `backend/requirements-desktop.txt`, build the frontend and run `.\.venv\Scripts\pythonw.exe backend\desktop.py` from the repository root on Windows.
 
 ```sh
 # From the repository root, with .venv activated
 python -m unittest discover -s backend/tests -v
 python -m pip check
 cd frontend
+npm run check:types
 npm run build
 npx playwright install chromium
 npm run test:browser
@@ -85,4 +86,5 @@ The desktop API binds only to `127.0.0.1`, prefers port `18743`, allows the sele
 - [API reference](docs/API_REFERENCE.md)
 - [Security review](docs/SECURITY_REVIEW.md)
 - [Privacy and historical exposure](docs/PRIVACY.md)
+- [Repository cleanup inventory and maintenance decisions](docs/REPOSITORY_CLEANUP.md)
 - [Validation results and outstanding Windows checks](docs/VALIDATION.md)
