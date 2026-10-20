@@ -62,3 +62,5 @@ Version 1.2 introduces a responsive branded startup document, full-window settin
 ## Requirement ownership
 
 `backend/requirements.txt` contains application/API dependencies. `requirements-desktop.txt` adds the native WebView runtime, `requirements-dev.txt` adds backend tests, and `requirements-build.txt` adds PyInstaller to desktop runtime dependencies. The canonical build script installs build and test requirements into its isolated environment; normal source-mode desktop execution needs only desktop requirements. Node 24 LTS is recommended; the frontend declares its compatible minimum of 22.12. User configuration is not a developer/build input.
+
+The canonical build also creates the SHA-256 manifest and runs `scripts/verify-windows-package.py` before delivery. The verifier checks the PE GUI subsystem, checksum, required bundled assets and absence of known private configuration/CSV/log entries. The GitHub workflow uploads the same verified output; it does not maintain a second checksum implementation.

@@ -24,7 +24,7 @@ Executed baseline: 59 backend/API/CSV/classification/configuration/desktop tests
 | `build.bat` | Thin forwarder; Actions calls PowerShell directly | REMOVE | Document direct canonical build command |
 | `run.bat` | Chooses old built EXE or pythonw source mode | REMOVE | Replace ambiguous selection with explicit documented entry point |
 | `scripts/build-windows.ps1` | Used by Windows workflow and local developers | MODERNIZE | One canonical install/test/package implementation |
-| Windows smoke, metadata and browser-server scripts | Workflow/Playwright references | KEEP | Native validation and fixture server are active tooling |
+| Windows smoke, metadata, package verifier and browser-server scripts | Workflow/Playwright references | KEEP | Native validation and fixture server are active tooling |
 | Python requirement layers | Runtime/native/test/build consumers | MODERNIZE | PyInstaller belongs in build-only requirements |
 | Four unused Radix primitives and class-variance-authority | No imports; only Radix ScrollArea is used | REMOVE | Update manifest/lockfile together |
 | React, Query, Lucide, clsx, tailwind-merge, ScrollArea | Direct runtime imports | KEEP | Active application behavior |
@@ -42,7 +42,7 @@ This inventory covers tracked and hidden configuration and inspected ignored bui
 
 ## Final validation and remaining debt
 
-Local final checks passed: 62 backend/API/repository-integrity tests, 11 production Chromium tests, frozen frontend install, type check, production build, pip check, actionlint, relative documentation links, asset references, requirements includes and protected README prefix comparison. Production JavaScript is 333.69 kB / 98.90 kB gzip: essentially unchanged; unused packages were already excluded from the runtime bundle. Removed 24 lockfile package entries; no retained dependency versions changed.
+Local final checks passed: 65 backend/API/repository-integrity tests, 11 production Chromium tests, frozen frontend install, type check, production build, pip check, actionlint, relative documentation links, asset references, requirements includes and protected README prefix comparison. Production JavaScript is 333.69 kB / 98.90 kB gzip: essentially unchanged; unused packages were already excluded from the runtime bundle. Removed 24 lockfile package entries; no retained dependency versions changed.
 
 Removed direct packages: `@radix-ui/react-checkbox`, `@radix-ui/react-dialog`, `@radix-ui/react-separator`, `@radix-ui/react-tabs`, `class-variance-authority`. PyInstaller 6.22.3 moved to build-only requirements; runtime/library pins are retained. A non-forced compatible audit fix found no safe automatic solution to the remaining Tailwind 3 chain.
 

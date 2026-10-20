@@ -37,11 +37,6 @@ jobs:
             ${{ runner.temp }}/sap-lens-smoke/**/*.log
           if-no-files-found: ignore
           retention-days: 7
-      - name: Generate checksum
-        shell: pwsh
-        run: |
-          $hash = (Get-FileHash backend/dist/SAP-Lens.exe -Algorithm SHA256).Hash.ToLower()
-          "$hash  SAP-Lens.exe" | Set-Content backend/dist/SAP-Lens.exe.sha256 -Encoding ascii
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: SAP-Lens-Windows-x64

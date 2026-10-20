@@ -56,6 +56,10 @@ try {
     $frontendDist = Join-Path $root 'frontend/dist'
     & $buildPython -m PyInstaller --noconfirm --clean --onefile --windowed --name SAP-Lens --icon "$icon" --version-file "$metadata" --add-data "$iconData" --paths backend --add-data "$frontendDist;frontend/dist" --specpath backend --distpath backend/dist --workpath backend/build backend/desktop.py
     Assert-Success 'Package Windows executable'
+    $hash = (Get-FileHash backend/dist/SAP-Lens.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+    "$hash  SAP-Lens.exe" | Set-Content backend/dist/SAP-Lens.exe.sha256 -Encoding ascii
+    & $buildPython scripts/verify-windows-package.py
+    Assert-Success 'Verify Windows package assets and privacy'
     Write-Host 'Build complete: backend/dist/SAP-Lens.exe'
 } finally {
     $env:PATH = $originalBuildPath

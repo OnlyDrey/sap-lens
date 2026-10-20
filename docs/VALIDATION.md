@@ -2,7 +2,7 @@
 
 ## Repository maintenance validation
 
-The cleanup baseline at `735cc30` passed 59 backend tests, 11 browser tests and the production frontend build. Cleanup passes 62 backend/integrity tests (including relative links, asset references and requirement layers), 11 browser tests, types/build, pip check and workflow lint. The production bundle remains approximately 334 kB / 99 kB gzip. See [cleanup audit](REPOSITORY_CLEANUP.md) for removals, dependency/feed scope, historical privacy and outstanding debt. Windows packaging is verified separately after manual dispatch; automatic EXE triggers remain disabled.
+The cleanup baseline at `735cc30` passed 59 backend tests, 11 browser tests and the production frontend build. Cleanup passes 65 backend/integrity tests (including relative links, asset references and requirement layers), 11 browser tests, types/build, pip check and workflow lint. The production bundle remains approximately 334 kB / 99 kB gzip. See [cleanup audit](REPOSITORY_CLEANUP.md) for removals, dependency/feed scope, historical privacy and outstanding debt. Windows packaging is verified separately after manual dispatch; automatic EXE triggers remain disabled.
 
 ## Desktop UX and theme colors 1.2
 
