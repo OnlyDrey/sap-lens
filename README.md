@@ -39,6 +39,7 @@ Settings includes organization, import profiles, SAP module appearance, classifi
 
 Nine canonical fields are supported: `FUNCTION_KEY`, `AGR_NAME`, `TEXT`, `CHILD_AGR`, `CHILD_AGR_TEXT`, `PARENT_AGR`, `Effective_Role`, `TCODE`, `TTEXT`. Only `AGR_NAME` is required. Existing seven-column exports remain supported. Mapping, encoding, delimiter and classification previews are read-only.
 
+- [Full-window settings, startup and theme colors](docs/UX_AND_THEMES.md)
 - [Configuration, backups and portable exports](docs/CONFIGURATION.md)
 - [CSV mappings and relationship semantics](docs/CSV_IMPORT.md)
 - [Legacy, Generic and Custom classification](docs/CLASSIFICATION.md)

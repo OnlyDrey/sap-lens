@@ -14,7 +14,7 @@ flowchart LR
     Window --> Picker[Native CSV picker]
 ```
 
-The desktop launcher first acquires the per-session Windows named mutex. Secondary launches activate the existing window without probing a socket. It then reserves a loopback listener, preferring `18743` and falling back to an OS-assigned port if needed. It starts an in-process Uvicorn daemon thread against that socket, waits for API readiness, then opens the branded WebView2 window. Closing the window owns service shutdown; no detached service subprocess can survive the EXE.
+The desktop launcher first acquires the per-session Windows named mutex. Secondary launches activate the existing window without probing a socket. It then reserves a loopback listener, preferring `18743` and falling back to an OS-assigned port if needed. It opens a trusted branded startup document, starts an in-process Uvicorn daemon thread against that socket, and verifies API readiness/instance identity before navigating the existing WebView2 window to the application. Closing the window owns service shutdown; no detached service subprocess can survive the EXE.
 
 `create_app` receives the actual selected origin, a random per-launch capability and an instance identity. Desktop CORS permits exactly that origin; both API reads and writes require the capability. The capability is bootstrapped via a fragment, removed from the URL and kept in the private window's session storage to support reload. Only non-secret instance diagnostics are written to `runtime.json`. The native bridge exposes capability-guarded CSV/logo pickers, configuration export and opening the fixed configuration directory. A watchdog closes the window and reports failure if its owned backend exits unexpectedly.
 
@@ -26,7 +26,7 @@ The streaming standard-library CSV reader replaces pandas/dataframes and interme
 
 Comparison work is bounded to two to five roles. Prefix T-code search still scans index keys; memory still scales with the complete role graph, including overlap assignments. CSV input/row/identifier and regex limits bound parsing work, but the complete graph still consumes memory. See CSV_IMPORT.md for exact semantics.
 
-The frontend uses same-origin native fetch instead of Axios, no Google Fonts and no offline service worker. The measured production JavaScript is approximately 338 kB (102 kB gzip), with the settings/picker UI included. Browser test dependencies stay in development tooling and do not enter the frontend bundle. React Query retains role data in memory; material analysis changes reset lists, details, comparisons and role selection. Organization/theme changes do not rebuild the CSV. The list renders 100 cards per page; counts are computed in one pass.
+The frontend uses same-origin native fetch instead of Axios, no Google Fonts and no offline service worker. The measured production JavaScript is approximately 333 kB (99 kB gzip), with the settings/picker UI included. Browser test dependencies stay in development tooling and do not enter the frontend bundle. React Query retains role data in memory; material analysis changes reset lists, details, comparisons and role selection. Organization/theme changes do not rebuild the CSV. The list renders 100 cards per page; counts are computed in one pass.
 
 ## Development and verification
 
@@ -39,3 +39,7 @@ Regression tests run the actual HTTP server/lifecycle with mocked native boundar
 Pydantic schema-versioned settings separate organization metadata, import mappings, area appearance and classification profiles. Revision checks prevent stale overwrites; backups and atomic writes preserve recovery. The central registry is served through the API. Cache generations preserve raw relationship identifiers, source-area hints, alternate descriptions and transaction provenance independently of classification. Profile versions/fingerprints make results traceable. Custom logos are private sanitized PNG assets, never packaging inputs.
 
 A synthetic 10,000-row / 1,000-root load took 6.47 seconds with 21.66 MiB peak Python-traced allocations while tracemalloc was enabled in this Linux workspace. This is one diagnostic observation, not an end-user speed guarantee or a measured improvement over the earlier implementation.
+
+## Desktop UX 1.2
+
+The WebView starts with a trusted in-memory branded document before starting the API in its callback worker. Readiness verifies the owned instance over the prebound listener before navigation. Closing invalidates startup waits. The React configuration gate and actual loader status handle the remaining startup states and recovery. Settings is an in-app workspace that preserves the mounted dashboard. Central palette tokens derive appearance, independent of SAP area colors. Theme and diagnostics behavior is documented in UX_AND_THEMES.md.

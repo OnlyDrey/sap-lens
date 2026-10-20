@@ -1,4 +1,13 @@
-# Windows Desktop 1.1 validation record
+# Desktop validation records
+
+## Desktop UX and theme colors 1.2
+
+On 2026-10-20, the Linux workspace passed 59 backend/API/lifecycle tests, production frontend compilation, and 11 Chromium integration tests for full-window settings, themes and recovery. The current JavaScript bundle is approximately 333 kB / 99 kB gzip. Backend tests include real owned HTTP listeners with mocked native GUI boundaries. Light/dark screenshots cover 1280×720, 1366×768 and 1920×1080; visual review confirms stable sidebar/content scrolling and fully visible action bars, including after a header notification. A stricter viewport-bounds regression check passed after correcting that notification-height case. Tests use synthetic data and include wide-logo containment.
+
+The 1.2 launcher has **not** been run on Windows. The prior successful 1.1 run below does not establish acceptance for these new launcher changes. EXE packaging remains manual-only, per user preference; automatic CI runs validation without building. See [workspace/theme behavior and test scope](UX_AND_THEMES.md) and the [Windows checklist](DESKTOP.md).
+
+## Prior Windows Desktop 1.1 validation record
+
 
 Local checks ran in the Linux cloud workspace on 2026-10-20 with all prior uncommitted work preserved. A verified pre-change archive and Git bundle are outside the checkout in `/workspace/sap-lens-backups/windows-desktop-1.0-before`.
 
