@@ -5,7 +5,7 @@
   <br>SAP Lens
 </h1>
   <p align="center">
-    **SAP S/4HANA** · Role analysis and comparison tool for Company's internal SAP authorisation landscape.
+    <b>SAP S/4HANA</b> · Role analysis and comparison tool for Company's internal SAP authorisation landscape.
     <br />
   </p>
 </p>
