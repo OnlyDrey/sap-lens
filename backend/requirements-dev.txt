@@ -1,2 +1,3 @@
 -r requirements.txt
-httpx==0.28.1
+# Supported transport for Starlette's TestClient; not a runtime dependency.
+httpx2==2.16.0

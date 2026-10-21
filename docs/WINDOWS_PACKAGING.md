@@ -198,13 +198,13 @@ pruning is included in this change.
 
 ## Known dependency warnings
 
-Dependency manifests and lockfiles are unchanged. The current full npm audit
+At the packaging baseline, dependency manifests and lockfiles were unchanged. The full npm audit
 reports seven existing development-only advisories (five high, two moderate) in
 the Tailwind 3 toolchain. They are reported rather than suppressed; the separate
 production-only audit remains blocking. A future toolchain migration needs its
-own compatibility validation. The existing Starlette TestClient also emits a
-transition/deprecation warning for its httpx transport; no speculative major
-transport migration is included here. Windows-only Python dependencies still
+own compatibility validation. The baseline Starlette TestClient transport warning
+and the official artifact action's upstream Node warning are tracked in
+[Deprecation maintenance](DEPRECATIONS.md). Windows-only Python dependencies still
 require the canonical Windows audit, not an inference from Linux packages.
 
 
