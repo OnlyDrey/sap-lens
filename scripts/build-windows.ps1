@@ -1,6 +1,7 @@
 param(
-    [ValidateSet('All', 'Environment', 'Frontend', 'Python', 'Audit', 'Backend', 'Browser', 'Package', 'Verify', 'Smoke')]
+    [ValidateSet('All', 'Environment', 'Frontend', 'Python', 'Audit', 'Backend', 'Browser', 'Package', 'Verify', 'Smoke', 'Artifact')]
     [string]$Stage = 'All',
+    [string]$ArtifactDirectory,
     [switch]$BenchmarkPackaging
 )
 $ErrorActionPreference = 'Stop'
@@ -26,23 +27,26 @@ function Measure-Task([string]$Name, [scriptblock]$Action) {
         $watch.Stop()
         $seconds = [math]::Round($watch.Elapsed.TotalSeconds, 2)
         Write-Host "TIMING $Name : $seconds seconds ($status)"
-        if ($env:GITHUB_ACTIONS -eq 'true') { Write-Host "::notice title=Build timing::$Name : $seconds seconds ($status)" }
         Write-Host '::endgroup::'
-        New-Item -ItemType Directory -Force (Join-Path $root 'backend/build') | Out-Null
-        @{ stage = $Name; seconds = $seconds; status = $status } | ConvertTo-Json -Compress |
-            Add-Content (Join-Path $root 'backend/build/timings.jsonl') -Encoding utf8
-        if ($env:GITHUB_STEP_SUMMARY) {
-            "| $Name | $seconds | $status |" | Add-Content $env:GITHUB_STEP_SUMMARY
+        try {
+            New-Item -ItemType Directory -Force (Join-Path $root 'backend/build') | Out-Null
+            @{ stage = $Name; seconds = $seconds; status = $status } | ConvertTo-Json -Compress |
+                Add-Content (Join-Path $root 'backend/build/timings.jsonl') -Encoding utf8
+        } catch {
+            Write-Host '::warning::Stage timing could not be saved; inspect the task log.'
         }
     }
-}
-if ($env:GITHUB_STEP_SUMMARY) {
-    "`n| Build stage | Seconds | Result |`n|---|---:|---|" | Add-Content $env:GITHUB_STEP_SUMMARY
 }
 $originalBuildPath = $env:PATH
 $env:PATH = (Split-Path $buildPython -Parent) + ';' + $env:PATH
 try {
     Invoke-Stage Environment {
+        $timings = Join-Path $root 'backend/build/timings.jsonl'
+        if (Test-Path $timings) { Remove-Item $timings }
+        foreach ($report in @('package-verification.json', 'artifact-verification.json')) {
+            $reportPath = Join-Path $root "backend/build/$report"
+            if (Test-Path $reportPath) { Remove-Item $reportPath }
+        }
         Measure-Task 'Python environment creation' {
             & $hostPython -m venv backend/build/python-env
             Assert-Success 'Create build environment'
@@ -113,7 +117,7 @@ try {
         $metadata = Join-Path $root 'backend/build/version-info.txt'
         $frontendDist = Join-Path $root 'frontend/dist'
         $packagingArguments = @(
-            '--noconfirm', '--onefile', '--windowed', '--name', 'SAP-Lens',
+            '--noconfirm', '--onefile', '--windowed', '--noupx', '--name', 'SAP-Lens',
             '--icon', $icon, '--version-file', $metadata,
             '--add-data', ($icon + ';assets'), '--paths', 'backend',
             '--add-data', ($frontendDist + ';frontend/dist'), '--specpath', 'backend',
@@ -142,6 +146,14 @@ try {
     }
     Invoke-Stage Smoke {
         Measure-Task 'EXE smoke testing' { & (Join-Path $PSScriptRoot 'test-windows-exe.ps1') }
+    }
+    if ($Stage -eq 'Artifact') {
+        if (-not $ArtifactDirectory) { throw 'Artifact verification needs a downloaded artifact directory.' }
+        Measure-Task 'Downloaded artifact verification' {
+            $verified = Get-Content -Raw backend/build/package-verification.json | ConvertFrom-Json
+            & $buildPython scripts/verify-windows-package.py --distribution $ArtifactDirectory --expected-sha256 $verified.exe_sha256 --report backend/build/artifact-verification.json
+            Assert-Success 'Verify downloaded artifact matches the approved executable'
+        }
     }
     Write-Host "Completed build stage: $Stage"
 } finally {

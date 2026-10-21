@@ -1,8 +1,51 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Locator } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 const headers = { 'X-SAP-Lens': 'browser-test-session' }
+// Capture brief feedback in the browser at the moment it appears. A slow
+// automation round-trip must not miss a correctly expiring confirmation.
+const observeCopy = async (button: Locator) => {
+  // Await installation before sending the input event; selector resolution and
+  // browser evaluation are asynchronous even when their promises start in order.
+  await button.locator('..').evaluate((el) => {
+    const target = el as HTMLElement & {
+      copyObservation?: { message: string; inside: boolean }
+    }
+    const status = el.querySelector('[role="status"]')!
+    target.copyObservation = undefined
+    const observer = new MutationObserver(() => {
+      if (!status.textContent) return
+      const parent = el.getBoundingClientRect(),
+        feedback = status.getBoundingClientRect()
+      observer.disconnect()
+      target.copyObservation = {
+        message: status.textContent,
+        inside:
+          feedback.height > 0 &&
+          feedback.top >= parent.top &&
+          feedback.bottom <= parent.bottom
+      }
+    })
+    observer.observe(status, {
+      childList: true,
+      characterData: true,
+      subtree: true
+    })
+  })
+  return () =>
+    button
+      .locator('..')
+      .evaluate(
+        (el) =>
+          (
+            el as HTMLElement & {
+              copyObservation?: { message: string; inside: boolean }
+            }
+          ).copyObservation
+      )
+}
+
 test.beforeEach(async ({ request }) => {
   expect(
     (await request.post('/api/configuration/reset', { headers })).ok()
@@ -11,7 +54,8 @@ test.beforeEach(async ({ request }) => {
 for (const theme of ['dark', 'light'] as const) {
   test(`exact identifier copy, long wrapping, circular icons and detail rows in ${theme}`, async ({
     page,
-    context
+    context,
+    request
   }, testInfo) => {
     const directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-identifiers-'))
     const file = path.join(directory, 'synthetic.csv')
@@ -21,24 +65,22 @@ for (const theme of ['dark', 'light'] as const) {
       `AGR_NAME;TEXT;CHILD_AGR;CHILD_AGR_TEXT;TCODE\n${identifier};Synthetic long role;DEMO_CHILD;Synthetic child;DEMO_TRANSACTION\n`
     )
     try {
+      // Exercise role visuals independently from the import/settings wizard,
+      // which has dedicated UI regressions elsewhere in this suite.
+      const settings = (
+        await (await request.get('/api/configuration', { headers })).json()
+      ).settings
+      expect(
+        (
+          await request.post('/api/configuration', {
+            headers,
+            data: { ...settings, data_csv_path: file, theme }
+          })
+        ).ok()
+      ).toBeTruthy()
       await context.grantPermissions(['clipboard-read', 'clipboard-write'])
       await page.goto('/#session=browser-test-session')
-      await page.getByLabel('CSV file location', { exact: true }).fill(file)
-      await page
-        .getByRole('button', { name: 'Save and load CSV', exact: true })
-        .click()
-      if (theme === 'light') {
-        await page.getByRole('button', { name: 'Open settings' }).click()
-        await page
-          .getByRole('tab', { name: 'Appearance & Branding', exact: true })
-          .click()
-        await page
-          .getByRole('combobox', { name: 'Theme', exact: true })
-          .selectOption('light')
-        await page
-          .getByRole('button', { name: 'Apply settings', exact: true })
-          .click()
-      }
+      await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
       const card = page.getByRole('article', {
         name: 'Synthetic long role',
         exact: true
@@ -48,9 +90,12 @@ for (const theme of ['dark', 'light'] as const) {
         name: `Copy role identifier ${identifier}`,
         exact: true
       })
+      const confirmation = await observeCopy(copy)
       await copy.focus()
       await page.keyboard.press('Enter')
-      await expect(card.getByRole('status')).toHaveText('Copied')
+      await expect
+        .poll(confirmation)
+        .toEqual({ message: 'Copied', inside: true })
       expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
         identifier
       )
@@ -77,18 +122,12 @@ for (const theme of ['dark', 'light'] as const) {
         name: 'Copy role identifier DEMO_CHILD',
         exact: true
       })
+      const childConfirmation = await observeCopy(child)
       await child.click()
-      await expect(
-        detail.getByRole('status').filter({ hasText: 'Copied' })
-      ).toBeVisible()
-      const feedbackInside = await child.locator('..').evaluate((el) => {
-        const parent = el.getBoundingClientRect(),
-          feedback = el
-            .querySelector('[role="status"]')!
-            .getBoundingClientRect()
-        return feedback.top >= parent.top && feedback.bottom <= parent.bottom
+      await expect.poll(childConfirmation).toEqual({
+        message: 'Copied',
+        inside: true
       })
-      expect(feedbackInside).toBeTruthy()
       expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
         'DEMO_CHILD'
       )
@@ -236,9 +275,12 @@ test('clipboard denial is announced and leaves exact identifier selectable', asy
     .getByRole('button', { name: 'Save and load CSV', exact: true })
     .click()
   const card = page.getByRole('article').first()
-  await card.getByRole('button', { name: /^Copy role identifier/ }).click()
-  await expect(card.getByRole('status')).toHaveText(
-    'Copy failed. Select the identifier to copy manually.'
-  )
+  const copy = card.getByRole('button', { name: /^Copy role identifier/ })
+  const confirmation = await observeCopy(copy)
+  await copy.click()
+  await expect.poll(confirmation).toEqual({
+    message: 'Copy failed. Select the identifier to copy manually.',
+    inside: true
+  })
   await expect(card.locator('code')).toHaveCSS('user-select', 'text')
 })

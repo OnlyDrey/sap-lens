@@ -45,7 +45,6 @@ jobs:
             "npm_config_cache=$env:RUNNER_TEMP/sap-lens-cold-npm" | Add-Content $env:GITHUB_ENV
             "PIP_CACHE_DIR=$env:RUNNER_TEMP/sap-lens-cold-pip" | Add-Content $env:GITHUB_ENV
           }
-          "Cold dependency caches requested: $env:COLD_CACHE" | Add-Content $env:GITHUB_STEP_SUMMARY
       - name: Cache pinned Playwright headless browser
         if: ${{ !inputs.cold_cache }}
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
@@ -82,6 +81,28 @@ jobs:
       - name: Smoke
         shell: pwsh
         run: ./scripts/build-windows.ps1 -Stage Smoke
+      - name: Upload verified executable
+        id: executable
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: SAP-Lens-Windows-x64
+          path: |
+            backend/dist/SAP-Lens.exe
+            backend/dist/SAP-Lens.exe.sha256
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0 # The one-file EXE already contains a compressed archive.
+      - name: Download this run's verified artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          artifact-ids: ${{ steps.executable.outputs.artifact-id }}
+          path: ${{ runner.temp }}/sap-lens-distribution
+          merge-multiple: true
+      - name: Verify distributed artifact
+        shell: pwsh
+        env:
+          ARTIFACT_DIRECTORY: ${{ runner.temp }}/sap-lens-distribution
+        run: ./scripts/build-windows.ps1 -Stage Artifact -ArtifactDirectory $env:ARTIFACT_DIRECTORY
       - name: Upload diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -93,29 +114,20 @@ jobs:
             ${{ runner.temp }}/sap-lens-smoke/**/*.log
           if-no-files-found: ignore
           retention-days: 7
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: SAP-Lens-Windows-x64
-          path: |
-            backend/dist/SAP-Lens.exe
-            backend/dist/SAP-Lens.exe.sha256
-          if-no-files-found: error
-          retention-days: 14
-          compression-level: 0 # The one-file EXE already contains a compressed archive.
-      - name: Summarize workflow timings
+      - name: SAP Lens Windows Build Report
         if: always()
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          BUILD_STATUS: ${{ job.status }}
+          ARTIFACT_ID: ${{ steps.executable.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.executable.outputs.artifact-digest }}
+          ARTIFACT_NAME: SAP-Lens-Windows-x64
         run: |
-          $jobs = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID/jobs" | ConvertFrom-Json
-          if ($LASTEXITCODE -ne 0) { throw 'Cannot read workflow timings.' }
-          "`n### Workflow steps (includes setup, caches and artifact upload)`n| Step | Seconds | Result |`n|---|---:|---|" | Add-Content $env:GITHUB_STEP_SUMMARY
-          foreach ($job in $jobs.jobs) {
-            foreach ($step in $job.steps) {
-              if ($step.completed_at -and $step.started_at) {
-                $seconds = ([datetime]$step.completed_at - [datetime]$step.started_at).TotalSeconds
-                "| $($step.name) | $seconds | $($step.conclusion) |" | Add-Content $env:GITHUB_STEP_SUMMARY
-              }
-            }
+          if (Test-Path scripts/write-build-report.py) {
+            python scripts/write-build-report.py
+            if ($LASTEXITCODE -ne 0) { Write-Host '::warning::Build report unavailable; inspect stage logs.' }
+          } else {
+            Write-Host '::warning::Build report unavailable because checkout did not complete.'
           }
+          exit 0

@@ -1,5 +1,6 @@
 """Real embedded HTTP lifecycle with only native GUI/Windows boundaries mocked."""
 import json
+import re
 import os
 from pathlib import Path
 import socket
@@ -108,10 +109,26 @@ class DesktopTests(unittest.TestCase):
         self.assertEqual(error.exception.code, 403)
 
     def test_repeated_window_launch_and_shutdown(self):
-        self.gui_session = self.verify_session
+        ready = threading.Event()
+        self.window.load_url.side_effect = lambda _url: ready.set()
+        def verify_ready_session(**kwargs):
+            # The generic GUI harness waits only three seconds. Repeated real
+            # HTTP startups must wait for the actual load-url event instead of
+            # closing a valid startup early on a busy runner. Production's
+            # backend readiness deadline remains unchanged at fifteen seconds.
+            self.assertTrue(ready.wait(15), 'The embedded service did not load its window.')
+            self.verify_session(**kwargs)
+        self.gui_session = verify_ready_session
         tokens = []
         for _ in range(3):
-            self.assertEqual(desktop.run(), 0)
+            ready.clear()
+            result = desktop.run()
+            category = None
+            if result:
+                # Only static stage/error-class labels, never URLs or log values.
+                log = (self.root / 'sap-lens.log').read_text()
+                category = re.findall(r'Desktop failure during ([^\n(]+) \((\w+)\)', log)
+            self.assertEqual(result, 0, f'Repeated launch failure categories: {category}')
             origin, token = self.session()
             tokens.append(token)
             with socket.socket() as check:

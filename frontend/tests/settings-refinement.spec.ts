@@ -70,8 +70,8 @@ test('complete icon search, module color validation and persisted icon selection
       exact: true
     })
     .click()
-  await expect(page.getByText(/icons · Showing/)).toBeVisible()
   await page.getByLabel('Find an icon', { exact: true }).fill('camera')
+  await expect(page.getByText(/icons · Showing/)).toBeVisible()
   const camera = page
     .getByRole('group', { name: 'FI icon choices' })
     .getByRole('button', { name: 'Camera', exact: true })

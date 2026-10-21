@@ -9,15 +9,15 @@ PowerShell 7. User configuration and application behavior are unchanged.
 
 ## Measurement
 
-Each task reports stopwatch seconds and its outcome in the Actions step summary,
-a `Build timing` annotation and ignored `backend/build/timings.jsonl`. The final
-summary reads this run's completed step timestamps, including environment setup,
-cache restore and artifact upload. Post-job cache saves/cleanup finish afterwards;
-use the job's start/completion timestamps for the full duration. Failure diagnostics
-include the timing record. Measurements are elapsed wall time, not billed minutes;
-queue time is separate. The manual **cold_cache** input disables cache restore/save
-for npm, pip and Playwright so a complete cold-cache benchmark is reproducible.
-Runner-provided tool installations still come from the standard Windows image.
+Each task records stopwatch seconds and its outcome in ignored
+`backend/build/timings.jsonl`. One consolidated **SAP Lens — Windows Build Report**
+combines those results with setup/cache/upload timestamps, version/source details,
+package sizes, separate EXE/ZIP digests, audits and test stage status. Repeated
+per-step tables and informational timing annotations have been removed. Partial
+failures retain available records. The elapsed time at report excludes subsequent
+post-job cleanup/cache saves; use the completed Actions run for final duration.
+The manual **cold_cache** input disables npm/pip/Playwright cache restore/save.
+See [packaging readiness](WINDOWS_PACKAGING.md) for verification and report limits.
 
 The baseline is successful Windows run
 [39469463871](https://github.com/OnlyDrey/sap-lens/actions/runs/39469463871),
@@ -205,3 +205,8 @@ cloud network policy; timing/test/package annotations and the Jobs API provided
 measurement and failure evidence. The saved environment draft adds the observed
 `productionresultssa0.blob.core.windows.net` host; publishing that draft is still
 required for persistent access, and other redirected hosts may need explicit access.
+
+The benchmark numbers above are historical measurements for commit `3defa1b`, not
+new measurements of subsequent settings/icon-catalog or packaging-hardening work.
+Artifact download/reverification adds work, and the current frontend/test suite is
+larger. No current Windows duration or speedup is claimed without a native run.
