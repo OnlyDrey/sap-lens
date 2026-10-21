@@ -1,7 +1,8 @@
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
 $executable = (Resolve-Path backend/dist/SAP-Lens.exe).Path
-$testRoot = Join-Path $env:RUNNER_TEMP ('sap-lens-smoke/' + [guid]::NewGuid())
+$tempRoot = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [System.IO.Path]::GetTempPath() }
+$testRoot = Join-Path $tempRoot ('sap-lens-smoke/' + [guid]::NewGuid())
 New-Item -ItemType Directory -Force $testRoot | Out-Null
 $owned = @{}
 
