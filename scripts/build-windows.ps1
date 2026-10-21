@@ -1,6 +1,7 @@
 param(
     [ValidateSet('All', 'Environment', 'Frontend', 'Python', 'Audit', 'Backend', 'Browser', 'Package', 'Verify', 'Smoke')]
-    [string]$Stage = 'All'
+    [string]$Stage = 'All',
+    [switch]$BenchmarkPackaging
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
@@ -106,15 +107,29 @@ try {
         } finally { Pop-Location }
     }
     Invoke-Stage Package {
-        Measure-Task 'PyInstaller packaging' {
-            & $buildPython scripts/write-windows-metadata.py
-            Assert-Success 'Generate Windows metadata'
-            $icon = Join-Path $root 'assets/sap-lens.ico'
-            $metadata = Join-Path $root 'backend/build/version-info.txt'
-            $iconData = $icon + ';assets'
-            $frontendDist = Join-Path $root 'frontend/dist'
-            & $buildPython -m PyInstaller --noconfirm --clean --onefile --windowed --name SAP-Lens --icon "$icon" --version-file "$metadata" --add-data "$iconData" --paths backend --add-data "$frontendDist;frontend/dist" --specpath backend --distpath backend/dist --workpath backend/build backend/desktop.py
+        & $buildPython scripts/write-windows-metadata.py
+        Assert-Success 'Generate Windows metadata'
+        $icon = Join-Path $root 'assets/sap-lens.ico'
+        $metadata = Join-Path $root 'backend/build/version-info.txt'
+        $frontendDist = Join-Path $root 'frontend/dist'
+        $packagingArguments = @(
+            '--noconfirm', '--onefile', '--windowed', '--name', 'SAP-Lens',
+            '--icon', $icon, '--version-file', $metadata,
+            '--add-data', ($icon + ';assets'), '--paths', 'backend',
+            '--add-data', ($frontendDist + ';frontend/dist'), '--specpath', 'backend',
+            '--distpath', 'backend/dist', '--workpath', 'backend/build', 'backend/desktop.py'
+        )
+        Measure-Task 'PyInstaller packaging (clean)' {
+            & $buildPython -m PyInstaller --clean @packagingArguments
             Assert-Success 'Package Windows executable'
+        }
+        if ($BenchmarkPackaging) {
+            # A same-job experiment only: nothing is restored from a previous checkout/run.
+            # The resulting EXE still goes through the complete verifier and GUI smoke test.
+            Measure-Task 'PyInstaller packaging (same-job incremental)' {
+                & $buildPython -m PyInstaller @packagingArguments
+                Assert-Success 'Benchmark incremental packaging'
+            }
         }
     }
     Invoke-Stage Verify {

@@ -1,6 +1,11 @@
 name: Build Windows application
 on:
   workflow_dispatch:
+    inputs:
+      benchmark_packaging:
+        description: Compare clean and same-job incremental PyInstaller packaging
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read # Read this run's step durations for the timing summary.
@@ -53,7 +58,9 @@ jobs:
         run: ./scripts/build-windows.ps1 -Stage Browser
       - name: Package
         shell: pwsh
-        run: ./scripts/build-windows.ps1 -Stage Package
+        env:
+          BENCHMARK_PACKAGING: ${{ inputs.benchmark_packaging }}
+        run: ./scripts/build-windows.ps1 -Stage Package -BenchmarkPackaging:([bool]::Parse($env:BENCHMARK_PACKAGING))
       - name: Verify
         shell: pwsh
         run: ./scripts/build-windows.ps1 -Stage Verify
