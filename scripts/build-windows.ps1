@@ -101,7 +101,7 @@ try {
                 Assert-Success 'Install test browser'
             }
             Measure-Task 'Playwright tests' {
-                npm run test:browser
+                npm run test:browser -- --reporter=line,github
                 Assert-Success 'Production browser regression tests'
             }
         } finally { Pop-Location }
