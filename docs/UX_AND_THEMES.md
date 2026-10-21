@@ -49,3 +49,9 @@ Both redacted and private configuration exports include theme colors and custom 
 Linux backend/lifecycle tests mock Windows GUI boundaries. Chromium tests cover settings navigation, retained dashboard selections, unsaved confirmation, theme cancel/save/reload, presets, invalid HEX, contrast, System preference, branding proportions, visual icon selection and responsive layouts at 1280×720, 1366×768 and 1920×1080. Synthetic light/dark screenshots are inspected locally.
 
 These changes subsequently passed automated Windows GUI startup/lifecycle and packaging smoke in [cleanup run 39469463871](https://github.com/OnlyDrey/sap-lens/actions/runs/39469463871). This does not replace the native dialog, visual/high-DPI and clean-PC checklist in DESKTOP.md. Start the manual Build Windows application workflow for future executable builds. Automatic validation intentionally does not build an EXE.
+
+## Settings refinement
+
+See [Settings refinement and validation](SETTINGS_REFINEMENT.md) for shared controls,
+automatic CSV inspection, the lazy Lucide catalog, save/cancel behavior and platform
+validation limits.

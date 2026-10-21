@@ -1,119 +1,42 @@
-import { onColor } from '@/lib/theme'
-import { useState } from 'react'
-import { ChevronDown, Search, RotateCcw, Check } from 'lucide-react'
+import { ModuleIcon } from '@/components/Modules/ModuleIcon'
+import { StatusPill } from '@/components/Shared/StatusPill'
+import { ColorControl } from './Controls'
+import { isHex } from '@/lib/theme'
+import { catalogIcon, iconLabel } from '@/components/Modules/CatalogIcon'
+import { useState, lazy, Suspense } from 'react'
+import { ChevronDown, Search, RotateCcw } from 'lucide-react'
 import { icons } from '@/components/Modules/ModuleRegistry'
 import type { ModuleOverride, RegistryEntry } from '@/api/configuration'
 
-const labels: Record<keyof typeof icons, string> = {
-  DollarSign: 'Finance',
-  BarChart2: 'Analytics',
-  Package: 'Materials',
-  Wrench: 'Maintenance',
-  Users: 'People',
-  TrendingUp: 'Sales',
-  Cog: 'Production',
-  FolderKanban: 'Projects',
-  CheckCircle: 'Quality',
-  Server: 'Infrastructure',
-  Warehouse: 'Warehouse',
-  Layers: 'Layers',
-  Shield: 'Security',
-  Database: 'Data',
-  Truck: 'Transport',
-  Building2: 'Organization',
-  Globe: 'Global',
-  Code: 'Development',
-  FileText: 'Documents',
-  Leaf: 'Environment',
-  Hash: 'General'
-}
-const control =
-  'w-full min-w-0 rounded-lg border border-[var(--border)] bg-[var(--surface2)] px-3 py-2 text-sm focus:ring-2 focus:ring-[var(--focus)] focus:outline-none'
-
-function IconPicker({
-  value,
-  onChange,
-  moduleId
-}: {
+import { labels } from './iconLabels'
+type PickerProps = {
   value: string
   onChange: (value: string) => void
   moduleId: string
-}) {
-  const [search, setSearch] = useState('')
-  const keys = (Object.keys(icons) as (keyof typeof icons)[]).filter((k) =>
-    `${labels[k]} ${k}`.toLowerCase().includes(search.toLowerCase())
-  )
-  return (
-    <div className="space-y-3">
-      <label className="block text-sm font-medium">
-        Find an icon
-        <input
-          className={`${control} mt-1`}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search finance, people, data…"
-        />
-      </label>
-      <div
-        className="grid grid-cols-3 lg:grid-cols-5 gap-2"
-        role="group"
-        aria-label={`${moduleId} icon choices`}
-      >
-        {keys.map((key, index) => {
-          const Icon = icons[key]
-          return (
-            <button
-              key={key}
-              type="button"
-              aria-label={labels[key]}
-              aria-pressed={value === key}
-              onKeyDown={(e) => {
-                const columns = getComputedStyle(
-                  e.currentTarget.parentElement!
-                ).gridTemplateColumns.split(' ').length
-                let next = index
-                if (e.key === 'ArrowRight') next = index + 1
-                else if (e.key === 'ArrowLeft') next = index - 1
-                else if (e.key === 'ArrowDown') next = index + columns
-                else if (e.key === 'ArrowUp') next = index - columns
-                else if (e.key === 'Home') next = 0
-                else if (e.key === 'End') next = keys.length - 1
-                else return
-                e.preventDefault()
-                const group = e.currentTarget.parentElement
-                group
-                  ?.querySelectorAll('button')
-                  [Math.max(0, Math.min(keys.length - 1, next))]?.focus()
-              }}
-              onClick={() => onChange(key)}
-              className={`icon-choice ${value === key ? 'selected' : ''}`}
-            >
-              <Icon size={20} aria-hidden="true" />
-              <span>{labels[key]}</span>
-              {value === key && (
-                <Check size={12} className="absolute top-1 right-1" />
-              )}
-            </button>
-          )
-        })}
-      </div>
-      {!keys.length && (
-        <p className="text-sm text-[var(--muted)]">
-          No icons match. Try another name.
-        </p>
-      )}
-    </div>
-  )
 }
+const IconPicker = lazy(() =>
+  import('./IconPicker').catch(() => ({
+    default: (_props: PickerProps) => (
+      <p role="alert" className="text-sm text-[var(--error)]">
+        Icon catalog could not be loaded. Your saved icon is unchanged. Reopen
+        the application to retry.
+      </p>
+    )
+  }))
+)
+const control =
+  'w-full min-w-0 rounded-lg border border-[var(--border)] bg-[var(--surface2)] px-3 py-2 text-sm focus:ring-2 focus:ring-[var(--focus)] focus:outline-none'
 
 export function ModuleEditor({
   modules,
   overrides,
+  savedOverrides,
   onChange,
   search,
   onSearch
 }: {
   modules: RegistryEntry[]
+  savedOverrides: Record<string, ModuleOverride>
   overrides: Record<string, ModuleOverride>
   onChange: (value: Record<string, ModuleOverride>) => void
   search: string
@@ -149,8 +72,9 @@ export function ModuleEditor({
         {rows.map((m) => {
           const override = overrides[m.id] || { enabled: true }
           const iconKey = (override.icon || m.icon) as keyof typeof icons
-          const Icon = icons[iconKey] || icons.Hash
-          const color = override.color || m.color
+          const Icon = icons[iconKey] || catalogIcon(iconKey)
+          const rawColor = override.color ?? m.color
+          const color = isHex(rawColor) ? rawColor : m.color
           const edit = (patch: Partial<ModuleOverride>) =>
             onChange({ ...overrides, [m.id]: { ...override, ...patch } })
           return (
@@ -161,12 +85,12 @@ export function ModuleEditor({
                 aria-expanded={expanded === m.id}
                 onClick={() => setExpanded(expanded === m.id ? null : m.id)}
               >
-                <span
-                  className="rounded-lg p-2 text-current shrink-0"
-                  style={{ backgroundColor: color, color: onColor(color) }}
-                >
-                  <Icon size={19} />
-                </span>
+                <ModuleIcon
+                  Icon={Icon}
+                  color={color}
+                  size="large"
+                  disabled={!override.enabled}
+                />
                 <span className="min-w-0 flex-1 text-left">
                   <span className="font-semibold text-sm">
                     {m.id}{' '}
@@ -179,11 +103,9 @@ export function ModuleEditor({
                     {m.parent ? ` · Parent: ${m.parent}` : ''}
                   </span>
                 </span>
-                <span
-                  className={`text-xs ${override.enabled ? 'text-[var(--success)]' : 'text-[var(--muted)]'}`}
-                >
-                  {override.enabled ? 'Enabled' : 'Disabled'}
-                </span>
+                <StatusPill
+                  enabled={savedOverrides[m.id]?.enabled ?? m.enabled ?? true}
+                />
                 <ChevronDown
                   size={16}
                   className={expanded === m.id ? 'rotate-180' : ''}
@@ -194,6 +116,9 @@ export function ModuleEditor({
                   className="module-editor space-y-5"
                   aria-label={`${m.id} appearance editor`}
                 >
+                  <div className="flex items-center gap-2 text-sm">
+                    Preview <StatusPill enabled={override.enabled} />
+                  </div>
                   <div className="grid md:grid-cols-2 gap-4">
                     <label className="text-sm font-medium">
                       Display name
@@ -216,38 +141,26 @@ export function ModuleEditor({
                       Enabled in module filters
                     </label>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium mb-2">Color</p>
-                    <div className="flex flex-wrap gap-3 items-center">
-                      <input
-                        type="color"
-                        aria-label={`${m.id} color`}
-                        className="h-10 w-12 cursor-pointer bg-transparent"
-                        value={color}
-                        onChange={(e) => edit({ color: e.target.value })}
-                      />
-                      <label className="text-xs">
-                        Hexadecimal
-                        <input
-                          aria-label={`${m.id} hexadecimal color`}
-                          className={`${control} max-w-36`}
-                          pattern="#[0-9a-fA-F]{6}"
-                          value={color}
-                          onChange={(e) => edit({ color: e.target.value })}
-                        />
-                      </label>
-                    </div>
-                  </div>
+                  <ColorControl
+                    label={`${m.id} hexadecimal color`}
+                    value={rawColor}
+                    onChange={(color) => edit({ color })}
+                    onReset={() => edit({ color: null })}
+                  />
                   <div>
                     <p className="text-sm font-medium mb-3 flex gap-2 items-center">
                       <Icon size={18} /> Selected icon:{' '}
-                      {labels[iconKey] || 'General'}
+                      {labels[iconKey] || iconLabel(iconKey)}
                     </p>
-                    <IconPicker
-                      value={iconKey}
-                      onChange={(icon) => edit({ icon })}
-                      moduleId={m.id}
-                    />
+                    <Suspense
+                      fallback={<p role="status">Loading icon catalog…</p>}
+                    >
+                      <IconPicker
+                        value={iconKey}
+                        onChange={(icon) => edit({ icon })}
+                        moduleId={m.id}
+                      />
+                    </Suspense>
                   </div>
                   <button
                     className="text-sm text-[var(--accent2)] flex gap-2 items-center py-2"

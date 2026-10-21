@@ -21,6 +21,31 @@ class ImportTests(unittest.TestCase):
     def tearDown(self):
         self.environment.stop();config.get_settings.cache_clear();self.temp.cleanup()
 
+    def test_header_proposals_are_non_mutating_and_report_ambiguity(self):
+        from csv_import import CsvImport
+        file = self.root/'headers.csv'
+        file.write_text('agr_name;TCode;TEXT\nDEMO;DEMO_T;Synthetic\n')
+        profile = ImportProfile(id='inspect', name='Inspect')
+        report = CsvImport(file, profile).inspect_header()
+        self.assertEqual(report['proposed_mapping']['AGR_NAME'], 'agr_name')
+        self.assertEqual(report['proposed_mapping']['TCODE'], 'TCode')
+        self.assertEqual(report['issues'], [])
+        self.assertEqual(profile.mapping, {})
+        self.assertEqual(cache.get_snapshot().roles, {})
+        file.write_text('AGR_NAME,agr name\nDEMO,DEMO\n')
+        report = CsvImport(file, profile).inspect_header()
+        self.assertNotIn('AGR_NAME', report['proposed_mapping'])
+        self.assertTrue(any('ambiguous' in issue for issue in report['issues']))
+
+    def test_header_inspection_respects_valid_manual_role_override(self):
+        from csv_import import CsvImport
+        file = self.root/'manual.csv'
+        file.write_text('Role,Transaction\nDEMO,DEMO_T\n')
+        profile = ImportProfile(id='manual',name='Manual',mapping={'AGR_NAME':'Role'})
+        report = CsvImport(file,profile).inspect_header()
+        self.assertFalse(report['issues'])
+        self.assertEqual(profile.mapping, {'AGR_NAME':'Role'})
+
     def test_nine_column_relationships_assignments_and_reordered_schema(self):
         file=self.root/'data.csv'
         file.write_text('TCODE,Effective_Role,PARENT_AGR,AGR_NAME,CHILD_AGR,FUNCTION_KEY,TEXT,CHILD_AGR_TEXT,TTEXT\nDEMO_T,DEMO_EFFECTIVE,DEMO_PARENT,DEMO_ROLE,DEMO_CHILD,FI,Synthetic role,Synthetic child,Synthetic transaction\n')

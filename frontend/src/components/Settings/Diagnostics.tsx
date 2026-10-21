@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Activity, Download, FileText } from 'lucide-react'
+import { Activity, Download, FileText, FolderOpen } from 'lucide-react'
 import { apiRequest, applicationToken } from '@/api/client'
 interface Snapshot {
   version: string
@@ -63,73 +63,123 @@ export function Diagnostics({ native }: { native: boolean }) {
     })
   return (
     <div className="space-y-5">
-      <div className="flex gap-2 items-center text-sm">
-        <Activity size={17} className="text-[var(--success)]" />
-        <span>
-          Local service:{' '}
-          {query.isError
-            ? 'unavailable'
-            : query.data?.backend_status || 'checking…'}
-        </span>
-        <button
-          onClick={() => void query.refetch()}
-          className="ml-auto text-[var(--accent2)] underline text-xs"
-        >
-          Check again
-        </button>
-      </div>
-      {query.data && (
-        <dl className="grid sm:grid-cols-[170px_1fr] gap-x-6 gap-y-3 text-sm break-words">
-          {Object.entries({
-            'Application version': query.data.version,
-            'Configuration schema': query.data.configuration_schema,
-            'Configuration revision': query.data.configuration_revision,
-            Platform: query.data.platform,
-            'Cached roles': query.data.cached_roles,
-            'Last successful load': query.data.last_successful_load
-              ? new Date(query.data.last_successful_load).toLocaleString()
-              : 'No successful load yet',
-            'Active data source': query.data.data_source || 'No CSV configured',
-            'Application data directory': query.data.application_directory
-          }).map(([label, value]) => (
-            <div key={label} className="contents">
-              <dt className="text-[var(--muted)]">{label}</dt>
-              <dd className="min-w-0 break-all">{value}</dd>
-            </div>
-          ))}
+      <section className="settings-card space-y-4">
+        <h2 className="settings-subheading">
+          <Activity size={18} aria-hidden="true" /> Application status
+        </h2>
+        <div className="flex gap-2 items-center text-sm">
+          <span
+            className={
+              query.isError ? 'text-[var(--error)]' : 'text-[var(--success)]'
+            }
+          >
+            Local service:{' '}
+            {query.isError
+              ? 'unavailable'
+              : query.data?.backend_status || 'checking…'}
+          </span>
+          <button
+            onClick={() => void query.refetch()}
+            className="ml-auto settings-secondary-button"
+          >
+            Check again
+          </button>
+        </div>
+        {query.data && (
+          <dl className="settings-status-list">
+            <dt>Application version</dt>
+            <dd>{query.data.version}</dd>
+            <dt>Current data status</dt>
+            <dd>{query.data.cached_roles} roles loaded</dd>
+            <dt>Last successful refresh</dt>
+            <dd>
+              {query.data.last_successful_load
+                ? new Date(query.data.last_successful_load).toLocaleString()
+                : 'No successful load yet'}
+            </dd>
+          </dl>
+        )}
+      </section>
+      <section className="settings-card space-y-3">
+        <h2 className="settings-subheading">Data & storage</h2>
+        <p className="text-xs text-[var(--muted)]">
+          These locations are shown only in this application and excluded from
+          diagnostic exports.
+        </p>
+        <dl className="settings-status-list">
+          <dt>Current data source</dt>
+          <dd>{query.data?.data_source || 'No CSV configured'}</dd>
+          <dt>Local application data</dt>
+          <dd>{query.data?.application_directory || 'Checking…'}</dd>
         </dl>
-      )}
-      <div className="flex flex-wrap gap-3">
         <button
-          disabled={!native || busy || !window.pywebview?.api.open_logs}
+          className="settings-secondary-button"
+          disabled={
+            !native || busy || !window.pywebview?.api.open_configuration_folder
+          }
           onClick={() =>
             void act(async () => {
-              await window.pywebview?.api.open_logs?.(applicationToken())
+              await window.pywebview?.api.open_configuration_folder?.(
+                applicationToken()
+              )
             })
           }
-          className="border border-[var(--border)] rounded-lg px-3 py-2 text-sm flex items-center gap-2 disabled:opacity-50"
         >
-          <FileText size={16} /> Open logs
+          <FolderOpen size={16} /> Open configuration folder
         </button>
-        <button
-          disabled={busy}
-          onClick={() => void exportReport()}
-          className="border border-[var(--border)] rounded-lg px-3 py-2 text-sm flex items-center gap-2 disabled:opacity-50"
-        >
-          <Download size={16} /> Export diagnostics
-        </button>
-      </div>
-      <p className="text-xs text-[var(--muted)]">
-        Diagnostic exports contain versions, status and counts. They exclude CSV
-        paths and contents, organization identity, rules, logs and session
-        credentials.
-      </p>
-      {feedback && (
-        <p role={failed ? 'alert' : 'status'} className="text-sm">
-          {feedback}
+        <p className="text-xs text-[var(--muted)]">
+          Open the per-user folder containing settings, backups and application
+          logs.
         </p>
-      )}
-      <h2 className="settings-subheading">Configuration backup & recovery</h2>
+      </section>
+      <section className="settings-card space-y-3">
+        <h2 className="settings-subheading">Troubleshooting</h2>
+        <p className="text-sm text-[var(--text2)]">
+          View local logs for detailed errors, or export a redacted status
+          report to share with support.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          <button
+            disabled={!native || busy || !window.pywebview?.api.open_logs}
+            onClick={() =>
+              void act(async () => {
+                await window.pywebview?.api.open_logs?.(applicationToken())
+              })
+            }
+            className="border border-[var(--border)] rounded-lg px-3 py-2 text-sm flex items-center gap-2 disabled:opacity-50"
+          >
+            <FileText size={16} /> Open logs
+          </button>
+          <button
+            disabled={busy}
+            onClick={() => void exportReport()}
+            className="border border-[var(--border)] rounded-lg px-3 py-2 text-sm flex items-center gap-2 disabled:opacity-50"
+          >
+            <Download size={16} /> Export diagnostics
+          </button>
+        </div>
+        <p className="text-xs text-[var(--muted)]">
+          Diagnostic exports contain versions, status and counts. They exclude
+          CSV paths and contents, organization identity, rules, logs and session
+          credentials.
+        </p>
+        {feedback && (
+          <p role={failed ? 'alert' : 'status'} className="text-sm">
+            {feedback}
+          </p>
+        )}
+        <details className="settings-advanced">
+          <summary>Technical details</summary>
+          <dl className="settings-status-list">
+            <dt>Configuration schema</dt>
+            <dd>{query.data?.configuration_schema ?? 'Checking…'}</dd>
+            <dt>Configuration revision</dt>
+            <dd>{query.data?.configuration_revision ?? 'Checking…'}</dd>
+            <dt>Platform</dt>
+            <dd>{query.data?.platform ?? 'Checking…'}</dd>
+          </dl>
+        </details>
+      </section>
     </div>
   )
 }

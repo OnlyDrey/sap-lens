@@ -1,3 +1,4 @@
+import { ModuleIcon } from '@/components/Modules/ModuleIcon'
 import { onColor } from '@/lib/theme'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -6,7 +7,6 @@ import {
   AlertTriangle, RefreshCw, ArrowUpDown, Zap
 } from 'lucide-react'
 import { fetchConfiguration } from '@/api/configuration'
-import { useModuleVisual } from '@/components/Modules/ModuleRegistry'
 import { useModules } from '@/hooks/useModules'
 import { useRoles } from '@/hooks/useRoles'
 import { RoleCard } from './RoleCard'
@@ -450,7 +450,6 @@ export function RoleList({
             {moduleGroups.map(([key, count]) => {
               const active = activeModule === key
               const color = modules.find(m=>m.function_key===key)?.color || '#64748b'
-              const Icon = RegistryIcon
               const full = moduleNames[key] ?? key
               const short =
                 full.length > 14
@@ -479,7 +478,7 @@ export function RoleList({
                         }
                   }
                 >
-                  <Icon moduleId={key} className="w-3 h-3" />
+                  <ModuleIcon moduleId={key} selected={active} />
                   {key} &ndash; {short}
 
                   <span className="opacity-60 font-medium">
@@ -720,8 +719,4 @@ export function RoleList({
       )}
     </div>
   )
-}
-function RegistryIcon({moduleId,className}: {moduleId:string; className?:string}) {
-  const {Icon,color} = useModuleVisual(moduleId)
-  return <Icon className={className} style={{color}} />
 }

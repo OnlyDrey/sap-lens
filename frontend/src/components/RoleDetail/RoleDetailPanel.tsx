@@ -1,38 +1,33 @@
-import { onColor } from '@/lib/theme'
+import { ModuleIcon } from '@/components/Modules/ModuleIcon'
+import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import { useState, useEffect, useCallback } from 'react'
 import { X, ChevronDown, ChevronRight, AlertTriangle, Loader2, Layers, Zap } from 'lucide-react'
 import * as ScrollArea from '@radix-ui/react-scroll-area'
-import { useDomainLabel, useModuleVisual } from '@/components/Modules/ModuleRegistry'
+import { useDomainLabel } from '@/components/Modules/ModuleRegistry'
 import { useRoleDetail } from '@/hooks/useRoleDetail'
 import type { SingleRole, TCode } from '@/api/types'
-
-function RowModIcon({ moduleId }: { moduleId?: string }) {
-  const {Icon,color} = useModuleVisual(moduleId)
-  return <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0" style={{backgroundColor:color, color:onColor(color)}}><Icon className="w-3.5 h-3.5 text-current" /></div>
-}
 
 function SingleRoleRow({ sr }: { sr: SingleRole }) {
   const [open, setOpen] = useState(false)
   return (
     <div style={{ borderBottom: '1px solid var(--border)' }}>
-      <button onClick={() => setOpen(p => !p)} aria-expanded={open}
+      <div
         className="w-full flex items-center gap-3 px-4 py-3 text-left hover:opacity-90 focus:outline-none transition-colors"
         style={{ backgroundColor: open ? 'color-mix(in srgb, var(--accent2) 8%, var(--surface))' : 'var(--surface)' }}>
 
         {/* Module icon */}
-        <RowModIcon moduleId={sr.function_key} />
+        <ModuleIcon moduleId={sr.function_key} />
 
         {/* Expand arrow */}
-        {open
+        <button type="button" className="role-expand" aria-label={`Expand single role ${sr.child_agr}`} aria-expanded={open} onClick={() => setOpen(p => !p)}>{open
           ? <ChevronDown  className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--accent2)' }} />
           : <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--muted)'   }} />
-        }
+        }</button>
 
         {/* Name + description */}
         <div className="min-w-0 flex-1">
-          <p className="font-mono text-xs font-bold truncate" style={{ color: 'var(--text)' }}>
-            {sr.child_agr}{sr.assignment_kind==='direct'?' · Direct assignment':sr.assignment_kind==='effective'?' · Effective-role assignment':''}
-          </p>
+          <RoleIdentifier value={sr.child_agr} />
+          <span className="text-xs">{sr.assignment_kind==='direct'?'Direct assignment':sr.assignment_kind==='effective'?'Effective-role assignment':''}</span>
           {sr.child_agr_text && (
             <p className="text-[11px] truncate mt-0.5" style={{ color: 'var(--muted)' }}>
               {sr.child_agr_text}
@@ -48,7 +43,7 @@ function SingleRoleRow({ sr }: { sr: SingleRole }) {
             {sr.tcodes.length}
           </span>
         </div>
-      </button>
+      </div>
 
       {open && (
         <div style={{ borderTop: '1px solid var(--border)', backgroundColor: 'var(--surface2)' }}>
@@ -104,10 +99,11 @@ export function RoleDetailPanel({ roleName, onClose }: { roleName: string | null
         <div className="flex items-start justify-between gap-3 px-6 py-4 flex-shrink-0"
           style={{ backgroundColor: 'var(--primary)', color:'var(--on-primary)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
           <div className="min-w-0 flex-1">
-            <p className="text-base font-black text-current leading-snug">
+            <p className="text-base font-black text-current leading-snug break-words">
               {cleanTitle(role?.text ?? null)}
             </p>
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              <ModuleIcon moduleId={role?.function_key} size="medium" />
               {role?.function_key && (
                 <span className="text-xs font-bold px-2 py-0.5 rounded-md text-current"
                   style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}>
@@ -120,7 +116,7 @@ export function RoleDetailPanel({ roleName, onClose }: { roleName: string | null
                 </span>
               )}
             </div>
-            <p className="font-mono text-[10px] mt-1.5 break-all" style={{ color: 'var(--on-primary)' }}>{roleName}</p>
+            <RoleIdentifier value={roleName} />
           </div>
           <button onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-current/60 hover:text-current hover:bg-white/10 transition-colors flex-shrink-0 focus:outline-none">
@@ -186,7 +182,7 @@ export function RoleDetailPanel({ roleName, onClose }: { roleName: string | null
                     <p className="mt-1">Alternative descriptions: {role.alternate_descriptions?.join(' · ') || 'None'}</p>
                     <p className="mt-1">Import profile {String(role.analysis?.import_profile_id || 'default')}</p>
                     <table className="w-full text-left mt-2"><thead><tr><th>Child</th><th>Parent</th><th>Effective role</th></tr></thead><tbody>
-                      {role.relationships?.slice(0,200).map((r,i)=><tr key={i}><td className="p-1 break-all">{r.child_agr||'—'}</td><td className="p-1 break-all">{r.parent_agr||'—'}</td><td className="p-1 break-all">{r.effective_role||'—'}</td></tr>)}
+                      {role.relationships?.slice(0,200).map((r,i)=><tr key={i}><td className="p-1 break-all">{r.child_agr ? <RoleIdentifier value={r.child_agr} /> : '—'}</td><td className="p-1 break-all">{r.parent_agr ? <RoleIdentifier value={r.parent_agr} /> : '—'}</td><td className="p-1 break-all">{r.effective_role ? <RoleIdentifier value={r.effective_role} /> : '—'}</td></tr>)}
                     </tbody></table>
                     {(role.relationships?.length||0)>200 && <p>Showing 200 of {role.relationships?.length} retained relationships.</p>}
                   </details>

@@ -19,5 +19,5 @@ export const fetchConfiguration = () => apiRequest<ConfigurationResponse>('/api/
 export const saveConfiguration = (settings: Configuration) => apiRequest<ConfigurationResponse>('/api/configuration','POST',settings)
 export const fetchRegistry = () => apiRequest<RegistryResponse>('/api/registry/modules')
 export const previewImport = (path: string, profile: ImportProfile) => apiRequest<ImportReport>('/api/import/preview','POST',{data_csv_path:path,profile})
-export const detectHeaders = (path: string, profile: ImportProfile) => apiRequest<{detected_columns:string[]}>('/api/import/headers','POST',{data_csv_path:path,profile})
+export const detectHeaders = (path: string, profile: ImportProfile) => apiRequest<{detected_columns:string[];proposed_mapping:Record<string,string>;issues:string[]}>('/api/import/headers','POST',{data_csv_path:path,profile})
 export const previewClassification = (profile: ClassificationProfile, test_role?: string) => apiRequest<ClassificationReport>('/api/classification/preview','POST',{profile,test_role:test_role || null})

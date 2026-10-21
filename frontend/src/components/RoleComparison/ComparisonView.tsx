@@ -1,4 +1,5 @@
-import { onColor } from '@/lib/theme'
+import { ModuleIcon } from '@/components/Modules/ModuleIcon'
+import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowLeft, Loader2, AlertTriangle, RefreshCw, GitCompare, Share2,
@@ -6,7 +7,6 @@ import {
   Hash, Zap
 } from 'lucide-react'
 import * as ScrollArea from '@radix-ui/react-scroll-area'
-import { useModuleVisual } from '@/components/Modules/ModuleRegistry'
 import { useComparison } from '@/hooks/useComparison'
 import { useRoleDetail } from '@/hooks/useRoleDetail'
 import type { TCode, SingleRoleInfo, ComparisonRole, PairwiseOverlap } from '@/api/types'
@@ -17,21 +17,13 @@ const cleanDesc = (t:string|null) => t ? t.replace(/^[A-Z]{2,3}\s*-\s*/,'').trim
 const lbl = (r:ComparisonRole) => cleanDesc(r.text) || r.agr_name
 
 function ModLabel({ r, center }: { r: ComparisonRole; center?: boolean }) {
-  const {Icon,color} = useModuleVisual(r.function_key)
   const name = r.module_name ?? r.function_key ?? ''
 
   if (!name) return null
 
   return (
     <div className={`flex items-center gap-1.5 ${center ? 'justify-center' : ''}`}>
-      <div
-        className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
-        style={{ backgroundColor:color, color:onColor(color) }}
-      >
-        {Icon
-          ? <Icon className="w-3 h-3 text-current" />
-          : <span className="text-[8px] text-current font-black">{r.function_key}</span>}
-      </div>
+      <ModuleIcon moduleId={r.function_key} />
       <span
         className="text-[10px] font-semibold truncate"
         style={{ color:'var(--text2)' }}
@@ -105,12 +97,10 @@ function SRRow({ sr, parentRoleName }: { sr: SingleRoleInfo; parentRoleName: str
   const { data: detail, isLoading } = useRoleDetail(open ? parentRoleName : null)
   const tcodes = detail?.single_roles.find(s => s.child_agr === sr.child_agr)?.tcodes ?? []
   const mod = sr.function_key
-  const {Icon,color} = useModuleVisual(mod)
 
   return (
     <div style={{ borderBottom:'1px solid var(--border)' }}>
-      <button
-        onClick={() => setOpen(p => !p)}
+      <div
         className="w-full flex items-center gap-3 px-4 py-3 text-left hover:opacity-90 focus:outline-none transition-colors"
         style={{
           backgroundColor: open
@@ -118,23 +108,14 @@ function SRRow({ sr, parentRoleName }: { sr: SingleRoleInfo; parentRoleName: str
             : 'var(--surface)'
         }}
       >
-        <div
-          className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
-          style={{ backgroundColor:color, color:onColor(color) }}
-        >
-          {Icon
-            ? <Icon className="w-3.5 h-3.5 text-current" />
-            : <span className="text-[8px] font-black text-current">{mod ?? '?'}</span>}
-        </div>
+        <ModuleIcon moduleId={mod} />
 
-        {open
+        <button type="button" className="role-expand" aria-label={`Expand single role ${sr.child_agr}`} aria-expanded={open} onClick={() => setOpen(p => !p)}>{open
           ? <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" style={{ color:'var(--accent2)' }} />
-          : <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" style={{ color:'var(--muted)' }} />}
+          : <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" style={{ color:'var(--muted)' }} />}</button>
 
         <div className="min-w-0 flex-1">
-          <p className="font-mono text-xs font-bold truncate" style={{ color:'var(--text)' }}>
-            {sr.child_agr}
-          </p>
+          <RoleIdentifier value={sr.child_agr} />
           {sr.child_agr_text && (
             <p className="text-[11px] truncate mt-0.5" style={{ color:'var(--muted)' }}>
               {sr.child_agr_text}
@@ -151,7 +132,7 @@ function SRRow({ sr, parentRoleName }: { sr: SingleRoleInfo; parentRoleName: str
             {sr.tcode_count}
           </span>
         </div>
-      </button>
+      </div>
 
       {open && (
         <div style={{ borderTop:'1px solid var(--border)', backgroundColor:'var(--surface2)' }}>
@@ -532,15 +513,7 @@ function SRMatrix({
                       {cleanDesc(r.text) || r.agr_name}
                     </span>
 
-                    <span
-                      className="font-mono text-[9px]"
-                      style={{ color:'var(--muted)', opacity:0.6 }}
-                      title={r.agr_name}
-                    >
-                      {r.agr_name.length > 26
-                        ? r.agr_name.slice(0,24)+'...'
-                        : r.agr_name}
-                    </span>
+                    <RoleIdentifier value={r.agr_name} />
 
                     <span className="text-[9px]" style={{ color:'var(--muted)' }}>
                       {r.single_role_count} single roles
@@ -568,15 +541,7 @@ function SRMatrix({
                     {cleanDesc(row.text) || row.agr_name}
                   </p>
 
-                  <p
-                    className="font-mono text-[9px] mt-0.5"
-                    style={{ color:'var(--muted)', opacity:0.6 }}
-                    title={row.agr_name}
-                  >
-                    {row.agr_name.length > 26
-                      ? row.agr_name.slice(0,24)+'...'
-                      : row.agr_name}
-                  </p>
+                  <RoleIdentifier value={row.agr_name} />
 
                   <p className="text-[9px] mt-0.5" style={{ color:'var(--muted)' }}>
                     {row.single_role_count} single roles &middot; {row.tcode_count.toLocaleString()} T
@@ -682,12 +647,7 @@ function ExclusiveColumn({ role }: { role: ComparisonRole }) {
           </div>
         </div>
 
-        <p
-          className="font-mono text-[9px] mb-2"
-          style={{ color:'var(--muted)', opacity:0.6 }}
-        >
-          {role.agr_name}
-        </p>
+        <RoleIdentifier value={role.agr_name} />
 
         <div className="flex items-center gap-2">
           <span

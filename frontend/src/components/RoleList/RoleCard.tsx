@@ -1,6 +1,7 @@
-import { onColor } from '@/lib/theme'
+import { ModuleIcon } from '@/components/Modules/ModuleIcon'
+import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import { Plus, Check, ArrowRight, Zap, Layers } from 'lucide-react'
-import { useDomainLabel, useModuleVisual } from '@/components/Modules/ModuleRegistry'
+import { useDomainLabel } from '@/components/Modules/ModuleRegistry'
 import { cn } from '@/lib/utils'
 import type { RoleSummary } from '@/api/types'
 
@@ -17,7 +18,6 @@ const cleanTitle = (t: string | null) =>
 export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
   const title   = cleanTitle(role.text)
   const domainLabel = useDomainLabel(role.domain_id)
-  const { Icon, color } = useModuleVisual(role.function_key)
   const modName = role.module_name ?? role.function_key ?? ''
   const hasSR   = (role.single_role_count ?? 0) > 0
   const hasTcodeMatch = (role.matching_tcodes?.length ?? 0) > 0
@@ -51,10 +51,7 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
         {/* Top row: module label + add button */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
-            <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
-              style={{ backgroundColor:color, color:onColor(color) }}>
-              {Icon ? <Icon className="w-3.5 h-3.5 text-current" /> : null}
-            </div>
+            <ModuleIcon moduleId={role.function_key} selected={isSelected} />
             <span className="text-[11px] font-semibold truncate" style={{ color:'var(--text2)' }}>
               {modName}{domainLabel ? ` · ${domainLabel}` : ''}{role.classification_ambiguous?' · Ambiguous':''}
             </span>
@@ -79,9 +76,7 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
         </p>
 
         {/* AGR_NAME */}
-        <p className="font-mono text-[10px] truncate" style={{ color:'var(--text2)' }} title={role.agr_name}>
-          {role.agr_name}
-        </p>
+        <RoleIdentifier value={role.agr_name} />
 
         {/* T-code match badges â€” shown only when role was found via T-code search */}
         {hasTcodeMatch && (

@@ -3,9 +3,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 SCHEMA_VERSION = 2
-ICONS = ['DollarSign', 'BarChart2', 'Package', 'Wrench', 'Users', 'TrendingUp', 'Cog',
-         'FolderKanban', 'CheckCircle', 'Server', 'Warehouse', 'Layers', 'Shield', 'Database',
-         'Truck', 'Building2', 'Globe', 'Code', 'FileText', 'Leaf', 'Hash']
+from lucide_catalog import ICONS
 
 
 class StrictModel(BaseModel):

@@ -213,3 +213,17 @@ class RegistryClassificationTests(unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
+
+
+class IconCompatibilityTests(unittest.TestCase):
+    def test_complete_catalog_and_existing_identifiers_roundtrip(self):
+        from config_models import ModuleOverride, AppConfig, ICONS
+        from pydantic import ValidationError
+        self.assertGreater(len(ICONS), 1400)
+        for name in ['Camera', 'BarChart2', 'DollarSign', 'Hash']:
+            settings = AppConfig(module_overrides={'FI': ModuleOverride(icon=name)})
+            restored = AppConfig.model_validate_json(settings.model_dump_json())
+            self.assertEqual(restored.module_overrides['FI'].icon, name)
+        for invalid in ['../Camera', '__proto__', '<script>']:
+            with self.assertRaises(ValidationError):
+                ModuleOverride(icon=invalid)

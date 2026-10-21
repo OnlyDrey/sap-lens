@@ -176,17 +176,19 @@ class DesktopTests(unittest.TestCase):
         guard.close.assert_called_once()
 
     def test_stalled_initial_csv_does_not_prevent_window_or_exit(self):
-        started, release = threading.Event(), threading.Event()
+        started, release, read_finished = threading.Event(), threading.Event(), threading.Event()
         os.environ['DATA_CSV_PATH'] = str(self.root / 'network.csv')
         config.get_settings.cache_clear()
 
         def stalled(*args, **kwargs):
             started.set()
             release.wait(5)
+            read_finished.set()
             kwargs['before_commit']()
 
         def window(**kwargs):
             self.assertTrue(started.wait(1))
+            self.assertFalse(read_finished.is_set(), 'Window waited for the stalled CSV reader')
             origin, _ = self.session()
             with self.request(origin + '/health') as response:
                 self.assertEqual(json.load(response)['status'], 'loading')
@@ -194,9 +196,8 @@ class DesktopTests(unittest.TestCase):
         self.gui_session = window
         try:
             with patch('cache.load_cache', side_effect=stalled):
-                start = time.monotonic()
                 self.assertEqual(desktop.run(), 0)
-                self.assertLess(time.monotonic() - start, 2)
+                self.assertFalse(read_finished.is_set(), 'Shutdown waited for the stalled CSV reader')
         finally:
             release.set()
 
@@ -247,6 +248,14 @@ class DesktopTests(unittest.TestCase):
         self.assertIn('service stopped',self.report.call_args.args[0])
 
     def test_startup_timeout_is_visible_and_owned_listener_is_closed(self):
+        # Do not let the generic GUI harness auto-close after three seconds before
+        # the expected startup error is delivered on a loaded/slow test runner.
+        visible_error = threading.Event()
+        def record_script(script):
+            if 'Startup needs attention' in script:
+                visible_error.set()
+        self.window.evaluate_js.side_effect = record_script
+        self.gui_session = lambda **kwargs: self.assertTrue(visible_error.wait(10))
         with patch('urllib.request.OpenerDirector.open', side_effect=TimeoutError('synthetic connection timeout')):
             self.assertEqual(desktop.run(), 1)
         self.window.load_url.assert_not_called()

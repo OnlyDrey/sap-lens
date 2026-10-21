@@ -1,6 +1,12 @@
+import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
+import { SettingsSelect } from './Controls'
+import { isHex } from '@/lib/theme'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   ArrowLeft,
+  Save,
+  RotateCcw,
+  Image,
   Building2,
   Database,
   Layers,
@@ -41,6 +47,17 @@ const sections = [
   'Appearance & Branding',
   'Application & Diagnostics'
 ]
+const fieldLabels: Record<string, string> = {
+  FUNCTION_KEY: 'SAP module or area',
+  AGR_NAME: 'Role name (required)',
+  TEXT: 'Role description',
+  CHILD_AGR: 'Child role',
+  CHILD_AGR_TEXT: 'Child role description',
+  PARENT_AGR: 'Parent role',
+  Effective_Role: 'Effective role',
+  TCODE: 'Transaction code',
+  TTEXT: 'Transaction description'
+}
 const fields = [
   'FUNCTION_KEY',
   'AGR_NAME',
@@ -87,12 +104,22 @@ export function SettingsView({
   onSaved: () => void
 }) {
   const [section, setSection] = useState(0)
+  const scrollPane = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    scrollPane.current?.scrollTo({ top: 0 })
+  }, [section, open])
   const [draft, setDraft] = useState<Configuration | null>(null)
   const [busy, setBusy] = useState(false)
   const [native, setNative] = useState(Boolean(window.pywebview?.api))
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [columns, setColumns] = useState<string[]>([])
+  const [inspectionMessage, setInspectionMessage] = useState('')
+  const [inspecting, setInspecting] = useState(false)
+  const [inspectionRetry, setInspectionRetry] = useState(0)
+  const inspectedPath = useRef<string | null>(null)
+  const draftRef = useRef(draft)
+  draftRef.current = draft
   const [importResult, setImportResult] = useState<ImportReport | null>(null)
   const [classResult, setClassResult] = useState<ClassificationReport | null>(
     null
@@ -192,6 +219,8 @@ export function SettingsView({
           JSON.stringify(previous[k]) !== JSON.stringify(result.settings[k])
       )
     setDraft(structuredClone(result.settings))
+    setImportResult(null)
+    setClassResult(null)
     qc.setQueryData(['configuration'], result)
     await qc.invalidateQueries({
       predicate: (q) => q.queryKey[0] !== 'configuration'
@@ -212,6 +241,9 @@ export function SettingsView({
       setError(null)
       setMessage(null)
       setLogoPreview(null)
+      setImportResult(null)
+      setColumns([])
+      inspectedPath.current = config.data?.settings.data_csv_path || null
       onClose()
     }
   }
@@ -245,7 +277,11 @@ export function SettingsView({
   const update = <K extends keyof Configuration>(
     key: K,
     value: Configuration[K]
-  ) => setDraft((prev) => (prev ? { ...prev, [key]: value } : prev))
+  ) => {
+    if (key === 'classification_profiles' || key === 'active_classification')
+      setClassResult(null)
+    setDraft((prev) => (prev ? { ...prev, [key]: value } : prev))
+  }
   const imports = draft?.import_profiles.find(
     (p) => p.id === draft.active_import
   )
@@ -270,10 +306,118 @@ export function SettingsView({
         p.id === profile.id ? { ...p, ...patch } : p
       )
     )
+  useEffect(() => {
+    if (!open || !draft?.data_csv_path || !imports) {
+      setInspecting(false)
+      if (!draft?.data_csv_path) {
+        setColumns([])
+        setImportResult(null)
+        setInspectionMessage(
+          'Select a CSV file to inspect its columns and preview the import.'
+        )
+      }
+      return
+    }
+    let cancelled = false
+    const path = draft.data_csv_path
+    const profileId = imports.id
+    const samePath =
+      inspectedPath.current === path ||
+      (inspectedPath.current === null &&
+        config.data?.settings.data_csv_path === path)
+    setInspecting(true)
+    const timer = window.setTimeout(async () => {
+      try {
+        const result = await detectHeaders(path, {
+          ...imports,
+          mapping: samePath ? imports.mapping : {}
+        })
+        if (cancelled) return
+        setColumns(result.detected_columns)
+        const current = draftRef.current
+        if (
+          !current ||
+          current.data_csv_path !== path ||
+          current.active_import !== profileId
+        )
+          return
+        const currentProfile = current.import_profiles.find(
+          (p) => p.id === profileId
+        )!
+        const mapping = samePath
+          ? Object.fromEntries(
+              Object.entries(currentProfile.mapping).filter(([, source]) =>
+                result.detected_columns.includes(source)
+              )
+            )
+          : {}
+        // Store only manual overrides. Empty values continue to use parser auto-detection.
+        setDraft({
+          ...current,
+          import_profiles: current.import_profiles.map((p) =>
+            p.id === profileId ? { ...p, mapping } : p
+          )
+        })
+        inspectedPath.current = path
+        const mappingNotice =
+          !samePath && Object.keys(currentProfile.mapping).length
+            ? 'A different file was selected; previous manual mappings were cleared. '
+            : samePath &&
+                Object.keys(mapping).length !==
+                  Object.keys(currentProfile.mapping).length
+              ? 'Mappings to missing columns were cleared. '
+              : ''
+        setInspectionMessage(
+          mappingNotice +
+            (result.issues.length
+              ? result.issues.join(' ')
+              : 'Columns detected automatically. Review the preview before saving and loading.')
+        )
+        const preview = await previewImport(path, {
+          ...currentProfile,
+          mapping
+        })
+        if (
+          !cancelled &&
+          JSON.stringify(
+            draftRef.current?.import_profiles.find((p) => p.id === profileId)
+              ?.mapping
+          ) === JSON.stringify(mapping)
+        )
+          setImportResult(preview)
+      } catch (e) {
+        if (!cancelled)
+          setInspectionMessage(
+            e instanceof Error
+              ? e.message
+              : 'Could not inspect this file. Check its location and try again.'
+          )
+      } finally {
+        if (!cancelled) setInspecting(false)
+      }
+    }, 450)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [
+    open,
+    draft?.data_csv_path,
+    draft?.active_import,
+    imports?.delimiter,
+    imports?.encoding,
+    inspectionRetry
+  ])
+
   const pickCsv = () =>
     run(async () => {
       const path = await window.pywebview?.api.choose_csv(applicationToken())
-      if (path) update('data_csv_path', path)
+      if (path) {
+        setImportResult(null)
+        setColumns([])
+        update('data_csv_path', path)
+        setInspectionRetry((n) => n + 1)
+      }
     })
   const previewLogo = (path: string) =>
     run(async () => {
@@ -384,7 +528,7 @@ export function SettingsView({
         </p>
       </aside>
       <div className="settings-main">
-        <div className="settings-scroll">
+        <div className="settings-scroll" ref={scrollPane}>
           <div className="settings-content">
             <p className="text-xs uppercase tracking-widest text-[var(--muted)] mb-2">
               Settings
@@ -495,7 +639,7 @@ export function SettingsView({
                         />
                       </Field>
                       <Field label="SAP platform">
-                        <select
+                        <SettingsSelect
                           className={inputClass}
                           value={draft.organization.platform}
                           onChange={(e) =>
@@ -510,7 +654,7 @@ export function SettingsView({
                               <option key={v}>{v}</option>
                             )
                           )}
-                        </select>
+                        </SettingsSelect>
                       </Field>
                       {draft.organization.platform === 'Other / Custom' && (
                         <Field label="Custom platform label">
@@ -604,9 +748,11 @@ export function SettingsView({
                           className={inputClass}
                           value={draft.data_csv_path}
                           maxLength={4096}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            setImportResult(null)
+                            setColumns([])
                             update('data_csv_path', e.target.value)
-                          }
+                          }}
                           placeholder="C:/data/synthetic.csv or a permitted network share"
                         />
                       </Field>
@@ -630,7 +776,7 @@ export function SettingsView({
                       <h2 className="settings-subheading">Import profile</h2>
                       <div className="flex flex-wrap gap-2 items-end">
                         <Field label="Import profile">
-                          <select
+                          <SettingsSelect
                             className={inputClass}
                             value={draft.active_import}
                             onChange={(e) =>
@@ -642,7 +788,7 @@ export function SettingsView({
                                 {p.name} · v{p.version}
                               </option>
                             ))}
-                          </select>
+                          </SettingsSelect>
                         </Field>
                         <button
                           className={buttonClass}
@@ -672,7 +818,7 @@ export function SettingsView({
                       </Field>
                       <div className="grid sm:grid-cols-2 gap-3">
                         <Field label="Delimiter">
-                          <select
+                          <SettingsSelect
                             className={inputClass}
                             value={imports.delimiter}
                             onChange={(e) =>
@@ -690,10 +836,10 @@ export function SettingsView({
                                 {l}
                               </option>
                             ))}
-                          </select>
+                          </SettingsSelect>
                         </Field>
                         <Field label="Encoding">
-                          <select
+                          <SettingsSelect
                             className={inputClass}
                             value={imports.encoding}
                             onChange={(e) =>
@@ -705,24 +851,18 @@ export function SettingsView({
                                 <option key={v}>{v}</option>
                               )
                             )}
-                          </select>
+                          </SettingsSelect>
                         </Field>
                       </div>
+                      <p role="status" className="text-sm text-[var(--text2)]">
+                        {inspecting
+                          ? 'Inspecting columns and updating the preview…'
+                          : inspectionMessage}
+                      </p>
                       <button
                         className={buttonClass}
-                        disabled={busy || !draft.data_csv_path}
-                        onClick={() =>
-                          void run(async () =>
-                            setColumns(
-                              (
-                                await detectHeaders(
-                                  draft.data_csv_path,
-                                  imports
-                                )
-                              ).detected_columns
-                            )
-                          )
-                        }
+                        disabled={busy || inspecting || !draft.data_csv_path}
+                        onClick={() => setInspectionRetry((n) => n + 1)}
                       >
                         Detect columns
                       </button>
@@ -741,25 +881,61 @@ export function SettingsView({
                         {fields.map((field) => (
                           <Field
                             key={field}
-                            label={
-                              field === 'AGR_NAME'
-                                ? 'AGR_NAME (required)'
-                                : field
-                            }
+                            label={`${fieldLabels[field]} · ${field}`}
                           >
-                            <input
+                            <SettingsSelect
+                              disabled={busy || inspecting}
+                              aria-describedby={`mapping-${field}-description`}
+                              aria-label={
+                                field === 'AGR_NAME'
+                                  ? 'AGR_NAME (required)'
+                                  : field
+                              }
                               className={inputClass}
-                              list="csv-columns"
                               value={imports.mapping[field] || ''}
-                              placeholder="Automatic"
                               onChange={(e) => {
+                                setImportResult(null)
                                 const mapping = { ...imports.mapping }
                                 if (e.target.value)
                                   mapping[field] = e.target.value
                                 else delete mapping[field]
                                 editImport({ mapping })
                               }}
-                            />
+                            >
+                              <option value="">
+                                Automatic
+                                {columns.find(
+                                  (c) =>
+                                    c
+                                      .toLowerCase()
+                                      .replace(/[^a-z0-9]/g, '') ===
+                                    field
+                                      .toLowerCase()
+                                      .replace(/[^a-z0-9]/g, '')
+                                )
+                                  ? ` — ${columns.find((c) => c.toLowerCase().replace(/[^a-z0-9]/g, '') === field.toLowerCase().replace(/[^a-z0-9]/g, ''))}`
+                                  : ' — not detected'}
+                              </option>
+                              {[
+                                ...new Set([
+                                  ...columns,
+                                  ...Object.values(imports.mapping)
+                                ])
+                              ].map((c) => (
+                                <option key={c} value={c}>
+                                  {c}
+                                </option>
+                              ))}
+                            </SettingsSelect>
+                            <small
+                              id={`mapping-${field}-description`}
+                              className="text-[var(--muted)]"
+                            >
+                              {fieldLabels[field]}:{' '}
+                              {imports.mapping[field]
+                                ? 'Manual mapping'
+                                : 'Automatic mapping'}
+                            </small>
                           </Field>
                         ))}
                       </div>
@@ -829,6 +1005,9 @@ export function SettingsView({
                       <ModuleEditor
                         modules={registry.data?.modules || []}
                         overrides={draft.module_overrides}
+                        savedOverrides={
+                          config.data?.settings.module_overrides || {}
+                        }
                         onChange={(value) => update('module_overrides', value)}
                         search={moduleSearch}
                         onSearch={setModuleSearch}
@@ -837,8 +1016,23 @@ export function SettingsView({
                   }
                   {section === 3 && profile && (
                     <>
+                      <div className="settings-card space-y-2">
+                        <h2 className="font-semibold">How roles are grouped</h2>
+                        <p className="text-sm text-[var(--text2)]">
+                          Classification groups roles into SAP areas and your
+                          own business domains. It does not change role
+                          relationships or transaction assignments.
+                        </p>
+                        <p className="text-xs text-[var(--muted)]">
+                          Generic SAP uses recognized module values from the CSV
+                          and suits neutral new setups. Legacy preserves
+                          existing results and older child-label hints. Custom
+                          adds your organization’s rules. Keep your current
+                          profile unless you intend to change grouping.
+                        </p>
+                      </div>
                       <Field label="Classification profile">
-                        <select
+                        <SettingsSelect
                           className={inputClass}
                           value={draft.active_classification}
                           onChange={(e) =>
@@ -847,10 +1041,15 @@ export function SettingsView({
                         >
                           {draft.classification_profiles.map((p) => (
                             <option key={p.id} value={p.id}>
-                              {p.name} · v{p.version}
+                              {p.name}
+                              {p.mode === 'legacy'
+                                ? ' — compatibility'
+                                : p.mode === 'generic'
+                                  ? ' — standard SAP areas'
+                                  : ' — your rules'}
                             </option>
                           ))}
-                        </select>
+                        </SettingsSelect>
                       </Field>
                       <button
                         className={buttonClass}
@@ -874,14 +1073,18 @@ export function SettingsView({
                       >
                         Add Custom profile
                       </button>
-                      <p className="text-sm">
-                        Generic SAP trusts explicit recognized FUNCTION_KEY
-                        evidence. Legacy also preserves prior child-label hints.
-                        Custom profiles use your local domains/rules;
-                        relationships and transactions are never reclassified.
-                      </p>
+                      <details className="settings-advanced">
+                        <summary>Profile compatibility details</summary>
+                        <p className="text-sm">
+                          Generic SAP trusts explicit recognized FUNCTION_KEY
+                          evidence. Legacy also preserves prior child-label
+                          hints. Custom profiles use your local domains/rules;
+                          relationships and transactions are never reclassified.
+                        </p>
+                      </details>
                       {profile.mode === 'custom' && (
-                        <>
+                        <details className="settings-advanced">
+                          <summary>Custom domains and rules</summary>
                           <Field label="Profile name">
                             <input
                               className={inputClass}
@@ -920,7 +1123,7 @@ export function SettingsView({
                                   })
                                 }
                               />
-                              <select
+                              <SettingsSelect
                                 aria-label={`Domain ${i + 1} module`}
                                 className={inputClass}
                                 value={d.module_id || ''}
@@ -943,7 +1146,7 @@ export function SettingsView({
                                     {m.id} — {m.name}
                                   </option>
                                 ))}
-                              </select>
+                              </SettingsSelect>
                               <button
                                 className={buttonClass}
                                 onClick={() =>
@@ -994,7 +1197,7 @@ export function SettingsView({
                                 key={rule.id}
                                 className="border rounded-xl p-2 grid sm:grid-cols-5 gap-2"
                               >
-                                <select
+                                <SettingsSelect
                                   aria-label={`Rule ${i + 1} match`}
                                   className={inputClass}
                                   value={rule.kind}
@@ -1017,7 +1220,7 @@ export function SettingsView({
                                       <option key={k}>{k}</option>
                                     )
                                   )}
-                                </select>
+                                </SettingsSelect>
                                 <input
                                   aria-label={`Rule ${i + 1} pattern`}
                                   className={inputClass}
@@ -1032,7 +1235,7 @@ export function SettingsView({
                                     })
                                   }
                                 />
-                                <select
+                                <SettingsSelect
                                   aria-label={`Rule ${i + 1} domain`}
                                   className={inputClass}
                                   value={rule.domain_id}
@@ -1052,7 +1255,7 @@ export function SettingsView({
                                       {d.label}
                                     </option>
                                   ))}
-                                </select>
+                                </SettingsSelect>
                                 <input
                                   aria-label={`Rule ${i + 1} priority`}
                                   className={inputClass}
@@ -1127,7 +1330,7 @@ export function SettingsView({
                               Add rule
                             </button>
                             <Field label="Fallback domain">
-                              <select
+                              <SettingsSelect
                                 className={inputClass}
                                 value={profile.fallback_domain || ''}
                                 onChange={(e) =>
@@ -1145,14 +1348,14 @@ export function SettingsView({
                                     {d.label}
                                   </option>
                                 ))}
-                              </select>
+                              </SettingsSelect>
                             </Field>
                             <h3 className="font-bold">Exact role overrides</h3>
                             {Object.entries(profile.overrides).map(
                               ([name, domain]) => (
                                 <div key={name} className="flex gap-2">
                                   <span className="text-sm flex-1">{name}</span>
-                                  <select
+                                  <SettingsSelect
                                     aria-label={`Override ${name}`}
                                     className={inputClass}
                                     value={domain}
@@ -1170,7 +1373,7 @@ export function SettingsView({
                                         {d.label}
                                       </option>
                                     ))}
-                                  </select>
+                                  </SettingsSelect>
                                   <button
                                     className={buttonClass}
                                     onClick={() => {
@@ -1201,8 +1404,12 @@ export function SettingsView({
                               Override test role
                             </button>
                           </details>
-                        </>
+                        </details>
                       )}
+                      <p className="text-sm text-[var(--text2)]">
+                        Try a role name to see where this profile would group
+                        it. Previewing does not change the loaded data.
+                      </p>
                       <Field label="Test an individual role name">
                         <input
                           className={inputClass}
@@ -1232,6 +1439,12 @@ export function SettingsView({
                             {classResult.ambiguous_matches} ambiguous ·{' '}
                             {classResult.changed_roles} changes
                           </p>
+                          <p className="text-xs text-[var(--text2)]">
+                            Unclassified means no group was found. Ambiguous
+                            means more than one rule matched. Changes are
+                            proposed differences from the currently loaded
+                            grouping; nothing is applied by this preview.
+                          </p>
                           <p>
                             Domain/area counts:{' '}
                             {Object.entries(classResult.counts)
@@ -1249,7 +1462,8 @@ export function SettingsView({
                           ))}
                           {classResult.samples.map((r) => (
                             <p key={r.agr_name}>
-                              {r.agr_name} → {r.domain_id || r.module_id}
+                              <RoleIdentifier value={r.agr_name} /> →{' '}
+                              {r.domain_id || r.module_id}
                               {r.ambiguous ? ' (ambiguous)' : ''}
                               {r.changed ? ' (changed)' : ''}
                             </p>
@@ -1266,10 +1480,13 @@ export function SettingsView({
                                 : ''}
                             </p>
                           )}
-                          <p className="text-xs">
-                            Profile fingerprint:{' '}
-                            {classResult.profile_fingerprint}
-                          </p>
+                          <details className="settings-advanced">
+                            <summary>Technical preview details</summary>
+                            <p className="text-xs break-all">
+                              Profile fingerprint:{' '}
+                              {classResult.profile_fingerprint}
+                            </p>
+                          </details>
                         </Result>
                       )}
                     </>
@@ -1277,10 +1494,21 @@ export function SettingsView({
                   {
                     <div className={section === 4 ? 'space-y-5' : 'hidden'}>
                       <ThemeEditor
+                        key={`${open}-${config.data?.settings.revision}`}
                         draft={draft}
                         onChange={(patch) => setDraft({ ...draft, ...patch })}
                       />
                       <h2 className="settings-subheading">Header logo</h2>
+                      <p className="text-sm">
+                        Currently active:{' '}
+                        {config.data?.settings.logo_id
+                          ? 'Custom organization logo'
+                          : 'SAP Lens default logo'}
+                        .{' '}
+                        {draft.logo_id !== config.data?.settings.logo_id
+                          ? 'A pending change will be applied when you save.'
+                          : ''}
+                      </p>
                       <p className="text-sm">
                         A custom logo changes only this header, never the
                         Windows icon, README or product identity. Use
@@ -1341,14 +1569,15 @@ export function SettingsView({
                           })
                         }
                       >
-                        Select custom logo…
+                        <Image size={16} aria-hidden="true" /> Select custom
+                        logo…
                       </button>
                       <button
                         className={buttonClass}
                         disabled={!logoPath || busy}
                         onClick={() => void previewLogo(logoPath)}
                       >
-                        Preview logo
+                        <Image size={16} aria-hidden="true" /> Preview logo
                       </button>
                       <button
                         className={buttonClass}
@@ -1357,7 +1586,8 @@ export function SettingsView({
                           setLogoPreview(null)
                         }}
                       >
-                        Remove custom logo / restore SAP Lens default
+                        <RotateCcw size={16} aria-hidden="true" /> Remove custom
+                        logo / restore SAP Lens default
                       </button>
                       <p className="text-xs">
                         Previewed files are copied into managed local storage.
@@ -1369,28 +1599,12 @@ export function SettingsView({
                   {section === 5 && (
                     <>
                       <Diagnostics native={native} />
-                      <p>
-                        Configuration schema {draft.schema_version} · revision{' '}
-                        {draft.revision}. Settings and backups live in your
-                        per-user SAP Lens application directory.
+                      <h2 className="settings-subheading">Backup & recovery</h2>
+                      <p className="text-sm text-[var(--text2)]">
+                        Export saved settings before an update, or restore a
+                        previously exported package. Import and reset keep a
+                        local backup.
                       </p>
-
-                      <button
-                        className={buttonClass}
-                        disabled={
-                          !native ||
-                          !window.pywebview?.api.open_configuration_folder
-                        }
-                        onClick={() =>
-                          void run(async () => {
-                            await window.pywebview?.api.open_configuration_folder?.(
-                              applicationToken()
-                            )
-                          })
-                        }
-                      >
-                        Open configuration folder
-                      </button>
                       <label className="block text-sm">
                         <input
                           type="checkbox"
@@ -1410,7 +1624,8 @@ export function SettingsView({
                         disabled={busy}
                         onClick={() => void exportConfig()}
                       >
-                        Export saved configuration
+                        <Save size={16} aria-hidden="true" /> Export saved
+                        configuration
                       </button>
                       <Field label="Import configuration package">
                         <input
@@ -1471,7 +1686,8 @@ export function SettingsView({
                           })
                         }
                       >
-                        Reset to defaults
+                        <RotateCcw size={16} aria-hidden="true" /> Reset to
+                        defaults
                       </button>
                     </>
                   )}
@@ -1508,7 +1724,15 @@ export function SettingsView({
             className="bg-[var(--accent)] hover:opacity-90 text-[var(--on-accent)] rounded-lg px-5 py-2 text-sm font-semibold focus-visible:ring-2 focus-visible:ring-[var(--focus)] disabled:opacity-50"
             disabled={
               busy ||
+              inspecting ||
+              !dirty ||
               !draft ||
+              Boolean(
+                draft &&
+                Object.values(draft.module_overrides).some(
+                  (m) => m.color != null && !isHex(m.color)
+                )
+              ) ||
               config.data?.loading ||
               Boolean(
                 draft &&
@@ -1532,6 +1756,7 @@ export function SettingsView({
               })
             }
           >
+            <Save size={16} aria-hidden="true" />
             {busy
               ? 'Working…'
               : section === 1

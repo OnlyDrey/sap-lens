@@ -38,7 +38,14 @@ class CsvImport:
             except csv.Error: delimiter = ','
         import io
         headers = next(csv.reader(io.StringIO(sample),delimiter=delimiter,strict=True),[])
-        return dict(detected_columns=headers,delimiter=delimiter,encoding=encoding)
+        keys = [normalized(h) for h in headers]
+        issues = []
+        if len(set(keys)) != len(keys) or any(not h.strip() for h in headers):
+            issues.append('Duplicate, ambiguous or empty headers must be corrected before importing.')
+        proposed = {field:headers[keys.index(normalized(field))] for field in FIELDS if keys.count(normalized(field)) == 1}
+        if 'AGR_NAME' not in proposed and self.profile.mapping.get('AGR_NAME') not in headers:
+            issues.append('Role name (AGR_NAME) was not detected. Choose its column manually.')
+        return dict(detected_columns=headers,delimiter=delimiter,encoding=encoding,proposed_mapping=proposed,issues=issues)
 
     def records(self):
         if self.path.stat().st_size > MAX_BYTES: raise AnalysisValidationError('CSV exceeds the 128 MiB safety limit.')

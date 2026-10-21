@@ -1,5 +1,6 @@
+import { SettingsSelect, ColorControl } from './Controls'
 import { useState, type CSSProperties } from 'react'
-import { Building2, Layers, Palette, RotateCcw, Shield } from 'lucide-react'
+import { Building2, Layers, Palette, Shield, Save } from 'lucide-react'
 import type { Configuration, ThemePalette } from '@/api/configuration'
 import {
   defaultThemeColors,
@@ -7,8 +8,7 @@ import {
   themeTokens,
   paletteErrors,
   contrast,
-  onColor,
-  isHex
+  onColor
 } from '@/lib/theme'
 
 const labels: Record<keyof ThemePalette, string> = {
@@ -71,7 +71,7 @@ export function ThemeEditor({
       <div className="grid md:grid-cols-2 gap-5">
         <label className="text-sm font-medium">
           Theme
-          <select
+          <SettingsSelect
             className={`${control} mt-1`}
             value={draft.theme}
             onChange={(e) => {
@@ -83,18 +83,18 @@ export function ThemeEditor({
             <option value="dark">Dark</option>
             <option value="light">Light</option>
             <option value="system">System — follow Windows appearance</option>
-          </select>
+          </SettingsSelect>
         </label>
         <label className="text-sm font-medium">
           Edit colors for
-          <select
+          <SettingsSelect
             className={`${control} mt-1`}
             value={editing}
             onChange={(e) => setEditing(e.target.value as typeof editing)}
           >
             <option value="dark">Dark mode</option>
             <option value="light">Light mode</option>
-          </select>
+          </SettingsSelect>
         </label>
       </div>
       <div>
@@ -103,7 +103,11 @@ export function ThemeEditor({
           {[...themePresets, ...colors.custom_presets].map((p) => (
             <button
               key={p.name}
-              className="border border-[var(--border)] rounded-lg px-3 py-2 text-xs flex gap-2 items-center hover:bg-[var(--hover)]"
+              aria-pressed={
+                draft.theme === p.mode &&
+                JSON.stringify(colors[p.mode]) === JSON.stringify(p.colors)
+              }
+              className="theme-preset"
               onClick={() => {
                 onChange({
                   theme: p.mode,
@@ -112,10 +116,13 @@ export function ThemeEditor({
                 setEditing(p.mode)
               }}
             >
-              <span
-                className="h-3 w-3 rounded-full border"
-                style={{ background: p.colors.accent }}
-              />
+              <span className="theme-palette" aria-hidden="true">
+                {[p.colors.background, p.colors.primary, p.colors.accent].map(
+                  (color, i) => (
+                    <i key={i} style={{ background: color }} />
+                  )
+                )}
+              </span>
               {p.name}
             </button>
           ))}
@@ -123,48 +130,14 @@ export function ThemeEditor({
       </div>
       <div className="grid md:grid-cols-2 gap-5">
         {(Object.keys(labels) as (keyof ThemePalette)[]).map((key) => (
-          <div key={key} className="space-y-2">
-            <label htmlFor={`theme-${key}`} className="text-sm font-medium">
-              {labels[key]}
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="color"
-                aria-label={`${labels[key]} visual selection`}
-                className="h-10 w-12 shrink-0 bg-transparent cursor-pointer"
-                value={isHex(palette[key]) ? palette[key] : '#000000'}
-                onChange={(e) => update({ [key]: e.target.value })}
-              />
-              <input
-                id={`theme-${key}`}
-                className={`${control} font-mono`}
-                value={palette[key]}
-                maxLength={7}
-                aria-invalid={!isHex(palette[key])}
-                aria-describedby={
-                  !isHex(palette[key]) ? `theme-${key}-error` : undefined
-                }
-                onChange={(e) => update({ [key]: e.target.value })}
-              />
-              <button
-                aria-label={`Reset ${labels[key]}`}
-                className="p-2"
-                onClick={() =>
-                  update({ [key]: defaultThemeColors[editing][key] })
-                }
-              >
-                <RotateCcw size={15} />
-              </button>
-            </div>
-            {!isHex(palette[key]) && (
-              <p
-                id={`theme-${key}-error`}
-                className="text-xs text-[var(--error)]"
-              >
-                Enter a six-digit HEX value.
-              </p>
-            )}
-          </div>
+          <ColorControl
+            key={key}
+            id={`theme-${key}`}
+            label={labels[key]}
+            value={palette[key]}
+            onChange={(value) => update({ [key]: value })}
+            onReset={() => update({ [key]: defaultThemeColors[editing][key] })}
+          />
         ))}
       </div>
       <div aria-live="polite">
@@ -182,23 +155,31 @@ export function ThemeEditor({
           </p>
         )}
       </div>
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="text-sm flex-1 min-w-40">
-          Custom preset name
-          <input
-            className={`${control} mt-1`}
-            value={presetName}
-            maxLength={60}
-            onChange={(e) => setPresetName(e.target.value)}
-          />
-        </label>
-        <button
-          disabled={Boolean(errors.length)}
-          className="border border-[var(--border)] rounded-lg px-3 py-2 text-sm disabled:opacity-50"
-          onClick={savePreset}
-        >
-          Save custom preset
-        </button>
+      <div className="settings-card space-y-3">
+        <h3 className="font-semibold text-sm">Save a reusable preset</h3>
+        <p className="text-xs text-[var(--muted)]">
+          Name this palette to reuse it later. Choose Save custom preset to add
+          it to your draft, then Apply settings to keep it. Cancel discards
+          unsaved presets.
+        </p>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="text-sm flex-1 min-w-40">
+            Custom preset name
+            <input
+              className={`${control} mt-1`}
+              value={presetName}
+              maxLength={60}
+              onChange={(e) => setPresetName(e.target.value)}
+            />
+          </label>
+          <button
+            disabled={Boolean(errors.length) || !presetName.trim()}
+            className="border border-[var(--border)] rounded-lg px-3 py-2 text-sm disabled:opacity-50"
+            onClick={savePreset}
+          >
+            <Save size={16} aria-hidden="true" /> Save custom preset
+          </button>
+        </div>
       </div>
       {nameError && (
         <p role="alert" className="text-sm text-[var(--error)]">
