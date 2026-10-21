@@ -6,6 +6,10 @@ on:
         description: Compare clean and same-job incremental PyInstaller packaging
         type: boolean
         default: false
+      cold_cache:
+        description: Benchmark without restoring or saving dependency/browser caches
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read # Read this run's step durations for the timing summary.
@@ -20,19 +24,30 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
-          cache: npm
+          package-manager-cache: false # Cache behavior is explicit, including cold benchmarks.
+          cache: ${{ !inputs.cold_cache && 'npm' || '' }}
           cache-dependency-path: frontend/package-lock.json
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
-          cache: pip
+          cache: ${{ !inputs.cold_cache && 'pip' || '' }}
           cache-dependency-path: |
             backend/requirements*.txt
             scripts/requirements-audit.txt
       - name: Configure browser cache location
         shell: pwsh
-        run: '"PLAYWRIGHT_BROWSERS_PATH=$env:RUNNER_TEMP/sap-lens-playwright" | Add-Content $env:GITHUB_ENV'
+        env:
+          COLD_CACHE: ${{ inputs.cold_cache }}
+        run: |
+          "PLAYWRIGHT_BROWSERS_PATH=$env:RUNNER_TEMP/sap-lens-playwright" | Add-Content $env:GITHUB_ENV
+          if ($env:COLD_CACHE -eq 'true') {
+            # Use empty job-local directories instead of any runner-image download cache.
+            "npm_config_cache=$env:RUNNER_TEMP/sap-lens-cold-npm" | Add-Content $env:GITHUB_ENV
+            "PIP_CACHE_DIR=$env:RUNNER_TEMP/sap-lens-cold-pip" | Add-Content $env:GITHUB_ENV
+          }
+          "Cold dependency caches requested: $env:COLD_CACHE" | Add-Content $env:GITHUB_STEP_SUMMARY
       - name: Cache pinned Playwright headless browser
+        if: ${{ !inputs.cold_cache }}
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: ${{ runner.temp }}/sap-lens-playwright
