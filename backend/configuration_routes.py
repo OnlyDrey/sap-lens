@@ -34,6 +34,7 @@ class ImportPreview(StrictModel):
 class ClassificationPreview(StrictModel):
     profile: ClassificationProfile
     test_role: str | None = Field(default=None,max_length=512)
+    test_source_module: str | None = Field(default=None,max_length=100)
 
 
 class LogoSelection(StrictModel):
@@ -132,9 +133,9 @@ def configuration_router(loader):
     async def preview_classification(request: ClassificationPreview):
         state = cache.get_snapshot()
         if len(state.roles)>100_000: raise HTTPException(400,'Preview is limited to 100,000 composite roles.')
-        records = [dict(agr_name=r.agr_name,source_module=(r.source_modules or [None])[0],text=r.text) for r in state.roles.values()]
+        records = [dict(agr_name=r.agr_name,source_modules=r.source_modules,text=r.text) for r in state.roles.values()]
         current = {r.agr_name:dict(module_id=r.function_key,domain_id=r.domain_id) for r in state.roles.values()}
-        try: return await daemon_call(classification_preview,request.profile,records,current,request.test_role)
+        try: return await daemon_call(classification_preview,request.profile,records,current,request.test_role,request.test_source_module)
         except ValueError: raise HTTPException(400,'Invalid or overly expensive classification rules. Check expressions and simplify them.')
 
     @router.post('/import/headers')

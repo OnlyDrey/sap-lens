@@ -18,6 +18,7 @@ import {
   FileText
 } from 'lucide-react'
 import { ModuleEditor } from './ModuleEditor'
+import { ClassificationExample } from './ClassificationExample'
 import { ThemeEditor } from './ThemeEditor'
 import { paletteErrors, defaultThemeColors } from '@/lib/theme'
 import { Diagnostics } from './Diagnostics'
@@ -92,12 +93,14 @@ const freshId = (kind: string) => `${kind}-${Date.now()}`
 
 export function SettingsView({
   open,
+  dataSourceRequest = 0,
   onOpen,
   onClose,
   onDataChanged,
   onSaved
 }: {
   open: boolean
+  dataSourceRequest?: number
   onOpen: () => void
   onClose: () => void
   onDataChanged: () => void
@@ -125,6 +128,27 @@ export function SettingsView({
     null
   )
   const [testRole, setTestRole] = useState('')
+  const [testSourceModule, setTestSourceModule] = useState('')
+  const csvPathInput = useRef<HTMLInputElement>(null)
+  const handledDataSourceRequest = useRef(0)
+  const headingDataSourceRequest = useRef(0)
+  const focusDataSource = useRef(false)
+  useEffect(() => {
+    if (open && dataSourceRequest > handledDataSourceRequest.current) {
+      handledDataSourceRequest.current = dataSourceRequest
+      focusDataSource.current = true
+      setSection(1)
+      setError(null)
+      setMessage(null)
+    }
+  }, [open, dataSourceRequest])
+  useEffect(() => {
+    if (open && section === 1 && draft && focusDataSource.current) {
+      csvPathInput.current?.focus({ preventScroll: true })
+      csvPathInput.current?.scrollIntoView({ block: 'nearest' })
+      focusDataSource.current = false
+    }
+  }, [open, section, draft])
   const [moduleSearch, setModuleSearch] = useState('')
   const [logoPath, setLogoPath] = useState('')
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
@@ -249,6 +273,10 @@ export function SettingsView({
   }
   useEffect(() => {
     if (open) {
+      if (dataSourceRequest > headingDataSourceRequest.current) {
+        headingDataSourceRequest.current = dataSourceRequest
+        return
+      }
       document.getElementById('settings-heading')?.focus()
       return
     }
@@ -288,6 +316,11 @@ export function SettingsView({
   const profile = draft?.classification_profiles.find(
     (p) => p.id === draft.active_classification
   )
+  const savedClassification = config.data?.settings.classification_profiles.find(
+    (item) => item.id === config.data?.settings.active_classification
+  )
+  const classificationDraftChanged = draft?.active_classification !== config.data?.settings.active_classification ||
+    JSON.stringify(profile) !== JSON.stringify(savedClassification)
   const editImport = (patch: Partial<ImportProfile>) =>
     draft &&
     imports &&
@@ -745,6 +778,7 @@ export function SettingsView({
                       <h2 className="settings-subheading">Active CSV file</h2>
                       <Field label="CSV file location">
                         <input
+                          ref={csvPathInput}
                           className={inputClass}
                           value={draft.data_csv_path}
                           maxLength={4096}
@@ -1023,13 +1057,19 @@ export function SettingsView({
                           own business domains. It does not change role
                           relationships or transaction assignments.
                         </p>
-                        <p className="text-xs text-[var(--muted)]">
-                          Generic SAP uses recognized module values from the CSV
-                          and suits neutral new setups. Legacy preserves
-                          existing results and older child-label hints. Custom
-                          adds your organization’s rules. Keep your current
-                          profile unless you intend to change grouping.
+                        <p className="text-sm">
+                          Saved method: <strong>{savedClassification?.name || 'Not available'}</strong>
                         </p>
+                        <p className="text-sm text-[var(--text2)]">
+                          {profile.mode === 'generic'
+                            ? 'Generic SAP uses recognized areas from the CSV. If that column is reliable, custom rules are optional. Child areas are not guessed from their parent.'
+                            : profile.mode === 'legacy'
+                              ? 'Legacy preserves existing source labels and older child-role area hints. Keep it when you depend on those results.'
+                              : 'Custom adds your role-name rules and business domains. A matching rule or fallback can replace an area supplied by the CSV.'}
+                        </p>
+                        {classificationDraftChanged && <p role="status" className="text-sm text-[var(--info)]">
+                          Previewing {profile.name}. The saved method stays active until you apply settings.
+                        </p>}
                       </div>
                       <Field label="Classification profile">
                         <SettingsSelect
@@ -1051,30 +1091,30 @@ export function SettingsView({
                           ))}
                         </SettingsSelect>
                       </Field>
-                      <button
-                        className={buttonClass}
-                        onClick={() => {
-                          const id = freshId('classification')
-                          update('classification_profiles', [
-                            ...draft.classification_profiles,
-                            {
-                              id,
-                              name: 'Custom profile',
-                              version: 1,
-                              mode: 'custom',
-                              domains: [],
-                              rules: [],
-                              overrides: {},
-                              fallback_domain: null
-                            }
-                          ])
-                          update('active_classification', id)
-                        }}
-                      >
-                        Add Custom profile
-                      </button>
                       <details className="settings-advanced">
                         <summary>Profile compatibility details</summary>
+                        <button
+                          className={buttonClass}
+                          onClick={() => {
+                            const id = freshId('classification')
+                            update('classification_profiles', [
+                              ...draft.classification_profiles,
+                              {
+                                id,
+                                name: 'Custom profile',
+                                version: 1,
+                                mode: 'custom',
+                                domains: [],
+                                rules: [],
+                                overrides: {},
+                                fallback_domain: null
+                              }
+                            ])
+                            update('active_classification', id)
+                          }}
+                        >
+                          Add Custom profile
+                        </button>
                         <p className="text-sm">
                           Generic SAP trusts explicit recognized FUNCTION_KEY
                           evidence. Legacy also preserves prior child-label
@@ -1415,16 +1455,28 @@ export function SettingsView({
                           className={inputClass}
                           value={testRole}
                           maxLength={512}
-                          onChange={(e) => setTestRole(e.target.value)}
+                          onChange={(e) => { setTestRole(e.target.value); setClassResult(null) }}
                         />
                       </Field>
+                      <Field label="CSV SAP area for this example (optional)">
+                        <input className={inputClass} value={testSourceModule} maxLength={100}
+                          aria-label="CSV SAP area for this example (optional)"
+                          list="classification-example-areas" placeholder="For example FI; leave blank to use a loaded role’s CSV evidence"
+                          onChange={(event) => { setTestSourceModule(event.target.value); setClassResult(null) }} />
+                        <datalist id="classification-example-areas">
+                          {(registry.data?.modules || []).map((module) => <option key={module.id} value={module.id}>{module.name}</option>)}
+                        </datalist>
+                      </Field>
+                      <p className="text-xs text-[var(--muted)]">
+                        Preview a composite role using its loaded CSV evidence, or enter an example area. With Generic SAP, role names alone do not imply an area.
+                      </p>
                       <button
                         className={buttonClass}
                         disabled={busy}
                         onClick={() =>
                           void run(async () =>
                             setClassResult(
-                              await previewClassification(profile, testRole)
+                              await previewClassification(profile, testRole, testSourceModule)
                             )
                           )
                         }
@@ -1441,7 +1493,8 @@ export function SettingsView({
                           </p>
                           <p className="text-xs text-[var(--text2)]">
                             Unclassified means no group was found. Ambiguous
-                            means more than one rule matched. Changes are
+                            means conflicting CSV areas or equal-priority rules
+                            targeting different domains. Changes are
                             proposed differences from the currently loaded
                             grouping; nothing is applied by this preview.
                           </p>
@@ -1468,18 +1521,9 @@ export function SettingsView({
                               {r.changed ? ' (changed)' : ''}
                             </p>
                           ))}
-                          {classResult.test_result && (
-                            <p>
-                              Test role:{' '}
-                              {String(
-                                classResult.test_result.domain_id ||
-                                  classResult.test_result.module_id
-                              )}
-                              {classResult.test_result.ambiguous
-                                ? ' (ambiguous)'
-                                : ''}
-                            </p>
-                          )}
+                          {classResult.test_result && <ClassificationExample
+                            result={classResult.test_result} profile={profile} modules={registry.data?.modules || []} />}
+                          {!classResult.test_result && <p className="text-sm text-[var(--muted)]">Enter a composite role name to see its individual result.</p>}
                           <details className="settings-advanced">
                             <summary>Technical preview details</summary>
                             <p className="text-xs break-all">

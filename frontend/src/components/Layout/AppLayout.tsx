@@ -38,6 +38,11 @@ export function AppLayout({
   })
   const [savedFeedback, setSavedFeedback] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [dataSourceRequest, setDataSourceRequest] = useState(0)
+  const reviewDataSource = () => {
+    setDataSourceRequest((request) => request + 1)
+    setSettingsOpen(true)
+  }
   const [themeBusy, setThemeBusy] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -228,6 +233,7 @@ export function AppLayout({
 
       <SettingsView
         open={settingsOpen}
+        dataSourceRequest={dataSourceRequest}
         onOpen={() => setSettingsOpen(true)}
         onClose={() => {
           setSettingsOpen(false)
@@ -239,17 +245,19 @@ export function AppLayout({
         onDataChanged={onDataChanged}
       />
       {configuration?.error && !configuration.loading && !settingsOpen && (
+        <div className="w-full max-w-screen-2xl mx-auto px-4 sm:px-6 mt-4">
         <div
           role="alert"
-          className="mx-5 mt-4 p-4 rounded-lg border border-[var(--warning)] text-[var(--text)] flex flex-wrap items-center gap-3"
+          className="p-4 rounded-lg border border-[var(--warning)] text-[var(--text)] flex flex-wrap items-center gap-3"
         >
           <span className="text-sm mr-auto">{configuration.error}</span>
           <button
-            onClick={() => setSettingsOpen(true)}
+            onClick={reviewDataSource}
             className="text-sm underline"
           >
             Review data source
           </button>
+        </div>
         </div>
       )}
       {configuration?.loading && !settingsOpen && (
@@ -268,7 +276,7 @@ export function AppLayout({
             </p>
             <button
               className="mt-5 rounded-lg px-4 py-2 bg-[var(--accent)] text-[var(--on-accent)]"
-              onClick={() => setSettingsOpen(true)}
+              onClick={reviewDataSource}
             >
               Review data source
             </button>

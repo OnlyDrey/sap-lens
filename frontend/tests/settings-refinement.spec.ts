@@ -93,7 +93,7 @@ test('complete icon search, module color validation and persisted icon selection
   await page
     .getByRole('button', { name: 'Reset FI hexadecimal color', exact: true })
     .click()
-  await expect(hex).toHaveValue('#3d4d8a')
+  await expect(hex).toHaveValue('#6f8fc5')
   await page
     .getByRole('button', { name: 'Apply settings', exact: true })
     .click()

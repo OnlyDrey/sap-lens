@@ -164,7 +164,7 @@ test('module status separates saved state from unsaved preview and persists only
   await row.click()
   const editor = page.locator('[aria-label="FI appearance editor"]')
   await editor
-    .getByLabel('Enabled in module filters', { exact: true })
+    .getByLabel('Show FI in module filters', { exact: true })
     .uncheck()
   await expect(row.locator('.status-pill')).toHaveText('Enabled')
   await expect(editor.locator('.status-pill')).toHaveText('Disabled')
@@ -178,10 +178,10 @@ test('module status separates saved state from unsaved preview and persists only
   await page.getByRole('tab', { name: 'SAP Modules', exact: true }).click()
   if (!(await editor.isVisible())) await row.click()
   await expect(
-    editor.getByLabel('Enabled in module filters', { exact: true })
+    editor.getByLabel('Show FI in module filters', { exact: true })
   ).toBeChecked()
   await editor
-    .getByLabel('Enabled in module filters', { exact: true })
+    .getByLabel('Show FI in module filters', { exact: true })
     .uncheck()
   await page
     .getByRole('button', { name: 'Apply settings', exact: true })
@@ -248,7 +248,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page
       .getByRole('button', { name: 'Reset FI hexadecimal color', exact: true })
       .click()
-    await expect(hex).toHaveValue('#3d4d8a')
+    await expect(hex).toHaveValue('#6f8fc5')
     await page.screenshot({
       path: testInfo.outputPath(`modules-${theme}.png`),
       fullPage: true

@@ -71,28 +71,51 @@ class Classifier:
                 for rules in groups.values() if len({r.domain_id for r in rules}) > 1]
 
 
-def classification_preview(profile, records, current=None, test_role=None):
+def classification_preview(profile, records, current=None, test_role=None, test_source_module=None):
     classifier = Classifier(profile)
+
+    def classify_record(record):
+        sources = record.get('source_modules', [record.get('source_module')])
+        result = classifier.classify(record['agr_name'], sources[0] if sources else None, record.get('text'))
+        # Mirror build_cache's existing composite conflict policy, without publishing data.
+        source_conflict = len({resolve_module(source) or source for source in sources if source}) > 1
+        if source_conflict:
+            result['ambiguous'] = True
+            if profile.mode == 'generic': result['module_id'] = 'UNCLASSIFIED'
+        reason = ('ambiguous' if result['ambiguous'] else
+                  'override' if profile.mode == 'custom' and record['agr_name'] in profile.overrides else
+                  'rule' if result['matched_rules'] else
+                  'fallback' if profile.mode == 'custom' and profile.fallback_domain else
+                  'csv' if any(resolve_module(source) for source in sources) else
+                  'legacy-source' if profile.mode == 'legacy' and any(sources) else 'unmatched')
+        return dict(**result, resolution=reason, source_modules=[source for source in sources if source],
+                    source_conflict=source_conflict, is_fallback=reason in {'fallback', 'unmatched'})
+
     counts = Counter()
     samples = []
     ambiguous = changes = unclassified = 0
     observed = set()
     for record in records:
-        result = classifier.classify(record['agr_name'], record.get('source_module'), record.get('text'))
+        result = classify_record(record)
         if result['ambiguous']:
             ambiguous += 1
-            observed.add(tuple(sorted(result['matched_rules'])))
+            if len(result['matched_rules']) > 1 and result['domain_id'] is None:
+                observed.add(tuple(sorted(result['matched_rules'])))
         if result['module_id'] == 'UNCLASSIFIED' and not result['domain_id']: unclassified += 1
         counts[result['domain_id'] or result['module_id']] += 1
         old = (current or {}).get(record['agr_name'])
         changed = old is not None and (old.get('module_id'),old.get('domain_id')) != (result['module_id'],result['domain_id'])
         changes += int(changed)
         if len(samples) < 10: samples.append(dict(agr_name=record['agr_name'], **result, changed=changed))
+    test_record = next((record for record in records if record['agr_name'] == test_role), {'agr_name':test_role})
+    if test_source_module is not None:
+        test_record = dict(agr_name=test_role, source_modules=[test_source_module])
+    test_result = dict(agr_name=test_role, **classify_record(test_record)) if test_role else None
     return dict(total_roles=len(records), counts=dict(counts), unclassified_roles=unclassified,
                 ambiguous_matches=ambiguous, conflicting_rules=classifier.conflicts()+[dict(rule_ids=list(ids),reason='Equal-priority rules overlap in the active dataset') for ids in sorted(observed)], samples=samples,
                 changed_roles=changes, profile_id=profile.id, profile_version=profile.version,
                 profile_fingerprint=classifier.fingerprint,
-                test_result=classifier.classify(test_role) if test_role else None)
+                test_result=test_result)
 
 
 def legacy_child_module(name, description=None):

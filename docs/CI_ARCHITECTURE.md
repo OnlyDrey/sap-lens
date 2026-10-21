@@ -40,7 +40,7 @@ raw ZIP tampering/member/extraction safety. Deprecations fail backend validation
 
 Full Frontend installs runtime Python dependencies for the synthetic browser
 server, runs npm ci once, type checking, icon-catalog validation, one production
-build, a production npm audit and the complete 30-test browser suite. Canonical
+build, a production npm audit and the complete browser regression suite. Canonical
 `npm run build` retains its own TypeScript check; the explicit type-check step
 provides earlier failure visibility. No second Vite compilation occurs. Browser
 workers, zero retries, test deadlines and application code remain unchanged.
