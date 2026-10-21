@@ -70,11 +70,13 @@ test('theme preview, accessible validation, custom preset persistence, system ap
  await expect(page.locator('html')).toHaveClass(/dark/)
 })
 
-test('empty organization fallback, icon search and keyboard selection, responsive light and dark settings',async({page},testInfo)=>{
+test('empty organization fallback, icon search and keyboard selection', async ({ page }) => {
  await page.goto('/#session=browser-test-session')
  await page.getByRole('tab',{name:'System & Organization'}).click()
  await page.getByLabel('Organization name',{exact:true}).fill('')
  await page.getByRole('button',{name:'Apply settings',exact:true}).click()
+ // The header stays clickable during saving; wait for the async close before reopening.
+ await expect(settings(page)).toBeHidden()
  await expect(page.getByRole('banner').getByText('SAP Lens',{exact:true})).toBeVisible()
  await page.getByRole('button',{name:'Open settings'}).click()
  await page.getByRole('tab',{name:'SAP Modules'}).click()
@@ -83,25 +85,36 @@ test('empty organization fallback, icon search and keyboard selection, responsiv
  await page.getByRole('group',{name:'FI icon choices'}).getByRole('button',{name:'Layers',exact:true}).focus()
  await page.keyboard.press('Enter')
  await expect(page.getByRole('button',{name:'Layers',exact:true})).toHaveAttribute('aria-pressed','true')
- await page.getByRole('tab',{name:'Appearance & Branding'}).click()
- for(const theme of ['SAP Lens Default','Light']) {
-  await page.getByRole('button',{name:theme,exact:true}).click()
-  await page.getByRole('button',{name:'Apply settings',exact:true}).click()
-  await page.getByRole('button',{name:'Open settings'}).click()
-  for(const [width,height] of [[1280,720],[1366,768],[1920,1080]]) {
-   await page.setViewportSize({width,height})
-   for(const section of ['System & Organization','Data Source & Import','SAP Modules','Domains & Classification','Appearance & Branding','Application & Diagnostics']) {
+})
+
+// Isolate each visual case: six viewports/themes shared one 30-second budget before.
+// Keep the same timeout, assertions and screenshots without retries or arbitrary sleeps.
+for (const theme of ['SAP Lens Default', 'Light']) {
+ for (const [width, height] of [[1280,720], [1366,768], [1920,1080]]) {
+  test(`responsive settings: ${theme}, ${width}x${height}`, async ({ page }, testInfo) => {
+   await page.setViewportSize({ width, height })
+   await page.goto('/#session=browser-test-session')
+   await page.getByRole('tab',{name:'Appearance & Branding'}).click()
+   await page.getByRole('button',{name:theme,exact:true}).click()
+   await page.getByRole('button',{name:'Apply settings',exact:true}).click()
+   await expect(settings(page)).toBeHidden()
+   await page.getByRole('button',{name:'Open settings'}).click()
+   await expect(settings(page)).toBeVisible()
+   for (const section of ['System & Organization','Data Source & Import','SAP Modules','Domains & Classification','Appearance & Branding','Application & Diagnostics']) {
     await page.getByRole('tab',{name:section,exact:true}).click()
-    await expect(page.getByRole('button',{name:section==='Data Source & Import'?'Save and load CSV':'Apply settings',exact:true})).toBeInViewport()
-    const action=await page.getByRole('button',{name:section==='Data Source & Import'?'Save and load CSV':'Apply settings',exact:true}).boundingBox();expect(action!.y).toBeGreaterThanOrEqual(0);expect(action!.y+action!.height).toBeLessThanOrEqual(height)
+    const action = page.getByRole('button',{name:section==='Data Source & Import'?'Save and load CSV':'Apply settings',exact:true})
+    await expect(action).toBeInViewport()
+    const bounds = await action.boundingBox()
+    expect(bounds!.y).toBeGreaterThanOrEqual(0)
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(height)
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
     expect(await page.locator('.settings-scroll').evaluate(el=>el.scrollWidth<=el.clientWidth)).toBeTruthy()
    }
    await page.getByRole('tab',{name:'Appearance & Branding'}).click()
    await page.screenshot({path:testInfo.outputPath(`settings-${theme.replace(/ /g,'-')}-${width}.png`)})
-  }
+  })
  }
-})
+}
 
 test('startup connection failure has actionable recovery and configuration notices dismiss once',async({page})=>{
  await page.route('**/api/configuration',route=>route.abort())
