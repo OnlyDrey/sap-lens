@@ -1,5 +1,8 @@
 # Navigation, area appearance and classification refinement
 
+> Historical implementation record. The later approved classification removal and two-source access architecture supersede the profile UI described here. See [current access investigation](ACCESS_INVESTIGATION.md).
+
+
 Baseline: local CI commit `3bb960d766828b6c208992a3ad4f724d8154c59b` on work.
 The separate CI implementation is retained unchanged by this UI task. No push,
 workflow dispatch, packaging/signing change or destructive settings migration.

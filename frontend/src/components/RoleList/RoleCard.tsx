@@ -1,7 +1,6 @@
 import { ModuleIcon } from '@/components/Modules/ModuleIcon'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import { Plus, Check, ArrowRight, Zap, Layers } from 'lucide-react'
-import { useDomainLabel } from '@/components/Modules/ModuleRegistry'
 import { cn } from '@/lib/utils'
 import type { RoleSummary } from '@/api/types'
 
@@ -17,7 +16,6 @@ const cleanTitle = (t: string | null) =>
 
 export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
   const title   = cleanTitle(role.text)
-  const domainLabel = useDomainLabel(role.domain_id)
   const modName = role.module_name ?? role.function_key ?? ''
   const hasSR   = (role.single_role_count ?? 0) > 0
   const hasTcodeMatch = (role.matching_tcodes?.length ?? 0) > 0
@@ -53,7 +51,7 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
           <div className="flex items-center gap-1.5 min-w-0">
             <ModuleIcon moduleId={role.function_key} selected={isSelected} />
             <span className="text-[11px] font-semibold truncate" style={{ color:'var(--text2)' }}>
-              {modName}{domainLabel ? ` · ${domainLabel}` : ''}{role.classification_ambiguous?' · Ambiguous':''}
+              {modName}{role.module_ambiguous?' · Ambiguous':''}
             </span>
           </div>
           <button data-np

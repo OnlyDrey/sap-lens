@@ -19,7 +19,7 @@ Local checks ran in the Linux cloud workspace on 2026-10-20 with all prior uncom
 | --- | --- |
 | Backend/API/desktop lifecycle regression suite | 50 tests passed; actual embedded HTTP server with mocked native boundaries |
 | Production frontend build | Passed TypeScript and Vite build |
-| Production-browser integration | Four Chromium/Playwright tests cover initial configuration/security, organization/logo/theme portability, custom mappings/classification and pagination/comparison |
+| Production-browser integration | Four Chromium/Playwright tests cover initial configuration/security, organization/logo/theme portability, custom mappings and CSV area evidence and pagination/comparison |
 | Repeatability | Frozen frontend reinstall/build and reusable setup script verified |
 | Dependencies | pip check passed; production npm audit zero; full npm audit seven Tailwind development-chain advisories; Python audit zero across 24 Linux-resolved desktop packages |
 | Repository hygiene | README branding/navigation preserved; original logo unchanged; no settings, exports, tokens or generated build outputs staged |
@@ -55,7 +55,7 @@ Remaining manual acceptance: actual native file picker and cancel, Win32 focus/t
 
 ## Enterprise configuration coverage
 
-The backend suite adds schema-2 persistence/revision checks, migration backups, invalid/future-file recovery, failed-write retention, redacted/private portability, image decoding and missing-logo fallback, registry aliases/overrides, Legacy/Generic/Custom rules, ambiguity/deadlines, mapped encodings/delimiters, nine-field provenance, alternate descriptions and cancellation preventing stale publication. Browser tests use invented data and stub native bridge boundaries; they do not prove real Windows dialogs work.
+The backend suite adds schema-3 persistence/revision checks, migration backups, invalid/future-file recovery, failed-write retention, redacted/private portability, image decoding and missing-logo fallback, registry aliases/overrides, legacy-rule archival without execution, exact/wildcard assignment matching, release parsing and matrix counts, mapped encodings/delimiters, nine-field provenance, alternate descriptions and cancellation preventing stale publication. Browser tests use invented data and stub native bridge boundaries; they do not prove real Windows dialogs work.
 
 Current-tree public assets are limited to SAP Lens defaults and theme initialization. The README branding/navigation prefix is byte-for-byte unchanged. A reachable-history review checked 90 unique text blobs for obvious credential/private-key literals and identified historical organization logo binaries. This is a bounded audit, not a guarantee of complete secret detection; see PRIVACY.md. A pre-change verified Git bundle remains outside the checkout.
 

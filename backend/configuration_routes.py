@@ -6,8 +6,9 @@ from pydantic import Field
 
 import cache
 from config import get_settings, save_configuration, configuration_notice
-from config_models import AppConfig, StrictModel, ClassificationProfile, ImportProfile, ICONS
-from classification import Classifier, classification_preview
+from config_models import AppConfig, StrictModel, ImportProfile, UserImportProfile, ICONS
+from user_access import UserCsvImport, build_users
+from analysis_errors import AnalysisValidationError
 from module_registry import REGISTRY, registry_list
 from branding import image_from_path, logo_bytes
 from daemon_tasks import daemon_call
@@ -18,10 +19,6 @@ from portable_config import PortableConfig, export_configuration, read_portable
 def validate_configuration(config,current=None):
     if any(key not in REGISTRY for key in config.module_overrides):
         raise ValueError('Module overrides must use a stable registry identifier.')
-    for profile in config.classification_profiles:
-        Classifier(profile)
-        if any(d.module_id and d.module_id not in REGISTRY for d in profile.domains):
-            raise ValueError('Domain module mappings must use a stable registry identifier.')
     if config.logo_id and logo_bytes(config.logo_id) is None and (current is None or config.logo_id!=current.logo_id):
         raise ValueError('The selected logo is missing or invalid. Choose another image or restore the default.')
 
@@ -31,10 +28,9 @@ class ImportPreview(StrictModel):
     profile: ImportProfile | None = None
 
 
-class ClassificationPreview(StrictModel):
-    profile: ClassificationProfile
-    test_role: str | None = Field(default=None,max_length=512)
-    test_source_module: str | None = Field(default=None,max_length=100)
+class UserImportPreview(StrictModel):
+    data_csv_path: str = Field(min_length=1, max_length=4096)
+    profile: UserImportProfile | None = None
 
 
 class LogoSelection(StrictModel):
@@ -54,21 +50,21 @@ def configuration_router(loader):
             validate_configuration(config,current)
             if config.revision != current.revision or expected != current.revision:
                 raise HTTPException(409,'Settings changed. Reload before applying your edits.')
-            analysis_fields = ['data_csv_path','import_profiles','active_import','classification_profiles','active_classification','module_overrides']
+            analysis_fields = ['data_csv_path','import_profiles','active_import','user_csv_path','user_import_profiles','active_user_import','module_overrides']
             changed = any(getattr(config,k) != getattr(current,k) for k in analysis_fields)
             # Profile versions increase automatically on content changes.
-            for field in ['import_profiles','classification_profiles']:
+            for field in ['import_profiles','user_import_profiles']:
                 old = {p.id:p for p in getattr(current,field)}
                 for p in getattr(config,field):
                     if p.id in old and p.model_dump(exclude={'version'}) != old[p.id].model_dump(exclude={'version'}):
                         p.version = max(p.version,old[p.id].version+1)
-            if changed and config.data_csv_path:
+            if changed and (config.data_csv_path or config.user_csv_path):
                 await loader.load(config.data_csv_path, configuration=config.model_copy(update={'revision':expected+1}), commit=lambda:save_configuration(config,expected))
             else:
-                if changed and not config.data_csv_path: loader.cancel()
+                if changed and not (config.data_csv_path or config.user_csv_path): loader.cancel()
                 save_configuration(config,expected)
                 if changed: cache.clear_cache()
-                if not config.data_csv_path: loader.error = 'Choose a SAP role CSV in Settings.'
+                if not (config.data_csv_path or config.user_csv_path): loader.error = 'Choose a SAP role catalogue or user access CSV in Settings.'
             return read_config()
         except HTTPException: raise
         except (OSError,ValueError):
@@ -113,7 +109,7 @@ def configuration_router(loader):
 
     @router.post('/configuration/import')
     async def import_config(package: PortableConfig):
-        try: candidate = read_portable(package,get_settings().data_csv_path)
+        try: candidate = read_portable(package,get_settings().data_csv_path,get_settings().user_csv_path)
         except (OSError,ValueError): raise HTTPException(400,'Invalid configuration package or logo; nothing was applied.')
         candidate.revision = get_settings().revision
         return await apply(candidate,candidate.revision)
@@ -129,14 +125,18 @@ def configuration_router(loader):
                 'sources':['https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE','https://help.sap.com/docs/SAP_ERP'],
                 'reference_note':'Stable SAP area terminology; products/components/submodules are distinguished. Live source retrieval must be verified separately when network access permits.'}
 
-    @router.post('/classification/preview')
-    async def preview_classification(request: ClassificationPreview):
-        state = cache.get_snapshot()
-        if len(state.roles)>100_000: raise HTTPException(400,'Preview is limited to 100,000 composite roles.')
-        records = [dict(agr_name=r.agr_name,source_modules=r.source_modules,text=r.text) for r in state.roles.values()]
-        current = {r.agr_name:dict(module_id=r.function_key,domain_id=r.domain_id) for r in state.roles.values()}
-        try: return await daemon_call(classification_preview,request.profile,records,current,request.test_role,request.test_source_module)
-        except ValueError: raise HTTPException(400,'Invalid or overly expensive classification rules. Check expressions and simplify them.')
+    @router.post('/user-import/headers')
+    async def user_headers(request: UserImportPreview):
+        profile = request.profile or next(p for p in get_settings().user_import_profiles if p.id == get_settings().active_user_import)
+        try: return await daemon_call(UserCsvImport(Path(request.data_csv_path),profile).inspect_header)
+        except Exception: raise HTTPException(400,'Could not inspect user CSV. Check path, encoding and delimiter.') from None
+
+    @router.post('/user-import/preview')
+    async def user_preview(request: UserImportPreview):
+        profile = request.profile or next(p for p in get_settings().user_import_profiles if p.id == get_settings().active_user_import)
+        try: return (await daemon_call(build_users,request.data_csv_path,profile,cache.get_snapshot().roles)).report
+        except AnalysisValidationError as exc: raise HTTPException(400,str(exc)) from None
+        except Exception: raise HTTPException(400,'User CSV preview failed. Check USERNAME, mappings, row widths and YYYY-MM-DD/YYYYMMDD dates.') from None
 
     @router.post('/import/headers')
     async def import_headers(request: ImportPreview):

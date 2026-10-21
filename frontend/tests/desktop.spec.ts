@@ -4,6 +4,7 @@ import path from 'node:path'
 // This exercises the bridge contract with a stub; Windows verifies the real window,
 // and the native picker itself remains on the manual Windows checklist.
 test('first launch, native picker contract, invalid CSV, persistence and private session reload', async ({ page, request }) => {
+  expect((await request.post('/api/configuration/reset', {headers: {'X-SAP-Lens': 'browser-test-session'}})).ok()).toBeTruthy()
   const file = path.resolve('tests/fixtures/synthetic.csv')
   const errors: string[] = []
   const external: string[] = []
@@ -20,8 +21,8 @@ test('first launch, native picker contract, invalid CSV, persistence and private
   expect(new URL(page.url()).hash).toBe('')
   await expect(page.getByRole('button', { name: 'Browse for CSV…' })).toBeEnabled()
   await page.getByRole('button', { name: 'Browse for CSV…' }).click()
-  await expect(page.getByLabel('CSV file location')).toHaveValue(file)
-  await page.getByLabel('CSV file location').fill(path.resolve('tests/fixtures/missing.csv'))
+  await expect(page.getByLabel('CSV file location', {exact:true})).toHaveValue(file)
+  await page.getByLabel('CSV file location', {exact:true}).fill(path.resolve('tests/fixtures/missing.csv'))
   await page.getByRole('button', { name: 'Save and load CSV' }).click()
   await expect(page.getByRole('alert')).toContainText('CSV file not found')
   await page.getByRole('button', { name: 'Browse for CSV…' }).click()
@@ -36,7 +37,7 @@ test('first launch, native picker contract, invalid CSV, persistence and private
   await expect(page.getByText(`Current file: ${file}`)).toBeVisible()
   await page.evaluate(() => { window.pywebview!.api.choose_csv = async () => null })
   await page.getByRole('button', { name: 'Browse for CSV…' }).click()
-  await expect(page.getByLabel('CSV file location')).toHaveValue(file)
+  await expect(page.getByLabel('CSV file location', {exact:true})).toHaveValue(file)
   await page.getByRole('button', { name: 'Back to SAP Lens' }).click()
   await page.getByRole('button', { name: 'Refresh role data from CSV' }).click()
   await expect(page.getByText(/Updated /)).toBeVisible()

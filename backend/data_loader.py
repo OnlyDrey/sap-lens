@@ -69,7 +69,7 @@ class DataLoader:
             except FileNotFoundError: error='CSV file not found. Choose an existing file or reconnect the network share.'
             except PermissionError: error='Cannot read the CSV. Check your account permissions and network-share access.'
             except AnalysisValidationError as exc: error=str(exc)
-            except (OSError,ValueError,RuntimeError,csv.Error): error='Could not load the CSV. Use a readable CSV with valid mappings and classification rules.'
+            except (OSError,ValueError,RuntimeError,csv.Error): error='Could not load the CSV. Use a readable CSV with valid column mappings and dates.'
             except Exception: error='The CSV could not be loaded. Choose another file and try again.'
             if error: logger.warning('CSV load unsuccessful; previous data retained')
             try: loop.call_soon_threadsafe(finish,error)

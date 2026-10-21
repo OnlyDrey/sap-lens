@@ -78,7 +78,6 @@ function discoveredColor(value: string) {
   }
   return palette[fingerprint % palette.length]
 }
-const DomainContext = createContext<Record<string, string>>({})
 const Context = createContext<Record<string, RegistryEntry>>({})
 export function ModuleRegistryProvider({ children }: { children: ReactNode }) {
   const [systemDark, setSystemDark] = useState(
@@ -103,17 +102,6 @@ export function ModuleRegistryProvider({ children }: { children: ReactNode }) {
     () => Object.fromEntries((data?.modules || []).map((m) => [m.id, m])),
     [data]
   )
-  const domains = useMemo(
-    () =>
-      Object.fromEntries(
-        (
-          config.data?.settings.classification_profiles.find(
-            (p) => p.id === config.data?.settings.active_classification
-          )?.domains || []
-        ).map((d) => [d.id, d.label])
-      ),
-    [config.data]
-  )
   const mode = config.data?.settings.theme || 'dark'
   const dark = mode === 'dark' || (mode === 'system' && systemDark)
   const palette =
@@ -121,9 +109,7 @@ export function ModuleRegistryProvider({ children }: { children: ReactNode }) {
     (dark ? defaultDark : defaultLight)
   return (
     <PaletteContext.Provider value={palette}>
-      <DomainContext.Provider value={domains}>
         <Context.Provider value={registry}>{children}</Context.Provider>
-      </DomainContext.Provider>
     </PaletteContext.Provider>
   )
 }
@@ -141,13 +127,4 @@ export function useModuleVisual(code?: string | null) {
     name: item?.name || code || 'Unclassified',
     enabled: item?.enabled ?? true
   }
-}
-
-export function useDomainLabel(id?: string | null) {
-  const labels = useContext(DomainContext)
-  return id
-    ? Object.prototype.hasOwnProperty.call(labels, id)
-      ? labels[id]
-      : id
-    : null
 }

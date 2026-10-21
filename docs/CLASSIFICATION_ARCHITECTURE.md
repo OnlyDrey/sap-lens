@@ -1,5 +1,8 @@
 # Domains and classification: functional review
 
+> Historical implementation record. The later approved classification removal and two-source access architecture supersede the profile UI described here. See [current access investigation](ACCESS_INVESTIGATION.md).
+
+
 ## Recommendation: SIMPLIFY
 
 Retain the classification engine, saved profiles and business domains; simplify

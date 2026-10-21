@@ -24,9 +24,9 @@ Initial CSV loading is asynchronous and does not block API/window startup. A dae
 
 The streaming standard-library CSV reader replaces pandas/dataframes and intermediary row-dictionary copies. Pandas/numpy are no longer runtime dependencies. Each complete cache generation contains details, precomputed summaries/counts, module labels and a reverse T-code index. Readers retain one snapshot per request, so a refresh cannot mix generations or leave the T-code index stale. File-location persistence happens only after CSV validation and before publication. Failures retain the previous data/settings.
 
-Comparison work is bounded to two to five roles. Prefix T-code search still scans index keys; memory still scales with the complete role graph, including overlap assignments. CSV input/row/identifier and regex limits bound parsing work, but the complete graph still consumes memory. See CSV_IMPORT.md for exact semantics.
+Comparison work is bounded to two to five roles. Prefix T-code search still scans index keys; memory still scales with the complete role graph, including overlap assignments. CSV input/row/identifier and field limits bound parsing work, but the complete graph still consumes memory. See CSV_IMPORT.md for exact semantics.
 
-The frontend uses same-origin native fetch instead of Axios, no Google Fonts and no offline service worker. The measured production JavaScript is approximately 333 kB (99 kB gzip), with the settings/picker UI included. Browser test dependencies stay in development tooling and do not enter the frontend bundle. React Query retains role data in memory; material analysis changes reset lists, details, comparisons and role selection. Organization/theme changes do not rebuild the CSV. The list renders 100 cards per page; counts are computed in one pass.
+The frontend uses same-origin native fetch instead of Axios, no Google Fonts and no offline service worker. The production frontend contains the investigation pages and settings/picker UI; use the current production-build output for bundle sizes. Browser test dependencies stay in development tooling and do not enter the frontend bundle. React Query retains role data in memory; material analysis changes reset lists, details, comparisons and role selection. Organization/theme changes do not rebuild the CSV. The list renders 100 cards per page; counts are computed in one pass.
 
 ## Development and verification
 
@@ -36,7 +36,7 @@ Regression tests run the actual HTTP server/lifecycle with mocked native boundar
 
 ## Configuration and provenance
 
-Pydantic schema-versioned settings separate organization metadata, import mappings, area appearance and classification profiles. Revision checks prevent stale overwrites; backups and atomic writes preserve recovery. The central registry is served through the API. Cache generations preserve raw relationship identifiers, source-area hints, alternate descriptions and transaction provenance independently of classification. Profile versions/fingerprints make results traceable. Custom logos are private sanitized PNG assets, never packaging inputs.
+Pydantic schema-versioned settings separate organization metadata, import mappings, area appearance and two source-specific import format collections. Revision checks prevent stale overwrites; backups and atomic writes preserve recovery. The central registry is served through the API. Cache generations preserve raw relationship identifiers, source-area hints, alternate descriptions and transaction provenance independently of SAP area labels. Import-format versions and configuration revisions make generations traceable. Custom logos are private sanitized PNG assets, never packaging inputs.
 
 A synthetic 10,000-row / 1,000-root load took 6.47 seconds with 21.66 MiB peak Python-traced allocations while tracemalloc was enabled in this Linux workspace. This is one diagnostic observation, not an end-user speed guarantee or a measured improvement over the earlier implementation.
 
@@ -47,3 +47,7 @@ The WebView starts with a trusted in-memory branded document before starting the
 ## Maintained entry points
 
 Production has one entry point: `backend/desktop.py`, packaged by `scripts/build-windows.ps1` and the manual Windows workflow. Developer desktop execution uses the same module with pythonw, never an independent backend launcher. Browser development intentionally uses `npm run dev` (Vite plus reloadable Uvicorn); it remains an active development tool, not a supported end-user launch path. The browser fixture server is isolated test infrastructure. Backend `/api/settings` compatibility routes remain because tests and packaged smoke tooling still use them.
+
+## User access investigation
+
+The atomic cache also contains a separately parsed user export, a reusable literal-prefix catalogue matcher and reverse assignment evidence. User Access and Release Roles consume this generation without a third CSV or external connection. Classification rules and domain configuration are retired. See [access investigation](ACCESS_INVESTIGATION.md) for the schema, migration boundary, status semantics and strict PR/PO parser.

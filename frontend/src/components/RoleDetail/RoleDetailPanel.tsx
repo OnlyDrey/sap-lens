@@ -3,11 +3,10 @@ import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import { useState, useEffect, useCallback } from 'react'
 import { X, ChevronDown, ChevronRight, AlertTriangle, Loader2, Layers, Zap } from 'lucide-react'
 import * as ScrollArea from '@radix-ui/react-scroll-area'
-import { useDomainLabel } from '@/components/Modules/ModuleRegistry'
 import { useRoleDetail } from '@/hooks/useRoleDetail'
 import type { SingleRole, TCode } from '@/api/types'
 
-function SingleRoleRow({ sr }: { sr: SingleRole }) {
+function SingleRoleRow({ sr, onTcodeUsers }: { sr: SingleRole; onTcodeUsers?: (code:string)=>void }) {
   const [open, setOpen] = useState(false)
   return (
     <div style={{ borderBottom: '1px solid var(--border)' }}>
@@ -62,7 +61,8 @@ function SingleRoleRow({ sr }: { sr: SingleRole }) {
                     <tr key={tc.tcode} style={{ backgroundColor: i % 2 === 1 ? 'var(--surface)' : undefined }}>
                       <td className="px-4 py-2 font-mono text-[11px] font-bold"
                         style={{ color: 'var(--accent2)', borderBottom: '1px solid var(--border)' }}>
-                        {tc.tcode}
+                        <span>{tc.tcode}</span>
+                        {onTcodeUsers&&<button className="underline block mt-1" onClick={()=>onTcodeUsers(tc.tcode)}>Investigate users with {tc.tcode}</button>}
                       </td>
                       <td className="px-4 py-2 text-xs"
                         style={{ color: 'var(--text2)', borderBottom: '1px solid var(--border)' }}>
@@ -79,9 +79,8 @@ function SingleRoleRow({ sr }: { sr: SingleRole }) {
   )
 }
 
-export function RoleDetailPanel({ roleName, onClose }: { roleName: string | null; onClose: () => void }) {
+export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers }: { roleName: string | null; onClose: () => void; onUsers?: (role:string)=>void; onTcodeUsers?: (code:string)=>void }) {
   const { data: role, isLoading, isError, error } = useRoleDetail(roleName)
-  const domainLabel = useDomainLabel(role?.domain_id)
   const onKey = useCallback((e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }, [onClose])
   useEffect(() => { document.addEventListener('keydown', onKey); return () => document.removeEventListener('keydown', onKey) }, [onKey])
   useEffect(() => { document.body.style.overflow = roleName ? 'hidden' : ''; return () => { document.body.style.overflow = '' } }, [roleName])
@@ -146,6 +145,7 @@ export function RoleDetailPanel({ roleName, onClose }: { roleName: string | null
 
               {role && (
                 <>
+                  {onUsers&&<button className="settings-secondary-button" onClick={()=>onUsers(role.agr_name)}>Assigned users</button>}
                   {/* Stats: Single roles FIRST (left), T-codes SECOND (right) */}
                   <div className="flex gap-4 rounded-xl p-4"
                     style={{ backgroundColor: 'var(--surface2)', border: '1px solid var(--border)' }}>
@@ -177,8 +177,7 @@ export function RoleDetailPanel({ roleName, onClose }: { roleName: string | null
 
                   <details className="text-xs border rounded-xl p-3">
                     <summary className="cursor-pointer font-semibold">Relationships &amp; analysis provenance</summary>
-                    <p className="mt-2">Domain: {domainLabel || 'No customer domain'}{role.classification_ambiguous?' · Ambiguous classification':''}</p>
-                    <p className="mt-1 break-all">Profile {String(role.analysis?.profile_id || 'legacy')} · version {String(role.analysis?.profile_version || 1)} · fingerprint {String(role.analysis?.profile_fingerprint || '')}</p>
+                    <p className="mt-2">SAP areas use explicit CSV evidence.{role.module_ambiguous ? ' Conflicting SAP areas; shown as Unclassified.' : ''}</p>
                     <p className="mt-1">Alternative descriptions: {role.alternate_descriptions?.join(' · ') || 'None'}</p>
                     <p className="mt-1">Import profile {String(role.analysis?.import_profile_id || 'default')}</p>
                     <table className="w-full text-left mt-2"><thead><tr><th>Child</th><th>Parent</th><th>Effective role</th></tr></thead><tbody>
@@ -198,7 +197,7 @@ export function RoleDetailPanel({ roleName, onClose }: { roleName: string | null
                       ? <p className="text-sm italic" style={{ color: 'var(--muted)' }}>No single roles found</p>
                       : (
                         <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-                          {role.single_roles.map(sr => <SingleRoleRow key={sr.child_agr} sr={sr} />)}
+                          {role.single_roles.map(sr => <SingleRoleRow key={sr.child_agr} sr={sr} onTcodeUsers={onTcodeUsers} />)}
                         </div>
                       )
                     }

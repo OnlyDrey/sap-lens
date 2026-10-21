@@ -102,7 +102,7 @@ for (const theme of ['SAP Lens Default', 'Light']) {
    await expect(settings(page)).toBeHidden()
    await page.getByRole('button',{name:'Open settings'}).click()
    await expect(settings(page)).toBeVisible()
-   for (const section of ['System & Organization','Data Source & Import','SAP Modules','Domains & Classification','Appearance & Branding','Application & Diagnostics']) {
+   for (const section of ['System & Organization','Data Source & Import','SAP Modules','Appearance & Branding','Application & Diagnostics']) {
     await page.getByRole('tab',{name:section,exact:true}).click()
     const action = page.getByRole('button',{name:section==='Data Source & Import'?'Save and load CSV':'Apply settings',exact:true})
     await expect(action).toBeInViewport()

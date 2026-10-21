@@ -11,8 +11,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import cache
 import config
-from config_models import AppConfig, ClassificationProfile, Domain, Rule, ModuleOverride
-from classification import Classifier, classification_preview, legacy_child_module
+from config_models import AppConfig, ImportProfile, ModuleOverride
 from module_registry import REGISTRY, resolve_module, module_definition
 from branding import stage_image, logo_bytes, sanitize_image
 from portable_config import export_configuration, read_portable, PortableConfig
@@ -42,7 +41,7 @@ class ConfigurationTests(unittest.TestCase):
         self.assertEqual(settings.organization.name,'Example Inc.')
         self.assertEqual(settings.organization.system_id,'DEMO')
         self.assertEqual(settings.organization.client,'100')
-        self.assertEqual(settings.schema_version,2)
+        self.assertEqual(settings.schema_version,3)
         settings=settings.model_copy(deep=True);settings.organization.name='Synthetic Organization'
         saved=config.save_configuration(settings,0)
         config.get_settings.cache_clear()
@@ -55,7 +54,7 @@ class ConfigurationTests(unittest.TestCase):
         (self.root/'settings.json').write_bytes(raw);config.get_settings.cache_clear()
         settings=config.get_settings()
         self.assertEqual(settings.data_csv_path,'C:/synthetic/example.csv')
-        self.assertEqual(settings.schema_version,2)
+        self.assertEqual(settings.schema_version,3)
         backups=list((self.root/'configuration-backups').glob('migration-v1-*'))
         self.assertEqual(len(backups),1);self.assertEqual(backups[0].read_bytes(),raw)
         self.assertIn('migrated',config.configuration_notice())
@@ -151,10 +150,7 @@ class ConfigurationTests(unittest.TestCase):
         self.assertEqual(self.client.post('/api/configuration/reset').status_code,403)
 
 
-class RegistryClassificationTests(unittest.TestCase):
-    def profile(self,**kwargs):
-        return ClassificationProfile(id='custom',name='Synthetic',mode='custom',
-            domains=[Domain(id='finance',label='Example finance',module_id='FI'),Domain(id='supply',label='Example supply',module_id='MM')],**kwargs)
+class RegistryTests(unittest.TestCase):
 
     def test_registry_categories_aliases_parents_icons_and_colors(self):
         self.assertEqual(resolve_module('BASIS'),'BC')
@@ -170,46 +166,13 @@ class RegistryClassificationTests(unittest.TestCase):
         self.assertFalse(overridden['enabled'])
         self.assertEqual(module_definition('unknown')['id'],'unknown')
 
-    def test_legacy_and_generic_evidence(self):
-        legacy=Classifier(ClassificationProfile(id='legacy',name='Legacy',mode='legacy'))
-        generic=Classifier(ClassificationProfile(id='generic',name='Generic',mode='generic'))
-        self.assertEqual(legacy.classify('DEMO:FI:X','CUSTOM')['module_id'],'CUSTOM')
-        self.assertEqual(generic.classify('DEMO:FI:X')['module_id'],'UNCLASSIFIED')
-        self.assertEqual(generic.classify('DEMO','BASIS')['module_id'],'BC')
-        self.assertEqual(legacy_child_module('DEMO:FI:X'),'FI')
-        self.assertEqual(legacy_child_module('OPAQUE','MM - Synthetic child'),'MM')
 
-    def test_priorities_overrides_fallback_and_ambiguity(self):
-        p=self.profile(rules=[Rule(id='broad',kind='prefix',pattern='DEMO',domain_id='supply',priority=100),Rule(id='precise',kind='exact',pattern='DEMO_FIN',domain_id='finance',priority=10)],overrides={'EXACT':'finance'},fallback_domain='supply')
-        c=Classifier(p)
-        self.assertEqual(c.classify('DEMO_FIN')['domain_id'],'finance')
-        self.assertEqual(c.classify('EXACT')['domain_id'],'finance')
-        self.assertEqual(c.classify('OTHER')['domain_id'],'supply')
-        p.rules.append(Rule(id='tie',kind='contains',pattern='FIN',domain_id='supply',priority=10))
-        result=Classifier(p).classify('DEMO_FIN')
-        self.assertTrue(result['ambiguous']);self.assertEqual(result['module_id'],'UNCLASSIFIED')
 
-    def test_preview_counts_changes_conflicts_and_profile_trace(self):
-        p=self.profile(rules=[Rule(id='one',pattern='DEMO',domain_id='finance'),Rule(id='two',pattern='DEMO',domain_id='supply')])
-        result=classification_preview(p,[dict(agr_name='DEMO_FIN'),dict(agr_name='OTHER')],{'DEMO_FIN':{'module_id':'FI','domain_id':'finance'}},'DEMO_FIN')
-        self.assertEqual(result['ambiguous_matches'],1)
-        self.assertEqual(result['unclassified_roles'],2)
-        self.assertEqual(result['changed_roles'],1)
-        self.assertTrue(result['conflicting_rules']);self.assertEqual(result['profile_version'],1)
-        self.assertEqual(len(result['profile_fingerprint']),16)
 
     def test_reserved_identifiers_are_rejected(self):
         for identifier in ['__proto__','prototype','constructor']:
-            with self.assertRaises(ValueError):Domain(id=identifier,label='Synthetic')
+            with self.assertRaises(ValueError):ImportProfile(id=identifier,name='Synthetic')
 
-    def test_regex_validation_and_timeout(self):
-        import time
-        with self.assertRaises(ValueError):Classifier(self.profile(rules=[Rule(id='bad',kind='regex',pattern='[',domain_id='finance')]))
-        p=self.profile(rules=[Rule(id='bounded',kind='regex',pattern='(a|aa)+$',domain_id='finance')])
-        start=time.monotonic()
-        with self.assertRaises(ValueError):Classifier(p).classify('a'*500+'!')
-        self.assertLess(time.monotonic()-start,0.25)
-        with self.assertRaises(ValueError):self.profile(rules=[Rule(id='missing',pattern='DEMO',domain_id='not-defined')])
 
 
 if __name__=='__main__':unittest.main()

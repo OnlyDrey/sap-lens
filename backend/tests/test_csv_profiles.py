@@ -54,12 +54,12 @@ class ImportTests(unittest.TestCase):
         self.assertEqual(source.parent_agr,'DEMO_PARENT');self.assertEqual(source.effective_role,'DEMO_EFFECTIVE')
         self.assertEqual(role.relationships[0].child_agr,'DEMO_CHILD')
         self.assertEqual(state.import_report['transaction_assignments'],1)
-        self.assertEqual(role.analysis['profile_id'],'legacy')
+        self.assertEqual(role.analysis['module_source'],'CSV FUNCTION_KEY')
 
     def test_custom_mapping_delimiter_and_optional_warnings(self):
         file=self.root/'custom.csv';file.write_text('Role;Child;Transaction\nDEMO_ROOT;DEMO_CHILD;DEMO_T\n')
         profile=ImportProfile(id='mapped',name='Synthetic',delimiter=';',mapping={'AGR_NAME':'Role','CHILD_AGR':'Child','TCODE':'Transaction'})
-        cfg=AppConfig(import_profiles=[profile],active_import='mapped',active_classification='generic')
+        cfg=AppConfig(import_profiles=[profile],active_import='mapped')
         state=cache.build_cache(str(file),cfg)
         self.assertEqual(state.roles['DEMO_ROOT'].function_key,'UNCLASSIFIED')
         self.assertEqual(state.import_report['unique_roles'],1)
@@ -140,7 +140,7 @@ class ImportTests(unittest.TestCase):
         with TestClient(create_app(),base_url='http://127.0.0.1:18743') as client:
             self.assertEqual(client.post('/api/settings',json={'data_csv_path':str(file)},headers=headers).status_code,200)
             previous=cache.get_snapshot().roles['DEMO_ROOT']
-            cfg=client.get('/api/configuration').json()['settings'];cfg['active_classification']='generic'
+            cfg=client.get('/api/configuration').json()['settings']
             cfg['import_profiles'][0]['name']='Renamed synthetic profile'
             result=client.post('/api/configuration',json=cfg,headers=headers)
             self.assertEqual(result.status_code,200,result.text)

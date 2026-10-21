@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 const headers = { 'X-SAP-Lens': 'browser-test-session' }
-const sections = ['System & Organization', 'Data Source & Import', 'SAP Modules', 'Domains & Classification', 'Appearance & Branding', 'Application & Diagnostics']
+const sections = ['System & Organization', 'Data Source & Import', 'SAP Modules', 'Appearance & Branding', 'Application & Diagnostics']
 test.beforeEach(async ({ request }) => {
   expect((await request.post('/api/configuration/reset', { headers })).ok()).toBeTruthy()
 })
@@ -53,7 +53,7 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(tab).toHaveCSS('box-shadow', 'none')
     await expect(tab).toHaveCSS('border-left-width', '0px')
     await tab.press('ArrowDown')
-    await page.getByRole('tab', { name: 'Domains & Classification', exact: true }).press('ArrowUp')
+    await page.getByRole('tab', { name: 'Appearance & Branding', exact: true }).press('ArrowUp')
     await expect(tab).toBeFocused()
     await expect(tab).toHaveCSS('outline-style', 'solid')
     const colors = await page.locator('.module-list-row').evaluateAll((rows) => {
@@ -92,7 +92,7 @@ test('filter availability is keyboard accessible, persists and preserves explici
     expect((await request.post('/api/configuration', { headers, data: settings })).ok()).toBeTruthy()
     const before = await (await request.get('/api/roles', { headers })).json()
     expect(before).toHaveLength(3)
-    const sourceColor = (await (await request.get('/api/modules', { headers })).json()).find((item: { function_key: string }) => item.function_key === 'LOCAL_FIN').color
+    const sourceColor = (await (await request.get('/api/modules', { headers })).json()).find((item: { function_key: string }) => item.function_key === 'UNCLASSIFIED').color
     await page.goto('/#session=browser-test-session')
     await page.getByRole('button', { name: 'Open settings', exact: true }).click()
     await page.getByRole('tab', { name: 'SAP Modules', exact: true }).click()
@@ -118,57 +118,6 @@ test('filter availability is keyboard accessible, persists and preserves explici
     await page.getByRole('button', { name: 'Open settings', exact: true }).click()
     await expect(page.getByLabel('FI hexadecimal color', { exact: true })).toHaveValue('#123456')
     expect(await (await request.get('/api/roles', { headers })).json()).toEqual(before)
-    expect((await (await request.get('/api/modules', { headers })).json()).find((item: { function_key: string }) => item.function_key === 'LOCAL_FIN').color).toBe(sourceColor)
+    expect((await (await request.get('/api/modules', { headers })).json()).find((item: { function_key: string }) => item.function_key === 'UNCLASSIFIED').color).toBe(sourceColor)
   } finally { rmSync(directory, { recursive: true, force: true }) }
-})
-
-test('classification example explains CSV evidence, rules and fallback without changing stored settings', async ({ page, request }) => {
-  const before = (await (await request.get('/api/configuration', { headers })).json()).settings
-  expect(before.active_classification).toBe('legacy')
-  await page.goto('/#session=browser-test-session')
-  await page.getByRole('tab', { name: 'Domains & Classification', exact: true }).click()
-  await expect(page.getByText('Saved method:', { exact: false })).toContainText('Current / Legacy')
-  await expect(page.getByRole('button', { name: 'Add Custom profile', exact: true })).toBeHidden()
-  await page.getByRole('combobox', { name: 'Classification profile', exact: true }).selectOption('generic')
-  await page.getByLabel('Test an individual role name', { exact: true }).fill('Z_DEMO_PAYABLES')
-  await page.getByLabel('CSV SAP area for this example (optional)', { exact: true }).fill('FI')
-  await page.getByRole('button', { name: 'Preview classification', exact: true }).click()
-  const result = page.getByRole('region', { name: 'Individual classification result', exact: true })
-  await expect(result).toContainText('FI — Financial Accounting')
-  await expect(result).toContainText('Recognized SAP area from CSV')
-  await expect(result).toContainText('Generic SAP')
-  await expect(result).toContainText('No business domain')
-  await expect(result).toContainText('Unchanged — only Apply settings')
-  await page.getByLabel('CSV SAP area for this example (optional)', { exact: true }).fill('')
-  await expect(result).toBeHidden()
-  await page.getByRole('button', { name: 'Preview classification', exact: true }).click()
-  await expect(result).toContainText('No matching rule or recognized CSV area')
-  await expect(result).toContainText('Yes — Unclassified because no evidence matched')
-  expect((await (await request.get('/api/configuration', { headers })).json()).settings).toEqual(before)
-})
-
-test('custom individual preview names matched rules and explicitly warns when fallback replaces CSV evidence', async ({ page, request }) => {
-  const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
-  const profile = settings.classification_profiles.find((item: { id: string }) => item.id === 'custom')
-  profile.domains = [{ id: 'finance', label: 'Synthetic finance', module_id: 'FI' }, { id: 'buying', label: 'Synthetic procurement', module_id: 'MM' }]
-  profile.rules = [{ id: 'pay-rule', kind: 'prefix', pattern: 'Z_DEMO_PAY', domain_id: 'finance', priority: 100, case_sensitive: false }]
-  profile.fallback_domain = 'buying'
-  expect((await request.post('/api/configuration', { headers, data: settings })).ok()).toBeTruthy()
-  const saved = (await (await request.get('/api/configuration', { headers })).json()).settings
-  await page.goto('/#session=browser-test-session')
-  await page.getByRole('tab', { name: 'Domains & Classification', exact: true }).click()
-  await page.getByRole('combobox', { name: 'Classification profile', exact: true }).selectOption('custom')
-  await page.getByLabel('Test an individual role name', { exact: true }).fill('Z_DEMO_PAYABLES')
-  await page.getByLabel('CSV SAP area for this example (optional)', { exact: true }).fill('FI')
-  await page.getByRole('button', { name: 'Preview classification', exact: true }).click()
-  const result = page.getByRole('region', { name: 'Individual classification result', exact: true })
-  await expect(result).toContainText('prefix: Z_DEMO_PAY (pay-rule)')
-  await expect(result).toContainText('Synthetic finance')
-  await page.getByLabel('Test an individual role name', { exact: true }).fill('Z_DEMO_OTHER')
-  await page.getByRole('button', { name: 'Preview classification', exact: true }).click()
-  await expect(result).toContainText('MM — Materials Management')
-  await expect(result).toContainText('Yes — configured fallback domain')
-  await expect(result).toContainText('Proposed area MM replaces CSV area FI')
-  await expect(result).toContainText('Synthetic procurement')
-  expect((await (await request.get('/api/configuration', { headers })).json()).settings).toEqual(saved)
 })

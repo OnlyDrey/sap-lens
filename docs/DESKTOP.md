@@ -66,7 +66,7 @@ Version 1.2 introduces a responsive branded startup document, full-window settin
 The canonical build also creates the SHA-256 manifest and runs `scripts/verify-windows-package.py` before delivery. The verifier checks the PE GUI subsystem, checksum, required bundled assets and absence of known private configuration/CSV/log entries. The GitHub workflow uploads the same verified output; it does not maintain a second checksum implementation.
 
 
-Classification responsibilities, synthetic profile examples and compatibility boundaries are documented in [Domains and classification](CLASSIFICATION_ARCHITECTURE.md). See [UI refinement](UI_REFINEMENT.md) for data-source navigation, filter availability and area-color behavior.
+Role Lookup, User Access, Release Roles and legacy configuration compatibility are documented in [access investigation](ACCESS_INVESTIGATION.md). See [UI refinement](UI_REFINEMENT.md) for data-source navigation, filter availability and area-color behavior.
 
 ## Download integrity and execution failures
 
