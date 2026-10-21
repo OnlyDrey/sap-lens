@@ -2,6 +2,8 @@ param(
     [ValidateSet('All', 'Environment', 'Frontend', 'Python', 'Audit', 'Backend', 'Browser', 'Package', 'Verify', 'Smoke', 'Artifact')]
     [string]$Stage = 'All',
     [string]$ArtifactDirectory,
+    [string]$ArtifactDownloadDirectory,
+    [string]$ArtifactDigest,
     [switch]$BenchmarkPackaging
 )
 $ErrorActionPreference = 'Stop'
@@ -89,7 +91,7 @@ try {
     }
     Invoke-Stage Backend {
         Measure-Task 'Backend tests' {
-            & $buildPython -m unittest discover -s backend/tests -v
+            & $buildPython -W error::DeprecationWarning -m unittest discover -s backend/tests -v
             Assert-Success 'Backend regression tests'
         }
     }
@@ -101,7 +103,8 @@ try {
                 Assert-Success 'Audit production JavaScript dependencies'
             }
             Measure-Task 'Playwright installation' {
-                npx playwright install chromium --only-shell
+                # Use the exact installed CLI; do not invoke npx package resolution.
+                node node_modules/playwright/cli.js install chromium --only-shell
                 Assert-Success 'Install test browser'
             }
             Measure-Task 'Playwright tests' {
@@ -150,6 +153,10 @@ try {
     if ($Stage -eq 'Artifact') {
         if (-not $ArtifactDirectory) { throw 'Artifact verification needs a downloaded artifact directory.' }
         Measure-Task 'Downloaded artifact verification' {
+            if ($ArtifactDownloadDirectory) {
+                & $buildPython scripts/verify-artifact-zip.py --download $ArtifactDownloadDirectory --destination $ArtifactDirectory --expected-digest $ArtifactDigest
+                Assert-Success 'Verify ZIP digest and exact distribution members'
+            }
             $verified = Get-Content -Raw backend/build/package-verification.json | ConvertFrom-Json
             & $buildPython scripts/verify-windows-package.py --distribution $ArtifactDirectory --expected-sha256 $verified.exe_sha256 --report backend/build/artifact-verification.json
             Assert-Success 'Verify downloaded artifact matches the approved executable'

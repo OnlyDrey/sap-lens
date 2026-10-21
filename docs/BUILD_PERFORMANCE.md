@@ -7,6 +7,8 @@ the packaged GUI smoke test. Individual stages assume their preceding stages hav
 completed; use the default full sequence for a standalone local build. Local Windows builds require Python 3.12, Node 24 and
 PowerShell 7. User configuration and application behavior are unchanged.
 
+Current workflow triggers, the newer 303-second Windows baseline and this implementation's unmeasured expectations are documented in [CI architecture](CI_ARCHITECTURE.md). The earlier benchmark results below remain historical measurements.
+
 ## Measurement
 
 Each task records stopwatch seconds and its outcome in ignored
@@ -67,8 +69,9 @@ frontend output, runner image and build implementation. Restoring executable
 intermediates adds integrity and invalidation complexity. A same-job incremental
 measurement is an upper bound on potential savings, not a cross-run cache result.
 
-Automatic CI remains lightweight: backend tests, frontend type checks and the
-production npm audit. It does not compile or package on every commit. The manual
+Fast Validation remains lightweight: backend/repository tests and frontend type
+checks on every push/PR. Full Validation adds production/browser/security checks
+for PRs targeting main. No automatic workflow packages an EXE. The manual
 Windows workflow independently reruns every test/audit, including Windows-only
 Python dependencies, production browser regressions, package verification and
 native startup/duplicate-launch/port-conflict/shutdown tests. No CI result is

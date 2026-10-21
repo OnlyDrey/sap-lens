@@ -14,6 +14,18 @@ spec.loader.exec_module(report)
 
 
 class BuildReportTests(unittest.TestCase):
+    def test_missing_mandatory_stages_cannot_report_overall_success(self):
+        text = report.render([], {}, [], {'BUILD_STATUS': 'success'})
+        self.assertIn('| Build status | incomplete |', text)
+
+    def test_descriptive_job_and_environment_step_names_keep_setup_timings(self):
+        jobs = [{'name': 'Windows Build & Verification', 'steps': [
+            {'name': 'Check out source', 'started_at': '2026-10-21T10:00:00Z', 'completed_at': '2026-10-21T10:00:04Z', 'conclusion': 'success'},
+            {'name': 'Create isolated Python build environment', 'started_at': '2026-10-21T10:00:04Z', 'completed_at': '2026-10-21T10:00:14Z', 'conclusion': 'success'}]}]
+        text = report.render([{'stage':'Python environment creation','seconds':10,'status':'passed'}], {}, jobs,
+                             {'BUILD_JOB_NAME':'Windows Build & Verification'})
+        self.assertIn('| Environment | 14.00 s | Passed |', text)
+
     def test_one_table_keeps_partial_failures_and_missing_stages_honest(self):
         records = [{'stage': 'npm installation', 'seconds': 2, 'status': 'passed'},
                    {'stage': 'Backend tests', 'seconds': 3, 'status': 'failed'}]

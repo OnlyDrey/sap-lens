@@ -62,14 +62,19 @@ or replace its verified download/extraction implementation merely to silence it.
 When a fixed official release is available, review its changes, pin its immutable
 SHA, and rerun Windows artifact validation.
 
-The existing workflow remains unchanged: upload `SAP-Lens-Windows-x64` with
+At the transport-maintenance baseline, the workflow remained unchanged: upload `SAP-Lens-Windows-x64` with
 14-day retention, download that exact artifact ID, reject ZIP digest mismatches,
 then rerun package verification on the downloaded files against the original EXE
 SHA-256. The expected two-file distribution and consolidated report are retained.
 Signing stays disabled. Native Windows validation is required before claiming
 that the changed test dependency has no effect on the packaged application.
 
-## Local validation: 2026-10-21
+Current [CI architecture](CI_ARCHITECTURE.md) downloads the raw ZIP and validates
+its members before extracting with Python. That security change avoids invoking
+the action's deprecated extractor; the upstream dependency remains unfixed. No
+Node warnings are suppressed.
+
+## Local validation: 2026-10-21 (transport-maintenance baseline)
 
 Executed on Linux with Python 3.12.14 and Node 24.19.0. No application or test
 source changed during the complete validation run.

@@ -1,4 +1,4 @@
-name: Build Windows application
+name: Build Windows Application
 on:
   workflow_dispatch:
     inputs:
@@ -13,21 +13,28 @@ on:
 permissions:
   contents: read
   actions: read # Read this run's step durations for the timing summary.
+concurrency:
+  group: sap-lens-windows-distribution
+  cancel-in-progress: false
 jobs:
   windows-exe:
+    name: Windows Build & Verification
     runs-on: windows-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - name: Set up Node and npm download cache
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
           package-manager-cache: false # Cache behavior is explicit, including cold benchmarks.
           cache: ${{ !inputs.cold_cache && 'npm' || '' }}
           cache-dependency-path: frontend/package-lock.json
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - name: Set up Python and pip download cache
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
           cache: ${{ !inputs.cold_cache && 'pip' || '' }}
@@ -52,33 +59,33 @@ jobs:
           path: ${{ runner.temp }}/sap-lens-playwright
           # Exact lockfile includes Playwright version and its browser revision. No fallback keys.
           key: playwright-headless-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/package-lock.json') }}
-      - name: Environment
+      - name: Create isolated Python build environment
         shell: pwsh
         run: ./scripts/build-windows.ps1 -Stage Environment
-      - name: Frontend
+      - name: Install dependencies and build production frontend
         shell: pwsh
         run: ./scripts/build-windows.ps1 -Stage Frontend
-      - name: Python
+      - name: Install Python build and test dependencies
         shell: pwsh
         run: ./scripts/build-windows.ps1 -Stage Python
-      - name: Audit
+      - name: Audit Windows Python dependencies
         shell: pwsh
         run: ./scripts/build-windows.ps1 -Stage Audit
-      - name: Backend
+      - name: Run backend and repository regressions
         shell: pwsh
         run: ./scripts/build-windows.ps1 -Stage Backend
-      - name: Browser
+      - name: Audit JavaScript and run browser regressions
         shell: pwsh
         run: ./scripts/build-windows.ps1 -Stage Browser
-      - name: Package
+      - name: Package Windows executable
         shell: pwsh
         env:
           BENCHMARK_PACKAGING: ${{ inputs.benchmark_packaging }}
         run: ./scripts/build-windows.ps1 -Stage Package -BenchmarkPackaging:([bool]::Parse($env:BENCHMARK_PACKAGING))
-      - name: Verify
+      - name: Verify Windows PE, resources, privacy and checksum
         shell: pwsh
         run: ./scripts/build-windows.ps1 -Stage Verify
-      - name: Smoke
+      - name: Run Windows application smoke tests
         shell: pwsh
         run: ./scripts/build-windows.ps1 -Stage Smoke
       - name: Upload verified executable
@@ -96,13 +103,17 @@ jobs:
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           artifact-ids: ${{ steps.executable.outputs.artifact-id }}
-          path: ${{ runner.temp }}/sap-lens-distribution
+          path: ${{ runner.temp }}/sap-lens-artifact-download
           merge-multiple: true
+          skip-decompress: true
+          digest-mismatch: error
       - name: Verify distributed artifact
         shell: pwsh
         env:
           ARTIFACT_DIRECTORY: ${{ runner.temp }}/sap-lens-distribution
-        run: ./scripts/build-windows.ps1 -Stage Artifact -ArtifactDirectory $env:ARTIFACT_DIRECTORY
+          ARTIFACT_DOWNLOAD_DIRECTORY: ${{ runner.temp }}/sap-lens-artifact-download
+          ARTIFACT_DIGEST: ${{ steps.executable.outputs.artifact-digest }}
+        run: ./scripts/build-windows.ps1 -Stage Artifact -ArtifactDirectory $env:ARTIFACT_DIRECTORY -ArtifactDownloadDirectory $env:ARTIFACT_DOWNLOAD_DIRECTORY -ArtifactDigest $env:ARTIFACT_DIGEST
       - name: Upload diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -120,6 +131,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           BUILD_STATUS: ${{ job.status }}
+          BUILD_JOB_NAME: Windows Build & Verification
           ARTIFACT_ID: ${{ steps.executable.outputs.artifact-id }}
           ARTIFACT_DIGEST: ${{ steps.executable.outputs.artifact-digest }}
           ARTIFACT_NAME: SAP-Lens-Windows-x64
