@@ -1,8 +1,8 @@
-# Windows Desktop 1.0
+# Windows Desktop 1.2
 
 ## Install and launch
 
-Download **SAP-Lens-Windows-x64** from a successful **Build Windows application** Actions run for `work` or `main`. Extract the artifact and open `SAP-Lens.exe`. It is a **single EXE** containing Python, the API, compiled frontend, SAP Lens icon and version metadata. The `.sha256` file is an optional download-integrity check. A PyInstaller one-file launch extracts bundled resources into a temporary directory; this may add a short startup delay.
+Download **SAP-Lens-Windows-x64** from a successful **Build Windows application** Actions run for `work` or `main`. Extract the artifact and open `SAP-Lens.exe`. It is a **single EXE** containing Python, the API, compiled frontend, SAP Lens icon and version metadata. The ZIP contains exactly `SAP-Lens.exe` and `SAP-Lens.exe.sha256`; verify the checksum before launching (instructions below). A PyInstaller one-file launch extracts bundled resources into a temporary directory; this may add a short startup delay.
 
 Windows 10/11 x64, .NET Framework 4.6.2+ (included in supported Windows versions) and the Evergreen Microsoft Edge WebView2 Runtime are required. Python, Node.js and development tools are **not** required on the destination PC. SAP Lens itself needs no administrator privileges. If WebView2 is missing, the app explains the prerequisite and exits without starting its service; install the [official Microsoft runtime](https://developer.microsoft.com/microsoft-edge/webview2/) or contact IT. The launcher does not silently use Internet Explorer/MSHTML.
 
@@ -11,7 +11,7 @@ The EXE is unsigned. Organizations may require signing/approval to satisfy Smart
 ## First launch and daily use
 
 1. Open the application icon. SAP Lens opens in a dedicated branded window with no browser controls or console.
-2. Open **Settings → Browse for CSV…**, choose a readable export, then select **Save and load CSV**. Typed absolute paths and permitted UNC paths are also supported.
+2. Open **Settings → Data Source & Import → Browse for CSV…**, choose a readable export, then select **Save and load CSV**. Typed absolute paths and permitted UNC paths are also supported.
 3. Browse, filter, inspect and compare roles as before. **Refresh Data** rereads the export; **Settings** changes it.
 4. Close the window to stop the application and its local service. Relaunching restores the saved file location.
 
@@ -26,20 +26,20 @@ Shutdown requests graceful Uvicorn termination, bounds the wait, closes the owne
 | Symptom | Action |
 | --- | --- |
 | WebView2 prerequisite message | Install/enable the Evergreen runtime from Microsoft or contact IT; no service has been started |
-| Missing/invalid CSV | Choose an accessible UTF-8 CSV with the documented columns in Settings |
-| Share unavailable | Restore share access; the UI remains accessible while loading, and the app can close safely if the filesystem stalls |
+| Missing/invalid CSV | Choose an accessible CSV and preview its mapping, encoding and delimiter in Settings |
+| Share unavailable | Cancel the pending load and choose an accessible source; the app can close safely if the filesystem stalls |
 | Port `18743` occupied | No action is normally needed; the desktop automatically chooses another controlled loopback port |
 | Another instance already starting | Wait for its window or switch to it on the taskbar |
 | Other startup failure | Close and reopen; inspect `%LOCALAPPDATA%/SAP Lens/sap-lens.log` for the failed stage/category and check profile permissions |
-| Source-mode development | Activate `.venv`, install desktop requirements and build the frontend, then use `run.bat` |
+| Source-mode development | Activate `.venv`, install desktop requirements and build the frontend, then run `.\.venv\Scripts\pythonw.exe backend\desktop.py` from the repository root |
 
 Settings are stored per user, independently of the EXE. Logs omit source paths, data and launch capabilities. A normal exit removes `runtime.json`. Forced OS termination may leave this non-secret diagnostic file; the next owned launch replaces it. No service worker caches SAP responses.
 
 ## Build
 
-`build.bat` delegates to `scripts/build-windows.ps1`. With Python 3.12, Node.js 22.12+ and PowerShell available, the script installs locked frontend dependencies, builds the UI, installs pinned desktop/test Python requirements, runs API/lifecycle and production-browser tests, generates version metadata and builds `backend/dist/SAP-Lens.exe` using PyInstaller `--onefile --windowed`. The icon is converted from the existing logo; `backend/version.py` owns the application version. Local builds also install Chromium for browser tests.
+`scripts/build-windows.ps1` is the canonical local and GitHub Actions build implementation. Invoke `pwsh -NoProfile -File scripts/build-windows.ps1` from the repository root. With Python 3.12, Node.js 24 LTS and PowerShell 7 available, the script installs locked frontend dependencies, builds the UI, installs pinned desktop/test Python requirements, runs API/lifecycle and production-browser tests, generates version metadata and builds `backend/dist/SAP-Lens.exe` using PyInstaller `--onefile --windowed`. The icon is converted from the existing logo; `backend/version.py` owns the application version. Local builds also install the Chromium headless shell for browser tests and run the packaged GUI smoke test. UPX is explicitly disabled. See [packaging readiness](WINDOWS_PACKAGING.md) for the verification contract and pending native checks, and [build performance](BUILD_PERFORMANCE.md) for cache boundaries and the optional incremental benchmark.
 
-The Actions workflow runs on Windows, pins action commits, disables persisted checkout credentials and requests read-only repository permissions. Pushes to `main`/`work`, `v*` tags, pull requests and manual dispatches run it. Artifacts expire after 14 days. `.env`, SAP exports, user settings and logs are not distribution inputs. Failure diagnostics contain only synthetic test information and sanitized app logs.
+The Actions workflow runs on Windows, pins maintained Node-24 action commits, disables persisted checkout credentials and requests read-only repository permissions. Only manual dispatch runs it: choose **Actions → Build Windows application → Run workflow** and select a branch. Pushes, tags and pull requests do not build the application. A separate Validate application workflow automatically runs tests, type checks and a production JavaScript dependency audit without creating build output. Artifacts expire after 14 days. `.env`, SAP exports, user settings and logs are not distribution inputs. Failure diagnostics contain only synthetic test information and sanitized app logs.
 
 The packaged smoke test uses isolated settings, synthetic data and a PATH without Python/Node. It checks PE GUI subsystem, version/branding resources, owned-instance identity, API readiness, exact CORS, capability enforcement, visible app window, duplicate launch, repeated close/relaunch, port conflict fallback and listener cleanup. Cleanup uses handles from its own process tree; it never kills by process name.
 
@@ -54,3 +54,52 @@ Linux tests mock the native GUI, registry and mutex APIs; they do not establish 
 - Visual layout, comparison interactions, theme toggle and keyboard behavior in WebView2.
 
 See [validation record](VALIDATION.md) for measured local results versus pending Windows results.
+
+The settings UI also supports native logo selection, portable configuration Save dialogs and opening the per-user configuration folder. Saved organization/theme/profile/logo settings survive upgrades; user assets are never bundled into later builds. Test these dialogs and persistence on actual Windows alongside the CSV picker. Unexpected owned-server death is reported and closes the window; a failed service is not left behind a seemingly working interface.
+
+Version 1.2 introduces a responsive branded startup document, full-window settings, organization-first header and persistent theme colors. See [workspace and themes](UX_AND_THEMES.md). The changed 1.2 launcher and canonical build passed automated Windows GUI/lifecycle/package validation in [run 39469463871](https://github.com/OnlyDrey/sap-lens/actions/runs/39469463871); target-PC/native interaction checks remain pending.
+
+## Requirement ownership
+
+`backend/requirements.txt` contains application/API dependencies. `requirements-desktop.txt` adds the native WebView runtime, `requirements-dev.txt` adds backend tests, and `requirements-build.txt` adds PyInstaller and pinned build pip to desktop runtime dependencies. `scripts/requirements-audit.txt` pins audit tooling for the separate host interpreter. The canonical build script installs build and test requirements into its isolated environment; normal source-mode desktop execution needs only desktop requirements. Node 24 LTS is recommended; the frontend declares its compatible minimum of 22.12. User configuration is not a developer/build input.
+
+The canonical build also creates the SHA-256 manifest and runs `scripts/verify-windows-package.py` before delivery. The verifier checks the PE GUI subsystem, checksum, required bundled assets and absence of known private configuration/CSV/log entries. The GitHub workflow uploads the same verified output; it does not maintain a second checksum implementation.
+
+
+## Download integrity and execution failures
+
+Use an entirely successful manual Windows workflow run, then download
+**SAP-Lens-Windows-x64**, extract the GitHub ZIP into a writable folder and keep the
+EXE and manifest together. No nested ZIP, Python/Node installer, user settings or
+CSV export belongs in this artifact. The workflow's upload/download round trip
+compares the final artifact to the already verified executable before declaring
+success. A failed run may still show an artifact; do not distribute that output.
+
+In PowerShell, from the extracted folder, verify the exact executable bytes:
+
+```powershell
+$expected = (Get-Content -Raw ./SAP-Lens.exe.sha256).Trim()
+$actual = (Get-FileHash ./SAP-Lens.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($expected -cne "$actual  SAP-Lens.exe") { throw 'Checksum mismatch. Do not launch this file.' }
+```
+
+Compare the EXE digest with the successful Actions report as well. The GitHub
+artifact ZIP digest covers the ZIP, not the extracted EXE, so these two hashes
+normally differ. A matching checksum detects corruption/byte mismatch; an unsigned
+file and its accompanying manifest do not authenticate a legal publisher.
+[Signing readiness](WINDOWS_CODE_SIGNING.md) describes a future signed release;
+current builds remain unsigned.
+
+A browser download failure happens before SAP Lens runs. Record the workflow/commit,
+artifact name, expected size/hash, browser error and endpoint-security event without
+sharing temporary signed download URLs. Check network/proxy permissions and ask IT
+to review the specific file and policy event. A corrupt or incomplete ZIP is an
+integrity/download issue: obtain a complete trusted download and recheck hashes.
+Do not disable antivirus, SmartScreen, browser protections or organizational policy.
+
+If extraction and checksum verification succeed but launching fails, record the
+Windows version, WebView2 availability, displayed error and sanitized application
+log. Check profile permissions and endpoint quarantine events with IT. Missing
+WebView2 has an explicit prerequisite message; CSV or network-share failures are
+handled through Settings. Signing may help establish publisher identity but does
+not guarantee downloads, SmartScreen reputation or permission to execute.

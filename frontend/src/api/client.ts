@@ -22,14 +22,22 @@ export function applicationToken(): string { return desktopSession || '1' }
 const apiClient = {
   async request<T>(path: string, method: string, body?: unknown): Promise<{ data: T }> {
     let response: Response
+    const controller = new AbortController()
+    const timer = method === 'GET' ? setTimeout(()=>controller.abort(),10000) : undefined
     try { response = await fetch(path, {
-      method,
+      method, signal: controller.signal,
       headers: { 'Content-Type': 'application/json', 'X-SAP-Lens': applicationToken() },
       body: body === undefined ? undefined : JSON.stringify(body),
       cache: 'no-store',
-    }) } catch { throw new Error('SAP Lens could not connect. Close and reopen the application, then try again.') }
+    }) } catch { throw new Error('SAP Lens could not connect. Retry or close and reopen the application.') }
+    finally { if(timer)clearTimeout(timer) }
     const data = await response.json()
-    if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : `Request failed (${response.status})`)
+    if (!response.ok) {
+      const detail = typeof data.detail === 'string' ? data.detail : Array.isArray(data.detail)
+        ? (data.detail as {loc?:string[];msg?:string}[]).slice(0,3).map(e=>`${(e.loc||[]).slice(1).join('.')}: ${e.msg||'Invalid value'}`).join('; ')
+        : `Request failed (${response.status})`
+      throw new Error(detail)
+    }
     return { data: data as T }
   },
   get<T>(path: string, options?: { params: Record<string, string> }) {
@@ -95,16 +103,6 @@ export async function fetchRolesByTcode(
 
   return data
 }
-export interface AppSettings {
-  data_csv_path: string
-  error: string | null
-  loading: boolean
-}
-
-export async function fetchSettings(): Promise<AppSettings> {
-  return (await apiClient.get<AppSettings>('/api/settings')).data
-}
-
-export async function saveSettings(path: string): Promise<AppSettings> {
-  return (await apiClient.post<AppSettings>('/api/settings', { data_csv_path: path })).data
+export async function apiRequest<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
+  return (await apiClient.request<T>(path, method, body)).data
 }

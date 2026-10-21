@@ -55,3 +55,22 @@ htmlcov/
 # Browser test artifacts
 /frontend/test-results/
 /frontend/playwright-report/
+
+# User-owned application data (generic fixtures remain versioned)
+*.csv
+!**/fixtures/*.csv
+!examples/synthetic.csv
+**/settings.json
+**/classification-profiles.json
+**/import-profiles.json
+**/runtime.json
+/local-config/
+/app-data/
+/user-branding/
+/configuration-backups/
+*.sap-lens.json
+!examples/synthetic-profile.sap-lens.json
+
+# Compiler and diagnostic exports
+*.tsbuildinfo
+SAP-Lens-diagnostics*.json

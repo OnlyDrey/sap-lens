@@ -1,57 +1,161 @@
+param(
+    [ValidateSet('All', 'Environment', 'Frontend', 'Python', 'Audit', 'Backend', 'Browser', 'Package', 'Verify', 'Smoke', 'Artifact')]
+    [string]$Stage = 'All',
+    [string]$ArtifactDirectory,
+    [switch]$BenchmarkPackaging
+)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 Set-Location $root
-function Assert-Success { if ($LASTEXITCODE -ne 0) { throw "Build command failed with exit code $LASTEXITCODE" } }
-python -m venv backend/build/python-env
-Assert-Success
+function Assert-Success([string]$Stage) {
+    if ($LASTEXITCODE -eq 0) { return }
+    $message = "$Stage failed with exit code $LASTEXITCODE"
+    if ($env:GITHUB_ACTIONS -eq 'true') { Write-Host "::error title=SAP Lens build::$message" }
+    throw $message
+}
 $buildPython = Join-Path $root 'backend/build/python-env/Scripts/python.exe'
+# Keep audit tooling in the host interpreter, outside the isolated package environment.
+$hostPython = (Get-Command python).Source
+function Invoke-Stage([string]$Name, [scriptblock]$Action) {
+    if ($Stage -eq 'All' -or $Stage -eq $Name) { & $Action }
+}
+function Measure-Task([string]$Name, [scriptblock]$Action) {
+    $watch = [System.Diagnostics.Stopwatch]::StartNew()
+    $status = 'failed'
+    Write-Host "::group::$Name"
+    try { & $Action; $status = 'passed' } finally {
+        $watch.Stop()
+        $seconds = [math]::Round($watch.Elapsed.TotalSeconds, 2)
+        Write-Host "TIMING $Name : $seconds seconds ($status)"
+        Write-Host '::endgroup::'
+        try {
+            New-Item -ItemType Directory -Force (Join-Path $root 'backend/build') | Out-Null
+            @{ stage = $Name; seconds = $seconds; status = $status } | ConvertTo-Json -Compress |
+                Add-Content (Join-Path $root 'backend/build/timings.jsonl') -Encoding utf8
+        } catch {
+            Write-Host '::warning::Stage timing could not be saved; inspect the task log.'
+        }
+    }
+}
 $originalBuildPath = $env:PATH
 $env:PATH = (Split-Path $buildPython -Parent) + ';' + $env:PATH
 try {
-    Push-Location frontend
-    try {
-        npm ci
-        Assert-Success
-        npm run build
-        Assert-Success
-    } finally { Pop-Location }
-    & $buildPython -m pip install --upgrade pip
-    Assert-Success
-    & $buildPython -m pip install -r backend/requirements-desktop.txt -r backend/requirements-dev.txt
-    Assert-Success
-    & $buildPython -m pip check
-    Assert-Success
-    # Audit the isolated Windows build environment, including Windows-only runtime
-    # dependencies. The audit tool itself is kept outside the packaged environment.
-    & $buildPython -m venv backend/build/audit-env
-    Assert-Success
-    $auditPython = Join-Path $root 'backend/build/audit-env/Scripts/python.exe'
-    & $auditPython -m pip install pip-audit
-    Assert-Success
-    $sitePackages = & $buildPython -c "import sysconfig; print(sysconfig.get_paths()['purelib'])"
-    Assert-Success
-    & $auditPython -m pip_audit --path $sitePackages --vulnerability-service pypi --progress-spinner off
-    Assert-Success
-    & $buildPython -m unittest discover -s backend/tests -v
-    Assert-Success
-    Push-Location frontend
-    try {
-        npm audit --omit=dev
-        Assert-Success
-        npx playwright install chromium
-        Assert-Success
-        npm run test:browser
-        Assert-Success
-    } finally { Pop-Location }
-    & $buildPython scripts/write-windows-metadata.py
-    Assert-Success
-    $icon = Join-Path $root 'assets/sap-lens.ico'
-    $metadata = Join-Path $root 'backend/build/version-info.txt'
-    $iconData = $icon + ';assets'
-    $frontendDist = Join-Path $root 'frontend/dist'
-    & $buildPython -m PyInstaller --noconfirm --clean --onefile --windowed --name SAP-Lens --icon "$icon" --version-file "$metadata" --add-data "$iconData" --paths backend --add-data "$frontendDist;frontend/dist" --specpath backend --distpath backend/dist --workpath backend/build backend/desktop.py
-    Assert-Success
-    Write-Host 'Build complete: backend/dist/SAP-Lens.exe'
+    Invoke-Stage Environment {
+        $timings = Join-Path $root 'backend/build/timings.jsonl'
+        if (Test-Path $timings) { Remove-Item $timings }
+        foreach ($report in @('package-verification.json', 'artifact-verification.json')) {
+            $reportPath = Join-Path $root "backend/build/$report"
+            if (Test-Path $reportPath) { Remove-Item $reportPath }
+        }
+        Measure-Task 'Python environment creation' {
+            & $hostPython -m venv backend/build/python-env
+            Assert-Success 'Create build environment'
+        }
+    }
+    Invoke-Stage Frontend {
+        Push-Location frontend
+        try {
+            Measure-Task 'npm installation' {
+                npm ci --no-audit --no-fund
+                Assert-Success 'Install frontend dependencies'
+            }
+            Measure-Task 'Frontend compilation' {
+                npm run build
+                Assert-Success 'Build production frontend'
+            }
+        } finally { Pop-Location }
+    }
+    Invoke-Stage Python {
+        Measure-Task 'Python dependency installation' {
+            & $buildPython -m pip install --disable-pip-version-check -r backend/requirements-build.txt -r backend/requirements-dev.txt
+            Assert-Success 'Install build and test dependencies'
+            & $buildPython -m pip check
+            Assert-Success 'Check Python dependencies'
+        }
+    }
+    Invoke-Stage Audit {
+        # Inspect the full isolated Windows environment, including platform-only dependencies.
+        # Audit tooling stays in the host interpreter and cannot enter the packaged environment.
+        Measure-Task 'Audit tool provisioning' {
+            & $hostPython -m pip install --disable-pip-version-check -r scripts/requirements-audit.txt
+            Assert-Success 'Install audit tooling'
+        }
+        Measure-Task 'Python vulnerability audit' {
+            $sitePackages = & $buildPython -c "import sysconfig; print(sysconfig.get_paths()['purelib'])"
+            Assert-Success 'Locate build dependencies'
+            & $hostPython -m pip_audit --path $sitePackages --vulnerability-service pypi --progress-spinner off
+            Assert-Success 'Audit Windows dependencies'
+        }
+    }
+    Invoke-Stage Backend {
+        Measure-Task 'Backend tests' {
+            & $buildPython -m unittest discover -s backend/tests -v
+            Assert-Success 'Backend regression tests'
+        }
+    }
+    Invoke-Stage Browser {
+        Push-Location frontend
+        try {
+            Measure-Task 'Production JavaScript audit' {
+                npm audit --omit=dev
+                Assert-Success 'Audit production JavaScript dependencies'
+            }
+            Measure-Task 'Playwright installation' {
+                npx playwright install chromium --only-shell
+                Assert-Success 'Install test browser'
+            }
+            Measure-Task 'Playwright tests' {
+                npm run test:browser -- --reporter=line,github
+                Assert-Success 'Production browser regression tests'
+            }
+        } finally { Pop-Location }
+    }
+    Invoke-Stage Package {
+        & $buildPython scripts/write-windows-metadata.py
+        Assert-Success 'Generate Windows metadata'
+        $icon = Join-Path $root 'assets/sap-lens.ico'
+        $metadata = Join-Path $root 'backend/build/version-info.txt'
+        $frontendDist = Join-Path $root 'frontend/dist'
+        $packagingArguments = @(
+            '--noconfirm', '--onefile', '--windowed', '--noupx', '--name', 'SAP-Lens',
+            '--icon', $icon, '--version-file', $metadata,
+            '--add-data', ($icon + ';assets'), '--paths', 'backend',
+            '--add-data', ($frontendDist + ';frontend/dist'), '--specpath', 'backend',
+            '--distpath', 'backend/dist', '--workpath', 'backend/build', 'backend/desktop.py'
+        )
+        Measure-Task 'PyInstaller packaging (clean)' {
+            & $buildPython -m PyInstaller --clean @packagingArguments
+            Assert-Success 'Package Windows executable'
+        }
+        if ($BenchmarkPackaging) {
+            # A same-job experiment only: nothing is restored from a previous checkout/run.
+            # The resulting EXE still goes through the complete verifier and GUI smoke test.
+            Measure-Task 'PyInstaller packaging (same-job incremental)' {
+                & $buildPython -m PyInstaller @packagingArguments
+                Assert-Success 'Benchmark incremental packaging'
+            }
+        }
+    }
+    Invoke-Stage Verify {
+        Measure-Task 'Package verification and checksum' {
+            $hash = (Get-FileHash backend/dist/SAP-Lens.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  SAP-Lens.exe" | Set-Content backend/dist/SAP-Lens.exe.sha256 -Encoding ascii
+            & $buildPython scripts/verify-windows-package.py
+            Assert-Success 'Verify Windows package assets and privacy'
+        }
+    }
+    Invoke-Stage Smoke {
+        Measure-Task 'EXE smoke testing' { & (Join-Path $PSScriptRoot 'test-windows-exe.ps1') }
+    }
+    if ($Stage -eq 'Artifact') {
+        if (-not $ArtifactDirectory) { throw 'Artifact verification needs a downloaded artifact directory.' }
+        Measure-Task 'Downloaded artifact verification' {
+            $verified = Get-Content -Raw backend/build/package-verification.json | ConvertFrom-Json
+            & $buildPython scripts/verify-windows-package.py --distribution $ArtifactDirectory --expected-sha256 $verified.exe_sha256 --report backend/build/artifact-verification.json
+            Assert-Success 'Verify downloaded artifact matches the approved executable'
+        }
+    }
+    Write-Host "Completed build stage: $Stage"
 } finally {
     $env:PATH = $originalBuildPath
 }

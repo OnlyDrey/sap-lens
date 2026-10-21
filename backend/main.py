@@ -20,6 +20,7 @@ from data_loader import DataLoader
 from routers import comparison, modules, roles
 from request_limits import RequestBodyLimit
 from version import VERSION
+from configuration_routes import configuration_router
 
 frontend_dir = (Path(sys._MEIPASS) if getattr(sys, 'frozen', False)
                 else Path(__file__).resolve().parent.parent) / 'frontend' / 'dist'
@@ -88,6 +89,7 @@ def create_app(origin: str | None = None, session_token: str | None = None,
         )
         return response
 
+    app.include_router(configuration_router(loader))
     app.include_router(roles.router)
     app.include_router(modules.router)
     app.include_router(comparison.router)

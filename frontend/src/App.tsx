@@ -10,6 +10,7 @@ export function App() {
   const [selectedRoles, setSelectedRoles] = useState<string[]>([])
   const [detailRole, setDetailRole] = useState<string | null>(null)
   const [showComparison, setShowComparison] = useState(false)
+  const [dataGeneration,setDataGeneration] = useState(0)
   const [lastLoaded, setLastLoaded] = useState<string | null>(null)
 
   const handleSelectRole = useCallback((name: string) => {
@@ -23,6 +24,7 @@ export function App() {
       lastLoaded={lastLoaded}
       onRefresh={() => setLastLoaded(new Date().toISOString())}
       onDataChanged={() => {
+        setDataGeneration(value=>value+1)
         setSelectedRoles([])
         setDetailRole(null)
         setShowComparison(false)
@@ -32,7 +34,7 @@ export function App() {
       onToggleTheme={toggle}>
       {showComparison
         ? <ComparisonView roleNames={selectedRoles} onBack={() => setShowComparison(false)} />
-        : <RoleList
+        : <RoleList key={dataGeneration}
             selectedRoles={selectedRoles}
             onSelectRole={handleSelectRole}
             onViewDetail={n => setDetailRole(n)}

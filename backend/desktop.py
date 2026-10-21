@@ -65,6 +65,11 @@ class NativeDialogs:
         self._window = None
         self._picker_lock = threading.Lock()
 
+    def close_application(self, token: str):
+        if not isinstance(token, str) or not hmac.compare_digest(token.encode(), self._token.encode()):
+            raise ValueError('Application request is not authorized.')
+        if self._window: self._window.destroy()
+
     def choose_csv(self, token: str):
         if not isinstance(token, str) or not hmac.compare_digest(token.encode(), self._token.encode()):
             raise ValueError('Application request is not authorized.')
@@ -80,26 +85,96 @@ class NativeDialogs:
             self._picker_lock.release()
 
 
+    def choose_logo(self, token: str):
+        if not isinstance(token,str) or not hmac.compare_digest(token.encode(),self._token.encode()):
+            raise ValueError('Application request is not authorized.')
+        if not self._window or not self._picker_lock.acquire(blocking=False): return None
+        try:
+            import webview
+            files = self._window.create_file_dialog(webview.FileDialog.OPEN,allow_multiple=False,
+                                                    file_types=('Images (*.png;*.jpg;*.jpeg;*.webp)',))
+            return str(files[0]) if files else None
+        finally: self._picker_lock.release()
+
+    def open_configuration_folder(self, token: str):
+        if not isinstance(token,str) or not hmac.compare_digest(token.encode(),self._token.encode()):
+            raise ValueError('Application request is not authorized.')
+        if not is_windows(): return False
+        directory = config_dir(); directory.mkdir(parents=True,exist_ok=True)
+        os.startfile(str(directory))
+        return True
+
+    def open_logs(self, token: str):
+        if not isinstance(token, str) or not hmac.compare_digest(token.encode(), self._token.encode()):
+            raise ValueError('Application request is not authorized.')
+        if not is_windows(): return False
+        path = config_dir() / 'sap-lens.log'
+        if not path.is_file(): raise ValueError('No application log has been created yet.')
+        os.startfile(str(path))
+        return True
+
+    def export_diagnostics(self, token: str):
+        if not isinstance(token, str) or not hmac.compare_digest(token.encode(), self._token.encode()):
+            raise ValueError('Application request is not authorized.')
+        if not self._window or not self._picker_lock.acquire(blocking=False): return False
+        try:
+            import webview
+            from config import atomic_write
+            from diagnostics import diagnostics_snapshot
+            files = self._window.create_file_dialog(webview.FileDialog.SAVE, save_filename='SAP-Lens-diagnostics.json', file_types=('Diagnostics (*.json)',))
+            if not files: return False
+            path = Path(files[0])
+            if not path.is_absolute() or path.suffix.lower() != '.json': raise ValueError('Choose an absolute JSON file path.')
+            atomic_write(path, json.dumps(diagnostics_snapshot(), indent=2).encode())
+            return True
+        finally: self._picker_lock.release()
+
+    def export_configuration(self, token: str, include_private: bool = False):
+        if not isinstance(token,str) or not hmac.compare_digest(token.encode(),self._token.encode()):
+            raise ValueError('Application request is not authorized.')
+        if not isinstance(include_private,bool): raise ValueError('Invalid export option.')
+        if not self._window or not self._picker_lock.acquire(blocking=False): return False
+        try:
+            import webview
+            from config import get_settings,atomic_write
+            from portable_config import export_configuration
+            files = self._window.create_file_dialog(webview.FileDialog.SAVE,save_filename='SAP-Lens.sap-lens.json',
+                                                    file_types=('Configuration (*.json)',))
+            if not files: return False
+            path = Path(files[0])
+            if not path.is_absolute() or path.suffix.lower() != '.json': raise ValueError('Choose an absolute JSON file path.')
+            atomic_write(path,json.dumps(export_configuration(get_settings(),include_private),indent=2).encode())
+            return True
+        finally: self._picker_lock.release()
+
+
 class ManagedBackend:
     def __init__(self, app, listener):
         import uvicorn
         self.listener = listener
+        self._lifecycle_lock = threading.Lock()
+        self._closed = False
         self.server = uvicorn.Server(uvicorn.Config(
             app, log_config=None, access_log=False, timeout_graceful_shutdown=2))
         self.worker = threading.Thread(target=self.server.run,
                                        kwargs={'sockets': [listener]},
                                        name='sap-lens-api', daemon=True)
 
-    def start(self, timeout: float = 15):
-        self.worker.start()
+    def start(self, timeout: float = 15, canceled=None):
+        with self._lifecycle_lock:
+            if self._closed or (canceled and canceled.is_set()): return
+            self.worker.start()
         deadline = time.monotonic() + timeout
         while not self.server.started:
+            if canceled and canceled.is_set(): return
             if not self.worker.is_alive() or time.monotonic() > deadline:
                 raise RuntimeError('The local application service did not become ready.')
             time.sleep(0.025)
 
     def close(self):
-        self.server.should_exit = True
+        with self._lifecycle_lock:
+            self._closed = True
+            self.server.should_exit = True
         if self.worker.ident:
             self.worker.join(timeout=4)
             if self.worker.is_alive():
@@ -122,6 +197,9 @@ def run() -> int:
     handler = None
     runtime_file = None
     identity = None
+    startup_lock = threading.Lock()
+    closing = threading.Event()
+    crashed = threading.Event()
     stage = 'initialization'
     try:
         if is_windows():
@@ -144,35 +222,81 @@ def run() -> int:
         logging.getLogger().setLevel(logging.INFO)
         stage = 'application resources'
         import webview
-        from main import create_app, frontend_dir
-        if not frontend_dir.is_dir():
-            raise RuntimeError('Frontend resources are missing from the application.')
+        from startup_screen import startup_html, state_script, palette_script
         listener = reserve_listener(APP_PORT)
         port = listener.getsockname()[1]
         origin = f'http://127.0.0.1:{port}'
         token = secrets.token_urlsafe(32)
         identity = secrets.token_hex(16)
-        app = create_app(origin=origin, session_token=token, instance_id=identity)
         dialogs = NativeDialogs(token)
-        backend = ManagedBackend(app, listener)
-        stage = 'local service startup'
-        backend.start()
-        logger.info('Local application service ready')
-        # Non-secret discovery record for diagnostics; never persist the session token.
-        runtime_file = directory / 'runtime.json'
-        runtime_file.write_text(json.dumps({'pid': os.getpid(), 'origin': origin,
-                                           'instance_id': identity}), encoding='utf-8')
         stage = 'WebView2 window initialization'
-        window = webview.create_window('SAP Lens', f'{origin}/#session={token}',
+        logo = resource_path('frontend/dist/sap-lens.png')
+        if not logo.is_file(): logo = resource_path('assets/sap-lens.png')
+        window = webview.create_window('SAP Lens', html=startup_html(logo, token),
                                        js_api=dialogs, width=1280, height=850,
-                                       min_size=(900, 650), background_color='#1A003B')
+                                       min_size=(900, 650), background_color='#0d0d1a')
         dialogs._window = window
+
+        def watch_backend():
+            nonlocal backend, runtime_file
+            try:
+                # This callback runs off the GUI thread, so slow service startup
+                # cannot block painting, closing or moving the startup window.
+                deadline = time.monotonic() + 15
+                while not window.events.loaded.wait(.1):
+                    if closing.is_set(): return
+                    if time.monotonic() >= deadline: raise RuntimeError('Startup window was not ready.')
+                if closing.is_set(): return
+                from main import create_app, frontend_dir
+                if not frontend_dir.is_dir(): raise RuntimeError('Frontend resources are missing.')
+                app = create_app(origin=origin, session_token=token, instance_id=identity)
+                from config import get_settings
+                window.evaluate_js(palette_script(get_settings()))
+                with startup_lock:
+                    if closing.is_set(): return
+                    backend = ManagedBackend(app, listener)
+                backend.start(canceled=closing)
+                if closing.is_set(): return
+                window.evaluate_js(state_script('Connecting to local service…'))
+                from urllib.request import build_opener, ProxyHandler
+                with build_opener(ProxyHandler({})).open(origin + '/health', timeout=5) as response:
+                    health = json.load(response)
+                if health.get('instance_id') != identity:
+                    raise RuntimeError('Local instance readiness check failed.')
+                logger.info('Local application service ready')
+                with startup_lock:
+                    if closing.is_set(): return
+                    runtime_file = directory / 'runtime.json'
+                    runtime_file.write_text(json.dumps({'pid': os.getpid(), 'origin': origin,
+                                                       'instance_id': identity}), encoding='utf-8')
+                window.evaluate_js(state_script('Loading configuration…'))
+                if closing.is_set(): return
+                window.load_url(f'{origin}/#session={token}')
+            except Exception:
+                if closing.is_set(): return
+                crashed.set()
+                logger.error('Desktop local service startup unsuccessful')
+                try:
+                    window.evaluate_js(state_script('Startup needs attention',
+                        'The local service did not become ready. Close and reopen SAP Lens. If it happens again, review the local application log or contact IT.'))
+                except Exception:
+                    report_error('SAP Lens could not display its startup screen. Close and reopen the application; saved settings are retained.')
+                    window.destroy()
+                return
+            while not closing.wait(0.5):
+                if not backend.worker.is_alive():
+                    crashed.set()
+                    logger.error('Local service stopped unexpectedly')
+                    report_error('The local SAP Lens service stopped. Reopen SAP Lens to continue; your settings are retained.')
+                    window.destroy()
+                    return
+        window.events.closed += closing.set
         webview.settings['ALLOW_DOWNLOADS'] = False
         webview.settings['ALLOW_FILE_URLS'] = False
         # No auxiliary HTTP server is enabled; all app resources use our listener.
-        webview.start(gui='edgechromium' if is_windows() else None,
+        webview.start(func=watch_backend, gui='edgechromium' if is_windows() else None,
                       debug=False, private_mode=True, icon=str(resource_path('assets/sap-lens.ico')))
-        return 0
+        return 1 if crashed.is_set() else 0
     except DesktopStartupError as exc:
         report_error(str(exc))
         return 1
@@ -183,6 +307,8 @@ def run() -> int:
                      'then try again. If the problem continues, check the local SAP Lens log and your profile permissions.')
         return 1
     finally:
+        with startup_lock:
+            closing.set()
         if backend:
             backend.close()
         elif listener:

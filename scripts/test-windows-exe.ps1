@@ -1,7 +1,8 @@
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
 $executable = (Resolve-Path backend/dist/SAP-Lens.exe).Path
-$testRoot = Join-Path $env:RUNNER_TEMP ('sap-lens-smoke/' + [guid]::NewGuid())
+$tempRoot = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [System.IO.Path]::GetTempPath() }
+$testRoot = Join-Path $tempRoot ('sap-lens-smoke/' + [guid]::NewGuid())
 New-Item -ItemType Directory -Force $testRoot | Out-Null
 $owned = @{}
 
@@ -70,7 +71,8 @@ function Wait-Ready($application, [string]$directory) {
 
 try {
     $version = (Get-Item $executable).VersionInfo
-    if ($version.ProductName -ne 'SAP Lens' -or $version.FileVersion -ne '1.0.0') { throw 'Windows version metadata missing.' }
+    $expectedVersion = [regex]::Match((Get-Content -Raw backend/version.py), "VERSION = '([^']+)'").Groups[1].Value
+    if ($version.ProductName -ne 'SAP Lens' -or $version.FileVersion -ne $expectedVersion) { throw 'Windows version metadata missing.' }
     $bytes = [System.IO.File]::ReadAllBytes($executable)
     $peOffset = [BitConverter]::ToInt32($bytes, 0x3c)
     if ([BitConverter]::ToUInt16($bytes, $peOffset + 24 + 68) -ne 2) { throw 'EXE is not a console-free Windows GUI application.' }
@@ -121,12 +123,14 @@ MM,DEMO:B,Synthetic B,SHARED,Shared,DEMO,Demo
                 $duplicate = Start-Application $directory
                 $owned[$duplicate.Id] = $duplicate
                 if (-not $duplicate.WaitForExit(15000)) { Track-Owned $duplicate.Id | Out-Null; throw 'Duplicate launch did not return to the existing app.' }
+                if ($duplicate.ExitCode -ne 0) { throw 'Duplicate launch returned an error.' }
                 $after = Get-Content -Raw (Join-Path $directory 'runtime.json') | ConvertFrom-Json
                 if ($after.instance_id -ne $record.instance_id) { throw 'Duplicate launch replaced the owned instance.' }
             }
             Track-Owned $application.Id | Out-Null
             if (-not $window.CloseMainWindow()) { throw 'Cannot close the owned desktop window.' }
             if (-not $application.WaitForExit(15000)) { throw 'Closing the window did not stop the application.' }
+            if ($application.ExitCode -ne 0) { throw 'Application reported an unsuccessful shutdown.' }
             if (Test-Path (Join-Path $directory 'runtime.json')) { throw 'Runtime discovery was not cleaned up.' }
             $probe = [System.Net.Sockets.TcpClient]::new()
             try {

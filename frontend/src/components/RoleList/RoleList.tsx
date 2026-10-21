@@ -1,11 +1,12 @@
+import { ModuleIcon } from '@/components/Modules/ModuleIcon'
+import { onColor } from '@/lib/theme'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Search, GitCompare, X, Users, Activity, LayoutGrid,
-  DollarSign, BarChart2, Package, Wrench, TrendingUp, Cog,
-  FolderKanban, CheckCircle, Server, Warehouse, Hash,
   AlertTriangle, RefreshCw, ArrowUpDown, Zap
 } from 'lucide-react'
+import { fetchConfiguration } from '@/api/configuration'
 import { useModules } from '@/hooks/useModules'
 import { useRoles } from '@/hooks/useRoles'
 import { RoleCard } from './RoleCard'
@@ -28,21 +29,6 @@ function useDebounce<T>(v: T, ms: number): T {
   }, [v, ms])
 
   return d
-}
-
-const MOD_ICON: Record<string, React.ComponentType<{className?: string}>> = {
-  FI:DollarSign,
-  CO:BarChart2,
-  MM:Package,
-  PM:Wrench,
-  HR:Users,
-  SD:TrendingUp,
-  PP:Cog,
-  PS:FolderKanban,
-  CA:FolderKanban,
-  QM:CheckCircle,
-  BC:Server,
-  WM:Warehouse,
 }
 
 type SortKey =
@@ -153,7 +139,12 @@ export function RoleList({
   onViewDetail,
   onCompare
 }: Props) {
+  const [page,setPage] = useState(0)
   const [search, setSearch] = useState('')
+  const [activeDomain,setActiveDomain] = useState<string | null>(null)
+  const {data:configuration} = useQuery({queryKey:['configuration'],queryFn:fetchConfiguration})
+  const domains = configuration?.settings.classification_profiles.find(p=>p.id===configuration.settings.active_classification)?.domains || []
+  useEffect(()=>setActiveDomain(null),[configuration?.settings.active_classification])
   const [activeModule, setActiveModule] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<SortKey>('name-asc')
   const [sortOpen, setSortOpen] = useState(false)
@@ -181,23 +172,25 @@ export function RoleList({
     placeholderData: [],
   })
 
+  const domainCounts = useMemo(() => {const counts:Record<string,number>=Object.create(null);for(const r of allRolesRaw){const key=r.domain_id||'$unassigned';counts[key]=(counts[key]||0)+1}return counts},[allRolesRaw])
+
   const moduleNames = useMemo(
-    () => Object.fromEntries(
+    () => Object.assign(Object.create(null),Object.fromEntries(
       modules.map(m => [m.function_key, m.module_name])
-    ),
+    )),
     [modules]
   )
 
   const moduleGroups = useMemo(() => {
-    const map: Record<string, number> = {}
+    const map: Record<string, number> = Object.create(null)
 
     for (const r of allRolesRaw) {
       const k = r.function_key ?? 'Other'
       map[k] = (map[k] ?? 0) + 1
     }
 
-    return Object.entries(map).sort(([a],[b]) => a.localeCompare(b))
-  }, [allRolesRaw])
+    return Object.entries(map).filter(([key]) => modules.find(m=>m.function_key===key)?.enabled !== false).sort(([a],[b]) => a.localeCompare(b))
+  }, [allRolesRaw, modules])
 
   const totalTcodes = useMemo(
     () => allRolesRaw.reduce((s, r) => s + r.tcode_count, 0),
@@ -231,6 +224,7 @@ export function RoleList({
       )
     }
 
+    if (activeDomain) results=results.filter(r=>activeDomain==='$unassigned' ? !r.domain_id : r.domain_id===activeDomain)
     return applySort(results, sortBy)
   }, [
     allRolesRaw,
@@ -238,12 +232,17 @@ export function RoleList({
     hasTcodeResults,
     debSearch,
     activeModule,
+    activeDomain,
     sortBy
   ])
 
+  useEffect(()=>setPage(0),[debSearch,activeModule,activeDomain,sortBy])
+  const pageCount=Math.max(1,Math.ceil(visible.length/100))
+  const currentPage=Math.min(page,pageCount-1)
+
   const isFiltering =
     !!debSearch.trim() ||
-    !!activeModule
+    !!activeModule || !!activeDomain
 
   const currentLabel =
     SORT_OPTIONS.find(o => o.key === sortBy)?.label ?? 'Sort'
@@ -262,17 +261,17 @@ export function RoleList({
             {
               label:'Roles',
               value:allRolesRaw.length.toLocaleString(),
-              color:'var(--accent)',
+              color:'var(--accent2)',
               Icon:Users
             },
             {
-              label:'Modules',
+              label:'Enabled areas',
               value:moduleGroups.length.toString(),
               color:'var(--accent2)',
               Icon:LayoutGrid
             },
             {
-              label:'T-code assignments',
+              label:'Role / T-code pairs',
               value:totalTcodes.toLocaleString(),
               color:'var(--text)',
               Icon:Activity
@@ -312,6 +311,13 @@ export function RoleList({
         </div>
       )}
 
+      {domains.length>0 && <label className="flex items-center gap-3 text-sm" style={{color:'var(--text2)'}}>Customer domain
+        <select aria-label="Customer domain" value={activeDomain||''} onChange={e=>setActiveDomain(e.target.value||null)} className="border rounded-lg px-3 py-2" style={{background:'var(--surface)',borderColor:'var(--border)'}}>
+          <option value="">All domains</option>
+          {domains.filter(d=>domainCounts[d.id]).map(d=><option key={d.id} value={d.id}>{d.label} ({domainCounts[d.id]||0})</option>)}
+          <option value="$unassigned">Unclassified domain ({domainCounts['$unassigned']||0})</option>
+        </select>
+      </label>}
       <div
         className="rounded-2xl border px-4 py-3 flex flex-col gap-3 shadow-sm"
         style={{
@@ -340,7 +346,7 @@ export function RoleList({
               onFocus={e => {
                 e.currentTarget.style.backgroundColor = 'var(--surface)'
                 e.currentTarget.style.borderColor = 'var(--accent2)'
-                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(81,87,147,0.15)'
+                e.currentTarget.style.boxShadow = '0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent)'
               }}
               onBlur={e => {
                 e.currentTarget.style.backgroundColor = 'var(--surface2)'
@@ -406,7 +412,7 @@ export function RoleList({
                             : 'transparent',
                         color:
                           sortBy === opt.key
-                            ? '#fff'
+                            ? 'var(--on-accent2)'
                             : 'var(--text2)',
                       }}
                     >
@@ -422,14 +428,14 @@ export function RoleList({
         {!isLoading && !isError && (
           <div className="relative z-20 flex flex-wrap gap-1.5">
             <button
-              onClick={() => setActiveModule(null)}
+              onClick={() => { setActiveModule(null); setActiveDomain(null) }}
               className="px-3 py-1.5 rounded-full text-xs font-bold border transition-all focus:outline-none"
               style={
                 activeModule === null
                   ? {
-                      backgroundColor:'#515793',
-                      color:'#fff',
-                      borderColor:'#1A003B'
+                      backgroundColor:'var(--accent)',
+                      color:'var(--on-accent)',
+                      borderColor:'var(--primary)'
                     }
                   : {
                       backgroundColor:'var(--surface2)',
@@ -443,8 +449,7 @@ export function RoleList({
 
             {moduleGroups.map(([key, count]) => {
               const active = activeModule === key
-              const color = '#515793'
-              const Icon = MOD_ICON[key] ?? Hash
+              const color = modules.find(m=>m.function_key===key)?.color || '#64748b'
               const full = moduleNames[key] ?? key
               const short =
                 full.length > 14
@@ -463,7 +468,7 @@ export function RoleList({
                     active
                       ? {
                           backgroundColor:color,
-                          color:'#fff',
+                          color:onColor(color),
                           borderColor:color
                         }
                       : {
@@ -473,7 +478,7 @@ export function RoleList({
                         }
                   }
                 >
-                  <Icon className="w-3 h-3" />
+                  <ModuleIcon moduleId={key} selected={active} />
                   {key} &ndash; {short}
 
                   <span className="opacity-60 font-medium">
@@ -504,8 +509,8 @@ export function RoleList({
                 <span
                   className="font-mono font-black px-1.5 py-0.5 rounded text-[10px]"
                   style={{
-                    backgroundColor:'rgba(250,100,20,0.15)',
-                    color:'var(--accent)'
+                    backgroundColor:'color-mix(in srgb, var(--accent) 15%, transparent)',
+                    color:'var(--accent2)'
                   }}
                 >
                   {debSearch.trim().toUpperCase()}
@@ -545,7 +550,7 @@ export function RoleList({
               >
                 <Zap
                   className="w-3 h-3 animate-pulse"
-                  style={{ color:'var(--accent)' }}
+                  style={{ color:'var(--accent2)' }}
                 />
                 Searching T-codes...
               </span>
@@ -555,7 +560,7 @@ export function RoleList({
               <button
                 onClick={() => {
                   setSearch('')
-                  setActiveModule(null)
+                  setActiveModule(null); setActiveDomain(null)
                 }}
                 className="text-xs underline focus:outline-none"
                 style={{ color:'var(--muted)' }}
@@ -572,24 +577,24 @@ export function RoleList({
           className="flex items-start gap-3 rounded-xl p-4 border"
           style={{
             backgroundColor:'var(--surface)',
-            borderColor:'#fca5a5'
+            borderColor:'var(--error)'
           }}
         >
-          <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+          <AlertTriangle className="w-5 h-5 text-[var(--error)] flex-shrink-0 mt-0.5" />
 
           <div>
-            <p className="text-sm font-bold" style={{ color:'#ef4444' }}>
+            <p className="text-sm font-bold" style={{ color:'var(--error)' }}>
               Failed to load roles
             </p>
 
-            <p className="text-sm mt-0.5" style={{ color:'#f87171' }}>
+            <p className="text-sm mt-0.5" style={{ color:'var(--error)' }}>
               {error?.message}
             </p>
 
             <button
               onClick={() => void refetch()}
               className="mt-2 inline-flex items-center gap-1 text-sm hover:underline"
-              style={{ color:'#ef4444' }}
+              style={{ color:'var(--error)' }}
             >
               <RefreshCw className="w-3.5 h-3.5" /> Retry
             </button>
@@ -631,7 +636,7 @@ export function RoleList({
                 <button
                   onClick={() => {
                     setSearch('')
-                    setActiveModule(null)
+                    setActiveModule(null); setActiveDomain(null)
                   }}
                   className="mt-3 text-sm underline focus:outline-none"
                   style={{ color:'var(--accent2)' }}
@@ -643,7 +648,7 @@ export function RoleList({
           )
           : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {visible.map(r => (
+              {visible.slice(currentPage*100,(currentPage+1)*100).map(r => (
                 <RoleCard
                   key={r.agr_name}
                   role={r}
@@ -655,6 +660,12 @@ export function RoleList({
             </div>
           )
       )}
+
+      {visible.length>100 && <nav aria-label="Role pages" className="flex items-center justify-center gap-4 text-sm" style={{color:'var(--text2)'}}>
+        <button className="border rounded-lg px-3 py-2 disabled:opacity-40" disabled={currentPage===0} onClick={()=>setPage(currentPage-1)}>Previous page</button>
+        <span>Showing {currentPage*100+1}–{Math.min((currentPage+1)*100,visible.length)} of {visible.length} roles</span>
+        <button className="border rounded-lg px-3 py-2 disabled:opacity-40" disabled={currentPage===pageCount-1} onClick={()=>setPage(currentPage+1)}>Next page</button>
+      </nav>}
 
       {selectedRoles.length >= 2 && (
         <div
@@ -669,7 +680,7 @@ export function RoleList({
               className="text-base font-black leading-none"
               style={{ color:'var(--text)' }}
             >
-              <span style={{ color:'var(--accent)' }}>
+              <span style={{ color:'var(--accent2)' }}>
                 {selectedRoles.length}
               </span>{' '}
               roles selected
@@ -691,7 +702,7 @@ export function RoleList({
           <button
             onClick={onCompare}
             className="flex items-center gap-2 text-white font-black px-6 py-2.5 rounded-xl text-sm focus:outline-none hover:opacity-90 active:scale-95"
-            style={{ backgroundColor:'var(--accent)' }}
+            style={{ backgroundColor:'var(--accent)', color:'var(--on-accent)' }}
           >
             <GitCompare className="w-4 h-4" />
             Compare now

@@ -10,6 +10,9 @@ class RequestBodyLimit:
     async def __call__(self, scope, receive, send):
         if scope['type'] != 'http' or scope['method'] != 'POST':
             return await self.app(scope, receive, send)
+        limits = {'/api/configuration/import':4_000_000, '/api/configuration':1_000_000,
+                  '/api/classification/preview':128_000}
+        maximum = limits.get(scope.get('path'), self.maximum)
         chunks = []
         size = 0
         while True:
@@ -18,7 +21,7 @@ class RequestBodyLimit:
                 return
             chunk = message.get('body', b'')
             size += len(chunk)
-            if size > self.maximum:
+            if size > maximum:
                 response = JSONResponse({'detail': 'Request body is too large.'}, status_code=413)
                 return await response(scope, receive, send)
             chunks.append(chunk)

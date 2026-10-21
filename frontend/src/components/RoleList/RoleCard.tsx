@@ -1,6 +1,7 @@
-import { Plus, Check, ArrowRight, Zap, Layers,
-  DollarSign, BarChart2, Package, Wrench, Users, TrendingUp, Cog,
-  FolderKanban, CheckCircle, Server, Warehouse } from 'lucide-react'
+import { ModuleIcon } from '@/components/Modules/ModuleIcon'
+import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
+import { Plus, Check, ArrowRight, Zap, Layers } from 'lucide-react'
+import { useDomainLabel } from '@/components/Modules/ModuleRegistry'
 import { cn } from '@/lib/utils'
 import type { RoleSummary } from '@/api/types'
 
@@ -11,26 +12,12 @@ interface Props {
   onClick: (n: string) => void
 }
 
-const MOD_ICON: Record<string, React.ComponentType<{className?: string}>> = {
-  FI:DollarSign, CO:BarChart2,   MM:Package,
-  SD:TrendingUp, PP:Cog,         PM:Wrench,
-  CA:Layers,     HR:Users,       WM:Warehouse,
-  PS:FolderKanban, BC:Server,    QM:CheckCircle,
-}
-const MOD_COLOR: Record<string,string> = {
-  FI:'#3d4d8a', CO:'#5a0090', MM:'#c44d10',
-  SD:'#1d5a6e', PP:'#1a4d28', PM:'#9a6c00',
-  CA:'#4a5568', HR:'#162340', WM:'#0a3848',
-  PS:'#1e2d78', BC:'#374151', QM:'#8b1a1a',
-}
-
 const cleanTitle = (t: string | null) =>
   t ? t.replace(/^[A-Z]{2,3}\s*-\s*/, '').trim() : ''
 
 export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
   const title   = cleanTitle(role.text)
-  const Icon    = role.function_key ? (MOD_ICON[role.function_key] ?? null) : null
-  const color   = role.function_key ? (MOD_COLOR[role.function_key] ?? '#515793') : '#94a3b8'
+  const domainLabel = useDomainLabel(role.domain_id)
   const modName = role.module_name ?? role.function_key ?? ''
   const hasSR   = (role.single_role_count ?? 0) > 0
   const hasTcodeMatch = (role.matching_tcodes?.length ?? 0) > 0
@@ -48,15 +35,15 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
       style={{
         backgroundColor: 'var(--surface)',
         border: isSelected
-          ? '2px solid var(--accent)'
+          ? '2px solid var(--accent2)'
           : hasTcodeMatch
-            ? '1.5px solid rgba(250,100,20,0.4)'
+            ? '1.5px solid color-mix(in srgb, var(--accent) 40%, transparent)'
             : '1px solid var(--border)',
         padding: isSelected ? '15px' : '16px',
         boxShadow: isSelected
           ? '0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent)'
           : hasTcodeMatch
-            ? '0 0 0 3px rgba(250,100,20,0.08)'
+            ? '0 0 0 3px color-mix(in srgb, var(--accent) 8%, transparent)'
             : '0 1px 3px rgba(0,0,0,0.06)',
       }}>
       <div className="flex flex-col gap-2.5">
@@ -64,12 +51,9 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
         {/* Top row: module label + add button */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
-            <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
-              style={{ backgroundColor: color }}>
-              {Icon ? <Icon className="w-3.5 h-3.5 text-white" /> : null}
-            </div>
+            <ModuleIcon moduleId={role.function_key} selected={isSelected} />
             <span className="text-[11px] font-semibold truncate" style={{ color:'var(--text2)' }}>
-              {modName}
+              {modName}{domainLabel ? ` · ${domainLabel}` : ''}{role.classification_ambiguous?' · Ambiguous':''}
             </span>
           </div>
           <button data-np
@@ -77,7 +61,7 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
             aria-label={isSelected ? 'Remove from comparison' : 'Add to comparison'}
             className={cn('w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all focus:outline-none hover:scale-110 active:scale-95')}
             style={isSelected
-              ? { backgroundColor:'var(--accent)', color:'#fff', border:'none' }
+              ? { backgroundColor:'var(--accent)', color:'var(--on-accent)', border:'none' }
               : { backgroundColor:'var(--surface2)', color:'var(--muted)', border:'1.5px solid var(--border)' }}>
             {isSelected
               ? <Check className="w-3.5 h-3.5" strokeWidth={3} />
@@ -92,9 +76,7 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
         </p>
 
         {/* AGR_NAME */}
-        <p className="font-mono text-[10px] truncate" style={{ color:'var(--text2)' }} title={role.agr_name}>
-          {role.agr_name}
-        </p>
+        <RoleIdentifier value={role.agr_name} />
 
         {/* T-code match badges â€” shown only when role was found via T-code search */}
         {hasTcodeMatch && (
@@ -106,7 +88,7 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
             {role.matching_tcodes!.slice(0, 4).map(tc => (
               <span key={tc}
                 className="font-mono text-[10px] font-black px-1.5 py-0.5 rounded-md"
-                style={{ backgroundColor:'rgba(250,100,20,0.15)', color:'var(--accent)' }}>
+                style={{ backgroundColor:'color-mix(in srgb, var(--accent) 15%, transparent)', color:'var(--accent2)' }}>
                 {tc}
               </span>
             ))}
@@ -134,7 +116,7 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
           {hasSR && <span style={{ color:'var(--border)', userSelect:'none' }}>|</span>}
 
           <div className="flex items-center gap-1">
-            <Zap className="w-3 h-3 flex-shrink-0" style={{ color:'var(--accent)' }} />
+            <Zap className="w-3 h-3 flex-shrink-0" style={{ color:'var(--accent2)' }} />
             <span className="text-[11px] font-bold tabular-nums" style={{ color:'var(--text2)' }}>
               {role.tcode_count.toLocaleString()}
             </span>
