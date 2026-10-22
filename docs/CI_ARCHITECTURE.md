@@ -1,5 +1,60 @@
 # CI architecture
 
+## Temporarily skip automatic CI
+
+For a push that should not consume Actions minutes, put **`[skip ci]`** in its
+commit message. GitHub supports this for `push` and `pull_request` workflows;
+no YAML edit, repository setting or dependency change is needed.
+
+```powershell
+# After completing and locally validating the intended changes:
+git add <intended-files>
+git commit -m "Describe the finished change [skip ci]"
+git push origin work
+```
+
+For a push, GitHub checks the messages of the commits included in that push.
+For a pull request, the skip instruction must be in the PR's HEAD commit message.
+Do not rewrite already published commits just to add this marker. If the intended
+work is already committed locally, a real documentation change with `[skip ci]`
+in its new HEAD commit can accompany it. Inspect the branch, clean status and
+remote ancestry before pushing; never force-push to bypass remote changes.
+
+**Resume:** make the next normal commit without a skip marker and push it.
+No reactivation or YAML change is needed. Ensure that this new push does not
+include other unpublished commits containing a skip instruction. The marker
+remains in history but does not permanently disable a workflow.
+
+Important boundaries:
+
+- Skipping CI is not a passing validation. Run the applicable local checks first.
+- Required PR checks can remain **Pending**, blocking merge. Do not remove branch
+  protection; submit a normal commit when CI is available again.
+- This does not cancel already queued/running workflows.
+- Manual `Build Windows Application` remains available. A skip marker does not
+  prevent an explicit manual dispatch, and no build should be dispatched while
+  avoiding Actions usage.
+- This applies to the current push/PR validation workflows; it is not a general
+  switch for other GitHub automation or all event types.
+
+For a longer pause, an administrator can open **Actions → the selected workflow →
+… → Disable workflow** in GitHub, then use **Enable workflow** on the same page to
+resume. Disable both Fast Validation and Full Validation if both should pause.
+That changes remote workflow state and requires explicit authorization; it is
+not performed by the local build scripts or by adding this documentation.
+Re-enable before relying on required checks, then submit a normal commit/event.
+
+The supported local alternative, including prerequisites, all four modes,
+artifact paths and native Windows QA, is documented in
+[Local Windows builds](LOCAL_WINDOWS_BUILD.md):
+
+```powershell
+.\scripts\build-local.ps1 -Mode Quick
+.\scripts\build-local.ps1 -Mode Validate -Version 0.1.0
+.\scripts\build-local.ps1 -Mode Build -Version 0.1.0
+.\scripts\build-local.ps1 -Mode Package -Version 0.1.0
+```
+
 ## Baseline and intent
 
 Inspected branch `work` at local commit
