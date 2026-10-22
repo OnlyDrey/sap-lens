@@ -36,6 +36,17 @@ class ConfigurationTests(unittest.TestCase):
     def png(self,color='red'):
         output=BytesIO();Image.new('RGBA',(160,40),color).save(output,format='PNG');return output.getvalue()
 
+    def test_runtime_version_api_matches_health_and_requires_session(self):
+        response=self.client.get('/api/version',headers=H)
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(response.json()['app'],'SAP Lens')
+        self.assertEqual(response.json()['version'],self.client.get('/health').json()['version'])
+        self.assertIn(response.json()['mode'],{'local','build','beta','stable'})
+        self.assertEqual(set(response.json()),{'app','version','mode'})
+        with TestClient(create_app(session_token='1'),base_url='http://127.0.0.1:18743') as desktop:
+            self.assertEqual(desktop.get('/api/version').status_code,403)
+            self.assertEqual(desktop.get('/api/version',headers=H).status_code,200)
+
     def test_generic_defaults_and_versioned_persistence(self):
         settings=config.get_settings()
         self.assertEqual(settings.organization.name,'Example Inc.')

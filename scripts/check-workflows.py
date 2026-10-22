@@ -79,7 +79,8 @@ def validate(workflows):
             require(bool(job.get('name')), 'Job needs a descriptive display name')
             publisher = filename == 'build-windows.yml' and job is workflow['jobs'].get('publish-release')
             require('continue-on-error' not in job, 'Job overrides failure policy')
-            require(job.get('permissions') == {'contents': 'write', 'actions': 'read'} if publisher else 'permissions' not in job, 'Unexpected job permissions')
+            allocator = filename == 'build-windows.yml' and job is workflow['jobs'].get('reserve-version')
+            require(job.get('permissions') == {'contents': 'write', 'actions': 'read'} if publisher else job.get('permissions') == {'contents':'write'} if allocator else 'permissions' not in job, 'Unexpected job permissions')
             require(1 <= int(job.get('timeout-minutes', 0)) <= 25, 'Missing or excessive timeout')
             for step in job['steps']:
                 require(bool(step.get('name')), 'Step needs a descriptive name')
@@ -99,10 +100,19 @@ def validate(workflows):
     require(full['concurrency']['cancel-in-progress'] == 'true' and
             'github.event.pull_request.number' in full['concurrency']['group'], 'Full concurrency must be per PR')
     require(windows['concurrency'] == {'group': 'sap-lens-windows-distribution', 'cancel-in-progress': 'false'}, 'Manual builds must be serialized without cancelling active builds')
-    require(set(windows['jobs']) == {'windows-exe', 'publish-release'}, 'Keep the complete Windows build together; isolate publication')
+    require(set(windows['jobs']) == {'reserve-version', 'windows-exe', 'publish-release'}, 'Keep the complete Windows build together; isolate publication')
+    allocator = windows['jobs']['reserve-version']
+    require(allocator['if'] == "${{ inputs.release_mode != 'build' }}", 'Build mode may not reserve tags')
+    require(allocator['outputs'] == {'metadata':'${{ steps.allocate.outputs.metadata }}'}, 'Reservation must return its fixed identity')
+    require(any(s.get('run') == 'python scripts/release-windows.py allocate' and 'if' not in s for s in allocator['steps']), 'Version reservation must precede packaging')
+    build = windows['jobs']['windows-exe']
+    require(build['needs'] == 'reserve-version' and build['if'] == "${{ !cancelled() && (needs.reserve-version.result == 'success' || (inputs.release_mode == 'build' && needs.reserve-version.result == 'skipped')) }}", 'Windows cannot bypass failed release reservation')
+    require(any(s.get('run') == 'python scripts/release-windows.py prepare-build' and s.get('id') == 'build_identity' and s.get('env',{}).get('RELEASE_ALLOCATION_JSON') == '${{ needs.reserve-version.outputs.metadata }}' and 'if' not in s for s in build['steps']), 'Windows must embed the allocated identity')
     publisher = windows['jobs']['publish-release']
     require(publisher['needs'] == 'windows-exe' and publisher['if'] == "${{ needs.windows-exe.result == 'success' && inputs.release_mode != 'build' }}", 'Publication must depend on a successful non-build manual run')
     require(publisher['environment']['name'] == "${{ inputs.release_mode == 'stable' && 'sap-lens-stable' || 'sap-lens-beta' }}", 'Stable and beta publication environments must be isolated')
+    require(allocator['environment'] == publisher['environment'], 'Allocation and publication need the same protected environment')
+    require(publisher['steps'][-1]['env'].get('BUILD_VERSION_JSON') == '${{ needs.windows-exe.outputs.metadata }}', 'Publication may not allocate a different version')
     inputs = windows['on']['workflow_dispatch']['inputs']
     require(inputs['release_mode'] == {'description': 'Build only, beta prerelease, or stable release', 'type': 'choice', 'options': ['build','beta','stable'], 'default':'build', 'required':'true'}, 'Release mode defaults/options changed')
     require(inputs['version']['type'] == 'string' and inputs['version']['required'] == 'true', 'An explicit base version is required')
@@ -117,7 +127,7 @@ def validate(workflows):
         require(len(matches) == 1, 'Each canonical Windows stage must run exactly once')
         require('if' not in steps[matches[0]], 'Windows validation stages cannot be conditionally skipped')
     require(any(s.get('run') == 'python scripts/release-windows.py validate-inputs' and 'if' not in s for s in steps), 'Manual version preflight is mandatory')
-    require(windows['jobs']['windows-exe']['outputs'] == {'artifact_id': '${{ steps.executable.outputs.artifact-id }}', 'artifact_digest': '${{ steps.executable.outputs.artifact-digest }}'}, 'Release must consume only this verified artifact')
+    require(windows['jobs']['windows-exe']['outputs'] == {'metadata':'${{ steps.build_identity.outputs.metadata }}', 'artifact_id': '${{ steps.executable.outputs.artifact-id }}', 'artifact_digest': '${{ steps.executable.outputs.artifact-digest }}'}, 'Release must consume only this verified artifact')
     upload = next(s for s in steps if s.get('id') == 'executable')
     require(upload['with']['path'].split() == ['backend/dist/SAP-Lens.exe', 'backend/dist/SAP-Lens.exe.sha256'], 'Unexpected distribution upload')
     require(upload['with']['name'] == 'SAP-Lens-Windows-x64' and upload['with']['retention-days'] == '14', 'Distribution identity or retention changed')

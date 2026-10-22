@@ -4,6 +4,26 @@ For current build/beta/stable modes and publication safeguards, see
 [manual Windows releases](RELEASES.md). The hardening findings below record their
 original implementation baseline.
 
+## Current version metadata
+
+The workflow resolves the full build identity before packaging, reserving beta/
+stable tags early in a separate privileged job. The Windows build remains
+read-only. Generated ignored backend/build/build-version.json is bundled once at
+the EXE resource root; runtime, UI/API, PE resources and release naming consume
+that identity. No tracked source is rewritten. Source fallback is 0.0.0-dev.local.
+
+ProductVersion retains the full beta/dev suffix; FileVersion uses a numeric
+four-component tuple (0.1.0-beta-1 → 0.1.0.1; stable → 0.1.0.0). Numeric dev
+revisions are bounded by PE limits; full version strings remain distinct.
+FileDescription/ProductName are SAP Lens. Signing is unchanged and disabled.
+The existing package verifier now checks embedded JSON and the version runtime
+module, and the native smoke test checks the actual health/API version against
+the generated identity. All previous archive/privacy/asset/checksum checks remain.
+See [release/recovery rules and PE limitations](RELEASES.md).
+
+The remaining findings below record the earlier hardening baseline; references
+to a hardcoded version constant or no publication predate workflow-driven versions.
+
 ## Baseline and decision
 
 **IMPROVE CURRENT PACKAGING.** Retain Python/FastAPI, React/Vite, pywebview/WebView2,

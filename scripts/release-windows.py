@@ -5,7 +5,6 @@ job receives write access. All GitHub mutations target newly reserved identities
 """
 
 import argparse
-import ast
 from datetime import datetime, timezone
 import hashlib
 import importlib.util
@@ -16,10 +15,15 @@ import re
 import stat
 import subprocess
 import tempfile
+import sys
+import time
 from urllib.parse import quote
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "backend"))
+import version as build_version
+
 REPOSITORY = "OnlyDrey/sap-lens"
 SEMVER = r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
 FILES = ("SAP-Lens.exe", "SAP-Lens.exe.sha256")
@@ -50,34 +54,70 @@ def version_tuple(value):
     return tuple(map(int, value.split(".")))
 
 
-def application_version():
-    tree = ast.parse((ROOT / "backend/version.py").read_text(encoding="utf-8"))
-    return next(
-        ast.literal_eval(n.value)
-        for n in tree.body
-        if isinstance(n, ast.Assign)
-        and any(isinstance(t, ast.Name) and t.id == "VERSION" for t in n.targets)
-    )
-
-
-def validate_inputs(mode, version, ref, source_version, attempt=1):
-    requested = version_tuple(version)
+def validate_inputs(mode, version, ref, attempt=1):
+    try:
+        build_version.base_numbers(version)
+    except ValueError as error:
+        raise ReleaseError(str(error)) from error
     if mode not in {"build", "beta", "stable"}:
         raise ReleaseError("Unknown release mode.")
-    if mode != "beta" and any(n > 65535 for n in requested):
-        raise ReleaseError("Version exceeds Windows PE version component limits.")
-    if mode != "beta" and version != source_version:
-        raise ReleaseError(
-            "Build/stable version must equal backend/version.py; beta labels may differ without changing the EXE."
-        )
     if not ref.startswith("refs/heads/") or ref == "refs/heads/":
         raise ReleaseError("Select a branch, not a tag, for a manual build.")
     if mode == "stable" and ref != "refs/heads/main":
         raise ReleaseError("Stable publication is allowed only from main.")
     if mode != "build" and attempt != 1:
         raise ReleaseError(
-            "Release workflow reruns are refused. Inspect prior tags/drafts and start a new manual run."
+            "Release reruns are refused; inspect reserved tags/drafts and start a new manual run."
         )
+
+
+def identity_for_environment(env, metadata=None):
+    mode, base, ref = env["RELEASE_MODE"], env["RELEASE_VERSION"], env["GITHUB_REF"]
+    attempt = int(env["GITHUB_RUN_ATTEMPT"])
+    validate_inputs(mode, base, ref, attempt)
+    if metadata is None:
+        if mode != "build":
+            raise ReleaseError(
+                "Release builds require an allocated version before packaging."
+            )
+        return build_version.make_build_info(
+            mode,
+            base,
+            env["GITHUB_SHA"],
+            env["GITHUB_RUN_ID"],
+            env["GITHUB_RUN_NUMBER"],
+            attempt,
+        )
+    info = build_version.parse_build_info(metadata)
+    if any(
+        info[key] != value
+        for key, value in {
+            "mode": mode,
+            "base_version": base,
+            "source_sha": env["GITHUB_SHA"],
+            "run_id": env["GITHUB_RUN_ID"],
+            "run_number": env["GITHUB_RUN_NUMBER"],
+            "attempt": attempt,
+        }.items()
+    ):
+        raise ReleaseError(
+            "Resolved build identity differs from this workflow input/source/run."
+        )
+    return info
+
+
+def write_identity(info, path=None):
+    info = build_version.parse_build_info(info)
+    path = path or ROOT / "backend/build/build-version.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_symlink():
+        raise ReleaseError("Build identity destination must not be linked.")
+    temporary = path.with_suffix(".json.tmp")
+    temporary.write_text(
+        json.dumps(info, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8"
+    )
+    temporary.replace(path)
+    return info
 
 
 def select_tag(mode, version, tags, releases):
@@ -262,7 +302,7 @@ class GitHub:
 def notes(
     mode, tag, sha, run_id, exe_sha, zip_sha, previous=None, *, source_version=None
 ):
-    source_version = source_version or application_version()
+    source_version = source_version or build_version.VERSION
     text = (
         f"SAP Lens {tag}\n\n"
         + (
@@ -271,12 +311,7 @@ def notes(
             else "Stable Windows release.\n\n"
         )
         + f'Source commit: `{sha}`\n\nBuild date (UTC): {datetime.now(timezone.utc).isoformat(timespec="seconds")}\n\n'
-        + f"Application/EXE version: `{source_version}` (unchanged internal version).\n\n"
-        + (
-            "The beta release label is independent of the executable version.\n\n"
-            if mode == "beta"
-            else ""
-        )
+        + f"Application/EXE version: `{source_version}` (embedded build identity).\n\n"
         + f"Platform: Windows x64; one-file EXE, WebView2. Unsigned.\n\n"
         + f"EXE SHA-256: `{exe_sha}`\n\nZIP SHA-256: `{zip_sha}`\n\n"
         + "The ZIP contains SAP-Lens.exe and its SHA-256 manifest. The adjacent ZIP checksum covers the download.\n\n"
@@ -289,11 +324,42 @@ def notes(
     return text
 
 
-def publish(client, env, download, output, source_version, progress):
+def allocate(client, env, progress):
+    mode, base, ref = env["RELEASE_MODE"], env["RELEASE_VERSION"], env["GITHUB_REF"]
+    validate_inputs(mode, base, ref, int(env["GITHUB_RUN_ATTEMPT"]))
+    if mode == "build" or env.get("GITHUB_EVENT_NAME") != "workflow_dispatch":
+        raise ReleaseError("Only a first-attempt manual release can reserve a tag.")
+    branch = quote(ref.removeprefix("refs/heads/"), safe="")
+    sha = env["GITHUB_SHA"]
+    if client.api(f"{client.base}/git/ref/heads/{branch}")["object"]["sha"] != sha:
+        raise ReleaseError("Source branch advanced before version allocation.")
+    tags = [t["name"] for t in client.list(f"{client.base}/tags")]
+    releases = client.list(f"{client.base}/releases")
+    tag = select_tag(mode, base, tags, releases)
+    beta = int(tag.rsplit("-beta-", 1)[1]) if mode == "beta" else None
+    info = build_version.make_build_info(
+        mode,
+        base,
+        sha,
+        env["GITHUB_RUN_ID"],
+        env["GITHUB_RUN_NUMBER"],
+        int(env["GITHUB_RUN_ATTEMPT"]),
+        beta,
+    )
+    progress["tag"] = tag
+    # Reserve before packaging, never reallocate or rename an already built EXE.
+    client.api(
+        f"{client.base}/git/refs", "POST", {"ref": "refs/tags/" + tag, "sha": sha}
+    )
+    progress["reserved"] = True
+    return info
+
+
+def publish(client, env, download, output, metadata, progress):
     mode, version, ref = env["RELEASE_MODE"], env["RELEASE_VERSION"], env["GITHUB_REF"]
     attempt = int(env["GITHUB_RUN_ATTEMPT"])
-    validate_inputs(mode, version, ref, source_version, attempt)
-    progress["application_version"] = source_version
+    info = identity_for_environment(env, metadata)
+    progress["application_version"] = info["version"]
     if mode == "build" or env.get("GITHUB_EVENT_NAME") != "workflow_dispatch":
         raise ReleaseError(
             "Publication requires a first-attempt manual beta/stable run."
@@ -323,13 +389,23 @@ def publish(client, env, download, output, source_version, progress):
         )
     tags = [t["name"] for t in client.list(f"{base}/tags")]
     releases = client.list(f"{base}/releases")
-    tag = select_tag(mode, version, tags, releases)
+    tag = info["tag"]
     progress["tag"] = tag
+    reference = client.api(f"{base}/git/ref/tags/{tag}")["object"]
+    if reference.get("type") != "commit" or reference.get("sha") != sha:
+        raise ReleaseError("Reserved tag is missing or moved; refusing publication.")
+    if any(r["tag_name"] == tag for r in releases):
+        raise ReleaseError("Release already exists; it will not be changed.")
+    if mode == "stable":
+        select_tag(
+            mode,
+            version,
+            [t for t in tags if t != tag],
+            [r for r in releases if r["tag_name"] != tag],
+        )
     archive, manifest, exe_sha, zip_sha = release_archive(
         download, output, tag, env["ARTIFACT_DIGEST"]
     )
-    # Atomic ref creation is the final guard against external publishers racing our workflow lock.
-    client.api(f"{base}/git/refs", "POST", {"ref": "refs/tags/" + tag, "sha": sha})
     progress["reserved"] = True
     previous = next(
         (
@@ -347,7 +423,7 @@ def publish(client, env, download, output, source_version, progress):
         exe_sha,
         zip_sha,
         previous,
-        source_version=source_version,
+        source_version=info["version"],
     )
     created = client.api(
         f"{base}/releases",
@@ -438,35 +514,89 @@ def publish(client, env, download, output, source_version, progress):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["validate-inputs", "publish"])
+    parser.add_argument(
+        "command",
+        choices=[
+            "validate-inputs",
+            "allocate",
+            "prepare-build",
+            "ensure-local-build",
+            "publish",
+        ],
+    )
     parser.add_argument("--download", type=Path)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     env = os.environ
     progress = {}
     try:
+        if args.command == "ensure-local-build":
+            if env.get("GITHUB_ACTIONS") == "true":
+                actual = build_version.read_build_info(
+                    frozen=True, path=ROOT / "backend/build/build-version.json"
+                )
+                expected = build_version.parse_build_info(
+                    json.loads(env.get("SAP_LENS_EXPECTED_BUILD_JSON", ""))
+                )
+                identity_for_environment(env, expected)
+                if actual != expected:
+                    raise ReleaseError(
+                        "Build identity changed after workflow resolution."
+                    )
+            else:
+                unique = str(time.time_ns())
+                write_identity(
+                    build_version.make_build_info(
+                        "build", "0.0.0", "0" * 40, unique, unique
+                    )
+                )
+            return
         validate_inputs(
             env["RELEASE_MODE"],
             env["RELEASE_VERSION"],
             env["GITHUB_REF"],
-            application_version(),
             int(env["GITHUB_RUN_ATTEMPT"]),
         )
         if args.command == "validate-inputs":
-            print(
-                "Manual inputs validated; beta labels may differ from the unchanged application version."
+            print("Manual version syntax, branch and attempt policy passed.")
+            return
+        if args.command == "allocate":
+            info = allocate(GitHub(env["GITHUB_REPOSITORY"]), env, progress)
+        elif args.command == "prepare-build":
+            raw = env.get("RELEASE_ALLOCATION_JSON", "")
+            info = write_identity(
+                identity_for_environment(env, json.loads(raw) if raw else None)
+            )
+        else:
+            if args.download is None or args.output is None:
+                raise ReleaseError("Missing publication artifact directories.")
+            raw = env.get("BUILD_VERSION_JSON", "")
+            if not raw:
+                raise ReleaseError("Missing verified build identity.")
+            publish(
+                GitHub(env["GITHUB_REPOSITORY"]),
+                env,
+                args.download,
+                args.output,
+                json.loads(raw),
+                progress,
             )
             return
-        if args.download is None or args.output is None:
-            raise ReleaseError("Missing publication artifact directories.")
-        publish(
-            GitHub(env["GITHUB_REPOSITORY"]),
-            env,
-            args.download,
-            args.output,
-            application_version(),
-            progress,
-        )
+        if args.command == "prepare-build" and env.get("GITHUB_ENV"):
+            with Path(env["GITHUB_ENV"]).open("a", encoding="utf-8") as output:
+                output.write(
+                    "SAP_LENS_EXPECTED_BUILD_JSON="
+                    + json.dumps(info, sort_keys=True, separators=(",", ":"))
+                    + "\n"
+                )
+        if env.get("GITHUB_OUTPUT"):
+            with Path(env["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+                output.write(
+                    "metadata="
+                    + json.dumps(info, sort_keys=True, separators=(",", ":"))
+                    + "\n"
+                )
+        print("Resolved build version: " + info["version"])
     except Exception as error:
         message = (
             str(error)
@@ -476,16 +606,20 @@ def main():
         print("Release stopped: " + message)
         raise SystemExit(1)
     finally:
-        if args.command == "publish" and env.get("GITHUB_STEP_SUMMARY"):
+        if args.command in {"allocate", "publish"} and env.get("GITHUB_STEP_SUMMARY"):
             state = (
-                "Published"
-                if progress.get("published")
-                else "Not confirmed published — inspect GitHub state before recovery"
+                "Version reserved before build"
+                if args.command == "allocate" and progress.get("reserved")
+                else (
+                    "Published"
+                    if progress.get("published")
+                    else "Not confirmed published — inspect GitHub state before recovery"
+                )
             )
             text = f"## Windows release publication\n\n{state}.\n\n"
             text += f'Mode: {env.get("RELEASE_MODE", "unknown")}; tag: {progress.get("tag", "not allocated")}.\n\n'
             if progress.get("application_version"):
-                text += f'Application/EXE version: `{progress["application_version"]}` (unchanged).\n\n'
+                text += f'Application/EXE version: `{progress["application_version"]}` (embedded build identity).\n\n'
             if progress.get("reserved") and not progress.get("published"):
                 text += "A tag was reserved. Any created release is deliberately left as a draft unless publication completed; an interrupted final API call may require checking its actual state. No automatic deletion or replacement is attempted.\n"
             if progress.get("published"):

@@ -9,9 +9,9 @@ on:
         default: build
         required: true
       version:
-        description: Release target (first beta 0.1.0); build/stable must match backend/version.py
+        description: Base MAJOR.MINOR.PATCH embedded in this build and release
         type: string
-        default: '1.2.0'
+        default: '0.1.0'
         required: true
       benchmark_packaging:
         description: Compare clean and same-job incremental PyInstaller packaging
@@ -28,11 +28,45 @@ concurrency:
   group: sap-lens-windows-distribution
   cancel-in-progress: false
 jobs:
+  reserve-version:
+    name: Reserve Release Version
+    if: ${{ inputs.release_mode != 'build' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    environment:
+      name: ${{ inputs.release_mode == 'stable' && 'sap-lens-stable' || 'sap-lens-beta' }}
+    outputs:
+      metadata: ${{ steps.allocate.outputs.metadata }}
+    steps:
+      - name: Check out the source commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up version allocation Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+      - name: Atomically reserve the final release version before building
+        id: allocate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_MODE: ${{ inputs.release_mode }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: python scripts/release-windows.py allocate
   windows-exe:
     name: Windows Build & Verification
+    needs: reserve-version
+    if: ${{ !cancelled() && (needs.reserve-version.result == 'success' || (inputs.release_mode == 'build' && needs.reserve-version.result == 'skipped')) }}
+    env:
+      RELEASE_MODE: ${{ inputs.release_mode }}
+      RELEASE_VERSION: ${{ inputs.version }}
     runs-on: windows-latest
     timeout-minutes: 25
     outputs:
+      metadata: ${{ steps.build_identity.outputs.metadata }}
       artifact_id: ${{ steps.executable.outputs.artifact-id }}
       artifact_digest: ${{ steps.executable.outputs.artifact-digest }}
     steps:
@@ -61,6 +95,12 @@ jobs:
           RELEASE_MODE: ${{ inputs.release_mode }}
           RELEASE_VERSION: ${{ inputs.version }}
         run: python scripts/release-windows.py validate-inputs
+      - name: Generate the immutable build identity
+        id: build_identity
+        shell: pwsh
+        env:
+          RELEASE_ALLOCATION_JSON: ${{ needs.reserve-version.outputs.metadata }}
+        run: python scripts/release-windows.py prepare-build
       - name: Configure browser cache location
         shell: pwsh
         env:
@@ -193,11 +233,12 @@ jobs:
           skip-decompress: true
           merge-multiple: true
           digest-mismatch: error
-      - name: Reserve version and publish verified release assets
+      - name: Publish assets with the exact embedded version
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_MODE: ${{ inputs.release_mode }}
           RELEASE_VERSION: ${{ inputs.version }}
+          BUILD_VERSION_JSON: ${{ needs.windows-exe.outputs.metadata }}
           ARTIFACT_ID: ${{ needs.windows-exe.outputs.artifact_id }}
           ARTIFACT_DIGEST: ${{ needs.windows-exe.outputs.artifact_digest }}
           RELEASE_DOWNLOAD: ${{ runner.temp }}/sap-lens-release-download

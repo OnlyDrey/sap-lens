@@ -28,6 +28,11 @@ export function AppLayout({
     queryKey: ['configuration'],
     queryFn: fetchConfiguration
   })
+  const { data: application } = useQuery({
+    queryKey: ['application-version'],
+    queryFn: () => apiRequest<{ app: string; version: string; mode: string }>('/api/version'),
+    staleTime: Infinity
+  })
   const organization = configuration?.settings.organization
   const { data: customLogo } = useQuery({
     queryKey: ['logo', configuration?.settings.logo_id],
@@ -307,8 +312,11 @@ export function AppLayout({
         }}
       >
         <p className="text-[11px] py-2.5 text-center font-medium">
-          {organization?.footer ||
-            `© ${new Date().getFullYear()} ${organization?.name.trim() || 'SAP Lens'} — SAP Lens`}
+          <span>{organization?.footer ||
+            `© ${new Date().getFullYear()} ${organization?.name.trim() || 'SAP Lens'} — SAP Lens`}</span>
+          {application && <span className="block mt-1" aria-label="Application version">
+            SAP Lens v{application.version}{application.mode === 'build' || application.mode === 'local' ? ' · Development build' : ''}
+          </span>}
         </p>
       </footer>
     </div>

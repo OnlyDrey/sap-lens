@@ -71,8 +71,10 @@ function Wait-Ready($application, [string]$directory) {
 
 try {
     $version = (Get-Item $executable).VersionInfo
-    $expectedVersion = [regex]::Match((Get-Content -Raw backend/version.py), "VERSION = '([^']+)'").Groups[1].Value
-    if ($version.ProductName -ne 'SAP Lens' -or $version.FileVersion -ne $expectedVersion) { throw 'Windows version metadata missing.' }
+    $buildIdentity = Get-Content -Raw backend/build/build-version.json | ConvertFrom-Json
+    $expectedVersion = $buildIdentity.version
+    $numericVersion = $buildIdentity.file_version -join '.'
+    if ($version.ProductName -ne 'SAP Lens' -or $version.FileVersion -ne $numericVersion -or $version.ProductVersion -ne $expectedVersion) { throw 'Windows version metadata missing.' }
     $bytes = [System.IO.File]::ReadAllBytes($executable)
     $peOffset = [BitConverter]::ToInt32($bytes, 0x3c)
     if ([BitConverter]::ToUInt16($bytes, $peOffset + 24 + 68) -ne 2) { throw 'EXE is not a console-free Windows GUI application.' }
@@ -101,6 +103,8 @@ MM,DEMO:B,Synthetic B,SHARED,Shared,DEMO,Demo
             $application = Start-Application $directory
             $owned[$application.Id] = $application
             $record = Wait-Ready $application $directory
+            $health = Invoke-RestMethod "$($record.origin)/health"
+            if ($health.version -ne $expectedVersion) { throw 'Runtime version differs from packaged build identity.' }
             if ($busy -and ([uri]$record.origin).Port -eq 18743) { throw 'Port conflict did not select a new controlled port.' }
             if ($busy -and $busy.Pending()) { throw 'The conflicting listener was contacted.' }
             $html = Invoke-WebRequest "$($record.origin)/"

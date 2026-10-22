@@ -127,3 +127,15 @@ class WorkflowTests(unittest.TestCase):
             if mutation == 'benchmark': inputs['cold_cache']['default']='true'
             if mutation == 'version': inputs['version']['required']='false'
             with self.subTest(mutation=mutation), self.assertRaises(ValueError): contracts.validate(changed)
+
+
+    def test_early_allocation_build_gate_and_published_identity_cannot_drift(self):
+        for mutation in ('allocator_write','allocator_condition','build_gate','identity_output','publisher_identity'):
+            changed=copy.deepcopy(self.workflows)
+            jobs=changed['build-windows.yml']['jobs']
+            if mutation=='allocator_write':jobs['reserve-version']['permissions']['contents']='read'
+            if mutation=='allocator_condition':jobs['reserve-version']['if']='always()'
+            if mutation=='build_gate':jobs['windows-exe']['if']='always()'
+            if mutation=='identity_output':jobs['reserve-version']['outputs']['metadata']='another-run'
+            if mutation=='publisher_identity':jobs['publish-release']['steps'][-1]['env']['BUILD_VERSION_JSON']='recomputed'
+            with self.subTest(mutation=mutation),self.assertRaises(ValueError):contracts.validate(changed)

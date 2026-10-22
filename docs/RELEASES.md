@@ -1,227 +1,236 @@
-# Manual Windows builds and releases
+# Workflow-driven Windows versions and releases
 
-The existing **Build Windows Application** workflow has three explicit manual
-modes. Fast Validation still runs on every push/PR; Full Validation still runs
-only for PRs targeting main. Tags and releases do not trigger another Windows
-build. No new workflow, runtime dependency or signing mechanism is introduced.
+The manually dispatched **Build Windows Application** workflow owns the packaged
+version. Fast Validation still runs on every push/PR; Full Validation still runs
+only for PRs targeting main. Neither tags nor releases start another Windows build.
+No signing, SAP processing or user-configuration behavior changes.
 
-## Inputs and version authority
+## Inputs and resolved identity
 
-Select Actions → Build Windows Application → Run workflow, then the source branch.
-The selected branch must contain this workflow and its publication script; merge
-the reviewed implementation into main before using stable mode. GitHub's Actions
-form may display the default branch's workflow inputs until that definition is
-updated through the normal review process.
+Choose a source branch, release_mode (build by default, beta or stable), and a
+strict MAJOR.MINOR.PATCH base version without v, leading zeros or suffixes. The
+form defaults to 0.1.0. Existing benchmark_packaging and cold_cache inputs remain
+false by default and retain their behavior. The selected branch must contain
+this reviewed workflow and scripts; stable requires merging them into main.
+GitHub's dispatch form may still reflect the default branch's older definition
+until it is updated through normal review.
 
-| Input | Behavior |
+| Mode | Base input | Resolved application/ProductVersion | Tag |
+| --- | --- | --- | --- |
+| build, run 123, attempt 1 | 0.1.0 | 0.1.0-dev.123 | none |
+| build, run 123, attempt 2 | 0.1.0 | 0.1.0-dev.123.2 | none |
+| beta, first sequence | 0.1.0 | 0.1.0-beta-1 | v0.1.0-beta-1 |
+| beta, next sequence | 0.1.0 | 0.1.0-beta-2 | v0.1.0-beta-2 |
+| stable | 0.1.0 | 0.1.0 | v0.1.0 |
+
+Run number and attempt give build-only runs distinct full versions within this
+workflow. Beta takes the highest valid positive matching beta suffix plus one,
+starting at 1. Gaps remain; unrelated bases and malformed suffixes are ignored.
+Reserved tags and draft releases also occupy numbers. Changing base to 0.2.0
+starts its own beta-1 sequence. Stable requires main and a version greater than
+all existing stable tags/releases; no source constant must be updated or matched.
+All base components must fit Windows' 0–65535 numeric range.
+
+The first planned beta is **SAP Lens v0.1.0-beta-1**, now with that same version
+embedded in the EXE and shown in the API/UI. This supersedes the earlier policy
+that permitted a 0.1.0 beta label around an internally hardcoded 1.2.0 application.
+
+## One generated metadata source
+
+The workflow creates ignored `backend/build/build-version.json`; tracked source
+files are never rewritten and no version-bump commit is made. Its strict schema
+contains only the base/full versions, numeric FileVersion, channel/mode, source
+SHA, run ID/number/attempt and derived tag. No secrets, paths, runner configuration,
+user names or SAP data enter it. Unexpected fields or inconsistent identities fail.
+
+`backend/version.py` supplies shared validation and reads this file in a source
+build. PyInstaller includes it once as `build-version.json` at the resource root.
+In the frozen application it is required and loaded from sys._MEIPASS. Missing,
+invalid or oversized packaged metadata fails closed; runtime CI variables are
+neither needed nor read. The version remains available offline after EXE replacement.
+
+With no generated metadata, source development clearly reports
+**0.0.0-dev.local**. Standalone `scripts/build-windows.ps1` remains supported:
+outside CI its packaging stage generates a clearly marked 0.0.0-dev.<local-run>
+identity using a local numeric run ID. CI never takes that path: it requires the
+already resolved identity. The frontend's npm manifest version is tooling
+metadata, not a runtime application version source and is not packaged.
+
+The existing health/OpenAPI version and authenticated `/api/version` use this
+same runtime value. The existing footer shows SAP Lens v<version>, with a
+Development build label for build/local modes. No settings page is added. The
+version API returns only application name, full version and mode, preserving
+loopback/session/origin/no-store protections.
+
+## Allocation, jobs and permissions
+
+All jobs remain in the existing repository-wide
+sap-lens-windows-distribution concurrency group, cancel-in-progress false.
+
+1. **Reserve Release Version** runs only for beta/stable. It checks inputs,
+   branch, source commit, progression and first-attempt policy, reads paginated
+   tags/releases, resolves the full identity and atomically creates a new
+   lightweight tag at the source SHA. It returns that fixed metadata as a job
+   output. It has contents:write, without actions:write or extra secrets.
+2. **Windows Build & Verification** retains contents:read/actions:read. It may
+   start only after successful reservation, or after the deliberately skipped
+   reservation in build mode. It writes the allocated identity (or resolves a
+   build-only identity), freezes it in an expected-value environment record, and
+   runs every existing install/build/audit/test/package/verification/smoke stage.
+   Package preparation and verification reject metadata changed after resolution.
+3. **Publish Verified Windows Release** retains contents:write/actions:read,
+   runs only after a successful release-mode Windows job, and consumes the exact
+   metadata and artifact ID/digest from that job. It verifies run/artifact
+   provenance and all mandatory build conclusions. **It does not allocate a beta
+   number, create another tag or rename/rebuild the already packaged EXE.**
+
+Only allocation/publication jobs receive write permission. The build runner never
+receives a write token. Official actions remain SHA-pinned and checkout credentials
+are not persisted. No privileged PR execution or automatic publishing is added.
+Additional allocation-job startup is intentional to keep packaging read-only;
+no updated runner performance measurements are claimed.
+
+Workflow concurrency serializes this implementation's runs. GitHub may replace
+an older pending run when more runs queue, but does not cancel an active build.
+Atomic create-only ref reservation handles external publishers racing the list
+operation: collision stops the run, without overwrite or automatic reallocation.
+If a higher beta appears after our reservation, our reserved version stays fixed.
+Before publication, its tag must still point at the source commit; the branch
+must not have advanced, and no release of that tag may already exist. Stable
+progression is checked again excluding its own reserved tag. External administrator
+changes cannot be transactionally locked by this workflow; state is rechecked.
+
+## Environments and approval
+
+Allocation and publication reference sap-lens-stable for stable and sap-lens-beta
+for beta. Administrators must configure stable's required reviewers, self-review/
+bypass restrictions where supported, and main-only deployment branches before
+relying on approval enforcement. Both privileged jobs can require approval;
+GitHub may request a second approval at publication after the build.
+
+The workflow only references environments; it does not configure settings.
+A missing/unprotected environment can be created by GitHub without review rules.
+The name alone therefore does not enforce approval. Main-only/version rules are
+still enforced by code. Repository rules/token policies can independently block
+tag or release writes. No repository settings are changed by this implementation.
+
+## PE resources and consistency checks
+
+`write-windows-metadata.py` uses the generated identity for ProductVersion and
+numeric resources; ProductName/FileDescription are SAP Lens. For 0.1.0-beta-1,
+ProductVersion is 0.1.0-beta-1 and FileVersion is 0.1.0.1; stable is 0.1.0 / 0.1.0.0.
+Fixed numeric product/file versions both use the same four-number tuple.
+
+Windows PE has four 16-bit components, so beta sequence N must be 1–65535; overflow
+fails **before reserving a tag** and requires a new reviewed base version.
+Development builds use the upper half of the fourth component, derived from run
+number/attempt modulo the available range. Numeric development versions can
+repeat over long histories or overlap very large beta sequences. The full
+ProductVersion/API/UI version remains the authoritative distinct identity;
+Windows numeric fields cannot encode an unbounded run history. Stable's zero
+fourth component is separate from beta/dev revisions.
+
+Package verification compares embedded JSON with the frozen workflow identity,
+PE ProductVersion/FileVersion and the complete production frontend, checks that
+the runtime version module is included, and preserves every existing privacy,
+icon, manifest, x64/GUI, nested archive and secret guard. The native smoke test
+also compares /health's runtime version and both Windows version strings with
+the expected identity, alongside first launch/restart/port conflict/shutdown.
+
+## Artifacts, publication and recovery
+
+The normal Actions artifact remains SAP-Lens-Windows-x64, containing only EXE and
+its EXE checksum, compression level zero and 14-day retention. Its downloaded raw
+ZIP digest, exact two-file membership and EXE/package contents are still verified
+on Windows. Generated build metadata is inside the EXE, not a third ZIP member.
+
+Publication downloads/rechecks that exact artifact, uses the **already reserved**
+tag, and creates a new draft release for the same SHA/full version. It uploads:
+
+- SAP-Lens-Windows-x64-v0.1.0-beta-1.zip
+- SAP-Lens-Windows-x64-v0.1.0-beta-1.zip.sha256
+
+Stable uses its stable tag. Each release ZIP contains exactly SAP-Lens.exe and
+SAP-Lens.exe.sha256. Ordering, timestamps, permissions and ZIP storage mode are
+fixed for reproducible identical inputs. EXE bytes are not changed/recompressed.
+Both uploaded release assets are downloaded again and compared byte for byte
+before draft:false is set. Beta uses prerelease:true; stable uses false. Titles,
+notes, ZIP names, embedded version and UI/API all use the same resolved version.
+Notes include source SHA, UTC date, platform, hashes, workflow link and a valid
+previous-release comparison where available, without copying internal commit text.
+The normal GitHub artifact ZIP hash and deterministic release ZIP hash cover
+different archives and must not be interchanged.
+
+A failed build may now leave its **early reserved tag**, but never publishes a
+release. Failed publication can leave the reservation/draft. No automatic tag,
+release or asset deletion/replacement is performed. A new beta run skips reserved
+numbers. Stable refuses an occupied target until an administrator resolves it
+under repository policy. Release-mode reruns (attempt >1), including failed-job
+reruns, are refused; build-only reruns get a distinct dev version. Do not manually
+retag/relabel a built EXE to recover. A failed/interrupted final API request can
+leave publication unconfirmed: inspect GitHub state before any recovery action.
+Timeouts during reservation can likewise leave a tag without confirmed outputs.
+
+Signing remains disabled. Checksums are not Authenticode signatures, and publishing
+an unsigned release does not guarantee corporate policies, SmartScreen or Defender
+will allow downloading or executing it. See [signing](WINDOWS_CODE_SIGNING.md),
+[packaging](WINDOWS_PACKAGING.md) and [CI architecture](CI_ARCHITECTURE.md).
+
+## Implementation file inventory
+
+| File | Purpose |
 | --- | --- |
-| release_mode: build | Default. Tests, audits, builds, smoke-tests and verifies the normal Actions artifact; no tag or release |
-| release_mode: beta | Builds/verifies first, then publishes a numbered testing prerelease; work is supported |
-| release_mode: stable | Builds/verifies first, then publishes a stable release; main only |
-| version | Required base MAJOR.MINOR.PATCH, without v, whitespace, leading zeros, suffixes or metadata |
-| benchmark_packaging / cold_cache | Existing optional booleans, both default false; behavior unchanged |
+| `.github/workflows/build-windows.yml` | Early reservation, immutable metadata handoff and read-only Windows build |
+| `backend/main.py` | Shared runtime version in health/OpenAPI and protected application-info API |
+| `backend/tests/test_build_version.py` | Fallback, frozen loading, reruns, validation and PE resource generation |
+| `backend/tests/test_configuration.py` | Version API consistency and desktop capability boundary |
+| `backend/tests/test_release_automation.py` | Early allocation races, fixed publication identity and failure/rerun safeguards |
+| `backend/tests/test_windows_package.py` | Embedded version/PE resource consistency and unchanged privacy/archive checks |
+| `backend/tests/test_workflows.py` | Reservation gate, privileges and immutable handoff regression contracts |
+| `backend/version.py` | Strict offline build identity loader, generation/validation rules and local fallback |
+| `docs/CI_ARCHITECTURE.md` | Updated job architecture and version verification boundary |
+| `docs/RELEASES.md` | Current version architecture, permissions, limits, recovery and validation record |
+| `docs/WINDOWS_PACKAGING.md` | Generated version inclusion and resource validation rules |
+| `frontend/src/components/Layout/AppLayout.tsx` | Reuse existing footer for full version and development label |
+| `frontend/tests/desktop.spec.ts` | Version API/UI modes, reload persistence and light/dark screenshot coverage |
+| `scripts/build-windows.ps1` | Require resolved identity and include its single PyInstaller resource |
+| `scripts/check-workflows.py` | Preserve trigger/security/stage contracts with the added reservation job |
+| `scripts/release-windows.py` | Pre-packaging allocation, generated metadata and publication without renumbering |
+| `scripts/test-windows-exe.ps1` | Check native numeric/full Windows versions and actual runtime health version |
+| `scripts/verify-windows-package.py` | Frozen expected identity, embedded JSON/version module and PE consistency |
+| `scripts/write-build-report.py` | Resolve report version from generated metadata rather than a source literal |
+| `scripts/write-windows-metadata.py` | Generate numeric and full PE resources from the common build identity |
 
-`backend/version.py` remains authoritative for the **application/EXE version**
-(currently 1.2.0). It is not automatically changed by publication.
+## Local validation — 2026-10-22
 
-- **Beta:** explicitly select the desired release target, which may differ from
-  the internal application version. The first planned SAP Lens beta uses branch
-  work, release_mode beta and version **0.1.0**. With no matching existing
-  reservation it produces **v0.1.0-beta-1**, title **SAP Lens v0.1.0-beta-1**,
-  and **SAP-Lens-Windows-x64-v0.1.0-beta-1.zip**. The next betas are beta-2,
-  beta-3, etc.; changing the target to 0.2.0 starts its own beta-1 sequence.
-- **Stable:** the requested version must equal the authoritative application
-  version and publication must originate from main. Each component must fit the
-  Windows PE 0–65535 range. A different stable version requires a separately
-  reviewed source version change; CI never makes version-bump commits.
-- **Build:** the existing version match/PE-range checks are unchanged. The form's
-  default 1.2.0 is a convenience for build/stable, **not the planned beta target**.
-  Explicitly replace it with 0.1.0 when selecting beta. Never substitute the
-  application's version for an explicitly selected beta target.
+Baseline was work at 21e47182a8a9ec9e4d22031a4178f9aab049a8af with a clean
+working tree. Existing local-only release commits were retained. No Windows
+EXE, Git tag/release, workflow execution, push or repository-setting change was
+performed. All tag/release mutations in automated tests use a fake GitHub client.
 
-The EXE still internally reports **1.2.0** for the planned 0.1.0 beta. Its identity,
-PE metadata and bytes are not rewritten. The independently selected full beta
-label appears in the GitHub title, tag, notes and asset names. Notes and the
-publication summary also state the actual application/EXE version so the two
-cannot be confused. There is no claim that this EXE reports 0.1.0-beta-1, no new
-application version constant, and no application UI redesign.
+Final Linux validation passed **179 backend tests** (4.173 seconds) with
+DeprecationWarning treated as an error and **42 browser tests** (1.1 minutes).
+Tests cover source fallback, frozen/offline module exports, all build channels,
+rerun identities, invalid/mutated metadata, numeric/full PE resources, actual
+synthetic PyInstaller CArchive inclusion and version mismatch rejection, early
+allocation races/collisions, fixed publication identity, failure recovery and the
+existing role/import/configuration/privacy regressions. No existing test was
+removed; obsolete source-version-equality assertions were adapted to the new
+workflow-authoritative contract.
 
-## Version allocation and progression
+The metadata/version UI test verifies the real API/health identity and desktop
+capability requirement, then uses synthetic API identities to exercise beta,
+stable, build and local display/reload behavior. Light/dark footer screenshots
+were inspected at 1280×720; the added version line is readable without changing
+custom branding. These are Linux Chromium tests, not a packaged WebView2 test.
 
-Beta tags are exactly `vMAJOR.MINOR.PATCH-beta-N`. After the complete Windows job
-succeeds, the publication job reads all paginated repository tags and releases,
-including drafts. For the exact base version it takes the greatest positive
-integer suffix and adds one, starting at 1. Gaps are preserved. Other versions,
-leading-zero suffixes and malformed names are ignored. Reserved tags and drafts
-also occupy numbers. Sequence numbers are compared numerically, including large
-counters.
-
-Stable tags are exactly `vMAJOR.MINOR.PATCH`. Stable requires refs/heads/main,
-version equality with the source, no existing tag/release of that name, and a
-version greater than all existing stable-version tags/releases. Comparison is
-numeric, not lexicographic (1.10.0 is greater than 1.9.0). The source branch must
-still point at the exact built commit at publication time; branch movement fails
-closed and requires a fresh build. Build mode and beta also require a branch,
-not a tag ref.
-
-The repository-wide workflow concurrency group remains
-`sap-lens-windows-distribution`, cancel-in-progress false. It covers build and
-publication together. GitHub may replace an older pending run when additional
-runs queue; it does not cancel the running release. An atomic create-only Git ref
-request protects against external publishers racing allocation. A collision
-stops; no force update, deletion or automatic collision retry is performed.
-Other administrators can still mutate GitHub state outside this workflow; the
-publisher rechecks its tag and draft identity before publishing, but GitHub does
-not provide a transaction locking all external actors.
-
-## Permission and approval boundaries
-
-The Windows build job retains contents:read/actions:read, the complete existing
-canonical PowerShell stages, SHA-pinned actions, caches, benchmarks, smoke tests,
-artifact roundtrip and consolidated build report. It does not receive write
-credentials. A dependent **Publish Verified Windows Release** job runs only for
-beta/stable after the successful Windows job. Only that job gets contents:write
-and actions:read. GH_TOKEN is exported only to the publication script; the other
-steps in that privileged job are trusted, SHA-pinned official actions. Checkouts
-do not persist credentials. No repository secrets or third-party action is needed.
-
-The publisher independently reads this run's first-attempt manual event, source
-SHA, artifact origin/digest and mandatory Windows step conclusions. It refuses
-missing/skipped/failed checks. It downloads only that job's exact artifact ID as
-a raw ZIP with digest mismatch set to error, then checks it again before any write.
-PR events and ordinary pushes cannot enter this workflow.
-
-Stable publication references the **sap-lens-stable** GitHub Environment; beta
-references **sap-lens-beta**. Stable publishing requires an appropriately protected sap-lens-stable
-Environment as an operational prerequisite. Administrators must configure it
-before use: required reviewers, prevent self-review where supported, disallow
-bypassing protection rules, and selected deployment branches allowing only main.
-Optionally protect beta too. Repository plan/policy may affect available rules.
-The workflow references these environments but does not configure their settings.
-A missing/unprotected environment may be created without approval requirements
-by GitHub. **Referencing the name alone does not enforce human approval.** The
-main-only and version rules are still enforced in code. Administrators must verify
-the actual Environment rules before relying on stable approval protection.
-
-## Publication and assets
-
-After successful build and artifact checks, publication:
-
-1. Chooses a tag and prepares/verifies release assets without executing the EXE.
-2. Atomically creates that new lightweight tag at the exact built commit.
-3. Creates a **draft** release for that tag/commit, with the correct prerelease flag.
-4. Uploads two assets without clobbering existing files.
-5. Downloads both uploaded assets again and compares their exact bytes and sizes.
-6. Rechecks its draft and reserved tag, then publishes with draft:false.
-
-Beta ends with prerelease:true and does not replace GitHub's latest stable release.
-Stable ends with prerelease:false and becomes latest. Titles are `SAP Lens <tag>`.
-Notes include release type, UTC build date, full source SHA, Windows platform,
-unsigned status, workflow link and EXE/ZIP hashes. Where a previous published
-version is known, notes link to its comparison with the source SHA. Commit message
-text is not copied into notes, avoiding accidental disclosure of internal details.
-
-For the first planned beta, release assets are:
-
-- `SAP-Lens-Windows-x64-v0.1.0-beta-1.zip`
-- `SAP-Lens-Windows-x64-v0.1.0-beta-1.zip.sha256`
-
-Stable uses `v1.2.0` instead. The release ZIP contains exactly `SAP-Lens.exe` and
-`SAP-Lens.exe.sha256`. Member order, timestamps, permissions and ZIP storage mode
-are fixed, making it deterministic for identical verified inputs. The EXE is
-copied without modification or recompression. Both inner EXE and outer ZIP hashes
-are verified. No CSVs, user settings, branding overrides, logs or development
-files are added. The Windows job still checks PE/resources/privacy and full
-frontend/archive contents before and after its normal Actions upload.
-
-The normal Actions artifact remains SAP-Lens-Windows-x64 with 14-day retention.
-Its GitHub-generated ZIP hash is distinct from the named deterministic release
-ZIP hash; they must not be interchanged. Release publication has its own summary
-in addition to the unchanged Windows build report.
-
-To verify a downloaded release in PowerShell:
-
-```powershell
-$zip = 'SAP-Lens-Windows-x64-v0.1.0-beta-1.zip'
-$expected = ((Get-Content "$zip.sha256" -Raw).Trim() -split '  ', 2)[0]
-if ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) {
-    throw 'ZIP checksum mismatch'
-}
-Expand-Archive $zip -DestinationPath '.\SAP-Lens-verified'
-$expectedExe = ((Get-Content '.\SAP-Lens-verified\SAP-Lens.exe.sha256' -Raw).Trim() -split '  ', 2)[0]
-if ((Get-FileHash '.\SAP-Lens-verified\SAP-Lens.exe' -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expectedExe) {
-    throw 'EXE checksum mismatch'
-}
-```
-
-Checksums detect byte changes; they are not an Authenticode signature. Signing
-remains disabled. Publishing a GitHub Release does not guarantee that corporate
-security policies, SmartScreen or Defender permit downloading/running an unsigned
-EXE. See [code-signing limitations](WINDOWS_CODE_SIGNING.md).
-
-## Reruns and partial failure recovery
-
-Release-mode workflow reruns (run_attempt greater than 1, including failed-job
-reruns) are refused. Build-only reruns are allowed. No published release is ever
-updated, reused or silently replaced. For a fresh release attempt, start a new
-manual workflow after inspecting the previous run and GitHub state.
-
-A failed build performs no publication. Failure after reservation may leave a tag
-and/or draft; failed uploads and failed asset verification leave the draft
-unpublished. No automatic deletion, asset replacement or rollback occurs. If the
-final publication request is interrupted, GitHub may have published successfully
-without a response: inspect its actual state before taking any recovery action.
-A timeout during reservation/creation can similarly leave unconfirmed remote
-state. The summary lists the allocated tag and any confirmed draft/reservation.
-
-Administrators must review orphaned reservations/drafts manually. Do not simply
-publish an incomplete draft. Verify both assets/checksums and provenance first,
-or abandon it and start a fresh build. Beta chooses the next available number;
-stable refuses any existing target tag/release until an administrator resolves
-it under repository policy. This implementation does not delete anything to make
-a retry succeed.
-
-## Local verification and remaining boundaries
-
-`backend/tests/test_release_automation.py` uses a fake GitHub client and synthetic
-PE/ZIP files. It tests numbering, strict versions/branch rules, stable progression,
-races, reruns, build gates, malformed/missing artifacts/checksums, flags, names,
-deterministic ZIPs and partial-upload/tampering failure boundaries. No test
-creates real Git tags/releases, executes a Windows EXE or makes publication calls.
-Workflow contracts preserve trigger, permission, concurrency and artifact rules;
-actionlint validates YAML, expressions and job dependencies. Existing PowerShell
-scripts are parsed without running the Windows build.
-
-Live GitHub publication, actual Environment review enforcement, draft asset
-upload/download authorization and a new native Windows build remain untested in
-this task. Existing successful Windows runs validate the preceding version only.
-Review this local implementation before authorizing any remote operation.
-
-## Initial automation validation — 2026-10-22
-
-This record describes b1db380 before the beta-version correction. The revised
-policy above supersedes its original all-modes version-equality restriction.
-
-Implementation began on work at 98f45db7f4b7db88bf5c44044e1fc9276d4d7600,
-with a clean working tree and no divergence from the freshly fetched origin/work.
-No existing local work was discarded. Only the Windows workflow, release helper,
-workflow contracts/tests and release documentation change.
-
-The final Linux run passed **157 backend tests** (14.770 seconds), including
-24 release tests and 13 workflow-contract tests, with deprecations treated as
-errors. All **41 browser tests** passed. Existing tests were retained. Full
-validation compared the implementation diff before/after execution byte for byte.
-No application UI changed, so no new UI visual design review was needed; existing
-browser screenshot/theme/layout regressions ran unchanged.
-
-Executed from the repository root, using the prepared Python 3.12 virtualenv,
-Node 24, system Chromium and prepared PowerShell 7 tooling:
+Commands executed from the repository root with Python 3.12, Node 24 and prepared
+PowerShell 7 tooling:
 
 ```sh
 git diff --check
 .venv/bin/python scripts/ci.py lint
 .venv/bin/python scripts/check-workflows.py
-# Prepared PowerShell executable; no Windows build execution:
 pwsh -NoProfile -File scripts/check-powershell.ps1
 npm --prefix frontend ci
 node scripts/sync-lucide-catalog.mjs --check
@@ -229,78 +238,30 @@ npm --prefix frontend run check:types
 npm --prefix frontend run build
 .venv/bin/python -W error::DeprecationWarning -m unittest discover -s backend/tests -v
 .venv/bin/python -m pip check
-# Separate audit-tool virtualenv, inspecting the application virtualenv:
+# Separate audit-tool environment inspecting the application environment:
 python -m pip_audit --path /workspace/sap-lens/.venv/lib/python3.12/site-packages --progress-spinner off
 npm --prefix frontend audit --omit=dev
 PLAYWRIGHT_EXECUTABLE_PATH=/usr/bin/chromium PATH="$PWD/.venv/bin:$PATH" npm --prefix frontend run test:browser
 npm --prefix frontend audit --json
 ```
 
-Workflow/actionlint, trigger/permission/job-graph contracts, PowerShell syntax and
-static checks, dependency consistency, production build and repository link/input
-integrity all passed. Python and production JavaScript audits found no known
-vulnerabilities. Full npm audit retained seven development-only advisories (five
-high, two moderate); none were suppressed. Environment-only cache ownership,
-NO_COLOR/FORCE_COLOR and npm update notices remain visible. No dependencies or
-lockfiles changed.
+All workflow/schema/expression/job-graph/trigger/permission contracts, PowerShell
+parsing/static guards, repository links/privacy inputs, dependency consistency,
+frontend type checks/catalog/build and production audits passed. Python and
+production JavaScript audits found no known vulnerabilities. Full npm audit
+reports the existing seven development advisories (five high, two moderate).
+No dependencies changed and no warnings were suppressed; environment cache
+ownership, terminal-color and npm-update notices remain visible.
 
-README branding, canonical assets, backend version/runtime, frontend source,
-Fast/Full workflows and canonical Windows build/smoke/package-verification scripts
-were compared with the baseline and remain unchanged. Native Windows validation,
-real GitHub release API transport/permissions and protected Environment enforcement
-remain pending. No push, GitHub Actions execution, real Git tag/release or Windows
-EXE build was performed by this task. Review locally before remote execution.
+The source diff was frozen for the final full run and compared unchanged after
+it. SHA-256 excluding documentation:
+`7284bfd78e92d3c9175c4824dc9a9502839687d98beb984529411160a7b7f7c9`.
+README/canonical assets, Fast/Full workflow files, SAP analysis/import/settings
+semantics and dependency manifests/lockfiles remain unchanged.
 
-## Final beta-target review — 2026-10-22
-
-Review baseline: work at b1db380bbe4d4b63842366aaf6cd8b205534d6a0 with a clean
-working tree. Application version was confirmed as 1.2.0. Beta target equality
-was corrected: explicit 0.1.0 is accepted without changing the source version,
-PE metadata or executable bytes. Build/stable equality and stable main-only rules
-are unchanged. Release notes and publication summaries now distinguish the
-release label from the internal application/EXE version.
-
-The first planned tag/title are v0.1.0-beta-1 / SAP Lens v0.1.0-beta-1. Read-only
-remote inspection returned zero matching 0.1.0 beta tag refs and zero visible
-matching releases. Allocation still rechecks all occupied identities at actual
-publication time; no version number is reserved by this local review.
-
-The review confirmed contents:read/actions:read for building, with contents:write
-and actions:read only in the dependent manual publication job. These are the
-permissions needed for tag/release writes and build/artifact metadata reads;
-repository rules or organizational policy may still block actual publication.
-No new permissions, secrets, triggers, automatic releases or environment settings
-were introduced. Reading sap-lens-stable returned HTTP 404, so this review cannot
-confirm an existing protected Environment. An administrator must verify/create
-its approval and main-only deployment rules before stable use. No human approval
-enforcement is claimed based solely on its workflow name.
-
-The exact command suite recorded above was rerun against the corrected source:
-**160 backend tests passed** (4.167 seconds), including **27 release tests**;
-**41 browser tests passed** (1.1 minutes). actionlint, workflow trigger/permission/
-concurrency/job-graph contracts, PowerShell parsing/static guards, clean npm
-installation, TypeScript checks, production build, icon catalog, dependency
-consistency, production audits and repository integrity all passed. Python and
-production JavaScript audits found no known vulnerabilities. No dependencies
-changed; existing development-only advisories remain outside the production
-audit. Local pip-cache ownership and npm/terminal-environment notices remain
-visible, without warning suppression.
-
-New synthetic tests cover explicit 0.1.0 with internal 1.2.0, no matching tags,
-beta-1 to beta-2, gaps through beta-3 to beta-4, other base versions, restart at
-0.2.0-beta-1, unchanged old tags/releases, exact asset names, prerelease flags,
-unchanged EXE/checksum bytes, and stable/build mismatch rejection. Existing tests
-continue to cover failed builds, atomic reservation collisions, reruns, draft
-staging, upload/download tampering and missing files/checksums. The ZIP contains
-exactly the EXE and its manifest; the separately uploaded ZIP checksum covers the
-unchanged verified download. All GitHub mutations in tests use a fake client.
-
-The implementation diff was frozen for full validation and compared unchanged
-at completion (SHA-256, excluding documentation):
-`38ce0afb293448cc14b89936a6ccc1c27252113a0150abd7a41092fa0ad1eb03`.
-README/assets, internal version/runtime/frontend, Fast/Full workflows and
-canonical Windows build/smoke/package-verification scripts remain unchanged.
-Native Windows validation and live publication permissions/transport remain
-pending; no real Windows EXE, Git tag/release, workflow execution, push or
-repository-setting change was made. Stop at local review until explicitly
-approved otherwise.
+Pending before a first beta: real GitHub output/environment handoff and token/tag
+rule behavior; configured Environment approval rules; native Windows PE resource
+inspection, packaged WebView2 startup/version display, lifecycle smoke tests and
+actual artifact/release roundtrip for this changed package. Synthetic PE/resource
+adapters and CArchive tests are not native Windows validation. Failed early
+reservations must be reviewed manually; do not delete or reuse them automatically.

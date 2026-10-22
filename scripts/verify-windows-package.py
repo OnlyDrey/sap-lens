@@ -9,6 +9,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 import re
 import struct
 import zipfile
@@ -16,7 +17,7 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED = {'frontend/dist/index.html', 'frontend/dist/sap-lens.png',
-            'frontend/dist/favicon.png', 'frontend/dist/theme.js', 'assets/sap-lens.ico'}
+            'frontend/dist/favicon.png', 'frontend/dist/theme.js', 'assets/sap-lens.ico', 'build-version.json'}
 DISTRIBUTION = {'SAP-Lens.exe', 'SAP-Lens.exe.sha256'}
 
 
@@ -101,7 +102,7 @@ def validate_metadata(strings, fixed_versions, resource_counts):
     expected = metadata_module()
     if strings != expected.expected_metadata():
         raise PackageValidationError('Windows application version metadata does not match the authoritative source.')
-    version = tuple(int(part) for part in expected.VERSION.split('.')) + (0,)
+    version = expected.FILE_VERSION
     if fixed_versions != (version, version):
         raise PackageValidationError('Windows fixed version metadata does not match the application version.')
     if resource_counts.get(16) != 1 or resource_counts.get(14) != 1 or resource_counts.get(24) != 1 or resource_counts.get(3, 0) < 1:
@@ -238,6 +239,15 @@ def inspect_archive(executable, frontend):
             raise PackageValidationError('PyInstaller archive member length is inconsistent.')
         if canonical_name(name) in expected and contents != expected[canonical_name(name)].read_bytes():
             raise PackageValidationError('Bundled frontend contents differ from the verified production build.')
+        if canonical_name(name) == 'build-version.json':
+            from version import parse_build_info
+            try:
+                if len(contents) > 4096: raise ValueError('Build identity is oversized.')
+                embedded_version = parse_build_info(json.loads(contents))
+            except (ValueError, TypeError, KeyError):
+                raise PackageValidationError('Embedded build version is invalid.')
+            if embedded_version != metadata_module().BUILD_INFO:
+                raise PackageValidationError('Embedded build version differs from the resolved build.')
         if canonical_name(name) == 'assets/sap-lens.ico' and contents != (ROOT / 'assets/sap-lens.ico').read_bytes():
             raise PackageValidationError('Bundled application icon differs from the canonical icon.')
         if kind == 'z':
@@ -258,7 +268,7 @@ def inspect_archive(executable, frontend):
         raise PackageValidationError('Bundled Python runtime is missing.')
     if not any('webview' in n.casefold() and n.casefold().endswith('.dll') for n in names):
         raise PackageValidationError('Bundled WebView libraries are missing.')
-    if 'desktop' not in names or not modules or 'main' not in modules or 'webview' not in modules:
+    if 'desktop' not in names or not modules or 'main' not in modules or 'webview' not in modules or 'version' not in modules:
         raise PackageValidationError('Application entry point or embedded runtime modules are missing.')
     # No speculative exclusions: record suspicious build-only modules for review.
     review = sorted(n for n in modules if n.split('.')[0] in {'httpx', 'pip', 'pytest', 'PyInstaller'})
@@ -288,6 +298,12 @@ def main():
     parser.add_argument('--report', type=Path, default=ROOT / 'backend/build/package-verification.json')
     args = parser.parse_args()
     try:
+        if os.environ.get('GITHUB_ACTIONS') == 'true':
+            from version import parse_build_info
+            if parse_build_info(json.loads(os.environ.get('SAP_LENS_EXPECTED_BUILD_JSON',''))) != metadata_module().BUILD_INFO:
+                raise PackageValidationError('Build metadata changed after workflow resolution.')
+        if metadata_module().BUILD_INFO['mode'] == 'local':
+            raise PackageValidationError('A generated build identity is required to verify a distribution.')
         data, digest = validate_distribution(args.distribution, args.expected_sha256)
         validate_gui(data)
         metadata = inspect_resources(data)

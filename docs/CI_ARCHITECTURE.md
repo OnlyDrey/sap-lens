@@ -21,7 +21,7 @@ packager consumes that same output and the verifier compares its bytes.
 | --- | --- | --- |
 | Fast Validation / `.github/workflows/validate.yml` | Every push (including all branches/tags); every pull_request with no branch/path filters | Backend & Frontend: all existing backend/repository tests, deprecations as errors, pip consistency, workflow contracts/actionlint and frontend type checks |
 | Full Validation / `.github/workflows/full-validation.yml` | pull_request targeting main only; no push/manual/tag/release trigger | Backend & Repository and Frontend & Browser run independently in parallel |
-| Build Windows Application / `.github/workflows/build-windows.yml` | workflow_dispatch only; caller selects branch/ref | Windows Build & Verification: complete independent canonical Windows pipeline; optional dependent Publish Verified Windows Release job for explicit beta/stable mode |
+| Build Windows Application / `.github/workflows/build-windows.yml` | workflow_dispatch only; caller selects branch/ref | Optional Reserve Release Version job before Windows Build & Verification; optional dependent Publish Verified Windows Release job for explicit beta/stable mode |
 
 Full Backend installs test, build and audit requirements, checks dependencies,
 runs the entire backend suite (including the real synthetic PyInstaller archive
@@ -95,7 +95,9 @@ regression is silently skipped based on a different run. `scripts/build-windows.
 remains canonical and still supports standalone `-Stage All`. It uses one fresh
 isolated build environment, one npm ci/build, one-file/windowed PyInstaller with
 `--clean --noupx`, unchanged icons/metadata/WebView2 assets, PE/x64 checks,
-privacy/archive validation and the existing SHA-256 manifest. Native smoke covers
+privacy/archive validation and the existing SHA-256 manifest. Generated offline
+build metadata is bundled and compared with the fixed workflow version, PE
+resources and runtime API; see [workflow-driven versions](RELEASES.md). Native smoke covers
 first launch, restart, port conflict and clean owned-process shutdown.
 
 Upload contains exactly SAP-Lens.exe and SAP-Lens.exe.sha256, with the same
@@ -118,9 +120,10 @@ in [manual releases](RELEASES.md). See [packaging](WINDOWS_PACKAGING.md) and [de
 
 All action uses remain official, immutable SHA pins; checkout credentials are
 not persisted. Token permissions are contents:read only in Fast/Full; Windows
-build also has actions:read for this run's report metadata. Only the dependent
-manual beta/stable publication job receives contents:write/actions:read and uses
-a dedicated Environment. No secrets or privileged fork execution are introduced.
+build also has actions:read for this run's report metadata. Only the manual beta/stable reservation job receives contents:write and the
+dependent publication job contents:write/actions:read, using dedicated
+Environments. The build job consumes a preallocated immutable version and stays
+read-only. No secrets or privileged fork execution are introduced.
 See [release permissions and administrator configuration](RELEASES.md).
 actionlint 1.7.12 is downloaded from its upstream release and checked against a
 fixed SHA-256 before execution, without a floating install or third-party action.

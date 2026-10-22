@@ -46,3 +46,35 @@ test('first launch, native picker contract, invalid CSV, persistence and private
   expect(errors).toEqual([])
   expect(external).toEqual([])
 })
+
+test('application information displays the resolved API identity for beta stable and development builds', async ({ page, request }) => {
+  const headers = { 'X-SAP-Lens': 'browser-test-session' }
+  expect((await request.post('/api/configuration/reset', {headers})).ok()).toBeTruthy()
+  const settings = (await (await request.get('/api/configuration', {headers})).json()).settings
+  settings.data_csv_path = path.resolve('tests/fixtures/synthetic.csv')
+  expect((await request.post('/api/configuration', {headers, data:settings})).ok()).toBeTruthy()
+  const actual = await (await request.get('/api/version', {headers})).json()
+  const health = await (await request.get('/health')).json()
+  expect(actual.version).toBe(health.version)
+  expect(actual.app).toBe('SAP Lens')
+  expect((await request.get('/api/version')).status()).toBe(403)
+  let identity = {app:'SAP Lens',version:'0.1.0-beta-1',mode:'beta'}
+  await page.route('**/api/version', route => route.fulfill({json:identity}))
+  for (const [version, mode] of [['0.1.0-beta-1','beta'],['0.1.0','stable'],['0.1.0-dev.123.2','build'],['0.0.0-dev.local','local']]) {
+    identity = {app:'SAP Lens',version,mode}
+    await page.goto('/#session=browser-test-session')
+    await page.reload() // A running app's version is immutable; simulate a fresh process for each identity.
+    await expect(page.getByLabel('Application version', {exact:true})).toContainText(`SAP Lens v${version}`)
+    if (mode === 'build' || mode === 'local') await expect(page.getByLabel('Application version')).toContainText('Development build')
+    else await expect(page.getByLabel('Application version')).not.toContainText('Development build')
+    await page.reload()
+    await expect(page.getByLabel('Application version')).toContainText(version)
+  }
+  identity = {app:'SAP Lens',version:'0.1.0-beta-1',mode:'beta'}
+  for (const theme of ['light','dark']) {
+    expect((await request.post('/api/configuration/theme',{headers,data:{theme}})).ok()).toBeTruthy()
+    await page.reload()
+    await expect(page.getByLabel('Application version')).toContainText('0.1.0-beta-1')
+    await page.screenshot({path:test.info().outputPath(`version-${theme}.png`), fullPage:true, animations:'disabled'})
+  }
+})

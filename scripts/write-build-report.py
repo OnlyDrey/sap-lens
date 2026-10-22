@@ -4,7 +4,6 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import json
 import math
-import ast
 import os
 import subprocess
 
@@ -138,9 +137,11 @@ def main():
     try:
         env = dict(os.environ)
         try:
-            tree = ast.parse((ROOT / 'backend/version.py').read_text())
-            env['APP_VERSION'] = next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'VERSION' for target in node.targets))
-        except (OSError, ValueError, SyntaxError, StopIteration):
+            import sys
+            sys.path.insert(0, str(ROOT / 'backend'))
+            from version import VERSION
+            env['APP_VERSION'] = VERSION
+        except (OSError, ValueError, ImportError):
             env['APP_VERSION'] = 'Unavailable'
         endpoint = f"repos/{env['GITHUB_REPOSITORY']}/actions/runs/{env['GITHUB_RUN_ID']}"
         artifact_id = env.get('ARTIFACT_ID')

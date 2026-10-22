@@ -114,15 +114,20 @@ try {
         } finally { Pop-Location }
     }
     Invoke-Stage Package {
+        # Standalone local builds get an unmistakable dev identity; CI requires its resolved metadata.
+        & $buildPython scripts/release-windows.py ensure-local-build
+        Assert-Success 'Require resolved build identity'
         & $buildPython scripts/write-windows-metadata.py
         Assert-Success 'Generate Windows metadata'
         $icon = Join-Path $root 'assets/sap-lens.ico'
         $metadata = Join-Path $root 'backend/build/version-info.txt'
         $frontendDist = Join-Path $root 'frontend/dist'
+        $buildIdentity = Join-Path $root 'backend/build/build-version.json'
         $packagingArguments = @(
             '--noconfirm', '--onefile', '--windowed', '--noupx', '--name', 'SAP-Lens',
             '--icon', $icon, '--version-file', $metadata,
             '--add-data', ($icon + ';assets'), '--paths', 'backend',
+            '--add-data', ($buildIdentity + ';.'),
             '--add-data', ($frontendDist + ';frontend/dist'), '--specpath', 'backend',
             '--distpath', 'backend/dist', '--workpath', 'backend/build', 'backend/desktop.py'
         )

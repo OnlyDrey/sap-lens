@@ -130,11 +130,14 @@ class ReleaseTests(unittest.TestCase):
             GITHUB_EVENT_NAME="workflow_dispatch",
             GITHUB_SHA=SHA,
             GITHUB_RUN_ID="1",
+            GITHUB_RUN_NUMBER="1",
             ARTIFACT_ID="3",
             ARTIFACT_DIGEST=self.digest,
         )
         self.client = FakeGitHub(self.digest)
         self.progress = {}
+        self.info = release.allocate(self.client, self.env, {})
+        self.client.writes.clear()
 
     def write_archive(self, manifest=True, extra=False):
         path = self.download / "source.zip"
@@ -152,7 +155,7 @@ class ReleaseTests(unittest.TestCase):
             self.env,
             self.download,
             self.root / "output",
-            VERSION,
+            self.info,
             self.progress,
         )
 
@@ -218,31 +221,28 @@ class ReleaseTests(unittest.TestCase):
                 release.version_tuple(value)
         self.assertEqual(release.version_tuple("0.0.0"), (0, 0, 0))
         with self.assertRaises(release.ReleaseError):
-            release.validate_inputs(
-                "build", "65536.0.0", "refs/heads/work", "65536.0.0"
-            )
+            release.validate_inputs("build", "65536.0.0", "refs/heads/work")
 
-    def test_source_version_branch_and_mode_policy(self):
+    def test_workflow_version_branch_and_mode_policy(self):
         for mode, ref in [("build", "work"), ("beta", "work"), ("stable", "main")]:
-            release.validate_inputs(mode, VERSION, "refs/heads/" + ref, VERSION)
+            release.validate_inputs(mode, VERSION, "refs/heads/" + ref)
         for mode, version, ref in [
             ("stable", VERSION, "refs/heads/work"),
             ("stable", VERSION, "refs/heads/feature/main"),
             ("beta", VERSION, "refs/tags/v1.2.0"),
-            ("stable", "0.1.0", "refs/heads/main"),
-            ("build", "0.1.0", "refs/heads/work"),
             ("other", VERSION, "refs/heads/main"),
         ]:
             with self.subTest(mode=mode, ref=ref), self.assertRaises(
                 release.ReleaseError
             ):
-                release.validate_inputs(mode, version, ref, VERSION)
+                release.validate_inputs(mode, version, ref)
 
-    def test_explicit_beta_target_differs_without_changing_application_version(self):
+    def test_planned_beta_embeds_the_selected_identity_without_editing_sources(self):
         before = (ROOT / "backend/version.py").read_bytes()
-        release.validate_inputs("beta", "0.1.0", "refs/heads/work", VERSION)
-        release.validate_inputs("beta", "65536.0.0", "refs/heads/work", VERSION)
+        release.validate_inputs("beta", "0.1.0", "refs/heads/work")
         self.env["RELEASE_VERSION"] = "0.1.0"
+        self.info = release.allocate(self.client, self.env, {})
+        self.client.writes.clear()
         result = self.publish()
         self.assertEqual(result["tag_name"], "v0.1.0-beta-1")
         self.assertEqual(result["name"], "SAP Lens v0.1.0-beta-1")
@@ -256,8 +256,8 @@ class ReleaseTests(unittest.TestCase):
             },
         )
         self.assertIn("SAP Lens v0.1.0-beta-1", result["body"])
-        self.assertIn("Application/EXE version: `1.2.0`", result["body"])
-        self.assertIn("independent of the executable version", result["body"])
+        self.assertIn("Application/EXE version: `0.1.0-beta-1`", result["body"])
+        self.assertNotIn("independent of the executable version", result["body"])
         self.assertNotIn("SAP Lens v1.2.0-beta", result["body"])
         archive = self.root / "output/SAP-Lens-Windows-x64-v0.1.0-beta-1.zip"
         with zipfile.ZipFile(archive) as contents:
@@ -285,6 +285,8 @@ class ReleaseTests(unittest.TestCase):
         ]
         old_tags = copy.deepcopy(self.client.tags)
         old_releases = copy.deepcopy(self.client.releases)
+        self.info = release.allocate(self.client, self.env, {})
+        self.client.writes.clear()
         result = self.publish()
         self.assertEqual(result["tag_name"], "v0.1.0-beta-4")
         self.assertEqual(self.client.tags[: len(old_tags)], old_tags)
@@ -297,6 +299,124 @@ class ReleaseTests(unittest.TestCase):
                 if w[0] == "PATCH"
             )
         )
+
+    def test_publication_keeps_reserved_version_even_if_a_later_beta_appears(self):
+        self.client.tags.append(dict(name="v1.2.0-beta-99"))
+        with patch.object(
+            release,
+            "select_tag",
+            side_effect=AssertionError("Do not renumber after packaging"),
+        ):
+            result = self.publish()
+        self.assertEqual(result["tag_name"], self.info["tag"])
+        self.assertEqual(
+            result["body"].count(
+                "Application/EXE version: `" + self.info["version"] + "`"
+            ),
+            1,
+        )
+        self.assertFalse(any(w[1].endswith("/git/refs") for w in self.client.writes))
+
+    def test_mismatched_resolved_identity_blocks_publication_before_mutation(self):
+        for key, value in [
+            ("version", "1.2.0-beta-2"),
+            ("source_sha", "b" * 40),
+            ("run_number", "2"),
+            ("base_version", "0.1.0"),
+        ]:
+            info = copy.deepcopy(self.info)
+            info[key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                release.publish(
+                    self.client, self.env, self.download, self.root / "unused", info, {}
+                )
+            self.assertEqual(self.client.writes, [])
+
+    def test_allocation_refuses_unrepresentable_beta_before_creating_tag(self):
+        self.client.tags = [dict(name="v1.2.0-beta-65535")]
+        with self.assertRaises(ValueError):
+            release.allocate(self.client, self.env, {})
+        self.assertEqual(self.client.writes, [])
+
+    def test_failed_build_keeps_the_early_reservation_without_creating_release(self):
+        reserved = copy.deepcopy(self.client.tags)
+        self.client.jobs[0]["conclusion"] = "failure"
+        with self.assertRaises(release.ReleaseError):
+            self.publish()
+        self.assertEqual(self.client.tags, reserved)
+        self.assertIsNone(self.client.draft)
+        self.assertEqual(self.client.writes, [])
+
+    def test_prepare_build_binds_output_and_metadata_without_changing_tracked_sources(
+        self,
+    ):
+        from contextlib import redirect_stdout
+        import io
+
+        with patch.object(release, "ROOT", self.root), patch.dict(
+            release.os.environ,
+            dict(
+                self.env,
+                RELEASE_ALLOCATION_JSON=json.dumps(self.info),
+                GITHUB_OUTPUT=str(self.root / "output.txt"),
+                GITHUB_ENV=str(self.root / "environment.txt"),
+            ),
+            clear=True,
+        ), patch.object(
+            release.sys, "argv", ["release-windows.py", "prepare-build"]
+        ), redirect_stdout(
+            io.StringIO()
+        ):
+            release.main()
+        persisted = json.loads(
+            (self.root / "backend/build/build-version.json").read_text()
+        )
+        self.assertEqual(persisted, self.info)
+        self.assertEqual(
+            json.loads((self.root / "output.txt").read_text().split("=", 1)[1]),
+            self.info,
+        )
+        self.assertEqual(
+            json.loads((self.root / "environment.txt").read_text().split("=", 1)[1]),
+            self.info,
+        )
+        self.assertEqual(
+            sorted(p.name for p in self.root.iterdir()),
+            ["backend", "download", "environment.txt", "output.txt"],
+        )
+
+    def test_ci_packaging_rejects_mutated_identity_after_resolution(self):
+        from contextlib import redirect_stdout
+        import io
+
+        original = release.write_identity(
+            self.info, self.root / "backend/build/build-version.json"
+        )
+        changed = release.build_version.make_build_info(
+            "beta", VERSION, SHA, "1", "1", 1, 2
+        )
+        release.write_identity(changed, self.root / "backend/build/build-version.json")
+        with patch.object(release, "ROOT", self.root), patch.dict(
+            release.os.environ,
+            dict(
+                self.env,
+                GITHUB_ACTIONS="true",
+                SAP_LENS_EXPECTED_BUILD_JSON=json.dumps(original),
+            ),
+            clear=True,
+        ), patch.object(
+            release.sys, "argv", ["release-windows.py", "ensure-local-build"]
+        ), redirect_stdout(
+            io.StringIO()
+        ):
+            with self.assertRaises(SystemExit) as error:
+                release.main()
+        self.assertEqual(error.exception.code, 1)
+        self.assertEqual(
+            json.loads((self.root / "backend/build/build-version.json").read_text()),
+            changed,
+        )
+        self.assertEqual(self.client.writes, [])
 
     def test_stable_duplicate_and_progression(self):
         for tags, releases in [
@@ -323,7 +443,7 @@ class ReleaseTests(unittest.TestCase):
             with self.assertRaises(release.ReleaseError):
                 self.publish()
             self.assertEqual(self.client.writes, [])
-        release.validate_inputs("build", VERSION, "refs/heads/work", VERSION, 2)
+        release.validate_inputs("build", VERSION, "refs/heads/work", 2)
 
     def test_build_mode_and_nonmanual_events_never_publish(self):
         for key, value in [
@@ -335,7 +455,7 @@ class ReleaseTests(unittest.TestCase):
             env[key] = value
             with self.assertRaises(release.ReleaseError):
                 release.publish(
-                    self.client, env, self.download, self.root / "output", VERSION, {}
+                    self.client, env, self.download, self.root / "output", self.info, {}
                 )
             self.assertEqual(self.client.writes, [])
 
@@ -355,17 +475,16 @@ class ReleaseTests(unittest.TestCase):
         )
         self.assertIn("intended for testing", result["body"])
         self.assertIn(SHA, result["body"])
+        self.assertTrue(self.client.writes[0][2]["draft"])
         self.assertEqual(
-            self.client.writes[0][2], dict(ref="refs/tags/v1.2.0-beta-1", sha=SHA)
+            [w[0] for w in self.client.writes], ["POST", "POST", "POST", "PATCH"]
         )
-        self.assertTrue(self.client.writes[1][2]["draft"])
-        self.assertEqual(
-            [w[0] for w in self.client.writes],
-            ["POST", "POST", "POST", "POST", "PATCH"],
-        )
+        self.assertFalse(any(w[1].endswith("/git/refs") for w in self.client.writes))
 
     def test_stable_success_flags(self):
         self.env.update(RELEASE_MODE="stable", GITHUB_REF="refs/heads/main")
+        self.info = release.allocate(self.client, self.env, {})
+        self.client.writes.clear()
         result = self.publish()
         self.assertEqual(result["tag_name"], "v1.2.0")
         self.assertFalse(result["draft"])
@@ -414,7 +533,7 @@ class ReleaseTests(unittest.TestCase):
             self.publish()
         self.assertEqual(self.client.writes, [])
 
-    def test_missing_checksum_artifact_or_extra_private_file_before_reservation(self):
+    def test_missing_checksum_artifact_or_extra_private_file_before_publication(self):
         for manifest, extra in [(False, False), (True, True)]:
             self.digest = self.write_archive(manifest, extra)
             self.env["ARTIFACT_DIGEST"] = self.digest
@@ -427,7 +546,7 @@ class ReleaseTests(unittest.TestCase):
             self.publish()
         self.assertEqual(self.client.writes, [])
 
-    def test_bad_inner_checksum_before_reservation(self):
+    def test_bad_inner_checksum_before_publication(self):
         self.manifest = b"0" * 64 + b"  SAP-Lens.exe\n"
         self.digest = self.write_archive()
         self.env["ARTIFACT_DIGEST"] = self.digest
@@ -453,7 +572,12 @@ class ReleaseTests(unittest.TestCase):
                 setattr(client, field, True)
                 with self.assertRaises(release.ReleaseError):
                     release.publish(
-                        client, self.env, self.download, self.root / field, VERSION, {}
+                        client,
+                        self.env,
+                        self.download,
+                        self.root / field,
+                        self.info,
+                        {},
                     )
                 self.assertTrue(client.draft["draft"])
                 self.assertFalse(
@@ -464,17 +588,17 @@ class ReleaseTests(unittest.TestCase):
         self.client.tag_sha = "b" * 40
         with self.assertRaises(release.ReleaseError):
             self.publish()
-        self.assertTrue(self.client.draft["draft"])
+        self.assertIsNone(self.client.draft)
         self.assertFalse(any(w[0] == "PATCH" for w in self.client.writes))
 
     def test_atomic_collision_never_overwrites_or_creates_release(self):
         self.client.collision = True
         with self.assertRaises(release.ReleaseError):
-            self.publish()
+            release.allocate(self.client, self.env, {})
         self.assertIsNone(self.client.draft)
         self.assertEqual(len(self.client.writes), 1)
 
-    def test_two_concurrent_publishers_only_one_reserves_and_publishes(self):
+    def test_two_concurrent_allocators_only_one_reserves_the_identity(self):
         barrier = threading.Barrier(2)
         lock = threading.Lock()
         reserved = set()
@@ -491,10 +615,8 @@ class ReleaseTests(unittest.TestCase):
             client = FakeGitHub(self.digest)
             client.reserve = reserve
             try:
-                release.publish(
-                    client, self.env, self.download, self.root / str(index), VERSION, {}
-                )
-                outcomes.append("published")
+                release.allocate(client, self.env, {})
+                outcomes.append("allocated")
             except release.ReleaseError:
                 outcomes.append("collision")
 
@@ -503,7 +625,7 @@ class ReleaseTests(unittest.TestCase):
             thread.start()
         for thread in threads:
             thread.join(timeout=15)
-        self.assertEqual(sorted(outcomes), ["collision", "published"])
+        self.assertEqual(sorted(outcomes), ["allocated", "collision"])
         self.assertEqual(len(reserved), 1)
 
     def test_deterministic_archive_preserves_exe_bytes_and_both_checksums(self):
