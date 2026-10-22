@@ -64,11 +64,11 @@ def validate_inputs(mode, version, ref, source_version, attempt=1):
     requested = version_tuple(version)
     if mode not in {"build", "beta", "stable"}:
         raise ReleaseError("Unknown release mode.")
-    if any(n > 65535 for n in requested):
+    if mode != "beta" and any(n > 65535 for n in requested):
         raise ReleaseError("Version exceeds Windows PE version component limits.")
-    if version != source_version:
+    if mode != "beta" and version != source_version:
         raise ReleaseError(
-            "Requested version must equal backend/version.py; no version-bump commits are made by CI."
+            "Build/stable version must equal backend/version.py; beta labels may differ without changing the EXE."
         )
     if not ref.startswith("refs/heads/") or ref == "refs/heads/":
         raise ReleaseError("Select a branch, not a tag, for a manual build.")
@@ -259,7 +259,10 @@ class GitHub:
             ) from error
 
 
-def notes(mode, tag, sha, run_id, exe_sha, zip_sha, previous=None):
+def notes(
+    mode, tag, sha, run_id, exe_sha, zip_sha, previous=None, *, source_version=None
+):
+    source_version = source_version or application_version()
     text = (
         f"SAP Lens {tag}\n\n"
         + (
@@ -268,6 +271,12 @@ def notes(mode, tag, sha, run_id, exe_sha, zip_sha, previous=None):
             else "Stable Windows release.\n\n"
         )
         + f'Source commit: `{sha}`\n\nBuild date (UTC): {datetime.now(timezone.utc).isoformat(timespec="seconds")}\n\n'
+        + f"Application/EXE version: `{source_version}` (unchanged internal version).\n\n"
+        + (
+            "The beta release label is independent of the executable version.\n\n"
+            if mode == "beta"
+            else ""
+        )
         + f"Platform: Windows x64; one-file EXE, WebView2. Unsigned.\n\n"
         + f"EXE SHA-256: `{exe_sha}`\n\nZIP SHA-256: `{zip_sha}`\n\n"
         + "The ZIP contains SAP-Lens.exe and its SHA-256 manifest. The adjacent ZIP checksum covers the download.\n\n"
@@ -284,6 +293,7 @@ def publish(client, env, download, output, source_version, progress):
     mode, version, ref = env["RELEASE_MODE"], env["RELEASE_VERSION"], env["GITHUB_REF"]
     attempt = int(env["GITHUB_RUN_ATTEMPT"])
     validate_inputs(mode, version, ref, source_version, attempt)
+    progress["application_version"] = source_version
     if mode == "build" or env.get("GITHUB_EVENT_NAME") != "workflow_dispatch":
         raise ReleaseError(
             "Publication requires a first-attempt manual beta/stable run."
@@ -329,7 +339,16 @@ def publish(client, env, download, output, source_version, progress):
         ),
         None,
     )
-    body = notes(mode, tag, sha, run_id, exe_sha, zip_sha, previous)
+    body = notes(
+        mode,
+        tag,
+        sha,
+        run_id,
+        exe_sha,
+        zip_sha,
+        previous,
+        source_version=source_version,
+    )
     created = client.api(
         f"{base}/releases",
         "POST",
@@ -435,7 +454,7 @@ def main():
         )
         if args.command == "validate-inputs":
             print(
-                "Manual build/release inputs match the authoritative application version."
+                "Manual inputs validated; beta labels may differ from the unchanged application version."
             )
             return
         if args.download is None or args.output is None:
@@ -465,6 +484,8 @@ def main():
             )
             text = f"## Windows release publication\n\n{state}.\n\n"
             text += f'Mode: {env.get("RELEASE_MODE", "unknown")}; tag: {progress.get("tag", "not allocated")}.\n\n'
+            if progress.get("application_version"):
+                text += f'Application/EXE version: `{progress["application_version"]}` (unchanged).\n\n'
             if progress.get("reserved") and not progress.get("published"):
                 text += "A tag was reserved. Any created release is deliberately left as a draft unless publication completed; an interrupted final API call may require checking its actual state. No automatic deletion or replacement is attempted.\n"
             if progress.get("published"):

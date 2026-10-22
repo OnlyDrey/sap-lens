@@ -229,13 +229,74 @@ class ReleaseTests(unittest.TestCase):
             ("stable", VERSION, "refs/heads/work"),
             ("stable", VERSION, "refs/heads/feature/main"),
             ("beta", VERSION, "refs/tags/v1.2.0"),
-            ("beta", "0.1.0", "refs/heads/work"),
+            ("stable", "0.1.0", "refs/heads/main"),
+            ("build", "0.1.0", "refs/heads/work"),
             ("other", VERSION, "refs/heads/main"),
         ]:
             with self.subTest(mode=mode, ref=ref), self.assertRaises(
                 release.ReleaseError
             ):
                 release.validate_inputs(mode, version, ref, VERSION)
+
+    def test_explicit_beta_target_differs_without_changing_application_version(self):
+        before = (ROOT / "backend/version.py").read_bytes()
+        release.validate_inputs("beta", "0.1.0", "refs/heads/work", VERSION)
+        release.validate_inputs("beta", "65536.0.0", "refs/heads/work", VERSION)
+        self.env["RELEASE_VERSION"] = "0.1.0"
+        result = self.publish()
+        self.assertEqual(result["tag_name"], "v0.1.0-beta-1")
+        self.assertEqual(result["name"], "SAP Lens v0.1.0-beta-1")
+        self.assertTrue(result["prerelease"])
+        self.assertFalse(result["draft"])
+        self.assertEqual(
+            set(self.client.assets),
+            {
+                "SAP-Lens-Windows-x64-v0.1.0-beta-1.zip",
+                "SAP-Lens-Windows-x64-v0.1.0-beta-1.zip.sha256",
+            },
+        )
+        self.assertIn("SAP Lens v0.1.0-beta-1", result["body"])
+        self.assertIn("Application/EXE version: `1.2.0`", result["body"])
+        self.assertIn("independent of the executable version", result["body"])
+        self.assertNotIn("SAP Lens v1.2.0-beta", result["body"])
+        archive = self.root / "output/SAP-Lens-Windows-x64-v0.1.0-beta-1.zip"
+        with zipfile.ZipFile(archive) as contents:
+            self.assertEqual(contents.namelist(), list(release.FILES))
+            self.assertEqual(contents.read("SAP-Lens.exe"), self.exe)
+            self.assertEqual(contents.read("SAP-Lens.exe.sha256"), self.manifest)
+        self.assertEqual((ROOT / "backend/version.py").read_bytes(), before)
+
+    def test_planned_beta_sequence_and_new_base_reset(self):
+        for base, tags, expected in [
+            ("0.1.0", [], "v0.1.0-beta-1"),
+            ("0.1.0", ["v0.1.0-beta-1"], "v0.1.0-beta-2"),
+            ("0.1.0", ["v0.1.0-beta-1", "v0.1.0-beta-3"], "v0.1.0-beta-4"),
+            ("0.1.0", ["v1.2.0-beta-99", "v0.2.0-beta-9"], "v0.1.0-beta-1"),
+            ("0.2.0", ["v0.1.0-beta-1", "v0.1.0-beta-3"], "v0.2.0-beta-1"),
+        ]:
+            with self.subTest(base=base, tags=tags):
+                self.assertEqual(release.select_tag("beta", base, tags, []), expected)
+
+    def test_planned_beta_leaves_existing_tags_and_releases_untouched(self):
+        self.env["RELEASE_VERSION"] = "0.1.0"
+        self.client.tags = [dict(name="v0.1.0-beta-3"), dict(name="v1.2.0-beta-99")]
+        self.client.releases = [
+            dict(id=99, tag_name="v0.1.0-beta-3", draft=False, prerelease=True)
+        ]
+        old_tags = copy.deepcopy(self.client.tags)
+        old_releases = copy.deepcopy(self.client.releases)
+        result = self.publish()
+        self.assertEqual(result["tag_name"], "v0.1.0-beta-4")
+        self.assertEqual(self.client.tags[: len(old_tags)], old_tags)
+        self.assertEqual(self.client.releases, old_releases)
+        self.assertFalse(any(w[0] == "DELETE" for w in self.client.writes))
+        self.assertTrue(
+            all(
+                w[1].endswith("/releases/7")
+                for w in self.client.writes
+                if w[0] == "PATCH"
+            )
+        )
 
     def test_stable_duplicate_and_progression(self):
         for tags, releases in [

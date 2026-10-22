@@ -21,18 +21,30 @@ updated through the normal review process.
 | version | Required base MAJOR.MINOR.PATCH, without v, whitespace, leading zeros, suffixes or metadata |
 | benchmark_packaging / cold_cache | Existing optional booleans, both default false; behavior unchanged |
 
-`backend/version.py` remains authoritative (currently 1.2.0). The requested base
-version must match it in every mode and each component must fit the Windows PE
-0–65535 range. For another version, review a normal source change to that file
-first; CI never edits source or creates version-bump commits. The form's default
-is only a convenience; validation rejects a stale default. 0.1.0 is an example
-of valid syntax, not the current application's version.
+`backend/version.py` remains authoritative for the **application/EXE version**
+(currently 1.2.0). It is not automatically changed by publication.
 
-The EXE's existing application identity and PE version remain the base version.
-The full beta designation appears in the GitHub release title, tag, notes and
-asset names. It is allocated after the EXE has been verified, so no post-checksum
-binary rewrite or conflicting application version constant is introduced. There
-is no application UI redesign or additional version display in this change.
+- **Beta:** explicitly select the desired release target, which may differ from
+  the internal application version. The first planned SAP Lens beta uses branch
+  work, release_mode beta and version **0.1.0**. With no matching existing
+  reservation it produces **v0.1.0-beta-1**, title **SAP Lens v0.1.0-beta-1**,
+  and **SAP-Lens-Windows-x64-v0.1.0-beta-1.zip**. The next betas are beta-2,
+  beta-3, etc.; changing the target to 0.2.0 starts its own beta-1 sequence.
+- **Stable:** the requested version must equal the authoritative application
+  version and publication must originate from main. Each component must fit the
+  Windows PE 0–65535 range. A different stable version requires a separately
+  reviewed source version change; CI never makes version-bump commits.
+- **Build:** the existing version match/PE-range checks are unchanged. The form's
+  default 1.2.0 is a convenience for build/stable, **not the planned beta target**.
+  Explicitly replace it with 0.1.0 when selecting beta. Never substitute the
+  application's version for an explicitly selected beta target.
+
+The EXE still internally reports **1.2.0** for the planned 0.1.0 beta. Its identity,
+PE metadata and bytes are not rewritten. The independently selected full beta
+label appears in the GitHub title, tag, notes and asset names. Notes and the
+publication summary also state the actual application/EXE version so the two
+cannot be confused. There is no claim that this EXE reports 0.1.0-beta-1, no new
+application version constant, and no application UI redesign.
 
 ## Version allocation and progression
 
@@ -80,7 +92,8 @@ a raw ZIP with digest mismatch set to error, then checks it again before any wri
 PR events and ordinary pushes cannot enter this workflow.
 
 Stable publication references the **sap-lens-stable** GitHub Environment; beta
-references **sap-lens-beta**. Administrators should configure sap-lens-stable
+references **sap-lens-beta**. Stable publishing requires an appropriately protected sap-lens-stable
+Environment as an operational prerequisite. Administrators must configure it
 before use: required reviewers, prevent self-review where supported, disallow
 bypassing protection rules, and selected deployment branches allowing only main.
 Optionally protect beta too. Repository plan/policy may affect available rules.
@@ -108,10 +121,10 @@ unsigned status, workflow link and EXE/ZIP hashes. Where a previous published
 version is known, notes link to its comparison with the source SHA. Commit message
 text is not copied into notes, avoiding accidental disclosure of internal details.
 
-For example, release assets are:
+For the first planned beta, release assets are:
 
-- `SAP-Lens-Windows-x64-v1.2.0-beta-1.zip`
-- `SAP-Lens-Windows-x64-v1.2.0-beta-1.zip.sha256`
+- `SAP-Lens-Windows-x64-v0.1.0-beta-1.zip`
+- `SAP-Lens-Windows-x64-v0.1.0-beta-1.zip.sha256`
 
 Stable uses `v1.2.0` instead. The release ZIP contains exactly `SAP-Lens.exe` and
 `SAP-Lens.exe.sha256`. Member order, timestamps, permissions and ZIP storage mode
@@ -129,7 +142,7 @@ in addition to the unchanged Windows build report.
 To verify a downloaded release in PowerShell:
 
 ```powershell
-$zip = 'SAP-Lens-Windows-x64-v1.2.0-beta-1.zip'
+$zip = 'SAP-Lens-Windows-x64-v0.1.0-beta-1.zip'
 $expected = ((Get-Content "$zip.sha256" -Raw).Trim() -split '  ', 2)[0]
 if ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) {
     throw 'ZIP checksum mismatch'
@@ -184,7 +197,10 @@ upload/download authorization and a new native Windows build remain untested in
 this task. Existing successful Windows runs validate the preceding version only.
 Review this local implementation before authorizing any remote operation.
 
-## Validation record — 2026-10-22
+## Initial automation validation — 2026-10-22
+
+This record describes b1db380 before the beta-version correction. The revised
+policy above supersedes its original all-modes version-equality restriction.
 
 Implementation began on work at 98f45db7f4b7db88bf5c44044e1fc9276d4d7600,
 with a clean working tree and no divergence from the freshly fetched origin/work.
@@ -234,3 +250,57 @@ were compared with the baseline and remain unchanged. Native Windows validation,
 real GitHub release API transport/permissions and protected Environment enforcement
 remain pending. No push, GitHub Actions execution, real Git tag/release or Windows
 EXE build was performed by this task. Review locally before remote execution.
+
+## Final beta-target review — 2026-10-22
+
+Review baseline: work at b1db380bbe4d4b63842366aaf6cd8b205534d6a0 with a clean
+working tree. Application version was confirmed as 1.2.0. Beta target equality
+was corrected: explicit 0.1.0 is accepted without changing the source version,
+PE metadata or executable bytes. Build/stable equality and stable main-only rules
+are unchanged. Release notes and publication summaries now distinguish the
+release label from the internal application/EXE version.
+
+The first planned tag/title are v0.1.0-beta-1 / SAP Lens v0.1.0-beta-1. Read-only
+remote inspection returned zero matching 0.1.0 beta tag refs and zero visible
+matching releases. Allocation still rechecks all occupied identities at actual
+publication time; no version number is reserved by this local review.
+
+The review confirmed contents:read/actions:read for building, with contents:write
+and actions:read only in the dependent manual publication job. These are the
+permissions needed for tag/release writes and build/artifact metadata reads;
+repository rules or organizational policy may still block actual publication.
+No new permissions, secrets, triggers, automatic releases or environment settings
+were introduced. Reading sap-lens-stable returned HTTP 404, so this review cannot
+confirm an existing protected Environment. An administrator must verify/create
+its approval and main-only deployment rules before stable use. No human approval
+enforcement is claimed based solely on its workflow name.
+
+The exact command suite recorded above was rerun against the corrected source:
+**160 backend tests passed** (4.167 seconds), including **27 release tests**;
+**41 browser tests passed** (1.1 minutes). actionlint, workflow trigger/permission/
+concurrency/job-graph contracts, PowerShell parsing/static guards, clean npm
+installation, TypeScript checks, production build, icon catalog, dependency
+consistency, production audits and repository integrity all passed. Python and
+production JavaScript audits found no known vulnerabilities. No dependencies
+changed; existing development-only advisories remain outside the production
+audit. Local pip-cache ownership and npm/terminal-environment notices remain
+visible, without warning suppression.
+
+New synthetic tests cover explicit 0.1.0 with internal 1.2.0, no matching tags,
+beta-1 to beta-2, gaps through beta-3 to beta-4, other base versions, restart at
+0.2.0-beta-1, unchanged old tags/releases, exact asset names, prerelease flags,
+unchanged EXE/checksum bytes, and stable/build mismatch rejection. Existing tests
+continue to cover failed builds, atomic reservation collisions, reruns, draft
+staging, upload/download tampering and missing files/checksums. The ZIP contains
+exactly the EXE and its manifest; the separately uploaded ZIP checksum covers the
+unchanged verified download. All GitHub mutations in tests use a fake client.
+
+The implementation diff was frozen for full validation and compared unchanged
+at completion (SHA-256, excluding documentation):
+`38ce0afb293448cc14b89936a6ccc1c27252113a0150abd7a41092fa0ad1eb03`.
+README/assets, internal version/runtime/frontend, Fast/Full workflows and
+canonical Windows build/smoke/package-verification scripts remain unchanged.
+Native Windows validation and live publication permissions/transport remain
+pending; no real Windows EXE, Git tag/release, workflow execution, push or
+repository-setting change was made. Stop at local review until explicitly
+approved otherwise.

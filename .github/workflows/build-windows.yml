@@ -9,7 +9,7 @@ on:
         default: build
         required: true
       version:
-        description: Base MAJOR.MINOR.PATCH; must match backend/version.py
+        description: Release target (first beta 0.1.0); build/stable must match backend/version.py
         type: string
         default: '1.2.0'
         required: true
