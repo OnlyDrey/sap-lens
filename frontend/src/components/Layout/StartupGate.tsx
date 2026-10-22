@@ -48,7 +48,7 @@ export function StartupGate({ children }: { children: ReactNode }) {
               Loading configuration…
             </p>
             <p className="text-xs mt-3 text-[var(--muted)]">
-              Local service connected
+              Waiting for configuration from the local service.
             </p>
           </>
         )}

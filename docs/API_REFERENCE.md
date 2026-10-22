@@ -84,3 +84,26 @@ row. Navigation mode omits source/group/matrix aggregates, and the UI requests
 only one bounded sample row. Normal responses without `anchor` are unchanged.
 Session/origin protections and no-store behavior apply as before. Navigation is
 re-resolved on refresh; an in-flight/failed query cannot expose stale actions.
+
+### GET /api/access/release-options
+
+Authenticated, no-store release filter options from the current loaded User
+Access generation. `field` is required: `group`, `document_type`, `release_group`,
+`strategy`, `username` or `role`. Optional `search` and `selected` are bounded to
+512 characters; `limit` defaults to 50 and cannot exceed 100. Context parameters
+are `group`, `document_type`, `release_group`, `strategy` and assignment `status`
+(default `active`, also `all`, `expired`, `future`, `unknown`).
+
+Returns `items`, `total`, `has_more` and `selected_available`. The availability
+check is independent of the option search window. Facets use the hierarchy
+[documented with the investigation UI](ACCESS_INVESTIGATION.md#data-aware-release-filters-and-navigation).
+No role, user or transaction relationships are modified.
+
+Diagnostics now include a `sources` array for Role Catalogue and User Access:
+configured/loaded flags, record/assignment counts, last successful load and
+allowlisted error/availability categories. Only authenticated local diagnostics
+include `configured_path`, `loaded_path` and `attempted_path`. The export omits
+all three and includes no source contents or identities. Availability is evidence
+from the last completed read, not a synchronous filesystem probe: an unavailable
+UNC share cannot block a diagnostic request. `available_at_last_load` explicitly
+does not claim the file is currently reachable.

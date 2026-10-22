@@ -1,5 +1,6 @@
+import { useHistoryValue } from '@/hooks/useViewHistory';
 import { useRecordNavigation, type RecordNavigationState } from "@/hooks/useRecordNavigation";
-import { DetailNavigation, EvidenceBadge } from "@/components/Shared/InvestigationNavigation";
+import { DetailNavigation, EvidenceBadge, AccountEvidence, DetailButton } from "@/components/Shared/InvestigationNavigation";
 import { Combobox } from "@/components/Shared/Combobox";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -42,7 +43,7 @@ export function UserAccess({
     [descending, setDescending] = useState(false);
   const [group, setGroup] = useState(""),
     [offset, setOffset] = useState(0),
-    [selected, setSelected] = useState(initialUser || "");
+    [selected, setSelected] = useHistoryValue('user');
   const [role, setRole] = useState(initialRole),
     [tcode, setTcode] = useState(initialTcode),
     [expired, setExpired] = useState(false);
@@ -77,7 +78,10 @@ export function UserAccess({
     const last = Math.max(0, Math.floor((result.data.total - 1) / limit) * limit);
     if (offset > last) setOffset(last);
   }, [result.data, result.isFetching, offset]);
+  const previousSelected = useRef(selected);
   useLayoutEffect(() => {
+    if (!selected && previousSelected.current) restoreList.current = true;
+    previousSelected.current = selected;
     if (selected || !restoreList.current || !result.data || result.isFetching) return;
     const frame = requestAnimationFrame(() => {
       restoreList.current = false;
@@ -102,7 +106,7 @@ export function UserAccess({
     <section aria-label="User Access" className="space-y-4">
       <h1 className="text-xl font-semibold">User Access</h1>
       <EvidenceNote />
-      <div className="investigation-filters"><fieldset><legend>User directory</legend><div className="filter-grid">
+      <div className="investigation-filters user-filters"><fieldset><legend>User directory</legend><div className="filter-grid">
         <Filter label="Search users">
           <input
             className={inputClass}
@@ -136,7 +140,7 @@ export function UserAccess({
             ))}
           </select>
         </Filter>
-        <label className="flex gap-2 items-center">
+        <label className="filter-toggle">
           <input
             type="checkbox"
             checked={descending}
@@ -144,7 +148,7 @@ export function UserAccess({
           />
           Descending
         </label>
-        <label className="flex gap-2 items-center">
+        <label className="filter-toggle">
           <input
             type="checkbox"
             checked={expired}
@@ -184,7 +188,8 @@ export function UserAccess({
       )}
       {result.data && (
         <>
-          <div className="access-table">
+          <h2 className="text-base font-semibold">User directory <span className="text-sm font-normal text-[var(--muted)]">{result.data.total.toLocaleString()} {result.data.total === 1 ? 'user' : 'users'}</span></h2>
+          <div className="access-table user-directory-table">
             <table>
               <thead>
                 <tr>
@@ -210,21 +215,20 @@ export function UserAccess({
                         .join(", ") || "Unknown"}
                     </td>
                     <td>
-                      <button
-                        className="underline"
+                      <DetailButton
                         data-user={user.username}
                         onClick={() => openUser(user.username)}
                       >
                         {user.username}
-                      </button>
+                      </DetailButton>
                     </td>
                     <td>{user.first_name || "—"}</td>
                     <td>{user.last_name || "—"}</td>
                     <td>{user.email || "—"}</td>
                     <td>
-                      {user.account_status} · {user.lock_status}
+                      <AccountEvidence status={user.account_status} lock={user.lock_status}/>
                     </td>
-                    <td>{user.relevant_roles}</td>
+                    <td><button className="role-count-button" aria-label={`View ${user.relevant_roles} relevant roles for ${user.username}`} onClick={() => openUser(user.username)}>{user.relevant_roles.toLocaleString()} <span>{user.relevant_roles === 1 ? "role" : "roles"}</span></button></td>
                   </tr>
                 ))}
               </tbody>
@@ -293,65 +297,31 @@ function UserDetails({
     <section aria-label="User details" className="space-y-4">
       <DetailNavigation parent="User Access" current={username} onBack={onBack} {...navigation}/>
       <h1 className="text-xl font-semibold">User details</h1>
-      <RoleIdentifier value={username} label="username" />
       <QueryState loading={result.isLoading} error={result.error} />
       {user && (
         <>
-          <dl className="account-summary">
-            <dt>User group</dt>
-            <dd>
-              {user.groups
-                .map((group) => group || "Unknown group")
-                .join(", ") || "Unknown"}
-            </dd>
-            <dt>Full name</dt>
-            <dd>
-              {user.names
-                .map((n) => n.join(" ").trim())
-                .filter(Boolean)
-                .join(" / ") || "Unknown"}
-            </dd>
-            <dt>Email</dt>
-            <dd>{user.emails.join(", ") || "Unknown"}</dd>
-            {user.accounts.length === 1 && <><dt>User validity</dt><dd>{dates(user.accounts[0].valid_from, user.accounts[0].valid_to)}</dd></>}
-            <dt>Account status</dt><dd><EvidenceBadge value={user.account_status}/></dd>
-            <dt>Account lock status</dt>
-            <dd>{user.lock_status}</dd>
-          </dl>
-          <details className="settings-advanced" open={user.accounts.length !== 1}><summary>User validity and account evidence</summary>
-          <div className="access-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>User group</th>
-                  <th>User validity</th>
-                  <th>Account status</th>
-                  <th>Locked</th>
-                  <th>User type</th>
-                </tr>
-              </thead>
-              <tbody>
-                {user.accounts.map((a, i) => (
-                  <tr key={i}>
-                    <td>{a.user_group || "Unknown"}</td>
-                    <td>{dates(a.valid_from, a.valid_to)}</td>
-                    <td>{a.status}</td>
-                    <td>
-                      {a.locked === null ? "Unknown" : a.locked ? "Yes" : "No"}
-                    </td>
-                    <td>{a.user_type || "Unknown"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="user-information-grid">
+            <section className="information-card" aria-label="User information"><h2>User information</h2><dl className="information-list">
+              <dt>Username</dt><dd><RoleIdentifier value={username} label="username"/></dd>
+              <dt>Full name</dt><dd>{user.names.map(n => n.join(' ').trim()).filter(Boolean).join(' / ') || 'Unknown'}</dd>
+              <dt>Email</dt><dd>{user.emails.join(', ') || 'Unknown'}</dd>
+              <dt>SAP User Group</dt><dd>{user.groups.map(group => group || 'Unknown group').join(', ') || 'Unknown'}</dd>
+              <dt>User type</dt><dd>{user.account_total === 1 ? user.accounts[0]?.user_type || 'Unknown' : 'See account evidence'}</dd>
+            </dl></section>
+            <section className="information-card" aria-label="Validity and account information"><h2>Validity &amp; account</h2><dl className="information-list">
+              <dt>Valid from</dt><dd>{user.account_total === 1 ? user.accounts[0]?.valid_from || 'Unknown' : 'Multiple source records'}</dd>
+              <dt>Valid until</dt><dd>{user.account_total === 1 ? user.accounts[0]?.valid_to || 'Unknown' : 'See account evidence'}</dd>
+              <dt>Account status</dt><dd>{user.account_status.split('/').map(value => <EvidenceBadge key={value} value={value}/>)}</dd>
+              <dt>Lock status</dt><dd><EvidenceBadge value={user.lock_status}/></dd>
+            </dl></section>
           </div>
-          <Pagination
-            offset={accountOffset}
-            total={user.account_total}
-            onChange={setAccountOffset}
-            label="Account evidence pages"
-          />
-          </details>
+          {user.account_total > 1 && <details className="settings-advanced"><summary>User validity and account evidence · {user.account_total} source records</summary>
+            <p className="text-sm text-[var(--muted)]">Distinct source records are retained below; a summary does not override conflicting validity or lock evidence.</p>
+            <div className="access-table"><table><thead><tr><th>User group</th><th>User validity</th><th>Account status</th><th>Lock status</th><th>User type</th></tr></thead><tbody>
+              {user.accounts.map((a, i) => <tr key={i}><td>{a.user_group || 'Unknown'}</td><td>{dates(a.valid_from, a.valid_to)}</td><td><EvidenceBadge value={a.status}/></td><td><EvidenceBadge value={a.locked === null ? 'Lock unknown' : a.locked ? 'Locked' : 'Unlocked'}/></td><td>{a.user_type || 'Unknown'}</td></tr>)}
+            </tbody></table></div>
+            <Pagination offset={accountOffset} total={user.account_total} onChange={setAccountOffset} label="Account evidence pages"/>
+          </details>}
           {user.names_total > 100 && (
             <Pagination
               offset={nameOffset}
@@ -499,19 +469,15 @@ function AssignmentRow({
       </td>
       <td>
         {a.scope === "release" ? (
-          <button className="underline" onClick={() => onRelease(a.role_name)}>
+          <DetailButton onClick={() => onRelease(a.role_name)}>
             Release role details
-          </button>
+          </DetailButton>
         ) : a.match_status === "exact" || a.match_status === "wildcard" ? (
           <>
             {a.catalogue_roles.map((name) => (
-              <button
-                key={name}
-                className="underline block"
-                onClick={() => onRole(name)}
-              >
+              <DetailButton key={name} onClick={() => onRole(name)}>
                 Role details: {name}
-              </button>
+              </DetailButton>
             ))}
             <details>
               <summary>{a.tcode_count} associated transactions</summary>

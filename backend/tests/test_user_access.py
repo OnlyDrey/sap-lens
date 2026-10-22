@@ -202,6 +202,85 @@ class UserAccessTests(unittest.TestCase):
             self.assertEqual(self.client.get("/api/access/" + path, params={"anchor":"x"*513}, headers=H).status_code, 422)
             self.assertNotIn("navigation", self.get(path))
 
+    def test_release_options_use_all_records_bounded_search_and_exact_values(self):
+        self.load_navigation_export()
+        result = self.get("release-options?field=release_group&limit=10")
+        self.assertEqual(result['total'], 126)
+        self.assertEqual(len(result['items']), 10)
+        self.assertTrue(result['has_more'])
+        self.assertEqual(self.get("release-options?field=release_group&search=g124")['items'], ['G124'])
+        self.assertFalse(self.get("release-options?field=release_group&selected=REMOVED")['selected_available'])
+        self.assertTrue(self.get("release-options?field=username&selected=demo_12")['selected_available'])
+
+    def test_release_options_hierarchy_does_not_filter_ancestors_or_siblings(self):
+        result = self.get('release-options?field=group&group=NO_SUCH&document_type=PO&release_group=NO_SUCH&strategy=NO_SUCH')
+        self.assertEqual(result['items'], ['GROUP_A', 'GROUP_B'])
+        self.assertEqual(self.get('release-options?field=release_group&document_type=PO')['items'], ['E1'])
+        self.assertEqual(self.get('release-options?field=strategy&document_type=PR&release_group=SH')['items'], ['N6'])
+        self.assertEqual(self.get('release-options?field=role&document_type=PO')['items'], ['ZO:MM:M:PO_REL_ST_E1_ND:ALL'])
+        self.assertEqual(self.get('release-options?field=username&group=GROUP_B')['items'], ['DEMO_ALFA'])
+        self.assertEqual(self.get('release-options?field=document_type&status=all')['items'], ['PO', 'PR', 'Unparsed'])
+        self.assertEqual(self.get('release-options?field=release_group&status=future')['items'], ['SI'])
+        self.assertEqual(self.get('release-options?field=release_group&document_type=Unparsed&status=all')['items'], [])
+
+    def test_release_options_are_guarded_bounded_and_reload_from_current_generation(self):
+        self.assertEqual(self.client.get('/api/access/release-options?field=role').status_code, 403)
+        for params in [dict(field='invalid'), dict(field='role', limit=101), dict(field='role', search='x'*513)]:
+            self.assertEqual(self.client.get('/api/access/release-options', params=params, headers=H).status_code, 422)
+        cache.clear_cache()
+        self.assertEqual(self.get('release-options?field=role')['items'], [])
+        self.client.post('/api/refresh', headers=H).raise_for_status()
+        self.assertTrue(self.get('release-options?field=role')['items'])
+
+    def test_diagnostics_distinguishes_configured_and_loaded_sources_without_exporting_paths(self):
+        local = self.client.get('/api/diagnostics', headers=H).json()
+        sources = {source['id']: source for source in local['sources']}
+        self.assertEqual(sources['roles']['records'], 3)
+        self.assertEqual(sources['users']['records'], 7)
+        self.assertEqual(sources['users']['loaded_path'], str(FIXTURE.resolve()))
+        self.assertTrue(all(source['last_successful_load'] for source in sources.values()))
+        self.assertEqual(sources['users']['availability'], 'available_at_last_load')
+        exported = self.client.get('/api/diagnostics/export', headers=H).json()
+        raw = json.dumps(exported)
+        for private in [str(self.catalogue), str(FIXTURE.resolve()), 'DEMO_ALFA', 'example.invalid', 'configured_path', 'loaded_path', 'attempted_path']:
+            self.assertNotIn(private, raw)
+
+    def test_failed_source_refresh_retains_previous_generation_and_redacts_error(self):
+        old = cache.get_snapshot()
+        candidate = config.get_settings().model_copy(update={'user_csv_path': str(Path(self.temp.name)/'missing-private-users.csv')})
+        config.save_configuration(candidate, candidate.revision)
+        self.assertEqual(self.client.post('/api/refresh', headers=H).status_code, 400)
+        self.assertIs(cache.get_snapshot(), old)
+        sources = {source['id']:source for source in self.client.get('/api/diagnostics', headers=H).json()['sources']}
+        self.assertEqual(sources['users']['availability'], 'missing')
+        self.assertEqual(sources['users']['error'], 'missing')
+        self.assertEqual(sources['users']['loaded_path'], str(FIXTURE.resolve()))
+        self.assertNotEqual(sources['users']['configured_path'], sources['users']['loaded_path'])
+        self.assertIsNone(sources['roles']['error'])
+        raw = json.dumps(self.client.get('/api/diagnostics/export', headers=H).json())
+        self.assertNotIn('missing-private-users.csv', raw)
+        self.assertNotIn(self.temp.name, raw)
+
+    def test_diagnostics_permission_errors_are_static_and_successful_refresh_clears_them(self):
+        with patch('cache.build_users', side_effect=PermissionError('private username and filename must not escape')):
+            self.assertEqual(self.client.post('/api/refresh', headers=H).status_code, 400)
+        sources = self.client.get('/api/diagnostics/export', headers=H).json()['sources']
+        self.assertEqual(sources[1]['error'], 'access_denied')
+        self.assertNotIn('private username', json.dumps(sources))
+        self.client.post('/api/refresh', headers=H).raise_for_status()
+        self.assertIsNone(self.client.get('/api/diagnostics', headers=H).json()['sources'][1]['error'])
+
+    def test_user_only_diagnostics_does_not_claim_a_catalogue_was_loaded(self):
+        candidate = config.get_settings().model_copy(update={'data_csv_path': ''})
+        config.save_configuration(candidate, candidate.revision)
+        self.client.post('/api/refresh', headers=H).raise_for_status()
+        sources = self.client.get('/api/diagnostics', headers=H).json()['sources']
+        self.assertFalse(sources[0]['configured'])
+        self.assertFalse(sources[0]['loaded'])
+        self.assertIsNone(sources[0]['last_successful_load'])
+        self.assertTrue(sources[1]['loaded'])
+        self.assertEqual(sources[1]['records'], 7)
+
     def test_directory_identity_duplicate_intervals_groups_and_optional_fields(self):
         state = cache.get_snapshot().users
         self.assertEqual(len(state.users), 7)

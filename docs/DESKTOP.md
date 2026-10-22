@@ -161,3 +161,30 @@ Use an actually available, approved SMB share; a mocked picker or a string such 
 production exports or personal user data are required. Record only sanitized
 screenshots/results. A CI smoke pass establishes its explicit lifecycle assertions;
 it does not establish mouse/keyboard/native-dialog/SMB acceptance in this table.
+
+### Navigation handoff and Back/Forward validation
+
+The desktop starter now uses `window.location.replace(...)` after backend identity
+and readiness verification, replacing the temporary startup document rather than
+adding it behind the application. The capability remains in the launch fragment
+and is removed by the existing frontend session handling; it is never logged.
+Browser-rendered startup/handoff tests exercise the actual authored startup HTML.
+The Python lifecycle tests mock only the GUI boundary and verify the replacement
+script, owned server shutdown and session checks.
+
+The frontend maintains meaningful application history without full page reloads.
+A boundary entry represents the first actual app view, not the startup screen.
+Back at that boundary returns forward to the first view; all ordinary internal
+Back/Forward traversal stays enabled. The boundary is established once per app
+entry and survives reload without accumulating entries. This also prevents the
+first mouse Back from falling into an empty initial WebView document. Connection
+failures retain the current application with a retry banner; CSV loading is
+contextual and does not reinitialize the desktop service.
+
+Native Windows acceptance remains pending: verify mouse XButton1/XButton2 and
+Alt+Left/Right through lists, details, Settings, comparison and the first app view;
+confirm no bootstrap flash, new backend instance, unexpected page reload or
+history loop. Also verify native CSV/logo dialogs, real permitted UNC reads,
+WebView2 popup positioning and packaged first launch/restart/port-conflict smoke
+tests. Linux Chromium and Python GUI mocks are not native WebView2 validation.
+No Windows artifact or remote workflow was built for this local UI task.

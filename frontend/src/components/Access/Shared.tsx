@@ -29,6 +29,7 @@ export function Pagination({
   onChange: (n: number) => void;
   label: string;
 }) {
+  if (total <= limit) return null;
   return (
     <nav
       aria-label={label}

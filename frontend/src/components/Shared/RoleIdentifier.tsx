@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, Copy } from 'lucide-react'
+import { Check, Copy, ArrowUpRight } from 'lucide-react'
 
 export function RoleIdentifier({ value, label = 'role identifier', onOpen, openLabel }: { value: string; label?: string; onOpen?: () => void; openLabel?: string }) {
   const [message, setMessage] = useState('')
@@ -11,7 +11,7 @@ export function RoleIdentifier({ value, label = 'role identifier', onOpen, openL
       data-np
       onClick={(e) => e.stopPropagation()}
     >
-      {onOpen ? <button className="role-identifier-link" aria-label={openLabel || `Open ${value}`} onClick={onOpen}><code>{value}</code></button> : <code>{value}</code>}
+      {onOpen ? <button className="role-identifier-link" aria-label={openLabel || `Open ${value}`} onClick={onOpen}><code>{value}</code><ArrowUpRight size={14} aria-hidden="true" className="shrink-0"/></button> : <code>{value}</code>}
       <button
         type="button"
         aria-label={`Copy ${label} ${value}`}

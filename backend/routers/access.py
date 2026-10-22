@@ -218,6 +218,47 @@ def user_detail(
     )
 
 
+@router.get("/release-options")
+def release_options(
+    field: Literal["group", "document_type", "release_group", "strategy", "username", "role"],
+    search: str = Query("", max_length=512),
+    selected: str = Query("", max_length=512),
+    group: str = Query("", max_length=100),
+    document_type: str = Query("", max_length=20),
+    release_group: str = Query("", max_length=100),
+    strategy: str = Query("", max_length=100),
+    status: Literal["active", "expired", "future", "unknown", "all"] = "active",
+    limit: int = Query(50, ge=1, le=100),
+):
+    """Hierarchical facets. A child never restricts its own or an ancestor's options.
+
+    Group -> document type -> release group -> strategy -> username / role.
+    Username and role are sibling substring filters, not mutual dependencies.
+    Values are bounded in transit; all matching records contribute, not one page.
+    """
+    rank = {"group": 0, "document_type": 1, "release_group": 2, "strategy": 3, "username": 4, "role": 4}[field]
+    values = set()
+    for a in cache.get_snapshot().users.assignments:
+        if a["scope"] != "release" or not relevant(a, "" if status == "all" else status, True):
+            continue
+        release = a["release"]
+        kind = release["document_type"] or "Unparsed"
+        if rank > 0 and group and a["user_group"] != group: continue
+        if rank > 1 and document_type and kind != document_type: continue
+        if rank > 2 and release_group and release["release_group"] != release_group: continue
+        if rank > 3 and strategy and release["release_strategy"] != strategy: continue
+        value = {"group": a["user_group"], "document_type": kind,
+                 "release_group": release["release_group"], "strategy": release["release_strategy"],
+                 "username": a["username"], "role": a["role_name"]}[field]
+        if value: values.add(value)
+    matches = sorted((v for v in values if search.casefold() in v.casefold()), key=lambda v: (v.casefold(), v))
+    # Username/role retain existing substring semantics for manually typed filters.
+    available = not selected or (any(selected.casefold() in v.casefold() for v in values)
+                                if field in {"username", "role"} else selected in values)
+    return dict(items=matches[:limit], total=len(matches), has_more=len(matches) > limit,
+                selected_available=available)
+
+
 @router.get("/releases")
 def releases(
     anchor: str = Query("", max_length=512),

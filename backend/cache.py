@@ -25,6 +25,7 @@ class _CacheState:
     import_report: dict = field(default_factory=dict)
     analysis: dict = field(default_factory=dict)
     users: UserState = field(default_factory=UserState)
+    loaded_sources: dict[str, str] = field(default_factory=dict)
 
 
 _cache = _CacheState()
@@ -117,10 +118,19 @@ def build_cache(path=None, configuration=None):
     catalogue_path = path if path is not None else settings.data_csv_path
     if not catalogue_path and not settings.user_csv_path:
         raise ValueError('Choose a role catalogue or user access CSV in Settings.')
-    state = _build_catalog(catalogue_path, settings) if catalogue_path else _CacheState(last_loaded=datetime.now(timezone.utc))
+    def read_source(kind, operation):
+        try: return operation()
+        except Exception as error:
+            # Static source identity only; no source data enters logs or public reports.
+            error.sap_lens_source = kind
+            raise
+    state = read_source('roles', lambda: _build_catalog(catalogue_path, settings)) if catalogue_path else _CacheState(last_loaded=datetime.now(timezone.utc))
+    if catalogue_path: state.loaded_sources['roles'] = catalogue_path
     if settings.user_csv_path:
         profile = next(p for p in settings.user_import_profiles if p.id == settings.active_user_import)
-        state.users = build_users(settings.user_csv_path, profile, state.roles)
+        state.users = read_source('users', lambda: build_users(settings.user_csv_path, profile, state.roles))
+        state.loaded_sources['users'] = settings.user_csv_path
+    state.last_loaded = datetime.now(timezone.utc)
     return state
 
 

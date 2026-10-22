@@ -2,10 +2,10 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, ChevronDown, ChevronUp, Search } from 'lucide-react'
 
-/** Local options only. Portal positioning avoids table/settings scroll clipping. */
-export function Combobox({ value, options, onChange, label, placeholder = 'All', disabled = false, allowCustom = true, clearLabel = 'All', id }: {
+/** Bounded local or server-backed options; portal avoids scroll-container clipping. */
+export function Combobox({ value, options, onChange, label, placeholder = 'All', disabled = false, allowCustom = true, clearLabel = 'All', id, onSearch, hasMore = false, loading = false, maxLength = 512 }: {
   value: string; options: string[]; onChange: (value: string) => void; label: string;
-  placeholder?: string; disabled?: boolean; allowCustom?: boolean; clearLabel?: string; id?: string;
+  placeholder?: string; disabled?: boolean; allowCustom?: boolean; clearLabel?: string; id?: string; onSearch?: (query: string) => void; hasMore?: boolean; loading?: boolean; maxLength?: number;
 }) {
   const uid = useId(), listId = `${uid}-list`
   const anchor = useRef<HTMLDivElement>(null), popup = useRef<HTMLDivElement>(null), input = useRef<HTMLInputElement>(null)
@@ -35,14 +35,19 @@ export function Combobox({ value, options, onChange, label, placeholder = 'All',
   useEffect(() => { if (open && query === null) setIndex(Math.max(0, choices.indexOf(value))) }, [open, value, JSON.stringify(options), query])
   useEffect(() => { document.getElementById(`${uid}-option-${index}`)?.scrollIntoView({ block: 'nearest' }) }, [index, uid, open])
   useEffect(() => { if (disabled) close() }, [disabled])
+  useEffect(() => {
+    const dismiss = () => close()
+    window.addEventListener('popstate', dismiss)
+    return () => window.removeEventListener('popstate', dismiss)
+  }, [])
   return <div className="combobox-anchor" ref={anchor}>
     <Search size={15} aria-hidden="true" className="combobox-search"/>
     <input id={id} ref={input} role="combobox" aria-label={label} aria-expanded={open} aria-controls={open ? listId : undefined}
       aria-autocomplete="list" aria-activedescendant={open && choices[index] !== undefined ? `${uid}-option-${index}` : undefined}
-      autoComplete="off" spellCheck={false} disabled={disabled} placeholder={placeholder} value={query ?? value} maxLength={512}
-      onClick={() => { if (!disabled) { setOpen(true); setIndex(Math.max(0, choices.indexOf(value))) } }}
-      onFocus={() => { if (!disabled) { setOpen(true); setIndex(Math.max(0, choices.indexOf(value))) } }}
-      onChange={event => { setOpen(true); setIndex(0); setQuery(event.target.value); if (allowCustom) onChange(event.target.value) }}
+      autoComplete="off" spellCheck={false} disabled={disabled} placeholder={placeholder} value={query ?? value} maxLength={maxLength}
+      onClick={() => { if (!disabled) { setOpen(true); if (!open) onSearch?.(''); setIndex(Math.max(0, choices.indexOf(value))) } }}
+      onFocus={() => { if (!disabled) { setOpen(true); if (!open) onSearch?.(''); setIndex(Math.max(0, choices.indexOf(value))) } }}
+      onChange={event => { setOpen(true); setIndex(0); setQuery(event.target.value); onSearch?.(event.target.value); if (allowCustom) onChange(event.target.value) }}
       onBlur={event => { if (!anchor.current?.contains(event.relatedTarget as Node)) close() }}
       onKeyDown={event => {
         if (event.key === 'Escape') { event.preventDefault(); close() }
@@ -59,7 +64,9 @@ export function Combobox({ value, options, onChange, label, placeholder = 'All',
           className={`combobox-option ${i === index ? 'highlighted' : ''}`} onMouseMove={() => setIndex(i)} onClick={() => choose(option)}>
           <span>{option || clearLabel}</span>{option === value && <Check size={16} aria-hidden="true"/>}
         </div>)}
-        {!choices.length && <p className="p-3 text-sm text-[var(--muted)]">No matching options{allowCustom ? '; the typed filter is retained.' : '.'}</p>}
+        {loading && <p role="status" className="p-3 text-sm text-[var(--muted)]">Searching available values…</p>}
+        {hasMore && <p className="p-3 text-sm text-[var(--muted)]">Showing the first {options.length} values. Type to narrow the options.</p>}
+        {!choices.length && !loading && <p className="p-3 text-sm text-[var(--muted)]">No matching options{allowCustom ? '; the typed filter is retained.' : '.'}</p>}
       </div>
     </div>, document.body)}
   </div>

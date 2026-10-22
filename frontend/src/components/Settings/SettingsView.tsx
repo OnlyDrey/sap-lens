@@ -1,3 +1,4 @@
+import { ImportSection } from './ImportSection'
 import { SourceStatus } from "./SourceStatus"
 import { Combobox } from "@/components/Shared/Combobox"
 import { SettingsSelect } from './Controls'
@@ -15,7 +16,6 @@ import {
   Activity,
   CheckCircle,
   X,
-  FileText,
   FolderOpen
 } from 'lucide-react'
 import { ModuleEditor } from './ModuleEditor'
@@ -724,22 +724,7 @@ export function SettingsView({
                         <UserSourceEditor draft={draft} onChange={setDraft} native={native} active={importSource === 'users'} />
                       </div>
                       <div id="source-panel-roles" role="tabpanel" aria-labelledby="source-tab-roles" hidden={importSource !== 'roles'} className="import-source-panel space-y-4">
-                      <div className="settings-file-summary">
-                        <FileText
-                          size={25}
-                          className="shrink-0 text-[var(--accent2)]"
-                        />
-                        <div className="min-w-0">
-                          <p className="font-semibold truncate">
-                            {draft.data_csv_path.split(/[\\/]/).pop() ||
-                              'Choose a role export'}
-                          </p>
-                          <p className="text-xs text-[var(--muted)] break-all">
-                            {draft.data_csv_path || 'No file selected'}
-                          </p>
-                        </div>
-                      </div>
-                      <h2 className="settings-subheading">Role catalogue CSV</h2>
+                      <ImportSection step={1} title="Source file" description="Role catalogue · composite roles, single roles and transaction relationships.">
                       <div className="source-file-row">
                       <Field label="CSV file location">
                         <input
@@ -764,14 +749,15 @@ export function SettingsView({
                         <FolderOpen size={16} aria-hidden="true"/> Browse for CSV…
                       </button>
                       </div>
-                      <SourceStatus savedPath={config.data?.settings.data_csv_path || ''} validated={Boolean(importResult)}/>
+                      <SourceStatus savedPath={config.data?.settings.data_csv_path || ''} draftPath={draft.data_csv_path} validated={Boolean(importResult)} inspecting={inspecting}/>
                       {config.data?.error && (
                         <p className="text-[var(--warning)] text-sm">
                           {config.data.error}
                         </p>
                       )}
-                      <h2 className="settings-subheading">CSV Import Format</h2>
-                      <div className="flex flex-wrap gap-2 items-end">
+                      </ImportSection>
+                      <ImportSection step={2} title="CSV Import Format" description="Choose a built-in format or create a reusable custom preset.">
+                      <div className="import-preset-toolbar">
                         <Field label="CSV Import Format">
                           <SettingsSelect
                             className={inputClass}
@@ -837,6 +823,8 @@ export function SettingsView({
                         </Field>
                       </div>
                       </details>
+                      </ImportSection>
+                      <ImportSection step={3} title="Column mapping" description="Columns are inspected automatically. Manual mappings are preserved.">
                       <p role="status" className="text-sm text-[var(--text2)]">
                         {inspecting
                           ? 'Inspecting columns and updating the preview…'
@@ -849,13 +837,12 @@ export function SettingsView({
                       >
                         Detect columns
                       </button>
-                      <h2 className="settings-subheading">Column mapping</h2>
                       <p className="text-xs">
                         AGR_NAME is required. Other fields are optional with
                         warnings; preserve parent/effective fields when present.
                         Blank mappings auto-detect standard headers.
                       </p>
-                      <div className="grid sm:grid-cols-3 gap-3">
+                      <div className="import-mapping-grid">
                         {fields.map((field) => (
                           <Field
                             key={field}
@@ -877,6 +864,8 @@ export function SettingsView({
                           </Field>
                         ))}
                       </div>
+                      </ImportSection>
+                      <ImportSection step={4} title="Validation & preview" description="Review the parsed data before applying both sources together.">
                       <button
                         className={buttonClass}
                         disabled={busy || !draft.data_csv_path}
@@ -936,6 +925,7 @@ export function SettingsView({
                           </table>
                         </Result>
                       )}
+                      </ImportSection>
                       </div>
                     </>
                   )}
@@ -977,7 +967,7 @@ export function SettingsView({
                         PNG/JPEG/WebP up to 2 MB and 4096 pixels per side; SVG
                         is rejected.
                       </p>
-                      <img
+                      <div className="branding-logo-preview"><img
                         alt="Header logo preview"
                         src={
                           draft.logo_id
@@ -992,6 +982,7 @@ export function SettingsView({
                             e.currentTarget.src = '/sap-lens.png'
                         }}
                       />
+                      </div>
                       {logo.isError && (
                         <p
                           role="status"
@@ -1008,6 +999,7 @@ export function SettingsView({
                           onChange={(e) => setLogoPath(e.target.value)}
                         />
                       </Field>
+                      <div className="branding-actions">
                       <button
                         className={buttonClass}
                         disabled={
@@ -1043,14 +1035,16 @@ export function SettingsView({
                       </button>
                       <button
                         className={buttonClass}
+                        aria-label="Remove custom logo / restore SAP Lens default"
+                        title="Remove custom logo and restore the SAP Lens default"
                         onClick={() => {
                           update('logo_id', null)
                           setLogoPreview(null)
                         }}
                       >
-                        <RotateCcw size={16} aria-hidden="true" /> Remove custom
-                        logo / restore SAP Lens default
+                        <RotateCcw size={16} aria-hidden="true" /> Restore default
                       </button>
+                      </div>
                       <p className="text-xs">
                         Previewed files are copied into managed local storage.
                         Apply settings to activate the logo; moving the original

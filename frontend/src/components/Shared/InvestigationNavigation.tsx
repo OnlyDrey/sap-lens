@@ -1,3 +1,4 @@
+import type { ButtonHTMLAttributes } from 'react'
 import { useEffect, useRef } from 'react'
 import { ArrowLeft, ArrowRight, ChevronRight } from 'lucide-react'
 
@@ -27,6 +28,14 @@ export function DetailNavigation({ parent, current, onBack, index = -1, total = 
 }
 
 export function EvidenceBadge({ value }: { value: string }) {
-  const tone = value === 'active' ? 'success' : value === 'expired' ? 'error' : value === 'future' ? 'info' : 'neutral'
+  const tone = value === 'active' ? 'success' : value === 'expired' ? 'error' : value === 'future' ? 'info' : value === 'Locked' ? 'warning' : 'neutral'
   return <span className={`evidence-badge evidence-${tone}`}>{value === 'active' ? 'Currently valid' : value === 'unmapped' ? 'Unmapped' : value}</span>
+}
+
+export function AccountEvidence({ status, lock }: { status: string; lock: string }) {
+  return <div className="account-evidence"><div aria-label="Account validity">{status.split('/').map(value => <EvidenceBadge key={value} value={value}/>)}</div><div aria-label="Account lock"><EvidenceBadge value={lock}/></div></div>
+}
+
+export function DetailButton({ children, className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
+  return <button {...props} className={`detail-button ${className}`}>{children}<ArrowRight size={14} aria-hidden="true"/></button>
 }

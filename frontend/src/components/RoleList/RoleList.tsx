@@ -258,7 +258,7 @@ export function RoleList({
             },
             {
               label:'Enabled areas',
-              value:moduleGroups.length.toString(),
+              value:moduleGroups.length.toLocaleString(),
               color:'var(--accent2)',
               Icon:LayoutGrid
             },
@@ -292,7 +292,7 @@ export function RoleList({
                   {value}
                 </p>
                 <p
-                  className="text-[10px] font-medium mt-0.5"
+                  className="text-xs font-medium mt-0.5"
                   style={{ color:'var(--muted)' }}
                 >
                   {label}

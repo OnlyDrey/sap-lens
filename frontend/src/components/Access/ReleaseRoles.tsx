@@ -1,6 +1,8 @@
+import { useHistoryValue, type ReleaseDrill } from '@/hooks/useViewHistory';
+import { List, Grid3X3 } from 'lucide-react';
 import { useRecordNavigation, type RecordNavigationState } from "@/hooks/useRecordNavigation";
-import { DetailNavigation, EvidenceBadge } from "@/components/Shared/InvestigationNavigation";
-import { Combobox } from "@/components/Shared/Combobox";
+import { DetailNavigation, EvidenceBadge, AccountEvidence, DetailButton } from "@/components/Shared/InvestigationNavigation";
+import { ReleaseFilter } from "./ReleaseFilter";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -20,17 +22,7 @@ import {
   QueryState,
 } from "./Shared";
 
-type Drill = {
-  status?: string;
-  username?: string;
-  role_search?: string;
-  ungrouped?: boolean;
-  role?: string;
-  group?: string;
-  document_type?: string;
-  release_group?: string;
-  strategy?: string;
-};
+type Drill = ReleaseDrill;
 export function ReleaseRoles({
   initialRole = "",
   onUser,
@@ -55,9 +47,7 @@ export function ReleaseRoles({
     [matrixOffset, setMatrixOffset] = useState(0),
     [compareGroups, setCompareGroups] = useState(false),
     [offset, setOffset] = useState(0),
-    [drill, setDrill] = useState<Drill | null>(
-      initialRole ? { role: initialRole, status: "all" } : null,
-    );
+    [drill, setDrill] = useHistoryValue('release');
   const [query, setQuery] = useState({ username: "", role: "" });
   useEffect(() => {
     const t = setTimeout(() => setQuery(previous => previous.username === username && previous.role === role ? previous : { username, role }), 250);
@@ -134,63 +124,16 @@ export function ReleaseRoles({
         naming tokens; no release-authority meaning is assumed.
       </p>
       <EvidenceNote />
-      <div className="investigation-filters">
+      <div className="investigation-filters release-filters">
         <fieldset><legend>Release classification</legend><div className="filter-grid">
-        <Filter label="Release SAP User Group">
-          <Combobox label="Release SAP User Group" value={group} options={result.data?.groups || []} onChange={setGroup} placeholder="All groups; type a group to filter"/>
-        </Filter>
-        <Filter label="PR/PO">
-          <select
-            className={inputClass}
-            value={kind}
-            onChange={(e) => setKind(e.target.value)}
-          >
-            {[
-              ["", "All document types"],
-              ["PR", "Purchase Requisition"],
-              ["PO", "Purchase Order"],
-              ["Unparsed", "Unparsed"],
-            ].map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
-              </option>
-            ))}
-          </select>
-        </Filter>
-        <Filter label="Release Group">
-          <input
-            className={inputClass}
-            maxLength={100}
-            value={releaseGroup}
-            onChange={(e) => setReleaseGroup(e.target.value.toUpperCase())}
-          />
-        </Filter>
-        <Filter label="Release Strategy">
-          <input
-            className={inputClass}
-            maxLength={100}
-            value={strategy}
-            onChange={(e) => setStrategy(e.target.value.toUpperCase())}
-          />
-        </Filter>
+        <ReleaseFilter field="group" label="Release SAP User Group" value={group} onChange={setGroup} context={{ status }}/>
+        <ReleaseFilter field="document_type" label="PR/PO" value={kind} onChange={setKind} context={{ group, status }}/>
+        <ReleaseFilter field="release_group" label="Release Group" value={releaseGroup} onChange={setReleaseGroup} context={{ group, document_type:kind, status }}/>
+        <ReleaseFilter field="strategy" label="Release Strategy" value={strategy} onChange={setStrategy} context={{ group, document_type:kind, release_group:releaseGroup, status }}/>
         </div></fieldset>
         <fieldset><legend>Assignment</legend><div className="filter-grid">
-        <Filter label="Release username">
-          <input
-            className={inputClass}
-            maxLength={512}
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-          />
-        </Filter>
-        <Filter label="Release role name">
-          <input
-            className={inputClass}
-            maxLength={512}
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-          />
-        </Filter>
+        <ReleaseFilter field="username" label="Release username" value={username} onChange={setUsername} context={{ group, document_type:kind, release_group:releaseGroup, strategy, status }}/>
+        <ReleaseFilter field="role" label="Release role name" value={role} onChange={setRole} context={{ group, document_type:kind, release_group:releaseGroup, strategy, status }}/>
         <Filter label="Release assignment status">
           <select
             className={inputClass}
@@ -231,7 +174,7 @@ export function ReleaseRoles({
             ))}
           </select>
         </Filter>
-        <label className="flex items-center gap-2">
+        <label className="filter-toggle">
           <input
             type="checkbox"
             checked={descending}
@@ -241,23 +184,15 @@ export function ReleaseRoles({
         </label>
         </div></fieldset>
       </div>
-      <div className="flex flex-wrap gap-3">
-        <button
-          className="settings-secondary-button"
-          aria-pressed={!matrix}
-          onClick={() => setMatrix(false)}
-        >
-          Table
-        </button>
-        <button
-          className="settings-secondary-button"
-          aria-pressed={matrix}
-          onClick={() => setMatrix(true)}
-        >
-          Matrix
-        </button>
+      {(group || kind || releaseGroup || strategy || username || role || status !== 'active') && <button className="settings-secondary-button" onClick={() => { setGroup(''); setKind(''); setReleaseGroup(''); setStrategy(''); setUsername(''); setRole(''); setStatus('active') }}>Reset filters</button>}
+      <div className="results-toolbar">
+        <h2>Release assignments <span>{result.data?.total.toLocaleString() ?? '…'} {result.data?.total === 1 ? 'role' : 'roles'}</span></h2>
+        <div className="segmented-control" role="group" aria-label="Release results view">
+          <button aria-pressed={!matrix} onClick={() => setMatrix(false)}><List size={16} aria-hidden="true"/>Table</button>
+          <button aria-pressed={matrix} onClick={() => setMatrix(true)}><Grid3X3 size={16} aria-hidden="true"/>Matrix</button>
+        </div>
         {matrix && (
-          <label className="flex items-center gap-2">
+          <label className="filter-toggle">
             <input
               type="checkbox"
               checked={compareGroups}
@@ -290,7 +225,7 @@ export function ReleaseRoles({
           </>
         ) : (
           <>
-            <div className="access-table">
+            <div className="access-table release-directory-table">
               <table>
                 <thead>
                   <tr>
@@ -316,8 +251,7 @@ export function ReleaseRoles({
                       </td>
                       <td>
                         <div className="flex flex-wrap gap-1">{r.statuses.map(status => <EvidenceBadge key={status} value={status}/>)}</div>
-                        <br />
-                        <span className="text-sm text-[var(--muted)]">
+                        <span className="validity-evidence text-sm text-[var(--muted)]">
                           Observed range: {dates(r.valid_from, r.valid_to)}
                           {r.missing_dates ? " · Missing dates present" : ""};
                           inspect individual intervals.
@@ -408,13 +342,12 @@ function ReleaseMatrix({
                           return (
                             <td key={s}>
                               {cell ? (
-                                <button
-                                  className="underline"
+                                <DetailButton
                                   aria-label={`Investigate ${compare ? (group || "Unknown group") + " " : ""}${kind} ${r} ${s}: ${cell.user_count} users`}
                                   onClick={() => onCell(cell)}
                                 >
                                   {cell.user_count}
-                                </button>
+                                </DetailButton>
                               ) : partial ? (
                                 "—"
                               ) : (
@@ -510,24 +443,18 @@ function ReleaseDetail({
                         : "Unparsed"}
                     </td>
                     <td>
-                      <button
-                        className="underline"
+                      <DetailButton
                         onClick={() => onUser(a.username)}
                       >
                         {a.username}
-                      </button>
+                      </DetailButton>
                     </td>
                     <td>{a.user_group || "Unknown"}</td>
                     <td>
                       {dates(a.valid_from, a.valid_to)} <EvidenceBadge value={a.status}/>
                     </td>
                     <td>
-                      {a.account_status} ·{" "}
-                      {a.user_locked === null
-                        ? "Lock unknown"
-                        : a.user_locked
-                          ? "Locked"
-                          : "Unlocked"}
+                      <AccountEvidence status={a.account_status} lock={a.user_locked === null ? 'Lock unknown' : a.user_locked ? 'Locked' : 'Unlocked'}/>
                     </td>
                   </tr>
                 ))}

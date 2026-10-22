@@ -1,5 +1,145 @@
 # UI refinement records
 
+## UI completion and data-aware refinement — 2026-10-22
+
+Baseline: clean `work` at `4267d0d2006968f50947cd37ba3a60f3193fe406`.
+The earlier local commits `893acb9` and `4267d0d` remain in history. Both user
+requests are implemented as one combined refinement; neither supersedes the
+other. The actual current production frontend was built and browser-rendered
+before changes. That baseline already used header navigation, independent import
+tabs and the shared combobox; its remaining layout gaps were confirmed visually.
+There is one frontend entry (`frontend/src/main.tsx` → `App.tsx`) and no duplicate
+rendered page implementation. Tests serve freshly built `frontend/dist` through
+the real isolated backend, not a static design mock or an older executable.
+
+### Implemented changes
+
+| Area | Rendered improvement |
+| --- | --- |
+| Global header | Existing integrated primary navigation retained, with compact icon labels/tooltips; no second content navigation. History now preserves meaningful app destinations and detail traversal. |
+| Import sources | Both tabs use the same numbered Source file / CSV Import Format / Column mapping / Validation & preview cards. File and folder action share a row; compact preset icon toolbar has accessible names, tooltips and built-in protections. Automatic inspection and independent drafts/mappings remain. |
+| Release filters | Shared responsive surface, bounded CSV-driven searchable facets, explicit unavailable-selection warnings, Reset filters and grouped assignment/display controls. Table/Matrix is one segmented selector next to results. |
+| Investigation tables | Larger text, deliberate row padding/widths, distinct role/copy/navigation affordances, singular/plural labels and separate status evidence. Relevant role counts open the supported user details. |
+| User details | Balanced identity and validity/account cards, responsive stacking, lock state presented once for one account; distinct source records retained in expandable evidence. Single-page table pagers removed; global detail navigation preserved. |
+| Role Lookup | Existing module colors and cards retained. The comparison plus remains an actual Add action. Card footers align; statistics use consistent number/label sizing. |
+| Comparison | Readable matrix count/percentage cells are keyboard buttons. Dialog uses native modal focus containment, Escape and explicit focus restoration. Shared rows have a meaningful Layers fallback, readable descriptions and one page scroll; exclusive columns remain side by side with deliberate horizontal overflow. Calculations unchanged. |
+| SAP identifiers | Readable monospace, compact centered copy controls and full wrapping; copy confirmation retains a full row. Navigable identifiers have an arrow separate from their copy button. |
+| Diagnostics | Separate private cards for both configured/loaded sources, counts, load timestamps and static error categories. Export remains allowlisted and path/data-free. Availability describes last-read evidence, never an unperformed live UNC check. |
+| Branding | Padded logo preview, aligned/wrapping action group with icons and shorter visible reset action; upload validation/storage untouched. |
+| Loading/navigation | Native handoff replaces bootstrap history. App Back/Forward has a first-view boundary initialized before configuration/startup rendering and does not reload or start the backend. Initial setup, contextual CSV loading and a service-unavailable retry banner are distinct. |
+
+[Facet behavior and investigation semantics](ACCESS_INVESTIGATION.md#data-aware-release-filters-and-navigation),
+[API additions](API_REFERENCE.md#get-apiaccessrelease-options) and
+[desktop handoff/native acceptance](DESKTOP.md#navigation-handoff-and-backforward-validation)
+record the architecture and privacy boundaries. No dependency, lockfile,
+classification, CSV schema, persisted configuration schema, README branding,
+canonical asset, packaging format, signing or workflow change belongs to this task.
+
+### Changed files
+
+Exact paths for the combined task (new files included):
+
+```text
+backend/cache.py
+backend/data_loader.py
+backend/desktop.py
+backend/diagnostics.py
+backend/routers/access.py
+backend/tests/test_desktop.py
+backend/tests/test_user_access.py
+docs/ACCESS_INVESTIGATION.md
+docs/API_REFERENCE.md
+docs/DESKTOP.md
+docs/UI_REFINEMENT.md
+frontend/src/App.tsx
+frontend/src/components/Access/ReleaseFilter.tsx
+frontend/src/components/Access/ReleaseRoles.tsx
+frontend/src/components/Access/Shared.tsx
+frontend/src/components/Access/UserAccess.tsx
+frontend/src/components/Layout/AppLayout.tsx
+frontend/src/components/Layout/StartupGate.tsx
+frontend/src/components/RoleComparison/ComparisonView.tsx
+frontend/src/components/RoleList/RoleCard.tsx
+frontend/src/components/RoleList/RoleList.tsx
+frontend/src/components/Settings/Diagnostics.tsx
+frontend/src/components/Settings/ImportPresets.tsx
+frontend/src/components/Settings/ImportSection.tsx
+frontend/src/components/Settings/SettingsView.tsx
+frontend/src/components/Settings/SourceStatus.tsx
+frontend/src/components/Shared/Combobox.tsx
+frontend/src/components/Shared/InvestigationNavigation.tsx
+frontend/src/components/Shared/RoleIdentifier.tsx
+frontend/src/hooks/useViewHistory.tsx
+frontend/src/index.css
+frontend/src/main.tsx
+frontend/tests/access-investigation.spec.ts
+frontend/tests/data-aware-ux.spec.ts
+frontend/tests/desktop.spec.ts
+frontend/tests/global-navigation.spec.ts
+frontend/tests/investigation-ux.spec.ts
+frontend/tests/ux.spec.ts
+```
+
+### Validation and visual evidence
+
+Final complete validation passed against unchanged tracked **and new** source;
+file manifests were compared before/after the run. No test was removed, skipped
+or configured to retry. Backend count increased from 186 to 193; browser count
+from 55 to 66. Intentional UI assertions were updated for fragment routes
+(also explicitly checking capability removal), hidden single-page pagers and
+Tab moving into the next combobox. An earlier run exposed an obsolete empty-
+fragment assertion; the final complete suite passed after correction.
+
+| Executed command/check | Final result |
+| --- | --- |
+| `git diff --check` | Passed |
+| `.venv/bin/python scripts/ci.py lint` | Passed (workflow YAML/schema/expressions) |
+| `.venv/bin/python scripts/check-workflows.py` | Passed (triggers, permissions, concurrency, job/artifact contracts) |
+| PowerShell 7 `-NoProfile -File scripts/check-powershell.ps1` | Passed on Linux (syntax/static guards, not Windows execution) |
+| `npm --prefix frontend ci --cache /workspace/.npm-cache` | Passed |
+| `node scripts/sync-lucide-catalog.mjs --check` | Passed |
+| `npm --prefix frontend run check:types` | Passed |
+| `npm --prefix frontend run build` | Passed; tests served these fresh production assets |
+| `.venv/bin/python -W error::DeprecationWarning -m unittest discover -s backend/tests -v` | **193 passed**, 5.686 seconds |
+| `.venv/bin/python -m pip check` | Passed |
+| Isolated `pip_audit --path /workspace/sap-lens/.venv/lib/python3.12/site-packages --cache-dir /workspace/.pip-audit-cache --progress-spinner off` | No known vulnerabilities in the installed Linux environment |
+| `npm --prefix frontend audit --omit=dev` | Zero production vulnerabilities |
+| `PLAYWRIGHT_EXECUTABLE_PATH=/usr/bin/chromium PATH=/workspace/sap-lens/.venv/bin:$PATH npm --prefix frontend run test:browser -- --reporter=line` | **66 passed**, 2.4 minutes, one worker, zero retries |
+
+The complete npm audit retains seven pre-existing development advisories (five
+high, two moderate); no package or lockfile changed. Environmental pip cache
+ownership and NO_COLOR/FORCE_COLOR notices remain visible. No application Python
+deprecation occurred under strict warnings. Windows-only dependency auditing
+and native executable validation remain pending a Windows runner.
+
+Visual review covered 104 current required-surface captures (26 per theme/width),
+plus three-role comparison/dialog captures in both themes. Four overview sheets
+and same-width before/after comparisons were inspected, with full-size review
+of details, source cards, branding, loading and comparison. Header navigation,
+separate source tabs, popup geometry, readable status/identifiers and intentional
+contained table overflow were verified. Review found and corrected a duplicate
+legacy loading strip. Startup preview now uses a fresh HTML navigation, so the
+real palette script executes under the startup document's CSP; it is not a
+misleading setContent preview inheriting the app's stricter response CSP.
+
+**Implemented and visually verified:** the modified frontend surfaces listed
+above, in light/dark at 1280 and 800 px. **Implemented but not natively verified:**
+the desktop startup replacement and actual mouse Back/Forward inside WebView2.
+**Not performed:** native file dialogs, permitted UNC reads, Windows packaging,
+packaged smoke/PE verification and interactive target-PC acceptance. No requested
+frontend feature was deliberately deferred. Availability is explicitly last-read
+evidence; the diagnostics endpoint intentionally does not probe a possibly
+stalled network share. Existing packaged verification rules are unchanged.
+Screenshots and exact command logs are outside Git in
+`/workspace/sap-lens-dev/ui-completion/`. Baseline and current images cover light
+and dark at 1280×900 and 800×900, including every import stage, Table/Matrix,
+combobox popups, details, comparison, source diagnostics, branding, contextual
+loading and the authored startup document. These are synthetic local fixtures.
+Native Windows/WebView2, actual file dialogs/UNC and a newly packaged executable
+are not available here and remain pending explicit authorization and a Windows
+runner/target PC. No push, remote build, tag or release is authorized/performed.
+
+
 ## Global navigation and desktop readiness — 2026-10-22
 
 Baseline: clean `work` at `893acb90d0fcdbe1ec8170b0ab2a7faad0076111`; the

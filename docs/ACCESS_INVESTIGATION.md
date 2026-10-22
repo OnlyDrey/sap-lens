@@ -320,3 +320,37 @@ location, saved location and the last successful atomic dataset load. The curren
 API does not expose an independently trustworthy loaded path per source, so the
 UI does not invent one. User preview retains its existing aggregate report;
 backend contracts, source data and saved preset schema are unchanged.
+
+## Data-aware release filters and navigation
+
+Release dropdowns use the authenticated, read-only `/api/access/release-options`
+endpoint. Options come from all assignments in the current atomic generation,
+not just the displayed table page. Each response contains at most 50 values by
+default (100 maximum); type to search values outside that first window. Nothing
+is uploaded. Unknown release names remain available as `Unparsed` document type.
+
+Facets have a predictable hierarchy: SAP User Group → PR/PO → Release Group →
+Release Strategy → Username / Role Name. A facet ignores its own selection and
+all descendants; username and role are siblings and do not restrict each other.
+Assignment status applies throughout. This prevents circular dependencies.
+Changing a parent never silently clears a child. An unavailable selection remains
+visible with a warning and can be cleared, changed or removed with **Reset
+filters**. Username and role retain their existing substring matching semantics;
+the other facets retain their exact matching semantics. Refresh invalidates
+options and data together. Matrix and table still use the same evidence filters.
+
+Application destinations now use local fragment routes: `#/role-lookup`,
+`#/user-access`, `#/release-roles`. Back/Forward traverses meaningful destinations,
+user/release details, role panels, comparison and Settings without reloading the
+application. Mounted list views retain filters, sort and pagination. Navigation
+identities are stored in the local window's session history, never in diagnostics,
+API query logs or user settings. Direct route loading works in a window that has
+an authorized session; a fragment is not an authorization mechanism. Source
+refreshes may make an old detail unavailable; existing missing-record handling is
+retained. Single-page evidence collections do not render pagination controls;
+global detail navigation remains separate and crosses list page boundaries.
+
+User details show identity information and account validity in two cards. A
+single source account is presented once. Distinct account evidence remains in an
+expandable collection when multiple records exist, with its own pagination only
+when needed. Summary values never replace conflicting source evidence.

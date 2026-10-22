@@ -1,3 +1,4 @@
+import { ImportSection } from './ImportSection';
 import { SourceStatus } from "./SourceStatus";
 import { useQuery } from "@tanstack/react-query";
 import { fetchConfiguration } from "@/api/configuration";
@@ -72,28 +73,31 @@ export function PresetActions({
     onChange({ ...draft, [key]: [...draft[key], preset], [active]: id });
   };
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="preset-actions">
       <button
         type="button"
-        className={button}
-        title={draft[key].length >= 20 ? "Maximum 20 presets; delete a custom preset first" : undefined}
+        className="settings-secondary-button preset-action"
+        aria-label="Create preset"
+        title={draft[key].length >= 20 ? "Maximum 20 presets; delete a custom preset first" : "Create preset"}
         disabled={draft[key].length >= 20}
         onClick={() => add(false)}
       >
-        <Plus size={16} aria-hidden="true"/> Create preset
+        <Plus size={16} aria-hidden="true"/><span>Create preset</span>
       </button>
       <button
         type="button"
-        className={button}
-        title={draft[key].length >= 20 ? "Maximum 20 presets; delete a custom preset first" : undefined}
+        className="settings-secondary-button preset-action"
+        aria-label="Duplicate preset"
+        title={draft[key].length >= 20 ? "Maximum 20 presets; delete a custom preset first" : "Duplicate preset"}
         disabled={draft[key].length >= 20}
         onClick={() => add(true)}
       >
-        <Copy size={16} aria-hidden="true"/> Duplicate preset
+        <Copy size={16} aria-hidden="true"/><span>Duplicate preset</span>
       </button>
       <button
         type="button"
-        className={button}
+        className="settings-secondary-button preset-action"
+        aria-label="Delete preset"
         title={selected.id === "default" ? "Built-in presets cannot be deleted" : "Delete custom preset; source data is retained"}
         disabled={selected.id === "default"}
         onClick={() => {
@@ -109,7 +113,7 @@ export function PresetActions({
             });
         }}
       >
-        <Trash2 size={16} aria-hidden="true"/> Delete preset
+        <Trash2 size={16} aria-hidden="true"/><span>Delete preset</span>
       </button>
     </div>
   );
@@ -224,11 +228,7 @@ export function UserSourceEditor({
       aria-label="User access CSV configuration"
       className="import-source-panel space-y-4"
     >
-      <h2 className="font-semibold">User Access CSV</h2>
-      <p className="text-sm">
-        Independent from the role catalogue. USERNAME is required; a blank
-        ROLE_NAME retains a directory-only user.
-      </p>
+      <ImportSection step={1} title="Source file" description="User Access · independent directory and assignments. Blank roles retain directory-only users.">
       <div className="source-file-row">
       <label className="block text-sm">
         User CSV file location
@@ -262,7 +262,10 @@ export function UserSourceEditor({
         <FolderOpen size={16} aria-hidden="true"/> Browse for user CSV…
       </button>
       </div>
-<SourceStatus savedPath={configuration?.settings.user_csv_path || ""} validated={Boolean(report)}/>
+<SourceStatus source="users" savedPath={configuration?.settings.user_csv_path || ""} draftPath={draft.user_csv_path} validated={Boolean(report)}/>
+      </ImportSection>
+      <ImportSection step={2} title="CSV Import Format" description="Choose a built-in format or create a reusable custom preset.">
+      <div className="import-preset-toolbar">
       <label className="block text-sm">
         User CSV Import Format
         <SettingsSelect
@@ -280,6 +283,7 @@ export function UserSourceEditor({
         </SettingsSelect>
       </label>
       <PresetActions draft={draft} onChange={onChange} user />
+      </div>
       <label className="block text-sm">
         User import preset name
         <input
@@ -292,6 +296,7 @@ export function UserSourceEditor({
       </label>
       <details className="settings-advanced">
         <summary>Advanced user CSV options</summary>
+        <div className="grid sm:grid-cols-2 gap-3">
         <label>
           Delimiter
           <SettingsSelect
@@ -324,7 +329,10 @@ export function UserSourceEditor({
             ))}
           </SettingsSelect>
         </label>
+        </div>
       </details>
+      </ImportSection>
+      <ImportSection step={3} title="Column mapping" description="Columns are inspected automatically. Manual mappings are preserved.">
       <p role="status" className="text-sm">
         {message}
       </p>
@@ -341,7 +349,7 @@ export function UserSourceEditor({
       >
         Detect user columns
       </button>
-      <div className="grid sm:grid-cols-2 gap-3">
+      <div className="import-mapping-grid">
         {fields.map((field) => (
           <label key={field} className="text-sm">
             {labels[field]}
@@ -352,6 +360,8 @@ export function UserSourceEditor({
           </label>
         ))}
       </div>
+      </ImportSection>
+      <ImportSection step={4} title="Validation & preview" description="Review the parsed data before applying both sources together.">
       <button
         type="button"
         className={button}
@@ -375,6 +385,7 @@ export function UserSourceEditor({
           </p>
         </div>
       )}
+      </ImportSection>
     </section>
   );
 }

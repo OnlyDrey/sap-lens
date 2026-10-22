@@ -271,7 +271,8 @@ def run() -> int:
                                                        'instance_id': identity}), encoding='utf-8')
                 window.evaluate_js(state_script('Loading configuration…'))
                 if closing.is_set(): return
-                window.load_url(f'{origin}/#session={token}')
+                # Replace the bootstrap entry: Back must never revisit initialization.
+                window.evaluate_js('window.location.replace(' + json.dumps(f'{origin}/#session={token}') + ')')
             except Exception:
                 if closing.is_set(): return
                 crashed.set()

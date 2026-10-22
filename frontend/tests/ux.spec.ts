@@ -161,7 +161,7 @@ test('active role loading is explained and a subsequent CSV error opens source r
  let phase='loading'
  await page.route('**/api/configuration',async route=>{const response=await route.fetch();const data=await response.json();await route.fulfill({json:{...data,loading:phase==='loading',error:phase==='error'?'Synthetic data read failed. Choose another file.':null}})})
  await page.goto('/#session=browser-test-session')
- await expect(page.getByRole('heading',{name:'Loading role data…'})).toBeVisible()
+ await expect(page.getByRole('heading',{name:'Loading CSV data…'})).toBeVisible()
  await expect(page.getByRole('button',{name:'Review data source',exact:true})).toBeVisible()
  await page.getByRole('button',{name:'Review data source',exact:true}).click()
  await expect(settings(page)).toBeVisible()

@@ -199,9 +199,8 @@ test("release table matrix distinct counts, group comparison and user drilldown 
   await page
     .getByRole("combobox", { name: "Release assignment status", exact: true })
     .selectOption("all");
-  await page
-    .getByRole("combobox", { name: "PR/PO", exact: true })
-    .selectOption("Unparsed");
+  await page.getByRole("combobox", { name: "PR/PO", exact: true }).fill("Unparsed");
+  await page.getByRole("option", { name: "Unparsed", exact: true }).click();
   await expect(release).toContainText("ZO:UNKNOWN");
   await expect(release).toContainText("Unparsed");
 });

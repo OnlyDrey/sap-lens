@@ -44,7 +44,7 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
             ? '0 0 0 3px color-mix(in srgb, var(--accent) 8%, transparent)'
             : '0 1px 3px rgba(0,0,0,0.06)',
       }}>
-      <div className="flex flex-col gap-2.5">
+      <div className="flex flex-col gap-2.5 flex-1">
 
         {/* Top row: module label + add button */}
         <div className="flex items-start justify-between gap-2">
@@ -99,7 +99,7 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
         )}
 
         {/* Stats row: single roles | T-codes | View details */}
-        <div className="flex flex-wrap items-center gap-2.5 pt-3"
+        <div className="flex flex-wrap items-center gap-2.5 pt-3 mt-auto"
           style={{ borderTop:'1px solid var(--border)' }}>
 
           {hasSR && (

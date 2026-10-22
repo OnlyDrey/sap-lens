@@ -154,8 +154,6 @@ test('a removed last-page record disables traversal and clamps an obsolete origi
   await expect(page.getByText('This record is missing or no longer matches these filters.', { exact: false })).toBeVisible()
   await expect(page.getByRole('navigation', { name: 'Detail records' })).toHaveCount(0)
   await page.getByRole('button', { name: 'Back to users', exact: true }).click()
-  await expect(pages).toContainText('1–1 of 1')
-  await expect(pages.getByRole('button', { name: 'Previous', exact: true })).toBeDisabled()
-  await expect(pages.getByRole('button', { name: 'Next', exact: true })).toBeDisabled()
+  await expect(pages).toHaveCount(0) // single-page evidence has no pager
   await expect(list.getByRole('button', { name: user(0), exact: true })).toBeVisible()
 })
