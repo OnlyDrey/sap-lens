@@ -287,10 +287,16 @@ The application header owns Role Lookup, User Access and Release Roles navigatio
 Narrow windows show the same destinations as accessible icon buttons. Settings
 remains separate. Already visited views retain search, filter, sorting, pagination
 and detail state; explicit cross-page evidence investigations start the requested
-query. Breadcrumbs return to the originating list. Previous/Next uses the current
-filtered, sorted result page only, labels that scope explicitly, and disables its
-boundaries. It never silently traverses unrelated records or fetches an unfiltered
-list. Use list pagination to investigate another result page.
+query. Breadcrumbs return to the originating list. Previous/Next uses the entire filtered, sorted result set, including page
+boundaries, with a global position such as 51 of 125. The server resolves the
+current identity against the same list ordering and returns only its position and
+neighbour identities; the frontend does not download all matches. First/last
+boundaries are disabled. Returning to the list retains its originating page,
+filters, sorting and scroll position; a page made obsolete by a refreshed dataset
+is clamped to the last valid page. Direct cross-page investigations resolve their
+position independently of the loaded table page. Removed or no-longer-matching
+records show an explanation and disable traversal instead of substituting another
+record. Navigation errors never enable stale neighbour actions.
 
 User details has one assignment-status selector: All non-expired (the previous
 default), Currently valid, Expired, Future, Unknown validity, or All assignments.

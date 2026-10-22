@@ -1,6 +1,7 @@
+import { useRecordNavigation, type RecordNavigationState } from "@/hooks/useRecordNavigation";
 import { DetailNavigation, EvidenceBadge } from "@/components/Shared/InvestigationNavigation";
 import { Combobox } from "@/components/Shared/Combobox";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   accessQuery,
@@ -33,7 +34,9 @@ export function UserAccess({
   onRelease: (role: string) => void;
 }) {
   const listScroll = useRef(0);
-  const openUser = (username: string) => { listScroll.current = window.scrollY; setSelected(username) };
+  const originUser = useRef(initialUser || "");
+  const restoreList = useRef(false);
+  const openUser = (username: string) => { listScroll.current = window.scrollY; originUser.current = username; setSelected(username) };
   const [search, setSearch] = useState(""),
     [sort, setSort] = useState("username"),
     [descending, setDescending] = useState(false);
@@ -51,6 +54,8 @@ export function UserAccess({
   useEffect(() => {
     setOffset(0);
   }, [term, group, sort, descending, role, tcode, expired]);
+  const filters = { search: term, group, sort, descending, role, tcode, show_expired: expired };
+  const navigation = useRecordNavigation('users', filters, selected, setSelected);
   const result = useQuery({
     queryKey: [
       "access-users",
@@ -64,31 +69,33 @@ export function UserAccess({
       expired,
     ],
     queryFn: () =>
-      accessQuery<Page<UserRow>>("users", {
-        search: term,
-        group,
-        sort,
-        descending,
-        role,
-        tcode,
-        offset,
-        show_expired: expired,
-      }),
+      accessQuery<Page<UserRow>>("users", { ...filters, offset }),
   });
+  useEffect(() => {
+    if (!result.data || result.isFetching) return;
+    const limit = result.data.limit;
+    const last = Math.max(0, Math.floor((result.data.total - 1) / limit) * limit);
+    if (offset > last) setOffset(last);
+  }, [result.data, result.isFetching, offset]);
+  useLayoutEffect(() => {
+    if (selected || !restoreList.current || !result.data || result.isFetching) return;
+    const frame = requestAnimationFrame(() => {
+      restoreList.current = false;
+      const buttons = [...document.querySelectorAll<HTMLButtonElement>('[data-user]')];
+      const original = buttons.find(button => button.dataset.user === originUser.current) || buttons[0];
+      original?.focus({ preventScroll: true });
+      window.scrollTo(0, listScroll.current);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [selected, result.data, result.isFetching]);
   if (selected)
     return (
       <UserDetails
         username={selected}
-        onBack={() => { const previous = selected; setSelected(""); requestAnimationFrame(() => {
-          const button = [...document.querySelectorAll<HTMLButtonElement>('[data-user]')].find(button => button.dataset.user === previous);
-          button?.focus({ preventScroll: true }); window.scrollTo(0, listScroll.current)
-        }) }}
+        onBack={() => { restoreList.current = true; setSelected("") }}
         onRole={onRole}
         onRelease={onRelease}
-        index={result.data?.items.findIndex(user => user.username === selected) ?? -1}
-        total={result.data?.items.length || 0}
-        onSelect={setSelected}
-        usernames={result.data?.items.map(user => user.username) || []}
+        navigation={navigation}
       />
     );
   return (
@@ -243,9 +250,9 @@ function UserDetails({
   onBack,
   onRole,
   onRelease,
-  index, total, onSelect, usernames,
+  navigation,
 }: {
-  index: number; total: number; onSelect: (name: string) => void; usernames: string[];
+  navigation: RecordNavigationState;
   username: string;
   onBack: () => void;
   onRole: (role: string) => void;
@@ -281,12 +288,10 @@ function UserDetails({
         email_offset: emailOffset,
       }),
   });
-  const user = result.data;
+  const user = result.isError ? undefined : result.data;
   return (
     <section aria-label="User details" className="space-y-4">
-      <DetailNavigation parent="User Access" current={username} onBack={onBack} index={index} total={total}
-        onPrevious={index > 0 ? () => onSelect(usernames[index - 1]) : undefined}
-        onNext={index >= 0 && index < total - 1 ? () => onSelect(usernames[index + 1]) : undefined}/>
+      <DetailNavigation parent="User Access" current={username} onBack={onBack} {...navigation}/>
       <h1 className="text-xl font-semibold">User details</h1>
       <RoleIdentifier value={username} label="username" />
       <QueryState loading={result.isLoading} error={result.error} />

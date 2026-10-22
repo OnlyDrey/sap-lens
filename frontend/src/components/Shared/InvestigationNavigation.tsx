@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react'
 import { ArrowLeft, ArrowRight, ChevronRight } from 'lucide-react'
 
-/** Position is deliberately limited to the current filtered, sorted result page. */
-export function DetailNavigation({ parent, current, onBack, index = -1, total = 0, onPrevious, onNext }: {
+/** Global position and neighbours come from the same server-side list ordering. */
+export function DetailNavigation({ parent, current, onBack, index = -1, total = 0, onPrevious, onNext, loading = false, error = null, missing = false }: {
+  loading?: boolean; error?: Error | null; missing?: boolean;
   parent: string; current: string; onBack: () => void; index?: number; total?: number;
   onPrevious?: () => void; onNext?: () => void;
 }) {
@@ -14,9 +15,12 @@ export function DetailNavigation({ parent, current, onBack, index = -1, total = 
       <ChevronRight size={16} aria-hidden="true" className="shrink-0"/>
       <span ref={focus} tabIndex={-1} aria-current="page" className="truncate" title={current}>{current}</span>
     </nav>
+    {loading && <p role="status" className="text-sm">Locating record in filtered results…</p>}
+    {error && <p role="alert" className="text-sm text-[var(--error)]">Record navigation unavailable. {error.message}</p>}
+    {missing && <p role="status" className="text-sm">This record is missing or no longer matches these filters. Return to the list to review the current results.</p>}
     {index >= 0 && total > 0 && <nav aria-label="Detail records" className="flex gap-2 items-center text-sm">
       <button className="settings-secondary-button" disabled={!onPrevious || index === 0} onClick={onPrevious}><ArrowLeft size={16} aria-hidden="true"/>Previous</button>
-      <span className="whitespace-nowrap">{index + 1} of {total} on this page</span>
+      <span className="whitespace-nowrap">{index + 1} of {total} in filtered results</span>
       <button className="settings-secondary-button" disabled={!onNext || index >= total - 1} onClick={onNext}>Next<ArrowRight size={16} aria-hidden="true"/></button>
     </nav>}
   </div>

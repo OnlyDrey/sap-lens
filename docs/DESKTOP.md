@@ -105,3 +105,59 @@ log. Check profile permissions and endpoint quarantine events with IT. Missing
 WebView2 has an explicit prerequisite message; CSV or network-share failures are
 handled through Settings. Signing may help establish publisher identity but does
 not guarantee downloads, SmartScreen reputation or permission to execute.
+
+## Candidate native desktop QA
+
+The global-navigation candidate requires a **newly packaged** EXE on real Windows.
+Linux Chromium and mocked native APIs are useful regressions, not WebView2 or UNC
+acceptance. Until this checklist is completed, native release readiness is pending.
+
+After explicit approval, push the reviewed candidate and run one manual
+**Build Windows Application**, mode `build`, base version `0.1.0`, packaging
+benchmark/cold cache false. This creates a development artifact only: no tag or
+GitHub Release. Record commit/run/artifact ID, displayed/full and numeric version,
+EXE/ZIP SHA-256, PE/privacy/roundtrip results and first/relaunch/port-conflict smoke
+results. Download that exact verified artifact onto a supported Windows x64 PC.
+Do not use an older beta EXE to sign off the new UI.
+
+Prepare a disposable synthetic dataset outside the checkout (PowerShell):
+
+```powershell
+$qaPath = Join-Path $env:TEMP ('sap-lens-qa-' + [guid]::NewGuid())
+New-Item -ItemType Directory -Path $qaPath | Out-Null
+$csvRows = [System.Collections.Generic.List[string]]::new()
+$csvRows.Add('USERNAME,ROLE_NAME,USER_GROUP,USER_VALID_FROM,USER_VALID_TO,ROLE_VALID_FROM,ROLE_VALID_TO,USER_LOCKED')
+0..124 | ForEach-Object {
+    $qaUser = 'DEMO_{0:D3}' -f $_
+    $qaRole = 'ZO:MM:M:PR_REL_ST_G{0:D3}_N6:ALL' -f $_
+    $csvRows.Add("$qaUser,$qaRole,GROUP_QA,20000101,99991231,20000101,99991231,0")
+    $csvRows.Add("$qaUser,ZC:DEMO:BUSINESS,GROUP_QA,20000101,99991231,20000101,99991231,0")
+}
+$csvRows | Set-Content -LiteralPath (Join-Path $qaPath 'users.csv') -Encoding utf8
+@('FUNCTION_KEY,AGR_NAME,CHILD_AGR,TCODE', 'MM,ZC:DEMO:*,ZS:DEMO,ME23N') |
+    Set-Content -LiteralPath (Join-Path $qaPath 'roles.csv') -Encoding utf8
+```
+
+Run with isolated QA settings; preserve the tester's existing settings/data.
+Record Windows/WebView2 versions, DPI and window dimensions, and pass/fail evidence
+for each row. All rows below remain pending until performed on the target PC.
+
+| Area | Native acceptance |
+| --- | --- |
+| Startup/lifecycle | Explorer launch has no terminal; actual WebView2 window, single instance, clean close/restart and no orphaned listener/process |
+| Navbar/routes | All three destinations, active state and Settings work at 1280/800 widths; visited search/sort/page state survives navigation |
+| Breadcrumbs | User/release/role details return to the true originating view and restore useful keyboard focus |
+| Global Previous/Next | With GROUP_QA, cross users 50→51→50 and release records 100→101; verify global totals of 125, ascending/descending and first/last boundaries |
+| Refresh/removal | Remove a QA record from a copy of the CSV, refresh, and verify missing-record explanation, disabled traversal and a valid origin page |
+| Combobox | Mouse and Arrow Up/Down/Enter/Escape/Tab; selected value retained on reopen, clear/All, empty search, long options scroll and outside-click close |
+| Popup placement | Both themes, normal/narrow window and 100%/150% DPI; anchored panel remains in view and is not clipped by settings/table scrolling |
+| Native file picker | Browse selects each independent source, cancel retains its path, spaced/non-ASCII filenames work; no unintended source replacement |
+| Import tabs | Draft paths/presets/mappings stay separate; auto detection/preview/retry, invalid file errors and advanced options remain usable |
+| Actual UNC | Copy only these synthetic files to an approved readable SMB share; browse/type its UNC paths and load both. Test missing/denied/disconnected share; previous settings/data must remain intact on failure |
+| Persistence/themes | Restart the exact EXE; saved sources, formats, module preferences and theme survive, with no console or service dependency on a terminal |
+
+Use an actually available, approved SMB share; a mocked picker or a string such as
+`\\DEMO-SERVER\exports\users.csv` is not evidence of network access. No credentials,
+production exports or personal user data are required. Record only sanitized
+screenshots/results. A CI smoke pass establishes its explicit lifecycle assertions;
+it does not establish mouse/keyboard/native-dialog/SMB acceptance in this table.

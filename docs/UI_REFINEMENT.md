@@ -1,5 +1,71 @@
 # UI refinement records
 
+## Global navigation and desktop readiness — 2026-10-22
+
+Baseline: clean `work` at `893acb90d0fcdbe1ec8170b0ab2a7faad0076111`; the
+previous UI work is retained. This follow-up removes the page-local detail limit
+without another redesign. User and release navigation now asks the same list API
+for a global position and adjacent identities, with all filters/sorting retained.
+It requests `limit=1`, not an unbounded list, and does not cache one response per
+visited identity. Loading/errors disable traversal, missing/filtered records stay
+explicitly unresolved, and deleted users no longer display stale cached details
+once their detail request fails. Normal list responses are unchanged.
+
+Returning from details restores the original table page and focus/scroll where
+possible. After a shrinking refresh, obsolete user/release/matrix page offsets
+are clamped. An unchanged debounced release search no longer resets pagination.
+Direct user investigations locate their true global index; direct release
+investigations use the same all-status context in both details and their list.
+
+New synthetic backend and browser tests exercise 125 matching records, boundary
+crossings, ascending/descending tie order, filtering, first/last controls, direct
+investigations, refresh/removal and origin restoration. Existing UI tests and
+all native packaging/security guards are retained. README, dependency manifests,
+classification, CSV schemas and Windows/release workflows are unchanged.
+
+The execution environment is Linux, with no attached Windows desktop, Wine,
+WebView2 automation or accessible SMB share. Native acceptance remains **pending**;
+no old Windows run is claimed to validate this new candidate. The concrete
+[target-PC QA checklist](DESKTOP.md#candidate-native-desktop-qa) separates build/
+smoke evidence from actual UI, native picker and UNC acceptance. No push,
+workflow dispatch, tag change or release publication is authorized/performed.
+
+### Local verification of global navigation
+
+The final source passed the following Linux checks before commit; no tests were
+removed and no retries were enabled:
+
+| Command/check | Result |
+| --- | --- |
+| `git diff --check` | Passed |
+| `.venv/bin/python scripts/ci.py lint` and `.venv/bin/python scripts/check-workflows.py` | Passed |
+| PowerShell 7 `-NoProfile -File scripts/check-powershell.ps1` | Passed (Linux parsing/static checks) |
+| Parser-only check of the native QA fixture block in `docs/DESKTOP.md` | Passed; no Windows execution claimed |
+| `npm --prefix frontend ci --cache /workspace/.npm-cache` | Passed |
+| `node scripts/sync-lucide-catalog.mjs --check` | Passed |
+| `npm --prefix frontend run check:types` and `npm --prefix frontend run build` | Passed |
+| `.venv/bin/python -W error::DeprecationWarning -m unittest discover -s backend/tests -v` | 186 passed |
+| `.venv/bin/python -m pip check` | Passed |
+| Isolated installed-environment Python audit using `pip_audit --path /workspace/sap-lens/.venv/lib/python3.12/site-packages --cache-dir /workspace/.pip-audit-cache --progress-spinner off` | No known vulnerabilities |
+| `npm --prefix frontend audit --omit=dev` | Zero production vulnerabilities |
+| `PLAYWRIGHT_EXECUTABLE_PATH=/usr/bin/chromium PATH=/workspace/sap-lens/.venv/bin:$PATH npm --prefix frontend run test:browser -- --reporter=line` | 55 passed, 1.9 minutes |
+| Documentation/asset reference checks after documentation updates | Passed |
+
+The five new browser cases cover forward/back traversal across boundaries,
+ascending/descending filtering, first/last controls, the original page/focus/scroll,
+direct investigations and refresh/removal, including an obsolete last page.
+Six new backend tests check every supported sort, tie-breaks, evidence/status/
+classification filters, normalization, missing anchors and protected/bounded input.
+New global-position screenshots were inspected in light and dark themes. Existing
+UI/combobox/theme regressions also passed. Validation logs/screenshots are outside
+Git. The final source diff was compared with the validated snapshot before commit.
+
+Full npm audit retains seven pre-existing development advisories (five high,
+two moderate); manifests and locks are unchanged. Native Windows build, EXE smoke,
+interactive WebView2, actual native dialogs and real UNC reads remain **pending**.
+The documented build-only approval path and target-PC checklist are the remaining
+gates; this record does not declare the candidate ready for publication.
+
 ## Investigation and import refinement — 2026-10-22
 
 Baseline: `work` at `167f9186d1718b048f696181135b5f5654bf2e52`, clean.
@@ -45,7 +111,8 @@ popup in both themes at 1280 and 800 pixels. Before images use the beta-2 fronte
 extracted for static serving only, with synthetic data and isolated settings; no
 EXE is executed or built. Screenshots/logs remain outside version control.
 
-Limitations: detail Previous/Next is intentionally scoped to a result page;
+Original limitation (superseded by the subsequent global-navigation refinement):
+detail Previous/Next was scoped to a result page;
 loaded per-source paths are not exposed by the current API; actual UNC access,
 WebView2 rendering and packaged Windows behavior still require authorized native
 validation. No push, workflow dispatch or release publication belongs to this task.

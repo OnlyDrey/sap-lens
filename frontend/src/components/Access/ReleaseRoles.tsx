@@ -1,3 +1,4 @@
+import { useRecordNavigation, type RecordNavigationState } from "@/hooks/useRecordNavigation";
 import { DetailNavigation, EvidenceBadge } from "@/components/Shared/InvestigationNavigation";
 import { Combobox } from "@/components/Shared/Combobox";
 import { useEffect, useRef, useState } from "react";
@@ -38,14 +39,16 @@ export function ReleaseRoles({
   onUser: (name: string) => void;
 }) {
   const listScroll = useRef(0);
-  const openDrill = (value: Drill) => { listScroll.current = window.scrollY; setDrill(value) };
+  const originFocus = useRef("");
+  const originRole = useRef("");
+  const openDrill = (value: Drill) => { listScroll.current = window.scrollY; originRole.current = value.role || ""; originFocus.current = document.activeElement?.getAttribute("aria-label") || ""; setDrill(value) };
   const [group, setGroup] = useState(""),
     [kind, setKind] = useState(""),
     [releaseGroup, setReleaseGroup] = useState(""),
     [strategy, setStrategy] = useState("");
   const [username, setUsername] = useState(""),
     [role, setRole] = useState(""),
-    [status, setStatus] = useState("active"),
+    [status, setStatus] = useState(initialRole ? "all" : "active"),
     [sort, setSort] = useState("role_name"),
     [descending, setDescending] = useState(false);
   const [matrix, setMatrix] = useState(false),
@@ -57,7 +60,7 @@ export function ReleaseRoles({
     );
   const [query, setQuery] = useState({ username: "", role: "" });
   useEffect(() => {
-    const t = setTimeout(() => setQuery({ username, role }), 250);
+    const t = setTimeout(() => setQuery(previous => previous.username === username && previous.role === role ? previous : { username, role }), 250);
     return () => clearTimeout(t);
   }, [username, role]);
   useEffect(() => {
@@ -74,6 +77,8 @@ export function ReleaseRoles({
     descending,
     compareGroups,
   ]);
+  const filters = { group, document_type: kind, release_group: releaseGroup, strategy, ...query, status, group_by_user_group: compareGroups, sort, descending };
+  const navigation = useRecordNavigation('releases', { ...filters, status: drill?.status || status }, drill?.role || '', name => setDrill(previous => previous ? { ...previous, role: name } : previous));
   const result = useQuery({
     queryKey: [
       "release-roles",
@@ -90,29 +95,25 @@ export function ReleaseRoles({
       matrixOffset,
     ],
     queryFn: () =>
-      accessQuery<ReleasePage>("releases", {
-        group,
-        document_type: kind,
-        release_group: releaseGroup,
-        strategy,
-        ...query,
-        status,
-        group_by_user_group: compareGroups,
-        sort,
-        descending,
-        offset,
-        matrix_offset: matrixOffset,
-      }),
+      accessQuery<ReleasePage>("releases", { ...filters, offset, matrix_offset: matrixOffset }),
   });
+  useEffect(() => {
+    if (!result.data || result.isFetching) return;
+    const last = Math.max(0, Math.floor((result.data.total - 1) / result.data.limit) * result.data.limit);
+    const lastMatrix = Math.max(0, Math.floor((result.data.matrix_total - 1) / 200) * 200);
+    if (offset > last) setOffset(last);
+    if (matrixOffset > lastMatrix) setMatrixOffset(lastMatrix);
+  }, [result.data, result.isFetching, offset, matrixOffset]);
   if (drill)
     return (
       <ReleaseDetail
         drill={drill}
         status={drill.status || status}
-        onBack={() => { setDrill(null); requestAnimationFrame(() => { document.querySelector<HTMLButtonElement>('[aria-label="Release role details"]')?.focus({ preventScroll: true }); window.scrollTo(0, listScroll.current) }) }}
+        onBack={() => { setDrill(null); requestAnimationFrame(() => { const buttons = [...document.querySelectorAll<HTMLButtonElement>('button[aria-label]')];
+          const original = buttons.find(button => originRole.current ? button.getAttribute('aria-label') === 'Release role details' && button.textContent === originRole.current : button.getAttribute('aria-label') === originFocus.current);
+          original?.focus({ preventScroll: true }); window.scrollTo(0, listScroll.current) }) }}
         onUser={onUser}
-        roles={result.data?.items.map(role => role.role_name) || []}
-        onRole={name => setDrill({ ...drill, role: name })}
+        navigation={navigation}
       />
     );
   const drillCell = (cell: Cell) =>
@@ -447,9 +448,9 @@ function ReleaseDetail({
   status,
   onBack,
   onUser,
-  roles, onRole,
+  navigation,
 }: {
-  roles: string[]; onRole: (name: string) => void;
+  navigation: RecordNavigationState;
   drill: Drill;
   status: string;
   onBack: () => void;
@@ -457,7 +458,6 @@ function ReleaseDetail({
 }) {
   const [offset, setOffset] = useState(0);
   useEffect(() => setOffset(0), [drill]);
-  const index = drill.role ? roles.indexOf(drill.role) : -1;
   const result = useQuery({
     queryKey: ["release-assignments", drill, status, offset],
     queryFn: () =>
@@ -471,9 +471,7 @@ function ReleaseDetail({
   });
   return (
     <section aria-label="Release role details" className="space-y-4">
-      <DetailNavigation parent="Release Roles" current={drill.role || 'Release role details'} onBack={onBack} index={index} total={roles.length}
-        onPrevious={index > 0 ? () => onRole(roles[index - 1]) : undefined}
-        onNext={index >= 0 && index < roles.length - 1 ? () => onRole(roles[index + 1]) : undefined}/>
+      <DetailNavigation parent="Release Roles" current={drill.role || 'Release role details'} onBack={onBack} {...navigation}/>
       <h1 className="text-xl font-semibold">Release role details</h1>
       {drill.role && <RoleIdentifier value={drill.role} />}
       <p>

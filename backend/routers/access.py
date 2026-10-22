@@ -27,6 +27,18 @@ def page(items, offset, limit):
     )
 
 
+def record_navigation(items, anchor, key, normalize):
+    """Bounded identity-only navigation over the exact filtered list ordering."""
+    wanted = normalize(anchor)
+    index = next((i for i, item in enumerate(items) if normalize(item[key]) == wanted), None)
+    return dict(
+        index=index,
+        total=len(items),
+        previous=items[index - 1][key] if index is not None and index > 0 else None,
+        next=items[index + 1][key] if index is not None and index + 1 < len(items) else None,
+    )
+
+
 def source_info(state):
     return dict(
         loaded=bool(state.users.report),
@@ -90,6 +102,7 @@ def user_summary(user, entries):
 
 @router.get("/users")
 def users(
+    anchor: str = Query("", max_length=512),
     search: str = Query("", max_length=256),
     group: str = Query("", max_length=512),
     role: str = Query("", max_length=512),
@@ -145,6 +158,8 @@ def users(
         ),
         reverse=descending,
     )
+    if anchor:
+        return dict(**page(result, offset, limit), navigation=record_navigation(result, anchor, "username", normalize_username))
     return dict(
         **page(result, offset, limit),
         **source_info(snapshot),
@@ -205,6 +220,7 @@ def user_detail(
 
 @router.get("/releases")
 def releases(
+    anchor: str = Query("", max_length=512),
     group: str = Query("", max_length=512),
     document_type: Literal["", "PR", "PO", "Unparsed"] = "",
     release_group: str = Query("", max_length=100),
@@ -292,6 +308,8 @@ def releases(
         ),
         reverse=descending,
     )
+    if anchor:
+        return dict(**page(rows, offset, limit), navigation=record_navigation(rows, anchor, "role_name", normalize_role))
     matrix = [
         dict(
             user_group=g,

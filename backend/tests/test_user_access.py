@@ -133,6 +133,75 @@ class UserAccessTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         return response.json()
 
+    def load_navigation_export(self):
+        path = Path(self.temp.name) / "navigation.csv"
+        path.write_text(
+            "USERNAME,ROLE_NAME,USER_GROUP,FIRST_NAME,ROLE_VALID_FROM,ROLE_VALID_TO\n"
+            + "".join(f"DEMO_{i:03},ZO:MM:M:PR_REL_ST_G{i:03}_N6:ALL,GROUP_KEEP,Tied,20000101,99991231\n" for i in range(125))
+            + "DEMO_HIDDEN,ZO:MM:M:PR_REL_ST_HIDDEN_N6:ALL,GROUP_OTHER,Tied,20000101,99991231\n"
+        )
+        candidate = config.get_settings().model_dump()
+        candidate["user_csv_path"] = str(path)
+        self.client.post("/api/configuration", headers=H, json=candidate).raise_for_status()
+
+    def assert_navigation_matches_list(self, path, params, key):
+        from urllib.parse import urlencode
+        first = self.get(path + "?" + urlencode(dict(params, limit=100)))
+        second = self.get(path + "?" + urlencode(dict(params, limit=100, offset=100)))
+        rows = first["items"] + second["items"]
+        for index in sorted({0, 24, 25, 49, 50, 99, 100, len(rows) - 1}):
+            if index < 0 or index >= len(rows): continue
+            anchored = self.get(path + "?" + urlencode(dict(params, anchor=rows[index][key].lower(), offset=0, limit=1)))
+            self.assertEqual(len(anchored["items"]), 1)
+            self.assertNotIn("matrix", anchored)  # No unrelated aggregate transfer for detail navigation.
+            self.assertEqual(anchored["navigation"], dict(
+                index=index, total=len(rows),
+                previous=rows[index - 1][key] if index else None,
+                next=rows[index + 1][key] if index + 1 < len(rows) else None,
+            ))
+
+    def test_user_navigation_crosses_all_pages_with_filters_and_both_directions(self):
+        self.load_navigation_export()
+        for descending in (False, True):
+            self.assert_navigation_matches_list("users", dict(group="GROUP_KEEP", search="demo", sort="first_name", descending=str(descending).lower()), "username")
+
+    def test_release_navigation_crosses_all_pages_and_uses_existing_tie_breaks(self):
+        self.load_navigation_export()
+        for descending in (False, True):
+            self.assert_navigation_matches_list("releases", dict(group="GROUP_KEEP", document_type="PR", strategy="N6", role="ZO:MM", username="DEMO_", status="active", sort="assigned_users", descending=str(descending).lower()), "role_name")
+
+    def test_navigation_all_sort_fields_follow_the_same_filtered_list(self):
+        for path, key, sorts in [
+            ("users", "username", ["username", "group", "first_name", "last_name", "email", "account_status", "relevant_roles"]),
+            ("releases", "role_name", ["role_name", "document_type", "release_group", "release_strategy", "assigned_users"]),
+        ]:
+            for sort in sorts:
+                for descending in ("true", "false"):
+                    with self.subTest(path=path, sort=sort, descending=descending):
+                        self.assert_navigation_matches_list(path, dict(sort=sort, descending=descending), key)
+
+    def test_navigation_respects_evidence_status_and_classification_filters(self):
+        for params in [dict(role="ZC:MM:BUY:EN*"), dict(tcode="FB03"), dict(group="GROUP_B"), dict(status="future"), dict(status="unknown")]:
+            self.assert_navigation_matches_list("users", params, "username")
+        for params in [dict(status="all"), dict(status="future"), dict(status="expired"), dict(document_type="Unparsed", status="all"), dict(group="GROUP_A", document_type="PR", release_group="SH", strategy="N6")]:
+            self.assert_navigation_matches_list("releases", params, "role_name")
+
+    def test_navigation_missing_filtered_or_removed_anchor_never_substitutes_a_record(self):
+        for path, anchor in [("users", "DEMO_ALFA"), ("releases", "ZO:MM:M:PR_REL_ST_SH_N6:ALL")]:
+            from urllib.parse import urlencode
+            query = urlencode(dict(anchor=anchor, group="NO_SUCH_GROUP", limit=1))
+            self.assertEqual(self.get(path + "?" + query)["navigation"], dict(index=None, total=0, previous=None, next=None))
+        cache.clear_cache()
+        self.assertEqual(self.get("users?anchor=DEMO_ALFA&limit=1")["navigation"]["index"], None)
+        self.assertEqual(self.client.get("/api/access/users/DEMO_ALFA", headers=H).status_code, 404)
+        self.assertEqual(self.get("releases?anchor=ZO:REMOVED&limit=1")["navigation"]["total"], 0)
+
+    def test_navigation_requires_session_and_validates_bounded_inputs(self):
+        for path in ("users", "releases"):
+            self.assertEqual(self.client.get("/api/access/" + path + "?anchor=DEMO").status_code, 403)
+            self.assertEqual(self.client.get("/api/access/" + path, params={"anchor":"x"*513}, headers=H).status_code, 422)
+            self.assertNotIn("navigation", self.get(path))
+
     def test_directory_identity_duplicate_intervals_groups_and_optional_fields(self):
         state = cache.get_snapshot().users
         self.assertEqual(len(state.users), 7)
