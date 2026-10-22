@@ -1,5 +1,7 @@
 # Windows packaging hardening and readiness
 
+For supported builds without GitHub Actions, see [local Windows builds](LOCAL_WINDOWS_BUILD.md).
+
 For current build/beta/stable modes and publication safeguards, see
 [manual Windows releases](RELEASES.md). The hardening findings below record their
 original implementation baseline.

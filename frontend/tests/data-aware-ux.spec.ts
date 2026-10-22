@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { execFileSync } from 'node:child_process'
+import { bootstrapDocument } from './bootstrap-fixture'
 const headers = { 'X-SAP-Lens': 'browser-test-session' }
 let directory = '', userSource = ''
 const navigate = (page: Page, name: string) => page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name, exact:true }).click()
@@ -142,19 +142,21 @@ for (const theme of ['dark','light']) for (const width of [1280,800]) test(`data
   await shot('contextual-loading')
   await page.unroute('**/api/configuration')
   // Actual authored bootstrap document and palette, browser-rendered; not native WebView2.
-  const html = execFileSync('python',['-c',`import sys;sys.path.insert(0,'../backend');from pathlib import Path;from startup_screen import startup_html,palette_script;from config_models import AppConfig;s=AppConfig(theme='${theme}');print(startup_html(Path('../assets/sap-lens.png'),'synthetic-preview').replace('</body>', '<script>'+palette_script(s)+'</script></body>'))`],{encoding:'utf8',maxBuffer:8*1024*1024})
-  await page.route('**/synthetic-bootstrap-preview',route=>route.fulfill({contentType:'text/html',body:html}))
+  const html = bootstrapDocument(theme)
+  await page.route('**/synthetic-bootstrap-preview',route=>route.fulfill({contentType:'text/html; charset=utf-8',body:html}))
   await page.goto('/synthetic-bootstrap-preview')
   await expect(page.getByRole('status')).toHaveText('Starting backend…')
+  expect(await page.evaluate(() => document.characterSet)).toBe('UTF-8')
   await expect.poll(()=>page.evaluate(()=>getComputedStyle(document.documentElement).colorScheme)).toBe(theme)
   await shot('bootstrap')
 })
 
 test('bootstrap handoff replaces its history entry and never reappears at the first app route', async ({page}) => {
-  const html = execFileSync('python',['-c',"import sys;sys.path.insert(0,'../backend');from pathlib import Path;from startup_screen import startup_html;print(startup_html(Path('../assets/sap-lens.png'),'synthetic-preview'))"],{encoding:'utf8',maxBuffer:8*1024*1024})
-  await page.route('**/synthetic-bootstrap',route=>route.fulfill({contentType:'text/html',body:html}))
+  const html = bootstrapDocument()
+  await page.route('**/synthetic-bootstrap',route=>route.fulfill({contentType:'text/html; charset=utf-8',body:html}))
   await page.goto('/synthetic-bootstrap')
   await expect(page.getByRole('status')).toHaveText('Starting backend…')
+  expect(await page.evaluate(() => document.characterSet)).toBe('UTF-8')
   const bootstrapLength = await page.evaluate(()=>history.length)
   await page.evaluate(()=>window.location.replace('/#session=browser-test-session'))
   await expect(page.getByRole('navigation',{name:'Main navigation'})).toBeVisible()
@@ -182,4 +184,19 @@ test('first-launch setup retains an app history boundary before configuration is
   await page.goForward()
   await expect(page.getByRole('region',{name:'SAP Lens settings',exact:true})).toBeVisible()
   await expect(page.locator('.startup-screen')).toHaveCount(0)
+})
+
+test('bootstrap Unicode survives legacy Python stdout and explicit UTF-8 HTTP delivery', async ({ page }) => {
+  const html = bootstrapDocument(undefined, 'cp1252')
+  expect(html).toContain('Starting backend…')
+  expect(html).not.toContain('\uFFFD')
+  await page.route('**/unicode-bootstrap', route => route.fulfill({
+    contentType: 'text/html; charset=utf-8', body: Buffer.from(html, 'utf8'),
+  }))
+  const response = await page.goto('/unicode-bootstrap')
+  expect(response?.headers()['content-type']).toBe('text/html; charset=utf-8')
+  expect(await page.evaluate(() => document.characterSet)).toBe('UTF-8')
+  await expect(page.getByRole('status')).toHaveText('Starting backend…')
+  await page.evaluate(() => (window as unknown as {sapLensStartup:{setState:(label:string)=>void}}).sapLensStartup.setState('Connecting to local service…'))
+  await expect(page.getByRole('status')).toHaveText('Connecting to local service…')
 })

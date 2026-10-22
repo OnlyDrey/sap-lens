@@ -298,7 +298,7 @@ export function AppLayout({
           <span>{organization?.footer ||
             `© ${new Date().getFullYear()} ${organization?.name.trim() || 'SAP Lens'} — SAP Lens`}</span>
           {application && <span className="block mt-1" aria-label="Application version">
-            SAP Lens v{application.version}{application.mode === 'build' || application.mode === 'local' ? ' · Development build' : ''}
+            SAP Lens v{application.version}{application.mode === 'local-build' ? ' · Local build' : application.mode === 'build' || application.mode === 'local' ? ' · Development build' : ''}
           </span>}
         </p>
       </footer>

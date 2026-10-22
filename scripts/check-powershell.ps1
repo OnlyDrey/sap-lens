@@ -1,7 +1,7 @@
 # Parse without executing the Windows build or requiring a Windows GUI.
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
-foreach ($relative in @('scripts/build-windows.ps1', 'scripts/test-windows-exe.ps1', 'scripts/check-powershell.ps1')) {
+foreach ($relative in @('scripts/build-local.ps1', 'scripts/build-windows.ps1', 'scripts/test-windows-exe.ps1', 'scripts/check-powershell.ps1')) {
     $tokens = $null
     $errors = $null
     $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root $relative), [ref]$tokens, [ref]$errors)

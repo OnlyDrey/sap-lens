@@ -1,3 +1,4 @@
+import { bootstrapDocument } from './bootstrap-fixture'
 import { contrast, onColor, themePresets, themeTokens, paletteErrors } from '../src/lib/theme'
 import { test, expect } from '@playwright/test'
 import path from 'node:path'
@@ -137,8 +138,7 @@ test('startup connection failure has actionable recovery and configuration notic
 })
 
 test('branded startup document displays real status messages and recovery without external requests',async({page},testInfo)=>{
- const {execFileSync}=await import('node:child_process')
- const document=execFileSync('python',['-c',"import sys;sys.path.insert(0,'../backend');from pathlib import Path;from startup_screen import startup_html;sys.stdout.buffer.write(startup_html(Path('../assets/sap-lens.png'),'synthetic-preview-capability').encode('utf-8'))"],{encoding:'utf8',maxBuffer:8*1024*1024})
+ const document=bootstrapDocument()
  const external:string[]=[]
  page.on('request',request=>{if(request.url().startsWith('http'))external.push(request.url())})
  await page.setViewportSize({width:1280,height:720})

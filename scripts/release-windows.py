@@ -16,7 +16,6 @@ import stat
 import subprocess
 import tempfile
 import sys
-import time
 from urllib.parse import quote
 import zipfile
 
@@ -544,12 +543,12 @@ def main():
                         "Build identity changed after workflow resolution."
                     )
             else:
-                unique = str(time.time_ns())
-                write_identity(
-                    build_version.make_build_info(
-                        "build", "0.0.0", "0" * 40, unique, unique
-                    )
-                )
+                sha = subprocess.check_output(
+                    ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True, encoding="utf-8"
+                ).strip()
+                write_identity(build_version.make_local_package_info(
+                    env.get("SAP_LENS_LOCAL_VERSION", "0.1.0"), sha
+                ))
             return
         validate_inputs(
             env["RELEASE_MODE"],

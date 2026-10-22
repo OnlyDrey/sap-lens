@@ -62,11 +62,12 @@ test('application information displays the resolved API identity for beta stable
   expect((await request.get('/api/version')).status()).toBe(403)
   let identity = {app:'SAP Lens',version:'0.1.0-beta-1',mode:'beta'}
   await page.route('**/api/version', route => route.fulfill({json:identity}))
-  for (const [version, mode] of [['0.1.0-beta-1','beta'],['0.1.0','stable'],['0.1.0-dev.123.2','build'],['0.0.0-dev.local','local']]) {
+  for (const [version, mode] of [['0.1.0-beta-1','beta'],['0.1.0','stable'],['0.1.0-dev.123.2','build'],['0.0.0-dev.local','local'],['0.1.0-beta-4+local.aaaaaaaaaaaa','local-build']]) {
     identity = {app:'SAP Lens',version,mode}
     await page.goto('/#session=browser-test-session')
     await page.reload() // A running app's version is immutable; simulate a fresh process for each identity.
     await expect(page.getByLabel('Application version', {exact:true})).toContainText(`SAP Lens v${version}`)
+    if (mode === 'local-build') await expect(page.getByLabel('Application version')).toContainText('Local build')
     if (mode === 'build' || mode === 'local') await expect(page.getByLabel('Application version')).toContainText('Development build')
     else await expect(page.getByLabel('Application version')).not.toContainText('Development build')
     await page.reload()

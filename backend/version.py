@@ -83,6 +83,23 @@ def make_build_info(
     )
 
 
+def make_local_package_info(requested_version, source_sha):
+    """Deterministic unofficial identity; no reserved tag or fabricated CI run."""
+    if not isinstance(requested_version, str) or len(requested_version) > 48:
+        raise ValueError("Local version must be MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-beta-N.")
+    match = re.fullmatch(r"(" + BASE_PATTERN + r")(?:-beta-([1-9][0-9]{0,4}))?", requested_version)
+    if not match:
+        raise ValueError("Local version must be MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-beta-N.")
+    base = match[1]
+    numbers = base_numbers(base)
+    beta = int(match[5]) if match[5] else 0
+    if beta > 65535 or not isinstance(source_sha, str) or not re.fullmatch('[0-9a-f]{40}', source_sha):
+        raise ValueError("Invalid local build sequence or source commit.")
+    return dict(schema=1, version=f"{requested_version}+local.{source_sha[:12]}",
+                base_version=base, mode="local-build", file_version=[*numbers, beta],
+                source_sha=source_sha, run_id="", run_number="", attempt=0, tag="")
+
+
 def parse_build_info(value):
     if (
         not isinstance(value, dict)
@@ -91,6 +108,12 @@ def parse_build_info(value):
         or value["schema"] != 1
     ):
         raise ValueError("Invalid build metadata schema.")
+    if value["mode"] == "local-build":
+        requested = str(value["version"]).split("+", 1)[0]
+        expected = make_local_package_info(requested, value["source_sha"])
+        if value != expected or type(value["attempt"]) is not int or any(type(n) is not int for n in value["file_version"]):
+            raise ValueError("Inconsistent local build metadata.")
+        return expected
     beta_number = None
     if value["mode"] == "beta":
         match = re.fullmatch(

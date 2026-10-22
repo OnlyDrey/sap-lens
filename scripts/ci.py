@@ -13,10 +13,12 @@ import sys
 import tarfile
 import time
 import urllib.request
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 ACTIONLINT_VERSION = '1.7.12'
 ACTIONLINT_SHA256 = '8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8'
+ACTIONLINT_WINDOWS_SHA256 = '6e7241b51e6817ea6a047693d8e6fed13b31819c9a0dd6c5a726e1592d22f6e9'
 
 
 def timing_path():
@@ -113,16 +115,35 @@ def summary():
 
 
 def lint():
-    if platform.system() != 'Linux' or platform.machine() not in {'x86_64', 'AMD64'}:
-        raise RuntimeError('Pinned actionlint installer supports the Ubuntu x64 CI runner; use actionlint locally on other platforms.')
-    url = f'https://github.com/rhysd/actionlint/releases/download/v{ACTIONLINT_VERSION}/actionlint_{ACTIONLINT_VERSION}_linux_amd64.tar.gz'
-    data = urllib.request.urlopen(url, timeout=60).read()
-    if hashlib.sha256(data).hexdigest() != ACTIONLINT_SHA256:
-        raise RuntimeError('actionlint checksum mismatch')
-    tool = Path(os.environ.get('RUNNER_TEMP', ROOT / 'backend/build')) / f'actionlint-{ACTIONLINT_VERSION}'
-    with tarfile.open(fileobj=io.BytesIO(data), mode='r:gz') as archive:
-        tool.parent.mkdir(parents=True, exist_ok=True)
-        tool.write_bytes(archive.extractfile('actionlint').read())
+    system = platform.system()
+    if system not in {'Linux', 'Windows'} or platform.machine() not in {'x86_64', 'AMD64'}:
+        raise RuntimeError('Pinned actionlint installer requires Windows or Linux x64.')
+    windows = system == 'Windows'
+    package = 'windows_amd64.zip' if windows else 'linux_amd64.tar.gz'
+    expected = ACTIONLINT_WINDOWS_SHA256 if windows else ACTIONLINT_SHA256
+    url = f'https://github.com/rhysd/actionlint/releases/download/v{ACTIONLINT_VERSION}/actionlint_{ACTIONLINT_VERSION}_{package}'
+    # Cache only the checksum-verified download, never trust a mutable executable.
+    directory = Path(os.environ.get('RUNNER_TEMP', ROOT / 'backend/build'))
+    directory.mkdir(parents=True, exist_ok=True)
+    cached = directory / f'actionlint-{ACTIONLINT_VERSION}-{package}'
+    if cached.is_symlink():
+        raise RuntimeError('actionlint cache must not be linked')
+    data = cached.read_bytes() if cached.is_file() else b''
+    if hashlib.sha256(data).hexdigest() != expected:
+        data = urllib.request.urlopen(url, timeout=60).read()
+        if hashlib.sha256(data).hexdigest() != expected:
+            raise RuntimeError('actionlint checksum mismatch')
+        cached.write_bytes(data)
+    tool = directory / (f'actionlint-{ACTIONLINT_VERSION}' + ('.exe' if windows else ''))
+    if tool.is_symlink():
+        raise RuntimeError('actionlint destination must not be linked')
+    if windows:
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            executable = archive.read('actionlint.exe')
+    else:
+        with tarfile.open(fileobj=io.BytesIO(data), mode='r:gz') as archive:
+            executable = archive.extractfile('actionlint').read()
+    tool.write_bytes(executable)
     tool.chmod(0o700)
     return subprocess.call([str(tool)], cwd=ROOT)
 

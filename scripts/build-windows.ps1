@@ -1,9 +1,11 @@
 param(
-    [ValidateSet('All', 'Environment', 'Frontend', 'Python', 'Audit', 'Backend', 'Browser', 'Package', 'Verify', 'Smoke', 'Artifact')]
+    [ValidateSet('All', 'Environment', 'Frontend', 'FrontendInstall', 'FrontendBuild', 'Python', 'Audit', 'Backend', 'Browser', 'Package', 'Verify', 'Smoke', 'Artifact')]
     [string]$Stage = 'All',
     [string]$ArtifactDirectory,
     [string]$ArtifactDownloadDirectory,
     [string]$ArtifactDigest,
+    [string]$PythonExecutable,
+    [string]$AuditPython,
     [switch]$BenchmarkPackaging
 )
 $ErrorActionPreference = 'Stop'
@@ -16,10 +18,11 @@ function Assert-Success([string]$Stage) {
     throw $message
 }
 $buildPython = Join-Path $root 'backend/build/python-env/Scripts/python.exe'
-# Keep audit tooling in the host interpreter, outside the isolated package environment.
-$hostPython = (Get-Command python).Source
+# Keep audit tooling outside the package environment; local callers supply a dedicated audit interpreter.
+$hostPython = if ($PythonExecutable) { $PythonExecutable } else { (Get-Command python).Source }
+if (-not $AuditPython) { $AuditPython = $hostPython }
 function Invoke-Stage([string]$Name, [scriptblock]$Action) {
-    if ($Stage -eq 'All' -or $Stage -eq $Name) { & $Action }
+    if ($Stage -eq 'All' -or $Stage -eq $Name -or ($Name -in @('FrontendInstall', 'FrontendBuild') -and $Stage -eq 'Frontend')) { & $Action }
 }
 function Measure-Task([string]$Name, [scriptblock]$Action) {
     $watch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -54,13 +57,18 @@ try {
             Assert-Success 'Create build environment'
         }
     }
-    Invoke-Stage Frontend {
+    Invoke-Stage FrontendInstall {
         Push-Location frontend
         try {
             Measure-Task 'npm installation' {
                 npm ci --no-audit --no-fund
                 Assert-Success 'Install frontend dependencies'
             }
+        } finally { Pop-Location }
+    }
+    Invoke-Stage FrontendBuild {
+        Push-Location frontend
+        try {
             Measure-Task 'Frontend compilation' {
                 npm run build
                 Assert-Success 'Build production frontend'
@@ -77,15 +85,15 @@ try {
     }
     Invoke-Stage Audit {
         # Inspect the full isolated Windows environment, including platform-only dependencies.
-        # Audit tooling stays in the host interpreter and cannot enter the packaged environment.
+        # Audit tooling uses its separate interpreter and cannot enter the packaged environment.
         Measure-Task 'Audit tool provisioning' {
-            & $hostPython -m pip install --disable-pip-version-check -r scripts/requirements-audit.txt
+            & $AuditPython -m pip install --disable-pip-version-check -r scripts/requirements-audit.txt
             Assert-Success 'Install audit tooling'
         }
         Measure-Task 'Python vulnerability audit' {
             $sitePackages = & $buildPython -c "import sysconfig; print(sysconfig.get_paths()['purelib'])"
             Assert-Success 'Locate build dependencies'
-            & $hostPython -m pip_audit --path $sitePackages --vulnerability-service pypi --progress-spinner off
+            & $AuditPython -m pip_audit --path $sitePackages --vulnerability-service pypi --progress-spinner off
             Assert-Success 'Audit Windows dependencies'
         }
     }

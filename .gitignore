@@ -74,3 +74,6 @@ htmlcov/
 # Compiler and diagnostic exports
 *.tsbuildinfo
 SAP-Lens-diagnostics*.json
+
+# Supported local Windows builds and validation receipts
+/dist/local/
