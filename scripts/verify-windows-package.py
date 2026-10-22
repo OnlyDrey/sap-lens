@@ -12,10 +12,13 @@ import json
 import os
 import re
 import struct
+import sys
 import zipfile
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
+# Direct CLI execution must not depend on pytest/unittest or PYTHONPATH setup.
+sys.path.insert(0, str(ROOT / 'backend'))
 REQUIRED = {'frontend/dist/index.html', 'frontend/dist/sap-lens.png',
             'frontend/dist/favicon.png', 'frontend/dist/theme.js', 'assets/sap-lens.ico', 'build-version.json'}
 DISTRIBUTION = {'SAP-Lens.exe', 'SAP-Lens.exe.sha256'}
@@ -297,6 +300,7 @@ def main():
     parser.add_argument('--expected-sha256')
     parser.add_argument('--report', type=Path, default=ROOT / 'backend/build/package-verification.json')
     args = parser.parse_args()
+    phase = 'build-identity'
     try:
         if os.environ.get('GITHUB_ACTIONS') == 'true':
             from version import parse_build_info
@@ -304,19 +308,35 @@ def main():
                 raise PackageValidationError('Build metadata changed after workflow resolution.')
         if metadata_module().BUILD_INFO['mode'] == 'local':
             raise PackageValidationError('A generated build identity is required to verify a distribution.')
+        phase = 'distribution-checksum'
         data, digest = validate_distribution(args.distribution, args.expected_sha256)
+        phase = 'pe-headers'
         validate_gui(data)
+        phase = 'pe-resources'
         metadata = inspect_resources(data)
+        phase = 'pyinstaller-archive'
         inventory = inspect_archive(args.distribution / 'SAP-Lens.exe', ROOT / 'frontend/dist')
         report = {'status': 'passed', 'version': metadata['ProductVersion'], 'format': 'one-file',
                   'size_bytes': len(data), 'exe_sha256': digest, 'signing': 'unsigned (not configured)', **inventory}
+        phase = 'verification-report'
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(json.dumps(report, indent=2), encoding='utf-8')
         print(f'Windows x64 GUI package verified; SHA-256 {digest}; {inventory["archive_entries"]} archive entries.')
     except Exception as error:
         # Third-party parser exceptions can embed untrusted filenames or binary values.
-        message = str(error) if isinstance(error, PackageValidationError) else 'Windows package inspection failed; review build inputs and parser compatibility.'
-        parser.exit(1, message + '\n')
+        if isinstance(error, PackageValidationError):
+            message = 'PackageValidationError; package-policy rejection: ' + str(error)
+        else:
+            # Never echo parser messages, traceback paths, or arbitrary exception class names.
+            categories = {ImportError: 'dependency/import setup', ModuleNotFoundError: 'dependency/import setup',
+                          AttributeError: 'application/parser interface', TypeError: 'application/parser interface',
+                          ValueError: 'malformed input or parser compatibility', UnicodeError: 'malformed input encoding',
+                          OSError: 'filesystem/input access', EOFError: 'truncated input',
+                          struct.error: 'malformed binary structure', ET.ParseError: 'malformed manifest',
+                          zipfile.BadZipFile: 'corrupt embedded archive'}
+            kind = next((kind for kind in (type(error), *type(error).__mro__[1:]) if kind in categories), None)
+            message = (f'{kind.__name__}; {categories[kind]}' if kind else 'UnexpectedException; application/parser failure')
+        parser.exit(1, f'Windows package inspection failed [phase={phase}]: {message}. Details withheld for privacy.\n')
 
 
 if __name__ == '__main__':

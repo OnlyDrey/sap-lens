@@ -223,6 +223,29 @@ class WindowsPackageTests(unittest.TestCase):
             distribution.assert_not_called()
         self.assertIn('Build metadata changed',output.getvalue())
 
+    def test_direct_ci_cli_resolves_beta_identity_without_test_pythonpath(self):
+        """Reproduce the Windows CLI process, not the test runner's import context."""
+        import json, os, shutil, subprocess
+        from version import make_build_info
+        identity = make_build_info('beta', '0.1.0', 'a'*40, '39751089179', '23', 1, 1)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root/'scripts').mkdir()
+            (root/'backend/build').mkdir(parents=True)
+            for relative in ('scripts/verify-windows-package.py', 'scripts/write-windows-metadata.py', 'backend/version.py'):
+                shutil.copyfile(ROOT/relative, root/relative)
+            (root/'backend/build/build-version.json').write_text(json.dumps(identity))
+            env = dict(os.environ, GITHUB_ACTIONS='true', SAP_LENS_EXPECTED_BUILD_JSON=json.dumps(identity))
+            env.pop('PYTHONPATH', None)
+            result = subprocess.run([sys.executable, str(root/'scripts/verify-windows-package.py')],
+                                    cwd=directory, env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 1)
+            # The intentionally absent distribution is reached only after identity validation.
+            self.assertIn('phase=distribution-checksum', result.stderr)
+            self.assertIn('PackageValidationError', result.stderr)
+            self.assertNotIn('ModuleNotFoundError', result.stderr)
+            self.assertNotIn(directory, result.stderr)
+
     def test_cli_does_not_echo_third_party_parser_error_values(self):
         import io
         import sys
@@ -234,3 +257,5 @@ class WindowsPackageTests(unittest.TestCase):
         self.assertEqual(error.exception.code, 1)
         self.assertNotIn('SENSITIVE_SENTINEL', output.getvalue())
         self.assertIn('Windows package inspection failed', output.getvalue())
+        self.assertIn('phase=pe-resources', output.getvalue())
+        self.assertIn('ValueError; malformed input or parser compatibility', output.getvalue())

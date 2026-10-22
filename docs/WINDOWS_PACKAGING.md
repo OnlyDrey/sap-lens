@@ -276,3 +276,46 @@ Delivery is a local commit on `work`, with its SHA in the handoff. No push, GitH
 build, signing attempt or release publication was performed. The repository's
 [pre-push policy](../AGENTS.md) requires explicit approval before pushing while
 required Windows validation remains unavailable.
+
+### CI verifier import failure (run 39751089179)
+
+The beta attempt at source `92e15942a7c2c0aeb23ada1ab35d468312bc1656`
+failed before PE parsing: direct execution of `scripts/verify-windows-package.py`
+with `GITHUB_ACTIONS=true` imported `version` before adding `backend` to the
+Python search path. This raises `ModuleNotFoundError`; the previous generic
+exception handler hid the category. Unit tests had already added that directory
+and therefore missed the standalone-process failure. The verifier now establishes
+its own source import path, and a subprocess regression supplies synthetic
+`0.1.0-beta-1` metadata without an inherited `PYTHONPATH`.
+
+Failure diagnostics identify the verification phase, an allowlisted exception
+category and a bounded cause category. Third-party messages, traceback filenames,
+archive member names and contents remain withheld. Policy rejections retain their
+application-authored, value-free reason. No verification rule is relaxed.
+
+The failed run logged full product version `0.1.0-beta-1` and numeric PE version
+`0.1.0.1`. Its executable was not uploaded, so actual PE resources cannot be
+inspected from that run; neither malformed resources nor parser incompatibility
+has been established. Synthetic archive/resource tests are not native Windows
+validation. A newly authorized Windows build must still exercise PE parsing,
+packaged startup and artifact integrity end to end.
+
+Read-only inspection confirmed `v0.1.0-beta-1` points to that source commit and
+there was no GitHub release. The reservation remains intact. The next independent
+beta allocation for base `0.1.0` ordinarily selects `v0.1.0-beta-2`; do not delete,
+move, reuse or blindly rerun the reserved beta-1 attempt.
+
+Local validation of this fix (Linux): `git diff --check`,
+`.venv/bin/python scripts/ci.py lint`,
+`.venv/bin/python scripts/check-workflows.py`, PowerShell 7
+`-NoProfile -File scripts/check-powershell.ps1`, `npm --prefix frontend ci`,
+`node scripts/sync-lucide-catalog.mjs --check`, frontend `check:types` and `build`,
+`.venv/bin/python -W error::DeprecationWarning -m unittest discover -s backend/tests -v`
+(**180 passed**), `.venv/bin/python -m pip check`, the installed-environment
+Python audit above (no known vulnerabilities), `npm --prefix frontend audit --omit=dev`
+(zero vulnerabilities), and Playwright with system Chromium (**42 passed**) all
+passed. Full npm auditing still reports seven existing development advisories
+(five high, two moderate); dependencies were not changed. Synthetic package tests
+still reject bad resources, corrupt archives, unexpected files and checksum
+mismatches. Native Windows/PE/WebView2 execution remains pending. No remote build,
+tag/release mutation or push was performed during this fix.
