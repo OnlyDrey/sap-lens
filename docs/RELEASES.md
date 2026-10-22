@@ -51,8 +51,11 @@ neither needed nor read. The version remains available offline after EXE replace
 
 With no generated metadata, source development clearly reports
 **0.0.0-dev.local**. Standalone `scripts/build-windows.ps1` remains supported:
-outside CI its packaging stage generates a clearly marked 0.0.0-dev.<local-run>
-identity using a local numeric run ID. CI never takes that path: it requires the
+outside CI its packaging stage generates a deterministic
+`<requested-version>+local.<source-SHA-prefix>` identity, with no invented run ID.
+The supported local wrapper supplies the requested version; direct lower-level
+invocations default to 0.1.0 unless `SAP_LENS_LOCAL_VERSION` is set. See the
+[local Windows build guide](LOCAL_WINDOWS_BUILD.md) for commands and prerequisites. CI never takes that path: it requires the
 already resolved identity. The frontend's npm manifest version is tooling
 metadata, not a runtime application version source and is not packaged.
 

@@ -37,7 +37,17 @@ Settings are stored per user, independently of the EXE. Logs omit source paths, 
 
 ## Build
 
-`scripts/build-windows.ps1` is the canonical local and GitHub Actions build implementation. Invoke `pwsh -NoProfile -File scripts/build-windows.ps1` from the repository root. With Python 3.12, Node.js 24 LTS and PowerShell 7 available, the script installs locked frontend dependencies, builds the UI, installs pinned desktop/test Python requirements, runs API/lifecycle and production-browser tests, generates version metadata and builds `backend/dist/SAP-Lens.exe` using PyInstaller `--onefile --windowed`. The icon is converted from the existing logo; `backend/version.py` owns the application version. Local builds also install the Chromium headless shell for browser tests and run the packaged GUI smoke test. UPX is explicitly disabled. See [packaging readiness](WINDOWS_PACKAGING.md) for the verification contract and pending native checks, and [build performance](BUILD_PERFORMANCE.md) for cache boundaries and the optional incremental benchmark.
+Use the supported [local Windows build guide](LOCAL_WINDOWS_BUILD.md) for
+prerequisites, PowerShell execution-policy errors, Quick/Validate/Build/Package
+commands and verified output under `dist/local/`. Start from a clean repository
+root with `.\scripts\build-local.ps1 -Mode Build -Version 0.1.0`.
+
+`scripts/build-windows.ps1` remains the canonical lower-level implementation used
+by the local wrapper and GitHub Actions. It uses `-Stage`, whereas the local entry
+point uses `-Mode`. Both retain clean, windowed, one-file PyInstaller packaging,
+UPX disabling and the same verification/smoke suite. See
+[packaging readiness](WINDOWS_PACKAGING.md) for the verification contract and
+[build performance](BUILD_PERFORMANCE.md) for CI cache boundaries.
 
 The Actions workflow runs on Windows, pins maintained Node-24 action commits, disables persisted checkout credentials and requests read-only repository permissions. Only manual dispatch runs it: choose **Actions → Build Windows Application → Run workflow** and select a branch. Pushes, tags and pull requests do not build the application. Fast Validation runs backend/repository tests and frontend type checks on every push and PR. Full Validation adds production/browser builds and security checks only for PRs targeting main. See [CI architecture](CI_ARCHITECTURE.md) for exact triggers, jobs and required-check guidance. Artifacts expire after 14 days. `.env`, SAP exports, user settings and logs are not distribution inputs. Failure diagnostics contain only synthetic test information and sanitized app logs.
 

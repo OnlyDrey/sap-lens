@@ -1,221 +1,635 @@
-# Local Windows builds
+# Build SAP Lens locally on Windows
 
-Local builds require no GitHub Actions credits, credentials, tags or releases.
-They reuse `scripts/build-windows.ps1`, the same PyInstaller arguments, package
-verifier and native EXE smoke tests as CI. Signing remains disabled. They are
-unofficial local packages, not GitHub releases.
+This guide takes a cloned repository through validation, EXE packaging and checksum
+verification. Local builds use no GitHub Actions minutes and do not create remote
+commits, tags or releases. They produce an **unsigned, unofficial local build**.
 
-## Prerequisites and first setup
+Run the commands in **PowerShell**, from the repository folder containing
+`README.md`, `backend`, `frontend` and `scripts`. Do not paste them into Command
+Prompt. The build requires developer tools; the finished EXE does not.
 
-Use Windows x64 with:
+## Contents
 
-- Git for Windows.
-- Python **3.12 x64**, including the `py` launcher, `venv` and pip.
-- Node.js **24 LTS**, including npm **10 or 11** (the lockfile is authoritative).
-- Windows PowerShell **5.1**, or PowerShell **7**.
-- Microsoft Edge **WebView2 Evergreen Runtime**, needed for the real desktop test.
-- Internet access to the package registries, vulnerability databases, Playwright
-  browser distribution and GitHub's pinned actionlint download. GitHub Actions
-  and GitHub authentication are not required.
+1. [Command reference](#1-command-reference)
+2. [Install and check prerequisites](#2-install-and-check-prerequisites)
+3. [Prepare the checkout](#3-prepare-the-checkout)
+4. [Build your first executable](#4-build-your-first-executable)
+5. [Choose a mode](#5-choose-a-mode)
+6. [Find and verify the output](#6-find-and-verify-the-output)
+7. [Version and build identity](#7-version-and-build-identity)
+8. [Pipeline internals](#8-pipeline-internals)
+9. [Troubleshooting](#9-troubleshooting)
+10. [Native Windows acceptance checks](#10-native-windows-acceptance-checks)
+11. [CI, publication and validation boundaries](#11-ci-publication-and-validation-boundaries)
 
-Clone the repository, switch to the desired branch, and open PowerShell in the
-repository root. Paths containing spaces or Unicode are supported. No admin
-rights are needed by the script. Install missing prerequisites using your
-organization's approved method. If an approved execution policy blocks local
-scripts, follow the organization's policy; the build does not change it.
+## 1. Command reference
 
-```powershell
-git clone https://github.com/OnlyDrey/sap-lens.git
-cd sap-lens
-git switch work
-.\scripts\build-local.ps1 -Mode Quick
-```
-
-The script checks the OS and tool versions before installing dependencies.
-Python packages go into `backend/build/python-env`, and `pip-audit` into the
-separate `backend/build/audit-env`; global Python packages are not modified.
-Pinned build requirements install PyInstaller **6.22.3**, pywebview **6.2.1** and
-the project's pinned pip. npm uses `npm ci` and `package-lock.json`. Existing pip
-and npm download caches are reused; installed virtual environments are never
-restored from untrusted caches. Playwright installs the exact locked version's
-Chromium headless shell when needed and reuses its normal browser cache.
-`actionlint` 1.7.12 is provisioned from its checksum-verified Windows x64 archive.
-No complete EXE or build output is trusted from a cache.
-
-## Modes
+Copy one command at a time. You do **not** need to run all five commands in order.
+For a complete first build, use **Build**.
 
 ```powershell
-# Fast development checks; no production build, browser suite or EXE.
+# Development checks. Does not produce an EXE.
 .\scripts\build-local.ps1 -Mode Quick
 
-# Full validation, no EXE; explicit version also prepares Package's receipt.
+# Full validation. Does not produce an EXE.
 .\scripts\build-local.ps1 -Mode Validate -Version 0.1.0
 
-# Full validation, clean one-file packaging, verification, native smoke, ZIP roundtrip.
+# Full validation, packaging, native smoke tests and verified ZIP.
 .\scripts\build-local.ps1 -Mode Build -Version 0.1.0
+
+# The same complete build, using an explicit beta version.
 .\scripts\build-local.ps1 -Mode Build -Version 0.1.0-beta-4
 
-# Reuse the full validation above, with freshness/integrity checks.
+# Package inputs validated previously with the same version and commit.
 .\scripts\build-local.ps1 -Mode Package -Version 0.1.0
 ```
 
-Quick installs pinned dependencies, runs backend tests, frontend type checks,
-Lucide consistency, workflow contracts/actionlint, PowerShell parsing/static
-guards and `git diff --check`. It invalidates an older full-validation receipt.
+| Parameter | Accepted values | Default | Meaning |
+|---|---|---|---|
+| `-Mode` | `Quick`, `Validate`, `Build`, `Package` | `Build` | Work to execute |
+| `-Version` | `MAJOR.MINOR.PATCH` or `MAJOR.MINOR.PATCH-beta-N` | `0.1.0` | Requested local version; no `v` prefix |
 
-Validate and Build additionally compile production frontend assets, run all
-browser regressions, check Python dependency consistency and run full installed
-Windows Python and production JavaScript vulnerability audits. Backend tests
-include repository/privacy, migration, API, CSV, desktop and package-verifier
-regressions; deprecations remain errors. Failed audits or tests stop the build.
-A Validate run alone cannot establish native packaged-EXE correctness.
+Always specify the mode explicitly so the intended work is clear. A bare
+`.\scripts\build-local.ps1` performs a full Build, not a quick check.
 
-Build and Package require a **clean Git checkout**, including no untracked source
-files. Commit your intended source changes before building. They run the same
-clean, one-file, windowed, x64, UPX-disabled PyInstaller build as CI, followed by
-PE/subsystem, version, icon, manifest, embedded identity, archive, frontend,
-privacy and checksum checks. They run the actual EXE smoke suite: first launch,
-shutdown/restart, port conflict, loopback/session protections and WebView2 startup
-where the desktop environment permits it. The exact two-file ZIP is extracted
-through the canonical ZIP verifier and the extracted EXE is fully verified again.
-No personal CSV, local settings or branding is added to the distribution.
+## 2. Install and check prerequisites
 
-Package requires a successful Validate/Build with the **same explicit version**,
-less than **24 hours** old, on the same clean commit. A receipt fingerprints all
-tracked sources, production frontend bytes, Python environment contents (except
-bytecode) and Python/Node versions. Modified/missing files, a new commit/version,
-incomplete validation or an expired receipt require Validate again. Package does
-not reinstall frontend/backend dependencies or reuse unverified outputs. It
-reruns current Python and production JavaScript vulnerability audits before
-packaging. Audits still need network access. Receipts protect against accidental
-stale inputs; they are not signatures against a malicious local account.
+### Supported build machine
 
-A lock prevents concurrent local runs in one checkout. Do not concurrently run
-other tools that modify the checkout, virtual environment or frontend assets.
+Use Windows x64 and a **64-bit** PowerShell session. ARM and 32-bit shells are
+rejected. The script accepts Windows PowerShell 5.1 or PowerShell 7. Install tools
+through your organization's approved software process; the script needs no admin
+privileges and does not change execution policy.
 
-## Versions and output
+| Tool | Required version | Purpose |
+|---|---|---|
+| Git for Windows | Available on `PATH` | Source identity and clean-checkout checks |
+| Python | **3.12 x64**, with `venv` and pip | Backend, tests, packaging and verification |
+| Node.js | **24 LTS** | Frontend tools and browser tests |
+| npm | **10 or 11** | Lockfile-based dependency installation |
+| PowerShell | **5.1 or 7**, x64 | Build orchestration |
+| Edge WebView2 | Evergreen Runtime | Actual desktop startup/smoke testing |
 
-Explicit versions accept `MAJOR.MINOR.PATCH` and `MAJOR.MINOR.PATCH-beta-N`, within
-Windows' 16-bit version-component limits. To distinguish unofficial packages,
-`0.1.0-beta-4` becomes **`0.1.0-beta-4+local.<12-character-source-SHA>`**.
-This deterministic identity is shared by the UI, backend, embedded metadata,
-Windows ProductVersion and local manifest. The numeric PE FileVersion is
-`0.1.0.4` (or `0.1.0.0` for base versions). No run number is invented, no reserved
-beta tag is consumed, and official CI identity/allocation is unchanged. The UI
-labels these packages “Local build”. Rebuilding the same source/version preserves
-identity; PyInstaller/ZIP bytes are not claimed to be bit-for-bit reproducible.
+### Install each prerequisite
 
-Everything is Git-ignored:
+Use your company's software portal first if this is a managed PC. Installer
+permissions depend on your organization; **running the build** does not require
+administrator rights. Review installer prompts rather than disabling controls.
 
-```text
-dist/local/runs/<timestamp-id>/
-  build.log                   # transcript of stages and diagnostics
-  summary.json                # success/failure, source/version, stages, duration
+1. **Git for Windows:** install from [git-scm.com](https://git-scm.com/downloads/win).
+   Enable Git on the command line so `git.exe` is available on `PATH`. If Windows
+   Package Manager is permitted, the equivalent package is:
 
-dist/local/packages/<local-version>/<timestamp-id>/
-  application/SAP-Lens.exe
-  application/SAP-Lens.exe.sha256
-  archive/SAP-Lens-Windows-x64-<local-version>.zip
-  archive/SAP-Lens-Windows-x64-<local-version>.zip.sha256
-  verification-report.json
-  build-manifest.json
+   ```powershell
+   winget install --id Git.Git --exact
+   ```
+
+2. **Python 3.12 x64:** obtain a Python 3.12 Windows installer from the
+   [official Python Windows downloads](https://www.python.org/downloads/windows/)
+   or your approved software portal. Include pip, the Python launcher (`py`) and
+   `venv`; enable the installer's PATH option where available. Do not substitute
+   Python 3.13/3.14 merely because it is newer. With permitted winget access:
+
+   ```powershell
+   winget install --id Python.Python.3.12 --exact
+   ```
+
+3. **Node.js 24 x64 and npm:** choose a **24.x** Windows x64 `.msi` from the
+   [official Node.js 24 archive](https://nodejs.org/download/release/latest-v24.x/).
+   Keep **npm package manager** and **Add to PATH** enabled in the installer.
+   Installing Node.js this way installs npm too; do not install npm separately
+   to repair a missing Node installation. Avoid blindly choosing “latest LTS”
+   if it points to a newer major version than 24.
+
+   For an approved winget-based installation, first inspect available versions:
+
+   ```powershell
+   winget show --id OpenJS.NodeJS.LTS --exact --versions
+   ```
+
+   If it lists a 24.x version, substitute that exact value below; the angle-bracket
+   placeholder is not a runnable version string:
+
+   ```text
+   winget install --id OpenJS.NodeJS.LTS --exact --version <available-24.x.y-version>
+   ```
+
+   Use the MSI or your software portal if winget no longer offers that version.
+   The local build accepts npm major 10 or 11. Check the installed npm version;
+   do not upgrade globally to a new major just because npm prints an update notice.
+
+4. **PowerShell:** Windows PowerShell 5.1 is normally already installed on Windows.
+   Use its x64 edition, not Windows PowerShell (x86). PowerShell 7 is optional;
+   install from [Microsoft's PowerShell installation guide](https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-windows)
+   or, when permitted:
+
+   ```powershell
+   winget install --id Microsoft.PowerShell --exact
+   ```
+
+   `powershell.exe` starts Windows PowerShell; `pwsh` starts PowerShell 7. Either
+   supported x64 shell can run `build-local.ps1`.
+
+5. **Microsoft Edge WebView2 Evergreen Runtime:** install the x64 Evergreen
+   Runtime from [Microsoft](https://developer.microsoft.com/microsoft-edge/webview2/),
+   even if you use a different browser. The Edge browser's presence alone is not
+   the acceptance check for the runtime. An approved winget installation is:
+
+   ```powershell
+   winget install --id Microsoft.EdgeWebView2Runtime --exact
+   ```
+
+   The desktop also needs .NET Framework 4.6.2 or later, normally supplied by
+   supported Windows 10/11 installations. Ask IT to enable it if missing; Python's
+   pinned desktop dependencies are installed by the build, not manually.
+
+`winget` itself is supplied by Microsoft's App Installer on supported Windows
+systems. If `winget` is unavailable or blocked, use the official installers or
+software portal; the SAP Lens build does not require winget.
+
+**Close PowerShell and open a new window after installing tools.** Existing
+windows keep the old PATH. You do not need to reboot simply to refresh a shell's
+PATH in the usual case.
+
+### Verify tools before running a build
+
+Open a new PowerShell window after installing tools. Check:
+
+```powershell
+$PSVersionTable.PSVersion
+$env:PROCESSOR_ARCHITECTURE  # Expected: AMD64
+git --version
+py -3.12 --version          # Expected: Python 3.12.x
+py -3.12 -c "import struct; print(struct.calcsize('P') * 8)"  # Expected: 64
+node --version             # Expected: v24.x.x
+npm --version              # Expected: 10.x.x or 11.x.x
 ```
 
-The ZIP contains **only** `SAP-Lens.exe` and `SAP-Lens.exe.sha256`. Reports and logs
-stay outside it. The manifest is written only after complete verification, includes
-EXE/ZIP SHA-256 and sizes, local source identity and validation receipt. The ZIP
-hash is a local digest, not a GitHub artifact-service digest. Failed runs return
-nonzero and identify their last stage; no success manifest is created. A failure
-before writable output/tool prerequisites are established is reported to the
-console. Logs may contain local tool paths; review them before sharing.
+The script first tries `py -3.12`. If unavailable, it tries `python` on `PATH` and
+checks that it is Python 3.12 x64. If using that fallback, replace `py -3.12` with
+`python` in the diagnostic commands above.
 
-## Troubleshooting and native QA
+Install the [official WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)
+if absent, or ask IT to provide it. Run builds from an interactive Windows desktop
+for the GUI smoke test.
 
-- **Wrong/missing Python:** run `py -3.12 --version`; install the x64 3.12 release.
-- **Wrong Node/npm:** use Node 24 and its supported npm; reopen PowerShell after installation.
-- **Locked files:** close SAP Lens before packaging; allow the previous local run
-  to finish. Do not delete user configuration to resolve a build failure.
-- **Missing WebView2/display session:** install the approved runtime and run from
-  an interactive Windows desktop. Do not bypass the smoke test.
-- **Proxy/certificate errors:** configure approved registry/proxy/CA trust; do not
-  disable TLS verification or skip audits. Cold-cache setup needs downloads.
-- **Stale Package receipt:** run Validate again after the latest commit using the
-  exact same `-Version`. Do not edit the receipt.
-- **Security audit failures:** investigate the reported dependency and update pins
-  with regression testing. Production and development advisories are different;
-  no finding is suppressed automatically.
-- **Encoding:** fixture generation writes UTF-8 bytes; HTTP HTML fixtures declare
-  UTF-8. Python process I/O is explicitly UTF-8 in local builds.
+### Fix “npm is not recognized” / PATH problems
 
-Automated Playwright tests run in Chromium and **do not replace native desktop
-validation**. On the generated EXE, manually check navbar/routes/breadcrumbs,
-global Previous/Next across pages, keyboard/mouse combobox placement in light/dark
-modes, native file pickers and both CSV tabs. Test an authorized **synthetic** CSV
-on an actual UNC share with spaces/non-ASCII names, unavailable share/reconnect,
-and permissions denied. Confirm configuration survives EXE replacement, startup
-and shutdown leave no orphaned processes, and no terminal is required to run the
-finished app. No real SAP data is required for these checks.
+First test both tools in the new PowerShell window:
 
-Linux can run unit/browser/type/build/audit/static checks but cannot run this
-Windows entry point or prove native WebView2, PE packaging or UNC access. See
-[CI architecture](CI_ARCHITECTURE.md) and [desktop architecture](DESKTOP.md) for
-those validation boundaries. Local builds never push, dispatch workflows, create
-or move tags, publish releases or enable signing.
+```powershell
+node --version
+npm --version
+Get-Command node -ErrorAction SilentlyContinue
+Get-Command npm -ErrorAction SilentlyContinue
+where.exe node
+where.exe npm
+```
 
-## Implementation validation record (2026-10-22)
+- If **both are missing**, install Node.js 24 x64 with npm and PATH enabled.
+- If **node works but npm is missing**, repair the Node.js installation and enable
+  its npm component. Avoid downloading an unrelated npm executable.
+- If the installer completed but **this window still cannot find them**, reopen
+  PowerShell. A standard system-wide installation usually lives in
+  `C:\Program Files\nodejs`, but a managed/per-user installation can differ.
+- If multiple installations are listed, use the approved version manager or
+  installer to select Node 24. Do not delete unrelated installations blindly.
 
-Baseline: clean `work` at `cc61f74bf7e45cd8160cbd9ed1ebfa6dc12a7ce6`.
-Read-only logs for run `39801318105` confirmed 61 passed / five failed browser
-cases, before packaging. This was a test failure, not evidence of exhausted
-Actions credits. The bootstrap document already declared `<meta charset="utf-8">`.
-The five fixtures used Python `print()` with redirected CP1252 stdout on Windows,
-then decoded the bytes as UTF-8 in Node. An ellipsis became byte `85` and then the
-replacement character U+FFFD **before** `route.fulfill()` received the HTML.
-Reproducing the same redirected encoding on Linux produced the identical failure.
-`contentType: 'text/html'` alone was not the root cause.
+To diagnose a standard installation without changing global PATH:
 
-The shared fixture now writes explicit UTF-8 bytes with `sys.stdout.buffer`,
-uses Python UTF-8 mode and declares UTF-8 in synthetic HTTP responses. All five
-exact status assertions remain. The new regression forces CP1252 stdout even on
-Linux, checks the exact rendered ellipsis, HTTP charset and `document.characterSet`,
-and checks a subsequent status update. Production bootstrap branding is unchanged.
+```powershell
+$nodeDirectory = Join-Path $env:ProgramFiles 'nodejs'
+Test-Path (Join-Path $nodeDirectory 'node.exe')
+Test-Path (Join-Path $nodeDirectory 'npm.cmd')
+# Run only if both files above exist and this is your trusted Node 24 installation:
+& (Join-Path $nodeDirectory 'node.exe') --version
+& (Join-Path $nodeDirectory 'npm.cmd') --version
+$env:Path = $nodeDirectory + ';' + $env:Path
+node --version
+npm --version
+```
 
-Executed on Linux (Python 3.12.14, Node 24.19.0, npm 11.9.0, PowerShell 7.6.7):
+The PATH change above affects this session only. Repair the installer/PATH setting
+through your approved process for a persistent fix. If `npm.ps1` is found but
+blocked as unsigned, that is an execution-policy error, not a missing npm package;
+use the trusted-source process-scoped policy instructions below where permitted.
 
-| Check | Command (repository root unless specified) | Result |
+Do not solve a missing npm command by manually skipping the Frontend stage.
+The compiled frontend is required in the Windows package.
+
+### Network access
+
+The first run needs access to Python/npm registries, vulnerability databases,
+Playwright's browser downloads and GitHub's actionlint release assets. Warm caches
+reduce downloads but **do not make the full build offline**: security audits still
+query current vulnerability data. GitHub authentication is not needed by the build
+script; cloning a private repository may require your existing Git credentials.
+
+Preserve approved proxy and CA configuration. Do not disable certificate checks
+or skip audits to work around a corporate network error.
+
+### PowerShell blocks unsigned or downloaded scripts
+
+An error such as “the file is not digitally signed” is an execution-policy
+failure **before the build starts**. It does not indicate a Python, npm or
+packaging failure. Downloaded GitHub ZIPs may mark extracted files as originating
+from the internet (Mark of the Web).
+
+First inspect the effective policies:
+
+```powershell
+Get-ExecutionPolicy -List
+Get-ExecutionPolicy
+```
+
+After reviewing and trusting the source, choose **one** of these approaches.
+Do not change machine-wide policy to run a local build.
+
+**Option A — allow all scripts in the current PowerShell window only:**
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\scripts\build-local.ps1 -Mode Quick
+```
+
+`Process` affects this window and its child processes, including the build's
+helper scripts. It does not persist after the window closes and needs no admin
+rights. It permits unsigned scripts in this session, so run only trusted code.
+To restore the process override without closing the window:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Undefined
+```
+
+**Option B — start a separate build process with a temporary bypass:**
+
+```powershell
+# Windows PowerShell 5.1; run from the repository root.
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-local.ps1 -Mode Quick
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-local.ps1 -Mode Build -Version 0.1.0
+
+# Alternatively, if PowerShell 7 is installed:
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-local.ps1 -Mode Quick
+```
+
+The override applies only to that new process. Replace the mode/version as needed;
+Validate and Package use the same syntax.
+
+**Option C — remove the internet marker from trusted repository scripts:**
+
+```powershell
+Get-ChildItem -LiteralPath .\scripts -Filter '*.ps1' -File | Unblock-File
+.\scripts\build-local.ps1 -Mode Quick
+```
+
+This unblocks all PowerShell scripts directly inside this repository's `scripts`
+folder, including the canonical builder and verification helpers. It does not
+unblock your entire Downloads folder or change execution policy. Under
+`RemoteSigned`, removing the marker allows trusted local unsigned files. It does
+not satisfy an `AllSigned` policy; unblocking persists for those files.
+
+**Managed PCs:** `MachinePolicy` and `UserPolicy` (Group Policy) take precedence
+over a process override. If those enforce signing or prohibit execution, stop
+and request an approved approach from IT. Bypass is not a way around Group Policy,
+application control or endpoint protection. The build script never changes these
+policies automatically.
+
+**Correct script and working directory:** `-Mode` is a parameter of
+`build-local.ps1`. `build-windows.ps1` is the lower-level builder and uses `-Stage`,
+not `-Mode`. Prefer the local entry point:
+
+```powershell
+# If currently inside the repository's scripts folder:
+Set-Location ..
+.\scripts\build-local.ps1 -Mode Quick
+```
+
+## 3. Prepare the checkout
+
+For a new checkout:
+
+```powershell
+git clone https://github.com/OnlyDrey/sap-lens.git
+Set-Location .\sap-lens
+git switch work
+```
+
+A GitHub **Download ZIP** extraction is not a Git checkout: it has no `.git`
+history. Build and Package require a real clone to record the source commit.
+If currently working in `Downloads\sap-lens-work`, preserve any edits there and
+clone into a separate folder. Do not run `git init` just to fabricate a build
+identity. Obtain the reviewed local-build commits in that clone before building.
+
+For an existing checkout, navigate to its root. Quote paths containing spaces:
+
+```powershell
+Set-Location 'C:\Projects\SAP Lens\sap-lens'
+Get-Item .\scripts\build-local.ps1
+Get-Item .\docs\LOCAL_WINDOWS_BUILD.md
+git branch --show-current
+git log -1 --oneline
+git status --short
+```
+
+If the script or guide is missing, your checkout does not contain the local-build
+implementation. Obtain the intended reviewed commits through your normal Git
+workflow. Do not reset or discard existing work to update the checkout.
+
+**Build and Package require `git status --short` to produce no output.** Modified,
+staged or untracked source files make these modes stop before packaging. Review
+and commit intended changes; handle unrelated files individually. Avoid bulk
+staging SAP exports, local configuration or credentials. Ignored build outputs do
+not make the checkout dirty.
+
+Quick and Validate can run while developing, but a later source commit changes
+the identity. Run Validate again on the final clean commit before Package.
+
+## 4. Build your first executable
+
+Close any running SAP Lens EXE that might lock an older build. From the clean
+repository root, run:
+
+```powershell
+.\scripts\build-local.ps1 -Mode Build -Version 0.1.0
+$LASTEXITCODE
+```
+
+Expect a final `passed` summary, exit code **0**, and printed paths for **Verified
+artifacts** and **Logs and summary**. The first run installs dependencies and a
+Chromium headless shell; it can take longer than subsequent runs. No local build
+time guarantee has been measured on Windows.
+
+A successful Build already includes full validation. There is no need to run
+Quick or Validate before it. A failure returns a nonzero exit code and names the
+failing stage. Do not distribute files from an unsuccessful run.
+
+For a beta-labelled local build, use:
+
+```powershell
+.\scripts\build-local.ps1 -Mode Build -Version 0.1.0-beta-4
+```
+
+This does not reserve or publish `v0.1.0-beta-4` on GitHub.
+
+## 5. Choose a mode
+
+### Coverage matrix
+
+“Reuse” means the step must already have passed for the exact inputs, verified
+through a fresh validation receipt. It does not mean the check is optional.
+
+| Operation | Quick | Validate | Build | Package |
+|---|---|---|---|---|
+| Check OS/tool versions and generate local identity | Yes | Yes | Yes | Yes |
+| Require clean Git checkout | No | No | Yes | Yes |
+| Install pinned Python dependencies; `pip check` | Yes | Yes | Yes | Reuse |
+| `npm ci`, type checks and Lucide catalog check | Yes | Yes | Yes | Reuse |
+| Production frontend compilation | No | Yes | Yes | Reuse |
+| Backend regression suite, deprecations as errors | Yes | Yes | Yes | Reuse |
+| Browser regression suite | No | Yes | Yes | Reuse |
+| Windows Python and production JavaScript audits | No | Yes | Yes | Rerun |
+| Workflow contracts/actionlint, PowerShell checks, Git whitespace checks | Yes | Yes | Yes | Reuse |
+| Write full-validation receipt | No | Yes | Yes | Reuse |
+| Clean EXE packaging, package verification, native smoke tests | No | No | Yes | Yes |
+| ZIP roundtrip, extracted EXE verification, output manifest | No | No | Yes | Yes |
+
+Quick still installs the pinned build/test toolchain and runs all backend tests;
+it is lighter than Build, not a dependency-free syntax check. Quick also
+**invalidates any earlier full-validation receipt**.
+
+### Validate now, package later
+
+Use this when you want to separate validation from executable generation:
+
+```powershell
+# Start from the final clean commit.
+.\scripts\build-local.ps1 -Mode Validate -Version 0.1.0
+
+# Later, using the exact same checkout and version:
+.\scripts\build-local.ps1 -Mode Package -Version 0.1.0
+```
+
+Package requires `backend/build/local-validation.json` from a successful Validate
+or Build. It rejects a receipt if:
+
+- It is missing, malformed, incomplete, more than **24 hours** old or future-dated.
+- The source commit or requested version differs.
+- Tracked source files or production frontend files changed or disappeared.
+- Python environment files changed, excluding generated bytecode.
+- The recorded Python or Node version changed.
+- The working tree is dirty.
+
+For example, Validate with `0.1.0` does not authorize Package with `0.1.0-beta-4`.
+Changing code, committing it, or running Quick means Validate must run again.
+Do not edit or copy receipts to bypass the checks. They guard accidental stale
+inputs, not a malicious user who controls the local machine.
+
+Package does not rerun regression tests or reinstall frontend/backend packages.
+It does provision the separate audit environment as needed, reruns current audits,
+and then rebuilds the EXE with the normal clean packaging process.
+
+## 6. Find and verify the output
+
+Every run has a timestamp plus random suffix to keep logs and packages separate.
+All paths below are Git-ignored:
+
+```text
+dist/local/
+  runs/<run-id>/
+    build.log                   PowerShell transcript
+    summary.json                Mode, identity, tool versions, stages, duration
+  packages/<local-version>/<run-id>/
+    application/
+      SAP-Lens.exe               Verified application, ready to launch
+      SAP-Lens.exe.sha256        Expected EXE SHA-256
+    archive/
+      SAP-Lens-Windows-x64-<local-version>.zip
+      SAP-Lens-Windows-x64-<local-version>.zip.sha256
+    verification-report.json     Extracted package verification results
+    build-manifest.json          Completed package identity, hashes and sizes
+```
+
+Open the exact **Verified artifacts** directory printed by the successful run;
+do not choose an older directory merely because it contains an EXE. Quick and
+Validate produce logs/summary but no new verified application package.
+
+The ZIP contains exactly `SAP-Lens.exe` and `SAP-Lens.exe.sha256`. Logs, manifests
+and reports stay outside it. The manifest is written only after export and all
+required checks pass. A partially written directory without a success manifest
+is not a verified distribution.
+
+### Read the summary and verify hashes manually
+
+Use the printed paths, replacing these example placeholders:
+
+```powershell
+$runDirectory = 'C:\Projects\sap-lens\dist\local\runs\<run-id>'
+Get-Content -Raw (Join-Path $runDirectory 'summary.json') | ConvertFrom-Json |
+    Format-List mode, status, last_stage, seconds, artifact_directory
+
+$packageDirectory = 'C:\Projects\sap-lens\dist\local\packages\<local-version>\<run-id>'
+$manifest = Get-Content -Raw (Join-Path $packageDirectory 'build-manifest.json') |
+    ConvertFrom-Json
+$exe = Join-Path $packageDirectory 'application\SAP-Lens.exe'
+$actual = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($actual -ne $manifest.exe_sha256) { throw 'EXE checksum mismatch' }
+
+$zip = Get-ChildItem -LiteralPath (Join-Path $packageDirectory 'archive') -Filter '*.zip'
+if (@($zip).Count -ne 1) { throw 'Expected exactly one ZIP' }
+$zipHash = (Get-FileHash -LiteralPath $zip.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($zipHash -ne $manifest.zip_sha256) { throw 'ZIP checksum mismatch' }
+'EXE and ZIP SHA-256 match the manifest.'
+```
+
+Checksums detect changed files; they do not establish publisher authenticity.
+The EXE remains unsigned. Confirm the source/manifest came from your trusted
+build. Do not bypass your organization's endpoint or application policies.
+
+## 7. Version and build identity
+
+| Requested version | Resolved application / ProductVersion | Numeric PE FileVersion |
 |---|---|---|
-| Dependency installation | `npm --prefix frontend ci --no-audit --no-fund` | Passed |
-| Lucide catalog | `node scripts/sync-lucide-catalog.mjs --check` | Passed |
-| Types | `npm --prefix frontend run check:types` | Passed |
-| Production frontend | `npm --prefix frontend run build` | Passed |
-| Backend | `python -W error::DeprecationWarning -m unittest discover -s backend/tests -v` | 209 passed |
-| Browser (system Chromium) | `PLAYWRIGHT_EXECUTABLE_PATH=/usr/bin/chromium npm --prefix frontend run test:browser -- --reporter=line` | 67 passed; original 66 retained |
-| Workflow contracts | `python scripts/check-workflows.py` | Passed |
-| Workflow schema/expressions | `python scripts/ci.py lint` | Passed |
-| PowerShell syntax/static guards | `pwsh -NoProfile -File scripts/check-powershell.ps1` | All four scripts passed |
-| Python consistency | `python -m pip check` | Passed |
-| Installed Linux Python audit | Separate audit interpreter: `python -m pip_audit --path <build-venv-site-packages> --progress-spinner off` | No known vulnerabilities |
-| Production JavaScript | `npm --prefix frontend audit --omit=dev` | Zero vulnerabilities |
-| All JavaScript (informational) | `npm --prefix frontend audit --json` | Existing 7 development advisories: 5 high, 2 moderate |
-| Whitespace/integrity | `git diff --check` | Passed |
+| `0.1.0` | `0.1.0+local.<12-character-commit-SHA>` | `0.1.0.0` |
+| `0.1.0-beta-4` | `0.1.0-beta-4+local.<12-character-commit-SHA>` | `0.1.0.4` |
 
-Sixteen new backend tests cover deterministic local identities, metadata resources,
-invalid versions, complete/stale/modified receipts, Unicode/space paths, source and
-environment changes, strict ZIP roundtrip/reverification, export failure handling,
-requirement-driven tool checks, checksum-verified Windows actionlint provisioning,
-non-Windows rejection and invalid PowerShell modes. Archive/PE malformed-input,
-privacy and checksum regression coverage remains in the existing suite.
-Windows actionlint extraction is tested with a synthetic archive; the executable
-is never run in that unit test. Export tests stub the native PE subprocess while
-running the real ZIP verifier; they do not prove Windows packaging success.
+The shared identity includes the full source SHA and mode `local-build`. The UI
+shows “Local build”. Backend/API, embedded JSON, PE resources and package manifest
+use the same identity. No GitHub run ID or run number is fabricated, and the local
+tag field is empty. The beta sequence is explicit; it does not auto-increment.
 
-Bootstrap screenshots were inspected in light/dark mode at 800/1280 pixels; the
-status text renders intact. No dependency versions or workflow triggers changed.
-The README and canonical branding assets are untouched. The development advisories
-remain visible; resolving them requires a separate compatible dependency review.
-No vulnerabilities were suppressed.
+Use versions without leading zeros, a `v` prefix or arbitrary suffixes. Numeric
+Windows version components must fit 0–65535; beta N must be 1–65535. Rebuilding the
+same source/version preserves identity, but PyInstaller and ZIP bytes are not
+promised to be bit-for-bit reproducible.
 
-**Pending:** native Windows PowerShell 5.1/7 end-to-end execution, full Windows-only
-Python dependency audit, actual EXE packaging/PE verification and smoke tests,
-WebView2/file-picker/UNC testing. No Windows artifact was built on Linux. No push,
-workflow dispatch, tag or release was performed for this task.
+## 8. Pipeline internals
+
+### Source of truth
+
+| File | Responsibility |
+|---|---|
+| [`scripts/build-local.ps1`](../scripts/build-local.ps1) | Mode selection, prerequisite checks, isolated tooling, logs, stage order and exit status |
+| [`scripts/build-windows.ps1`](../scripts/build-windows.ps1) | Canonical dependency, frontend, audit, test, PyInstaller, verification and smoke stages used by CI and local builds |
+| [`scripts/local-build.py`](../scripts/local-build.py) | Local identity, SHA-256 input fingerprints, receipt freshness and verified ZIP export |
+| [`backend/version.py`](../backend/version.py) | Strict shared identity schema, local version rules and runtime metadata loading |
+| [`scripts/write-windows-metadata.py`](../scripts/write-windows-metadata.py) | PE version resources generated from that identity |
+| [`scripts/verify-windows-package.py`](../scripts/verify-windows-package.py) | x64 PE/GUI, versions, icon/manifest, embedded archives, frontend integrity, privacy and checksum checks |
+| [`scripts/test-windows-exe.ps1`](../scripts/test-windows-exe.ps1) | Real EXE startup, lifecycle, session/origin and port-conflict checks |
+| [`scripts/verify-artifact-zip.py`](../scripts/verify-artifact-zip.py) | ZIP digest, exact members, safe extraction and archive checks |
+
+Build runs validation first, fingerprints its inputs, then packages with
+PyInstaller `--clean --onefile --windowed --noupx`. It verifies the EXE, runs the
+native smoke test, creates a two-file ZIP, verifies/extracts that ZIP, and fully
+verifies the extracted EXE against the approved original hash. Verification is
+not bypassed for local builds. See [Windows packaging](WINDOWS_PACKAGING.md) for
+the detailed contract.
+
+### Environments, generated files and caches
+
+| Location | Contents / behavior |
+|---|---|
+| `backend/build/python-env` | Dedicated build/test Python virtual environment |
+| `backend/build/audit-env` | Separate pip-audit interpreter; not a packaging input |
+| `backend/build/build-version.json` | Generated local or CI identity |
+| `backend/build/local-validation.json` | Full-validation receipt; valid up to 24 hours |
+| `backend/build/local-build.lock` | Exclusive lock held during a local run |
+| `backend/build/timings.jsonl` | Canonical stage timing records |
+| `backend/build/local-test-settings/<run-id>` | Isolated local test configuration |
+| `frontend/node_modules`, `frontend/dist` | Lockfile-installed frontend tools and compiled production assets |
+| `backend/dist/SAP-Lens.exe` | Intermediate canonical executable; use the verified exported package for distribution |
+
+Requirements in `backend/requirements-build.txt`, `requirements-desktop.txt`,
+`requirements-dev.txt` and `scripts/requirements-audit.txt` control Python installs.
+Frontend dependencies use `frontend/package-lock.json`. Global Python packages
+are not modified. Build/test dependencies being installed does not mean they are
+all bundled; PyInstaller and the package verifier control the actual distribution.
+
+Normal pip/npm download caches and Playwright's versioned browser cache are reused.
+Only the required Chromium headless shell is installed. actionlint 1.7.12's Windows
+x64 archive is checked against its pinned SHA-256 before execution. Full virtual
+environments and EXEs are not restored from untrusted caches. Clean PyInstaller
+packaging remains enabled.
+
+The wrapper sets Python I/O to UTF-8 before querying executable paths. It isolates
+test settings, clears CSV environment inputs and restores changed process
+environment variables/location after completion. Do not run another build or
+modify source, dependencies or frontend outputs concurrently in the same checkout.
+Never place real SAP exports in tracked folders or add them to the package.
+
+## 9. Troubleshooting
+
+Start with the final **failed stage**, then open that run's `build.log` and
+`summary.json`. Preflight failures before output directories exist appear only in
+the console. Keep the original exit code when automating; a nonzero code is failure.
+
+| Symptom / stage | Diagnosis and action |
+|---|---|
+| Script not found | Confirm repository root and `Get-Item .\scripts\build-local.ps1`; obtain the reviewed local-build commits if missing |
+| Unsigned script / execution policy | See the scoped bypass and trusted-file unblocking instructions in section 2; managed policies require IT approval |
+| Missing/wrong Python | Check `py -3.12 --version` and x64 bitness; inspect `Get-Command python` if using the fallback |
+| Wrong Node/npm | Check `node --version`, `npm --version`, `Get-Command node`; reopen the shell after installing Node 24 |
+| Dirty source check | Review `git status --short`; commit only intended changes, then validate the final commit |
+| Stale receipt / Package | Run Validate with the exact same version on the clean final commit; do not edit the receipt |
+| Another local build / locked files | Let the other run finish; close SAP Lens. The lock file's existence alone does not mean a live lock is held |
+| pip/npm/Playwright download or CA failure | Check approved proxy, trust and registry access. Do not disable TLS verification |
+| Audit failure | Review the reported advisory and affected dependency. Update pins with compatibility tests; do not suppress it merely to finish packaging |
+| Browser failure | Read the exact assertion and retained test trace; do not treat a test failure as proof of exhausted Actions credits |
+| Metadata/package verification failure | Inspect the reported phase/category; use matching source, identity and freshly built assets. Do not skip the verifier |
+| WebView2/startup smoke failure | Verify Evergreen Runtime and an interactive desktop, close old instances, then review isolated smoke-test diagnostics |
+| Antivirus/SmartScreen intervention | Ask IT to inspect the unsigned executable and logs; do not disable endpoint protections |
+
+For inspection of retained browser traces, from `frontend` use the installed CLI:
+
+```powershell
+node .\node_modules\playwright\cli.js show-trace 'C:\Path\To\trace.zip'
+```
+
+Test output location depends on Playwright configuration/CLI options; locate the
+trace named in the failing test output. Review logs and traces before sharing:
+they may include local tool paths or screenshots. Use synthetic data only.
+
+## 10. Native Windows acceptance checks
+
+Playwright runs Chromium and does **not** prove native WebView2, OS dialogs or UNC
+access. After a successful package, launch the exported `application\SAP-Lens.exe`
+and record the version/source identity and each result:
+
+1. Confirm no console is needed for daily use, then close and reopen the app.
+2. Test main navigation, breadcrumbs, Back/Forward and Previous/Next across list
+   pages while filters/sorting remain active.
+3. Check combobox search, keyboard selection, Escape/outside-click handling and
+   dropdown placement in both light and dark mode.
+4. Test native file selection and separate Role Catalogue/User Access CSV tabs
+   with synthetic exports, including a local path with spaces/non-ASCII characters.
+5. Use an authorized synthetic file on a real UNC share, for example
+   `\\demo-server\synthetic-share\SAP Test\users.csv`; replace this example with
+   your approved test share. Test unavailable-share, reconnect and access-denied
+   behavior. Do not substitute production SAP data.
+6. Confirm settings persist after replacing the EXE, and closing the app stops
+   its owned service without orphaned processes. Existing configuration is stored
+   outside the executable; do not delete it as a build troubleshooting step.
+
+Automated smoke tests cover important lifecycle/security behavior; the interactive
+checks above establish OS integration that browser mocks cannot establish.
+
+## 11. CI, publication and validation boundaries
+
+| Local builds | GitHub Actions |
+|---|---|
+| Explicit local version with `+local.<SHA>` | Workflow-resolved build/beta/stable identity |
+| Local SHA-256 and ZIP roundtrip | GitHub artifact-service digest plus package/ZIP checks |
+| Output remains under `dist/local/` | Artifact upload/download and optional approved release publication |
+| No remote writes or signing | Publication only through the configured, explicitly selected release path |
+
+Both use the canonical build and verification scripts. Local builds do not need
+`GITHUB_RUN_ID` and reject the GitHub Actions execution context. They do not push,
+dispatch workflows, create/delete/move tags, publish releases or enable signing.
+For controlled pushes without automatic CI, see
+[temporarily skip automatic CI](CI_ARCHITECTURE.md#temporarily-skip-automatic-ci).
+
+The entry point rejects Linux. Linux unit/browser/build/audit/static checks are
+useful evidence but do not prove Windows package creation, WebView2 or UNC access.
+The implementation's historical test results and outstanding Windows checks are
+recorded separately in [Local build validation](LOCAL_BUILD_VALIDATION.md).
+For application installation/lifecycle details, see [Desktop](DESKTOP.md); official
+version reservation/publication is described in [Releases](RELEASES.md).
