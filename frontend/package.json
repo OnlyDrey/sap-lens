@@ -1,7 +1,7 @@
 {
   "name": "sap-role-checker",
   "private": true,
-  "version": "1.2.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "concurrently --kill-others \"npm run dev:backend\" \"npm run dev:frontend\"",
