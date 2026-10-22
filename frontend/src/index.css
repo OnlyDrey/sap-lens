@@ -183,8 +183,9 @@ button:hover .module-icon:not([data-disabled="true"]) { border-color: currentCol
 .primary-nav-button:focus-visible { outline:2px solid var(--on-primary); outline-offset:2px; }
 .detail-navigation { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
 .source-navigation { display:flex; gap:6px; padding:6px; background:var(--surface2); border:1px solid var(--border); border-radius:12px; }
-.source-navigation button { flex:1; }
-.source-navigation [aria-selected="true"], [aria-label="User role sections"] [aria-pressed="true"], .settings-secondary-button[aria-pressed="true"] { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+.source-navigation button { flex:1; min-width:0; border:0; }
+.source-navigation button[aria-selected="true"] { background:var(--accent); color:var(--on-accent); }
+[aria-label="User role sections"] [aria-pressed="true"], .settings-secondary-button[aria-pressed="true"] { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
 .import-source-panel { min-width:0; }
 .source-file-row { display:flex; align-items:flex-end; gap:8px; min-width:0; }
 .source-file-row > label { flex:1; min-width:0; }
@@ -315,3 +316,7 @@ button:hover .module-icon:not([data-disabled="true"]) { border-color: currentCol
 .detail-button svg { flex-shrink:0; }
 .service-notice { display:flex; flex-wrap:wrap; align-items:center; gap:12px; width:calc(100% - 48px); max-width:1488px; margin:16px auto 0; border:1px solid var(--border); border-radius:12px; background:var(--surface); padding:16px; }
 .service-notice > button { margin-left:auto; }
+
+/* Only the empty/error data-source action; shared controls retain their styles. */
+.data-source-action { flex-shrink:0; white-space:nowrap; }
+.data-source-action:active:not(:disabled) { background:var(--surface2); }

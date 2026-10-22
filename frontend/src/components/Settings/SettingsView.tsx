@@ -11,6 +11,8 @@ import {
   Image,
   Building2,
   Database,
+  LibraryBig,
+  UsersRound,
   Layers,
   Palette,
   Activity,
@@ -711,14 +713,14 @@ export function SettingsView({
                   {section === 1 && imports && (
                     <>
                       <div className="source-navigation" role="tablist" aria-label="Import source">
-                        {([['roles', 'Role Catalogue'], ['users', 'User Access']] as const).map(([key, label], index) => <button key={key}
+                        {([['roles', 'Role Catalogue', LibraryBig], ['users', 'User Access', UsersRound]] as const).map(([key, label, Icon], index) => <button key={key}
                           id={`source-tab-${key}`} role="tab" aria-selected={importSource === key}
                           aria-controls={`source-panel-${key}`} tabIndex={importSource === key ? 0 : -1}
                           className="settings-secondary-button" onClick={() => setImportSource(key)}
                           onKeyDown={event => { if (['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) {
                             event.preventDefault(); const next = event.key === 'Home' ? 'roles' : event.key === 'End' ? 'users' : index === 0 ? 'users' : 'roles';
                             setImportSource(next); document.getElementById(`source-tab-${next}`)?.focus()
-                          } }}>{label}</button>)}
+                          } }}><Icon size={16} aria-hidden="true" className="shrink-0"/><span>{label}</span></button>)}
                       </div>
                       <div id="source-panel-users" role="tabpanel" aria-labelledby="source-tab-users" hidden={importSource !== 'users'}>
                         <UserSourceEditor draft={draft} onChange={setDraft} native={native} active={importSource === 'users'} />

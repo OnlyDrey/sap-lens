@@ -1,6 +1,6 @@
 import { useHistoryValue } from '@/hooks/useViewHistory'
 import { type ReactNode, useState } from 'react'
-import { RefreshCw, Sun, Moon, Settings, Loader2 } from 'lucide-react'
+import { RefreshCw, Sun, Moon, Settings, Loader2, Database } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { refreshData, apiRequest } from '@/api/client'
 import { fetchConfiguration } from '@/api/configuration'
@@ -254,9 +254,11 @@ export function AppLayout({
         >
           <span className="text-sm mr-auto">{configuration.error}</span>
           <button
+            type="button"
             onClick={reviewDataSource}
-            className="text-sm underline"
+            className="settings-secondary-button data-source-action"
           >
+            <Database size={16} aria-hidden="true" className="shrink-0"/>
             Review data source
           </button>
         </div>
