@@ -1,5 +1,9 @@
 # Windows packaging hardening and readiness
 
+For current build/beta/stable modes and publication safeguards, see
+[manual Windows releases](RELEASES.md). The hardening findings below record their
+original implementation baseline.
+
 ## Baseline and decision
 
 **IMPROVE CURRENT PACKAGING.** Retain Python/FastAPI, React/Vite, pywebview/WebView2,

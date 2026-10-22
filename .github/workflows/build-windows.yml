@@ -2,6 +2,17 @@ name: Build Windows Application
 on:
   workflow_dispatch:
     inputs:
+      release_mode:
+        description: Build only, beta prerelease, or stable release
+        type: choice
+        options: [build, beta, stable]
+        default: build
+        required: true
+      version:
+        description: Base MAJOR.MINOR.PATCH; must match backend/version.py
+        type: string
+        default: '1.2.0'
+        required: true
       benchmark_packaging:
         description: Compare clean and same-job incremental PyInstaller packaging
         type: boolean
@@ -21,6 +32,9 @@ jobs:
     name: Windows Build & Verification
     runs-on: windows-latest
     timeout-minutes: 25
+    outputs:
+      artifact_id: ${{ steps.executable.outputs.artifact-id }}
+      artifact_digest: ${{ steps.executable.outputs.artifact-digest }}
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -41,6 +55,12 @@ jobs:
           cache-dependency-path: |
             backend/requirements*.txt
             scripts/requirements-audit.txt
+      - name: Validate manual version and release policy
+        shell: pwsh
+        env:
+          RELEASE_MODE: ${{ inputs.release_mode }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: python scripts/release-windows.py validate-inputs
       - name: Configure browser cache location
         shell: pwsh
         env:
@@ -143,3 +163,43 @@ jobs:
             Write-Host '::warning::Build report unavailable because checkout did not complete.'
           }
           exit 0
+  publish-release:
+    name: Publish Verified Windows Release
+    needs: windows-exe
+    if: ${{ needs.windows-exe.result == 'success' && inputs.release_mode != 'build' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    # Referencing an Environment does not configure approval rules; see docs/RELEASES.md.
+    environment:
+      name: ${{ inputs.release_mode == 'stable' && 'sap-lens-stable' || 'sap-lens-beta' }}
+    steps:
+      - name: Check out the exact built commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up publication Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Download this build artifact without extraction
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          artifact-ids: ${{ needs.windows-exe.outputs.artifact_id }}
+          path: ${{ runner.temp }}/sap-lens-release-download
+          skip-decompress: true
+          merge-multiple: true
+          digest-mismatch: error
+      - name: Reserve version and publish verified release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_MODE: ${{ inputs.release_mode }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          ARTIFACT_ID: ${{ needs.windows-exe.outputs.artifact_id }}
+          ARTIFACT_DIGEST: ${{ needs.windows-exe.outputs.artifact_digest }}
+          RELEASE_DOWNLOAD: ${{ runner.temp }}/sap-lens-release-download
+          RELEASE_OUTPUT: ${{ runner.temp }}/sap-lens-release-assets
+        run: python scripts/release-windows.py publish --download "$RELEASE_DOWNLOAD" --output "$RELEASE_OUTPUT"

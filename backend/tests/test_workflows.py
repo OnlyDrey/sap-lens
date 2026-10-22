@@ -104,3 +104,26 @@ class WorkflowTests(unittest.TestCase):
             download = next(step for step in steps if step.get('uses', '').startswith('actions/download-artifact@'))
             download['with'][field] = value
             with self.subTest(field=field), self.assertRaises(ValueError): contracts.validate(changed)
+
+
+    def test_release_permission_dependency_environment_and_artifact_drift_rejected(self):
+        for mutation in ('permissions','needs','condition','environment','artifact'):
+            changed = copy.deepcopy(self.workflows)
+            job = changed['build-windows.yml']['jobs']['publish-release']
+            if mutation == 'permissions': job['permissions']['actions'] = 'write'
+            if mutation == 'needs': job['needs'] = []
+            if mutation == 'condition': job['if'] = 'always()'
+            if mutation == 'environment': job['environment']['name'] = 'unprotected'
+            if mutation == 'artifact':
+                next(s for s in job['steps'] if s.get('uses','').startswith('actions/download-artifact@'))['with']['artifact-ids']='unrelated'
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError): contracts.validate(changed)
+
+    def test_release_inputs_keep_build_default_and_benchmarks_unchanged(self):
+        for mutation in ('default','options','benchmark','version'):
+            changed = copy.deepcopy(self.workflows)
+            inputs = changed['build-windows.yml']['on']['workflow_dispatch']['inputs']
+            if mutation == 'default': inputs['release_mode']['default']='beta'
+            if mutation == 'options': inputs['release_mode']['options'].append('automatic')
+            if mutation == 'benchmark': inputs['cold_cache']['default']='true'
+            if mutation == 'version': inputs['version']['required']='false'
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError): contracts.validate(changed)

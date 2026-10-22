@@ -77,7 +77,9 @@ def validate(workflows):
         validate_graph(workflow['jobs'])
         for job in workflow['jobs'].values():
             require(bool(job.get('name')), 'Job needs a descriptive display name')
-            require('permissions' not in job and 'continue-on-error' not in job, 'Job overrides safety policy')
+            publisher = filename == 'build-windows.yml' and job is workflow['jobs'].get('publish-release')
+            require('continue-on-error' not in job, 'Job overrides failure policy')
+            require(job.get('permissions') == {'contents': 'write', 'actions': 'read'} if publisher else 'permissions' not in job, 'Unexpected job permissions')
             require(1 <= int(job.get('timeout-minutes', 0)) <= 25, 'Missing or excessive timeout')
             for step in job['steps']:
                 require(bool(step.get('name')), 'Step needs a descriptive name')
@@ -97,13 +99,25 @@ def validate(workflows):
     require(full['concurrency']['cancel-in-progress'] == 'true' and
             'github.event.pull_request.number' in full['concurrency']['group'], 'Full concurrency must be per PR')
     require(windows['concurrency'] == {'group': 'sap-lens-windows-distribution', 'cancel-in-progress': 'false'}, 'Manual builds must be serialized without cancelling active builds')
-    require(len(windows['jobs']) == 1, 'Keep Windows build and integrity checks on one runner')
+    require(set(windows['jobs']) == {'windows-exe', 'publish-release'}, 'Keep the complete Windows build together; isolate publication')
+    publisher = windows['jobs']['publish-release']
+    require(publisher['needs'] == 'windows-exe' and publisher['if'] == "${{ needs.windows-exe.result == 'success' && inputs.release_mode != 'build' }}", 'Publication must depend on a successful non-build manual run')
+    require(publisher['environment']['name'] == "${{ inputs.release_mode == 'stable' && 'sap-lens-stable' || 'sap-lens-beta' }}", 'Stable and beta publication environments must be isolated')
+    inputs = windows['on']['workflow_dispatch']['inputs']
+    require(inputs['release_mode'] == {'description': 'Build only, beta prerelease, or stable release', 'type': 'choice', 'options': ['build','beta','stable'], 'default':'build', 'required':'true'}, 'Release mode defaults/options changed')
+    require(inputs['version']['type'] == 'string' and inputs['version']['required'] == 'true', 'An explicit base version is required')
+    for name in ('benchmark_packaging','cold_cache'):
+        require(inputs[name]['type'] == 'boolean' and inputs[name]['default'] == 'false', 'Benchmark defaults changed')
+    publication_download = next(s for s in publisher['steps'] if s.get('uses','').startswith('actions/download-artifact@'))
+    require(publication_download['with'].get('artifact-ids') == '${{ needs.windows-exe.outputs.artifact_id }}' and publication_download['with'].get('digest-mismatch') == 'error' and publication_download['with'].get('skip-decompress') == 'true', 'Publication must revalidate the exact raw build artifact')
     steps = windows['jobs']['windows-exe']['steps']
     commands = [s.get('run', '') for s in steps]
     for stage in ('Environment', 'Frontend', 'Python', 'Audit', 'Backend', 'Browser', 'Package', 'Verify', 'Smoke', 'Artifact'):
         matches = [i for i, command in enumerate(commands) if re.search(r'-Stage '+stage+r'\b', command)]
         require(len(matches) == 1, 'Each canonical Windows stage must run exactly once')
         require('if' not in steps[matches[0]], 'Windows validation stages cannot be conditionally skipped')
+    require(any(s.get('run') == 'python scripts/release-windows.py validate-inputs' and 'if' not in s for s in steps), 'Manual version preflight is mandatory')
+    require(windows['jobs']['windows-exe']['outputs'] == {'artifact_id': '${{ steps.executable.outputs.artifact-id }}', 'artifact_digest': '${{ steps.executable.outputs.artifact-digest }}'}, 'Release must consume only this verified artifact')
     upload = next(s for s in steps if s.get('id') == 'executable')
     require(upload['with']['path'].split() == ['backend/dist/SAP-Lens.exe', 'backend/dist/SAP-Lens.exe.sha256'], 'Unexpected distribution upload')
     require(upload['with']['name'] == 'SAP-Lens-Windows-x64' and upload['with']['retention-days'] == '14', 'Distribution identity or retention changed')

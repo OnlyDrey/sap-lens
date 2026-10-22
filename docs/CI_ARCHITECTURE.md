@@ -21,7 +21,7 @@ packager consumes that same output and the verifier compares its bytes.
 | --- | --- | --- |
 | Fast Validation / `.github/workflows/validate.yml` | Every push (including all branches/tags); every pull_request with no branch/path filters | Backend & Frontend: all existing backend/repository tests, deprecations as errors, pip consistency, workflow contracts/actionlint and frontend type checks |
 | Full Validation / `.github/workflows/full-validation.yml` | pull_request targeting main only; no push/manual/tag/release trigger | Backend & Repository and Frontend & Browser run independently in parallel |
-| Build Windows Application / `.github/workflows/build-windows.yml` | workflow_dispatch only; caller selects branch/ref | Windows Build & Verification: complete independent canonical Windows pipeline |
+| Build Windows Application / `.github/workflows/build-windows.yml` | workflow_dispatch only; caller selects branch/ref | Windows Build & Verification: complete independent canonical Windows pipeline; optional dependent Publish Verified Windows Release job for explicit beta/stable mode |
 
 Full Backend installs test, build and audit requirements, checks dependencies,
 runs the entire backend suite (including the real synthetic PyInstaller archive
@@ -112,13 +112,16 @@ existing destination. Synthetic tests exercise these failure paths.
 The downloaded EXE then passes the existing package verifier again, including
 comparison to the original pre-upload EXE hash. Raw ZIP digest, manifest/EXE
 digest and embedded package contents are distinct checks. Do not distribute an
-artifact from an otherwise failed run. Signing remains disabled; no release is
-published. See [packaging](WINDOWS_PACKAGING.md) and [desktop](DESKTOP.md).
+artifact from an otherwise failed run. Signing remains disabled. Build mode does
+not publish; explicit beta/stable modes use the isolated publication path described
+in [manual releases](RELEASES.md). See [packaging](WINDOWS_PACKAGING.md) and [desktop](DESKTOP.md).
 
 All action uses remain official, immutable SHA pins; checkout credentials are
 not persisted. Token permissions are contents:read only in Fast/Full; Windows
-also has actions:read for this run's report metadata. No job-level permission
-escalation, secrets, write scope or privileged fork execution is introduced.
+build also has actions:read for this run's report metadata. Only the dependent
+manual beta/stable publication job receives contents:write/actions:read and uses
+a dedicated Environment. No secrets or privileged fork execution are introduced.
+See [release permissions and administrator configuration](RELEASES.md).
 actionlint 1.7.12 is downloaded from its upstream release and checked against a
 fixed SHA-256 before execution, without a floating install or third-party action.
 PyYAML 6.0.3 is added only to test requirements for duplicate-safe offline YAML
