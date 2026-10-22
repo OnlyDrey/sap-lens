@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { DetailNavigation, EvidenceBadge } from "@/components/Shared/InvestigationNavigation";
+import { Combobox } from "@/components/Shared/Combobox";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   accessQuery,
@@ -35,6 +37,8 @@ export function ReleaseRoles({
   initialRole?: string;
   onUser: (name: string) => void;
 }) {
+  const listScroll = useRef(0);
+  const openDrill = (value: Drill) => { listScroll.current = window.scrollY; setDrill(value) };
   const [group, setGroup] = useState(""),
     [kind, setKind] = useState(""),
     [releaseGroup, setReleaseGroup] = useState(""),
@@ -105,12 +109,14 @@ export function ReleaseRoles({
       <ReleaseDetail
         drill={drill}
         status={drill.status || status}
-        onBack={() => setDrill(null)}
+        onBack={() => { setDrill(null); requestAnimationFrame(() => { document.querySelector<HTMLButtonElement>('[aria-label="Release role details"]')?.focus({ preventScroll: true }); window.scrollTo(0, listScroll.current) }) }}
         onUser={onUser}
+        roles={result.data?.items.map(role => role.role_name) || []}
+        onRole={name => setDrill({ ...drill, role: name })}
       />
     );
   const drillCell = (cell: Cell) =>
-    setDrill({
+    openDrill({
       username: query.username,
       role_search: query.role,
       ungrouped: compareGroups && !cell.user_group,
@@ -127,21 +133,10 @@ export function ReleaseRoles({
         naming tokens; no release-authority meaning is assumed.
       </p>
       <EvidenceNote />
-      <div className="flex flex-wrap gap-3">
+      <div className="investigation-filters">
+        <fieldset><legend>Release classification</legend><div className="filter-grid">
         <Filter label="Release SAP User Group">
-          <input
-            className={inputClass}
-            value={group}
-            list="release-user-groups"
-            placeholder="All groups; type a group to filter"
-            maxLength={512}
-            onChange={(e) => setGroup(e.target.value)}
-          />
-          <datalist id="release-user-groups">
-            {result.data?.groups?.map((g) => (
-              <option key={g} value={g} />
-            ))}
-          </datalist>
+          <Combobox label="Release SAP User Group" value={group} options={result.data?.groups || []} onChange={setGroup} placeholder="All groups; type a group to filter"/>
         </Filter>
         <Filter label="PR/PO">
           <select
@@ -177,6 +172,8 @@ export function ReleaseRoles({
             onChange={(e) => setStrategy(e.target.value.toUpperCase())}
           />
         </Filter>
+        </div></fieldset>
+        <fieldset><legend>Assignment</legend><div className="filter-grid">
         <Filter label="Release username">
           <input
             className={inputClass}
@@ -212,6 +209,8 @@ export function ReleaseRoles({
             ))}
           </select>
         </Filter>
+        </div></fieldset>
+        <fieldset><legend>Display</legend><div className="filter-grid">
         <Filter label="Sort release roles">
           <select
             className={inputClass}
@@ -239,6 +238,7 @@ export function ReleaseRoles({
           />
           Descending
         </label>
+        </div></fieldset>
       </div>
       <div className="flex flex-wrap gap-3">
         <button
@@ -308,31 +308,19 @@ export function ReleaseRoles({
                       <td>{r.release_group || "—"}</td>
                       <td>{r.release_strategy || "—"}</td>
                       <td>
-                        <RoleIdentifier value={r.role_name} />
-                        <button
-                          className="underline text-sm"
-                          onClick={() =>
-                            setDrill({
-                              role: r.role_name,
-                              group,
-                              username: query.username,
-                            })
-                          }
-                        >
-                          Release role details
-                        </button>
+                        <RoleIdentifier value={r.role_name} openLabel="Release role details" onOpen={() => openDrill({ role: r.role_name, group, username: query.username })}/>
                       </td>
                       <td>
-                        {r.assigned_users} users · {r.assignment_count} records
+                        {r.assigned_users} {r.assigned_users === 1 ? "user" : "users"} · {r.assignment_count} {r.assignment_count === 1 ? "record" : "records"}
                       </td>
                       <td>
-                        {r.statuses.join(", ")}
+                        <div className="flex flex-wrap gap-1">{r.statuses.map(status => <EvidenceBadge key={status} value={status}/>)}</div>
                         <br />
-                        <small>
+                        <span className="text-sm text-[var(--muted)]">
                           Observed range: {dates(r.valid_from, r.valid_to)}
                           {r.missing_dates ? " · Missing dates present" : ""};
                           inspect individual intervals.
-                        </small>
+                        </span>
                       </td>
                     </tr>
                   ))}
@@ -459,13 +447,17 @@ function ReleaseDetail({
   status,
   onBack,
   onUser,
+  roles, onRole,
 }: {
+  roles: string[]; onRole: (name: string) => void;
   drill: Drill;
   status: string;
   onBack: () => void;
   onUser: (name: string) => void;
 }) {
   const [offset, setOffset] = useState(0);
+  useEffect(() => setOffset(0), [drill]);
+  const index = drill.role ? roles.indexOf(drill.role) : -1;
   const result = useQuery({
     queryKey: ["release-assignments", drill, status, offset],
     queryFn: () =>
@@ -479,9 +471,9 @@ function ReleaseDetail({
   });
   return (
     <section aria-label="Release role details" className="space-y-4">
-      <button className="settings-secondary-button" onClick={onBack}>
-        Back to Release Roles
-      </button>
+      <DetailNavigation parent="Release Roles" current={drill.role || 'Release role details'} onBack={onBack} index={index} total={roles.length}
+        onPrevious={index > 0 ? () => onRole(roles[index - 1]) : undefined}
+        onNext={index >= 0 && index < roles.length - 1 ? () => onRole(roles[index + 1]) : undefined}/>
       <h1 className="text-xl font-semibold">Release role details</h1>
       {drill.role && <RoleIdentifier value={drill.role} />}
       <p>
@@ -529,7 +521,7 @@ function ReleaseDetail({
                     </td>
                     <td>{a.user_group || "Unknown"}</td>
                     <td>
-                      {dates(a.valid_from, a.valid_to)} · {a.status}
+                      {dates(a.valid_from, a.valid_to)} <EvidenceBadge value={a.status}/>
                     </td>
                     <td>
                       {a.account_status} ·{" "}

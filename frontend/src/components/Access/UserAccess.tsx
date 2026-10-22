@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { DetailNavigation, EvidenceBadge } from "@/components/Shared/InvestigationNavigation";
+import { Combobox } from "@/components/Shared/Combobox";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   accessQuery,
@@ -30,6 +32,8 @@ export function UserAccess({
   onRole: (role: string) => void;
   onRelease: (role: string) => void;
 }) {
+  const listScroll = useRef(0);
+  const openUser = (username: string) => { listScroll.current = window.scrollY; setSelected(username) };
   const [search, setSearch] = useState(""),
     [sort, setSort] = useState("username"),
     [descending, setDescending] = useState(false);
@@ -75,16 +79,23 @@ export function UserAccess({
     return (
       <UserDetails
         username={selected}
-        onBack={() => setSelected("")}
+        onBack={() => { const previous = selected; setSelected(""); requestAnimationFrame(() => {
+          const button = [...document.querySelectorAll<HTMLButtonElement>('[data-user]')].find(button => button.dataset.user === previous);
+          button?.focus({ preventScroll: true }); window.scrollTo(0, listScroll.current)
+        }) }}
         onRole={onRole}
         onRelease={onRelease}
+        index={result.data?.items.findIndex(user => user.username === selected) ?? -1}
+        total={result.data?.items.length || 0}
+        onSelect={setSelected}
+        usernames={result.data?.items.map(user => user.username) || []}
       />
     );
   return (
     <section aria-label="User Access" className="space-y-4">
       <h1 className="text-xl font-semibold">User Access</h1>
       <EvidenceNote />
-      <div className="flex flex-wrap gap-3">
+      <div className="investigation-filters"><fieldset><legend>User directory</legend><div className="filter-grid">
         <Filter label="Search users">
           <input
             className={inputClass}
@@ -95,19 +106,7 @@ export function UserAccess({
           />
         </Filter>
         <Filter label="SAP User Group">
-          <input
-            className={inputClass}
-            value={group}
-            list="user-access-groups"
-            placeholder="All groups; type a group to filter"
-            maxLength={512}
-            onChange={(e) => setGroup(e.target.value)}
-          />
-          <datalist id="user-access-groups">
-            {result.data?.groups?.map((g) => (
-              <option key={g} value={g} />
-            ))}
-          </datalist>
+          <Combobox label="SAP User Group" value={group} options={result.data?.groups || []} onChange={setGroup} placeholder="All groups; type a group to filter"/>
         </Filter>
         <Filter label="Sort users">
           <select
@@ -146,7 +145,7 @@ export function UserAccess({
           />
           Show expired assignments
         </label>
-      </div>
+      </div></fieldset></div>
       {(role || tcode) && (
         <div role="status" className="flex gap-3 text-sm">
           <span>
@@ -206,7 +205,8 @@ export function UserAccess({
                     <td>
                       <button
                         className="underline"
-                        onClick={() => setSelected(user.username)}
+                        data-user={user.username}
+                        onClick={() => openUser(user.username)}
                       >
                         {user.username}
                       </button>
@@ -243,25 +243,26 @@ function UserDetails({
   onBack,
   onRole,
   onRelease,
+  index, total, onSelect, usernames,
 }: {
+  index: number; total: number; onSelect: (name: string) => void; usernames: string[];
   username: string;
   onBack: () => void;
   onRole: (role: string) => void;
   onRelease: (role: string) => void;
 }) {
-  const [expired, setExpired] = useState(false),
-    [scope, setScope] = useState("business"),
+  const [scope, setScope] = useState("business"),
     [status, setStatus] = useState(""),
     [offset, setOffset] = useState(0),
     [accountOffset, setAccountOffset] = useState(0),
     [nameOffset, setNameOffset] = useState(0),
     [emailOffset, setEmailOffset] = useState(0);
-  useEffect(() => setOffset(0), [expired, scope, status]);
+  useEffect(() => { setOffset(0) }, [scope, status, username]);
+  useEffect(() => { setAccountOffset(0); setNameOffset(0); setEmailOffset(0) }, [username]);
   const result = useQuery({
     queryKey: [
       "access-user",
       username,
-      expired,
       scope,
       status,
       offset,
@@ -272,8 +273,8 @@ function UserDetails({
     queryFn: () =>
       accessQuery<UserDetail>(`users/${encodeURIComponent(username)}`, {
         scope,
-        status,
-        show_expired: expired,
+        status: status === "all" ? "" : status,
+        show_expired: status === "all",
         offset,
         account_offset: accountOffset,
         name_offset: nameOffset,
@@ -283,15 +284,15 @@ function UserDetails({
   const user = result.data;
   return (
     <section aria-label="User details" className="space-y-4">
-      <button className="settings-secondary-button" onClick={onBack}>
-        Back to users
-      </button>
+      <DetailNavigation parent="User Access" current={username} onBack={onBack} index={index} total={total}
+        onPrevious={index > 0 ? () => onSelect(usernames[index - 1]) : undefined}
+        onNext={index >= 0 && index < total - 1 ? () => onSelect(usernames[index + 1]) : undefined}/>
       <h1 className="text-xl font-semibold">User details</h1>
       <RoleIdentifier value={username} label="username" />
       <QueryState loading={result.isLoading} error={result.error} />
       {user && (
         <>
-          <dl className="settings-status-list">
+          <dl className="account-summary">
             <dt>User group</dt>
             <dd>
               {user.groups
@@ -307,10 +308,12 @@ function UserDetails({
             </dd>
             <dt>Email</dt>
             <dd>{user.emails.join(", ") || "Unknown"}</dd>
+            {user.accounts.length === 1 && <><dt>User validity</dt><dd>{dates(user.accounts[0].valid_from, user.accounts[0].valid_to)}</dd></>}
+            <dt>Account status</dt><dd><EvidenceBadge value={user.account_status}/></dd>
             <dt>Account lock status</dt>
             <dd>{user.lock_status}</dd>
           </dl>
-          <h2 className="font-semibold">User validity and account evidence</h2>
+          <details className="settings-advanced" open={user.accounts.length !== 1}><summary>User validity and account evidence</summary>
           <div className="access-table">
             <table>
               <thead>
@@ -343,6 +346,7 @@ function UserDetails({
             onChange={setAccountOffset}
             label="Account evidence pages"
           />
+          </details>
           {user.names_total > 100 && (
             <Pagination
               offset={nameOffset}
@@ -383,23 +387,16 @@ function UserDetails({
             ))}
           </nav>
           <div className="flex flex-wrap gap-3">
-            <label className="flex gap-2 items-center">
-              <input
-                type="checkbox"
-                checked={expired}
-                onChange={(e) => setExpired(e.target.checked)}
-              />
-              Show expired
-            </label>
             <Filter label="Assignment status">
-              <select
+              <select aria-label="Assignment status"
                 className={inputClass}
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
               >
                 {[
                   ["", "All non-expired"],
-                  ["active", "Active"],
+                  ["active", "Currently valid"],
+                  ["all", "All assignments"],
                   ["future", "Future"],
                   ["unknown", "Unknown validity"],
                   ["expired", "Expired"],
@@ -482,16 +479,16 @@ function AssignmentRow({
           )
         ) : (
           <>
-            {a.match_status === "unmapped" ? "Unmapped" : a.match_status}
+            <EvidenceBadge value={a.match_status}/>
             {a.catalogue_roles.map((name) => (
-              <div key={name}>{name}</div>
+              <div key={name} className="mt-2"><RoleIdentifier value={name}/></div>
             ))}
           </>
         )}
       </td>
       <td>{dates(a.valid_from, a.valid_to)}</td>
       <td>
-        {a.status}
+        <EvidenceBadge value={a.status}/>
         <br />
         <small>Group: {a.user_group || "Unknown"}</small>
       </td>

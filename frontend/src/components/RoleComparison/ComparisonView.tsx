@@ -25,7 +25,7 @@ function ModLabel({ r, center }: { r: ComparisonRole; center?: boolean }) {
     <div className={`flex items-center gap-1.5 ${center ? 'justify-center' : ''}`}>
       <ModuleIcon moduleId={r.function_key} />
       <span
-        className="text-[10px] font-semibold truncate"
+        className="text-xs font-semibold truncate"
         style={{ color:'var(--text2)' }}
       >
         {name}
@@ -50,13 +50,13 @@ function TCodeTable({ rows }: { rows: TCode[] }) {
       <thead>
         <tr style={{ backgroundColor:'var(--surface2)' }}>
           <th
-            className="text-left px-4 py-2.5 text-[10px] font-black uppercase tracking-wider w-40"
+            className="text-left px-4 py-2.5 text-xs font-black uppercase tracking-wider w-40"
             style={{ color:'var(--muted)', borderBottom:'1px solid var(--border)' }}
           >
             T-code
           </th>
           <th
-            className="text-left px-4 py-2.5 text-[10px] font-black uppercase tracking-wider"
+            className="text-left px-4 py-2.5 text-xs font-black uppercase tracking-wider"
             style={{ color:'var(--muted)', borderBottom:'1px solid var(--border)' }}
           >
             Description
@@ -76,7 +76,7 @@ function TCodeTable({ rows }: { rows: TCode[] }) {
               {tc.tcode}
             </td>
             <td
-              className="px-4 py-2 text-xs"
+              className="px-4 py-2 text-sm"
               style={{ color:'var(--text2)', borderBottom:'1px solid var(--border)' }}
             >
               {tc.ttext ?? (
@@ -117,7 +117,7 @@ function SRRow({ sr, parentRoleName }: { sr: SingleRoleInfo; parentRoleName: str
         <div className="min-w-0 flex-1">
           <RoleIdentifier value={sr.child_agr} />
           {sr.child_agr_text && (
-            <p className="text-[11px] truncate mt-0.5" style={{ color:'var(--muted)' }}>
+            <p className="text-xs truncate mt-0.5" style={{ color:'var(--muted)' }}>
               {sr.child_agr_text}
             </p>
           )}
@@ -128,7 +128,7 @@ function SRRow({ sr, parentRoleName }: { sr: SingleRoleInfo; parentRoleName: str
           style={{ backgroundColor:'color-mix(in srgb, var(--accent) 12%, transparent)' }}
         >
           <Zap className="w-3 h-3" style={{ color:'var(--accent2)' }} />
-          <span className="text-[11px] font-black tabular-nums" style={{ color:'var(--accent2)' }}>
+          <span className="text-xs font-black tabular-nums" style={{ color:'var(--accent2)' }}>
             {sr.tcode_count}
           </span>
         </div>
@@ -145,7 +145,7 @@ function SRRow({ sr, parentRoleName }: { sr: SingleRoleInfo; parentRoleName: str
 
           {!isLoading && tcodes.length === 0 && (
             <p className="px-6 py-3 text-xs italic" style={{ color:'var(--muted)' }}>
-              No T-codes
+              No transactions
             </p>
           )}
 
@@ -269,7 +269,7 @@ function PairModal({
                       ? (
                         <div className="py-12 text-center">
                           <p className="text-sm italic" style={{ color:'var(--muted)' }}>
-                            No T-codes shared
+                            No transactions shared
                           </p>
                         </div>
                       )
@@ -384,13 +384,13 @@ function InsightBar({
           </div>
 
           <div>
-            <p className="text-[10px] font-black uppercase tracking-wider" style={{ color:'var(--muted)' }}>
+            <p className="text-xs font-black uppercase tracking-wider" style={{ color:'var(--muted)' }}>
               {item.label}
             </p>
             <p className="text-3xl font-black mt-0.5" style={{ color:item.color }}>
               {item.value}
             </p>
-            <p className="text-[10px] mt-0.5" style={{ color:'var(--muted)' }}>
+            <p className="text-xs mt-0.5" style={{ color:'var(--muted)' }}>
               {item.sub}
             </p>
           </div>
@@ -406,7 +406,7 @@ function InsightBar({
         </div>
 
         <div>
-          <p className="text-[10px] font-black uppercase tracking-wider" style={{ color:'var(--muted)' }}>
+          <p className="text-xs font-black uppercase tracking-wider" style={{ color:'var(--muted)' }}>
             Most similar
           </p>
           <p className="text-sm font-bold mt-0.5" style={{ color:'var(--text)' }}>
@@ -427,7 +427,7 @@ function InsightBar({
         </div>
 
         <div>
-          <p className="text-[10px] font-black uppercase tracking-wider" style={{ color:'var(--muted)' }}>
+          <p className="text-xs font-black uppercase tracking-wider" style={{ color:'var(--muted)' }}>
             Most distinct
           </p>
           <p className="text-sm font-bold mt-0.5" style={{ color:'var(--text)' }}>
@@ -472,7 +472,7 @@ function SRMatrix({
           Single role overlap
         </h2>
         <span
-          className="text-[10px] px-2 py-0.5 rounded-full font-black text-current"
+          className="text-xs px-2 py-0.5 rounded-full font-black text-current"
           style={{ backgroundColor:'var(--accent2)', color:'var(--on-accent2)' }}
         >
           Primary
@@ -491,7 +491,7 @@ function SRMatrix({
           <thead>
             <tr>
               <th
-                className="p-3 text-left text-[10px] font-black uppercase tracking-wide min-w-[200px]"
+                className="p-3 text-left text-xs font-black uppercase tracking-wide min-w-[200px]"
                 style={{ ...TH, color:'var(--muted)' }}
               >
                 Composite role
@@ -651,19 +651,19 @@ function ExclusiveColumn({ role }: { role: ComparisonRole }) {
 
         <div className="flex items-center gap-2">
           <span
-            className="text-[10px] font-black px-2 py-0.5 rounded-lg text-current"
+            className="text-xs font-black px-2 py-0.5 rounded-lg text-current"
             style={{ backgroundColor:'var(--accent2)', color:'var(--on-accent2)' }}
           >
             {role.exclusive_single_roles.length} exclusive
           </span>
 
-          <span className="text-[10px]" style={{ color:'var(--muted)' }}>
+          <span className="text-xs" style={{ color:'var(--muted)' }}>
             {role.single_role_count} total
           </span>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto" style={{ maxHeight:'500px' }}>
+      <div className="flex-1">
         {role.exclusive_single_roles.length === 0
           ? (
             <div className="px-4 py-8 text-center">
@@ -826,7 +826,7 @@ export function ComparisonView({ roleNames, onBack }: Props) {
                 : (
                   <ScrollArea.Root>
                     <ScrollArea.Viewport
-                      style={{ maxHeight:'280px' }}
+
                       className="w-full"
                     >
                       <div>

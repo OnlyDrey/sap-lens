@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, Copy } from 'lucide-react'
 
-export function RoleIdentifier({ value, label = 'role identifier' }: { value: string; label?: string }) {
+export function RoleIdentifier({ value, label = 'role identifier', onOpen, openLabel }: { value: string; label?: string; onOpen?: () => void; openLabel?: string }) {
   const [message, setMessage] = useState('')
   const timer = useRef<ReturnType<typeof setTimeout>>()
   useEffect(() => () => clearTimeout(timer.current), [])
@@ -11,7 +11,7 @@ export function RoleIdentifier({ value, label = 'role identifier' }: { value: st
       data-np
       onClick={(e) => e.stopPropagation()}
     >
-      <code>{value}</code>
+      {onOpen ? <button className="role-identifier-link" aria-label={openLabel || `Open ${value}`} onClick={onOpen}><code>{value}</code></button> : <code>{value}</code>}
       <button
         type="button"
         aria-label={`Copy ${label} ${value}`}

@@ -7,6 +7,7 @@ import { SettingsView } from '@/components/Settings/SettingsView'
 import { cn } from '@/lib/utils'
 
 interface Props {
+  navigation: ReactNode
   children: ReactNode
   lastLoaded: string | null
   onRefresh: () => void
@@ -17,6 +18,7 @@ interface Props {
 
 export function AppLayout({
   children,
+  navigation,
   lastLoaded,
   onRefresh,
   onDataChanged,
@@ -86,9 +88,9 @@ export function AppLayout({
         }}
         role="banner"
       >
-        <div className="max-w-screen-2xl mx-auto px-5 h-24 flex items-center justify-between gap-4">
+        <div className="max-w-screen-2xl mx-auto px-4 min-h-20 flex items-center justify-between gap-3">
           {/* Brand: logo image + name */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             {/* Logo image â€” fallback to styled "E" if file not found */}
             <img
               src={
@@ -127,8 +129,10 @@ export function AppLayout({
             </div>
           </div>
 
+          <fieldset disabled={settingsOpen} className="min-w-0">{navigation}</fieldset>
+
           {/* Right controls */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             {fmt && (
               <span
                 className="text-[11px] hidden lg:block font-medium"

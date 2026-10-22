@@ -174,4 +174,57 @@ button:hover .module-icon:not([data-disabled="true"]) { border-color: currentCol
 .access-table th { background:var(--surface2); font-weight:600; }
 .access-table td { background:var(--surface); }
 .access-table tr:last-child td { border-bottom:0; }
-[aria-label="Main navigation"] [aria-current="page"] { background:var(--surface2); color:var(--accent2); }
+
+/* Shared investigation surfaces; all colors follow the persisted theme. */
+.primary-navigation { display:flex; align-items:center; gap:4px; min-width:0; }
+.primary-nav-button { display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:10px; white-space:nowrap; font-size:13px; font-weight:600; color:var(--on-primary); }
+.primary-nav-button:hover { background:color-mix(in srgb,var(--on-primary) 12%,transparent); }
+.primary-nav-button[aria-current="page"] { background:color-mix(in srgb,var(--on-primary) 20%,transparent); box-shadow:inset 0 -3px var(--on-primary); }
+.primary-nav-button:focus-visible { outline:2px solid var(--on-primary); outline-offset:2px; }
+.detail-navigation { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.source-navigation { display:flex; gap:6px; padding:6px; background:var(--surface2); border:1px solid var(--border); border-radius:12px; }
+.source-navigation button { flex:1; }
+.source-navigation [aria-selected="true"], [aria-label="User role sections"] [aria-pressed="true"], .settings-secondary-button[aria-pressed="true"] { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+.import-source-panel { min-width:0; }
+.source-file-row { display:flex; align-items:flex-end; gap:8px; min-width:0; }
+.source-file-row > label { flex:1; min-width:0; }
+.source-file-row > button { display:inline-flex; align-items:center; gap:6px; flex-shrink:0; min-height:40px; }
+.settings-secondary-button:disabled { opacity:.5; cursor:not-allowed; }
+.investigation-filters { display:grid; gap:12px; }
+.investigation-filters fieldset { min-width:0; border:1px solid var(--border); border-radius:12px; padding:12px; }
+.investigation-filters legend { color:var(--text2); font-size:13px; font-weight:600; padding:0 6px; }
+.filter-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr)); gap:12px; align-items:end; }
+.filter-grid input:not([type="checkbox"]), .filter-grid select { width:100%; min-height:40px; }
+.account-summary { display:grid; grid-template-columns:minmax(120px,180px) minmax(0,1fr); gap:10px 16px; padding:18px; border:1px solid var(--border); border-radius:12px; background:var(--surface); font-size:14px; }
+.account-summary dt { color:var(--muted); }
+.account-summary dd { overflow-wrap:anywhere; }
+.evidence-badge { display:inline-flex; align-items:center; padding:3px 8px; border-radius:6px; font-size:13px; font-weight:600; background:var(--surface2); color:var(--text2); text-transform:capitalize; }
+.evidence-success { color:var(--success); background:color-mix(in srgb,var(--success) 12%,var(--surface)); }
+.evidence-error { color:var(--error); background:var(--error-bg); }
+.evidence-info { color:var(--info); background:var(--info-bg); }
+.access-table td { line-height:1.6; }
+.access-table td .role-identifier { margin-bottom:6px; }
+.access-table td:has(.role-identifier) { min-width:240px; }
+.access-table small { font-size:13px; }
+.access-table summary { cursor:pointer; color:var(--accent2); padding:6px 0; }
+.combobox-anchor { position:relative; display:flex; align-items:center; min-width:0; width:100%; }
+.combobox-anchor > input { width:100%; min-width:0; min-height:40px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--text); padding:8px 34px; font-size:14px; }
+.combobox-anchor > input:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
+.combobox-anchor > input:disabled { opacity:.5; }
+.combobox-search { position:absolute; left:10px; pointer-events:none; color:var(--muted); }
+.combobox-anchor > button { position:absolute; right:5px; padding:6px; border-radius:6px; color:var(--muted); }
+.combobox-popup { z-index:200; overflow-y:auto; overscroll-behavior:contain; background:var(--surface); color:var(--text); border:1px solid var(--border); border-radius:10px; box-shadow:0 10px 30px color-mix(in srgb,var(--text) 18%,transparent); padding:4px; }
+.combobox-option { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:9px 10px; border-radius:6px; font-size:14px; cursor:pointer; overflow-wrap:anywhere; }
+.combobox-option span { min-width:0; }
+.combobox-option svg { flex-shrink:0; }
+.combobox-option.highlighted { background:var(--hover); outline:1px solid var(--focus); outline-offset:-1px; }
+.combobox-option[aria-selected="true"] { color:var(--accent2); font-weight:600; }
+@media (max-width:1100px) { .primary-nav-button { padding:10px 8px; } .primary-nav-button span { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); } }
+@media (max-width:640px) { .source-file-row { align-items:stretch; flex-direction:column; } header img { max-width:48px !important; } header [title] { max-width:90px; } header button { padding-left:6px; padding-right:6px; } .primary-navigation { gap:0; } .account-summary { grid-template-columns:1fr; } }
+
+.role-identifier > .role-identifier-link { display:block; min-width:0; width:auto; height:auto; padding:0; text-align:left; flex:1; background:transparent; color:inherit; }
+.role-identifier-link:hover code { text-decoration:underline; }
+/* Selected controls retain their contrast pair when the generic hover rule applies. */
+.source-navigation button[aria-selected="true"]:hover:not(:disabled),
+[aria-label="User role sections"] .settings-secondary-button[aria-pressed="true"]:hover:not(:disabled),
+.settings-secondary-button[aria-pressed="true"]:hover:not(:disabled) { background:var(--accent); color:var(--on-accent); }

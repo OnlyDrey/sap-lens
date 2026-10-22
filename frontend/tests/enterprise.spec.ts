@@ -72,8 +72,9 @@ test('custom column mapping preserves relationships and transactions',async ({pa
     await page.goto('/#session=browser-test-session')
     await page.getByLabel('CSV file location',{exact:true}).fill(file)
     await page.getByRole('button',{name:'Detect columns'}).click()
-    await page.getByLabel('AGR_NAME (required)',{exact:true}).selectOption('Role')
-    for(const [field,source] of [['CHILD_AGR','Child'],['PARENT_AGR','Parent'],['Effective_Role','Effective'],['TCODE','Transaction']])await page.getByLabel(field,{exact:true}).selectOption(source)
+    await page.getByRole('combobox',{name:'AGR_NAME (required)',exact:true}).click()
+    await page.getByRole('option',{name:'Role',exact:true}).click()
+    for(const [field,source] of [['CHILD_AGR','Child'],['PARENT_AGR','Parent'],['Effective_Role','Effective'],['TCODE','Transaction']]) { await page.getByRole('combobox',{name:field,exact:true}).click(); await page.getByRole('option',{name:source,exact:true}).click() }
     await page.getByRole('button',{name:'Preview import',exact:true}).click()
     await expect(page.getByText(/1 composite roles/)).toBeVisible()
     await page.getByRole('button',{name:'Save and load CSV',exact:true}).click()

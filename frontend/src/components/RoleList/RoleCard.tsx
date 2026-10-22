@@ -50,7 +50,7 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
             <ModuleIcon moduleId={role.function_key} selected={isSelected} />
-            <span className="text-[11px] font-semibold truncate" style={{ color:'var(--text2)' }}>
+            <span className="text-xs font-semibold truncate" style={{ color:'var(--text2)' }}>
               {modName}{role.module_ambiguous?' · Ambiguous':''}
             </span>
           </div>
@@ -85,7 +85,7 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
             </span>
             {role.matching_tcodes!.slice(0, 4).map(tc => (
               <span key={tc}
-                className="font-mono text-[10px] font-black px-1.5 py-0.5 rounded-md"
+                className="font-mono text-xs font-black px-1.5 py-0.5 rounded-md"
                 style={{ backgroundColor:'color-mix(in srgb, var(--accent) 15%, transparent)', color:'var(--accent2)' }}>
                 {tc}
               </span>
@@ -99,32 +99,32 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
         )}
 
         {/* Stats row: single roles | T-codes | View details */}
-        <div className="flex items-center gap-2.5 pt-3"
+        <div className="flex flex-wrap items-center gap-2.5 pt-3"
           style={{ borderTop:'1px solid var(--border)' }}>
 
           {hasSR && (
             <div className="flex items-center gap-1">
               <Layers className="w-3 h-3 flex-shrink-0" style={{ color:'var(--accent2)' }} />
-              <span className="text-[11px] font-bold tabular-nums" style={{ color:'var(--text2)' }}>
+              <span className="text-xs font-bold tabular-nums" style={{ color:'var(--text2)' }}>
                 {role.single_role_count}
               </span>
-              <span className="text-[10px]" style={{ color:'var(--muted)' }}>single roles</span>
+              <span className="text-xs" style={{ color:'var(--muted)' }}>{role.single_role_count === 1 ? 'single role' : 'single roles'}</span>
             </div>
           )}
           {hasSR && <span style={{ color:'var(--border)', userSelect:'none' }}>|</span>}
 
           <div className="flex items-center gap-1">
             <Zap className="w-3 h-3 flex-shrink-0" style={{ color:'var(--accent2)' }} />
-            <span className="text-[11px] font-bold tabular-nums" style={{ color:'var(--text2)' }}>
+            <span className="text-xs font-bold tabular-nums" style={{ color:'var(--text2)' }}>
               {role.tcode_count.toLocaleString()}
             </span>
-            <span className="text-[10px]" style={{ color:'var(--muted)' }}>T-codes</span>
+            <span className="text-xs" style={{ color:'var(--muted)' }}>Transactions</span>
           </div>
 
           <button data-np
             onClick={e => { e.stopPropagation(); onClick(role.agr_name) }}
             aria-label={`View details for ${title || role.agr_name}`}
-            className="ml-auto flex items-center gap-0.5 text-[11px] font-bold hover:underline focus:outline-none flex-shrink-0"
+            className="ml-auto flex items-center gap-0.5 text-xs font-bold hover:underline focus:outline-none flex-shrink-0"
             style={{ color:'var(--accent2)' }}>
             View details <ArrowRight className="w-3 h-3" />
           </button>

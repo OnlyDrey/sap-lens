@@ -1,3 +1,5 @@
+import { SourceStatus } from "./SourceStatus"
+import { Combobox } from "@/components/Shared/Combobox"
 import { SettingsSelect } from './Controls'
 import { isHex } from '@/lib/theme'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -13,7 +15,8 @@ import {
   Activity,
   CheckCircle,
   X,
-  FileText
+  FileText,
+  FolderOpen
 } from 'lucide-react'
 import { ModuleEditor } from './ModuleEditor'
 import { UserSourceEditor, PresetActions } from './ImportPresets'
@@ -100,6 +103,7 @@ export function SettingsView({
   onSaved: () => void
 }) {
   const [section, setSection] = useState(0)
+  const [importSource, setImportSource] = useState<'roles' | 'users'>('roles')
   const scrollPane = useRef<HTMLDivElement>(null)
   useEffect(() => {
     scrollPane.current?.scrollTo({ top: 0 })
@@ -113,7 +117,6 @@ export function SettingsView({
   const [inspectionMessage, setInspectionMessage] = useState('')
   const [inspecting, setInspecting] = useState(false)
   const [inspectionRetry, setInspectionRetry] = useState(0)
-  const inspectedPath = useRef<string | null>(null)
   const draftRef = useRef(draft)
   draftRef.current = draft
   const [importResult, setImportResult] = useState<ImportReport | null>(null)
@@ -126,6 +129,7 @@ export function SettingsView({
       handledDataSourceRequest.current = dataSourceRequest
       focusDataSource.current = true
       setSection(1)
+      setImportSource('roles')
       setError(null)
       setMessage(null)
     }
@@ -255,7 +259,6 @@ export function SettingsView({
       setLogoPreview(null)
       setImportResult(null)
       setColumns([])
-      inspectedPath.current = config.data?.settings.data_csv_path || null
       onClose()
     }
   }
@@ -309,7 +312,7 @@ export function SettingsView({
       )
     )
   useEffect(() => {
-    if (!open || !draft?.data_csv_path || !imports) {
+    if (!open || section !== 1 || importSource !== 'roles' || !draft?.data_csv_path || !imports) {
       setInspecting(false)
       if (!draft?.data_csv_path) {
         setColumns([])
@@ -323,16 +326,12 @@ export function SettingsView({
     let cancelled = false
     const path = draft.data_csv_path
     const profileId = imports.id
-    const samePath =
-      inspectedPath.current === path ||
-      (inspectedPath.current === null &&
-        config.data?.settings.data_csv_path === path)
     setInspecting(true)
     const timer = window.setTimeout(async () => {
       try {
         const result = await detectHeaders(path, {
           ...imports,
-          mapping: samePath ? imports.mapping : {}
+          mapping: imports.mapping
         })
         if (cancelled) return
         setColumns(result.detected_columns)
@@ -346,29 +345,10 @@ export function SettingsView({
         const currentProfile = current.import_profiles.find(
           (p) => p.id === profileId
         )!
-        const mapping = samePath
-          ? Object.fromEntries(
-              Object.entries(currentProfile.mapping).filter(([, source]) =>
-                result.detected_columns.includes(source)
-              )
-            )
-          : {}
-        // Store only manual overrides. Empty values continue to use parser auto-detection.
-        setDraft({
-          ...current,
-          import_profiles: current.import_profiles.map((p) =>
-            p.id === profileId ? { ...p, mapping } : p
-          )
-        })
-        inspectedPath.current = path
-        const mappingNotice =
-          !samePath && Object.keys(currentProfile.mapping).length
-            ? 'A different file was selected; previous manual mappings were cleared. '
-            : samePath &&
-                Object.keys(mapping).length !==
-                  Object.keys(currentProfile.mapping).length
-              ? 'Mappings to missing columns were cleared. '
-              : ''
+        // Detection is observational: never discard deliberate mappings, even on a new file.
+        const mapping = currentProfile.mapping
+        const missing = Object.values(mapping).filter(source => !result.detected_columns.includes(source))
+        const mappingNotice = missing.length ? 'Some manual mappings reference missing columns. Review them before applying. ' : ''
         setInspectionMessage(
           mappingNotice +
             (result.issues.length
@@ -389,10 +369,9 @@ export function SettingsView({
           setImportResult(preview)
       } catch (e) {
         if (!cancelled)
-          setInspectionMessage(
-            e instanceof Error
-              ? e.message
-              : 'Could not inspect this file. Check its location and try again.'
+          setInspectionMessage(previous =>
+            (previous.startsWith('Some manual mappings') ? previous + ' ' : Object.keys(imports.mapping).length ? 'Manual mappings retained; review the selected columns. ' : '') +
+            (e instanceof Error ? e.message : 'Could not inspect this file. Check its location and try again.')
           )
       } finally {
         if (!cancelled) setInspecting(false)
@@ -404,10 +383,13 @@ export function SettingsView({
     }
   }, [
     open,
+    section,
+    importSource,
     draft?.data_csv_path,
     draft?.active_import,
     imports?.delimiter,
     imports?.encoding,
+    JSON.stringify(imports?.mapping),
     inspectionRetry
   ])
 
@@ -728,7 +710,20 @@ export function SettingsView({
                   )}
                   {section === 1 && imports && (
                     <>
-                      <UserSourceEditor draft={draft} onChange={setDraft} native={native} />
+                      <div className="source-navigation" role="tablist" aria-label="Import source">
+                        {([['roles', 'Role Catalogue'], ['users', 'User Access']] as const).map(([key, label], index) => <button key={key}
+                          id={`source-tab-${key}`} role="tab" aria-selected={importSource === key}
+                          aria-controls={`source-panel-${key}`} tabIndex={importSource === key ? 0 : -1}
+                          className="settings-secondary-button" onClick={() => setImportSource(key)}
+                          onKeyDown={event => { if (['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) {
+                            event.preventDefault(); const next = event.key === 'Home' ? 'roles' : event.key === 'End' ? 'users' : index === 0 ? 'users' : 'roles';
+                            setImportSource(next); document.getElementById(`source-tab-${next}`)?.focus()
+                          } }}>{label}</button>)}
+                      </div>
+                      <div id="source-panel-users" role="tabpanel" aria-labelledby="source-tab-users" hidden={importSource !== 'users'}>
+                        <UserSourceEditor draft={draft} onChange={setDraft} native={native} active={importSource === 'users'} />
+                      </div>
+                      <div id="source-panel-roles" role="tabpanel" aria-labelledby="source-tab-roles" hidden={importSource !== 'roles'} className="import-source-panel space-y-4">
                       <div className="settings-file-summary">
                         <FileText
                           size={25}
@@ -745,6 +740,7 @@ export function SettingsView({
                         </div>
                       </div>
                       <h2 className="settings-subheading">Role catalogue CSV</h2>
+                      <div className="source-file-row">
                       <Field label="CSV file location">
                         <input
                           ref={csvPathInput}
@@ -762,15 +758,13 @@ export function SettingsView({
                       <button
                         className={buttonClass}
                         disabled={!native || busy}
+                        title={!native ? "File browsing is available in the Windows app; enter a full path here." : "Choose a role catalogue CSV"}
                         onClick={() => void pickCsv()}
                       >
-                        Browse for CSV…
+                        <FolderOpen size={16} aria-hidden="true"/> Browse for CSV…
                       </button>
-                      {config.data?.settings.data_csv_path && (
-                        <p className="text-xs break-all">
-                          Current file: {config.data.settings.data_csv_path}
-                        </p>
-                      )}
+                      </div>
+                      <SourceStatus savedPath={config.data?.settings.data_csv_path || ''} validated={Boolean(importResult)}/>
                       {config.data?.error && (
                         <p className="text-[var(--warning)] text-sm">
                           {config.data.error}
@@ -788,7 +782,7 @@ export function SettingsView({
                           >
                             {draft.import_profiles.map((p) => (
                               <option key={p.id} value={p.id}>
-                                {p.name} · v{p.version}
+                                {p.name} · {p.id === 'default' ? 'Built-in' : 'Custom'} · v{p.version}
                               </option>
                             ))}
                           </SettingsSelect>
@@ -861,61 +855,16 @@ export function SettingsView({
                         warnings; preserve parent/effective fields when present.
                         Blank mappings auto-detect standard headers.
                       </p>
-                      <datalist id="csv-columns">
-                        {columns.map((c) => (
-                          <option key={c}>{c}</option>
-                        ))}
-                      </datalist>
                       <div className="grid sm:grid-cols-3 gap-3">
                         {fields.map((field) => (
                           <Field
                             key={field}
                             label={`${fieldLabels[field]} · ${field}`}
                           >
-                            <SettingsSelect
-                              disabled={busy || inspecting}
-                              aria-describedby={`mapping-${field}-description`}
-                              aria-label={
-                                field === 'AGR_NAME'
-                                  ? 'AGR_NAME (required)'
-                                  : field
-                              }
-                              className={inputClass}
-                              value={imports.mapping[field] || ''}
-                              onChange={(e) => {
-                                setImportResult(null)
-                                const mapping = { ...imports.mapping }
-                                if (e.target.value)
-                                  mapping[field] = e.target.value
-                                else delete mapping[field]
-                                editImport({ mapping })
-                              }}
-                            >
-                              <option value="">
-                                Automatic
-                                {columns.find(
-                                  (c) =>
-                                    c
-                                      .toLowerCase()
-                                      .replace(/[^a-z0-9]/g, '') ===
-                                    field
-                                      .toLowerCase()
-                                      .replace(/[^a-z0-9]/g, '')
-                                )
-                                  ? ` — ${columns.find((c) => c.toLowerCase().replace(/[^a-z0-9]/g, '') === field.toLowerCase().replace(/[^a-z0-9]/g, ''))}`
-                                  : ' — not detected'}
-                              </option>
-                              {[
-                                ...new Set([
-                                  ...columns,
-                                  ...Object.values(imports.mapping)
-                                ])
-                              ].map((c) => (
-                                <option key={c} value={c}>
-                                  {c}
-                                </option>
-                              ))}
-                            </SettingsSelect>
+                            <Combobox disabled={busy || inspecting} label={field === 'AGR_NAME' ? 'AGR_NAME (required)' : field}
+                              value={imports.mapping[field] || ''} options={[...columns, ...Object.values(imports.mapping)]}
+                              placeholder="Automatic mapping" clearLabel="Automatic mapping" allowCustom={false}
+                              onChange={value => { setImportResult(null); const mapping = { ...imports.mapping }; if (value) mapping[field] = value; else delete mapping[field]; editImport({ mapping }) }}/>
                             <small
                               id={`mapping-${field}-description`}
                               className="text-[var(--muted)]"
@@ -923,7 +872,7 @@ export function SettingsView({
                               {fieldLabels[field]}:{' '}
                               {imports.mapping[field]
                                 ? 'Manual mapping'
-                                : 'Automatic mapping'}
+                                : columns.some(c => c.toLowerCase().replace(/[^a-z0-9]/g, '') === field.toLowerCase().replace(/[^a-z0-9]/g, '')) ? 'Automatic — detected' : 'Automatic — not detected'}
                             </small>
                           </Field>
                         ))}
@@ -987,6 +936,7 @@ export function SettingsView({
                           </table>
                         </Result>
                       )}
+                      </div>
                     </>
                   )}
                   {

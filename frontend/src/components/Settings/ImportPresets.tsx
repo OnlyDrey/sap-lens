@@ -1,6 +1,11 @@
+import { SourceStatus } from "./SourceStatus";
+import { useQuery } from "@tanstack/react-query";
+import { fetchConfiguration } from "@/api/configuration";
+import { Combobox } from "@/components/Shared/Combobox";
 import { useEffect, useRef, useState } from "react";
 import type { Configuration, ImportProfile } from "@/api/configuration";
 import { apiRequest, applicationToken } from "@/api/client";
+import { FolderOpen, Plus, Copy, Trash2 } from "lucide-react";
 import { SettingsSelect } from "./Controls";
 
 const input =
@@ -71,22 +76,25 @@ export function PresetActions({
       <button
         type="button"
         className={button}
+        title={draft[key].length >= 20 ? "Maximum 20 presets; delete a custom preset first" : undefined}
         disabled={draft[key].length >= 20}
         onClick={() => add(false)}
       >
-        Create preset
+        <Plus size={16} aria-hidden="true"/> Create preset
       </button>
       <button
         type="button"
         className={button}
+        title={draft[key].length >= 20 ? "Maximum 20 presets; delete a custom preset first" : undefined}
         disabled={draft[key].length >= 20}
         onClick={() => add(true)}
       >
-        Duplicate preset
+        <Copy size={16} aria-hidden="true"/> Duplicate preset
       </button>
       <button
         type="button"
         className={button}
+        title={selected.id === "default" ? "Built-in presets cannot be deleted" : "Delete custom preset; source data is retained"}
         disabled={selected.id === "default"}
         onClick={() => {
           if (
@@ -101,7 +109,7 @@ export function PresetActions({
             });
         }}
       >
-        Delete preset
+        <Trash2 size={16} aria-hidden="true"/> Delete preset
       </button>
     </div>
   );
@@ -111,11 +119,14 @@ export function UserSourceEditor({
   draft,
   onChange,
   native,
+  active = true,
 }: {
   draft: Configuration;
   onChange: (value: Configuration) => void;
   native: boolean;
+  active?: boolean;
 }) {
+  const { data: configuration } = useQuery({ queryKey: ['configuration'], queryFn: fetchConfiguration });
   const preset = draft.user_import_profiles.find(
     (p) => p.id === draft.active_user_import,
   )!;
@@ -143,6 +154,7 @@ export function UserSourceEditor({
     });
   useEffect(() => {
     let live = true;
+    if (!active) return;
     setHeaders([]);
     setReport(null);
     setError("");
@@ -157,13 +169,15 @@ export function UserSourceEditor({
         "POST",
         { data_csv_path: draft.user_csv_path, profile: preset },
       )
-        .then((result) => {
+        .then(async (result) => {
           if (live) {
             setHeaders(result.detected_columns);
             setMessage(
               result.issues.join(" ") ||
-                "Columns detected. Preview before applying.",
+                "Columns detected. Review the preview before applying.",
             );
+            const preview = await apiRequest<NonNullable<typeof report>>("/api/user-import/preview", "POST", { data_csv_path: draft.user_csv_path, profile: preset });
+            if (live) setReport(preview);
           }
         })
         .catch((e) => {
@@ -178,6 +192,7 @@ export function UserSourceEditor({
       clearTimeout(timer);
     };
   }, [
+    active,
     draft.user_csv_path,
     preset.id,
     preset.delimiter,
@@ -207,13 +222,14 @@ export function UserSourceEditor({
   return (
     <section
       aria-label="User access CSV configuration"
-      className="settings-card space-y-4"
+      className="import-source-panel space-y-4"
     >
       <h2 className="font-semibold">User Access CSV</h2>
       <p className="text-sm">
         Independent from the role catalogue. USERNAME is required; a blank
         ROLE_NAME retains a directory-only user.
       </p>
+      <div className="source-file-row">
       <label className="block text-sm">
         User CSV file location
         <input
@@ -228,6 +244,7 @@ export function UserSourceEditor({
       <button
         type="button"
         className={button}
+        title={!native ? "File browsing is available in the Windows app; enter a full path here." : "Choose a User Access CSV"}
         disabled={!native || busy}
         onClick={() => {
           void window.pywebview?.api
@@ -242,8 +259,10 @@ export function UserSourceEditor({
             );
         }}
       >
-        Browse for user CSV…
+        <FolderOpen size={16} aria-hidden="true"/> Browse for user CSV…
       </button>
+      </div>
+<SourceStatus savedPath={configuration?.settings.user_csv_path || ""} validated={Boolean(report)}/>
       <label className="block text-sm">
         User CSV Import Format
         <SettingsSelect
@@ -255,7 +274,7 @@ export function UserSourceEditor({
         >
           {draft.user_import_profiles.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.name}
+              {p.name} · {p.id === "default" ? "Built-in" : "Custom"}
             </option>
           ))}
         </SettingsSelect>
@@ -326,36 +345,10 @@ export function UserSourceEditor({
         {fields.map((field) => (
           <label key={field} className="text-sm">
             {labels[field]}
-            <SettingsSelect
-              className={input}
-              value={preset.mapping[field] || ""}
-              aria-label={`User column ${field}`}
-              onChange={(e) => {
-                setReport(null);
-                const mapping = { ...preset.mapping };
-                if (e.target.value) mapping[field] = e.target.value;
-                else delete mapping[field];
-                edit({ mapping });
-              }}
-            >
-              <option value="">
-                Automatic
-                {headers.find(
-                  (h) =>
-                    h.replace(/[^a-z0-9]/gi, "").toUpperCase() ===
-                    field.replace(/_/g, ""),
-                )
-                  ? " — detected"
-                  : " — not detected"}
-              </option>
-              {[...new Set([...headers, ...Object.values(preset.mapping)])].map(
-                (h) => (
-                  <option key={h} value={h}>
-                    {h}
-                  </option>
-                ),
-              )}
-            </SettingsSelect>
+            <Combobox label={`User column ${field}`} value={preset.mapping[field] || ''} allowCustom={false}
+              clearLabel="Automatic mapping" placeholder="Automatic mapping" options={[...headers, ...Object.values(preset.mapping)]}
+              onChange={value => { setReport(null); const mapping = { ...preset.mapping }; if (value) mapping[field] = value; else delete mapping[field]; edit({ mapping }) }}/>
+            <small className="text-[var(--muted)]">{field === 'USERNAME' ? 'Required' : 'Optional'} · {preset.mapping[field] ? headers.includes(preset.mapping[field]) ? 'Manual mapping' : 'Mapped column missing' : headers.some(h => h.replace(/[^a-z0-9]/gi, '').toUpperCase() === field.replace(/_/g, '')) ? 'Automatically detected' : 'Not detected'}</small>
           </label>
         ))}
       </div>

@@ -1,3 +1,4 @@
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import type { ReactNode } from "react";
 export const inputClass =
   "rounded-lg border px-3 py-2 text-sm bg-[var(--surface)] border-[var(--border)] text-[var(--text)] min-w-0";
@@ -38,7 +39,7 @@ export function Pagination({
         disabled={offset === 0}
         onClick={() => onChange(Math.max(0, offset - limit))}
       >
-        Previous
+        <ArrowLeft size={16} aria-hidden="true"/> Previous
       </button>
       <span>
         {total
@@ -50,7 +51,7 @@ export function Pagination({
         disabled={offset + limit >= total}
         onClick={() => onChange(offset + limit)}
       >
-        Next
+        Next <ArrowRight size={16} aria-hidden="true"/>
       </button>
     </nav>
   );

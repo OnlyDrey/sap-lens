@@ -26,7 +26,7 @@ retained even when their own area label is unknown.
 
 ## Two independent local CSV sources
 
-Settings → Data Source & Import contains User Access CSV and Role catalogue CSV.
+Settings → Data Source & Import provides separate User Access and Role Catalogue tabs.
 Each source has its own path, active CSV Import Format and preset collection.
 They may be used separately. Without a catalogue, user assignments remain
 Unmapped and provide no inferred transaction evidence. No third CSV is needed.
@@ -279,3 +279,38 @@ new packaged-EXE startup/shutdown and artifact privacy/integrity checks. No Wind
 artifact was built, no workflow was dispatched and no changes were pushed.
 Production-sized exports were not available; bounds/indexing are tested with
 synthetic data, without claiming a production-scale performance benchmark.
+
+
+## Investigation navigation and controls
+
+The application header owns Role Lookup, User Access and Release Roles navigation.
+Narrow windows show the same destinations as accessible icon buttons. Settings
+remains separate. Already visited views retain search, filter, sorting, pagination
+and detail state; explicit cross-page evidence investigations start the requested
+query. Breadcrumbs return to the originating list. Previous/Next uses the current
+filtered, sorted result page only, labels that scope explicitly, and disables its
+boundaries. It never silently traverses unrelated records or fetches an unfiltered
+list. Use list pagination to investigate another result page.
+
+User details has one assignment-status selector: All non-expired (the previous
+default), Currently valid, Expired, Future, Unknown validity, or All assignments.
+The last option requests all statuses; it does not redefine missing-date validity.
+The directory's Show expired assignments option still controls directory role
+counts/evidence filtering separately. Account status and account lock remain
+independent of role validity. Single account evidence is collapsed behind a
+summary; multiple/conflicting account intervals remain expanded and paginated.
+
+User-group filters and CSV column mappings use the shared local combobox. Type
+to search, use Arrow Up/Down and Enter to select, Escape to cancel the popup, or
+Tab to continue. The All/Automatic option clears the filter/override. Group filters
+also accept typed group values; mapping selectors commit only an available option.
+Popup panels use the active theme and float within the viewport outside scroll
+containers. Small static selectors remain native; Role Lookup retains its
+existing module buttons, and the existing searchable icon dialog is unchanged.
+
+Source previews establish readability/validation at inspection time, not proof
+of which file produced the loaded dataset. Settings distinguishes the edited
+location, saved location and the last successful atomic dataset load. The current
+API does not expose an independently trustworthy loaded path per source, so the
+UI does not invent one. User preview retains its existing aggregate report;
+backend contracts, source data and saved preset schema are unchanged.

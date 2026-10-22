@@ -34,7 +34,7 @@ test('first launch, native picker contract, invalid CSV, persistence and private
   await expect(page.getByRole('region',{name:'SAP Lens settings',exact:true})).toBeHidden()
   await page.getByRole('button', { name: 'Open settings' }).click()
   await page.getByRole('tab', { name: 'Data Source & Import' }).click()
-  await expect(page.getByText(`Current file: ${file}`)).toBeVisible()
+  await expect(page.getByText(`Saved file location: ${file}`)).toBeVisible()
   await page.evaluate(() => { window.pywebview!.api.choose_csv = async () => null })
   await page.getByRole('button', { name: 'Browse for CSV…' }).click()
   await expect(page.getByLabel('CSV file location', {exact:true})).toHaveValue(file)

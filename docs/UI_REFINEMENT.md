@@ -1,4 +1,86 @@
-# Navigation, area appearance and classification refinement
+# UI refinement records
+
+## Investigation and import refinement — 2026-10-22
+
+Baseline: `work` at `167f9186d1718b048f696181135b5f5654bf2e52`, clean.
+This is a local frontend refinement. Backend contracts, role matching, dates,
+transaction calculations, configuration schema, dependencies, README branding,
+module colors/icons and all Windows/release workflows are preserved.
+
+Implemented:
+
+- Move the three primary destinations into the header; retain view state and
+  restore the saved page scroll position. Settings disables background navigation.
+- Separate Role Catalogue and User Access import panels with accessible keyboard
+  tabs, independent drafts and shared file/status styling. Automatic inspection
+  retains manual mappings; errors cannot silently erase saved mapping choices.
+- Keep source paths, preview validation and the last successful data load distinct.
+  Explain unavailable native browsing and protected preset deletion.
+- Reuse `DetailNavigation` for breadcrumbs and scoped Previous/Next boundaries;
+  restore list focus/scroll when returning from details.
+- Group release classification, assignment and display filters; make release
+  identifiers clickable while retaining their separate copy action. Use correct
+  user/record plurals and semantic evidence badges.
+- Separate account summary/evidence and use one assignment status selector without
+  changing validity interpretation. Keep large transaction lists expandable.
+- Improve secondary typography and let comparison sections share document scroll
+  rather than independently capped columns. The role-card plus still adds to
+  comparison, so replacing it with a detail icon would misrepresent its action.
+- Add a portal-based `Combobox` without dependencies. User-group filters accept
+  typed values; mapping selectors only commit real options. Shared search/check/
+  disclosure icons, ARIA listbox/combobox semantics, keyboard selection, outside
+  click, cancellation and viewport positioning replace every native datalist.
+  Existing module buttons, icon search dialog and small static selects are retained.
+
+Shared components: `Combobox`, `DetailNavigation`, `EvidenceBadge`, `SourceStatus`,
+`RoleIdentifier` (optional identifier navigation), and directional `Pagination`.
+No parallel theme system is introduced; all surfaces use existing semantic tokens.
+
+Regression coverage adds navbar location/state, detail boundaries, unified status,
+source independence, automatic detection/retry, long synthetic UNC paths and
+combobox keyboard/mouse/empty-state/viewport behavior, async option scrolling and selected-tab hover contrast. Existing import, evidence,
+copy and configuration assertions are retained and adapted to intentional controls.
+Visual tests capture all nine requested views, mapping popups and release-group
+popup in both themes at 1280 and 800 pixels. Before images use the beta-2 frontend
+extracted for static serving only, with synthetic data and isolated settings; no
+EXE is executed or built. Screenshots/logs remain outside version control.
+
+Limitations: detail Previous/Next is intentionally scoped to a result page;
+loaded per-source paths are not exposed by the current API; actual UNC access,
+WebView2 rendering and packaged Windows behavior still require authorized native
+validation. No push, workflow dispatch or release publication belongs to this task.
+
+### Local validation of this refinement
+
+All checks below were executed against the final source before the local commit.
+The browser suite uses system Chromium and synthetic fixtures, one worker and no
+retries; **50 tests passed (1.7 minutes)**. No existing test was removed.
+
+| Command/check | Result |
+| --- | --- |
+| `git diff --check` | Passed |
+| `.venv/bin/python scripts/ci.py lint` | Passed (workflow schemas/expressions/actionlint) |
+| `.venv/bin/python scripts/check-workflows.py` | Passed |
+| PowerShell 7 `-NoProfile -File scripts/check-powershell.ps1` | Passed on Linux |
+| `npm --prefix frontend ci --cache /workspace/.npm-cache` | Passed |
+| `node scripts/sync-lucide-catalog.mjs --check` | Passed |
+| `npm --prefix frontend run check:types` | Passed |
+| `npm --prefix frontend run build` | Passed |
+| `.venv/bin/python -W error::DeprecationWarning -m unittest discover -s backend/tests -v` | 180 passed; repository/privacy, settings/migrations, CSV, matching, archive and release guards included |
+| `.venv/bin/python -m pip check` | Passed |
+| Installed-environment Python audit via isolated `pip_audit --path /workspace/sap-lens/.venv/lib/python3.12/site-packages --cache-dir /workspace/.pip-audit-cache --progress-spinner off` | No known vulnerabilities |
+| `npm --prefix frontend audit --omit=dev` | Zero vulnerabilities |
+| `PLAYWRIGHT_EXECUTABLE_PATH=/usr/bin/chromium PATH=/workspace/sap-lens/.venv/bin:$PATH npm --prefix frontend run test:browser -- --reporter=line` | 50 passed |
+| Documentation/asset link checks after documentation updates | Passed |
+
+Full npm auditing retains seven development advisories (five high, two moderate).
+No dependency manifest or lockfile changed. Native Windows EXE packaging, actual
+UNC reads and interactive WebView2 QA were **not run**; passing Linux tests cannot
+substitute for them. README, canonical assets, backend and workflows have no diff.
+Before/after images and all twelve screenshot surfaces per theme/width are kept
+outside Git in the local UI validation artifacts, including mapping popup views.
+
+## Earlier classification refinement (historical)
 
 > Historical implementation record. The later approved classification removal and two-source access architecture supersede the profile UI described here. See [current access investigation](ACCESS_INVESTIGATION.md).
 

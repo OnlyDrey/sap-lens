@@ -1,7 +1,8 @@
+import { DetailNavigation } from "@/components/Shared/InvestigationNavigation"
 import { ModuleIcon } from '@/components/Modules/ModuleIcon'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import { useState, useEffect, useCallback } from 'react'
-import { X, ChevronDown, ChevronRight, AlertTriangle, Loader2, Layers, Zap } from 'lucide-react'
+import { X, ChevronDown, ChevronRight, AlertTriangle, Loader2, Layers, Zap, Users, ArrowRight } from 'lucide-react'
 import * as ScrollArea from '@radix-ui/react-scroll-area'
 import { useRoleDetail } from '@/hooks/useRoleDetail'
 import type { SingleRole, TCode } from '@/api/types'
@@ -28,7 +29,7 @@ function SingleRoleRow({ sr, onTcodeUsers }: { sr: SingleRole; onTcodeUsers?: (c
           <RoleIdentifier value={sr.child_agr} />
           <span className="text-xs">{sr.assignment_kind==='direct'?'Direct assignment':sr.assignment_kind==='effective'?'Effective-role assignment':''}</span>
           {sr.child_agr_text && (
-            <p className="text-[11px] truncate mt-0.5" style={{ color: 'var(--muted)' }}>
+            <p className="text-xs truncate mt-0.5" style={{ color: 'var(--muted)' }}>
               {sr.child_agr_text}
             </p>
           )}
@@ -38,7 +39,7 @@ function SingleRoleRow({ sr, onTcodeUsers }: { sr: SingleRole; onTcodeUsers?: (c
         <div className="flex items-center gap-1 flex-shrink-0 px-2 py-0.5 rounded-lg"
           style={{ backgroundColor: 'color-mix(in srgb, var(--accent) 12%, transparent)' }}>
           <Zap className="w-3 h-3" style={{ color: 'var(--accent2)' }} aria-hidden="true" />
-          <span className="text-[11px] font-black tabular-nums" style={{ color: 'var(--accent2)' }}>
+          <span className="text-xs font-black tabular-nums" style={{ color: 'var(--accent2)' }}>
             {sr.tcodes.length}
           </span>
         </div>
@@ -48,18 +49,18 @@ function SingleRoleRow({ sr, onTcodeUsers }: { sr: SingleRole; onTcodeUsers?: (c
         <div style={{ borderTop: '1px solid var(--border)', backgroundColor: 'var(--surface2)' }}>
           {Boolean(sr.alternate_descriptions?.length) && <p className="text-xs px-4 py-2">Alternate descriptions: {sr.alternate_descriptions?.slice(0,5).join(' · ')}</p>}
           {sr.tcodes.length === 0
-            ? <p className="px-4 py-3 text-xs italic" style={{ color: 'var(--muted)' }}>No T-codes</p>
+            ? <p className="px-4 py-3 text-xs italic" style={{ color: 'var(--muted)' }}>No transactions</p>
             : <table className="w-full">
                 <thead><tr style={{ backgroundColor: 'var(--surface2)' }}>
-                  <th className="text-left px-4 py-2 text-[10px] font-black uppercase w-36"
+                  <th className="text-left px-4 py-2 text-xs font-black uppercase w-36"
                     style={{ color: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>T-code</th>
-                  <th className="text-left px-4 py-2 text-[10px] font-black uppercase"
+                  <th className="text-left px-4 py-2 text-xs font-black uppercase"
                     style={{ color: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>Description</th>
                 </tr></thead>
                 <tbody>
                   {sr.tcodes.map((tc: TCode, i: number) => (
                     <tr key={tc.tcode} style={{ backgroundColor: i % 2 === 1 ? 'var(--surface)' : undefined }}>
-                      <td className="px-4 py-2 font-mono text-[11px] font-bold"
+                      <td className="px-4 py-2 font-mono text-xs font-bold"
                         style={{ color: 'var(--accent2)', borderBottom: '1px solid var(--border)' }}>
                         <span>{tc.tcode}</span>
                         {onTcodeUsers&&<button className="underline block mt-1" onClick={()=>onTcodeUsers(tc.tcode)}>Investigate users with {tc.tcode}</button>}
@@ -79,7 +80,7 @@ function SingleRoleRow({ sr, onTcodeUsers }: { sr: SingleRole; onTcodeUsers?: (c
   )
 }
 
-export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers }: { roleName: string | null; onClose: () => void; onUsers?: (role:string)=>void; onTcodeUsers?: (code:string)=>void }) {
+export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, parent = 'Role Lookup' }: { parent?: string; roleName: string | null; onClose: () => void; onUsers?: (role:string)=>void; onTcodeUsers?: (code:string)=>void }) {
   const { data: role, isLoading, isError, error } = useRoleDetail(roleName)
   const onKey = useCallback((e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }, [onClose])
   useEffect(() => { document.addEventListener('keydown', onKey); return () => document.removeEventListener('keydown', onKey) }, [onKey])
@@ -117,7 +118,7 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers }: { 
             </div>
             <RoleIdentifier value={roleName} />
           </div>
-          <button onClick={onClose}
+          <button aria-label="Close role details" onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-current/60 hover:text-current hover:bg-white/10 transition-colors flex-shrink-0 focus:outline-none">
             <X className="w-4 h-4" />
           </button>
@@ -126,6 +127,7 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers }: { 
         <ScrollArea.Root className="flex-1 overflow-hidden">
           <ScrollArea.Viewport className="h-full w-full">
             <div className="px-6 py-5 flex flex-col gap-5">
+              <DetailNavigation parent={parent} current="Role details" onBack={onClose}/>
 
               {isLoading && (
                 <div className="flex flex-col items-center py-20 gap-3">
@@ -145,7 +147,7 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers }: { 
 
               {role && (
                 <>
-                  {onUsers&&<button className="settings-secondary-button" onClick={()=>onUsers(role.agr_name)}>Assigned users</button>}
+                  {onUsers&&<button className="settings-secondary-button" onClick={()=>onUsers(role.agr_name)}><Users size={16} aria-hidden="true"/>Assigned users<ArrowRight size={16} aria-hidden="true"/></button>}
                   {/* Stats: Single roles FIRST (left), T-codes SECOND (right) */}
                   <div className="flex gap-4 rounded-xl p-4"
                     style={{ backgroundColor: 'var(--surface2)', border: '1px solid var(--border)' }}>
@@ -171,7 +173,7 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers }: { 
                           {role.tcode_count.toLocaleString()}
                         </p>
                       </div>
-                      <p className="text-xs font-medium" style={{ color: 'var(--muted)' }}>T-codes</p>
+                      <p className="text-xs font-medium" style={{ color: 'var(--muted)' }}>Transactions</p>
                     </div>
                   </div>
 

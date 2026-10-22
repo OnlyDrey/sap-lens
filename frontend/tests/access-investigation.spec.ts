@@ -70,6 +70,7 @@ test("user to role to transactions and reverse role or transaction investigation
     .click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("ZS:BUY");
+  await expect(dialog.getByRole("navigation", { name: "Breadcrumb" })).toContainText("Back to users");
   await dialog
     .getByRole("button", { name: "Assigned users", exact: true })
     .click();
@@ -123,7 +124,7 @@ test("directory-only users, expired and future assignments, unknown validity and
   });
   await expect(detail).toContainText("expired");
   await expect(detail).toContainText("No assignments in this section");
-  await page.getByLabel("Show expired", { exact: true }).check();
+  await page.getByLabel("Assignment status", { exact: true }).selectOption("all");
   await expect(detail).toContainText("ZC:MM:BUY:ENK");
   await detail
     .getByRole("button", { name: "Release Roles — ZO:*", exact: true })
@@ -179,6 +180,7 @@ test("release table matrix distinct counts, group comparison and user drilldown 
     .getByRole("navigation", { name: "Main navigation" })
     .getByRole("button", { name: "Release Roles", exact: true })
     .click();
+  await page.getByRole("button", { name: "Back to Release Roles", exact: true }).click();
   await page.getByRole("button", { name: "Matrix", exact: true }).click();
   await page.getByLabel("Compare SAP User Groups", { exact: true }).check();
   await expect(
@@ -215,6 +217,7 @@ test("user CSV detection preview and independent custom preset create rename dup
   await page
     .getByRole("tab", { name: "Data Source & Import", exact: true })
     .click();
+  await page.getByRole("tab", { name: "User Access", exact: true }).click();
   const user = page.getByRole("region", {
     name: "User access CSV configuration",
     exact: true,
