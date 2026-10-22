@@ -48,6 +48,11 @@ class DesktopTests(unittest.TestCase):
         self.gui.FileDialog = types.SimpleNamespace(OPEN=10,SAVE=30)
         self.window = MagicMock()
         self.window.events = types.SimpleNamespace(loaded=WindowEvent(), closed=WindowEvent())
+        self.navigate = MagicMock()
+        def evaluate(script):
+            if script.startswith('window.location.replace('):
+                self.navigate(json.loads(script[len('window.location.replace('):-1]))
+        self.window.evaluate_js.side_effect = evaluate
         self.gui_session = lambda **kwargs: None
         self.gui.create_window = MagicMock(return_value=self.window)
         self.gui.start = MagicMock(side_effect=self.drive_gui)
@@ -70,11 +75,11 @@ class DesktopTests(unittest.TestCase):
         self.temp.cleanup()
 
     def drive_gui(self, **kwargs):
-        self.window.load_url.reset_mock()
+        self.navigate.reset_mock()
         worker=threading.Thread(target=kwargs['func'], daemon=True)
         worker.start()
         deadline=time.monotonic()+3
-        while not self.window.load_url.called and worker.is_alive() and time.monotonic()<deadline:
+        while not self.navigate.called and worker.is_alive() and time.monotonic()<deadline:
             time.sleep(.01)
         try: self.gui_session(**kwargs)
         finally:
@@ -82,7 +87,7 @@ class DesktopTests(unittest.TestCase):
             worker.join(2)
 
     def session(self):
-        url = self.window.load_url.call_args.args[0]
+        url = self.navigate.call_args.args[0]
         parts = urlsplit(url)
         origin = f'{parts.scheme}://{parts.netloc}'
         token = parse_qs(parts.fragment)['session'][0]
@@ -93,6 +98,8 @@ class DesktopTests(unittest.TestCase):
             'X-SAP-Lens': token or '1'}), timeout=3)
 
     def verify_session(self, **kwargs):
+        self.window.load_url.assert_not_called()
+        self.assertTrue(any(call.args[0].startswith('window.location.replace(') for call in self.window.evaluate_js.call_args_list))
         origin, token = self.session()
         with self.request(origin + '/health') as response:
             health = json.load(response)
@@ -110,7 +117,7 @@ class DesktopTests(unittest.TestCase):
 
     def test_repeated_window_launch_and_shutdown(self):
         ready = threading.Event()
-        self.window.load_url.side_effect = lambda _url: ready.set()
+        self.navigate.side_effect = lambda _url: ready.set()
         def verify_ready_session(**kwargs):
             # The generic GUI harness waits only three seconds. Repeated real
             # HTTP startups must wait for the actual load-url event instead of

@@ -1,17 +1,17 @@
-"""Generate PyInstaller version metadata from the application's version constant."""
+"""Generate PE resources from the workflow-resolved offline build identity."""
 from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'backend'))
-from version import VERSION
+from version import VERSION, FILE_VERSION, BUILD_INFO
 
 
 def expected_metadata():
     return {
         'CompanyName': 'SAP Lens contributors',
-        'FileDescription': 'SAP Lens Windows Desktop',
-        'FileVersion': VERSION,
+        'FileDescription': 'SAP Lens',
+        'FileVersion': '.'.join(map(str, FILE_VERSION)),
         'InternalName': 'SAP-Lens',
         'OriginalFilename': 'SAP-Lens.exe',
         'ProductName': 'SAP Lens',
@@ -20,9 +20,9 @@ def expected_metadata():
 
 
 def main():
-    numbers = tuple(int(part) for part in VERSION.split('.')) + (0,)
-    if len(numbers) != 4 or any(not 0 <= part <= 65535 for part in numbers):
-        raise ValueError('Application version must have three valid PE version components.')
+    if BUILD_INFO['mode'] == 'local':
+        raise ValueError('Generate workflow/local build metadata before packaging.')
+    numbers = FILE_VERSION
     output = ROOT / 'backend' / 'build' / 'version-info.txt'
     output.parent.mkdir(parents=True, exist_ok=True)
     strings = ',\n    '.join(f'StringStruct({key!r}, {value!r})' for key, value in expected_metadata().items())

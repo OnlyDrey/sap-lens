@@ -71,8 +71,10 @@ function Wait-Ready($application, [string]$directory) {
 
 try {
     $version = (Get-Item $executable).VersionInfo
-    $expectedVersion = [regex]::Match((Get-Content -Raw backend/version.py), "VERSION = '([^']+)'").Groups[1].Value
-    if ($version.ProductName -ne 'SAP Lens' -or $version.FileVersion -ne $expectedVersion) { throw 'Windows version metadata missing.' }
+    $buildIdentity = Get-Content -Raw backend/build/build-version.json | ConvertFrom-Json
+    $expectedVersion = $buildIdentity.version
+    $numericVersion = $buildIdentity.file_version -join '.'
+    if ($version.ProductName -ne 'SAP Lens' -or $version.FileVersion -ne $numericVersion -or $version.ProductVersion -ne $expectedVersion) { throw 'Windows version metadata missing.' }
     $bytes = [System.IO.File]::ReadAllBytes($executable)
     $peOffset = [BitConverter]::ToInt32($bytes, 0x3c)
     if ([BitConverter]::ToUInt16($bytes, $peOffset + 24 + 68) -ne 2) { throw 'EXE is not a console-free Windows GUI application.' }
@@ -90,7 +92,9 @@ FI,DEMO:A,Synthetic A,SHARED,Shared,DEMO,Demo
 MM,DEMO:B,Synthetic B,SHARED,Shared,DEMO,Demo
 '@ | Set-Content $csvPath -Encoding utf8
         if ($scenario -ne 'relaunch') {
-            @{ data_csv_path = $csvPath } | ConvertTo-Json | Set-Content (Join-Path $directory 'settings.json') -Encoding utf8NoBOM
+            $settingsPath = Join-Path $directory 'settings.json'
+            $settingsJson = @{ data_csv_path = $csvPath } | ConvertTo-Json
+            [System.IO.File]::WriteAllText($settingsPath, $settingsJson, (New-Object System.Text.UTF8Encoding($false)))
         }
         $busy = $null
         if ($scenario -eq 'port-conflict') {
@@ -101,15 +105,23 @@ MM,DEMO:B,Synthetic B,SHARED,Shared,DEMO,Demo
             $application = Start-Application $directory
             $owned[$application.Id] = $application
             $record = Wait-Ready $application $directory
+            $health = Invoke-RestMethod "$($record.origin)/health"
+            if ($health.version -ne $expectedVersion) { throw 'Runtime version differs from packaged build identity.' }
             if ($busy -and ([uri]$record.origin).Port -eq 18743) { throw 'Port conflict did not select a new controlled port.' }
             if ($busy -and $busy.Pending()) { throw 'The conflicting listener was contacted.' }
-            $html = Invoke-WebRequest "$($record.origin)/"
+            $html = Invoke-WebRequest "$($record.origin)/" -UseBasicParsing
             if ($html.Content -notmatch 'id="root"') { throw 'Bundled production frontend is missing.' }
-            $icon = Invoke-WebRequest "$($record.origin)/sap-lens.png"
+            $icon = Invoke-WebRequest "$($record.origin)/sap-lens.png" -UseBasicParsing
             if ($icon.StatusCode -ne 200) { throw 'Bundled branding is missing.' }
-            $blocked = Invoke-WebRequest "$($record.origin)/api/settings" -SkipHttpErrorCheck
+            $blocked = $null
+            try {
+                $blocked = Invoke-WebRequest "$($record.origin)/api/settings" -UseBasicParsing
+            } catch [System.Net.WebException] {
+                if ($null -eq $_.Exception.Response) { throw }
+                $blocked = $_.Exception.Response
+            }
             if ($blocked.StatusCode -ne 403) { throw 'Desktop session capability was not enforced.' }
-            $cors = Invoke-WebRequest "$($record.origin)/api/settings" -Method Options -Headers @{
+            $cors = Invoke-WebRequest "$($record.origin)/api/settings" -UseBasicParsing -Method Options -Headers @{
                 Origin = $record.origin; 'Access-Control-Request-Method' = 'GET'; 'Access-Control-Request-Headers' = 'X-SAP-Lens'
             }
             if ($cors.Headers['Access-Control-Allow-Origin'] -ne $record.origin) { throw 'CORS is not restricted to the actual origin.' }

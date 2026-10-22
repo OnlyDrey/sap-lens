@@ -9,14 +9,18 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 import re
 import struct
+import sys
 import zipfile
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
+# Direct CLI execution must not depend on pytest/unittest or PYTHONPATH setup.
+sys.path.insert(0, str(ROOT / 'backend'))
 REQUIRED = {'frontend/dist/index.html', 'frontend/dist/sap-lens.png',
-            'frontend/dist/favicon.png', 'frontend/dist/theme.js', 'assets/sap-lens.ico'}
+            'frontend/dist/favicon.png', 'frontend/dist/theme.js', 'assets/sap-lens.ico', 'build-version.json'}
 DISTRIBUTION = {'SAP-Lens.exe', 'SAP-Lens.exe.sha256'}
 
 
@@ -101,7 +105,7 @@ def validate_metadata(strings, fixed_versions, resource_counts):
     expected = metadata_module()
     if strings != expected.expected_metadata():
         raise PackageValidationError('Windows application version metadata does not match the authoritative source.')
-    version = tuple(int(part) for part in expected.VERSION.split('.')) + (0,)
+    version = expected.FILE_VERSION
     if fixed_versions != (version, version):
         raise PackageValidationError('Windows fixed version metadata does not match the application version.')
     if resource_counts.get(16) != 1 or resource_counts.get(14) != 1 or resource_counts.get(24) != 1 or resource_counts.get(3, 0) < 1:
@@ -238,6 +242,15 @@ def inspect_archive(executable, frontend):
             raise PackageValidationError('PyInstaller archive member length is inconsistent.')
         if canonical_name(name) in expected and contents != expected[canonical_name(name)].read_bytes():
             raise PackageValidationError('Bundled frontend contents differ from the verified production build.')
+        if canonical_name(name) == 'build-version.json':
+            from version import parse_build_info
+            try:
+                if len(contents) > 4096: raise ValueError('Build identity is oversized.')
+                embedded_version = parse_build_info(json.loads(contents))
+            except (ValueError, TypeError, KeyError):
+                raise PackageValidationError('Embedded build version is invalid.')
+            if embedded_version != metadata_module().BUILD_INFO:
+                raise PackageValidationError('Embedded build version differs from the resolved build.')
         if canonical_name(name) == 'assets/sap-lens.ico' and contents != (ROOT / 'assets/sap-lens.ico').read_bytes():
             raise PackageValidationError('Bundled application icon differs from the canonical icon.')
         if kind == 'z':
@@ -258,7 +271,7 @@ def inspect_archive(executable, frontend):
         raise PackageValidationError('Bundled Python runtime is missing.')
     if not any('webview' in n.casefold() and n.casefold().endswith('.dll') for n in names):
         raise PackageValidationError('Bundled WebView libraries are missing.')
-    if 'desktop' not in names or not modules or 'main' not in modules or 'webview' not in modules:
+    if 'desktop' not in names or not modules or 'main' not in modules or 'webview' not in modules or 'version' not in modules:
         raise PackageValidationError('Application entry point or embedded runtime modules are missing.')
     # No speculative exclusions: record suspicious build-only modules for review.
     review = sorted(n for n in modules if n.split('.')[0] in {'httpx', 'pip', 'pytest', 'PyInstaller'})
@@ -287,20 +300,43 @@ def main():
     parser.add_argument('--expected-sha256')
     parser.add_argument('--report', type=Path, default=ROOT / 'backend/build/package-verification.json')
     args = parser.parse_args()
+    phase = 'build-identity'
     try:
+        if os.environ.get('GITHUB_ACTIONS') == 'true':
+            from version import parse_build_info
+            if parse_build_info(json.loads(os.environ.get('SAP_LENS_EXPECTED_BUILD_JSON',''))) != metadata_module().BUILD_INFO:
+                raise PackageValidationError('Build metadata changed after workflow resolution.')
+        if metadata_module().BUILD_INFO['mode'] == 'local':
+            raise PackageValidationError('A generated build identity is required to verify a distribution.')
+        phase = 'distribution-checksum'
         data, digest = validate_distribution(args.distribution, args.expected_sha256)
+        phase = 'pe-headers'
         validate_gui(data)
+        phase = 'pe-resources'
         metadata = inspect_resources(data)
+        phase = 'pyinstaller-archive'
         inventory = inspect_archive(args.distribution / 'SAP-Lens.exe', ROOT / 'frontend/dist')
         report = {'status': 'passed', 'version': metadata['ProductVersion'], 'format': 'one-file',
                   'size_bytes': len(data), 'exe_sha256': digest, 'signing': 'unsigned (not configured)', **inventory}
+        phase = 'verification-report'
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(json.dumps(report, indent=2), encoding='utf-8')
         print(f'Windows x64 GUI package verified; SHA-256 {digest}; {inventory["archive_entries"]} archive entries.')
     except Exception as error:
         # Third-party parser exceptions can embed untrusted filenames or binary values.
-        message = str(error) if isinstance(error, PackageValidationError) else 'Windows package inspection failed; review build inputs and parser compatibility.'
-        parser.exit(1, message + '\n')
+        if isinstance(error, PackageValidationError):
+            message = 'PackageValidationError; package-policy rejection: ' + str(error)
+        else:
+            # Never echo parser messages, traceback paths, or arbitrary exception class names.
+            categories = {ImportError: 'dependency/import setup', ModuleNotFoundError: 'dependency/import setup',
+                          AttributeError: 'application/parser interface', TypeError: 'application/parser interface',
+                          ValueError: 'malformed input or parser compatibility', UnicodeError: 'malformed input encoding',
+                          OSError: 'filesystem/input access', EOFError: 'truncated input',
+                          struct.error: 'malformed binary structure', ET.ParseError: 'malformed manifest',
+                          zipfile.BadZipFile: 'corrupt embedded archive'}
+            kind = next((kind for kind in (type(error), *type(error).__mro__[1:]) if kind in categories), None)
+            message = (f'{kind.__name__}; {categories[kind]}' if kind else 'UnexpectedException; application/parser failure')
+        parser.exit(1, f'Windows package inspection failed [phase={phase}]: {message}. Details withheld for privacy.\n')
 
 
 if __name__ == '__main__':

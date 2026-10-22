@@ -78,9 +78,11 @@ def get_settings() -> AppConfig:
                 migrated = AppConfig(data_csv_path=saved.get('data_csv_path', ''), cors_origins=bootstrap.cors_origins)
                 backup_settings('migration-v1')
                 atomic_write(path, migrated.model_dump_json(indent=2).encode())
-                _notice = 'File settings migrated to schema 2; the original was backed up locally.'
+                _notice = 'File settings migrated to schema 3; the original was backed up locally.'
                 return migrated
             settings = AppConfig.model_validate(saved)
+            if saved.get('schema_version') == 2:
+                _notice = 'Legacy classification is inactive and preserved locally. SAP areas now use CSV evidence. Original settings remain intact until you save.'
             settings.cors_origins = bootstrap.cors_origins
             return settings
         except (OSError, ValueError, TypeError, KeyError):

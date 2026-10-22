@@ -6,7 +6,6 @@ import {
   Search, GitCompare, X, Users, Activity, LayoutGrid,
   AlertTriangle, RefreshCw, ArrowUpDown, Zap
 } from 'lucide-react'
-import { fetchConfiguration } from '@/api/configuration'
 import { useModules } from '@/hooks/useModules'
 import { useRoles } from '@/hooks/useRoles'
 import { RoleCard } from './RoleCard'
@@ -141,10 +140,6 @@ export function RoleList({
 }: Props) {
   const [page,setPage] = useState(0)
   const [search, setSearch] = useState('')
-  const [activeDomain,setActiveDomain] = useState<string | null>(null)
-  const {data:configuration} = useQuery({queryKey:['configuration'],queryFn:fetchConfiguration})
-  const domains = configuration?.settings.classification_profiles.find(p=>p.id===configuration.settings.active_classification)?.domains || []
-  useEffect(()=>setActiveDomain(null),[configuration?.settings.active_classification])
   const [activeModule, setActiveModule] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<SortKey>('name-asc')
   const [sortOpen, setSortOpen] = useState(false)
@@ -172,7 +167,6 @@ export function RoleList({
     placeholderData: [],
   })
 
-  const domainCounts = useMemo(() => {const counts:Record<string,number>=Object.create(null);for(const r of allRolesRaw){const key=r.domain_id||'$unassigned';counts[key]=(counts[key]||0)+1}return counts},[allRolesRaw])
 
   const moduleNames = useMemo(
     () => Object.assign(Object.create(null),Object.fromEntries(
@@ -224,7 +218,6 @@ export function RoleList({
       )
     }
 
-    if (activeDomain) results=results.filter(r=>activeDomain==='$unassigned' ? !r.domain_id : r.domain_id===activeDomain)
     return applySort(results, sortBy)
   }, [
     allRolesRaw,
@@ -232,17 +225,16 @@ export function RoleList({
     hasTcodeResults,
     debSearch,
     activeModule,
-    activeDomain,
     sortBy
   ])
 
-  useEffect(()=>setPage(0),[debSearch,activeModule,activeDomain,sortBy])
+  useEffect(()=>setPage(0),[debSearch,activeModule,sortBy])
   const pageCount=Math.max(1,Math.ceil(visible.length/100))
   const currentPage=Math.min(page,pageCount-1)
 
   const isFiltering =
     !!debSearch.trim() ||
-    !!activeModule || !!activeDomain
+    !!activeModule
 
   const currentLabel =
     SORT_OPTIONS.find(o => o.key === sortBy)?.label ?? 'Sort'
@@ -266,7 +258,7 @@ export function RoleList({
             },
             {
               label:'Enabled areas',
-              value:moduleGroups.length.toString(),
+              value:moduleGroups.length.toLocaleString(),
               color:'var(--accent2)',
               Icon:LayoutGrid
             },
@@ -300,7 +292,7 @@ export function RoleList({
                   {value}
                 </p>
                 <p
-                  className="text-[10px] font-medium mt-0.5"
+                  className="text-xs font-medium mt-0.5"
                   style={{ color:'var(--muted)' }}
                 >
                   {label}
@@ -311,13 +303,7 @@ export function RoleList({
         </div>
       )}
 
-      {domains.length>0 && <label className="flex items-center gap-3 text-sm" style={{color:'var(--text2)'}}>Customer domain
-        <select aria-label="Customer domain" value={activeDomain||''} onChange={e=>setActiveDomain(e.target.value||null)} className="border rounded-lg px-3 py-2" style={{background:'var(--surface)',borderColor:'var(--border)'}}>
-          <option value="">All domains</option>
-          {domains.filter(d=>domainCounts[d.id]).map(d=><option key={d.id} value={d.id}>{d.label} ({domainCounts[d.id]||0})</option>)}
-          <option value="$unassigned">Unclassified domain ({domainCounts['$unassigned']||0})</option>
-        </select>
-      </label>}
+
       <div
         className="rounded-2xl border px-4 py-3 flex flex-col gap-3 shadow-sm"
         style={{
@@ -428,7 +414,7 @@ export function RoleList({
         {!isLoading && !isError && (
           <div className="relative z-20 flex flex-wrap gap-1.5">
             <button
-              onClick={() => { setActiveModule(null); setActiveDomain(null) }}
+              onClick={() => { setActiveModule(null) }}
               className="px-3 py-1.5 rounded-full text-xs font-bold border transition-all focus:outline-none"
               style={
                 activeModule === null
@@ -560,7 +546,7 @@ export function RoleList({
               <button
                 onClick={() => {
                   setSearch('')
-                  setActiveModule(null); setActiveDomain(null)
+                  setActiveModule(null)
                 }}
                 className="text-xs underline focus:outline-none"
                 style={{ color:'var(--muted)' }}
@@ -636,7 +622,7 @@ export function RoleList({
                 <button
                   onClick={() => {
                     setSearch('')
-                    setActiveModule(null); setActiveDomain(null)
+                    setActiveModule(null)
                   }}
                   className="mt-3 text-sm underline focus:outline-none"
                   style={{ color:'var(--accent2)' }}

@@ -1,9 +1,9 @@
 """One best-effort Actions report; verification failures remain blocking elsewhere."""
 from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import json
 import math
-import ast
 import os
 import subprocess
 
@@ -56,7 +56,7 @@ def duration(step):
 
 def render(records, package, jobs, env, now=None):
     now = now or datetime.now(timezone.utc)
-    candidates = [job for job in jobs if job.get('name') == env.get('GITHUB_JOB', 'windows-exe')]
+    candidates = [job for job in jobs if job.get('name') == env.get('BUILD_JOB_NAME', env.get('GITHUB_JOB', 'windows-exe'))]
     job = max(candidates, key=lambda j: j.get('run_attempt', 0), default={})
     steps = job.get('steps', [])
     rows = []
@@ -67,7 +67,7 @@ def render(records, package, jobs, env, now=None):
         complete = all(any(r['stage'] == task for r in matches) for task in mandatory)
         status = 'Failed' if any(r['status'] == 'failed' for r in matches) else 'Passed' if matches and complete else 'Incomplete' if matches else 'Not run'
         if stage == 'Environment':
-            setup = steps[:next((i + 1 for i, s in enumerate(steps) if s['name'] == 'Environment'), 0)]
+            setup = steps[:next((i + 1 for i, s in enumerate(steps) if s['name'] in {'Environment', 'Create isolated Python build environment'}), 0)]
             if any(s.get('conclusion') in {'failure', 'cancelled'} for s in setup):
                 status = 'Failed'
             values = [duration(s) for s in setup]
@@ -82,6 +82,8 @@ def render(records, package, jobs, env, now=None):
     overall = env.get('BUILD_STATUS', 'unknown')
     if any(status == 'Failed' for _, _, status in rows):
         overall = 'failure'
+    elif overall == 'success' and any(status != 'Passed' for _, _, status in rows):
+        overall = 'incomplete'
     elapsed = None
     try:
         start = datetime.fromisoformat((env.get('WORKFLOW_STARTED_AT') or job.get('started_at') or '').replace('Z', '+00:00'))
@@ -106,6 +108,7 @@ def render(records, package, jobs, env, now=None):
         ('Workflow elapsed at report', seconds(elapsed) + (' (from run start; post-job cleanup pending)' if env.get('WORKFLOW_STARTED_AT') else ' (from job start; excludes queue and pending post-job cleanup)')),
         ('Packaging duration', seconds(next(value for name, value, _ in rows if name == 'Packaging'))),
         ('Smoke-test duration', seconds(next(value for name, value, _ in rows if name == 'Smoke tests'))),
+        ('Warnings', 'See stage logs; known upstream/development caveats are tracked in docs/DEPRECATIONS.md'),
     ]
     output = ['# SAP Lens — Windows Build Report', '', '| Item | Value |', '|---|---|']
     output += [f'| {name} | {safe(value)} |' for name, value in fields]
@@ -134,12 +137,24 @@ def main():
     try:
         env = dict(os.environ)
         try:
-            tree = ast.parse((ROOT / 'backend/version.py').read_text())
-            env['APP_VERSION'] = next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'VERSION' for target in node.targets))
-        except (OSError, ValueError, SyntaxError, StopIteration):
+            import sys
+            sys.path.insert(0, str(ROOT / 'backend'))
+            from version import VERSION
+            env['APP_VERSION'] = VERSION
+        except (OSError, ValueError, ImportError):
             env['APP_VERSION'] = 'Unavailable'
         endpoint = f"repos/{env['GITHUB_REPOSITORY']}/actions/runs/{env['GITHUB_RUN_ID']}"
-        jobs = github_json(endpoint + '/jobs?filter=latest').get('jobs', [])
+        artifact_id = env.get('ARTIFACT_ID')
+        # These read-only metadata requests are independent; avoid serial API latency.
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            jobs_request = pool.submit(github_json, endpoint + '/jobs?filter=latest')
+            run_request = pool.submit(github_json, endpoint)
+            artifact_request = pool.submit(github_json, f"repos/{env['GITHUB_REPOSITORY']}/actions/artifacts/{artifact_id}") if artifact_id and artifact_id.isdigit() else None
+            jobs = jobs_request.result().get('jobs', [])
+            env['WORKFLOW_STARTED_AT'] = run_request.result().get('run_started_at') or ''
+            artifact = artifact_request.result() if artifact_request else {}
+        if isinstance(artifact.get('size_in_bytes'), int):
+            env['ARTIFACT_SIZE'] = f"{artifact['size_in_bytes']:,} bytes"
         if not jobs:
             print('::warning::Workflow timing metadata unavailable; local stage timings are retained.')
         package_path = ROOT / 'backend/build/package-verification.json'
@@ -153,12 +168,6 @@ def main():
                 env[key] = result.stdout.strip() if result.returncode == 0 else 'Unavailable'
             except (OSError, subprocess.TimeoutExpired):
                 env[key] = 'Unavailable'
-        env['WORKFLOW_STARTED_AT'] = github_json(endpoint).get('run_started_at') or ''
-        artifact_id = env.get('ARTIFACT_ID')
-        if artifact_id and artifact_id.isdigit():
-            artifact = github_json(f"repos/{env['GITHUB_REPOSITORY']}/actions/artifacts/{artifact_id}")
-            if isinstance(artifact.get('size_in_bytes'), int):
-                env['ARTIFACT_SIZE'] = f"{artifact['size_in_bytes']:,} bytes"
         Path(summary).write_text(render(read_timings(ROOT / 'backend/build/timings.jsonl'), package, jobs, env), encoding='utf-8')
     except Exception:
         # Report formatting/API errors cannot waive verification or fail a sound package.

@@ -1,5 +1,31 @@
 # Windows packaging hardening and readiness
 
+For supported builds without GitHub Actions, see [local Windows builds](LOCAL_WINDOWS_BUILD.md).
+
+For current build/beta/stable modes and publication safeguards, see
+[manual Windows releases](RELEASES.md). The hardening findings below record their
+original implementation baseline.
+
+## Current version metadata
+
+The workflow resolves the full build identity before packaging, reserving beta/
+stable tags early in a separate privileged job. The Windows build remains
+read-only. Generated ignored backend/build/build-version.json is bundled once at
+the EXE resource root; runtime, UI/API, PE resources and release naming consume
+that identity. No tracked source is rewritten. Source fallback is 0.0.0-dev.local.
+
+ProductVersion retains the full beta/dev suffix; FileVersion uses a numeric
+four-component tuple (0.1.0-beta-1 → 0.1.0.1; stable → 0.1.0.0). Numeric dev
+revisions are bounded by PE limits; full version strings remain distinct.
+FileDescription/ProductName are SAP Lens. Signing is unchanged and disabled.
+The existing package verifier now checks embedded JSON and the version runtime
+module, and the native smoke test checks the actual health/API version against
+the generated identity. All previous archive/privacy/asset/checksum checks remain.
+See [release/recovery rules and PE limitations](RELEASES.md).
+
+The remaining findings below record the earlier hardening baseline; references
+to a hardcoded version constant or no publication predate workflow-driven versions.
+
 ## Baseline and decision
 
 **IMPROVE CURRENT PACKAGING.** Retain Python/FastAPI, React/Vite, pywebview/WebView2,
@@ -198,13 +224,13 @@ pruning is included in this change.
 
 ## Known dependency warnings
 
-Dependency manifests and lockfiles are unchanged. The current full npm audit
+At the packaging baseline, dependency manifests and lockfiles were unchanged. The full npm audit
 reports seven existing development-only advisories (five high, two moderate) in
 the Tailwind 3 toolchain. They are reported rather than suppressed; the separate
 production-only audit remains blocking. A future toolchain migration needs its
-own compatibility validation. The existing Starlette TestClient also emits a
-transition/deprecation warning for its httpx transport; no speculative major
-transport migration is included here. Windows-only Python dependencies still
+own compatibility validation. The baseline Starlette TestClient transport warning
+and the official artifact action's upstream Node warning are tracked in
+[Deprecation maintenance](DEPRECATIONS.md). Windows-only Python dependencies still
 require the canonical Windows audit, not an inference from Linux packages.
 
 
@@ -252,3 +278,46 @@ Delivery is a local commit on `work`, with its SHA in the handoff. No push, GitH
 build, signing attempt or release publication was performed. The repository's
 [pre-push policy](../AGENTS.md) requires explicit approval before pushing while
 required Windows validation remains unavailable.
+
+### CI verifier import failure (run 39751089179)
+
+The beta attempt at source `92e15942a7c2c0aeb23ada1ab35d468312bc1656`
+failed before PE parsing: direct execution of `scripts/verify-windows-package.py`
+with `GITHUB_ACTIONS=true` imported `version` before adding `backend` to the
+Python search path. This raises `ModuleNotFoundError`; the previous generic
+exception handler hid the category. Unit tests had already added that directory
+and therefore missed the standalone-process failure. The verifier now establishes
+its own source import path, and a subprocess regression supplies synthetic
+`0.1.0-beta-1` metadata without an inherited `PYTHONPATH`.
+
+Failure diagnostics identify the verification phase, an allowlisted exception
+category and a bounded cause category. Third-party messages, traceback filenames,
+archive member names and contents remain withheld. Policy rejections retain their
+application-authored, value-free reason. No verification rule is relaxed.
+
+The failed run logged full product version `0.1.0-beta-1` and numeric PE version
+`0.1.0.1`. Its executable was not uploaded, so actual PE resources cannot be
+inspected from that run; neither malformed resources nor parser incompatibility
+has been established. Synthetic archive/resource tests are not native Windows
+validation. A newly authorized Windows build must still exercise PE parsing,
+packaged startup and artifact integrity end to end.
+
+Read-only inspection confirmed `v0.1.0-beta-1` points to that source commit and
+there was no GitHub release. The reservation remains intact. The next independent
+beta allocation for base `0.1.0` ordinarily selects `v0.1.0-beta-2`; do not delete,
+move, reuse or blindly rerun the reserved beta-1 attempt.
+
+Local validation of this fix (Linux): `git diff --check`,
+`.venv/bin/python scripts/ci.py lint`,
+`.venv/bin/python scripts/check-workflows.py`, PowerShell 7
+`-NoProfile -File scripts/check-powershell.ps1`, `npm --prefix frontend ci`,
+`node scripts/sync-lucide-catalog.mjs --check`, frontend `check:types` and `build`,
+`.venv/bin/python -W error::DeprecationWarning -m unittest discover -s backend/tests -v`
+(**180 passed**), `.venv/bin/python -m pip check`, the installed-environment
+Python audit above (no known vulnerabilities), `npm --prefix frontend audit --omit=dev`
+(zero vulnerabilities), and Playwright with system Chromium (**42 passed**) all
+passed. Full npm auditing still reports seven existing development advisories
+(five high, two moderate); dependencies were not changed. Synthetic package tests
+still reject bad resources, corrupt archives, unexpected files and checksum
+mismatches. Native Windows/PE/WebView2 execution remains pending. No remote build,
+tag/release mutation or push was performed during this fix.

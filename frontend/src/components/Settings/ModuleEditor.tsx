@@ -71,17 +71,19 @@ export function ModuleEditor({
       <div className="divide-y divide-[var(--border)]">
         {rows.map((m) => {
           const override = overrides[m.id] || { enabled: true }
-          const iconKey = (override.icon || m.icon) as keyof typeof icons
+          const iconKey = (override.icon || m.default_icon || m.icon) as keyof typeof icons
           const Icon = icons[iconKey] || catalogIcon(iconKey)
-          const rawColor = override.color ?? m.color
-          const color = isHex(rawColor) ? rawColor : m.color
+          const defaultColor = m.default_color || m.color
+          const defaultName = m.default_name || m.name
+          const rawColor = override.color ?? defaultColor
+          const color = isHex(rawColor) ? rawColor : defaultColor
           const edit = (patch: Partial<ModuleOverride>) =>
             onChange({ ...overrides, [m.id]: { ...override, ...patch } })
           return (
             <div key={m.id}>
               <button
                 className="module-list-row"
-                aria-label={`Edit ${m.id} — ${override.display_name || m.name}`}
+                aria-label={`Edit ${m.id} — ${override.display_name || defaultName}`}
                 aria-expanded={expanded === m.id}
                 onClick={() => setExpanded(expanded === m.id ? null : m.id)}
               >
@@ -95,7 +97,7 @@ export function ModuleEditor({
                   <span className="font-semibold text-sm">
                     {m.id}{' '}
                     <span className="font-normal text-[var(--text2)] ml-2">
-                      {override.display_name || m.name}
+                      {override.display_name || defaultName}
                     </span>
                   </span>
                   <span className="block text-xs text-[var(--muted)] mt-1">
@@ -125,22 +127,29 @@ export function ModuleEditor({
                       <input
                         aria-label={`${m.id} display name`}
                         className={`${control} mt-1`}
-                        placeholder={m.name}
+                        placeholder={defaultName}
                         value={override.display_name || ''}
                         onChange={(e) =>
                           edit({ display_name: e.target.value || null })
                         }
                       />
                     </label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={override.enabled}
-                        onChange={(e) => edit({ enabled: e.target.checked })}
-                      />{' '}
-                      Enabled in module filters
-                    </label>
                   </div>
+                  <label className="settings-filter-row">
+                    <span>
+                      <span className="block text-sm font-semibold">Show in module filters</span>
+                      <span className="block text-xs text-[var(--text2)] mt-1" id={`module-filter-help-${m.id}`}>
+                        Allow this area to appear as a filter when browsing SAP roles. Its roles remain in the dataset.
+                      </span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      aria-label={`Show ${m.id} in module filters`}
+                      aria-describedby={`module-filter-help-${m.id}`}
+                      checked={override.enabled}
+                      onChange={(e) => edit({ enabled: e.target.checked })}
+                    />
+                  </label>
                   <ColorControl
                     label={`${m.id} hexadecimal color`}
                     value={rawColor}

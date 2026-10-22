@@ -24,8 +24,7 @@ export interface SingleRoleInfo {
 }
 
 export interface RoleSummary {
-  domain_id?: string | null
-  classification_ambiguous?: boolean
+  module_ambiguous?: boolean
   agr_name: string
   text: string | null
   function_key: string | null

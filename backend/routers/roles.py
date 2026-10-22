@@ -73,7 +73,7 @@ def list_roles(
 # ---------------------------------------------------------------------------
 # GET /api/roles/{agr_name}
 # ---------------------------------------------------------------------------
-@router.get("/{agr_name}", response_model=RoleDetail)
+@router.get("/{agr_name:path}", response_model=RoleDetail)
 def get_role(agr_name: str) -> RoleDetail:
     """Return full detail for a single composite role including single roles and T-codes."""
     detail = cache.get_role_detail(agr_name)

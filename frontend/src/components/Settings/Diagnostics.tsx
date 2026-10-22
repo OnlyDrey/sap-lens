@@ -1,8 +1,14 @@
+import { EvidenceBadge } from '@/components/Shared/InvestigationNavigation'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Activity, Download, FileText, FolderOpen } from 'lucide-react'
 import { apiRequest, applicationToken } from '@/api/client'
+interface DataSource {
+  id: string; name: string; configured: boolean; loaded: boolean; configured_path?: string; loaded_path?: string; attempted_path?: string;
+  availability: string; records: number; assignments: number; last_successful_load: string | null; error: string | null; loading: boolean
+}
 interface Snapshot {
+  sources: DataSource[]
   version: string
   configuration_schema: number
   configuration_revision: number
@@ -90,7 +96,7 @@ export function Diagnostics({ native }: { native: boolean }) {
             <dt>Application version</dt>
             <dd>{query.data.version}</dd>
             <dt>Current data status</dt>
-            <dd>{query.data.cached_roles} roles loaded</dd>
+            <dd className="flex flex-wrap gap-2">{query.data.sources.map(source => <span key={source.id}>{source.name}: {source.records.toLocaleString()} {source.id === 'users' ? source.records === 1 ? 'user' : 'users' : source.records === 1 ? 'role' : 'roles'} · <EvidenceBadge value={source.error ? 'Needs attention' : source.loaded ? 'Loaded' : 'Not loaded'}/></span>)}</dd>
             <dt>Last successful refresh</dt>
             <dd>
               {query.data.last_successful_load
@@ -106,12 +112,19 @@ export function Diagnostics({ native }: { native: boolean }) {
           These locations are shown only in this application and excluded from
           diagnostic exports.
         </p>
-        <dl className="settings-status-list">
-          <dt>Current data source</dt>
-          <dd>{query.data?.data_source || 'No CSV configured'}</dd>
-          <dt>Local application data</dt>
-          <dd>{query.data?.application_directory || 'Checking…'}</dd>
-        </dl>
+        {query.data && <div className="diagnostic-sources">{query.data.sources.map(source => <section className="information-card" key={source.id} aria-label={source.name}>
+          <h3 className="font-semibold mb-3">{source.name}</h3>
+          <dl className="information-list">
+            <dt>Configured file</dt><dd>{source.configured_path || 'Not configured'}</dd>
+            <dt>Loaded source</dt><dd>{source.loaded_path || 'No successful load'}</dd>
+            <dt>Availability</dt><dd>{({ available_at_last_load:'Available at last successful load; current access not checked', not_checked:'Not checked', missing:'File missing on last attempt', access_denied:'Access denied on last attempt', invalid:'Validation failed on last attempt', failed:'Read failed on last attempt' } as Record<string,string>)[source.availability] || 'Not checked'}</dd>
+            <dt>Last loaded</dt><dd>{source.last_successful_load ? new Date(source.last_successful_load).toLocaleString() : 'Never'}</dd>
+            <dt>Records</dt><dd>{source.records.toLocaleString()} {source.id === 'users' ? source.records === 1 ? 'user' : 'users' : source.records === 1 ? 'role' : 'roles'} · {source.assignments.toLocaleString()} {source.assignments === 1 ? 'assignment' : 'assignments'}</dd>
+            <dt>Status</dt><dd><EvidenceBadge value={source.loading ? 'Loading' : source.error ? 'Last attempt failed' : source.loaded ? 'Loaded' : 'Not loaded'}/></dd>
+            {source.error && <><dt>Last attempt</dt><dd>{source.attempted_path || 'Unknown location'} · {source.error.replace(/_/g, ' ')}. Previously loaded data is retained.</dd></>}
+          </dl>
+        </section>)}</div>}
+        <dl className="settings-status-list"><dt>Local application data</dt><dd>{query.data?.application_directory || 'Checking…'}</dd></dl>
         <button
           className="settings-secondary-button"
           disabled={

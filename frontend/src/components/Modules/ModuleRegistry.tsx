@@ -63,7 +63,21 @@ export const icons = {
 }
 const PaletteContext = createContext(defaultDark)
 export const useModulePalette = () => useContext(PaletteContext)
-const DomainContext = createContext<Record<string, string>>({})
+function discoveredColor(value: string) {
+  // Same stable ID hash/palette as backend.module_registry.discovered_color.
+  const palette = ['#6f8fc5', '#a184bc', '#b08b60', '#629c9b', '#8da16d', '#b47f87', '#6599b0', '#b3879c']
+  // Bound display-only hashing even if an imported source label is unusually long.
+  let prefix = '', count = 0
+  for (const character of value) {
+    prefix += character
+    if (++count === 256) break
+  }
+  let fingerprint = 2166136261
+  for (const character of prefix.trim().toUpperCase().replace(/_/g, '-').replace(/ /g, '')) {
+    fingerprint = Math.imul(fingerprint ^ character.codePointAt(0)!, 16777619) >>> 0
+  }
+  return palette[fingerprint % palette.length]
+}
 const Context = createContext<Record<string, RegistryEntry>>({})
 export function ModuleRegistryProvider({ children }: { children: ReactNode }) {
   const [systemDark, setSystemDark] = useState(
@@ -88,17 +102,6 @@ export function ModuleRegistryProvider({ children }: { children: ReactNode }) {
     () => Object.fromEntries((data?.modules || []).map((m) => [m.id, m])),
     [data]
   )
-  const domains = useMemo(
-    () =>
-      Object.fromEntries(
-        (
-          config.data?.settings.classification_profiles.find(
-            (p) => p.id === config.data?.settings.active_classification
-          )?.domains || []
-        ).map((d) => [d.id, d.label])
-      ),
-    [config.data]
-  )
   const mode = config.data?.settings.theme || 'dark'
   const dark = mode === 'dark' || (mode === 'system' && systemDark)
   const palette =
@@ -106,9 +109,7 @@ export function ModuleRegistryProvider({ children }: { children: ReactNode }) {
     (dark ? defaultDark : defaultLight)
   return (
     <PaletteContext.Provider value={palette}>
-      <DomainContext.Provider value={domains}>
         <Context.Provider value={registry}>{children}</Context.Provider>
-      </DomainContext.Provider>
     </PaletteContext.Provider>
   )
 }
@@ -122,17 +123,8 @@ export function useModuleVisual(code?: string | null) {
     Icon:
       icons[(item?.icon || 'Hash') as keyof typeof icons] ||
       catalogIcon(item?.icon || 'Hash'),
-    color: item?.color || '#64748b',
+    color: item?.color || (key === 'UNCLASSIFIED' ? '#8793a2' : discoveredColor(key)),
     name: item?.name || code || 'Unclassified',
     enabled: item?.enabled ?? true
   }
-}
-
-export function useDomainLabel(id?: string | null) {
-  const labels = useContext(DomainContext)
-  return id
-    ? Object.prototype.hasOwnProperty.call(labels, id)
-      ? labels[id]
-      : id
-    : null
 }

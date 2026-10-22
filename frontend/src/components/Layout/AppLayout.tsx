@@ -1,5 +1,6 @@
+import { useHistoryValue } from '@/hooks/useViewHistory'
 import { type ReactNode, useState } from 'react'
-import { RefreshCw, Sun, Moon, Settings, Loader2 } from 'lucide-react'
+import { RefreshCw, Sun, Moon, Settings, Loader2, Database } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { refreshData, apiRequest } from '@/api/client'
 import { fetchConfiguration } from '@/api/configuration'
@@ -7,6 +8,7 @@ import { SettingsView } from '@/components/Settings/SettingsView'
 import { cn } from '@/lib/utils'
 
 interface Props {
+  navigation: ReactNode
   children: ReactNode
   lastLoaded: string | null
   onRefresh: () => void
@@ -17,6 +19,7 @@ interface Props {
 
 export function AppLayout({
   children,
+  navigation,
   lastLoaded,
   onRefresh,
   onDataChanged,
@@ -24,9 +27,14 @@ export function AppLayout({
   onToggleTheme
 }: Props) {
   const qc = useQueryClient()
-  const { data: configuration } = useQuery({
-    queryKey: ['configuration'],
-    queryFn: fetchConfiguration
+  const configurationQuery = useQuery({
+    queryKey: ['configuration'], queryFn: fetchConfiguration, retry:false, refetchInterval:5000
+  })
+  const configuration = configurationQuery.data
+  const { data: application } = useQuery({
+    queryKey: ['application-version'],
+    queryFn: () => apiRequest<{ app: string; version: string; mode: string }>('/api/version'),
+    staleTime: Infinity
   })
   const organization = configuration?.settings.organization
   const { data: customLogo } = useQuery({
@@ -37,7 +45,12 @@ export function AppLayout({
     staleTime: Infinity
   })
   const [savedFeedback, setSavedFeedback] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useHistoryValue('settings')
+  const [dataSourceRequest, setDataSourceRequest] = useState(0)
+  const reviewDataSource = () => {
+    setDataSourceRequest((request) => request + 1)
+    setSettingsOpen(true)
+  }
   const [themeBusy, setThemeBusy] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -76,9 +89,9 @@ export function AppLayout({
         }}
         role="banner"
       >
-        <div className="max-w-screen-2xl mx-auto px-5 h-24 flex items-center justify-between gap-4">
+        <div className="max-w-screen-2xl mx-auto px-4 min-h-20 flex items-center justify-between gap-3">
           {/* Brand: logo image + name */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             {/* Logo image â€” fallback to styled "E" if file not found */}
             <img
               src={
@@ -117,8 +130,10 @@ export function AppLayout({
             </div>
           </div>
 
+          <fieldset disabled={settingsOpen} className="min-w-0">{navigation}</fieldset>
+
           {/* Right controls */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             {fmt && (
               <span
                 className="text-[11px] hidden lg:block font-medium"
@@ -191,14 +206,6 @@ export function AppLayout({
           </div>
         </div>
 
-        {configuration?.loading && (
-          <div
-            role="status"
-            className="bg-[var(--info-bg)] text-[var(--info)] text-sm px-5 py-2"
-          >
-            Loading role data…
-          </div>
-        )}
         {savedFeedback && (
           <div
             role="status"
@@ -228,6 +235,7 @@ export function AppLayout({
 
       <SettingsView
         open={settingsOpen}
+        dataSourceRequest={dataSourceRequest}
         onOpen={() => setSettingsOpen(true)}
         onClose={() => {
           setSettingsOpen(false)
@@ -239,49 +247,39 @@ export function AppLayout({
         onDataChanged={onDataChanged}
       />
       {configuration?.error && !configuration.loading && !settingsOpen && (
+        <div className="w-full max-w-screen-2xl mx-auto px-4 sm:px-6 mt-4">
         <div
           role="alert"
-          className="mx-5 mt-4 p-4 rounded-lg border border-[var(--warning)] text-[var(--text)] flex flex-wrap items-center gap-3"
+          className="p-4 rounded-lg border border-[var(--warning)] text-[var(--text)] flex flex-wrap items-center gap-3"
         >
           <span className="text-sm mr-auto">{configuration.error}</span>
           <button
-            onClick={() => setSettingsOpen(true)}
-            className="text-sm underline"
+            type="button"
+            onClick={reviewDataSource}
+            className="settings-secondary-button data-source-action"
           >
+            <Database size={16} aria-hidden="true" className="shrink-0"/>
             Review data source
           </button>
         </div>
-      )}
-      {configuration?.loading && !settingsOpen && (
-        <div role="status" className="flex-1 grid place-items-center p-8">
-          <div className="text-center max-w-md">
-            <img
-              src="/sap-lens.png"
-              alt="SAP Lens"
-              className="w-20 h-20 mx-auto object-contain"
-            />
-            <Loader2 className="animate-spin text-[var(--accent2)] mx-auto mt-6" />
-            <h1 className="text-xl font-semibold mt-4">Loading role data…</h1>
-            <p className="text-sm text-[var(--muted)] mt-2">
-              Your configuration is loaded. You can review the source or cancel
-              a slow read in Settings.
-            </p>
-            <button
-              className="mt-5 rounded-lg px-4 py-2 bg-[var(--accent)] text-[var(--on-accent)]"
-              onClick={() => setSettingsOpen(true)}
-            >
-              Review data source
-            </button>
-          </div>
         </div>
       )}
+      {configurationQuery.isError && !settingsOpen && <div role="alert" className="service-notice">
+        <strong>Local service unavailable.</strong><span>The current view is retained. Retry the connection; navigation does not restart the backend.</span>
+        <button className="settings-secondary-button" onClick={() => void configurationQuery.refetch()} disabled={configurationQuery.isFetching}>Retry connection</button>
+      </div>}
+      {configuration?.loading && !configurationQuery.isError && !settingsOpen && <div role="status" className="service-notice">
+        <Loader2 size={20} className="animate-spin shrink-0" aria-hidden="true"/>
+        <div><h2 className="font-semibold">Loading CSV data…</h2><p className="text-sm text-[var(--muted)]">Previous data remains visible until both sources are loaded. Review or cancel a slow read in Settings.</p></div>
+        <button className="settings-secondary-button" onClick={reviewDataSource}>Review data source</button>
+      </div>}
       <main
         className={
-          settingsOpen || configuration?.loading
+          settingsOpen
             ? 'hidden'
             : 'flex-1 max-w-screen-2xl mx-auto w-full px-4 sm:px-6 py-5'
         }
-        id="main-content"
+        id="main-content" tabIndex={-1}
       >
         {children}
       </main>
@@ -299,8 +297,11 @@ export function AppLayout({
         }}
       >
         <p className="text-[11px] py-2.5 text-center font-medium">
-          {organization?.footer ||
-            `© ${new Date().getFullYear()} ${organization?.name.trim() || 'SAP Lens'} — SAP Lens`}
+          <span>{organization?.footer ||
+            `© ${new Date().getFullYear()} ${organization?.name.trim() || 'SAP Lens'} — SAP Lens`}</span>
+          {application && <span className="block mt-1" aria-label="Application version">
+            SAP Lens v{application.version}{application.mode === 'local-build' ? ' · Local build' : application.mode === 'build' || application.mode === 'local' ? ' · Development build' : ''}
+          </span>}
         </p>
       </footer>
     </div>

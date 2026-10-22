@@ -10,9 +10,11 @@
     <br />
     <a href="#1">Get started</a>
     ·
-    <a href="#2">File settings</a>
+    <a href="docs/LOCAL_WINDOWS_BUILD.md">Local Windows build</a>
     ·
-    <a href="#3">Build EXE</a>
+    <a href="docs/CSV_IMPORT.md">CSV import</a>
+    ·
+    <a href="docs/CONFIGURATION.md">Settings</a>
     ·
     <a href="#4">Development</a>
     ·
@@ -48,9 +50,16 @@ Nine canonical fields are supported: `FUNCTION_KEY`, `AGR_NAME`, `TEXT`, `CHILD_
 <a id="3"></a>
 ## Build EXE
 
-Start the [Windows workflow](.github/workflows/build-windows.yml) manually through **Actions → Build Windows application → Run workflow** and select the desired branch. It does not run automatically on commits, tags or pull requests. It tests, audits, packages a console-free EXE and smoke-tests its lifecycle. Download its artifact and SHA-256 checksum; artifacts expire after 14 days. The separate [validation workflow](.github/workflows/validate.yml) runs backend tests, frontend type checks and a production dependency audit on pushes and pull requests, without building the frontend or EXE.
+Start the [Windows workflow](.github/workflows/build-windows.yml) manually through **Actions → Build Windows application → Run workflow** and select the desired branch. It does not run automatically on commits, tags or pull requests. It tests, audits, packages a console-free EXE and smoke-tests its lifecycle. Download its artifact and SHA-256 checksum; artifacts expire after 14 days. The separate [Fast Validation workflow](.github/workflows/validate.yml) runs backend/repository checks and frontend type checks on pushes and pull requests. Full Validation adds browser tests, production frontend compilation and security audits for pull requests targeting main. See [CI architecture and temporary skipping](docs/CI_ARCHITECTURE.md) for details.
 
-For a local build with Python 3.12, Node.js 24 LTS and PowerShell 7, run `pwsh -NoProfile -File scripts/build-windows.ps1`. Output: `backend/dist/SAP-Lens.exe`. User settings, CSVs, logos and logs are excluded. See [desktop packaging and Windows acceptance](docs/DESKTOP.md).
+For local Windows builds without Actions credits, follow the [step-by-step local build guide](docs/LOCAL_WINDOWS_BUILD.md). It includes prerequisites, execution-policy troubleshooting, all four modes, output locations and checksum checks. From the repository root, run:
+
+```powershell
+.\scripts\build-local.ps1 -Mode Quick
+.\scripts\build-local.ps1 -Mode Build -Version 0.1.0
+```
+
+Quick checks development inputs; Build creates the verified EXE and ZIP under `dist/local/`. See the guide for Validate, Package and beta-version commands. User settings, CSVs, logos and logs are excluded from the distribution.
 
 <a id="4"></a>
 ## Development

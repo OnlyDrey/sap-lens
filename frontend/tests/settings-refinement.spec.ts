@@ -93,7 +93,7 @@ test('complete icon search, module color validation and persisted icon selection
   await page
     .getByRole('button', { name: 'Reset FI hexadecimal color', exact: true })
     .click()
-  await expect(hex).toHaveValue('#3d4d8a')
+  await expect(hex).toHaveValue('#6f8fc5')
   await page
     .getByRole('button', { name: 'Apply settings', exact: true })
     .click()
@@ -158,7 +158,7 @@ test('unavailable lazy icon assets keep the application usable and preserve save
   expect(saved.settings.module_overrides.FI.icon).toBe('Camera')
 })
 
-test('CSV detection previews without loading and preserves only compatible manual overrides', async ({
+test('CSV detection previews without loading and preserves intentional manual overrides and warns on missing columns', async ({
   page,
   request
 }) => {
@@ -173,7 +173,8 @@ test('CSV detection previews without loading and preserves only compatible manua
     await expect(page.getByText(/1 composite roles/)).toBeVisible()
     expect((await (await request.get('/health')).json()).cached_roles).toBe(0)
     const role = page.getByLabel('AGR_NAME (required)', { exact: true })
-    await role.selectOption('Role')
+    await role.click()
+    await page.getByRole('option', { name: 'Role', exact: true }).click()
     await page
       .getByRole('button', { name: 'Preview import', exact: true })
       .click()
@@ -198,7 +199,8 @@ test('CSV detection previews without loading and preserves only compatible manua
     await expect(role).toBeEnabled()
     await expect(role).toHaveValue('Role')
     await page.getByLabel('CSV file location', { exact: true }).fill(second)
-    await expect(role).toHaveValue('')
+    await expect(role).toHaveValue('Role')
+    await expect(page.getByRole('status').filter({ hasText: /manual mappings.*(missing|retained)/i })).toBeVisible()
     await expect(role).toBeEnabled()
     expect(
       (await request.get('/api/roles/DEMO_MANUAL', { headers })).ok()

@@ -1,3 +1,4 @@
+import { ViewHistory, initializeViewHistory } from './hooks/useViewHistory'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -19,12 +20,15 @@ const skipLink = document.createElement('a')
 skipLink.href = '#main-content'
 skipLink.className = 'skip-link'
 skipLink.textContent = 'Skip to main content'
+skipLink.addEventListener('click', event => { event.preventDefault(); const main = document.getElementById('main-content'); main?.focus(); main?.scrollIntoView() })
 document.body.insertBefore(skipLink, rootElement)
+
+initializeViewHistory()
 
 createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <ModuleRegistryProvider><StartupGate><App /></StartupGate></ModuleRegistryProvider>
+      <ModuleRegistryProvider><ViewHistory><StartupGate><App /></StartupGate></ViewHistory></ModuleRegistryProvider>
     </QueryClientProvider>
   </StrictMode>
 )

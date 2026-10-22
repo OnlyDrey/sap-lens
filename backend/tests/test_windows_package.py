@@ -8,6 +8,8 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
+import sys
+sys.path.insert(0, str(ROOT / 'backend'))
 spec = importlib.util.spec_from_file_location('verify_windows_package', ROOT / 'scripts/verify-windows-package.py')
 package = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(package)
@@ -74,14 +76,14 @@ class WindowsPackageTests(unittest.TestCase):
 
     def test_metadata_uses_authoritative_version_and_existing_identity(self):
         metadata = package.metadata_module()
-        version = tuple(map(int, metadata.VERSION.split('.'))) + (0,)
+        version = metadata.FILE_VERSION
         resources = {16: 1, 14: 1, 24: 1, 3: 2}
         package.validate_metadata(metadata.expected_metadata(), (version, version), resources)
         for key in metadata.expected_metadata():
             values = metadata.expected_metadata(); values[key] = 'changed'
             with self.subTest(key=key), self.assertRaises(ValueError):
                 package.validate_metadata(values, (version, version), resources)
-        with self.assertRaises(ValueError): package.validate_metadata(metadata.expected_metadata(), ((0,0,0,0), version), resources)
+        with self.assertRaises(ValueError): package.validate_metadata(metadata.expected_metadata(), (((version[0]+1)%65536,*version[1:]), version), resources)
         for key in [16, 14, 24]:
             for count in [0, 2]:
                 with self.assertRaises(ValueError):
@@ -144,15 +146,29 @@ class WindowsPackageTests(unittest.TestCase):
                 path = frontend/name; path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(b'synthetic asset')
             source = root/'entry.py'; source.write_text('pass\n')
             pyz = root/'PYZ.pyz'
-            ZlibArchiveWriter(str(pyz), [('main', str(source), 'PYMODULE'), ('webview', str(source), 'PYMODULE')], {name: compile('pass', name+'.py', 'exec') for name in ['main','webview']})
+            ZlibArchiveWriter(str(pyz), [('main', str(source), 'PYMODULE'), ('webview', str(source), 'PYMODULE'), ('version', str(source), 'PYMODULE')], {name: compile('pass', name+'.py', 'exec') for name in ['main','webview','version']})
             entries = [('frontend/dist/'+str(p.relative_to(frontend)), str(p), True, 'x') for p in frontend.rglob('*') if p.is_file()]
             entries += [('assets/sap-lens.ico', str(ROOT/'assets/sap-lens.ico'), True, 'x'), ('desktop', str(source), True, 's'), ('PYZ.pyz', str(pyz), False, 'z'),
                         ('python312.dll', str(source), True, 'b'), ('webview/WebView2Loader.dll', str(source), True, 'b')]
+            import json
+            from types import SimpleNamespace
+            from version import make_build_info
+            info = make_build_info('beta','0.1.0','a'*40,'1','1',1,1)
+            identity = root/'build-version.json'; identity.write_text(json.dumps(info))
+            entries += [('build-version.json',str(identity),True,'x')]
+            guard = patch.object(package,'metadata_module',return_value=SimpleNamespace(BUILD_INFO=info))
+            guard.start(); self.addCleanup(guard.stop)
             executable = root/'synthetic.pkg'
             CArchiveWriter(str(executable), entries, 'python312.dll')
             inventory = package.inspect_archive(executable, frontend)
             self.assertEqual(inventory['frontend_files'], 5)
-            self.assertEqual(set(inventory['module_names']), {'main', 'webview'})
+            self.assertEqual(set(inventory['module_names']), {'main', 'webview', 'version'})
+            changed = dict(info, version='0.1.0-beta-2', tag='v0.1.0-beta-2', file_version=[0,1,0,2])
+            identity.write_text(json.dumps(changed))
+            CArchiveWriter(str(executable), entries, 'python312.dll')
+            with self.assertRaises(ValueError): package.inspect_archive(executable, frontend)
+            identity.write_text(json.dumps(info))
+            CArchiveWriter(str(executable), entries, 'python312.dll')
             (frontend/'assets/app.js').write_bytes(b'tampered')
             with self.assertRaises(ValueError): package.inspect_archive(executable, frontend)
             (frontend/'assets/app.js').write_bytes(b'synthetic asset')
@@ -182,9 +198,9 @@ class WindowsPackageTests(unittest.TestCase):
             roots.setdefault(kind, []).append(NS(id=identifier, directory=NS(entries=[leaf])))
         metadata = package.metadata_module()
         entries = {key.encode():value.encode() for key,value in metadata.expected_metadata().items()}
-        a,b,c = map(int, metadata.VERSION.split('.'))
+        a,b,c,d = metadata.FILE_VERSION
         pe = NS(OPTIONAL_HEADER=NS(DATA_DIRECTORY=[NS(Size=0) for _ in range(16)]), FileInfo=[[NS(StringTable=[NS(entries=entries)])]],
-                VS_FIXEDFILEINFO=[NS(FileVersionMS=(a<<16)|b, FileVersionLS=c<<16, ProductVersionMS=(a<<16)|b, ProductVersionLS=c<<16)],
+                VS_FIXEDFILEINFO=[NS(FileVersionMS=(a<<16)|b, FileVersionLS=(c<<16)|d, ProductVersionMS=(a<<16)|b, ProductVersionLS=(c<<16)|d)],
                 DIRECTORY_ENTRY_RESOURCE=NS(entries=[NS(id=kind, directory=NS(entries=children)) for kind,children in roots.items()]),
                 get_data=lambda offset,size: payloads[offset])
         with patch.dict(sys.modules, {'pefile':NS(PE=lambda **kwargs:nullcontext(pe))}):
@@ -195,14 +211,51 @@ class WindowsPackageTests(unittest.TestCase):
             entries[b'ProductName'] = b'wrong'
             with self.assertRaises(ValueError): package.inspect_resources(b'synthetic')
 
+    def test_ci_verifier_rejects_build_identity_changed_after_resolution(self):
+        import io,json,sys
+        from contextlib import redirect_stderr
+        from types import SimpleNamespace
+        from version import make_build_info
+        expected=make_build_info('beta','0.1.0','a'*40,'1','1',1,1)
+        changed=make_build_info('beta','0.1.0','a'*40,'1','1',1,2)
+        with patch.dict(package.os.environ,{'GITHUB_ACTIONS':'true','SAP_LENS_EXPECTED_BUILD_JSON':json.dumps(expected)}),patch.object(package,'metadata_module',return_value=SimpleNamespace(BUILD_INFO=changed)),patch.object(package,'validate_distribution') as distribution,patch.object(sys,'argv',['verify-windows-package.py']),redirect_stderr(io.StringIO()) as output:
+            with self.assertRaises(SystemExit):package.main()
+            distribution.assert_not_called()
+        self.assertIn('Build metadata changed',output.getvalue())
+
+    def test_direct_ci_cli_resolves_beta_identity_without_test_pythonpath(self):
+        """Reproduce the Windows CLI process, not the test runner's import context."""
+        import json, os, shutil, subprocess
+        from version import make_build_info
+        identity = make_build_info('beta', '0.1.0', 'a'*40, '39751089179', '23', 1, 1)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root/'scripts').mkdir()
+            (root/'backend/build').mkdir(parents=True)
+            for relative in ('scripts/verify-windows-package.py', 'scripts/write-windows-metadata.py', 'backend/version.py'):
+                shutil.copyfile(ROOT/relative, root/relative)
+            (root/'backend/build/build-version.json').write_text(json.dumps(identity))
+            env = dict(os.environ, GITHUB_ACTIONS='true', SAP_LENS_EXPECTED_BUILD_JSON=json.dumps(identity))
+            env.pop('PYTHONPATH', None)
+            result = subprocess.run([sys.executable, str(root/'scripts/verify-windows-package.py')],
+                                    cwd=directory, env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 1)
+            # The intentionally absent distribution is reached only after identity validation.
+            self.assertIn('phase=distribution-checksum', result.stderr)
+            self.assertIn('PackageValidationError', result.stderr)
+            self.assertNotIn('ModuleNotFoundError', result.stderr)
+            self.assertNotIn(directory, result.stderr)
+
     def test_cli_does_not_echo_third_party_parser_error_values(self):
         import io
         import sys
         from contextlib import redirect_stderr
         output = io.StringIO()
-        with patch.object(package, 'validate_distribution', return_value=(synthetic_pe(), 'a'*64)), patch.object(package, 'inspect_resources', side_effect=ValueError('SENSITIVE_SENTINEL')), patch.object(sys, 'argv', ['verify-windows-package.py']), redirect_stderr(output):
+        with patch.dict(package.os.environ,{'GITHUB_ACTIONS':'false'}), patch.object(package, 'metadata_module', return_value=type('Metadata',(),{'BUILD_INFO':{'mode':'beta'}})), patch.object(package, 'validate_distribution', return_value=(synthetic_pe(), 'a'*64)), patch.object(package, 'inspect_resources', side_effect=ValueError('SENSITIVE_SENTINEL')), patch.object(sys, 'argv', ['verify-windows-package.py']), redirect_stderr(output):
             with self.assertRaises(SystemExit) as error:
                 package.main()
         self.assertEqual(error.exception.code, 1)
         self.assertNotIn('SENSITIVE_SENTINEL', output.getvalue())
         self.assertIn('Windows package inspection failed', output.getvalue())
+        self.assertIn('phase=pe-resources', output.getvalue())
+        self.assertIn('ValueError; malformed input or parser compatibility', output.getvalue())

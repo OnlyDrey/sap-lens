@@ -14,6 +14,10 @@ def normalized(value):
 
 
 class CsvImport:
+    fields = FIELDS
+    required = 'AGR_NAME'
+    identifier_fields = ['AGR_NAME','CHILD_AGR','PARENT_AGR','Effective_Role']
+
     def __init__(self, path: Path, profile: ImportProfile):
         if not path.is_absolute() or path.suffix.lower() != '.csv' or '://' in str(path):
             raise AnalysisValidationError('Choose an absolute filesystem CSV path.')
@@ -29,7 +33,13 @@ class CsvImport:
         if self.path.stat().st_size > MAX_BYTES: raise AnalysisValidationError('CSV exceeds its size limit.')
         with self.path.open('rb') as stream: bom = stream.read(3)
         encoding = self.profile.encoding
-        if encoding == 'auto': encoding = 'utf-16' if bom.startswith((b'\xff\xfe',b'\xfe\xff')) else 'utf-8-sig'
+        if encoding == 'auto':
+            if bom.startswith((b'\xff\xfe',b'\xfe\xff')): encoding = 'utf-16'
+            else:
+                with self.path.open('rb') as probe: sample_bytes = probe.read(65536)
+                import codecs
+                try: codecs.getincrementaldecoder('utf-8-sig')().decode(sample_bytes, final=False); encoding = 'utf-8-sig'
+                except UnicodeDecodeError: encoding = 'cp1252'
         with self.path.open(encoding=encoding,newline='') as stream:
             sample = stream.read(65536)
         delimiter = self.profile.delimiter
@@ -42,16 +52,22 @@ class CsvImport:
         issues = []
         if len(set(keys)) != len(keys) or any(not h.strip() for h in headers):
             issues.append('Duplicate, ambiguous or empty headers must be corrected before importing.')
-        proposed = {field:headers[keys.index(normalized(field))] for field in FIELDS if keys.count(normalized(field)) == 1}
-        if 'AGR_NAME' not in proposed and self.profile.mapping.get('AGR_NAME') not in headers:
-            issues.append('Role name (AGR_NAME) was not detected. Choose its column manually.')
+        proposed = {field:headers[keys.index(normalized(field))] for field in self.fields if keys.count(normalized(field)) == 1}
+        if self.required not in proposed and self.profile.mapping.get(self.required) not in headers:
+            issues.append(f'Required {self.required} was not detected. Choose its column manually.')
         return dict(detected_columns=headers,delimiter=delimiter,encoding=encoding,proposed_mapping=proposed,issues=issues)
 
     def records(self):
         if self.path.stat().st_size > MAX_BYTES: raise AnalysisValidationError('CSV exceeds the 128 MiB safety limit.')
         with self.path.open('rb') as raw: bom = raw.read(3)
         encoding = self.profile.encoding
-        if encoding == 'auto': encoding = 'utf-16' if bom.startswith((b'\xff\xfe',b'\xfe\xff')) else 'utf-8-sig'
+        if encoding == 'auto':
+            if bom.startswith((b'\xff\xfe',b'\xfe\xff')): encoding = 'utf-16'
+            else:
+                with self.path.open('rb') as probe: sample_bytes = probe.read(65536)
+                import codecs
+                try: codecs.getincrementaldecoder('utf-8-sig')().decode(sample_bytes, final=False); encoding = 'utf-8-sig'
+                except UnicodeDecodeError: encoding = 'cp1252'
         with self.path.open(encoding=encoding, newline='') as stream:
             sample = stream.read(65536)
             stream.seek(0)
@@ -65,10 +81,10 @@ class CsvImport:
             if len(set(keys)) != len(keys) or any(not h.strip() for h in self.headers):
                 raise AnalysisValidationError('CSV headers contain duplicate, ambiguous or empty column names.')
             detected = dict(zip(keys, self.headers))
-            self.mapping = {field:self.profile.mapping.get(field, detected.get(normalized(field))) for field in FIELDS}
+            self.mapping = {field:self.profile.mapping.get(field, detected.get(normalized(field))) for field in self.fields}
             for field, source in self.profile.mapping.items():
                 if source not in self.headers: raise AnalysisValidationError('A mapped source column is missing.')
-            if not self.mapping['AGR_NAME']: raise AnalysisValidationError('The required AGR_NAME field is not mapped.')
+            if not self.mapping[self.required]: raise AnalysisValidationError(f'The required {self.required} field is not mapped.')
             self.warnings = [f'Optional field {field} is not mapped.' for field,source in self.mapping.items() if not source]
             used = set(self.mapping.values())
             if any(h not in used for h in self.headers): self.warnings.append('Unmapped extra columns are not used; map any relationship/assignment fields before importing.')
@@ -80,8 +96,9 @@ class CsvImport:
                     raise AnalysisValidationError('CSV row width does not match its header; no data was applied.')
                 row = {field:(raw.get(source,'').strip() if source else '') for field,source in self.mapping.items()}
                 if not any(row.values()): self.blank_rows += 1; continue
-                if not row['AGR_NAME']: raise AnalysisValidationError('A nonempty record has no role identifier; no data was applied.')
-                if any(len(row[f]) > 512 for f in ['AGR_NAME','CHILD_AGR','PARENT_AGR','Effective_Role']):
+                if not row[self.required]: raise AnalysisValidationError(f'A nonempty record has no {self.required}; no data was applied.')
+                if any(len(value) > 4096 for value in row.values()): raise AnalysisValidationError('A CSV field exceeds its length limit.')
+                if any(len(row[f]) > 512 for f in self.identifier_fields):
                     raise AnalysisValidationError('A role identifier is too long.')
                 digest = hashlib.blake2b(repr(tuple(row.items())).encode(), digest_size=16).digest()
                 if digest in seen: self.duplicate_rows += 1; continue

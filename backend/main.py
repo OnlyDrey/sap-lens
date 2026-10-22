@@ -17,9 +17,9 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 import cache
 from config import get_settings
 from data_loader import DataLoader
-from routers import comparison, modules, roles
+from routers import comparison, modules, roles, access
 from request_limits import RequestBodyLimit
-from version import VERSION
+from version import VERSION, BUILD_INFO
 from configuration_routes import configuration_router
 
 frontend_dir = (Path(sys._MEIPASS) if getattr(sys, 'frozen', False)
@@ -45,10 +45,10 @@ def create_app(origin: str | None = None, session_token: str | None = None,
                 await loader.load()
 
         task = None
-        if get_settings().data_csv_path:
+        if get_settings().data_csv_path or get_settings().user_csv_path:
             task = asyncio.create_task(initial_load())
         else:
-            loader.error = 'Choose a SAP role CSV in Settings.'
+            loader.error = 'Choose a SAP role catalogue or user access CSV in Settings.'
         yield
         if task:
             task.cancel()
@@ -91,8 +91,13 @@ def create_app(origin: str | None = None, session_token: str | None = None,
 
     app.include_router(configuration_router(loader))
     app.include_router(roles.router)
+    app.include_router(access.router)
     app.include_router(modules.router)
     app.include_router(comparison.router)
+
+    @app.get('/api/version', tags=['Application'])
+    def application_version():
+        return {'app': 'SAP Lens', 'version': VERSION, 'mode': BUILD_INFO['mode']}
 
     @app.get('/health', tags=['Health'])
     def health_check():

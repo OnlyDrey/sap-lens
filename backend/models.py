@@ -39,8 +39,7 @@ class RoleSummary(BaseModel):
     # Populated when the role was found via T-code search.
     # Contains the T-codes that matched the search query.
     matching_tcodes: list[str] = []
-    domain_id: str | None = None
-    classification_ambiguous: bool = False
+    module_ambiguous: bool = False
     source_modules: list[str] = []
 
 

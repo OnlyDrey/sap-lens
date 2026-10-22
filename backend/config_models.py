@@ -1,8 +1,8 @@
 """Versioned, organization-neutral configuration contracts."""
-from typing import Literal
+from typing import Literal, ClassVar
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 from lucide_catalog import ICONS
 
 
@@ -41,67 +41,35 @@ class ModuleOverride(StrictModel):
         return value
 
 
-class Domain(StrictModel):
-    id: str = Field(pattern=r'^[A-Za-z0-9_-]{1,40}$')
-    label: str = Field(min_length=1, max_length=100)
-    module_id: str | None = Field(default=None, max_length=30)
-
-
-class Rule(StrictModel):
-    id: str = Field(pattern=r'^[A-Za-z0-9_-]{1,40}$')
-    kind: Literal['prefix', 'exact', 'contains', 'regex'] = 'prefix'
-    pattern: str = Field(min_length=1, max_length=256)
-    domain_id: str
-    priority: int = Field(default=100, ge=0, le=10000)
-    case_sensitive: bool = False
-
-
-class ClassificationProfile(StrictModel):
-    id: str = Field(pattern=r'^[A-Za-z0-9_-]{1,40}$')
-    name: str = Field(min_length=1, max_length=100)
-    version: int = Field(default=1, ge=1)
-    mode: Literal['legacy', 'generic', 'custom'] = 'generic'
-    domains: list[Domain] = Field(default_factory=list, max_length=100)
-    rules: list[Rule] = Field(default_factory=list, max_length=64)
-    overrides: dict[str, str] = Field(default_factory=dict, max_length=2000)
-    fallback_domain: str | None = None
-
-    @model_validator(mode='after')
-    def consistent(self):
-        domain_ids = {d.id for d in self.domains}
-        if len(domain_ids) != len(self.domains) or len({r.id for r in self.rules}) != len(self.rules):
-            raise ValueError('Domain and rule identifiers must be unique.')
-        targets = [r.domain_id for r in self.rules] + list(self.overrides.values())
-        if self.fallback_domain: targets.append(self.fallback_domain)
-        if any(target not in domain_ids for target in targets):
-            raise ValueError('A rule or override references an unknown domain.')
-        if any(len(role) > 512 for role in self.overrides):
-            raise ValueError('Role override names are too long.')
-        if self.mode != 'custom' and (self.domains or self.rules or self.overrides or self.fallback_domain):
-            raise ValueError('Custom rules require a Custom profile.')
-        return self
-
-
 FIELDS = ['FUNCTION_KEY', 'AGR_NAME', 'TEXT', 'CHILD_AGR', 'CHILD_AGR_TEXT',
           'PARENT_AGR', 'Effective_Role', 'TCODE', 'TTEXT']
 
 
+USER_FIELDS = ['USERNAME', 'ROLE_NAME', 'USER_GROUP', 'FIRST_NAME', 'LAST_NAME', 'EMAIL',
+               'USER_VALID_FROM', 'USER_VALID_TO', 'ROLE_VALID_FROM', 'ROLE_VALID_TO', 'USER_LOCKED', 'USER_TYPE']
+
+
 class ImportProfile(StrictModel):
+    fields: ClassVar[list[str]] = FIELDS
     id: str = Field(pattern=r'^[A-Za-z0-9_-]{1,40}$')
     name: str = Field(min_length=1, max_length=100)
     version: int = Field(default=1, ge=1)
-    mapping: dict[str, str] = Field(default_factory=dict, max_length=9)
+    mapping: dict[str, str] = Field(default_factory=dict, max_length=12)
     delimiter: Literal['auto', ',', ';', '\t', '|'] = 'auto'
     encoding: Literal['auto', 'utf-8-sig', 'utf-16', 'cp1252'] = 'auto'
 
     @field_validator('mapping')
     @classmethod
     def valid_mapping(cls, value):
-        if any(key not in FIELDS or not source.strip() or len(source) > 120 for key, source in value.items()):
+        if any(key not in cls.fields or not source.strip() or len(source) > 120 for key, source in value.items()):
             raise ValueError('Column mappings must use supported canonical fields and nonempty source headers.')
         if len(set(value.values())) != len(value):
             raise ValueError('Each source column can map to only one field.')
         return value
+
+
+class UserImportProfile(ImportProfile):
+    fields: ClassVar[list[str]] = USER_FIELDS
 
 
 class ThemePalette(StrictModel):
@@ -139,7 +107,11 @@ class ThemeColors(StrictModel):
 
 
 class AppConfig(StrictModel):
-    schema_version: Literal[2] = 2
+    schema_version: Literal[3] = 3
+    user_csv_path: str = Field(default='', max_length=4096)
+    user_import_profiles: list[UserImportProfile] = Field(default_factory=lambda: [UserImportProfile(id='default', name='Standard SAP user CSV')], min_length=1, max_length=20)
+    active_user_import: str = 'default'
+    legacy_classification: dict | None = None
     revision: int = Field(default=0, ge=0)
     data_csv_path: str = Field(default='', max_length=4096)
     organization: Organization = Field(default_factory=Organization)
@@ -147,19 +119,32 @@ class AppConfig(StrictModel):
     theme_colors: ThemeColors = Field(default_factory=ThemeColors)
     logo_id: str | None = Field(default=None, pattern=r'^[a-f0-9]{64}$')
     module_overrides: dict[str, ModuleOverride] = Field(default_factory=dict, max_length=100)
-    classification_profiles: list[ClassificationProfile] = Field(default_factory=lambda: [
-        ClassificationProfile(id='legacy', name='Current / Legacy', mode='legacy'),
-        ClassificationProfile(id='generic', name='Generic SAP', mode='generic'),
-        ClassificationProfile(id='custom', name='Custom', mode='custom'),
-    ], min_length=1, max_length=20)
-    active_classification: str = 'legacy'
     import_profiles: list[ImportProfile] = Field(default_factory=lambda: [ImportProfile(id='default', name='Standard SAP CSV')], min_length=1, max_length=20)
     active_import: str = 'default'
     cors_origins: list[str] = Field(default_factory=lambda: ['http://127.0.0.1:18743', 'http://localhost:18743'], exclude=True)
 
+    @model_validator(mode='before')
+    @classmethod
+    def compatibility(cls, value):
+        if not isinstance(value, dict): return value
+        value = dict(value)
+        if value.get('schema_version', 3) == 2: value['schema_version'] = 3
+        archived = {key: value.pop(key) for key in ('classification_profiles', 'active_classification') if key in value}
+        if archived: value['legacy_classification'] = archived
+        # Deleting an active custom preset safely restores the source's built-in default.
+        for field, active, kind, label in [('import_profiles','active_import',ImportProfile,'Standard SAP CSV'),
+                                         ('user_import_profiles','active_user_import',UserImportProfile,'Standard SAP user CSV')]:
+            entries = list(value.get(field, []))
+            if entries and not any((p.get('id') if isinstance(p,dict) else p.id) == 'default' for p in entries):
+                entries.insert(0, kind(id='default',name=label))
+                value[field] = entries
+            if entries and value.get(active, 'default') not in {(p.get('id') if isinstance(p,dict) else p.id) for p in entries}:
+                value[active] = 'default'
+        return value
+
     @model_validator(mode='after')
     def active_profiles_exist(self):
-        for entries, active in [(self.classification_profiles, self.active_classification), (self.import_profiles, self.active_import)]:
+        for entries, active in [(self.import_profiles, self.active_import), (self.user_import_profiles, self.active_user_import)]:
             if len({p.id for p in entries}) != len(entries) or active not in {p.id for p in entries}:
-                raise ValueError('Profile identifiers must be unique and the active profile must exist.')
+                raise ValueError('Import preset identifiers must be unique and the active preset must exist.')
         return self

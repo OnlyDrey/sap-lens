@@ -67,13 +67,14 @@ test('system identity, private logo storage, persisted theme and portable backup
 test('custom column mapping preserves relationships and transactions',async ({page,request})=>{
   const directory=mkdtempSync(path.join(tmpdir(),'sap-lens-mapping-'))
   const file=path.join(directory,'synthetic.csv')
-  writeFileSync(file,'Role;Child;Parent;Effective;Transaction\nDEMO_ROOT;DEMO_CHILD;DEMO_PARENT;DEMO_EFFECTIVE;DEMO_TRANSACTION\n')
+  writeFileSync(file,'Module;Role;Child;Parent;Effective;Transaction\nFI;DEMO_ROOT;DEMO_CHILD;DEMO_PARENT;DEMO_EFFECTIVE;DEMO_TRANSACTION\n')
   try {
     await page.goto('/#session=browser-test-session')
     await page.getByLabel('CSV file location',{exact:true}).fill(file)
     await page.getByRole('button',{name:'Detect columns'}).click()
-    await page.getByLabel('AGR_NAME (required)',{exact:true}).selectOption('Role')
-    for(const [field,source] of [['CHILD_AGR','Child'],['PARENT_AGR','Parent'],['Effective_Role','Effective'],['TCODE','Transaction']])await page.getByLabel(field,{exact:true}).selectOption(source)
+    await page.getByRole('combobox',{name:'AGR_NAME (required)',exact:true}).click()
+    await page.getByRole('option',{name:'Role',exact:true}).click()
+    for(const [field,source] of [['CHILD_AGR','Child'],['PARENT_AGR','Parent'],['Effective_Role','Effective'],['TCODE','Transaction']]) { await page.getByRole('combobox',{name:field,exact:true}).click(); await page.getByRole('option',{name:source,exact:true}).click() }
     await page.getByRole('button',{name:'Preview import',exact:true}).click()
     await expect(page.getByText(/1 composite roles/)).toBeVisible()
     await page.getByRole('button',{name:'Save and load CSV',exact:true}).click()
@@ -84,53 +85,15 @@ test('custom column mapping preserves relationships and transactions',async ({pa
   }finally{rmSync(directory,{recursive:true,force:true})}
 })
 
-test('custom classification preview preserves mapped transactions',async ({page,request})=>{
-  const directory=mkdtempSync(path.join(tmpdir(),'sap-lens-classification-'))
-  const file=path.join(directory,'synthetic.csv')
-  writeFileSync(file,'Role;Child;Parent;Effective;Transaction\nDEMO_ROOT;DEMO_CHILD;DEMO_PARENT;DEMO_EFFECTIVE;DEMO_TRANSACTION\n')
-  try {
-    const settings=(await (await request.get('/api/configuration',{headers})).json()).settings
-    settings.data_csv_path=file
-    settings.import_profiles.find((p:{id:string})=>p.id===settings.active_import).mapping={AGR_NAME:'Role',CHILD_AGR:'Child',PARENT_AGR:'Parent',Effective_Role:'Effective',TCODE:'Transaction'}
-    expect((await request.post('/api/configuration',{headers,data:settings})).ok()).toBeTruthy()
-    await page.goto('/#session=browser-test-session')
-    await page.getByRole('button',{name:'Open settings'}).click()
-    await page.getByRole('tab',{name:'Domains & Classification'}).click()
-    await page.getByRole('combobox',{name:'Classification profile',exact:true}).selectOption('custom')
-    await page.getByText('Custom domains and rules',{exact:true}).click()
-    await page.getByRole('button',{name:'Add domain',exact:true}).click()
-    await page.getByLabel('Domain 1 ID',{exact:true}).fill('finance')
-    await page.getByLabel('Domain 1 label',{exact:true}).fill('Synthetic finance')
-    await page.getByLabel('Domain 1 module',{exact:true}).selectOption('FI')
-    await page.getByText('Advanced rules and exact overrides',{exact:true}).click()
-    await page.getByRole('button',{name:'Add rule',exact:true}).click()
-    await page.getByLabel('Rule 1 pattern',{exact:true}).fill('DEMO_')
-    await page.getByLabel('Test an individual role name',{exact:true}).fill('DEMO_ROOT')
-    await page.getByRole('button',{name:'Preview classification',exact:true}).click()
-    await expect(page.getByText('Test role: finance',{exact:true})).toBeVisible()
-    await page.getByRole('button',{name:'Apply settings',exact:true}).click()
-    await expect(page.getByRole('region',{name:'SAP Lens settings',exact:true})).toBeHidden()
-    const detail=await (await request.get('/api/roles/DEMO_ROOT',{headers})).json()
-    expect(detail.relationships[0].effective_role).toBe('DEMO_EFFECTIVE')
-    expect(detail.single_roles[0].tcodes[0].tcode).toBe('DEMO_TRANSACTION')
-    expect(detail.domain_id).toBe('finance')
-  }finally{rmSync(directory,{recursive:true,force:true})}
-})
-
-test('registry customization preserves custom mappings, domains and transactions',async ({page,request})=>{
+test('registry customization preserves custom mappings, CSV modules and transactions',async ({page,request})=>{
   const directory=mkdtempSync(path.join(tmpdir(),'sap-lens-registry-'))
   const file=path.join(directory,'synthetic.csv')
-  writeFileSync(file,'Role;Child;Parent;Effective;Transaction\nDEMO_ROOT;DEMO_CHILD;DEMO_PARENT;DEMO_EFFECTIVE;DEMO_TRANSACTION\n')
+  writeFileSync(file,'Module;Role;Child;Parent;Effective;Transaction\nFI;DEMO_ROOT;DEMO_CHILD;DEMO_PARENT;DEMO_EFFECTIVE;DEMO_TRANSACTION\n')
   try {
-    // Mapping/classification UI is covered independently above; seed the same
-    // saved state so this test gives registry customization its own normal budget.
+    // Seed explicit CSV module evidence; module preferences never classify names.
     const settings=(await (await request.get('/api/configuration',{headers})).json()).settings
     settings.data_csv_path=file
-    settings.import_profiles.find((p:{id:string})=>p.id===settings.active_import).mapping={AGR_NAME:'Role',CHILD_AGR:'Child',PARENT_AGR:'Parent',Effective_Role:'Effective',TCODE:'Transaction'}
-    settings.active_classification='custom'
-    const profile=settings.classification_profiles.find((p:{id:string})=>p.id==='custom')
-    profile.domains=[{id:'finance',label:'Synthetic finance',module_id:'FI'}]
-    profile.rules=[{id:'synthetic-rule',kind:'prefix',pattern:'DEMO_',domain_id:'finance',priority:100,case_sensitive:false}]
+    settings.import_profiles.find((p:{id:string})=>p.id===settings.active_import).mapping={FUNCTION_KEY:'Module',AGR_NAME:'Role',CHILD_AGR:'Child',PARENT_AGR:'Parent',Effective_Role:'Effective',TCODE:'Transaction'}
     expect((await request.post('/api/configuration',{headers,data:settings})).ok()).toBeTruthy()
     await page.goto('/#session=browser-test-session')
 
@@ -151,9 +114,9 @@ test('registry customization preserves custom mappings, domains and transactions
     const detail=await (await request.get('/api/roles/DEMO_ROOT',{headers})).json()
     expect(detail.relationships[0].effective_role).toBe('DEMO_EFFECTIVE')
     expect(detail.single_roles[0].tcodes[0].tcode).toBe('DEMO_TRANSACTION')
-    expect(detail.domain_id).toBe('finance')
+    expect(detail.function_key).toBe('FI')
     const saved=(await (await request.get('/api/configuration',{headers})).json()).settings
-    expect(saved.active_classification).toBe('custom')
+    expect(saved.classification_profiles).toBeUndefined()
     expect(saved.import_profiles.find((p:{id:string})=>p.id===saved.active_import).mapping).toEqual(settings.import_profiles.find((p:{id:string})=>p.id===settings.active_import).mapping)
   }finally{rmSync(directory,{recursive:true,force:true})}
 })

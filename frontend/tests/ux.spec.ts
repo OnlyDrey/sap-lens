@@ -1,3 +1,4 @@
+import { bootstrapDocument } from './bootstrap-fixture'
 import { contrast, onColor, themePresets, themeTokens, paletteErrors } from '../src/lib/theme'
 import { test, expect } from '@playwright/test'
 import path from 'node:path'
@@ -102,7 +103,7 @@ for (const theme of ['SAP Lens Default', 'Light']) {
    await expect(settings(page)).toBeHidden()
    await page.getByRole('button',{name:'Open settings'}).click()
    await expect(settings(page)).toBeVisible()
-   for (const section of ['System & Organization','Data Source & Import','SAP Modules','Domains & Classification','Appearance & Branding','Application & Diagnostics']) {
+   for (const section of ['System & Organization','Data Source & Import','SAP Modules','Appearance & Branding','Application & Diagnostics']) {
     await page.getByRole('tab',{name:section,exact:true}).click()
     const action = page.getByRole('button',{name:section==='Data Source & Import'?'Save and load CSV':'Apply settings',exact:true})
     await expect(action).toBeInViewport()
@@ -137,8 +138,7 @@ test('startup connection failure has actionable recovery and configuration notic
 })
 
 test('branded startup document displays real status messages and recovery without external requests',async({page},testInfo)=>{
- const {execFileSync}=await import('node:child_process')
- const document=execFileSync('python',['-c',"import sys;sys.path.insert(0,'../backend');from pathlib import Path;from startup_screen import startup_html;sys.stdout.buffer.write(startup_html(Path('../assets/sap-lens.png'),'synthetic-preview-capability').encode('utf-8'))"],{encoding:'utf8',maxBuffer:8*1024*1024})
+ const document=bootstrapDocument()
  const external:string[]=[]
  page.on('request',request=>{if(request.url().startsWith('http'))external.push(request.url())})
  await page.setViewportSize({width:1280,height:720})
@@ -161,7 +161,7 @@ test('active role loading is explained and a subsequent CSV error opens source r
  let phase='loading'
  await page.route('**/api/configuration',async route=>{const response=await route.fetch();const data=await response.json();await route.fulfill({json:{...data,loading:phase==='loading',error:phase==='error'?'Synthetic data read failed. Choose another file.':null}})})
  await page.goto('/#session=browser-test-session')
- await expect(page.getByRole('heading',{name:'Loading role data…'})).toBeVisible()
+ await expect(page.getByRole('heading',{name:'Loading CSV data…'})).toBeVisible()
  await expect(page.getByRole('button',{name:'Review data source',exact:true})).toBeVisible()
  await page.getByRole('button',{name:'Review data source',exact:true}).click()
  await expect(settings(page)).toBeVisible()

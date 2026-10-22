@@ -1,4 +1,6 @@
-import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
+import { ImportSection } from './ImportSection'
+import { SourceStatus } from "./SourceStatus"
+import { Combobox } from "@/components/Shared/Combobox"
 import { SettingsSelect } from './Controls'
 import { isHex } from '@/lib/theme'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -9,15 +11,17 @@ import {
   Image,
   Building2,
   Database,
+  LibraryBig,
+  UsersRound,
   Layers,
-  GitBranch,
   Palette,
   Activity,
   CheckCircle,
   X,
-  FileText
+  FolderOpen
 } from 'lucide-react'
 import { ModuleEditor } from './ModuleEditor'
+import { UserSourceEditor, PresetActions } from './ImportPresets'
 import { ThemeEditor } from './ThemeEditor'
 import { paletteErrors, defaultThemeColors } from '@/lib/theme'
 import { Diagnostics } from './Diagnostics'
@@ -29,21 +33,17 @@ import {
   saveConfiguration,
   detectHeaders,
   previewImport,
-  previewClassification,
   type Configuration,
   type ConfigurationResponse,
   type ImportReport,
-  type ClassificationReport,
-  type ClassificationProfile,
   type ImportProfile
 } from '@/api/configuration'
 
-const sectionIcons = [Building2, Database, Layers, GitBranch, Palette, Activity]
+const sectionIcons = [Building2, Database, Layers, Palette, Activity]
 const sections = [
   'System & Organization',
   'Data Source & Import',
   'SAP Modules',
-  'Domains & Classification',
   'Appearance & Branding',
   'Application & Diagnostics'
 ]
@@ -88,22 +88,24 @@ function Result({ children }: { children: ReactNode }) {
     </div>
   )
 }
-const freshId = (kind: string) => `${kind}-${Date.now()}`
 
 export function SettingsView({
   open,
+  dataSourceRequest = 0,
   onOpen,
   onClose,
   onDataChanged,
   onSaved
 }: {
   open: boolean
+  dataSourceRequest?: number
   onOpen: () => void
   onClose: () => void
   onDataChanged: () => void
   onSaved: () => void
 }) {
   const [section, setSection] = useState(0)
+  const [importSource, setImportSource] = useState<'roles' | 'users'>('roles')
   const scrollPane = useRef<HTMLDivElement>(null)
   useEffect(() => {
     scrollPane.current?.scrollTo({ top: 0 })
@@ -117,14 +119,30 @@ export function SettingsView({
   const [inspectionMessage, setInspectionMessage] = useState('')
   const [inspecting, setInspecting] = useState(false)
   const [inspectionRetry, setInspectionRetry] = useState(0)
-  const inspectedPath = useRef<string | null>(null)
   const draftRef = useRef(draft)
   draftRef.current = draft
   const [importResult, setImportResult] = useState<ImportReport | null>(null)
-  const [classResult, setClassResult] = useState<ClassificationReport | null>(
-    null
-  )
-  const [testRole, setTestRole] = useState('')
+  const csvPathInput = useRef<HTMLInputElement>(null)
+  const handledDataSourceRequest = useRef(0)
+  const headingDataSourceRequest = useRef(0)
+  const focusDataSource = useRef(false)
+  useEffect(() => {
+    if (open && dataSourceRequest > handledDataSourceRequest.current) {
+      handledDataSourceRequest.current = dataSourceRequest
+      focusDataSource.current = true
+      setSection(1)
+      setImportSource('roles')
+      setError(null)
+      setMessage(null)
+    }
+  }, [open, dataSourceRequest])
+  useEffect(() => {
+    if (open && section === 1 && draft && focusDataSource.current) {
+      csvPathInput.current?.focus({ preventScroll: true })
+      csvPathInput.current?.scrollIntoView({ block: 'nearest' })
+      focusDataSource.current = false
+    }
+  }, [open, section, draft])
   const [moduleSearch, setModuleSearch] = useState('')
   const [logoPath, setLogoPath] = useState('')
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
@@ -168,11 +186,11 @@ export function SettingsView({
     if (config.data && !autoOpened.current) {
       autoOpened.current = true
       if (
-        !config.data.settings.data_csv_path ||
+        !(config.data.settings.data_csv_path || config.data.settings.user_csv_path) ||
         config.data.error ||
         config.data.notice?.includes('invalid')
       ) {
-        setSection(config.data.notice?.includes('invalid') ? 5 : 1)
+        setSection(config.data.notice?.includes('invalid') ? 4 : 1)
         onOpen()
       }
     }
@@ -208,8 +226,9 @@ export function SettingsView({
       'data_csv_path',
       'import_profiles',
       'active_import',
-      'classification_profiles',
-      'active_classification',
+      'user_csv_path',
+      'user_import_profiles',
+      'active_user_import',
       'module_overrides'
     ] as const
     const dataChanged =
@@ -220,7 +239,6 @@ export function SettingsView({
       )
     setDraft(structuredClone(result.settings))
     setImportResult(null)
-    setClassResult(null)
     qc.setQueryData(['configuration'], result)
     await qc.invalidateQueries({
       predicate: (q) => q.queryKey[0] !== 'configuration'
@@ -243,12 +261,15 @@ export function SettingsView({
       setLogoPreview(null)
       setImportResult(null)
       setColumns([])
-      inspectedPath.current = config.data?.settings.data_csv_path || null
       onClose()
     }
   }
   useEffect(() => {
     if (open) {
+      if (dataSourceRequest > headingDataSourceRequest.current) {
+        headingDataSourceRequest.current = dataSourceRequest
+        return
+      }
       document.getElementById('settings-heading')?.focus()
       return
     }
@@ -278,15 +299,10 @@ export function SettingsView({
     key: K,
     value: Configuration[K]
   ) => {
-    if (key === 'classification_profiles' || key === 'active_classification')
-      setClassResult(null)
-    setDraft((prev) => (prev ? { ...prev, [key]: value } : prev))
+      setDraft((prev) => (prev ? { ...prev, [key]: value } : prev))
   }
   const imports = draft?.import_profiles.find(
     (p) => p.id === draft.active_import
-  )
-  const profile = draft?.classification_profiles.find(
-    (p) => p.id === draft.active_classification
   )
   const editImport = (patch: Partial<ImportProfile>) =>
     draft &&
@@ -297,17 +313,8 @@ export function SettingsView({
         p.id === imports.id ? { ...p, ...patch } : p
       )
     )
-  const editProfile = (patch: Partial<ClassificationProfile>) =>
-    draft &&
-    profile &&
-    update(
-      'classification_profiles',
-      draft.classification_profiles.map((p) =>
-        p.id === profile.id ? { ...p, ...patch } : p
-      )
-    )
   useEffect(() => {
-    if (!open || !draft?.data_csv_path || !imports) {
+    if (!open || section !== 1 || importSource !== 'roles' || !draft?.data_csv_path || !imports) {
       setInspecting(false)
       if (!draft?.data_csv_path) {
         setColumns([])
@@ -321,16 +328,12 @@ export function SettingsView({
     let cancelled = false
     const path = draft.data_csv_path
     const profileId = imports.id
-    const samePath =
-      inspectedPath.current === path ||
-      (inspectedPath.current === null &&
-        config.data?.settings.data_csv_path === path)
     setInspecting(true)
     const timer = window.setTimeout(async () => {
       try {
         const result = await detectHeaders(path, {
           ...imports,
-          mapping: samePath ? imports.mapping : {}
+          mapping: imports.mapping
         })
         if (cancelled) return
         setColumns(result.detected_columns)
@@ -344,29 +347,10 @@ export function SettingsView({
         const currentProfile = current.import_profiles.find(
           (p) => p.id === profileId
         )!
-        const mapping = samePath
-          ? Object.fromEntries(
-              Object.entries(currentProfile.mapping).filter(([, source]) =>
-                result.detected_columns.includes(source)
-              )
-            )
-          : {}
-        // Store only manual overrides. Empty values continue to use parser auto-detection.
-        setDraft({
-          ...current,
-          import_profiles: current.import_profiles.map((p) =>
-            p.id === profileId ? { ...p, mapping } : p
-          )
-        })
-        inspectedPath.current = path
-        const mappingNotice =
-          !samePath && Object.keys(currentProfile.mapping).length
-            ? 'A different file was selected; previous manual mappings were cleared. '
-            : samePath &&
-                Object.keys(mapping).length !==
-                  Object.keys(currentProfile.mapping).length
-              ? 'Mappings to missing columns were cleared. '
-              : ''
+        // Detection is observational: never discard deliberate mappings, even on a new file.
+        const mapping = currentProfile.mapping
+        const missing = Object.values(mapping).filter(source => !result.detected_columns.includes(source))
+        const mappingNotice = missing.length ? 'Some manual mappings reference missing columns. Review them before applying. ' : ''
         setInspectionMessage(
           mappingNotice +
             (result.issues.length
@@ -387,10 +371,9 @@ export function SettingsView({
           setImportResult(preview)
       } catch (e) {
         if (!cancelled)
-          setInspectionMessage(
-            e instanceof Error
-              ? e.message
-              : 'Could not inspect this file. Check its location and try again.'
+          setInspectionMessage(previous =>
+            (previous.startsWith('Some manual mappings') ? previous + ' ' : Object.keys(imports.mapping).length ? 'Manual mappings retained; review the selected columns. ' : '') +
+            (e instanceof Error ? e.message : 'Could not inspect this file. Check its location and try again.')
           )
       } finally {
         if (!cancelled) setInspecting(false)
@@ -402,10 +385,13 @@ export function SettingsView({
     }
   }, [
     open,
+    section,
+    importSource,
     draft?.data_csv_path,
     draft?.active_import,
     imports?.delimiter,
     imports?.encoding,
+    JSON.stringify(imports?.mapping),
     inspectionRetry
   ])
 
@@ -502,8 +488,8 @@ export function SettingsView({
                       event.key === 'Home'
                         ? 0
                         : event.key === 'End'
-                          ? 5
-                          : (index + (event.key === 'ArrowDown' ? 1 : 5)) % 6
+                          ? sections.length - 1
+                          : (index + (event.key === 'ArrowDown' ? 1 : sections.length - 1)) % sections.length
                     setSection(next)
                     document.getElementById(`settings-tab-${next}`)?.focus()
                   }
@@ -546,7 +532,6 @@ export function SettingsView({
                   'Organization identity and SAP system details.',
                   'Connect an export, map its columns and validate before loading.',
                   'Manage area labels, icons and colors without changing their identifiers.',
-                  'Preview how naming rules group roles into your business domains.',
                   'Personalize the appearance of your local application.',
                   'Service health, local storage and safe configuration recovery.'
                 ][section]
@@ -727,24 +712,25 @@ export function SettingsView({
                   )}
                   {section === 1 && imports && (
                     <>
-                      <div className="settings-file-summary">
-                        <FileText
-                          size={25}
-                          className="shrink-0 text-[var(--accent2)]"
-                        />
-                        <div className="min-w-0">
-                          <p className="font-semibold truncate">
-                            {draft.data_csv_path.split(/[\\/]/).pop() ||
-                              'Choose a role export'}
-                          </p>
-                          <p className="text-xs text-[var(--muted)] break-all">
-                            {draft.data_csv_path || 'No file selected'}
-                          </p>
-                        </div>
+                      <div className="source-navigation" role="tablist" aria-label="Import source">
+                        {([['roles', 'Role Catalogue', LibraryBig], ['users', 'User Access', UsersRound]] as const).map(([key, label, Icon], index) => <button key={key}
+                          id={`source-tab-${key}`} role="tab" aria-selected={importSource === key}
+                          aria-controls={`source-panel-${key}`} tabIndex={importSource === key ? 0 : -1}
+                          className="settings-secondary-button" onClick={() => setImportSource(key)}
+                          onKeyDown={event => { if (['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) {
+                            event.preventDefault(); const next = event.key === 'Home' ? 'roles' : event.key === 'End' ? 'users' : index === 0 ? 'users' : 'roles';
+                            setImportSource(next); document.getElementById(`source-tab-${next}`)?.focus()
+                          } }}><Icon size={16} aria-hidden="true" className="shrink-0"/><span>{label}</span></button>)}
                       </div>
-                      <h2 className="settings-subheading">Active CSV file</h2>
+                      <div id="source-panel-users" role="tabpanel" aria-labelledby="source-tab-users" hidden={importSource !== 'users'}>
+                        <UserSourceEditor draft={draft} onChange={setDraft} native={native} active={importSource === 'users'} />
+                      </div>
+                      <div id="source-panel-roles" role="tabpanel" aria-labelledby="source-tab-roles" hidden={importSource !== 'roles'} className="import-source-panel space-y-4">
+                      <ImportSection step={1} title="Source file" description="Role catalogue · composite roles, single roles and transaction relationships.">
+                      <div className="source-file-row">
                       <Field label="CSV file location">
                         <input
+                          ref={csvPathInput}
                           className={inputClass}
                           value={draft.data_csv_path}
                           maxLength={4096}
@@ -759,23 +745,22 @@ export function SettingsView({
                       <button
                         className={buttonClass}
                         disabled={!native || busy}
+                        title={!native ? "File browsing is available in the Windows app; enter a full path here." : "Choose a role catalogue CSV"}
                         onClick={() => void pickCsv()}
                       >
-                        Browse for CSV…
+                        <FolderOpen size={16} aria-hidden="true"/> Browse for CSV…
                       </button>
-                      {config.data?.settings.data_csv_path && (
-                        <p className="text-xs break-all">
-                          Current file: {config.data.settings.data_csv_path}
-                        </p>
-                      )}
+                      </div>
+                      <SourceStatus savedPath={config.data?.settings.data_csv_path || ''} draftPath={draft.data_csv_path} validated={Boolean(importResult)} inspecting={inspecting}/>
                       {config.data?.error && (
                         <p className="text-[var(--warning)] text-sm">
                           {config.data.error}
                         </p>
                       )}
-                      <h2 className="settings-subheading">Import profile</h2>
-                      <div className="flex flex-wrap gap-2 items-end">
-                        <Field label="Import profile">
+                      </ImportSection>
+                      <ImportSection step={2} title="CSV Import Format" description="Choose a built-in format or create a reusable custom preset.">
+                      <div className="import-preset-toolbar">
+                        <Field label="CSV Import Format">
                           <SettingsSelect
                             className={inputClass}
                             value={draft.active_import}
@@ -785,37 +770,22 @@ export function SettingsView({
                           >
                             {draft.import_profiles.map((p) => (
                               <option key={p.id} value={p.id}>
-                                {p.name} · v{p.version}
+                                {p.name} · {p.id === 'default' ? 'Built-in' : 'Custom'} · v{p.version}
                               </option>
                             ))}
                           </SettingsSelect>
                         </Field>
-                        <button
-                          className={buttonClass}
-                          onClick={() => {
-                            const id = freshId('import')
-                            update('import_profiles', [
-                              ...draft.import_profiles,
-                              {
-                                ...structuredClone(imports),
-                                id,
-                                name: 'Custom import',
-                                version: 1
-                              }
-                            ])
-                            update('active_import', id)
-                          }}
-                        >
-                          Add profile
-                        </button>
+                        <PresetActions draft={draft} onChange={setDraft} />
                       </div>
-                      <Field label="Import profile name">
+                      <Field label="Import preset name">
                         <input
                           className={inputClass}
                           value={imports.name}
+                          disabled={imports.id === 'default'}
                           onChange={(e) => editImport({ name: e.target.value })}
                         />
                       </Field>
+                      <details className="settings-advanced"><summary>Advanced CSV options</summary>
                       <div className="grid sm:grid-cols-2 gap-3">
                         <Field label="Delimiter">
                           <SettingsSelect
@@ -854,6 +824,9 @@ export function SettingsView({
                           </SettingsSelect>
                         </Field>
                       </div>
+                      </details>
+                      </ImportSection>
+                      <ImportSection step={3} title="Column mapping" description="Columns are inspected automatically. Manual mappings are preserved.">
                       <p role="status" className="text-sm text-[var(--text2)]">
                         {inspecting
                           ? 'Inspecting columns and updating the preview…'
@@ -866,67 +839,21 @@ export function SettingsView({
                       >
                         Detect columns
                       </button>
-                      <h2 className="settings-subheading">Column mapping</h2>
                       <p className="text-xs">
                         AGR_NAME is required. Other fields are optional with
                         warnings; preserve parent/effective fields when present.
                         Blank mappings auto-detect standard headers.
                       </p>
-                      <datalist id="csv-columns">
-                        {columns.map((c) => (
-                          <option key={c}>{c}</option>
-                        ))}
-                      </datalist>
-                      <div className="grid sm:grid-cols-3 gap-3">
+                      <div className="import-mapping-grid">
                         {fields.map((field) => (
                           <Field
                             key={field}
                             label={`${fieldLabels[field]} · ${field}`}
                           >
-                            <SettingsSelect
-                              disabled={busy || inspecting}
-                              aria-describedby={`mapping-${field}-description`}
-                              aria-label={
-                                field === 'AGR_NAME'
-                                  ? 'AGR_NAME (required)'
-                                  : field
-                              }
-                              className={inputClass}
-                              value={imports.mapping[field] || ''}
-                              onChange={(e) => {
-                                setImportResult(null)
-                                const mapping = { ...imports.mapping }
-                                if (e.target.value)
-                                  mapping[field] = e.target.value
-                                else delete mapping[field]
-                                editImport({ mapping })
-                              }}
-                            >
-                              <option value="">
-                                Automatic
-                                {columns.find(
-                                  (c) =>
-                                    c
-                                      .toLowerCase()
-                                      .replace(/[^a-z0-9]/g, '') ===
-                                    field
-                                      .toLowerCase()
-                                      .replace(/[^a-z0-9]/g, '')
-                                )
-                                  ? ` — ${columns.find((c) => c.toLowerCase().replace(/[^a-z0-9]/g, '') === field.toLowerCase().replace(/[^a-z0-9]/g, ''))}`
-                                  : ' — not detected'}
-                              </option>
-                              {[
-                                ...new Set([
-                                  ...columns,
-                                  ...Object.values(imports.mapping)
-                                ])
-                              ].map((c) => (
-                                <option key={c} value={c}>
-                                  {c}
-                                </option>
-                              ))}
-                            </SettingsSelect>
+                            <Combobox disabled={busy || inspecting} label={field === 'AGR_NAME' ? 'AGR_NAME (required)' : field}
+                              value={imports.mapping[field] || ''} options={[...columns, ...Object.values(imports.mapping)]}
+                              placeholder="Automatic mapping" clearLabel="Automatic mapping" allowCustom={false}
+                              onChange={value => { setImportResult(null); const mapping = { ...imports.mapping }; if (value) mapping[field] = value; else delete mapping[field]; editImport({ mapping }) }}/>
                             <small
                               id={`mapping-${field}-description`}
                               className="text-[var(--muted)]"
@@ -934,11 +861,13 @@ export function SettingsView({
                               {fieldLabels[field]}:{' '}
                               {imports.mapping[field]
                                 ? 'Manual mapping'
-                                : 'Automatic mapping'}
+                                : columns.some(c => c.toLowerCase().replace(/[^a-z0-9]/g, '') === field.toLowerCase().replace(/[^a-z0-9]/g, '')) ? 'Automatic — detected' : 'Automatic — not detected'}
                             </small>
                           </Field>
                         ))}
                       </div>
+                      </ImportSection>
+                      <ImportSection step={4} title="Validation & preview" description="Review the parsed data before applying both sources together.">
                       <button
                         className={buttonClass}
                         disabled={busy || !draft.data_csv_path}
@@ -998,6 +927,8 @@ export function SettingsView({
                           </table>
                         </Result>
                       )}
+                      </ImportSection>
+                      </div>
                     </>
                   )}
                   {
@@ -1014,485 +945,8 @@ export function SettingsView({
                       />
                     </div>
                   }
-                  {section === 3 && profile && (
-                    <>
-                      <div className="settings-card space-y-2">
-                        <h2 className="font-semibold">How roles are grouped</h2>
-                        <p className="text-sm text-[var(--text2)]">
-                          Classification groups roles into SAP areas and your
-                          own business domains. It does not change role
-                          relationships or transaction assignments.
-                        </p>
-                        <p className="text-xs text-[var(--muted)]">
-                          Generic SAP uses recognized module values from the CSV
-                          and suits neutral new setups. Legacy preserves
-                          existing results and older child-label hints. Custom
-                          adds your organization’s rules. Keep your current
-                          profile unless you intend to change grouping.
-                        </p>
-                      </div>
-                      <Field label="Classification profile">
-                        <SettingsSelect
-                          className={inputClass}
-                          value={draft.active_classification}
-                          onChange={(e) =>
-                            update('active_classification', e.target.value)
-                          }
-                        >
-                          {draft.classification_profiles.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name}
-                              {p.mode === 'legacy'
-                                ? ' — compatibility'
-                                : p.mode === 'generic'
-                                  ? ' — standard SAP areas'
-                                  : ' — your rules'}
-                            </option>
-                          ))}
-                        </SettingsSelect>
-                      </Field>
-                      <button
-                        className={buttonClass}
-                        onClick={() => {
-                          const id = freshId('classification')
-                          update('classification_profiles', [
-                            ...draft.classification_profiles,
-                            {
-                              id,
-                              name: 'Custom profile',
-                              version: 1,
-                              mode: 'custom',
-                              domains: [],
-                              rules: [],
-                              overrides: {},
-                              fallback_domain: null
-                            }
-                          ])
-                          update('active_classification', id)
-                        }}
-                      >
-                        Add Custom profile
-                      </button>
-                      <details className="settings-advanced">
-                        <summary>Profile compatibility details</summary>
-                        <p className="text-sm">
-                          Generic SAP trusts explicit recognized FUNCTION_KEY
-                          evidence. Legacy also preserves prior child-label
-                          hints. Custom profiles use your local domains/rules;
-                          relationships and transactions are never reclassified.
-                        </p>
-                      </details>
-                      {profile.mode === 'custom' && (
-                        <details className="settings-advanced">
-                          <summary>Custom domains and rules</summary>
-                          <Field label="Profile name">
-                            <input
-                              className={inputClass}
-                              value={profile.name}
-                              onChange={(e) =>
-                                editProfile({ name: e.target.value })
-                              }
-                            />
-                          </Field>
-                          <h3 className="font-bold">Domains</h3>
-                          {profile.domains.map((d, i) => (
-                            <div key={i} className="grid sm:grid-cols-4 gap-2">
-                              <input
-                                aria-label={`Domain ${i + 1} ID`}
-                                className={inputClass}
-                                value={d.id}
-                                onChange={(e) =>
-                                  editProfile({
-                                    domains: profile.domains.map((v, j) =>
-                                      j === i ? { ...v, id: e.target.value } : v
-                                    )
-                                  })
-                                }
-                              />
-                              <input
-                                aria-label={`Domain ${i + 1} label`}
-                                className={inputClass}
-                                value={d.label}
-                                onChange={(e) =>
-                                  editProfile({
-                                    domains: profile.domains.map((v, j) =>
-                                      j === i
-                                        ? { ...v, label: e.target.value }
-                                        : v
-                                    )
-                                  })
-                                }
-                              />
-                              <SettingsSelect
-                                aria-label={`Domain ${i + 1} module`}
-                                className={inputClass}
-                                value={d.module_id || ''}
-                                onChange={(e) =>
-                                  editProfile({
-                                    domains: profile.domains.map((v, j) =>
-                                      j === i
-                                        ? {
-                                            ...v,
-                                            module_id: e.target.value || null
-                                          }
-                                        : v
-                                    )
-                                  })
-                                }
-                              >
-                                <option value="">Unclassified</option>
-                                {registry.data?.modules.map((m) => (
-                                  <option key={m.id} value={m.id}>
-                                    {m.id} — {m.name}
-                                  </option>
-                                ))}
-                              </SettingsSelect>
-                              <button
-                                className={buttonClass}
-                                onClick={() =>
-                                  editProfile({
-                                    domains: profile.domains.filter(
-                                      (_, j) => j !== i
-                                    )
-                                  })
-                                }
-                              >
-                                Remove domain
-                              </button>
-                            </div>
-                          ))}
-                          <button
-                            className={buttonClass}
-                            onClick={() =>
-                              editProfile({
-                                domains: [
-                                  ...profile.domains,
-                                  {
-                                    id: freshId('domain'),
-                                    label: 'New domain',
-                                    module_id: null
-                                  }
-                                ]
-                              })
-                            }
-                          >
-                            Add domain
-                          </button>
-                          <details
-                            className="settings-advanced"
-                            open={undefined}
-                          >
-                            <summary>
-                              Advanced rules and exact overrides
-                            </summary>
-                            <h3 className="font-bold mt-4">Rules</h3>
-                            <p className="text-xs">
-                              Lower priority numbers win. Equal-priority matches
-                              for different domains are marked ambiguous. Regex
-                              is bounded; prefer exact/prefix/contains for
-                              clarity.
-                            </p>
-                            {profile.rules.map((rule, i) => (
-                              <div
-                                key={rule.id}
-                                className="border rounded-xl p-2 grid sm:grid-cols-5 gap-2"
-                              >
-                                <SettingsSelect
-                                  aria-label={`Rule ${i + 1} match`}
-                                  className={inputClass}
-                                  value={rule.kind}
-                                  onChange={(e) =>
-                                    editProfile({
-                                      rules: profile.rules.map((v, j) =>
-                                        j === i
-                                          ? {
-                                              ...v,
-                                              kind: e.target
-                                                .value as typeof rule.kind
-                                            }
-                                          : v
-                                      )
-                                    })
-                                  }
-                                >
-                                  {['prefix', 'exact', 'contains', 'regex'].map(
-                                    (k) => (
-                                      <option key={k}>{k}</option>
-                                    )
-                                  )}
-                                </SettingsSelect>
-                                <input
-                                  aria-label={`Rule ${i + 1} pattern`}
-                                  className={inputClass}
-                                  value={rule.pattern}
-                                  onChange={(e) =>
-                                    editProfile({
-                                      rules: profile.rules.map((v, j) =>
-                                        j === i
-                                          ? { ...v, pattern: e.target.value }
-                                          : v
-                                      )
-                                    })
-                                  }
-                                />
-                                <SettingsSelect
-                                  aria-label={`Rule ${i + 1} domain`}
-                                  className={inputClass}
-                                  value={rule.domain_id}
-                                  onChange={(e) =>
-                                    editProfile({
-                                      rules: profile.rules.map((v, j) =>
-                                        j === i
-                                          ? { ...v, domain_id: e.target.value }
-                                          : v
-                                      )
-                                    })
-                                  }
-                                >
-                                  <option value="">Choose domain</option>
-                                  {profile.domains.map((d) => (
-                                    <option key={d.id} value={d.id}>
-                                      {d.label}
-                                    </option>
-                                  ))}
-                                </SettingsSelect>
-                                <input
-                                  aria-label={`Rule ${i + 1} priority`}
-                                  className={inputClass}
-                                  type="number"
-                                  min={0}
-                                  max={10000}
-                                  value={rule.priority}
-                                  onChange={(e) =>
-                                    editProfile({
-                                      rules: profile.rules.map((v, j) =>
-                                        j === i
-                                          ? {
-                                              ...v,
-                                              priority: Number(e.target.value)
-                                            }
-                                          : v
-                                      )
-                                    })
-                                  }
-                                />
-                                <label className="text-xs">
-                                  <input
-                                    type="checkbox"
-                                    checked={rule.case_sensitive}
-                                    onChange={(e) =>
-                                      editProfile({
-                                        rules: profile.rules.map((v, j) =>
-                                          j === i
-                                            ? {
-                                                ...v,
-                                                case_sensitive: e.target.checked
-                                              }
-                                            : v
-                                        )
-                                      })
-                                    }
-                                  />{' '}
-                                  Case sensitive
-                                </label>
-                                <button
-                                  className={buttonClass}
-                                  onClick={() =>
-                                    editProfile({
-                                      rules: profile.rules.filter(
-                                        (_, j) => j !== i
-                                      )
-                                    })
-                                  }
-                                >
-                                  Remove rule
-                                </button>
-                              </div>
-                            ))}
-                            <button
-                              className={buttonClass}
-                              onClick={() =>
-                                editProfile({
-                                  rules: [
-                                    ...profile.rules,
-                                    {
-                                      id: freshId('rule'),
-                                      kind: 'prefix',
-                                      pattern: 'DEMO:',
-                                      domain_id: profile.domains[0]?.id || '',
-                                      priority: 100,
-                                      case_sensitive: false
-                                    }
-                                  ]
-                                })
-                              }
-                            >
-                              Add rule
-                            </button>
-                            <Field label="Fallback domain">
-                              <SettingsSelect
-                                className={inputClass}
-                                value={profile.fallback_domain || ''}
-                                onChange={(e) =>
-                                  editProfile({
-                                    fallback_domain: e.target.value || null
-                                  })
-                                }
-                              >
-                                <option value="">
-                                  Use explicit module evidence, otherwise
-                                  Unclassified
-                                </option>
-                                {profile.domains.map((d) => (
-                                  <option key={d.id} value={d.id}>
-                                    {d.label}
-                                  </option>
-                                ))}
-                              </SettingsSelect>
-                            </Field>
-                            <h3 className="font-bold">Exact role overrides</h3>
-                            {Object.entries(profile.overrides).map(
-                              ([name, domain]) => (
-                                <div key={name} className="flex gap-2">
-                                  <span className="text-sm flex-1">{name}</span>
-                                  <SettingsSelect
-                                    aria-label={`Override ${name}`}
-                                    className={inputClass}
-                                    value={domain}
-                                    onChange={(e) =>
-                                      editProfile({
-                                        overrides: {
-                                          ...profile.overrides,
-                                          [name]: e.target.value
-                                        }
-                                      })
-                                    }
-                                  >
-                                    {profile.domains.map((d) => (
-                                      <option key={d.id} value={d.id}>
-                                        {d.label}
-                                      </option>
-                                    ))}
-                                  </SettingsSelect>
-                                  <button
-                                    className={buttonClass}
-                                    onClick={() => {
-                                      const overrides = {
-                                        ...profile.overrides
-                                      }
-                                      delete overrides[name]
-                                      editProfile({ overrides })
-                                    }}
-                                  >
-                                    Remove override
-                                  </button>
-                                </div>
-                              )
-                            )}
-                            <button
-                              className={buttonClass}
-                              disabled={!testRole || !profile.domains.length}
-                              onClick={() =>
-                                editProfile({
-                                  overrides: {
-                                    ...profile.overrides,
-                                    [testRole]: profile.domains[0].id
-                                  }
-                                })
-                              }
-                            >
-                              Override test role
-                            </button>
-                          </details>
-                        </details>
-                      )}
-                      <p className="text-sm text-[var(--text2)]">
-                        Try a role name to see where this profile would group
-                        it. Previewing does not change the loaded data.
-                      </p>
-                      <Field label="Test an individual role name">
-                        <input
-                          className={inputClass}
-                          value={testRole}
-                          maxLength={512}
-                          onChange={(e) => setTestRole(e.target.value)}
-                        />
-                      </Field>
-                      <button
-                        className={buttonClass}
-                        disabled={busy}
-                        onClick={() =>
-                          void run(async () =>
-                            setClassResult(
-                              await previewClassification(profile, testRole)
-                            )
-                          )
-                        }
-                      >
-                        Preview classification
-                      </button>
-                      {classResult && (
-                        <Result>
-                          <p>
-                            {classResult.total_roles} roles ·{' '}
-                            {classResult.unclassified_roles} unclassified ·{' '}
-                            {classResult.ambiguous_matches} ambiguous ·{' '}
-                            {classResult.changed_roles} changes
-                          </p>
-                          <p className="text-xs text-[var(--text2)]">
-                            Unclassified means no group was found. Ambiguous
-                            means more than one rule matched. Changes are
-                            proposed differences from the currently loaded
-                            grouping; nothing is applied by this preview.
-                          </p>
-                          <p>
-                            Domain/area counts:{' '}
-                            {Object.entries(classResult.counts)
-                              .map(([k, v]) => `${k}: ${v}`)
-                              .join(' · ') || 'No active dataset'}
-                          </p>
-                          <p>
-                            Conflicting rules:{' '}
-                            {classResult.conflicting_rules.length}
-                          </p>
-                          {classResult.conflicting_rules.map((c, i) => (
-                            <p key={i}>
-                              {c.rule_ids.join(', ')}: {c.reason}
-                            </p>
-                          ))}
-                          {classResult.samples.map((r) => (
-                            <p key={r.agr_name}>
-                              <RoleIdentifier value={r.agr_name} /> →{' '}
-                              {r.domain_id || r.module_id}
-                              {r.ambiguous ? ' (ambiguous)' : ''}
-                              {r.changed ? ' (changed)' : ''}
-                            </p>
-                          ))}
-                          {classResult.test_result && (
-                            <p>
-                              Test role:{' '}
-                              {String(
-                                classResult.test_result.domain_id ||
-                                  classResult.test_result.module_id
-                              )}
-                              {classResult.test_result.ambiguous
-                                ? ' (ambiguous)'
-                                : ''}
-                            </p>
-                          )}
-                          <details className="settings-advanced">
-                            <summary>Technical preview details</summary>
-                            <p className="text-xs break-all">
-                              Profile fingerprint:{' '}
-                              {classResult.profile_fingerprint}
-                            </p>
-                          </details>
-                        </Result>
-                      )}
-                    </>
-                  )}
                   {
-                    <div className={section === 4 ? 'space-y-5' : 'hidden'}>
+                    <div className={section === 3 ? 'space-y-5' : 'hidden'}>
                       <ThemeEditor
                         key={`${open}-${config.data?.settings.revision}`}
                         draft={draft}
@@ -1515,7 +969,7 @@ export function SettingsView({
                         PNG/JPEG/WebP up to 2 MB and 4096 pixels per side; SVG
                         is rejected.
                       </p>
-                      <img
+                      <div className="branding-logo-preview"><img
                         alt="Header logo preview"
                         src={
                           draft.logo_id
@@ -1530,6 +984,7 @@ export function SettingsView({
                             e.currentTarget.src = '/sap-lens.png'
                         }}
                       />
+                      </div>
                       {logo.isError && (
                         <p
                           role="status"
@@ -1546,6 +1001,7 @@ export function SettingsView({
                           onChange={(e) => setLogoPath(e.target.value)}
                         />
                       </Field>
+                      <div className="branding-actions">
                       <button
                         className={buttonClass}
                         disabled={
@@ -1581,14 +1037,16 @@ export function SettingsView({
                       </button>
                       <button
                         className={buttonClass}
+                        aria-label="Remove custom logo / restore SAP Lens default"
+                        title="Remove custom logo and restore the SAP Lens default"
                         onClick={() => {
                           update('logo_id', null)
                           setLogoPreview(null)
                         }}
                       >
-                        <RotateCcw size={16} aria-hidden="true" /> Remove custom
-                        logo / restore SAP Lens default
+                        <RotateCcw size={16} aria-hidden="true" /> Restore default
                       </button>
+                      </div>
                       <p className="text-xs">
                         Previewed files are copied into managed local storage.
                         Apply settings to activate the logo; moving the original
@@ -1596,7 +1054,7 @@ export function SettingsView({
                       </p>
                     </div>
                   }
-                  {section === 5 && (
+                  {section === 4 && (
                     <>
                       <Diagnostics native={native} />
                       <h2 className="settings-subheading">Backup & recovery</h2>

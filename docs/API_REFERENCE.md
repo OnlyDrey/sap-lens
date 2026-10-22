@@ -61,3 +61,49 @@ GET `/api/diagnostics` exposes guarded local UI details, including source/applic
 Schema-2 configuration now includes independent `theme_colors.light` and `theme_colors.dark` palettes (primary, accent, background, surface, text) and up to 20 named custom presets. HEX colors and 4.5:1 primary-text contrast against both backgrounds are validated. Old schema-2 files backfill defaults without rewriting the file on read. Empty organization names are supported for product-branding fallback.
 
 Native additions `close_application`, `open_logs` and `export_diagnostics` require the launch capability; log opening uses only the fixed owned log path. The trusted startup document is kept in memory, carries no CSV data, loads no remote resources and permits only its authored inline startup logic. The HTTP application's strict script policy is unchanged.
+
+
+## Global user/release record navigation
+
+`GET /api/access/users` and `GET /api/access/releases` accept optional `anchor`
+(maximum 512 characters). Supply the same filters, `sort` and `descending` as the
+originating list, plus `limit=1&offset=0`. The authenticated navigation response
+contains the bounded `items/total/offset/limit` page and:
+
+```json
+{"navigation":{"index":50,"total":125,"previous":"DEMO_049","next":"DEMO_051"}}
+```
+
+The index is zero-based; the UI displays 51 of 125. Anchor comparison uses existing
+username/role normalization, while returned identities preserve source spelling.
+Ordering, tie breaks, evidence matching, group/status filters and classification
+are the same code path as the normal list. No separate frontend ordering exists.
+Boundary neighbours are null. An absent or filtered-out anchor returns null index
+and neighbours with the current filtered total; it never resolves to the first
+row. Navigation mode omits source/group/matrix aggregates, and the UI requests
+only one bounded sample row. Normal responses without `anchor` are unchanged.
+Session/origin protections and no-store behavior apply as before. Navigation is
+re-resolved on refresh; an in-flight/failed query cannot expose stale actions.
+
+### GET /api/access/release-options
+
+Authenticated, no-store release filter options from the current loaded User
+Access generation. `field` is required: `group`, `document_type`, `release_group`,
+`strategy`, `username` or `role`. Optional `search` and `selected` are bounded to
+512 characters; `limit` defaults to 50 and cannot exceed 100. Context parameters
+are `group`, `document_type`, `release_group`, `strategy` and assignment `status`
+(default `active`, also `all`, `expired`, `future`, `unknown`).
+
+Returns `items`, `total`, `has_more` and `selected_available`. The availability
+check is independent of the option search window. Facets use the hierarchy
+[documented with the investigation UI](ACCESS_INVESTIGATION.md#data-aware-release-filters-and-navigation).
+No role, user or transaction relationships are modified.
+
+Diagnostics now include a `sources` array for Role Catalogue and User Access:
+configured/loaded flags, record/assignment counts, last successful load and
+allowlisted error/availability categories. Only authenticated local diagnostics
+include `configured_path`, `loaded_path` and `attempted_path`. The export omits
+all three and includes no source contents or identities. Availability is evidence
+from the last completed read, not a synchronous filesystem probe: an unavailable
+UNC share cannot block a diagnostic request. `available_at_last_load` explicitly
+does not claim the file is currently reachable.

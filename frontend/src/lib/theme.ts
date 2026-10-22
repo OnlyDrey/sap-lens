@@ -100,6 +100,17 @@ function mix(first: string, second: string, amount: number) {
       .join('')
   )
 }
+export function readableIconColor(color: string, background: string) {
+  if (contrast(color, background) >= 3) return color
+  const target = onColor(background)
+  // Adjust luminance along the chosen hue before falling back to a neutral.
+  // This affects rendering only; the user's stored color remains unchanged.
+  for (let step = 1; step <= 10; step++) {
+    const candidate = mix(target, color, step / 10)
+    if (contrast(candidate, background) >= 3) return candidate
+  }
+  return target
+}
 export function themeTokens(p: ThemePalette): Record<string, string> {
   const safe = Object.values(p).every(isHex) ? p : defaultDark
   const focus =

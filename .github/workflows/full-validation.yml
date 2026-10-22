@@ -1,0 +1,131 @@
+name: Full Validation
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  backend:
+    name: Backend & Repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        id: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python and pip download cache
+        id: setup_python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements*.txt
+            scripts/requirements-audit.txt
+      - name: Install backend, package-test and audit dependencies
+        id: dependencies
+        run: python scripts/ci.py run dependencies -- python -m pip install --disable-pip-version-check -r backend/requirements-dev.txt -r backend/requirements-build.txt -r scripts/requirements-audit.txt
+      - name: Check Python dependencies
+        id: pip_check
+        run: python scripts/ci.py run pip_check -- python -m pip check
+      - name: Validate workflow schemas, expressions and shell commands
+        id: workflow_lint
+        run: python scripts/ci.py run workflow_lint -- python scripts/ci.py lint
+      - name: Parse PowerShell and check static safety guards
+        id: powershell
+        run: python scripts/ci.py run powershell -- pwsh -NoProfile -File scripts/check-powershell.ps1
+      - name: Run all backend and repository regressions with deprecations as errors
+        id: backend
+        run: python scripts/ci.py run backend -- python -W error::DeprecationWarning -m unittest discover -s backend/tests -v
+      - name: Audit installed Python dependencies
+        id: python_audit
+        run: python scripts/ci.py run python_audit -- python -m pip_audit --vulnerability-service pypi --progress-spinner off
+      - name: Write validation summary
+        if: always()
+        env:
+          CI_STEPS: ${{ toJSON(steps) }}
+          CI_REQUIRED: checkout setup_python dependencies pip_check workflow_lint powershell backend python_audit
+          CI_JOB_NAME: ${{ github.job }}
+        run: |
+          if [ -f scripts/ci.py ]; then
+            python scripts/ci.py summary
+          else
+            echo 'Validation incomplete: source checkout failed.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+  frontend:
+    name: Frontend & Browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        id: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node and npm download cache
+        id: setup_node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Set up Python and pip download cache
+        id: setup_python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements*.txt
+            scripts/requirements-audit.txt
+      - name: Install browser-test backend dependencies
+        id: dependencies
+        run: python scripts/ci.py run dependencies -- python -m pip install --disable-pip-version-check -r backend/requirements.txt
+      - name: Install frontend dependencies
+        id: npm_install
+        run: python scripts/ci.py run npm_install -- npm --prefix frontend ci --no-audit --no-fund
+      - name: Run frontend type checks
+        id: types
+        run: python scripts/ci.py run types -- npm --prefix frontend run check:types
+      - name: Verify module icon catalog
+        id: catalog
+        run: python scripts/ci.py run catalog -- node scripts/sync-lucide-catalog.mjs --check
+      - name: Build production frontend
+        id: build
+        run: python scripts/ci.py run build -- npm --prefix frontend run build
+      - name: Audit production JavaScript dependencies
+        id: javascript_audit
+        run: python scripts/ci.py run javascript_audit -- npm --prefix frontend audit --omit=dev
+      - name: Configure browser cache location
+        id: browser_path
+        run: echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/sap-lens-playwright" >> "$GITHUB_ENV"
+      - name: Cache pinned Playwright headless browser
+        id: browser_cache
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ${{ runner.temp }}/sap-lens-playwright
+          key: playwright-headless-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/package-lock.json') }}
+      - name: Install Playwright headless browser and system libraries
+        id: browser_setup
+        run: python scripts/ci.py run browser_setup -- node frontend/node_modules/playwright/cli.js install --with-deps chromium --only-shell
+      - name: Run browser regression tests
+        id: browser
+        run: python scripts/ci.py run browser -- npm --prefix frontend run test:browser -- --reporter=line,github
+      - name: Write validation summary
+        if: always()
+        env:
+          CI_STEPS: ${{ toJSON(steps) }}
+          CI_REQUIRED: checkout setup_node setup_python dependencies npm_install types catalog build javascript_audit browser_path browser_cache browser_setup browser
+          CI_JOB_NAME: ${{ github.job }}
+        run: |
+          if [ -f scripts/ci.py ]; then
+            python scripts/ci.py summary
+          else
+            echo 'Validation incomplete: source checkout failed.' >> "$GITHUB_STEP_SUMMARY"
+          fi

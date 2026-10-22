@@ -1,6 +1,6 @@
 import type { ComponentType, CSSProperties } from 'react'
 import type { LucideProps } from 'lucide-react'
-import { contrast, isHex } from '@/lib/theme'
+import { isHex, readableIconColor } from '@/lib/theme'
 import { useModulePalette, useModuleVisual } from './ModuleRegistry'
 
 export function ModuleIcon({
@@ -28,21 +28,14 @@ export function ModuleIcon({
     [1, 3, 5]
       .map((i) =>
         Math.round(
-          parseInt(color.slice(i, i + 2), 16) * 0.1 +
-            parseInt(palette.surface.slice(i, i + 2), 16) * 0.9
+          parseInt(color.slice(i, i + 2), 16) * 0.18 +
+            parseInt(palette.surface.slice(i, i + 2), 16) * 0.82
         )
           .toString(16)
           .padStart(2, '0')
       )
       .join('')
-  const foreground =
-    contrast(color, background) >= 3
-      ? color
-      : contrast(palette.text, background) >= 4.5
-        ? palette.text
-        : contrast('#ffffff', background) >= 4.5
-          ? '#ffffff'
-          : '#000000'
+  const foreground = readableIconColor(color, background)
   const Icon = customIcon || visual.Icon
   return (
     <span

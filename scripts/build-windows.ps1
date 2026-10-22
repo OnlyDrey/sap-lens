@@ -1,7 +1,11 @@
 param(
-    [ValidateSet('All', 'Environment', 'Frontend', 'Python', 'Audit', 'Backend', 'Browser', 'Package', 'Verify', 'Smoke', 'Artifact')]
+    [ValidateSet('All', 'Environment', 'Frontend', 'FrontendInstall', 'FrontendBuild', 'Python', 'Audit', 'Backend', 'Browser', 'Package', 'Verify', 'Smoke', 'Artifact')]
     [string]$Stage = 'All',
     [string]$ArtifactDirectory,
+    [string]$ArtifactDownloadDirectory,
+    [string]$ArtifactDigest,
+    [string]$PythonExecutable,
+    [string]$AuditPython,
     [switch]$BenchmarkPackaging
 )
 $ErrorActionPreference = 'Stop'
@@ -14,10 +18,11 @@ function Assert-Success([string]$Stage) {
     throw $message
 }
 $buildPython = Join-Path $root 'backend/build/python-env/Scripts/python.exe'
-# Keep audit tooling in the host interpreter, outside the isolated package environment.
-$hostPython = (Get-Command python).Source
+# Keep audit tooling outside the package environment; local callers supply a dedicated audit interpreter.
+$hostPython = if ($PythonExecutable) { $PythonExecutable } else { (Get-Command python).Source }
+if (-not $AuditPython) { $AuditPython = $hostPython }
 function Invoke-Stage([string]$Name, [scriptblock]$Action) {
-    if ($Stage -eq 'All' -or $Stage -eq $Name) { & $Action }
+    if ($Stage -eq 'All' -or $Stage -eq $Name -or ($Name -in @('FrontendInstall', 'FrontendBuild') -and $Stage -eq 'Frontend')) { & $Action }
 }
 function Measure-Task([string]$Name, [scriptblock]$Action) {
     $watch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -52,13 +57,18 @@ try {
             Assert-Success 'Create build environment'
         }
     }
-    Invoke-Stage Frontend {
+    Invoke-Stage FrontendInstall {
         Push-Location frontend
         try {
             Measure-Task 'npm installation' {
                 npm ci --no-audit --no-fund
                 Assert-Success 'Install frontend dependencies'
             }
+        } finally { Pop-Location }
+    }
+    Invoke-Stage FrontendBuild {
+        Push-Location frontend
+        try {
             Measure-Task 'Frontend compilation' {
                 npm run build
                 Assert-Success 'Build production frontend'
@@ -75,21 +85,21 @@ try {
     }
     Invoke-Stage Audit {
         # Inspect the full isolated Windows environment, including platform-only dependencies.
-        # Audit tooling stays in the host interpreter and cannot enter the packaged environment.
+        # Audit tooling uses its separate interpreter and cannot enter the packaged environment.
         Measure-Task 'Audit tool provisioning' {
-            & $hostPython -m pip install --disable-pip-version-check -r scripts/requirements-audit.txt
+            & $AuditPython -m pip install --disable-pip-version-check -r scripts/requirements-audit.txt
             Assert-Success 'Install audit tooling'
         }
         Measure-Task 'Python vulnerability audit' {
             $sitePackages = & $buildPython -c "import sysconfig; print(sysconfig.get_paths()['purelib'])"
             Assert-Success 'Locate build dependencies'
-            & $hostPython -m pip_audit --path $sitePackages --vulnerability-service pypi --progress-spinner off
+            & $AuditPython -m pip_audit --path $sitePackages --vulnerability-service pypi --progress-spinner off
             Assert-Success 'Audit Windows dependencies'
         }
     }
     Invoke-Stage Backend {
         Measure-Task 'Backend tests' {
-            & $buildPython -m unittest discover -s backend/tests -v
+            & $buildPython -W error::DeprecationWarning -m unittest discover -s backend/tests -v
             Assert-Success 'Backend regression tests'
         }
     }
@@ -101,7 +111,8 @@ try {
                 Assert-Success 'Audit production JavaScript dependencies'
             }
             Measure-Task 'Playwright installation' {
-                npx playwright install chromium --only-shell
+                # Use the exact installed CLI; do not invoke npx package resolution.
+                node node_modules/playwright/cli.js install chromium --only-shell
                 Assert-Success 'Install test browser'
             }
             Measure-Task 'Playwright tests' {
@@ -111,15 +122,20 @@ try {
         } finally { Pop-Location }
     }
     Invoke-Stage Package {
+        # Standalone local builds get an unmistakable dev identity; CI requires its resolved metadata.
+        & $buildPython scripts/release-windows.py ensure-local-build
+        Assert-Success 'Require resolved build identity'
         & $buildPython scripts/write-windows-metadata.py
         Assert-Success 'Generate Windows metadata'
         $icon = Join-Path $root 'assets/sap-lens.ico'
         $metadata = Join-Path $root 'backend/build/version-info.txt'
         $frontendDist = Join-Path $root 'frontend/dist'
+        $buildIdentity = Join-Path $root 'backend/build/build-version.json'
         $packagingArguments = @(
             '--noconfirm', '--onefile', '--windowed', '--noupx', '--name', 'SAP-Lens',
             '--icon', $icon, '--version-file', $metadata,
             '--add-data', ($icon + ';assets'), '--paths', 'backend',
+            '--add-data', ($buildIdentity + ';.'),
             '--add-data', ($frontendDist + ';frontend/dist'), '--specpath', 'backend',
             '--distpath', 'backend/dist', '--workpath', 'backend/build', 'backend/desktop.py'
         )
@@ -150,6 +166,10 @@ try {
     if ($Stage -eq 'Artifact') {
         if (-not $ArtifactDirectory) { throw 'Artifact verification needs a downloaded artifact directory.' }
         Measure-Task 'Downloaded artifact verification' {
+            if ($ArtifactDownloadDirectory) {
+                & $buildPython scripts/verify-artifact-zip.py --download $ArtifactDownloadDirectory --destination $ArtifactDirectory --expected-digest $ArtifactDigest
+                Assert-Success 'Verify ZIP digest and exact distribution members'
+            }
             $verified = Get-Content -Raw backend/build/package-verification.json | ConvertFrom-Json
             & $buildPython scripts/verify-windows-package.py --distribution $ArtifactDirectory --expected-sha256 $verified.exe_sha256 --report backend/build/artifact-verification.json
             Assert-Success 'Verify downloaded artifact matches the approved executable'
