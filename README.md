@@ -10,9 +10,11 @@
     <br />
     <a href="#1">Get started</a>
     ·
-    <a href="#2">File settings</a>
+    <a href="docs/LOCAL_WINDOWS_BUILD.md">Local Windows build</a>
     ·
-    <a href="#3">Build EXE</a>
+    <a href="docs/CSV_IMPORT.md">CSV import</a>
+    ·
+    <a href="docs/CONFIGURATION.md">Settings</a>
     ·
     <a href="#4">Development</a>
     ·
