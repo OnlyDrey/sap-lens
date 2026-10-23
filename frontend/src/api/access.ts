@@ -3,6 +3,8 @@ export interface Assignment {
   id: number;
   username: string;
   role_name: string;
+  role_description?: string;
+  transaction_roles?: string[];
   user_group: string;
   scope: "business" | "release" | "other";
   valid_from: string | null;
@@ -36,6 +38,9 @@ export interface UserRow {
   relevant_roles: number;
 }
 export interface UserDetail extends UserRow {
+  data_revision: string;
+  mapping_available?: boolean;
+  unmapped_assignments?: number;
   items: Assignment[];
   total: number;
   offset: number;
@@ -90,8 +95,8 @@ export interface ReleasePage extends Page<ReleaseRow> {
 }
 export const accessQuery = <T>(
   path: string,
-  params: Record<string, string | number | boolean>,
+  params: Record<string, string | number | boolean | string[]>,
 ) =>
   apiRequest<T>(
-    `/api/access/${path}?${new URLSearchParams(Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v)])))}`,
+    `/api/access/${path}?${new URLSearchParams(Object.entries(params).flatMap(([k, v]) => Array.isArray(v) ? v.map(item => [k, item]) : [[k, String(v)]]))}`,
   );

@@ -6,6 +6,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, Query
 import cache
 from role_matching import normalize_role
+from transaction_filters import normalized_tcodes
 from user_access import (
     assignment_view,
     interval_status,
@@ -173,29 +174,47 @@ def user_detail(
     username: str,
     show_expired: bool = False,
     status: Status = "",
-    scope: Literal["business", "release", "other", ""] = "",
+    tcode: str = Query("", max_length=128),
+    tcodes: list[str] = Query(default=[], max_length=21),
+    scope: Literal["business", "release", "other", "all", ""] = "",
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     account_offset: int = Query(0, ge=0),
     name_offset: int = Query(0, ge=0),
     email_offset: int = Query(0, ge=0),
 ):
-    state = cache.get_snapshot().users
+    snapshot = cache.get_snapshot()
+    state = snapshot.users
     user = state.users.get(normalize_username(username))
     if user is None:
         raise HTTPException(404, "User not found in the current local export.")
     entries = [
         a
         for a in user["assignments"]
-        if relevant(a, status, show_expired) and (not scope or a["scope"] == scope)
+        if relevant(a, status, show_expired) and (not scope or (a["scope"] in {"business", "release"} if scope == "all" else a["scope"] == scope))
     ]
+    unmapped = sum(a["match_status"] not in {"exact", "wildcard"} or not a["tcodes"] for a in entries)
+    wanted_codes = normalized_tcodes([tcode] + tcodes if tcode else tcodes)
+    if wanted_codes:
+        matched_names = {name for code in wanted_codes for name in state.tcode_index.get(code, [])}
+        entries = [a for a in entries if a["match_status"] in {"exact", "wildcard"} and matched_names.intersection(a["catalogue_roles"])]
     rows = sorted(
         entries,
         key=lambda a: (normalize_role(a["role_name"]), a["valid_from"] or "", a["id"]),
     )
     paged = page(rows, offset, limit)
     paged["items"] = [assignment_view(a) for a in paged["items"]]
+    for item in paged["items"]:
+        matches = item["catalogue_roles"]
+        role = snapshot.roles.get(matches[0]) if len(matches) == 1 and item["match_status"] in {"exact", "wildcard"} else None
+        item["role_description"] = role.text if role else ""
+        item["transaction_roles"] = sorted({sr.child_agr for name in matches
+            for sr in (snapshot.roles[name].single_roles if name in snapshot.roles else [])
+            if wanted_codes and any(tc.tcode.upper() in wanted_codes for tc in sr.tcodes)}) if item["match_status"] in {"exact", "wildcard"} else []
     return dict(
+        mapping_available=bool(snapshot.roles),
+        unmapped_assignments=unmapped,
+        data_revision=snapshot.last_loaded.isoformat() if snapshot.last_loaded else "empty",
         **paged,
         **user_summary(user, entries),
         names=user["names"][name_offset : name_offset + 100],

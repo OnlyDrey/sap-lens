@@ -107,3 +107,32 @@ all three and includes no source contents or identities. Availability is evidenc
 from the last completed read, not a synchronous filesystem probe: an unavailable
 UNC share cannot block a diagnostic request. `available_at_last_load` explicitly
 does not claim the file is currently reachable.
+
+### User assignment views and transaction evidence
+
+`GET /api/access/users/{username}` accepts `scope=business|release|all` for the
+User Details views. `all` is strictly the ZC/ZO union, filtered before pagination;
+legacy `other` and empty scopes retain their existing API behavior. `status`,
+`show_expired`, `offset` and `limit` (maximum 100) retain their meaning.
+
+Optional `tcode` (maximum 128 characters) trims whitespace and performs an exact,
+case-insensitive match against the import-time transaction index and resolved
+catalogue assignments. Responses add `mapping_available`,
+`unmapped_assignments` (assignments without resolved transaction mappings in the
+selected user/view/status scope before the transaction filter), and `data_revision`
+(an opaque import-generation identity). Each item adds `role_description` and
+`transaction_roles`; these are catalogue evidence, not effective authorization.
+
+CSV export uses these existing authenticated pages, checks generation/count/date
+consistency and runs locally. There is no new HTTP export/upload endpoint. Native
+CSV saving uses a separate capability-guarded Save dialog and does not enable
+unrestricted WebView2 downloads. See [User access](ACCESS_INVESTIGATION.md#user-role-views-transaction-search-and-csv-export).
+
+### Multiple exact transaction filters
+
+The existing role-list and user-detail endpoints additionally accept repeated
+`tcodes` parameters, for example `?tcodes=MIGO&tcodes=ME21N`. Values are trimmed,
+uppercased and deduplicated; matching uses OR before assignment pagination. Other
+filter categories still apply with AND. At most 21 values (20 chips plus one draft)
+of 128 characters each are accepted; larger inputs return 422. Legacy `tcode`
+behavior is preserved. API dates remain ISO; Norwegian formatting is UI-only.

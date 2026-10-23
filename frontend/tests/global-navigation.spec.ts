@@ -119,7 +119,7 @@ test('direct user and release investigations locate global position and handle r
   const navigation = page.getByRole('navigation', { name: 'Detail records' })
   await expect(navigation).toContainText('51 of 126')
   await page.getByRole('button', { name: 'Release Roles — ZO:*', exact: true }).click()
-  await page.getByRole('button', { name: 'Release role details', exact: true }).click()
+  await page.getByRole('button', { name: 'View role details', exact: true }).click()
   await expect(navigation).toContainText('51 of 125')
   await page.getByRole('button', { name: 'Back to Release Roles', exact: true }).click()
   await expect(page.getByRole('combobox', { name: 'Release assignment status', exact: true })).toHaveValue('all')

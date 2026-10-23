@@ -1,3 +1,4 @@
+import { formatTimestamp } from '@/lib/dateFormat'
 import { useHistoryValue } from '@/hooks/useViewHistory'
 import { type ReactNode, useState } from 'react'
 import { RefreshCw, Sun, Moon, Settings, Loader2, Database } from 'lucide-react'
@@ -69,14 +70,7 @@ export function AppLayout({
     }
   }
 
-  const fmt = lastLoaded
-    ? new Date(lastLoaded).toLocaleString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        hour: '2-digit',
-        minute: '2-digit'
-      })
-    : null
+  const fmt = lastLoaded ? formatTimestamp(lastLoaded) : null
 
   return (
     <div className={`${settingsOpen ? 'h-dvh overflow-hidden' : 'min-h-screen'} flex flex-col bg-[var(--bg)] transition-colors duration-300`}>

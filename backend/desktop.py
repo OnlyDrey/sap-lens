@@ -129,6 +129,36 @@ class NativeDialogs:
             return True
         finally: self._picker_lock.release()
 
+    def save_user_access_csv(self, token: str, filename: str, content: str):
+        """Save a bounded CSV through an explicit, capability-guarded user dialog."""
+        if not isinstance(token, str) or not hmac.compare_digest(token.encode(), self._token.encode()):
+            raise ValueError('Application request is not authorized.')
+        import re
+        if not isinstance(filename, str) or not re.fullmatch(r'sap-lens-[A-Za-z0-9_-]{1,100}-[a-z]+-\d{4}-\d{2}-\d{2}\.csv', filename):
+            raise ValueError('Invalid CSV export filename.')
+        if not isinstance(content, str) or not content.startswith('\ufeff"Username","User group",'):
+            raise ValueError('Invalid CSV export content.')
+        if len(content) > 32 * 1024 * 1024:
+            raise ValueError('CSV export exceeds the 32 MiB safety limit.')
+        payload = content.encode('utf-8')
+        if len(payload) > 32 * 1024 * 1024:
+            raise ValueError('CSV export exceeds the 32 MiB safety limit.')
+        if not self._window or not self._picker_lock.acquire(blocking=False):
+            return False
+        try:
+            import webview
+            from config import atomic_write
+            files = self._window.create_file_dialog(webview.FileDialog.SAVE, save_filename=filename, file_types=('CSV files (*.csv)',))
+            if not files:
+                return False
+            path = Path(files[0])
+            if not path.is_absolute() or path.suffix.lower() != '.csv' or path.is_symlink():
+                raise ValueError('Choose an absolute CSV file path.')
+            atomic_write(path, payload)
+            return True
+        finally:
+            self._picker_lock.release()
+
     def export_configuration(self, token: str, include_private: bool = False):
         if not isinstance(token,str) or not hmac.compare_digest(token.encode(),self._token.encode()):
             raise ValueError('Application request is not authorized.')

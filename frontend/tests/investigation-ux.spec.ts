@@ -212,7 +212,7 @@ for (const theme of ['dark', 'light']) test(`account evidence and keyboard compa
   await nav.getByRole('button', { name: 'User Access', exact: true }).click()
   const row = page.getByRole('row').filter({ has: page.getByRole('button', { name: 'DEMO_ALFA', exact: true }) })
   await expect(row.locator('[aria-label="Account validity"] .evidence-badge')).toBeVisible()
-  await expect(row.locator('[aria-label="Account lock"] .evidence-badge')).toHaveText('Unlocked')
+  await expect(row.locator('[aria-label="Account lock"] .lock-status')).toHaveText('Unlocked')
   await row.getByRole('button', { name: /View .* relevant roles for DEMO_ALFA/ }).click()
   await expect(page.getByRole('region', { name: 'User details', exact: true })).toContainText('DEMO_ALFA')
   await nav.getByRole('button', { name: 'Role Lookup', exact: true }).click()

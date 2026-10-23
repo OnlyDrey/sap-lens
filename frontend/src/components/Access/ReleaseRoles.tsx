@@ -1,3 +1,4 @@
+import { Select } from '@/components/Shared/Select';
 import { useHistoryValue, type ReleaseDrill } from '@/hooks/useViewHistory';
 import { List, Grid3X3 } from 'lucide-react';
 import { useRecordNavigation, type RecordNavigationState } from "@/hooks/useRecordNavigation";
@@ -135,7 +136,7 @@ export function ReleaseRoles({
         <ReleaseFilter field="username" label="Release username" value={username} onChange={setUsername} context={{ group, document_type:kind, release_group:releaseGroup, strategy, status }}/>
         <ReleaseFilter field="role" label="Release role name" value={role} onChange={setRole} context={{ group, document_type:kind, release_group:releaseGroup, strategy, status }}/>
         <Filter label="Release assignment status">
-          <select
+          <Select
             className={inputClass}
             value={status}
             onChange={(e) => setStatus(e.target.value)}
@@ -151,12 +152,12 @@ export function ReleaseRoles({
                 {l}
               </option>
             ))}
-          </select>
+          </Select>
         </Filter>
         </div></fieldset>
         <fieldset><legend>Display</legend><div className="filter-grid">
         <Filter label="Sort release roles">
-          <select
+          <Select
             className={inputClass}
             value={sort}
             onChange={(e) => setSort(e.target.value)}
@@ -172,7 +173,7 @@ export function ReleaseRoles({
                 {l}
               </option>
             ))}
-          </select>
+          </Select>
         </Filter>
         <label className="filter-toggle">
           <input

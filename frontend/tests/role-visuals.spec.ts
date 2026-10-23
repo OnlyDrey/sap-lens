@@ -284,3 +284,40 @@ test('clipboard denial is announced and leaves exact identifier selectable', asy
   })
   await expect(card.locator('code')).toHaveCSS('user-select', 'text')
 })
+
+for (const theme of ['light', 'dark'] as const) {
+  test(`copy success overlays the identifier for exactly two seconds without resizing in ${theme}`, async ({ page, context, request }, info) => {
+    const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
+    expect((await request.post('/api/configuration', { headers, data: { ...settings,
+      data_csv_path: path.resolve('tests/fixtures/synthetic.csv'), theme } })).ok()).toBeTruthy()
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+    await page.goto('/#session=browser-test-session')
+    const identifier = page.getByRole('article').first().locator('.role-identifier').first()
+    const value = await identifier.locator('code').innerText()
+    const before = await identifier.boundingBox()
+    await page.clock.install()
+    await page.clock.pauseAt(new Date(Date.now() + 1000))
+    await identifier.getByRole('button', { name: /^Copy role identifier/ }).dispatchEvent('click')
+    const status = identifier.getByRole('status')
+    await expect(status).toHaveText('Copied')
+    await expect(status).toHaveCSS('position', 'absolute')
+    await expect(status).toHaveCSS('pointer-events', 'none')
+    expect(await identifier.boundingBox()).toEqual(before)
+    const overlap = await identifier.evaluate(element => {
+      const code = element.querySelector('code')!.getBoundingClientRect()
+      const feedback = element.querySelector('[role="status"]')!.getBoundingClientRect()
+      const button = element.querySelector('button')!.getBoundingClientRect()
+      return { overText: feedback.left < code.right && feedback.right > code.left && feedback.top < code.bottom && feedback.bottom > code.top,
+        clearsButton: feedback.right <= button.left }
+    })
+    expect(overlap).toEqual({ overText: true, clearsButton: true })
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(value)
+    await identifier.screenshot({ path: info.outputPath('copy-overlay.png'), animations: 'disabled' })
+    await page.clock.runFor(1999)
+    await expect(status).toHaveText('Copied')
+    await page.clock.runFor(1)
+    await expect(status).toHaveText('')
+    expect(await identifier.boundingBox()).toEqual(before)
+    await expect(identifier.locator('code')).toHaveText(value)
+  })
+}

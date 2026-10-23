@@ -45,10 +45,10 @@ try {
     if ($env:GITHUB_ACTIONS -eq 'true') { throw 'This entry point is local-only. GitHub Actions must use build-windows.ps1.' }
     Set-Location $root
     foreach ($command in @('git', 'node', 'npm')) {
-        if (-not (Get-Command $command -ErrorAction SilentlyContinue)) { throw "Missing $command. Install Git for Windows and Node.js 24 LTS (including npm), then reopen PowerShell." }
+        if (-not (Get-Command $command -ErrorAction SilentlyContinue)) { throw "Missing $command. Install Git for Windows and Node.js 24 LTS or 25 (including npm), then reopen PowerShell." }
     }
     $nodeVersion = & node -p 'process.versions.node'
-    if ($LASTEXITCODE -ne 0 -or ([version]$nodeVersion).Major -ne 24) { throw 'Use Node.js 24 LTS, matching the Windows CI runner.' }
+    if ($LASTEXITCODE -ne 0 -or ([version]$nodeVersion).Major -notin @(24, 25)) { throw 'Use Node.js 24 LTS (recommended) or 25. Other major versions are not validated.' }
     $npmVersion = & npm --version
     if ($LASTEXITCODE -ne 0 -or ([version]$npmVersion).Major -notin @(10, 11)) { throw 'Use npm 10 or 11 supplied with the supported Node.js installation.' }
     # Configure I/O before querying Python: its installation path can be Unicode.

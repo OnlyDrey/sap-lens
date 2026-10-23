@@ -3,6 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 import cache
 from models import RoleSummary, RoleDetail
+from transaction_filters import normalized_tcodes
 
 router = APIRouter(prefix="/api/roles", tags=["Roles"])
 
@@ -10,6 +11,7 @@ router = APIRouter(prefix="/api/roles", tags=["Roles"])
 def list_roles(
     function_key: Optional[str] = Query(None, description="Filter by module code, e.g. FI"),
     search: Optional[str] = Query(None, description="Search role name or description"),
+    tcodes: list[str] = Query(default=[], max_length=21),
     tcode: Optional[str] = Query(None, description="Find all roles containing this T-code"),
 ) -> list[RoleSummary]:
     """
@@ -25,6 +27,15 @@ def list_roles(
     # Module filter (applied regardless of search mode)
     if function_key:
         all_roles = [r for r in all_roles if r.function_key == function_key]
+
+    exact_codes = normalized_tcodes(tcodes)
+    if exact_codes:
+        names = {name for code in exact_codes for name in state.tcode_index.get(code, [])}
+        all_roles = [r.model_copy(update={"matching_tcodes": [code for code in exact_codes if r.agr_name in state.tcode_index.get(code, [])]}) for r in all_roles if r.agr_name in names]
+        if search and search.strip():
+            query = search.strip().lower()
+            all_roles = [r for r in all_roles if query in r.agr_name.lower() or query in (r.text or "").lower() or query in (r.module_name or "").lower()]
+        return all_roles
 
     # ---- T-code search -------------------------------------------------------
     if tcode and tcode.strip():

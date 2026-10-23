@@ -1,87 +1,65 @@
 import { DetailNavigation } from "@/components/Shared/InvestigationNavigation"
-import { ModuleIcon } from '@/components/Modules/ModuleIcon'
+import { RoleMetadata } from '@/components/Shared/RoleMetadata'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { X, ChevronDown, ChevronRight, AlertTriangle, Loader2, Layers, Zap, Users, ArrowRight } from 'lucide-react'
 import * as ScrollArea from '@radix-ui/react-scroll-area'
 import { useRoleDetail } from '@/hooks/useRoleDetail'
+import { TransactionFilter, useTransactionFilter } from '@/components/Shared/TransactionFilter'
 import type { SingleRole, TCode } from '@/api/types'
 
-function SingleRoleRow({ sr, onTcodeUsers }: { sr: SingleRole; onTcodeUsers?: (code:string)=>void }) {
-  const [open, setOpen] = useState(false)
+const SingleRoleRow = memo(function SingleRoleRow({ sr, onTcodeUsers, transaction }: { sr: SingleRole; transaction: string[]; onTcodeUsers?: (code:string)=>void }) {
+  const [expanded, setExpanded] = useState(false)
+  const [searchExpanded, setSearchExpanded] = useState(true)
+  const filterKey = JSON.stringify(transaction)
+  useEffect(() => { setSearchExpanded(true) }, [filterKey])
+  const searching = transaction.length > 0
+  const open = searching ? searchExpanded : expanded
   return (
-    <div style={{ borderBottom: '1px solid var(--border)' }}>
-      <div
-        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:opacity-90 focus:outline-none transition-colors"
-        style={{ backgroundColor: open ? 'color-mix(in srgb, var(--accent2) 8%, var(--surface))' : 'var(--surface)' }}>
-
-        {/* Module icon */}
-        <ModuleIcon moduleId={sr.function_key} />
-
-        {/* Expand arrow */}
-        <button type="button" className="role-expand" aria-label={`Expand single role ${sr.child_agr}`} aria-expanded={open} onClick={() => setOpen(p => !p)}>{open
-          ? <ChevronDown  className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--accent2)' }} />
-          : <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--muted)'   }} />
-        }</button>
-
-        {/* Name + description */}
-        <div className="min-w-0 flex-1">
+    <div className="single-role-entry">
+      <div className="single-role-heading" data-expanded={open}>
+        <button type="button" className="role-expand" aria-label={`Expand single role ${sr.child_agr}`} aria-expanded={open} onClick={() => searching ? setSearchExpanded(p => !p) : setExpanded(p => !p)}>
+          {open ? <ChevronDown size={14} aria-hidden="true"/> : <ChevronRight size={14} aria-hidden="true"/>}
+        </button>
+        <div className="single-role-heading-main">
+          <RoleMetadata code={sr.function_key} name={sr.module_name} description={sr.child_agr_text}/>
           <RoleIdentifier value={sr.child_agr} />
-          <span className="text-xs">{sr.assignment_kind==='direct'?'Direct assignment':sr.assignment_kind==='effective'?'Effective-role assignment':''}</span>
-          {sr.child_agr_text && (
-            <p className="text-xs truncate mt-0.5" style={{ color: 'var(--muted)' }}>
-              {sr.child_agr_text}
-            </p>
-          )}
+          {sr.assignment_kind === 'direct' && <span className="single-role-assignment">Direct assignment</span>}
+          {sr.assignment_kind === 'effective' && <span className="single-role-assignment">Effective-role assignment</span>}
         </div>
-
-        {/* T-code count: Zap icon + number (clearer than "8T") */}
-        <div className="flex items-center gap-1 flex-shrink-0 px-2 py-0.5 rounded-lg"
-          style={{ backgroundColor: 'color-mix(in srgb, var(--accent) 12%, transparent)' }}>
-          <Zap className="w-3 h-3" style={{ color: 'var(--accent2)' }} aria-hidden="true" />
-          <span className="text-xs font-black tabular-nums" style={{ color: 'var(--accent2)' }}>
-            {sr.tcodes.length}
-          </span>
-        </div>
+        <span className="single-role-count" aria-label={`${sr.tcodes.length} transactions`}>
+          <Zap size={12} aria-hidden="true"/>{sr.tcodes.length}
+        </span>
       </div>
-
-      {open && (
-        <div style={{ borderTop: '1px solid var(--border)', backgroundColor: 'var(--surface2)' }}>
-          {Boolean(sr.alternate_descriptions?.length) && <p className="text-xs px-4 py-2">Alternate descriptions: {sr.alternate_descriptions?.slice(0,5).join(' · ')}</p>}
-          {sr.tcodes.length === 0
-            ? <p className="px-4 py-3 text-xs italic" style={{ color: 'var(--muted)' }}>No transactions</p>
-            : <table className="w-full">
-                <thead><tr style={{ backgroundColor: 'var(--surface2)' }}>
-                  <th className="text-left px-4 py-2 text-xs font-black uppercase w-36"
-                    style={{ color: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>T-code</th>
-                  <th className="text-left px-4 py-2 text-xs font-black uppercase"
-                    style={{ color: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>Description</th>
-                </tr></thead>
-                <tbody>
-                  {sr.tcodes.map((tc: TCode, i: number) => (
-                    <tr key={tc.tcode} style={{ backgroundColor: i % 2 === 1 ? 'var(--surface)' : undefined }}>
-                      <td className="px-4 py-2 font-mono text-xs font-bold"
-                        style={{ color: 'var(--accent2)', borderBottom: '1px solid var(--border)' }}>
-                        <span>{tc.tcode}</span>
-                        {onTcodeUsers&&<button className="underline block mt-1" onClick={()=>onTcodeUsers(tc.tcode)}>Investigate users with {tc.tcode}</button>}
-                      </td>
-                      <td className="px-4 py-2 text-xs"
-                        style={{ color: 'var(--text2)', borderBottom: '1px solid var(--border)' }}>
-                        {tc.ttext ?? <span className="italic" style={{ color: 'var(--muted)' }}>No description</span>}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-          }
-        </div>
-      )}
+      {open && <div className="single-role-transactions">
+        {Boolean(sr.alternate_descriptions?.length) && <p className="text-xs px-4 py-2">Alternate descriptions: {sr.alternate_descriptions?.slice(0,5).join(' · ')}</p>}
+        {sr.tcodes.length === 0
+          ? <p className="text-xs italic text-[var(--muted)] px-4 py-3">No transactions</p>
+          : <div className="transaction-table-scroll" role="region" aria-label={`Transactions for ${sr.child_agr}`} tabIndex={0}>
+            <table>
+              <thead><tr><th scope="col">T-Code</th><th scope="col">Description</th><th scope="col" className="transaction-action">Action</th></tr></thead>
+              <tbody>{sr.tcodes.map((tc: TCode) => <tr key={tc.tcode} data-transaction-match={searching && transaction.includes(tc.tcode.trim().toUpperCase())}>
+                <td className="transaction-code">{tc.tcode}</td>
+                <td className="transaction-description">{tc.ttext ?? <span className="italic text-[var(--muted)]">No description</span>}</td>
+                <td className="transaction-action">{onTcodeUsers && <button type="button" className="settings-secondary-button transaction-investigate"
+                  aria-label={`Investigate users with ${tc.tcode}`} title={`Investigate users with ${tc.tcode}`} onClick={() => onTcodeUsers(tc.tcode)}>
+                  <Users size={14} aria-hidden="true"/>Investigate users
+                </button>}</td>
+              </tr>)}</tbody>
+            </table>
+          </div>}
+      </div>}
     </div>
   )
-}
+})
 
 export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, parent = 'Role Lookup' }: { parent?: string; roleName: string | null; onClose: () => void; onUsers?: (role:string)=>void; onTcodeUsers?: (code:string)=>void }) {
   const { data: role, isLoading, isError, error } = useRoleDetail(roleName)
+  const transactionFilter = useTransactionFilter(roleName)
+  const transaction = useMemo(() => transactionFilter.deferredCodes, [transactionFilter.deferredKey])
+  const searching = transaction.length > 0
+  const matchingRoles = useMemo(() => new Set(role?.single_roles.filter(sr => sr.tcodes.some(tc => transaction.includes(tc.tcode.trim().toUpperCase()))).map(sr => sr.child_agr)), [role, transaction])
+  const missingMappings = role?.single_roles.filter(sr => !sr.tcodes.length).length || 0
   const onKey = useCallback((e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }, [onClose])
   useEffect(() => { document.addEventListener('keydown', onKey); return () => document.removeEventListener('keydown', onKey) }, [onKey])
   useEffect(() => { document.body.style.overflow = roleName ? 'hidden' : ''; return () => { document.body.style.overflow = '' } }, [roleName])
@@ -102,21 +80,8 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, pare
             <p className="text-base font-black text-current leading-snug break-words">
               {cleanTitle(role?.text ?? null)}
             </p>
-            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-              <ModuleIcon moduleId={role?.function_key} size="medium" />
-              {role?.function_key && (
-                <span className="text-xs font-bold px-2 py-0.5 rounded-md text-current"
-                  style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}>
-                  {role.function_key}
-                </span>
-              )}
-              {role?.module_name && (
-                <span className="text-xs font-medium" style={{ color: 'var(--on-primary)' }}>
-                  {role.module_name}
-                </span>
-              )}
-            </div>
-            <RoleIdentifier value={roleName} />
+            <RoleMetadata code={role?.function_key} name={role?.module_name}/>
+            <div className="mt-3"><RoleIdentifier value={roleName}/></div>
           </div>
           <button aria-label="Close role details" onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-current/60 hover:text-current hover:bg-white/10 transition-colors flex-shrink-0 focus:outline-none">
@@ -180,6 +145,8 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, pare
                   <details className="text-xs border rounded-xl p-3">
                     <summary className="cursor-pointer font-semibold">Relationships &amp; analysis provenance</summary>
                     <p className="mt-2">SAP areas use explicit CSV evidence.{role.module_ambiguous ? ' Conflicting SAP areas; shown as Unclassified.' : ''}</p>
+                    <p className="mt-1">Catalogue record found. {role.text?.trim() ? 'Role description available.' : 'Role description missing from the imported catalogue.'} {role.relationships?.some(r => r.child_agr || r.parent_agr || r.effective_role) ? 'Source relationships retained.' : 'No explicit role relationship fields supplied.'} {role.tcode_count ? 'Transaction mappings available; source completeness cannot be verified.' : 'No transaction mappings supplied; this does not establish absence of SAP permissions.'}</p>
+                    <p className="mt-1">Single-role header labels may use a recognized module prefix in the imported description. These display labels do not reclassify roles or change transaction mappings.</p>
                     <p className="mt-1">Alternative descriptions: {role.alternate_descriptions?.join(' · ') || 'None'}</p>
                     <p className="mt-1">Import profile {String(role.analysis?.import_profile_id || 'default')}</p>
                     <table className="w-full text-left mt-2"><thead><tr><th>Child</th><th>Parent</th><th>Effective role</th></tr></thead><tbody>
@@ -187,6 +154,14 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, pare
                     </tbody></table>
                     {(role.relationships?.length||0)>200 && <p>Showing 200 of {role.relationships?.length} retained relationships.</p>}
                   </details>
+                  <form className="role-transaction-search" aria-label="Sidebar transaction search" onSubmit={event => event.preventDefault()}>
+                    <TransactionFilter label="Find transaction code" filter={transactionFilter}/>
+                    {searching && <div role="status" className="basis-full text-sm">
+                      {matchingRoles.size ? `${matchingRoles.size} matching single ${matchingRoles.size === 1 ? 'role' : 'roles'} for ${transaction.join(' OR ')}.` : role.tcode_count ? `No matching single roles for ${transaction.join(' OR ')} in the imported mappings.` : 'Transaction mappings unavailable in this catalogue record.'}
+                      {missingMappings > 0 && <p>{missingMappings} single roles have no supplied transaction mappings; source completeness cannot be established.</p>}
+                      <p>Role-derived evidence does not prove effective SAP authorization.</p>
+                    </div>}
+                  </form>
                   {/* Single role list */}
                   <div>
                     <div className="flex items-center gap-2 mb-3">
@@ -199,7 +174,7 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, pare
                       ? <p className="text-sm italic" style={{ color: 'var(--muted)' }}>No single roles found</p>
                       : (
                         <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-                          {role.single_roles.map(sr => <SingleRoleRow key={sr.child_agr} sr={sr} onTcodeUsers={onTcodeUsers} />)}
+                          {role.single_roles.map(sr => <div key={`${roleName}:${sr.child_agr}`} hidden={searching && !matchingRoles.has(sr.child_agr)}><SingleRoleRow sr={sr} transaction={transaction} onTcodeUsers={onTcodeUsers}/></div>)}
                         </div>
                       )
                     }

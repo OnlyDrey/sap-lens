@@ -113,6 +113,8 @@ export function ModuleRegistryProvider({ children }: { children: ReactNode }) {
     </PaletteContext.Provider>
   )
 }
+export const useModuleDefinitions = () => useContext(Context)
+
 export function useModuleVisual(code?: string | null) {
   const registry = useContext(Context)
   const key = code || 'UNCLASSIFIED'

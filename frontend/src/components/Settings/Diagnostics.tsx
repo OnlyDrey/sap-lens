@@ -1,4 +1,5 @@
-import { EvidenceBadge } from '@/components/Shared/InvestigationNavigation'
+import { SourceBadge } from '@/components/Shared/SourceBadge'
+import { formatTimestamp } from '@/lib/dateFormat'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Activity, Download, FileText, FolderOpen } from 'lucide-react'
@@ -96,11 +97,11 @@ export function Diagnostics({ native }: { native: boolean }) {
             <dt>Application version</dt>
             <dd>{query.data.version}</dd>
             <dt>Current data status</dt>
-            <dd className="flex flex-wrap gap-2">{query.data.sources.map(source => <span key={source.id}>{source.name}: {source.records.toLocaleString()} {source.id === 'users' ? source.records === 1 ? 'user' : 'users' : source.records === 1 ? 'role' : 'roles'} · <EvidenceBadge value={source.error ? 'Needs attention' : source.loaded ? 'Loaded' : 'Not loaded'}/></span>)}</dd>
+            <dd className="flex flex-wrap gap-2">{query.data.sources.map(source => <span key={source.id}>{source.name}: {source.records.toLocaleString()} {source.id === 'users' ? source.records === 1 ? 'user' : 'users' : source.records === 1 ? 'role' : 'roles'} · <SourceBadge loading={source.loading} error={source.error} loaded={source.loaded}/></span>)}</dd>
             <dt>Last successful refresh</dt>
             <dd>
               {query.data.last_successful_load
-                ? new Date(query.data.last_successful_load).toLocaleString()
+                ? formatTimestamp(query.data.last_successful_load)
                 : 'No successful load yet'}
             </dd>
           </dl>
@@ -118,9 +119,9 @@ export function Diagnostics({ native }: { native: boolean }) {
             <dt>Configured file</dt><dd>{source.configured_path || 'Not configured'}</dd>
             <dt>Loaded source</dt><dd>{source.loaded_path || 'No successful load'}</dd>
             <dt>Availability</dt><dd>{({ available_at_last_load:'Available at last successful load; current access not checked', not_checked:'Not checked', missing:'File missing on last attempt', access_denied:'Access denied on last attempt', invalid:'Validation failed on last attempt', failed:'Read failed on last attempt' } as Record<string,string>)[source.availability] || 'Not checked'}</dd>
-            <dt>Last loaded</dt><dd>{source.last_successful_load ? new Date(source.last_successful_load).toLocaleString() : 'Never'}</dd>
+            <dt>Last loaded</dt><dd>{source.last_successful_load ? formatTimestamp(source.last_successful_load) : 'Never'}</dd>
             <dt>Records</dt><dd>{source.records.toLocaleString()} {source.id === 'users' ? source.records === 1 ? 'user' : 'users' : source.records === 1 ? 'role' : 'roles'} · {source.assignments.toLocaleString()} {source.assignments === 1 ? 'assignment' : 'assignments'}</dd>
-            <dt>Status</dt><dd><EvidenceBadge value={source.loading ? 'Loading' : source.error ? 'Last attempt failed' : source.loaded ? 'Loaded' : 'Not loaded'}/></dd>
+            <dt>Status</dt><dd><SourceBadge loading={source.loading} error={source.error} loaded={source.loaded}/></dd>
             {source.error && <><dt>Last attempt</dt><dd>{source.attempted_path || 'Unknown location'} · {source.error.replace(/_/g, ' ')}. Previously loaded data is retained.</dd></>}
           </dl>
         </section>)}</div>}

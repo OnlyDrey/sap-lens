@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 const headers = { "X-SAP-Lens": "browser-test-session" };
 const fixture = path.resolve("../backend/tests/fixtures/user-access.csv");
 const catalogue =
-  "FUNCTION_KEY,AGR_NAME,CHILD_AGR,TCODE\nMM,ZC:MM:BUY:EN*,ZS:BUY,ME23N\nFI,ZC:FI:VIEW:*,ZS:VIEW,ME23N\nFI,ZC:FI:VIEW:*,ZS:VIEW,FB03\n";
+  "FUNCTION_KEY,AGR_NAME,CHILD_AGR,TCODE,CHILD_AGR_TEXT,TTEXT\nMM,ZC:MM:BUY:EN*,ZS:BUY,ME23N,Synthetic purchasing display role,Display purchase order\nFI,ZC:FI:VIEW:*,ZS:VIEW,ME23N,Synthetic accounting display role with a longer description that remains readable when the window is narrow,Display purchase order\nFI,ZC:FI:VIEW:*,ZS:VIEW,FB03,Synthetic accounting display role with a longer description that remains readable when the window is narrow,Display accounting document\n";
 let directory = "";
 test.beforeEach(async ({ request }) => {
   expect(
@@ -66,7 +66,7 @@ test("user to role to transactions and reverse role or transaction investigation
     detail.getByRole("status").filter({ hasText: "Copied" }),
   ).toBeVisible();
   await detail
-    .getByRole("button", { name: "Role details: ZC:MM:BUY:EN*", exact: true })
+    .getByRole("button", { name: "View role details: ZC:MM:BUY:EN*", exact: true })
     .click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("ZS:BUY");
@@ -76,7 +76,7 @@ test("user to role to transactions and reverse role or transaction investigation
     .click();
   await expect(
     page.getByRole("region", { name: "User Access", exact: true }),
-  ).toContainText("Evidence filter: Role ZC:MM:BUY:EN*");
+  ).toContainText("Role: ZC:MM:BUY:EN*");
   await expect(
     page.getByRole("button", { name: "DEMO_ALFA", exact: true }),
   ).toBeVisible();
@@ -100,7 +100,7 @@ test("user to role to transactions and reverse role or transaction investigation
     .click();
   await expect(
     page.getByRole("region", { name: "User Access", exact: true }),
-  ).toContainText("Evidence filter: Transaction ME23N");
+  ).toContainText("Transaction: ME23N");
   await expect(
     page.getByRole("button", { name: "DEMO_ALFA", exact: true }),
   ).toHaveCount(1);
@@ -123,6 +123,8 @@ test("directory-only users, expired and future assignments, unknown validity and
     exact: true,
   });
   await expect(detail).toContainText("expired");
+  await expect(detail.getByRole("button", { name: "All roles", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await detail.getByRole("button", { name: "Business Roles — ZC:*", exact: true }).click();
   await expect(detail).toContainText("No assignments in this section");
   await page.getByLabel("Assignment status", { exact: true }).selectOption("all");
   await expect(detail).toContainText("ZC:MM:BUY:ENK");
@@ -379,3 +381,102 @@ test("a partial matrix never presents off-page cells as zero users", async ({
     page.getByText(/A dash means no cell is shown on this page/),
   ).toBeVisible();
 });
+
+for (const theme of ['light', 'dark'] as const) for (const width of [1280, 600]) {
+  test(`copyable users and compact role transactions in ${theme} at ${width}px`, async ({ page, request }, info) => {
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+    expect((await request.post('/api/configuration/theme', { headers, data: { theme } })).ok()).toBeTruthy()
+    await page.setViewportSize({ width, height: 1000 })
+    await page.goto('/#session=browser-test-session')
+    const nav = page.getByRole('navigation', { name: 'Main navigation' })
+    for (const name of ['Release Roles', 'Role Lookup', 'User Access']) {
+      const button = nav.getByRole('button', { name, exact: true })
+      await button.click()
+      await expect(button).toHaveAttribute('aria-current', 'page')
+      await expect(button).toHaveCSS('box-shadow', 'none')
+      await expect(button).toHaveCSS('border-bottom-width', '0px')
+      await expect(button).toHaveCSS('text-decoration-line', 'none')
+      expect(await button.evaluate(element => ['::before', '::after'].map(pseudo => getComputedStyle(element, pseudo).content))).toEqual(['none', 'none'])
+      await button.focus(); await button.press('Tab'); await page.keyboard.press('Shift+Tab')
+      await expect(button).toHaveCSS('outline-style', 'solid')
+    }
+    const row = page.getByRole('row').filter({ has: page.getByRole('button', { name: 'DEMO_ALFA', exact: true }) })
+    const identifier = row.locator('.role-identifier')
+    await expect(identifier.locator('code')).toHaveText('DEMO_ALFA')
+    const copy = identifier.getByRole('button', { name: 'Copy username DEMO_ALFA', exact: true })
+    await expect(copy.locator('svg.lucide-copy')).toBeVisible()
+    await copy.focus(); await copy.press('Enter')
+    await expect(identifier.getByRole('status')).toHaveText('Copied')
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('DEMO_ALFA')
+    await expect(page.getByRole('region', { name: 'User details', exact: true })).toHaveCount(0)
+    await page.screenshot({ path: info.outputPath('user-directory.png'), fullPage: true })
+    await row.getByRole('button', { name: 'DEMO_ALFA', exact: true }).press('Enter')
+    const detail = page.getByRole('region', { name: 'User details', exact: true })
+    await expect(detail.getByRole('button', { name: 'Copy username DEMO_ALFA', exact: true })).toBeVisible()
+    await expect(detail.getByText('wildcard', { exact: true })).toHaveCount(0)
+    const match = detail.locator('.catalogue-match').filter({ hasText: 'ZC:MM:BUY:EN*' })
+    await expect(match.locator('.evidence-badge')).toHaveCount(0)
+    await expect(match.locator('.role-identifier')).toHaveCSS('margin-bottom', '0px')
+    await expect(match.getByRole('button', { name: 'Copy role identifier ZC:MM:BUY:EN*', exact: true })).toBeVisible()
+    await match.getByRole('button', { name: 'Copy role identifier ZC:MM:BUY:EN*', exact: true }).click()
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('ZC:MM:BUY:EN*')
+    await page.evaluate(() => window.scrollTo(0, 0))
+    await page.screenshot({ path: info.outputPath('catalogue-matches.png'), fullPage: true })
+    await page.getByRole('button', { name: 'Back to users', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'DEMO_ALFA', exact: true })).toBeFocused()
+    for (const code of ['FB03', 'ME23N']) {
+      await nav.getByRole('button', { name: 'Role Lookup', exact: true }).click()
+      await page.getByRole('button', { name: 'View details for ZC:FI:VIEW:*', exact: true }).click()
+      const dialog = page.getByRole('dialog')
+      const entry = dialog.locator('.single-role-entry')
+      const expand = entry.getByRole('button', { name: 'Expand single role ZS:VIEW', exact: true })
+      await expand.press('Enter')
+      await expect(expand).toHaveAttribute('aria-expanded', 'true')
+      const description = entry.locator('.role-metadata-title'), identifier = entry.locator('.single-role-heading-main .role-identifier')
+      expect((await entry.locator('.role-module-metadata').boundingBox())!.x).toBeCloseTo((await identifier.boundingBox())!.x, 0)
+      expect((await description.boundingBox())!.y + (await description.boundingBox())!.height).toBeLessThanOrEqual((await identifier.boundingBox())!.y)
+      await expect(description).not.toHaveCSS('text-overflow', 'ellipsis')
+      const table = entry.getByRole('table')
+      await expect(table.getByRole('columnheader')).toHaveText(['T-Code', 'Description', 'Action'])
+      const actions = table.getByRole('button', { name: /^Investigate users with / })
+      await expect(actions).toHaveCount(2)
+      const widths: number[] = []
+      for (const current of ['FB03', 'ME23N']) {
+        const action = table.getByRole('button', { name: `Investigate users with ${current}`, exact: true })
+        await expect(action).toHaveText('Investigate users')
+        const cells = action.locator('xpath=ancestor::tr').getByRole('cell')
+        await expect(cells).toHaveCount(3)
+        await expect(cells.nth(2).getByRole('button')).toHaveAttribute('aria-label', `Investigate users with ${current}`)
+        await expect(cells.nth(0).getByRole('button')).toHaveCount(0)
+        await expect(cells.nth(2)).toHaveCSS('text-align', 'right')
+        widths.push((await action.boundingBox())!.width)
+      }
+      expect(widths[0]).toBeCloseTo(widths[1], 0)
+      const investigate = table.getByRole('button', { name: `Investigate users with ${code}`, exact: true })
+      await investigate.focus(); await investigate.press('Tab'); await page.keyboard.press('Shift+Tab')
+      await expect(investigate).toHaveCSS('outline-style', 'solid')
+      await page.screenshot({ path: info.outputPath(`transactions-${code}.png`), fullPage: true })
+      await table.getByRole('button', { name: `Investigate users with ${code}`, exact: true }).press('Enter')
+      await expect(page.getByRole('region', { name: 'User Access', exact: true })).toContainText(`Transaction: ${code}`)
+      await expect(page.getByRole('button', { name: 'DEMO_ALFA', exact: true })).toBeVisible()
+    }
+  })
+}
+
+test('long username code wraps within its cell and copies without navigation', async ({ page }) => {
+  const username = 'DEMO_' + 'LONG_USERNAME_'.repeat(8)
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.route('**/api/access/users?*', async route => {
+    const response = await route.fetch(), body = await response.json()
+    await route.fulfill({ json: { ...body, items: [{ ...body.items[0], username }], total: 1 } })
+  })
+  await page.setViewportSize({ width: 600, height: 900 })
+  await page.goto('/#session=browser-test-session')
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'User Access', exact: true }).click()
+  const identifier = page.getByRole('button', { name: username, exact: true }).locator('..')
+  await expect(identifier.locator('code')).toHaveText(username)
+  expect(await identifier.evaluate(element => element.scrollWidth <= element.clientWidth)).toBeTruthy()
+  await identifier.getByRole('button', { name: `Copy username ${username}`, exact: true }).click()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(username)
+  await expect(page.getByRole('region', { name: 'User details', exact: true })).toHaveCount(0)
+})

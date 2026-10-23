@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes } from 'react'
 import { useEffect, useRef } from 'react'
-import { ArrowLeft, ArrowRight, ChevronRight } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ChevronRight, LockKeyhole, LockOpen, CircleHelp, CircleCheck, CircleX, Clock } from 'lucide-react'
 
 /** Global position and neighbours come from the same server-side list ordering. */
 export function DetailNavigation({ parent, current, onBack, index = -1, total = 0, onPrevious, onNext, loading = false, error = null, missing = false }: {
@@ -29,11 +29,18 @@ export function DetailNavigation({ parent, current, onBack, index = -1, total = 
 
 export function EvidenceBadge({ value }: { value: string }) {
   const tone = value === 'active' ? 'success' : value === 'expired' ? 'error' : value === 'future' ? 'info' : value === 'Locked' ? 'warning' : 'neutral'
-  return <span className={`evidence-badge evidence-${tone}`}>{value === 'active' ? 'Currently valid' : value === 'unmapped' ? 'Unmapped' : value}</span>
+  const Icon = value === 'active' ? CircleCheck : value === 'expired' ? CircleX : value === 'future' ? Clock : value === 'unknown' ? CircleHelp : null
+  return <span className={`evidence-badge evidence-${tone}`}>{Icon && <Icon size={13} aria-hidden="true"/>}{value === 'active' ? 'Currently valid' : value === 'unmapped' ? 'Unmapped' : value}</span>
+}
+
+export function LockStatus({ value }: { value?: string | null }) {
+  const locked = value === 'Locked', unlocked = value === 'Unlocked'
+  const Icon = locked ? LockKeyhole : unlocked ? LockOpen : CircleHelp
+  return <span className={`lock-status${locked ? ' lock-status-locked' : ''}`}><Icon size={15} aria-hidden="true"/>{locked ? 'Locked' : unlocked ? 'Unlocked' : value || 'Unknown'}</span>
 }
 
 export function AccountEvidence({ status, lock }: { status: string; lock: string }) {
-  return <div className="account-evidence"><div aria-label="Account validity">{status.split('/').map(value => <EvidenceBadge key={value} value={value}/>)}</div><div aria-label="Account lock"><EvidenceBadge value={lock}/></div></div>
+  return <div className="account-evidence"><div aria-label="Account validity">{status.split('/').map(value => <EvidenceBadge key={value} value={value}/>)}</div><div aria-label="Account lock"><LockStatus value={lock}/></div></div>
 }
 
 export function DetailButton({ children, className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
