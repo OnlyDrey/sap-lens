@@ -1,3 +1,4 @@
+import { DirectoryDiagnostics } from './EmployeeDirectory'
 import { SourceBadge } from '@/components/Shared/SourceBadge'
 import { formatTimestamp } from '@/lib/dateFormat'
 import { useState } from 'react'
@@ -20,7 +21,7 @@ interface Snapshot {
   last_successful_load: string | null
   platform: string
 }
-export function Diagnostics({ native }: { native: boolean }) {
+export function Diagnostics({ native, onEmployeeSettings }: { native: boolean; onEmployeeSettings?: () => void }) {
   const query = useQuery({
     queryKey: ['diagnostics'],
     queryFn: () => apiRequest<Snapshot>('/api/diagnostics'),
@@ -70,6 +71,7 @@ export function Diagnostics({ native }: { native: boolean }) {
     })
   return (
     <div className="space-y-5">
+      <DirectoryDiagnostics onConfigure={onEmployeeSettings}/>
       <section className="settings-card space-y-4">
         <h2 className="settings-subheading">
           <Activity size={18} aria-hidden="true" /> Application status

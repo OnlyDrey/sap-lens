@@ -17,7 +17,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 import cache
 from config import get_settings
 from data_loader import DataLoader
-from routers import comparison, modules, roles, access
+from routers import comparison, modules, roles, access, employees
 from request_limits import RequestBodyLimit
 from version import VERSION, BUILD_INFO
 from configuration_routes import configuration_router
@@ -92,6 +92,7 @@ def create_app(origin: str | None = None, session_token: str | None = None,
     app.include_router(configuration_router(loader))
     app.include_router(roles.router)
     app.include_router(access.router)
+    app.include_router(employees.router)
     app.include_router(modules.router)
     app.include_router(comparison.router)
 

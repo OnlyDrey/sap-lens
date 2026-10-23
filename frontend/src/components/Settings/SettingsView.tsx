@@ -1,3 +1,4 @@
+import { EmployeeSource, FeatureSettings } from './EmployeeDirectory'
 import { ImportSection } from './ImportSection'
 import { SourceStatus } from "./SourceStatus"
 import { Combobox } from "@/components/Shared/Combobox"
@@ -18,7 +19,8 @@ import {
   Activity,
   CheckCircle,
   X,
-  FolderOpen
+  FolderOpen,
+  BookUser
 } from 'lucide-react'
 import { ModuleEditor } from './ModuleEditor'
 import { UserSourceEditor, PresetActions } from './ImportPresets'
@@ -39,13 +41,14 @@ import {
   type ImportProfile
 } from '@/api/configuration'
 
-const sectionIcons = [Building2, Database, Layers, Palette, Activity]
+const sectionIcons = [Building2, Database, Layers, Palette, Activity, BookUser]
 const sections = [
   'System & Organization',
-  'Data Source & Import',
+  'Data Sources',
   'SAP Modules',
   'Appearance & Branding',
-  'Application & Diagnostics'
+  'Application & Diagnostics',
+  'Features'
 ]
 const fieldLabels: Record<string, string> = {
   FUNCTION_KEY: 'SAP module or area',
@@ -105,7 +108,7 @@ export function SettingsView({
   onSaved: () => void
 }) {
   const [section, setSection] = useState(0)
-  const [importSource, setImportSource] = useState<'roles' | 'users'>('roles')
+  const [importSource, setImportSource] = useState<'roles' | 'users' | 'employees'>('roles')
   const scrollPane = useRef<HTMLDivElement>(null)
   useEffect(() => {
     scrollPane.current?.scrollTo({ top: 0 })
@@ -712,15 +715,26 @@ export function SettingsView({
                   )}
                   {section === 1 && imports && (
                     <>
+                      <div className="flex flex-wrap gap-3">
+                        <button className="settings-secondary-button" onClick={() => setSection(4)}>View data source diagnostics</button>
+                        {importSource !== 'employees' && <button className="settings-secondary-button" disabled={busy || !(importSource === 'roles' ? draft.data_csv_path : draft.user_csv_path)} onClick={() => {
+                          if (window.confirm('Clear this source and its loaded data when settings are saved? The original CSV will not be deleted.')) {
+                            setDraft({ ...draft, [importSource === 'roles' ? 'data_csv_path' : 'user_csv_path']: '' }); setImportResult(null)
+                          }
+                        }}>Clear {importSource === 'roles' ? 'role catalogue' : 'User Access'} source</button>}
+                      </div>
                       <div className="source-navigation" role="tablist" aria-label="Import source">
-                        {([['roles', 'Role Catalogue', LibraryBig], ['users', 'User Access', UsersRound]] as const).map(([key, label, Icon], index) => <button key={key}
+                        {([['roles', 'Role Catalogue', LibraryBig], ['users', 'User Access', UsersRound], ['employees', 'Employee Directory', BookUser]] as const).map(([key, label, Icon], index) => <button key={key}
                           id={`source-tab-${key}`} role="tab" aria-selected={importSource === key}
                           aria-controls={`source-panel-${key}`} tabIndex={importSource === key ? 0 : -1}
                           className="settings-secondary-button" onClick={() => setImportSource(key)}
                           onKeyDown={event => { if (['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) {
-                            event.preventDefault(); const next = event.key === 'Home' ? 'roles' : event.key === 'End' ? 'users' : index === 0 ? 'users' : 'roles';
+                            event.preventDefault(); const tabs = ['roles', 'users', 'employees'] as const; const next = tabs[event.key === 'Home' ? 0 : event.key === 'End' ? 2 : (index + (event.key === 'ArrowRight' ? 1 : 2)) % 3];
                             setImportSource(next); document.getElementById(`source-tab-${next}`)?.focus()
                           } }}><Icon size={16} aria-hidden="true" className="shrink-0"/><span>{label}</span></button>)}
+                      </div>
+                      <div id="source-panel-employees" role="tabpanel" aria-labelledby="source-tab-employees" hidden={importSource !== 'employees'}>
+                        {importSource === 'employees' && <EmployeeSource revision={draft.revision} savedPath={config.data?.settings.employee_csv_path || ''} dirty={JSON.stringify(draft) !== JSON.stringify(config.data?.settings)} onImported={async () => { const result = await config.refetch(); if (result.data) setDraft(structuredClone(result.data.settings)); onDataChanged() }}/>}
                       </div>
                       <div id="source-panel-users" role="tabpanel" aria-labelledby="source-tab-users" hidden={importSource !== 'users'}>
                         <UserSourceEditor draft={draft} onChange={setDraft} native={native} active={importSource === 'users'} />
@@ -1054,9 +1068,10 @@ export function SettingsView({
                       </p>
                     </div>
                   }
+                  {section === 5 && <FeatureSettings draft={draft} onChange={setDraft} onConfigure={() => { setSection(1); setImportSource('employees') }}/>}
                   {section === 4 && (
                     <>
-                      <Diagnostics native={native} />
+                      <Diagnostics native={native} onEmployeeSettings={() => { setSection(1); setImportSource('employees') }}/>
                       <h2 className="settings-subheading">Backup & recovery</h2>
                       <p className="text-sm text-[var(--text2)]">
                         Export saved settings before an update, or restore a

@@ -26,7 +26,7 @@ test('shared navigation and dropdown geometry retain keyboard access', async ({
   await tab.focus()
   await page.keyboard.press('ArrowDown')
   await expect(
-    page.getByRole('tab', { name: 'Data Source & Import', exact: true })
+    page.getByRole('tab', { name: 'Data Sources', exact: true })
   ).toBeFocused()
   await tab.click()
   const select = page.getByRole('combobox', {
@@ -189,7 +189,7 @@ test('CSV detection previews without loading and preserves intentional manual ov
       .getByRole('button', { name: 'Open settings', exact: true })
       .click()
     await page
-      .getByRole('tab', { name: 'Data Source & Import', exact: true })
+      .getByRole('tab', { name: 'Data Sources', exact: true })
       .click()
     await expect(role).toBeEnabled()
     await expect(role).toHaveValue('Role')
@@ -222,7 +222,7 @@ test('CSV detection previews without loading and preserves intentional manual ov
       .getByRole('button', { name: 'Open settings', exact: true })
       .click()
     await page
-      .getByRole('tab', { name: 'Data Source & Import', exact: true })
+      .getByRole('tab', { name: 'Data Sources', exact: true })
       .click()
     await page.getByLabel('CSV file location', { exact: true }).fill('')
     await page

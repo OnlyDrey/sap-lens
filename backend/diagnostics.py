@@ -35,6 +35,8 @@ def diagnostics_snapshot(loader=None, private=False):
         if private:
             source.update(configured_path=path, loaded_path=loaded_path, attempted_path=attempt.get('path', ''))
         sources.append(source)
+    from routers.employees import directory_status
+    result['employee_directory'] = directory_status(private=private)
     result['sources'] = sources
     if private:
         result['data_source'] = settings.data_csv_path

@@ -48,6 +48,8 @@ def configuration_router(loader):
         try:
             current = get_settings()
             validate_configuration(config,current)
+            if config.employee_csv_path and config.employee_csv_path != current.employee_csv_path:
+                raise HTTPException(400, 'Preview and confirm Employee Directory replacements in Data Sources.')
             if config.revision != current.revision or expected != current.revision:
                 raise HTTPException(409,'Settings changed. Reload before applying your edits.')
             analysis_fields = ['data_csv_path','import_profiles','active_import','user_csv_path','user_import_profiles','active_user_import','module_overrides']
@@ -65,6 +67,9 @@ def configuration_router(loader):
                 save_configuration(config,expected)
                 if changed: cache.clear_cache()
                 if not (config.data_csv_path or config.user_csv_path): loader.error = 'Choose a SAP role catalogue or user access CSV in Settings.'
+            if not config.employee_csv_path:
+                from employee_directory import store
+                store.clear()
             return read_config()
         except HTTPException: raise
         except (OSError,ValueError):
@@ -111,6 +116,7 @@ def configuration_router(loader):
     async def import_config(package: PortableConfig):
         try: candidate = read_portable(package,get_settings().data_csv_path,get_settings().user_csv_path)
         except (OSError,ValueError): raise HTTPException(400,'Invalid configuration package or logo; nothing was applied.')
+        candidate.employee_csv_path = get_settings().employee_csv_path
         candidate.revision = get_settings().revision
         return await apply(candidate,candidate.revision)
 

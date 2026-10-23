@@ -216,7 +216,7 @@ test("user CSV detection preview and independent custom preset create rename dup
     .getByRole("button", { name: "Open settings", exact: true })
     .click();
   await page
-    .getByRole("tab", { name: "Data Source & Import", exact: true })
+    .getByRole("tab", { name: "Data Sources", exact: true })
     .click();
   await page.getByRole("tab", { name: "User Access", exact: true }).click();
   const user = page.getByRole("region", {

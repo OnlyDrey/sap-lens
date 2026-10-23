@@ -27,8 +27,8 @@ test('full-window navigation preserves draft and main analysis state and warns b
  await expect(page.getByLabel('Organization name',{exact:true})).toHaveValue('Example Inc.')
  await page.getByRole('tab',{name:'System & Organization'}).focus()
  await page.keyboard.press('ArrowDown')
- await expect(page.getByRole('tab',{name:'Data Source & Import'})).toBeFocused()
- await expect(page.getByRole('tab',{name:'Data Source & Import'})).toHaveAttribute('aria-selected','true')
+ await expect(page.getByRole('tab',{name:'Data Sources'})).toBeFocused()
+ await expect(page.getByRole('tab',{name:'Data Sources'})).toHaveAttribute('aria-selected','true')
 })
 
 test('theme preview, accessible validation, custom preset persistence, system appearance and cancel',async({page,request})=>{
@@ -103,9 +103,9 @@ for (const theme of ['SAP Lens Default', 'Light']) {
    await expect(settings(page)).toBeHidden()
    await page.getByRole('button',{name:'Open settings'}).click()
    await expect(settings(page)).toBeVisible()
-   for (const section of ['System & Organization','Data Source & Import','SAP Modules','Appearance & Branding','Application & Diagnostics']) {
+   for (const section of ['System & Organization','Data Sources','SAP Modules','Appearance & Branding','Application & Diagnostics']) {
     await page.getByRole('tab',{name:section,exact:true}).click()
-    const action = page.getByRole('button',{name:section==='Data Source & Import'?'Save and load CSV':'Apply settings',exact:true})
+    const action = page.getByRole('button',{name:section==='Data Sources'?'Save and load CSV':'Apply settings',exact:true})
     await expect(action).toBeInViewport()
     const bounds = await action.boundingBox()
     expect(bounds!.y).toBeGreaterThanOrEqual(0)

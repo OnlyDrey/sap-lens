@@ -51,3 +51,7 @@ Production has one entry point: `backend/desktop.py`, packaged by `scripts/build
 ## User access investigation
 
 The atomic cache also contains a separately parsed user export, a reusable literal-prefix catalogue matcher and reverse assignment evidence. User Access and Release Roles consume this generation without a third CSV or external connection. Classification rules and domain configuration are retired. See [access investigation](ACCESS_INVESTIGATION.md) for the schema, migration boundary, status semantics and strict PR/PO parser.
+
+## Optional identity enrichment
+
+`employee_directory.py` owns bounded, immutable-in-use directory snapshots, exact email matching and non-recursive manager resolution. `routers/employees.py` exposes session-protected preview, digest/revision-checked replacement, search and enrichment. The existing settings schema adds disabled-by-default feature state and a local source path; existing SAP snapshots and import presets remain independent. Directory record links carry a generation digest. Slow startup filesystem reads do not hold the publication lock, and clear/import invalidates in-flight reads. See [Employee Directory](EMPLOYEE_DIRECTORY.md) for data and health contracts.

@@ -106,7 +106,13 @@ class ThemeColors(StrictModel):
         return self
 
 
+class FeatureSettings(StrictModel):
+    employee_directory: bool = False
+
+
 class AppConfig(StrictModel):
+    employee_csv_path: str = Field(default='', max_length=4096)
+    features: FeatureSettings = Field(default_factory=FeatureSettings)
     schema_version: Literal[3] = 3
     user_csv_path: str = Field(default='', max_length=4096)
     user_import_profiles: list[UserImportProfile] = Field(default_factory=lambda: [UserImportProfile(id='default', name='Standard SAP user CSV')], min_length=1, max_length=20)

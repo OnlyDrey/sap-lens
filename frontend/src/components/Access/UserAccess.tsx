@@ -1,3 +1,4 @@
+import { EmployeeEnrichment } from './EmployeeEnrichment'
 import { TransactionFilter, useTransactionFilter } from '@/components/Shared/TransactionFilter';
 import { ClearFilterButton } from '@/components/Shared/ClearFilterButton';
 import { Select } from '@/components/Shared/Select';
@@ -325,6 +326,7 @@ function UserDetails({
               <dt>Lock status</dt><dd><LockStatus value={user.lock_status}/></dd>
             </dl></section>
           </div>
+          <EmployeeEnrichment username={username}/>
           {user.account_total > 1 && <details className="settings-advanced"><summary>User validity and account evidence · {user.account_total} source records</summary>
             <p className="text-sm text-[var(--muted)]">Distinct source records are retained below; a summary does not override conflicting validity or lock evidence.</p>
             <div className="access-table"><table><thead><tr><th>User group</th><th>User validity</th><th>Account status</th><th>Lock status</th><th>User type</th></tr></thead><tbody>

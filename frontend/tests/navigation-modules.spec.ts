@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 const headers = { 'X-SAP-Lens': 'browser-test-session' }
-const sections = ['System & Organization', 'Data Source & Import', 'SAP Modules', 'Appearance & Branding', 'Application & Diagnostics']
+const sections = ['System & Organization', 'Data Sources', 'SAP Modules', 'Appearance & Branding', 'Application & Diagnostics']
 test.beforeEach(async ({ request }) => {
   expect((await request.post('/api/configuration/reset', { headers })).ok()).toBeTruthy()
 })
@@ -18,7 +18,7 @@ test('data-source actions override every previous section while normal opening k
     await expect(page.getByRole('tab', { name: section, exact: true })).toHaveAttribute('aria-selected', 'true')
     await page.getByRole('button', { name: 'Back to SAP Lens', exact: true }).click()
     await page.getByRole('button', { name: 'Review data source', exact: true }).click()
-    await expect(page.getByRole('tab', { name: 'Data Source & Import', exact: true })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByRole('tab', { name: 'Data Sources', exact: true })).toHaveAttribute('aria-selected', 'true')
     await expect(page.getByLabel('CSV file location', { exact: true })).toBeFocused()
     await expect(page.getByLabel('CSV file location', { exact: true })).toBeInViewport()
   }
@@ -148,7 +148,7 @@ for (const theme of ['light', 'dark'] as const) for (const width of [1280, 390])
     expect(await banner.evaluate(element => element.scrollWidth <= element.clientWidth)).toBeTruthy()
     await page.screenshot({ path: info.outputPath('review-button.png'), fullPage: true })
     await action.press('Enter')
-    await expect(page.getByRole('tab', { name: 'Data Source & Import', exact: true })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByRole('tab', { name: 'Data Sources', exact: true })).toHaveAttribute('aria-selected', 'true')
     await expect(page.getByLabel('CSV file location', { exact: true })).toBeFocused()
     const catalogue = page.getByRole('tab', { name: 'Role Catalogue', exact: true })
     const users = page.getByRole('tab', { name: 'User Access', exact: true })
