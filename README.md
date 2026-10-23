@@ -64,27 +64,42 @@ Quick checks development inputs; Build creates the verified EXE and ZIP under `d
 <a id="4"></a>
 ## Development
 
-```sh
-python -m venv .venv
-# Activate .venv before continuing
+Run directly from source without building an EXE. Use Python 3.12 x64 and Node 24
+LTS (recommended) or 25 with npm 10/11. See the [development guide](docs/DEVELOPMENT.md)
+for prerequisites, execution-policy troubleshooting, isolated settings and the
+native Windows source-mode alternative.
+
+From the repository root in **Windows PowerShell**:
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
 python -m pip install -r backend/requirements-dev.txt
-cd frontend
-npm ci
-npm run dev
+npm --prefix frontend ci
+$env:SAP_LENS_CONFIG_DIR = Join-Path (Get-Location).Path 'local-config\development'
+npm --prefix frontend run dev
 ```
 
-Vite uses `127.0.0.1:18743` and proxies the backend at `18744`. Desktop mode automatically selects another port if necessary. For source-mode desktop use, install `backend/requirements-desktop.txt`, build the frontend and run `.\.venv\Scripts\pythonw.exe backend\desktop.py` from the repository root on Windows.
+This example uses separate, Git-ignored development settings.
+Open **http://127.0.0.1:18743** in your browser. Keep that terminal open;
+**Ctrl+C** stops both development services. Vite serves the frontend at `18743`
+and proxies the backend at `18744`. No frontend production build, EXE, PyInstaller
+or WebView2 is needed for browser development.
 
-```sh
-# From the repository root, with .venv activated
-python -m unittest discover -s backend/tests -v
-python -m pip check
-cd frontend
-npm run check:types
-npm run build
-npx playwright install chromium
-npm run test:browser
+For the actual Windows app window without an EXE, install the desktop requirements,
+compile the frontend and launch the source entry point. Run these from the
+repository root in a terminal with `.venv` activated, after stopping `npm run dev`:
+
+```powershell
+python -m pip install -r backend/requirements-desktop.txt
+npm --prefix frontend run build
+python backend/desktop.py
 ```
+
+This uses WebView2 and the managed loopback backend, with automatic port fallback.
+See the guide for the console-free `pythonw.exe` alternative and test commands.
+`build-local.ps1 -Mode Quick` and `-Mode Validate` perform checks; they do not launch
+the application. [EXE packaging](docs/LOCAL_WINDOWS_BUILD.md) is a separate workflow.
 
 <a id="5"></a>
 ## Security & architecture

@@ -8,6 +8,10 @@ Run the commands in **PowerShell**, from the repository folder containing
 `README.md`, `backend`, `frontend` and `scripts`. Do not paste them into Command
 Prompt. The build requires developer tools; the finished EXE does not.
 
+To **run from source without creating an EXE**, use the
+[development guide](DEVELOPMENT.md). Quick/Validate perform checks and do not start
+the application.
+
 ## Contents
 
 1. [Command reference](#1-command-reference)
