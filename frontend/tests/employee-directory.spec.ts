@@ -61,7 +61,7 @@ test.beforeEach(async ({ request }) => {
   const users = path.join(directory, 'users.csv')
   writeFileSync(
     users,
-    'USERNAME,ROLE_NAME,EMAIL,USER_GROUP,USER_VALID_FROM,USER_VALID_TO,ROLE_VALID_FROM,ROLE_VALID_TO\nDEMO_EMPLOYEE,ZC:FI:VIEW, EMPLOYEE@example.test ,DEMO,20200101,99991231,20200101,99991231\nDEMO_NO_EMAIL,,,DEMO,20200101,99991231,,\n',
+    'USERNAME,ROLE_NAME,EMAIL,USER_GROUP,USER_VALID_FROM,USER_VALID_TO,ROLE_VALID_FROM,ROLE_VALID_TO\nDEMO_EMPLOYEE,ZC:FI:VIEW, EMPLOYEE@example.test ,DEMO,20200101,99991231,20200101,99991231\nDEMO_NO_EMAIL,,,DEMO,20200101,99991231,,\nSAP_MANAGER,,manager@example.test,DEMO,20200101,99991231,,\n',
   )
   const current = await settings(request)
   current.data_csv_path = path.resolve('tests/fixtures/synthetic.csv')
@@ -80,6 +80,8 @@ test('directory preview, confirmation, feature persistence, manager drill-down a
   request,
 }) => {
   await source(page)
+  await expect(page.getByRole('button',{name:'Save and load CSV',exact:true})).toHaveCount(0)
+  await expect(page.getByRole('button',{name:'Apply settings',exact:true})).toBeDisabled()
   await page
     .getByLabel('Employee Directory CSV location', { exact: true })
     .fill(csv)
@@ -93,15 +95,15 @@ test('directory preview, confirmation, feature persistence, manager drill-down a
   await expect(preview).toContainText('2 records')
   expect((await settings(request)).employee_csv_path).toBe('')
   await preview
-    .getByRole('button', { name: 'Confirm directory replacement' })
+    .getByRole('button', { name: 'Import directory' })
     .click()
   await expect(preview).toBeHidden()
   await page.getByRole('tab', { name: 'Features', exact: true }).click()
-  await expect(page.getByRole('switch')).toHaveAttribute(
+  await expect(page.getByRole('switch', {name:'Employee Directory feature',exact:true})).toHaveAttribute(
     'aria-checked',
     'false',
   )
-  await page.getByRole('switch').click()
+  await page.getByRole('switch', {name:'Employee Directory feature',exact:true}).click()
   await page
     .getByRole('button', { name: 'Apply settings', exact: true })
     .click()
@@ -115,10 +117,10 @@ test('directory preview, confirmation, feature persistence, manager drill-down a
     exact: true,
   })
   await expect(enrichment).toContainText('Engineering')
-  await enrichment.getByRole('button', { name: 'View manager' }).click()
-  await expect(
-    enrichment.getByRole('region', { name: 'Manager employee details' }),
-  ).toContainText('Operations')
+  await enrichment.getByRole('button', { name: 'View SAP user' }).click()
+  await expect(page.getByRole('region',{name:'User information',exact:true})).toContainText('SAP_MANAGER')
+  await page.goBack()
+  await expect(page.getByRole('region',{name:'User information',exact:true})).toContainText('DEMO_EMPLOYEE')
   await page.reload()
   await expect(enrichment).toContainText('Exact email match')
   await page.getByRole('button', { name: 'Open settings', exact: true }).click()
@@ -194,7 +196,7 @@ test('search, manager navigation, clear confirmation and data preservation', asy
   page.once('dialog', (dialog) => dialog.accept())
   await page.getByRole('button', { name: 'Clear directory data' }).click()
   await expect(
-    page.getByRole('region', { name: 'Employee Directory diagnostics' }),
+    page.getByRole('region', { name: 'Directory import status' }),
   ).toContainText('Not configured')
   expect((await settings(request)).user_csv_path).toContain('users.csv')
   expect((await settings(request)).features.employee_directory).toBe(true)
@@ -218,7 +220,7 @@ for (const theme of ['light', 'dark'] as const)
       await page.setViewportSize({ width, height: 1000 })
       await source(page)
       await expect(
-        page.getByRole('region', { name: 'Employee Directory diagnostics' }),
+        page.getByRole('region', { name: 'Directory import status' }),
       ).toContainText('2')
       const tab = page.getByRole('tab', {
         name: 'Employee Directory',
@@ -249,7 +251,7 @@ for (const theme of ['light', 'dark'] as const)
         fullPage: true,
       })
       await page.getByRole('tab', { name: 'Features', exact: true }).click()
-      await expect(page.getByRole('switch')).toHaveAttribute(
+      await expect(page.getByRole('switch', {name:'Employee Directory feature',exact:true})).toHaveAttribute(
         'aria-checked',
         'true',
       )
@@ -323,7 +325,7 @@ test('directory import and clear preserve independent catalogue filters, compari
   await page.getByRole('tab', { name: 'Employee Directory', exact: true }).click()
   await page.getByLabel('Employee Directory CSV location', { exact: true }).fill(csv)
   await page.getByRole('button', { name: 'Validate & preview directory', exact: true }).click()
-  await page.getByRole('button', { name: 'Confirm directory replacement', exact: true }).click()
+  await page.getByRole('button', { name: 'Import directory', exact: true }).click()
   await expect(page.getByRole('region', { name: 'Directory import preview' })).toHaveCount(0)
   await page.getByRole('button', { name: 'Back to SAP Lens', exact: true }).click()
   await expect(search).toHaveValue('finance')
@@ -337,3 +339,95 @@ test('directory import and clear preserve independent catalogue filters, compari
   await expect(search).toHaveValue('finance')
   await expect(page.getByRole('button', { name: 'Remove from comparison', exact: true })).toHaveCount(1)
 })
+
+test('explicit import, independent feature toggles, retained data and Diagnostics stay synchronized', async ({page,request}) => {
+  await source(page)
+  await page.getByLabel('Employee Directory CSV location',{exact:true}).fill(csv)
+  await expect(page.getByLabel('Directory selection state',{exact:true})).toContainText('not validated or imported')
+  await page.getByRole('button',{name:'Validate & preview directory',exact:true}).click()
+  await expect(page.getByLabel('Directory selection state',{exact:true})).toContainText('Validated')
+  await page.getByRole('button',{name:'Import directory',exact:true}).click()
+  await expect(page.getByRole('status').filter({hasText:'Directory imported:'})).toContainText('2 records saved locally')
+  const status=page.getByRole('region',{name:'Directory import status',exact:true})
+  await expect(status).toContainText('Disabled'); await expect(status).toContainText('Records saved locally')
+  const identity=(await settings(request)).employee_snapshot_id
+  await status.getByRole('button',{name:'Enable in Feature Settings',exact:true}).click()
+  await expect(page.getByRole('region',{name:'Employee Directory diagnostics'})).toHaveCount(0)
+  await expect(page.getByRole('region',{name:'Employee Directory feature settings'})).not.toContainText('Missing emails')
+  await page.getByRole('switch',{name:'Employee Directory feature',exact:true}).click()
+  await page.getByRole('switch',{name:'User–Role Mapping feature',exact:true}).click()
+  await page.getByRole('button',{name:'Apply settings',exact:true}).click()
+  await expect(page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'User Access',exact:true})).toBeEnabled()
+  await page.reload()
+  await expect(page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'User Access',exact:true})).toBeEnabled()
+  expect((await settings(request)).features).toEqual({employee_directory:true,user_role_mapping:false})
+  await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'User Access',exact:true}).click()
+  await expect(page.getByRole('region',{name:'User–Role Mapping disabled',exact:true})).toBeVisible()
+  expect((await request.get('/api/access/users',{headers})).status()).toBe(409)
+  const dependency=await (await request.get('/api/employees/status',{headers})).json()
+  expect(dependency.enabled).toBe(true); expect(dependency.loaded).toBe(true); expect(dependency.dependency_satisfied).toBe(false)
+  await page.getByRole('button',{name:'Open settings',exact:true}).click()
+  await page.getByRole('tab',{name:'Application & Diagnostics',exact:true}).click()
+  await expect(page.getByRole('region',{name:'Employee Directory diagnostics'})).toContainText('Enable User–Role Mapping')
+  await page.getByRole('tab',{name:'Features',exact:true}).click()
+  await page.getByRole('switch',{name:'User–Role Mapping feature',exact:true}).click()
+  await page.getByRole('button',{name:'Apply settings',exact:true}).click()
+  await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'User Access',exact:true}).click()
+  await expect(page.getByRole('button',{name:'DEMO_EMPLOYEE',exact:true})).toBeVisible()
+  expect((await settings(request)).employee_snapshot_id).toBe(identity)
+  expect((await (await request.get('/api/employees/status',{headers})).json()).coverage.matched).toBe(2)
+})
+
+for (const [state,message] of [['unmatched','SAP user not found'],['ambiguous','Multiple SAP users found'],['missing_email','Manager email not provided']] as const) {
+  test(`manager ${state} has no broken navigation link`,async({page,request})=>{
+    await importDirectory(request); await enable(request)
+    await page.route('**/api/employees/match/**',async route=>{
+      const response=await route.fetch(), json=await response.json()
+      await route.fulfill({response,json:{...json,manager_sap:{status:state,username:null}}})
+    })
+    await page.goto('/#session=browser-test-session')
+    await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'User Access',exact:true}).click()
+    await page.getByRole('button',{name:'DEMO_EMPLOYEE',exact:true}).click()
+    const profile=page.getByRole('region',{name:'Employee Directory enrichment',exact:true})
+    await expect(profile).toContainText(message)
+    await expect(profile.getByRole('button',{name:'View SAP user',exact:true})).toHaveCount(0)
+  })
+}
+
+for (const theme of ['light','dark'] as const) for (const width of [375,800,1280]) {
+  test(`employee profile and compact date calendar visual QA ${theme} ${width}`,async({page,request},info)=>{
+    await importDirectory(request); await enable(request)
+    const current=await settings(request); current.theme=theme
+    expect((await request.post('/api/configuration',{headers,data:current})).ok()).toBeTruthy()
+    await page.setViewportSize({width,height:1000})
+    await page.goto('/#session=browser-test-session')
+    await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'User Access',exact:true}).click()
+    await page.getByRole('button',{name:'DEMO_EMPLOYEE',exact:true}).click()
+    const profile=page.getByRole('region',{name:'Employee Directory enrichment',exact:true})
+    await expect(profile).toContainText('Demo Employee'); await expect(profile).toContainText('AD account status')
+    await expect(profile).not.toContainText('Manager department')
+    const button=page.getByRole('button',{name:'Assignment date filters',exact:true})
+    const account=page.getByRole('region',{name:'Validity and account information'})
+    expect((await button.boundingBox())!.y).toBeGreaterThan((await account.boundingBox())!.y+(await account.boundingBox())!.height)
+    await page.screenshot({path:info.outputPath('employee-profile.png'),fullPage:true})
+    await button.click()
+    const input=page.getByLabel('Valid from earliest',{exact:true})
+    await expect(input).toHaveAttribute('placeholder','DD.MM.YYYY')
+    await input.fill('31.02.2024')
+    await page.getByRole('button',{name:'Apply date filters',exact:true}).click()
+    await expect(page.getByRole('alert')).toContainText('valid DD.MM.YYYY')
+    await input.fill('29.02.2024')
+    await page.getByRole('button',{name:'Choose Valid from earliest',exact:true}).click()
+    const calendar=page.getByRole('group',{name:'Calendar for Valid from earliest',exact:true})
+    await expect(calendar).toContainText('februar 2024')
+    await expect(calendar.getByRole('button',{name:'29.02.2024',exact:true})).toHaveAttribute('aria-pressed','true')
+    await page.screenshot({path:info.outputPath('norwegian-calendar.png'),fullPage:true})
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
+    await calendar.getByRole('button',{name:'29.02.2024',exact:true}).press('Escape')
+    await expect(page.getByRole('button',{name:'Choose Valid from earliest',exact:true})).toBeFocused()
+    await page.getByRole('button',{name:'Apply date filters',exact:true}).click()
+    await expect(page.getByLabel('Active assignment date filters',{exact:true})).toContainText('29.02.2024')
+    await page.getByRole('button',{name:'Clear all assignment filters',exact:true}).click()
+    await expect(page.getByLabel('Active assignment date filters',{exact:true})).toHaveCount(0)
+  })
+}

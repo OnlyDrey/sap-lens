@@ -43,9 +43,8 @@ async function user(page: Page) {
   return page.getByRole('region', { name: 'User details', exact: true })
 }
 async function openDates(page: Page) {
-  const summary = page.locator('.assignment-date-filters > summary:visible')
-  if (!(await summary.locator('..').evaluate((el) => el.hasAttribute('open'))))
-    await summary.click()
+  const button = page.getByRole('button', {name:/^Assignment date filters/}).filter({visible:true})
+  if ((await button.getAttribute('aria-expanded')) !== 'true') await button.click()
 }
 
 test('catalogue AND/OR is exact across mapping rows; multi-area OR combines with role text using AND', async ({
@@ -200,76 +199,37 @@ test('catalogue detail neighbours and browser history keep the complete filtered
   ).toHaveValue('MIGO')
 })
 
-test('user date ranges are inclusive, independent, recover from invalid bounds and match the exported CSV', async ({
-  page,
-}) => {
-  const detail = await user(page)
-  await detail
-    .getByLabel('Assignment status', { exact: true })
-    .selectOption('all')
+test('user date ranges are inclusive, independent, recover from invalid bounds and match the exported CSV', async ({page}) => {
+  const detail=await user(page), table=detail.getByRole('region',{name:'User role assignments'}), profile=detail.getByRole('region',{name:'User information',exact:true}), account=detail.getByRole('region',{name:'Validity and account information'})
+  const originalProfile=await profile.textContent(), originalAccount=await account.textContent()
+  await detail.getByLabel('Assignment status',{exact:true}).selectOption('all')
   await openDates(page)
-  await detail
-    .getByLabel('Valid from earliest', { exact: true })
-    .fill('2024-01-01')
-  await detail
-    .getByLabel('Valid from latest', { exact: true })
-    .fill('2024-01-01')
-  await expect(
-    detail
-      .getByRole('region', { name: 'User role assignments' })
-      .getByRole('row'),
-  ).toHaveCount(3)
-  await detail
-    .getByLabel('Valid to earliest', { exact: true })
-    .fill('9999-12-31')
-  await expect(
-    detail
-      .getByRole('region', { name: 'User role assignments' })
-      .getByRole('row'),
-  ).toHaveCount(2)
-  await detail
-    .getByRole('button', { name: 'Clear valid from', exact: true })
-    .click()
-  await expect(
-    detail.getByLabel('Valid to earliest', { exact: true }),
-  ).toHaveValue('9999-12-31')
-  const download = page.waitForEvent('download')
-  await detail.getByRole('button', { name: 'Export CSV', exact: true }).click()
-  const contents = readFileSync((await (await download).path())!, 'utf8')
-  expect(contents).toContain('ZC:MM:A')
-  expect(contents).toContain('ZO:MM:M:PR_REL_ST_G1_N1:ALL')
-  expect(contents).not.toContain('ZC:FI:B')
-  await detail
-    .getByRole('button', { name: 'Clear valid to', exact: true })
-    .click()
-  await detail
-    .getByLabel('Valid from earliest', { exact: true })
-    .fill('2025-01-01')
-  await detail
-    .getByLabel('Valid from latest', { exact: true })
-    .fill('2024-01-01')
-  await expect(
-    detail.getByLabel('Valid from latest', { exact: true }),
-  ).toBeVisible()
-  await expect(
-    detail
-      .getByText(
-        'Earliest assignment dates must not follow their latest dates.',
-        { exact: true },
-      )
-      .first(),
-  ).toBeVisible()
-  await detail
-    .getByRole('button', { name: 'Clear all assignment filters', exact: true })
-    .click()
-  await expect(
-    detail.getByLabel('Valid from earliest', { exact: true }),
-  ).toHaveValue('')
-  await expect(
-    detail
-      .getByRole('region', { name: 'User role assignments' })
-      .getByRole('row'),
-  ).toHaveCount(3)
+  expect(await detail.getByRole('form',{name:'User role toolbar'}).getByRole('button',{name:/^Assignment date filters/}).count()).toBe(1)
+  await detail.getByLabel('Valid from earliest',{exact:true}).fill('01.01.2024')
+  await detail.getByLabel('Valid from latest',{exact:true}).fill('01.01.2024')
+  await expect(table.getByRole('row')).toHaveCount(4) // draft is not applied
+  await detail.getByRole('button',{name:'Apply date filters',exact:true}).click()
+  await expect(table.getByRole('row')).toHaveCount(3)
+  await openDates(page)
+  await detail.getByLabel('Valid to earliest',{exact:true}).fill('31.12.9999')
+  await detail.getByRole('button',{name:'Apply date filters',exact:true}).click()
+  await expect(table.getByRole('row')).toHaveCount(2)
+  await detail.getByRole('button',{name:'Remove Valid from earliest filter'}).click()
+  await detail.getByRole('button',{name:'Remove Valid from latest filter'}).click()
+  await expect(detail.getByLabel('Active assignment date filters',{exact:true})).toContainText('31.12.9999')
+  const download=page.waitForEvent('download')
+  await detail.getByRole('button',{name:'Export CSV',exact:true}).click()
+  const contents=readFileSync((await (await download).path())!,'utf8')
+  expect(contents).toContain('ZC:MM:A'); expect(contents).toContain('ZO:MM:M:PR_REL_ST_G1_N1:ALL'); expect(contents).not.toContain('ZC:FI:B')
+  await detail.getByRole('button',{name:'Remove Valid to earliest filter'}).click()
+  await openDates(page)
+  await detail.getByLabel('Valid from earliest',{exact:true}).fill('01.01.2025')
+  await detail.getByLabel('Valid from latest',{exact:true}).fill('01.01.2024')
+  await detail.getByRole('button',{name:'Apply date filters',exact:true}).click()
+  await expect(detail.getByRole('alert')).toContainText('Earliest assignment dates must not follow their latest dates.')
+  await detail.getByRole('button',{name:'Clear date filters',exact:true}).click()
+  await expect(table.getByRole('row')).toHaveCount(4)
+  await expect(profile).toHaveText(originalProfile!); await expect(account).toHaveText(originalAccount!)
 })
 
 test('business and release assignment tabs have dedicated split-date columns without release catalogue noise', async ({
@@ -352,7 +312,8 @@ test('release date filters compose with matrix, counts and navigation, and retur
     .getByRole('combobox', { name: 'Release assignment status', exact: true })
     .selectOption('all')
   await openDates(page)
-  await list.getByLabel('Valid from latest', { exact: true }).fill('2024-01-01')
+  await list.getByLabel('Valid from latest', { exact: true }).fill('01.01.2024')
+  await list.getByRole('button',{name:'Apply date filters',exact:true}).click()
   await expect(
     list.getByRole('button', { name: 'Release role details', exact: true }),
   ).toHaveCount(1)
@@ -371,9 +332,9 @@ test('release date filters compose with matrix, counts and navigation, and retur
   await expect(
     list.getByRole('button', { name: 'Matrix', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true')
-  await expect(
-    list.getByLabel('Valid from latest', { exact: true }),
-  ).toHaveValue('2024-01-01')
+  await openDates(page)
+  await expect(list.getByLabel('Valid from latest',{exact:true})).toHaveValue('01.01.2024')
+  await list.getByRole('button',{name:'Cancel date changes',exact:true}).click()
   await list.getByRole('button', { name: 'Table', exact: true }).click()
   await list
     .getByRole('button', { name: 'Release role details', exact: true })
@@ -525,8 +486,10 @@ test('unparsed release roles and unknown assignment dates remain visible without
   await expect(assignments).toContainText('Unknown validity')
   await expect(assignments.getByRole('cell', { name: 'Unknown', exact: true })).toHaveCount(2)
   await openDates(page)
-  await detail.getByRole('combobox', { name: 'Open-ended assignments', exact: true }).selectOption('only')
+  await expect(detail.locator('.release-assignment-toolbar').getByRole('button',{name:/^Assignment date filters/})).toBeVisible()
+  await detail.getByLabel('Include assignments without end date',{exact:true}).uncheck()
+  await detail.getByRole('button',{name:'Apply date filters',exact:true}).click()
   await expect(assignments.getByRole('row')).toHaveCount(1)
-  await detail.getByRole('button', { name: 'Clear valid to', exact: true }).click()
+  await detail.getByRole('button', { name: 'Remove missing end date filter', exact: true }).click()
   await expect(assignments.getByRole('row')).toHaveCount(2)
 })

@@ -89,8 +89,8 @@ class InvestigationFilterTests(unittest.TestCase):
         self.assertEqual({r['role_name'] for r in only['items']}, {'ZO:MM:M:PR_REL_ST_G1_N1:ALL', 'ZO:UNKNOWN'})
         missing = self.get('access/releases?status=unknown')
         self.assertEqual([r['role_name'] for r in missing['items']], ['ZO:MM:M:PO_REL_ST_G2_N2:ALL'])
-        self.assertEqual(self.get('access/releases?status=unknown&valid_to_min=0001-01-01')['total'], 0)
-        self.assertEqual(self.get('access/releases?status=all&valid_to_max=9999-12-31')['total'], 2)
+        self.assertEqual(self.get('access/releases?status=unknown&valid_to_min=0001-01-01&include_missing_end=false')['total'], 0)
+        self.assertEqual(self.get('access/releases?status=all&valid_to_max=9999-12-31')['total'], 3)
 
     def test_date_validation_rejects_reversed_and_invalid_bounds(self):
         for suffix in ['valid_from_min=2025-01-01&valid_from_max=2024-01-01', 'valid_to_min=2025-01-01&valid_to_max=2024-01-01', 'valid_to_min=2025-02-30', 'open_ended=guess']:
@@ -125,3 +125,72 @@ class InvestigationFilterTests(unittest.TestCase):
         filters = assignment_dates(valid_from_min=date(2024, 1, 1), valid_from_max=date(2024, 1, 1), valid_to_max=date(9999, 12, 31))
         self.assertTrue(within_dates({'valid_from': '2024-01-01', 'valid_to': '9999-12-31'}, filters))
         self.assertFalse(within_dates({'valid_from': None, 'valid_to': '9999-12-31'}, filters))
+
+    def test_missing_end_checkbox_distinguishes_null_from_sap_maximum(self):
+        base='access/releases?status=all'
+        self.assertEqual(self.get(base+'&valid_to_max=9999-12-31')['total'],3)
+        self.assertEqual(self.get(base+'&valid_to_max=9999-12-31&include_missing_end=false')['total'],2)
+        # The null end is explicitly included by default; 9999 obeys real bounds.
+        self.assertEqual(self.get(base+'&valid_to_max=2026-01-01')['total'],2)
+        self.assertEqual(self.get(base+'&valid_to_max=2026-01-01&include_missing_end=false')['total'],1)
+        missing={'valid_from':None,'valid_to':None}
+        self.assertTrue(within_dates(missing,assignment_dates(valid_to_min=date(9999,12,31))))
+        self.assertFalse(within_dates(missing,assignment_dates(include_missing_end=False)))
+        self.assertFalse(within_dates(missing,assignment_dates(valid_from_min=date(2020,1,1))))
+        maximum={'valid_from':'2020-01-01','valid_to':'9999-12-31'}
+        self.assertTrue(within_dates(maximum,assignment_dates(valid_to_min=date.max,valid_to_max=date.max,include_missing_end=False)))
+        self.assertFalse(within_dates(maximum,assignment_dates(valid_to_max=date(9999,12,30))))
+
+    def test_assignment_filter_never_changes_profile_or_account_evidence(self):
+        baseline=self.get('access/users/DEMO_ONE?scope=all&show_expired=true')
+        filtered=self.get('access/users/DEMO_ONE?scope=all&show_expired=true&valid_from_min=2099-01-01&include_missing_end=false')
+        self.assertEqual(filtered['total'],0)
+        for key in ['username','names','emails','accounts','groups','account_status','lock_status','account_total','retained_assignments']:
+            self.assertEqual(filtered[key],baseline[key],key)
+
+    def test_user_directory_tcodes_and_or_merge_evidence_before_counts_and_navigation(self):
+        both=self.get('access/users?tcodes=MIGO&tcodes=ME21N')
+        self.assertEqual([u['username'] for u in both['items']],['DEMO_ONE'])
+        self.assertEqual(both['items'][0]['relevant_roles'],1)
+        self.assertEqual(self.get('access/users?tcodes=MIGO&tcodes=VA03')['total'],0)
+        self.assertEqual(self.get('access/users?tcodes=MIGO&tcodes=VA03&transaction_mode=or')['total'],1)
+        self.assertEqual(self.get('access/users?tcodes=MIGO&tcodes=ME21N&group=G2')['total'],0)
+        self.assertEqual(self.get('access/users?tcodes=MIGO&search=two')['total'],0)
+        self.assertEqual(self.get('access/users?tcodes=MIGO&tcodes=migo&anchor=DEMO_ONE')['navigation']['total'],1)
+        self.assertEqual(self.get('access/users?tcode=MIGO')['total'],both['total'])
+        for suffix in ['transaction_mode=guess','tcodes=MIG']:
+            response=self.client.get('/api/access/users?'+suffix,headers=H)
+            if suffix.startswith('transaction_mode'): self.assertEqual(response.status_code,422)
+            else: self.assertEqual(response.json()['total'],0)
+
+    def test_dashboard_uses_validated_metrics_and_null_for_unavailable_sources(self):
+        metrics={m['id']:m for m in self.get('dashboard')['metrics']}
+        self.assertEqual(metrics['roles']['value'],3)
+        self.assertEqual(metrics['mappings']['value'],4)
+        self.assertEqual(metrics['users']['value'],3)
+        self.assertEqual(metrics['assignments']['value'],6)
+        self.assertEqual(metrics['assigned_users']['value'],3)
+        self.assertEqual(metrics['releases']['value'],3)
+        self.assertIsNone(metrics['employees']['value'])
+        self.assertIsNone(metrics['email_matches']['value'])
+        current=config.get_settings().model_copy(deep=True); current.features.user_role_mapping=False
+        config.save_configuration(current,current.revision)
+        disabled={m['id']:m for m in self.get('dashboard')['metrics']}
+        self.assertIsNone(disabled['users']['value']); self.assertIn('disabled',disabled['users']['unavailable_reason'])
+        self.assertEqual(disabled['roles']['value'],3)
+        cache.clear_cache()
+        empty={m['id']:m for m in self.get('dashboard')['metrics']}
+        self.assertIsNone(empty['roles']['value']); self.assertIsNone(empty['assignments']['value'])
+
+    def test_user_tcodes_without_catalogue_preserve_directory_and_other_filters(self):
+        snapshot=cache.get_snapshot(); snapshot.roles={}; snapshot.tcode_index={}
+        result=self.get('access/users?tcodes=MIGO&group=G2&search=two')
+        self.assertFalse(result['catalogue_loaded'])
+        self.assertEqual([u['username'] for u in result['items']],['DEMO_TWO'])
+
+    def test_dashboard_release_counts_share_existing_identifier_normalization(self):
+        with Path(config.get_settings().user_csv_path).open('a') as stream:
+            stream.write('DEMO_ONE, zo: mm:m:pr_rel_st_g1_n1:all ,G1,20240101,99991231\n')
+        cache.load_cache()
+        metrics={m['id']:m for m in self.get('dashboard')['metrics']}
+        self.assertEqual(metrics['releases']['value'],3)

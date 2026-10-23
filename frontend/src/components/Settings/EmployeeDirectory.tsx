@@ -5,7 +5,16 @@ import {
 } from '@/components/Shared/EmployeeInformation'
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { BookUser, FolderOpen, Search, Trash2 } from 'lucide-react'
+import {
+  UsersRound,
+  Settings2,
+  BookUser,
+  FolderOpen,
+  Search,
+  Trash2,
+  CheckCircle,
+  Upload,
+} from 'lucide-react'
 import { apiRequest, applicationToken } from '@/api/client'
 import type { Configuration } from '@/api/configuration'
 import { formatTimestamp } from '@/lib/dateFormat'
@@ -20,20 +29,32 @@ interface Report {
   validation: string
 }
 export interface DirectoryStatus {
+  mapping_data_available?: boolean
   enabled: boolean
   configured: boolean
   loaded: boolean
+  operational_status?: string
   status: string
   error: string | null
   report: Partial<Report>
   coverage: Record<string, number>
   user_mapping_available: boolean
+  persisted: boolean
+  storage: string
+  coverage_reason: string
+  coverage_total: number
 }
 const label = (text: string) => text.replace(/_/g, ' ')
 
 export function DirectoryDiagnostics({
   onConfigure,
-}: { onConfigure?: () => void } = {}) {
+  onFeatureSettings,
+  sourceView = false,
+}: {
+  onConfigure?: () => void
+  onFeatureSettings?: () => void
+  sourceView?: boolean
+} = {}) {
   const query = useQuery({
     queryKey: ['employee-status'],
     queryFn: () => apiRequest<DirectoryStatus>('/api/employees/status'),
@@ -46,62 +67,116 @@ export function DirectoryDiagnostics({
   return (
     <section
       className="information-card space-y-3"
-      aria-label="Employee Directory diagnostics"
+      aria-label={
+        sourceView
+          ? 'Directory import status'
+          : 'Employee Directory diagnostics'
+      }
     >
       <h3 className="font-semibold">
         Employee Directory · {label(data.status)}
+        {data.operational_status === 'dependency_unavailable'
+          ? ' · Identity enrichment unavailable'
+          : ''}
       </h3>
       <p className="text-sm">
         {data.enabled ? 'Enabled' : 'Disabled'} ·{' '}
         {data.configured ? 'Source configured' : 'Not configured'} ·{' '}
-        {data.loaded ? 'Data available' : 'No loaded data'}
+        {data.loaded ? 'Data available' : 'No loaded data'} ·{' '}
+        {data.persisted ? 'Records saved locally' : 'No durable records saved'}
       </p>
       {data.error && (
         <p role="alert" className="text-[var(--error)]">
           {data.error}
         </p>
       )}
-      <dl className="information-list">
-        <dt>Filename</dt>
-        <dd>{data.report.file_name || 'No successful import'}</dd>
-        <dt>Validation</dt>
-        <dd>{data.report.validation || 'Not validated'}</dd>
-        <dt>Records</dt>
-        <dd>{data.report.records ?? 0}</dd>
-        <dt>Duplicate emails</dt>
-        <dd>{data.report.duplicate_emails ?? 0}</dd>
-        <dt>Missing emails</dt>
-        <dd>{data.report.missing_emails ?? 0}</dd>
-        <dt>Last successful import</dt>
-        <dd>
-          {data.report.imported_at
-            ? formatTimestamp(data.report.imported_at)
-            : 'Never'}
-        </dd>
-        <dt>User–Role Mapping</dt>
-        <dd>
+      {sourceView ? (
+        <>
+          <div className="directory-quality-grid">
+            {[
+              ['Filename', data.report.file_name || 'No successful import'],
+              [
+                'Last successful import',
+                data.report.imported_at
+                  ? formatTimestamp(data.report.imported_at)
+                  : 'Never',
+              ],
+              ['Records', data.report.records ?? 0],
+              ['Validation', data.report.validation || 'Not validated'],
+              ['Missing emails', data.report.missing_emails ?? 0],
+              ['Duplicate emails', data.report.duplicate_emails ?? 0],
+            ].map(([name, value]) => (
+              <div key={name}>
+                <span className="text-xs text-[var(--muted)]">{name}</span>
+                <p>{value}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-sm">
+            Manager relationships:{' '}
+            {Object.entries(data.report.managers ?? {})
+              .map(([key, value]) => `${label(key)}: ${value}`)
+              .join(' · ') || 'Not evaluated'}
+          </p>
+          <p className="text-sm">
+            SAP match coverage:{' '}
+            {data.coverage_total > 0
+              ? `${data.coverage.matched || 0} of ${data.coverage_total} SAP users matched (${Math.round((100 * (data.coverage.matched || 0)) / data.coverage_total)}%)`
+              : data.coverage_reason || 'Not evaluated'}
+          </p>
+          {data.coverage_total > 0 && (
+            <p className="text-xs text-[var(--muted)]">
+              {Object.entries(data.coverage)
+                .map(([key, value]) => `${label(key)}: ${value}`)
+                .join(' · ')}
+            </p>
+          )}
+          {data.report.missing_emails ? (
+            <p className="text-sm text-[var(--warning)]">
+              Missing emails are warnings. Those records are retained but cannot
+              match a SAP identity by email.
+            </p>
+          ) : null}
+        </>
+      ) : (
+        <p className="text-sm">
+          Storage: {label(data.storage || 'none')} · Dependency:{' '}
           {data.user_mapping_available
-            ? 'Available; exact SAP email matching supported'
-            : 'Not loaded; SAP match coverage unavailable'}
-        </dd>
-        <dt>SAP match coverage</dt>
-        <dd>
-          {Object.entries(data.coverage)
-            .map(([key, value]) => `${label(key)}: ${value}`)
-            .join(' · ') || 'Not evaluated'}
-        </dd>
-        <dt>Manager relationships</dt>
-        <dd>
-          {Object.entries(data.report.managers ?? {})
-            .map(([key, value]) => `${label(key)}: ${value}`)
-            .join(' · ') || 'Not evaluated'}
-        </dd>
-      </dl>
+            ? 'satisfied'
+            : data.coverage_reason || 'unavailable'}
+          . Import history and data quality are under Data Sources → Employee
+          Directory.
+        </p>
+      )}
       <p className="text-sm text-[var(--muted)]">
         Recovery: Data Sources → Employee Directory. Disabled or unconfigured
-        optional sources do not affect SAP lookup health. Freshness reflects the
-        last successful read, not current filesystem availability.
+        optional sources do not affect SAP lookup health. Imported records are
+        saved privately and remain usable without the original CSV. The
+        timestamp is the confirmed import time.
       </p>
+      {!data.enabled && (
+        <p className="text-sm">
+          Importing does not enable enrichment. Enable Employee Directory in
+          Features and choose Apply settings to use the records.
+        </p>
+      )}
+      {data.storage === 'legacy_path_only' && (
+        <p className="text-sm text-[var(--warning)]">
+          Legacy path-only configuration: re-import once to save a durable
+          snapshot. If the old CSV is missing, select it again; records cannot
+          be recovered from a path alone.
+        </p>
+      )}
+      {onFeatureSettings && (
+        <button
+          className="settings-secondary-button"
+          onClick={onFeatureSettings}
+        >
+          {data.enabled
+            ? 'Open Feature Settings'
+            : 'Enable in Feature Settings'}
+        </button>
+      )}
       {onConfigure && (
         <button className="settings-secondary-button" onClick={onConfigure}>
           Review Employee Directory source
@@ -118,42 +193,98 @@ export function FeatureSettings({
 }: {
   draft: Configuration
   onChange: (value: Configuration) => void
-  onConfigure: () => void
+  onConfigure: (source: 'employees' | 'users') => void
 }) {
-  const enabled = draft.features?.employee_directory ?? false
+  const directory = useQuery({
+    queryKey: ['employee-status'],
+    queryFn: () => apiRequest<DirectoryStatus>('/api/employees/status'),
+  })
   return (
-    <section className="settings-card space-y-4">
-      <h2 className="settings-subheading">
-        <BookUser size={18} aria-hidden="true" />
-        Employee Directory
-      </h2>
-      <p>
-        Optionally enrich SAP users with employee and manager information from a
-        local Active Directory CSV. SAP role and transaction investigation
-        remains available without this feature.
+    <div className="space-y-3">
+      {(
+        [
+          [
+            'employee_directory',
+            'Employee Directory',
+            BookUser,
+            'Enrich SAP identities with local employee and manager information.',
+            directory.data?.loaded,
+          ],
+          [
+            'user_role_mapping',
+            'User–Role Mapping',
+            UsersRound,
+            'Investigate SAP users, role assignments and release roles.',
+            directory.data?.mapping_data_available,
+          ],
+        ] as const
+      ).map(([key, name, Icon, description, available]) => {
+        const enabled = draft.features?.[key] ?? key === 'user_role_mapping'
+        return (
+          <section
+            key={key}
+            className="settings-card feature-card"
+            aria-label={`${name} feature settings`}
+          >
+            <div>
+              <h2 className="settings-subheading">
+                <Icon size={18} aria-hidden="true" />
+                {name}
+              </h2>
+              <p className="text-sm text-[var(--muted)]">{description}</p>
+              <p className="text-xs">
+                {directory.isError
+                  ? 'Availability could not be checked.'
+                  : available === undefined
+                    ? 'Checking data availability…'
+                    : available
+                      ? 'Imported data available.'
+                      : 'No imported data available.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="settings-secondary-button"
+              role="switch"
+              aria-label={`${name} feature`}
+              aria-checked={enabled}
+              onClick={() =>
+                onChange({
+                  ...draft,
+                  features: {
+                    employee_directory:
+                      draft.features?.employee_directory ?? false,
+                    user_role_mapping:
+                      draft.features?.user_role_mapping ?? true,
+                    [key]: !enabled,
+                  },
+                })
+              }
+            >
+              <StatusPill enabled={enabled} />
+            </button>
+            <button
+              type="button"
+              className="settings-secondary-button"
+              onClick={() =>
+                onConfigure(
+                  key === 'employee_directory' ? 'employees' : 'users',
+                )
+              }
+            >
+              <Settings2 size={15} aria-hidden="true" />
+              Configure {name}
+            </button>
+          </section>
+        )
+      })}
+      <p className="text-sm text-[var(--muted)]">
+        Apply settings to save changes. Disabling preserves source configuration
+        and imported data. Employee identity enrichment requires enabled
+        User–Role Mapping with SAP email data; Employee Directory remains
+        independently enabled.
       </p>
-      <button
-        className="settings-secondary-button"
-        role="switch"
-        aria-label="Employee Directory feature"
-        aria-checked={enabled}
-        onClick={() =>
-          onChange({ ...draft, features: { employee_directory: !enabled } })
-        }
-      >
-        <StatusPill enabled={enabled} />
-      </button>
-      <p className="text-sm">
-        Configuration:{' '}
-        {draft.employee_csv_path ? 'CSV configured' : 'Not configured'} ·
-        Dependency: SAP email from User–Role Mapping for identity enrichment.
-        Disabling preserves the source and imported records.
-      </p>
-      <button className="settings-secondary-button" onClick={onConfigure}>
-        Configure Employee Directory
-      </button>
-      <DirectoryDiagnostics />
-    </section>
+    </div>
   )
 }
 
@@ -198,7 +329,7 @@ export function EmployeeBrowser() {
   return (
     <section className="space-y-3" aria-label="Employee search">
       <label className="block text-sm">
-        <Search size={16} aria-hidden="true" />
+        <Search size={16} aria-hidden="true" className="inline-block mr-2 align-middle" />
         Search employees by name, email, department, job title, site or manager
         <input
           className="w-full rounded-lg border px-3 py-2 text-sm bg-[var(--surface2)] border-[var(--border)] text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]"
@@ -300,16 +431,19 @@ export function EmployeeSource({
   savedPath,
   dirty,
   onImported,
+  onFeatureSettings,
 }: {
   revision: number
   savedPath: string
   dirty: boolean
   onImported: () => Promise<void>
+  onFeatureSettings: () => void
 }) {
   const [path, setPath] = useState(savedPath),
     [preview, setPreview] = useState<
       (Report & { digest: string; samples: Employee[] }) | null
     >(null),
+    [success, setSuccess] = useState(''),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false)
   const qc = useQueryClient()
@@ -320,6 +454,7 @@ export function EmployeeSource({
   const act = async (action: () => Promise<void>) => {
     setBusy(true)
     setError('')
+    setSuccess('')
     try {
       await action()
     } catch (e) {
@@ -330,7 +465,9 @@ export function EmployeeSource({
   }
   const refresh = async () => {
     await qc.invalidateQueries({
-      predicate: (q) => String(q.queryKey[0]).includes('employee'),
+      predicate: (q) =>
+        String(q.queryKey[0]).includes('employee') ||
+        q.queryKey[0] === 'dashboard',
     })
     await onImported()
   }
@@ -342,10 +479,14 @@ export function EmployeeSource({
           Employee Directory CSV
         </h2>
         <p>
-          Local Active Directory export · 16 required columns · UTF-8 (BOM
-          supported) · semicolon delimiter. Preview and confirm before replacing
-          the directory. No upload or managed CSV copy.
+          1. Choose a CSV. 2. Validate and preview it. 3. Import directory. 4.
+          Enable enrichment in Feature Settings. Import saves a private local
+          snapshot; no cloud upload.
         </p>
+        <DirectoryDiagnostics
+          sourceView
+          onFeatureSettings={onFeatureSettings}
+        />
         <label className="block">
           Employee Directory CSV location
           <input
@@ -354,9 +495,20 @@ export function EmployeeSource({
             onChange={(e) => {
               setPath(e.target.value)
               setPreview(null)
+              setSuccess('')
+              setError('')
             }}
           />
         </label>
+        <p className="text-sm" aria-label="Directory selection state">
+          {preview
+            ? 'Validated — review the preview and choose Import directory to save records.'
+            : path && path !== savedPath
+              ? 'CSV selected — not validated or imported.'
+              : savedPath
+                ? 'Previously imported source — validate again before replacement.'
+                : 'No CSV selected. Employee Directory is optional.'}
+        </p>
         <div className="flex gap-3 flex-wrap">
           <button
             className="settings-secondary-button"
@@ -402,12 +554,18 @@ export function EmployeeSource({
                 )
               )
                 void act(async () => {
-                  await apiRequest('/api/employees/clear', 'POST', {
+                  const cleared = await apiRequest<{
+                    cleanup_warning?: string
+                  }>('/api/employees/clear', 'POST', {
                     path: savedPath,
                     revision,
                   })
                   setPreview(null)
                   await refresh()
+                  setSuccess(
+                    cleared.cleanup_warning ||
+                      'Directory records and source configuration cleared. Original CSV unchanged.',
+                  )
                 })
             }}
           >
@@ -422,6 +580,15 @@ export function EmployeeSource({
           </p>
         )}
         {busy && <p role="status">Reading local directory…</p>}
+        {success && (
+          <p
+            role="status"
+            className="text-[var(--success)] flex gap-2 items-center"
+          >
+            <CheckCircle size={16} aria-hidden="true" />
+            {success}
+          </p>
+        )}
         {error && (
           <p role="alert" className="text-[var(--error)]">
             {error} Previous valid data is retained.
@@ -455,22 +622,29 @@ export function EmployeeSource({
               disabled={busy || dirty}
               onClick={() =>
                 void act(async () => {
-                  await apiRequest('/api/employees/import', 'POST', {
+                  const imported = await apiRequest<
+                    DirectoryStatus & { cleanup_warning?: string }
+                  >('/api/employees/import', 'POST', {
                     path,
                     digest: preview.digest,
                     revision,
                   })
                   setPreview(null)
                   await refresh()
+                  setSuccess(
+                    imported.cleanup_warning ||
+                      `Directory imported: ${imported.report.records} records saved locally. ${imported.enabled ? 'Enrichment is enabled.' : 'Enrichment is disabled; open Feature Settings to enable it.'}`,
+                  )
                 })
               }
             >
-              Confirm directory replacement
+              <Upload size={16} aria-hidden="true" />
+              Import directory
             </button>
           </section>
         )}
       </section>
-      <DirectoryDiagnostics />
+
       <EmployeeBrowser />
     </div>
   )

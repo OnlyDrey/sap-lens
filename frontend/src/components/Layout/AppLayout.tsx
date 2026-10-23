@@ -1,3 +1,4 @@
+import { Notification } from '@/components/Shared/Notification'
 import { formatTimestamp } from '@/lib/dateFormat'
 import { useHistoryValue } from '@/hooks/useViewHistory'
 import { type ReactNode, useState } from 'react'
@@ -200,31 +201,8 @@ export function AppLayout({
           </div>
         </div>
 
-        {savedFeedback && (
-          <div
-            role="status"
-            className="bg-[var(--surface)] text-[var(--success)] px-5 py-2 text-xs flex justify-between"
-          >
-            Settings saved successfully.
-            <button
-              onClick={() => setSavedFeedback(false)}
-              className="underline"
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
-        {err && (
-          <div
-            role="alert"
-            className="bg-[var(--error-bg)] text-[var(--error)] text-xs px-5 py-2 flex justify-between"
-          >
-            <span>{err}</span>
-            <button onClick={() => setErr(null)} className="underline ml-4">
-              Dismiss
-            </button>
-          </div>
-        )}
+        {savedFeedback && <Notification variant="success" onDismiss={()=>setSavedFeedback(false)}>Settings saved successfully.</Notification>}
+        {err && <Notification variant="error" onDismiss={()=>setErr(null)}>{err}</Notification>}
       </header>
 
       <SettingsView

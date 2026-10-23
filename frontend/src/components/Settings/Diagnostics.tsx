@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Activity, Download, FileText, FolderOpen } from 'lucide-react'
 import { apiRequest, applicationToken } from '@/api/client'
 interface DataSource {
+  enabled?: boolean
   id: string; name: string; configured: boolean; loaded: boolean; configured_path?: string; loaded_path?: string; attempted_path?: string;
   availability: string; records: number; assignments: number; last_successful_load: string | null; error: string | null; loading: boolean
 }
@@ -21,7 +22,7 @@ interface Snapshot {
   last_successful_load: string | null
   platform: string
 }
-export function Diagnostics({ native, onEmployeeSettings }: { native: boolean; onEmployeeSettings?: () => void }) {
+export function Diagnostics({ native, onEmployeeSettings, onEmployeeFeatures }: { native: boolean; onEmployeeFeatures?: () => void; onEmployeeSettings?: () => void }) {
   const query = useQuery({
     queryKey: ['diagnostics'],
     queryFn: () => apiRequest<Snapshot>('/api/diagnostics'),
@@ -71,7 +72,7 @@ export function Diagnostics({ native, onEmployeeSettings }: { native: boolean; o
     })
   return (
     <div className="space-y-5">
-      <DirectoryDiagnostics onConfigure={onEmployeeSettings}/>
+      <DirectoryDiagnostics onConfigure={onEmployeeSettings} onFeatureSettings={onEmployeeFeatures}/>
       <section className="settings-card space-y-4">
         <h2 className="settings-subheading">
           <Activity size={18} aria-hidden="true" /> Application status
@@ -99,7 +100,7 @@ export function Diagnostics({ native, onEmployeeSettings }: { native: boolean; o
             <dt>Application version</dt>
             <dd>{query.data.version}</dd>
             <dt>Current data status</dt>
-            <dd className="flex flex-wrap gap-2">{query.data.sources.map(source => <span key={source.id}>{source.name}: {source.records.toLocaleString()} {source.id === 'users' ? source.records === 1 ? 'user' : 'users' : source.records === 1 ? 'role' : 'roles'} · <SourceBadge loading={source.loading} error={source.error} loaded={source.loaded}/></span>)}</dd>
+            <dd className="flex flex-wrap gap-2">{query.data.sources.map(source => <span key={source.id}>{source.name}: {source.records.toLocaleString()} {source.id === 'users' ? source.records === 1 ? 'user' : 'users' : source.records === 1 ? 'role' : 'roles'} · {source.enabled === false ? <span>Disabled · retained data</span> : <SourceBadge loading={source.loading} error={source.error} loaded={source.loaded}/>}</span>)}</dd>
             <dt>Last successful refresh</dt>
             <dd>
               {query.data.last_successful_load
@@ -123,7 +124,7 @@ export function Diagnostics({ native, onEmployeeSettings }: { native: boolean; o
             <dt>Availability</dt><dd>{({ available_at_last_load:'Available at last successful load; current access not checked', not_checked:'Not checked', missing:'File missing on last attempt', access_denied:'Access denied on last attempt', invalid:'Validation failed on last attempt', failed:'Read failed on last attempt' } as Record<string,string>)[source.availability] || 'Not checked'}</dd>
             <dt>Last loaded</dt><dd>{source.last_successful_load ? formatTimestamp(source.last_successful_load) : 'Never'}</dd>
             <dt>Records</dt><dd>{source.records.toLocaleString()} {source.id === 'users' ? source.records === 1 ? 'user' : 'users' : source.records === 1 ? 'role' : 'roles'} · {source.assignments.toLocaleString()} {source.assignments === 1 ? 'assignment' : 'assignments'}</dd>
-            <dt>Status</dt><dd><SourceBadge loading={source.loading} error={source.error} loaded={source.loaded}/></dd>
+            <dt>Status</dt><dd>{source.enabled === false ? <span>Disabled · retained data</span> : <SourceBadge loading={source.loading} error={source.error} loaded={source.loaded}/>}</dd>
             {source.error && <><dt>Last attempt</dt><dd>{source.attempted_path || 'Unknown location'} · {source.error.replace(/_/g, ' ')}. Previously loaded data is retained.</dd></>}
           </dl>
         </section>)}</div>}

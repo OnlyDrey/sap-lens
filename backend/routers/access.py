@@ -17,7 +17,13 @@ from user_access import (
     parse_release_role,
 )
 
-router = APIRouter(prefix="/api/access", tags=["User access"])
+def require_mapping():
+    from config import get_settings
+    if not get_settings().features.user_role_mapping:
+        raise HTTPException(409, 'User–Role Mapping is disabled. Enable it in Settings → Features; imported data is retained.')
+
+
+router = APIRouter(prefix="/api/access", tags=["User access"], dependencies=[Depends(require_mapping)])
 Status = Literal["", "active", "expired", "future", "unknown"]
 
 
@@ -110,6 +116,8 @@ def users(
     group: str = Query("", max_length=512),
     role: str = Query("", max_length=512),
     tcode: str = Query("", max_length=128),
+    tcodes: list[str] = Query(default=[], max_length=21),
+    transaction_mode: Literal["and", "or"] = "and",
     status: Status = "",
     show_expired: bool = False,
     sort: Literal[
@@ -127,7 +135,8 @@ def users(
 ):
     snapshot = cache.get_snapshot()
     state = snapshot.users
-    candidates = matching_entries(state, role, tcode)
+    wanted_codes = normalized_tcodes([tcode] + tcodes if tcode else tcodes)
+    candidates = matching_entries(state, role)
     evidence = defaultdict(list)
     for a in candidates:
         if (
@@ -136,12 +145,20 @@ def users(
             and (not group or group == a["user_group"])
         ):
             evidence[a["user_key"]].append(a)
+    if wanted_codes and snapshot.roles:
+        code_ids = {code: {a['id'] for name in state.tcode_index.get(code, []) for a in state.role_index.get(name, [])} for code in wanted_codes}
+        for key, entries in list(evidence.items()):
+            matches = {code for code, ids in code_ids.items() if any(a['id'] in ids for a in entries)}
+            if (len(matches) != len(wanted_codes) if transaction_mode == 'and' else not matches):
+                del evidence[key]
+            else:
+                evidence[key] = [a for a in entries if any(a['id'] in ids for ids in code_ids.values())]
     result = []
     term = search.casefold().strip()
     for key, user in state.users.items():
         if group and group not in user["groups"]:
             continue
-        if (role or tcode or status) and key not in evidence:
+        if (role or (wanted_codes and snapshot.roles) or status) and key not in evidence:
             continue
         text = " ".join(
             [

@@ -128,7 +128,7 @@ class EmployeeDirectoryTests(unittest.TestCase):
         self.assertEqual(response.status_code, 409)
         self.assertIs(store.directory, previous)
 
-    def test_disabled_reenabled_and_restart_reuse_path_without_data_copies(self):
+    def test_disabled_reenabled_and_restart_restores_private_snapshot(self):
         self.import_data()
         self.assertEqual(self.client.get('/api/employees', headers=H).json()['total'], 0)
         self.enable(); self.assertEqual(self.client.get('/api/employees', headers=H).json()['total'], 2)
@@ -142,7 +142,8 @@ class EmployeeDirectoryTests(unittest.TestCase):
         self.enable(); self.assertEqual(self.client.get('/api/employees/status', headers=H).json()['status'], 'not_configured')
         self.import_data(); store.clear(); self.path.unlink()
         status = self.client.get('/api/employees/status', headers=H).json()
-        self.assertEqual(status['status'], 'error')
+        self.assertEqual(status['status'], 'healthy')
+        self.assertTrue(status['persisted'])
         self.assertEqual(self.client.get('/health').status_code, 200)
         self.assertEqual(self.client.get('/api/access/users', headers=H).status_code, 200)
 
@@ -155,9 +156,12 @@ class EmployeeDirectoryTests(unittest.TestCase):
         self.assertEqual(response.json()['employee_directory']['report']['records'], 2)
 
     def test_clear_preserves_original_file_and_feature_setting(self):
+        from employee_directory import snapshot_path
         self.import_data(); self.enable()
+        snapshot=snapshot_path(config.get_settings().employee_snapshot_id)
         self.assertEqual(self.request('clear').status_code, 200)
         self.assertTrue(self.path.exists()); self.assertIsNone(store.directory)
+        self.assertFalse(snapshot.exists())
         self.assertTrue(config.get_settings().features.employee_directory)
         self.assertEqual(config.get_settings().employee_csv_path, '')
 
@@ -222,3 +226,128 @@ class EmployeeDirectoryTests(unittest.TestCase):
             worker.start(); self.assertTrue(started.wait(1)); local.clear(); finish.set(); worker.join(2)
         self.assertIsNone(local.directory)
         self.assertIsNone(local.attempted_path)
+
+    def test_restart_restores_confirmed_snapshot_without_original_csv(self):
+        from employee_directory import snapshot_path
+        imported = self.import_data().json()
+        self.assertFalse(imported['enabled']); self.assertTrue(imported['persisted'])
+        identity = config.get_settings().employee_snapshot_id
+        self.assertTrue(snapshot_path(identity).is_file())
+        self.path.unlink(); store.clear(); config.get_settings.cache_clear()
+        disabled = self.client.get('/api/employees/status', headers=H).json()
+        self.assertTrue(disabled['loaded']); self.assertFalse(disabled['enabled'])
+        self.assertEqual(disabled['report']['imported_at'], imported['report']['imported_at'])
+        self.enable(); store.clear(); config.get_settings.cache_clear()
+        restored = self.client.get('/api/employees', headers=H).json()
+        self.assertEqual(restored['total'], 2)
+        # A new Python process reads actual on-disk settings and snapshot, not globals.
+        import subprocess
+        result = subprocess.run([sys.executable, '-c',
+            'from config import get_settings; from employee_directory import DirectoryStore; s=get_settings(); assert s.features.employee_directory; d=DirectoryStore().get(s.employee_csv_path,s.employee_snapshot_id); assert len(d.rows)==2'],
+            cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_failed_snapshot_or_settings_write_preserves_last_import(self):
+        from employee_directory import snapshot_path
+        self.import_data(); previous=store.directory; identity=config.get_settings().employee_snapshot_id
+        self.write([{'Name':'Replacement','Mail':'new@example.test'}]); preview=self.request('preview').json()
+        for target in ['routers.employees.persist_directory','routers.employees.save_configuration']:
+            with self.subTest(target=target), patch(target, side_effect=OSError('private details')):
+                result=self.request('import',digest=preview['digest'])
+                self.assertEqual(result.status_code,409); self.assertNotIn('private details',result.text)
+                self.assertIs(store.directory,previous)
+                self.assertEqual(config.get_settings().employee_snapshot_id,identity)
+                self.assertTrue(snapshot_path(identity).exists())
+        self.assertEqual(len(list((self.root/'employee-directory').glob('*.json'))),1)
+
+    def test_corrupt_snapshot_is_optional_failure_and_does_not_leak_contents(self):
+        from employee_directory import snapshot_path
+        self.import_data(); self.enable()
+        snapshot_path(config.get_settings().employee_snapshot_id).write_text('private malformed data')
+        store.clear()
+        result=self.client.get('/api/employees/status',headers=H)
+        self.assertEqual(result.json()['status'],'error'); self.assertNotIn('private malformed',result.text)
+        self.assertEqual(self.client.get('/health').status_code,200)
+        self.assertEqual(self.client.get('/api/roles',headers=H).status_code,200)
+
+    def test_mapping_disabled_preserves_data_dependencies_and_reenables_without_reimport(self):
+        users=self.root/'users.csv'
+        users.write_text('USERNAME,ROLE_NAME,EMAIL\nDEMO_EMPLOYEE,ZC:FI:VIEW,employee@example.test\n',encoding='utf-8')
+        current=config.get_settings().model_dump(); current['user_csv_path']=str(users)
+        self.assertEqual(self.client.post('/api/configuration',headers=H,json=current).status_code,200)
+        self.import_data(); self.enable(); identity=config.get_settings().employee_snapshot_id
+        self.assertEqual(self.client.get('/api/employees/status',headers=H).json()['coverage']['matched'],1)
+        current=config.get_settings().model_dump(); current['features']['user_role_mapping']=False
+        self.assertEqual(self.client.post('/api/configuration',headers=H,json=current).status_code,200)
+        config.get_settings.cache_clear()
+        self.assertFalse(config.get_settings().features.user_role_mapping)
+        import subprocess
+        restarted=subprocess.run([sys.executable,'-c',
+            'from config import get_settings; import cache; from employee_directory import DirectoryStore; s=get_settings(); assert not s.features.user_role_mapping and s.features.employee_directory; cache.load_cache(); assert len(cache.get_snapshot().users.users)==1; assert len(DirectoryStore().get(s.employee_csv_path,s.employee_snapshot_id).rows)==2'],
+            cwd=Path(__file__).resolve().parents[1],capture_output=True,text=True)
+        self.assertEqual(restarted.returncode,0,restarted.stderr)
+        for endpoint in ['users','users/DEMO_EMPLOYEE','releases','release-options?field=group','release-assignments']:
+            result=self.client.get('/api/access/'+endpoint,headers=H)
+            self.assertEqual(result.status_code,409); self.assertIn('disabled',result.json()['detail'])
+        status=self.client.get('/api/employees/status',headers=H).json()
+        self.assertTrue(status['enabled']); self.assertTrue(status['loaded']); self.assertFalse(status['dependency_satisfied'])
+        self.assertEqual(status['coverage'],{}); self.assertIn('Enable User–Role Mapping',status['coverage_reason'])
+        self.assertEqual(self.client.get('/api/employees/match/DEMO_EMPLOYEE',headers=H).json()['status'],'mapping_unavailable')
+        diagnostics=self.client.get('/api/diagnostics',headers=H).json()
+        self.assertFalse(next(s for s in diagnostics['sources'] if s['id']=='users')['enabled'])
+        self.assertEqual(self.client.get('/health').status_code,200)
+        current=config.get_settings().model_dump(); current['features']['user_role_mapping']=True
+        self.assertEqual(self.client.post('/api/configuration',headers=H,json=current).status_code,200)
+        self.assertEqual(config.get_settings().employee_snapshot_id,identity)
+        self.assertEqual(self.client.get('/api/access/users',headers=H).json()['total'],1)
+        self.assertEqual(self.client.get('/api/employees/status',headers=H).json()['coverage']['matched'],1)
+
+    def test_manager_sap_resolution_is_unique_exact_email_never_ad_username(self):
+        users=self.root/'users.csv'
+        for rows,expected in [
+            ('DEMO_EMPLOYEE,,employee@example.test\nSAP_MANAGER,, MANAGER@example.TEST \n','matched'),
+            ('DEMO_EMPLOYEE,,employee@example.test\nDemo_Manager,,other@example.test\n','unmatched'),
+            ('DEMO_EMPLOYEE,,employee@example.test\nSAP_ONE,,manager@example.test\nSAP_TWO,,MANAGER@example.test\n','ambiguous')]:
+            with self.subTest(expected=expected):
+                users.write_text('USERNAME,ROLE_NAME,EMAIL\n'+rows,encoding='utf-8')
+                current=config.get_settings().model_dump(); current['user_csv_path']=str(users)
+                self.assertEqual(self.client.post('/api/configuration',headers=H,json=current).status_code,200)
+                cache.load_cache()
+                self.import_data(); self.enable()
+                result=self.client.get('/api/employees/match/DEMO_EMPLOYEE',headers=H).json()['manager_sap']
+                self.assertEqual(result['status'],expected)
+                self.assertEqual(result['username'],'SAP_MANAGER' if expected=='matched' else None)
+        self.write([{'Mail':'employee@example.test','ManagerName':'SAP_MANAGER','ManagerSamAccountName':'SAP_MANAGER'}]); self.import_data()
+        self.assertEqual(self.client.get('/api/employees/match/DEMO_EMPLOYEE',headers=H).json()['manager_sap']['status'],'missing_email')
+
+    def test_missing_email_is_warning_and_snapshot_never_in_portable_settings(self):
+        self.write([{'Name':'No email'}]); self.import_data(); self.enable()
+        status=self.client.get('/api/employees/status',headers=H).json()
+        self.assertEqual(status['report']['records'],1); self.assertEqual(status['report']['missing_emails'],1)
+        self.assertEqual(status['status'],'warning')
+        exported=export_configuration(config.get_settings(),include_private=True)
+        self.assertIsNone(exported['settings']['employee_snapshot_id'])
+        bad=exported.copy(); bad['settings']=dict(exported['settings'],employee_snapshot_id='0'*64)
+        with self.assertRaises(ValueError): read_portable(PortableConfig.model_validate(bad),'')
+
+    def test_disabled_missing_mapping_source_does_not_block_catalogue_restart(self):
+        roles=self.root/'roles.csv'
+        roles.write_text('FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,TCODE\nMM,ZC:DEMO,Demo,ZS:DEMO,MIGO\n')
+        settings=config.get_settings().model_copy(deep=True)
+        settings.data_csv_path=str(roles); settings.user_csv_path=str(self.root/'missing.csv')
+        settings.features.user_role_mapping=False
+        config.save_configuration(settings,settings.revision); cache.clear_cache(); config.get_settings.cache_clear()
+        cache.load_cache()
+        self.assertEqual(len(cache.get_snapshot().roles),1)
+        self.assertEqual(self.client.get('/health').json()['status'],'ok')
+        self.assertEqual(self.client.get('/api/roles',headers=H).status_code,200)
+        self.assertEqual(self.client.get('/api/access/users',headers=H).status_code,409)
+
+    def test_legacy_missing_file_stays_recoverable_without_snapshot_or_core_failure(self):
+        settings=config.get_settings().model_copy(deep=True)
+        settings.employee_csv_path=str(self.root/'unavailable.csv'); settings.features.employee_directory=True
+        config.save_configuration(settings,settings.revision);store.clear();config.get_settings.cache_clear()
+        status=self.client.get('/api/employees/status',headers=H).json()
+        self.assertTrue(status['configured']);self.assertFalse(status['loaded'])
+        self.assertEqual(status['storage'],'legacy_path_only');self.assertEqual(status['status'],'error')
+        self.assertEqual(self.client.get('/health').status_code,200)

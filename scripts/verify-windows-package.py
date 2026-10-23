@@ -53,7 +53,7 @@ def validate_names(names):
         base = parts[-1]
         blocked_dirs = {'node_modules', 'tests', 'fixtures', '.git', '.ssh', '.aws', '.azure',
                         '.github', '.vscode', '.idea', '.venv', '__pycache__', '.pytest_cache', '.mypy_cache', '.cache',
-                        'configuration-backups', 'user-branding', 'local-config', 'app-data'}
+                        'employee-directory', 'configuration-backups', 'user-branding', 'local-config', 'app-data'}
         if any(part in blocked_dirs for part in parts):
             raise PackageValidationError('Development or private directories are present in the package.')
         if (base == '.env' or base.startswith('.env.') or base in {

@@ -107,10 +107,12 @@ class ThemeColors(StrictModel):
 
 
 class FeatureSettings(StrictModel):
+    user_role_mapping: bool = True
     employee_directory: bool = False
 
 
 class AppConfig(StrictModel):
+    employee_snapshot_id: str | None = Field(default=None, pattern=r'^[a-f0-9]{64}$')
     employee_csv_path: str = Field(default='', max_length=4096)
     features: FeatureSettings = Field(default_factory=FeatureSettings)
     schema_version: Literal[3] = 3

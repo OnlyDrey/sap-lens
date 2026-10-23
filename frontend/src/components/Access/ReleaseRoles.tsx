@@ -163,6 +163,7 @@ export function ReleaseRoles({
             ))}
           </Select>
         </Filter>
+      <AssignmentDateFilters value={assignmentDates} onChange={setAssignmentDates}/>
         </div></fieldset>
         <fieldset><legend>Display</legend><div className="filter-grid">
         <Filter label="Sort release roles">
@@ -194,7 +195,6 @@ export function ReleaseRoles({
         </label>
         </div></fieldset>
       </div>
-      <AssignmentDateFilters value={assignmentDates} onChange={setAssignmentDates}/>
       {(group || kind || releaseGroup || strategy || username || role || status !== 'active' || datesActive(assignmentDates) || descending || sort !== 'role_name') && <ClearFilterButton onClick={() => { setGroup(''); setKind(''); setReleaseGroup(''); setStrategy(''); setUsername(''); setRole(''); setStatus('active'); setAssignmentDates({ ...emptyDates }); setSort('role_name'); setDescending(false) }}>Reset filters</ClearFilterButton>}
       <div className="results-toolbar">
         <h2>Release assignments <span>{result.data?.total.toLocaleString() ?? '…'} {result.data?.total === 1 ? 'role' : 'roles'}</span></h2>
@@ -465,7 +465,7 @@ function ReleaseDetail({
         </dl>
         {drill.group && <p>SAP User Group: {drill.group}</p>}
       </header>
-      <div className="flex flex-wrap gap-3 items-end">
+      <div className="release-assignment-toolbar flex flex-wrap gap-3 items-end">
         <Filter label="Assignment status">
           <Select
             className={inputClass}
@@ -479,6 +479,7 @@ function ReleaseDetail({
             <option value="unknown">Unknown validity</option>
           </Select>
         </Filter>
+        <AssignmentDateFilters value={assignmentDates} onChange={onDatesChange} />
         {(datesActive(assignmentDates) || status !== 'active') && (
           <ClearFilterButton
             onClick={() => {
@@ -490,7 +491,6 @@ function ReleaseDetail({
           </ClearFilterButton>
         )}
       </div>
-      <AssignmentDateFilters value={assignmentDates} onChange={onDatesChange} />
       <QueryState loading={result.isLoading} error={result.error} />
       {result.data && (
         <>

@@ -53,8 +53,13 @@ export function UserAccess({
     [offset, setOffset] = useState(0),
     [selected, setSelected] = useHistoryValue('user');
   const [role, setRole] = useState(initialRole),
-    [tcode, setTcode] = useState(initialTcode),
     [expired, setExpired] = useState(false);
+  const directoryTransaction = useTransactionFilter()
+  const [transactionMode,setTransactionMode] = useState<'and'|'or'>('and')
+  useEffect(()=>{ directoryTransaction.setChips(initialTcode ? [initialTcode.trim().toUpperCase()] : []) },[initialTcode])
+  useEffect(()=>{ if (!directoryTransaction.codes.length) setTransactionMode('and') },[directoryTransaction.key])
+  const tcode = directoryTransaction.codes.join(' ')
+  const clearEvidence = () => {setRole(''); directoryTransaction.clear(); setTransactionMode('and')}
   const [term, setTerm] = useState("");
   useEffect(() => {
     const t = setTimeout(() => setTerm(search), 250);
@@ -62,8 +67,8 @@ export function UserAccess({
   }, [search]);
   useEffect(() => {
     setOffset(0);
-  }, [term, group, sort, descending, role, tcode, expired]);
-  const filters = { search: term, group, sort, descending, role, tcode, show_expired: expired };
+  }, [term, group, sort, descending, role, directoryTransaction.deferredKey, transactionMode, expired]);
+  const filters = { search: term, group, sort, descending, role, tcodes: directoryTransaction.deferredCodes, transaction_mode: transactionMode, show_expired: expired };
   const navigation = useRecordNavigation('users', filters, selected, setSelected);
   const result = useQuery({
     queryKey: [
@@ -73,7 +78,8 @@ export function UserAccess({
       sort,
       descending,
       role,
-      tcode,
+      directoryTransaction.deferredCodes,
+      transactionMode,
       offset,
       expired,
     ],
@@ -165,14 +171,12 @@ export function UserAccess({
           Show expired assignments
         </label>
       </div></fieldset></div>
-      {(role || tcode) && (
-        <section className="active-evidence-filter" aria-label="Active evidence filter">
-          <FilterIcon size={17} aria-hidden="true"/><strong>Active evidence filter</strong>
-          {role && <span className="transaction-chip">Role: {role}</span>}
-          {tcode && <span className="transaction-chip">Transaction: {tcode}</span>}
-          <ClearFilterButton className="ml-auto" onClick={() => { setRole(''); setTcode('') }}/>
-        </section>
-      )}
+      <section className={(role || tcode) ? 'active-evidence-filter' : undefined} aria-label={(role || tcode) ? 'Active evidence filter' : 'User transaction filter'}>
+        {(role || tcode) && <><FilterIcon size={17} aria-hidden="true"/><strong>Active evidence filter</strong></>}
+        {role && <span className="transaction-chip">Role: {role}</span>}
+        <TransactionFilter label="Filter users by transaction" filter={directoryTransaction} mode={transactionMode} onModeChange={setTransactionMode} showClear={false} chipPrefix="Transaction: "/>
+        {(role || tcode) && <ClearFilterButton className="ml-auto" onClick={clearEvidence}/>}
+      </section>
       <QueryState loading={result.isLoading} error={result.error} />
       {result.data && !result.data.loaded && (
         <p>
@@ -183,7 +187,7 @@ export function UserAccess({
       {result.data?.loaded && !result.data.catalogue_loaded && (
         <p role="status">
           No role catalogue loaded. Assignments are retained as Unmapped;
-          transaction access is not inferred.
+          transaction access is not inferred. Transaction filters cannot be evaluated and are not applied; user search and group filters still apply.
         </p>
       )}
       {result.data && (
@@ -281,7 +285,7 @@ function UserDetails({
   useEffect(() => { setOffset(0) }, [scope, status, username, transaction.key, dateKey]);
   useEffect(() => { exportGeneration.current++; setExportMessage(''); return () => { exportGeneration.current++ } }, [username, scope, status, transaction.key, dateKey]);
 
-  useEffect(() => { setAccountOffset(0); setNameOffset(0); setEmailOffset(0) }, [username]);
+  useEffect(() => { setAssignmentDates({ ...emptyDates }); setAccountOffset(0); setNameOffset(0); setEmailOffset(0) }, [username]);
   const result = useQuery({
     queryKey: [
       "access-user",
@@ -295,6 +299,7 @@ function UserDetails({
       nameOffset,
       emailOffset,
     ],
+    placeholderData: previous => previous?.username === username ? previous : undefined,
     queryFn: () =>
       accessQuery<UserDetail>(`users/${encodeURIComponent(username)}`, {
         scope,
@@ -313,9 +318,6 @@ function UserDetails({
     <section aria-label="User details" className="space-y-4">
       <DetailNavigation parent="User Access" current={username} onBack={onBack} {...navigation}/>
       <h1 className="text-xl font-semibold">User details</h1>
-          <AssignmentDateFilters value={assignmentDates} onChange={setAssignmentDates}/>
-          {(datesActive(assignmentDates) || transaction.codes.length > 0 || status) && <ClearFilterButton onClick={() => { setAssignmentDates({ ...emptyDates }); transaction.clear(); setStatus('') }}>Clear all assignment filters</ClearFilterButton>}
-
       <QueryState loading={result.isLoading} error={result.error} />
       {user && (
         <>
@@ -402,6 +404,9 @@ function UserDetails({
                 ))}
               </Select>
             </Filter>
+          <AssignmentDateFilters value={assignmentDates} onChange={setAssignmentDates}/>
+          {(datesActive(assignmentDates) || transaction.codes.length > 0 || status) && <ClearFilterButton onClick={() => { setAssignmentDates({ ...emptyDates }); transaction.clear(); setStatus('') }}>Clear all assignment filters</ClearFilterButton>}
+
             <TransactionFilter label="Find roles by transaction" filter={transaction}/>
             <button type="button" className="settings-secondary-button user-export-button" disabled={exporting || result.isFetching || transaction.settling || !user.total} onClick={async () => {
               const generation = exportGeneration.current;

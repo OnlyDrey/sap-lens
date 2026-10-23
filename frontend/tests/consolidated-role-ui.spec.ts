@@ -110,7 +110,7 @@ test('All roles default, match codes only and one toolbar preserve search and CS
   await expect(toolbar.getByLabel('Assignment status', { exact: true })).toBeVisible()
   await toolbar.getByRole('textbox', { name: 'Find roles by transaction' }).fill('migo')
   const activeControls = toolbar.locator('.transaction-input, select, .settings-secondary-button')
-  await expect(activeControls).toHaveCount(4)
+  await expect(activeControls).toHaveCount(6) // Includes the scoped date filter and assignment reset.
   const tops = await activeControls.evaluateAll(elements => elements.map(element => Math.round(element.getBoundingClientRect().y)))
   expect(new Set(tops).size).toBe(1)
   await toolbar.getByRole('textbox', { name: 'Find roles by transaction' }).press('Enter')

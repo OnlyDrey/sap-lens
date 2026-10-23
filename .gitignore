@@ -77,3 +77,6 @@ SAP-Lens-diagnostics*.json
 
 # Supported local Windows builds and validation receipts
 /dist/local/
+
+# Private imported Employee Directory snapshots (never build inputs)
+**/employee-directory/

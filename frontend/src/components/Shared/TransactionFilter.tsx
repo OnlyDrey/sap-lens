@@ -45,12 +45,16 @@ export function TransactionFilter({
   mode,
   onModeChange,
   showClear = true,
+  compact = false,
+  chipPrefix = '',
 }: {
   label: string
   filter: ReturnType<typeof useTransactionFilter>
   placeholder?: string
   mode?: 'and' | 'or'
   onModeChange?: (value: 'and' | 'or') => void
+  chipPrefix?: string
+  compact?: boolean
   showClear?: boolean
 }) {
   const input = useRef<HTMLInputElement>(null)
@@ -63,7 +67,7 @@ export function TransactionFilter({
       aria-busy={filter.settling}
     >
       <label className="transaction-input-label text-sm">
-        {label}
+        <span className={compact ? "sr-only" : undefined}>{label}</span>
         <span className="transaction-input">
           <Search size={15} aria-hidden="true" />
           <input
@@ -135,7 +139,7 @@ export function TransactionFilter({
           )}
           {filter.chips.map((code) => (
             <span className="transaction-chip" key={code}>
-              {code}
+              {chipPrefix}{code}
               <button
                 type="button"
                 aria-label={`Remove transaction ${code}`}

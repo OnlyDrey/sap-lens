@@ -128,8 +128,20 @@ def build_cache(path=None, configuration=None):
     if catalogue_path: state.loaded_sources['roles'] = catalogue_path
     if settings.user_csv_path:
         profile = next(p for p in settings.user_import_profiles if p.id == settings.active_user_import)
-        state.users = read_source('users', lambda: build_users(settings.user_csv_path, profile, state.roles))
-        state.loaded_sources['users'] = settings.user_csv_path
+        if settings.features.user_role_mapping:
+            state.users = read_source('users', lambda: build_users(settings.user_csv_path, profile, state.roles))
+            state.loaded_sources['users'] = settings.user_csv_path
+        else:
+            # An intentionally disabled optional source cannot prevent catalogue startup.
+            # Keep valid data available for re-enabling; APIs remain guarded separately.
+            try:
+                state.users = build_users(settings.user_csv_path, profile, state.roles)
+                state.loaded_sources['users'] = settings.user_csv_path
+            except (OSError, ValueError):
+                previous = get_snapshot()
+                if previous.loaded_sources.get('users') == settings.user_csv_path:
+                    state.users = previous.users
+                    state.loaded_sources['users'] = settings.user_csv_path
     state.last_loaded = datetime.now(timezone.utc)
     return state
 

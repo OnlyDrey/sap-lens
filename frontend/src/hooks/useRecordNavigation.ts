@@ -7,7 +7,7 @@ export interface RecordNavigation {
   previous: string | null
   next: string | null
 }
-export type InvestigationFilters = Record<string, string | number | boolean>
+export type InvestigationFilters = Record<string, string | string[] | number | boolean>
 
 /** Never infer neighbours from a partial page or from a differently sorted list. */
 export function useRecordNavigation(path: 'users' | 'releases', filters: InvestigationFilters, selected: string, onSelect: (key: string) => void) {

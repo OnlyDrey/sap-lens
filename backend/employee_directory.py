@@ -1,7 +1,9 @@
-"""Optional local employee enrichment. No name guessing, recursive traversal or data copies."""
+"""Optional local employee enrichment. No name guessing or recursive traversal; confirmed records use a private snapshot."""
 import csv
 import hashlib
 import io
+import json
+import re
 import threading
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -102,6 +104,57 @@ class Directory:
         return dict(self._report)
 
 
+def snapshot_path(identity):
+    from config import config_dir
+    if not re.fullmatch(r'[a-f0-9]{64}', identity):
+        raise ValueError('Invalid directory snapshot reference.')
+    return config_dir() / 'employee-directory' / f'{identity}.json'
+
+
+def persist_directory(directory):
+    """Stage a content-addressed private snapshot before committing its settings pointer."""
+    from config import atomic_write
+    payload = json.dumps(dict(version=1, records=directory.rows, file_name=directory.filename,
+                              imported_at=directory.imported_at, csv_digest=directory.digest),
+                         ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+    if len(payload) > 128 * 1024 * 1024:
+        raise ValueError('Directory snapshot exceeds its storage limit.')
+    identity = hashlib.sha256(payload).hexdigest()
+    target = snapshot_path(identity)
+    target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if not target.exists(): atomic_write(target, payload)
+    return identity
+
+
+def read_snapshot(identity):
+    with snapshot_path(identity).open('rb') as stream:
+        raw = stream.read(128 * 1024 * 1024 + 1)
+    if len(raw) > 128 * 1024 * 1024 or hashlib.sha256(raw).hexdigest() != identity:
+        raise ValueError('Directory snapshot failed its integrity check.')
+    data = json.loads(raw)
+    if not isinstance(data, dict) or data.get('version') != 1:
+        raise ValueError('Unsupported directory snapshot.')
+    rows = data.get('records')
+    if not isinstance(rows, list) or not 1 <= len(rows) <= 100_000:
+        raise ValueError('Invalid directory snapshot records.')
+    for i, row in enumerate(rows):
+        if not isinstance(row, dict) or set(row) != {*HEADERS, 'id'} or row['id'] != str(i):
+            raise ValueError('Invalid directory snapshot fields.')
+        if any(not isinstance(v, str) or len(v) > 4096 or '\x00' in v for v in row.values()):
+            raise ValueError('Invalid directory snapshot values.')
+    if not isinstance(data.get('file_name'), str) or len(data['file_name']) > 512 or not re.fullmatch(r'[a-f0-9]{64}', data.get('csv_digest', '')):
+        raise ValueError('Invalid directory snapshot metadata.')
+    datetime.fromisoformat(data['imported_at'])
+    directory = Directory(rows, data['file_name'], data['csv_digest'])
+    directory.imported_at = data['imported_at']
+    return directory
+
+
+def discard_snapshot(identity):
+    if identity:
+        snapshot_path(identity).unlink(missing_ok=True)
+
+
 class DirectoryStore:
     def __init__(self):
         self.lock = threading.RLock()
@@ -112,21 +165,22 @@ class DirectoryStore:
         self.error = None
         self.import_error = None
 
-    def get(self, path):
+    def get(self, path, snapshot_id=None):
         # Slow filesystem I/O never holds the publication lock. Concurrent requests
         # use the last valid snapshot; an in-flight read cannot undo clear/import.
         with self.lock:
-            if not path or self.attempted_path == path:
-                return self.directory if path else None
-            self.attempted_path = path
+            reference = ('snapshot', snapshot_id) if snapshot_id else path
+            if not reference or self.attempted_path == reference:
+                return self.directory if reference else None
+            self.attempted_path = reference
             self.generation += 1
             generation = self.generation
         try:
-            candidate = parse_directory(path)
+            candidate = read_snapshot(snapshot_id) if snapshot_id else parse_directory(path)
             error = None
-        except (OSError, ValueError):
+        except (OSError, ValueError, KeyError, TypeError):
             candidate = None
-            error = 'Directory could not be read or validated. Previous valid data is retained; review Data Sources.'
+            error = 'Directory data could not be restored. Re-import a readable CSV in Data Sources; SAP lookup is unaffected.'
         with self.lock:
             if generation == self.generation:
                 if candidate is not None:

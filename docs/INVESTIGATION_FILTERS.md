@@ -46,15 +46,22 @@ User Details and Release Roles share inclusive filters for:
 
 - Valid from: earliest and latest dates.
 - Valid to: earliest and latest dates.
-- Open-ended assignments: include, only, or exclude `31.12.9999`.
+- **Include assignments without end date** (checked by default).
 
-A compact expandable date control announces when filters are active. Start and
-end bounds can be cleared independently; clearing valid-to also clears its
-open-ended restriction. Each view's global filter reset includes both sets of
-dates. Invalid/inverted ranges remain editable and return validation errors.
-Bounds apply to the source assignment interval, not the account interval or
-import time. Missing values never satisfy an active bound. Without a bound,
-unknown-date records remain available under the existing validity filters.
+A compact calendar/filter button lives in the assignment toolbar, below User
+Information and account/profile cards. The expandable controls use Norwegian
+`DD.MM.YYYY` text entry and an integrated Norwegian calendar. Draft edits do not
+filter until **Apply date filters**. Invalid dates/reversed ranges remain editable.
+Cancel discards drafts; Clear resets date filters; applied date chips can each be
+removed independently. The broader Clear action also works with date-only filters.
+
+Start/end bounds are inclusive and compare source assignment dates, never account
+validity or import timestamps. A missing start cannot satisfy an active start bound.
+With the checkbox checked, genuinely missing ends are included even with end bounds;
+unchecking excludes them, without turning them into active assignments. The real SAP
+maximum `31.12.9999` obeys end bounds and is never treated as missing. No date bound
+changes existing status interpretation. Filters apply before pagination/counts,
+release facets and matrix cells; CSV exports freeze the same predicates.
 
 The existing validity calculation is deliberately preserved: a known past end
 proves expiry even if the start is missing, and a known future start proves a
@@ -88,6 +95,33 @@ Release list/table/matrix mode, filters, sort and pagination remain in the ownin
 view while details and user investigations are opened. Changing dates in release
 details updates the same filtered navigation context used by the origin list.
 
+## Editable User Access transactions and compact catalogue search
+
+User Access uses the shared live transaction input with Enter-to-save chips,
+case normalization, duplicate prevention, removable chips and AND by default.
+AND requires every code to have retained evidence for the **same SAP user**; different
+relevant assigned roles may explain different codes. OR needs any selected code.
+Username search, group, role evidence and expiry rules are combined with this set
+before counts, sorting, pagination and global detail navigation. Relevant-role counts
+use assignment evidence for the selected codes. Identical users never count twice.
+Unmapped or ambiguous catalogue links cannot supply transaction evidence.
+
+Incoming single-code evidence seeds the same editable chip state, not a second
+hidden transaction filter. The active evidence toolbar has one clear action; it
+clears role/T-code evidence while preserving search, group, sort and expiry controls.
+Clearing all codes restores AND. The legacy `tcode` API query remains supported;
+repeated `tcodes` and `transaction_mode=and|or` provide multi-code directory filtering.
+When no catalogue is loaded, transaction filtering cannot be evaluated and is not
+applied; the UI explains this while ordinary directory search/group filters remain
+usable. Disabling User–Role Mapping blocks assignment APIs and unmounts their views.
+Role-derived evidence remains distinct from effective SAP authorization.
+
+Role Lookup places name/description search and exact transaction search in a shared
+70/30 desktop row, retaining sorting. At 800 pixels and below they stack. Selected
+chips sit below, with the shared AND/OR selector before them. SAP area multi-selection
+and Clear all filters keep their previous semantics. Dashboard owns the former KPI
+row; see [Dashboard and shared notifications](DASHBOARD.md).
+
 ## API additions
 
 `GET /api/roles` accepts repeated `function_keys` (OR) and
@@ -96,7 +130,7 @@ The legacy `function_key` and `tcode` parameters remain supported.
 
 `GET /api/access/users/{username}`, `/releases`, `/release-options` and
 `/release-assignments` accept `valid_from_min`, `valid_from_max`, `valid_to_min`,
-`valid_to_max` (ISO dates) and `open_ended=only|exclude`. Omit empty bounds.
+`valid_to_max` (ISO dates), plus `include_missing_end=false` to exclude missing ends (default true). Omit empty bounds. Legacy `open_ended=only|exclude` remains accepted by the API for compatibility but is no longer exposed in the UI.
 Invalid ranges return 422. `/release-assignments` returns `role_info` from the
 existing strict backend parser when an exact role is requested.
 

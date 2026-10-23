@@ -183,7 +183,12 @@ for (const theme of ['light', 'dark']) for (const width of [800, 1280]) test(`li
   await catalogueFilter.getByRole('textbox').fill('MIGO'); await catalogueFilter.getByRole('textbox').press('Enter'); await catalogueFilter.getByRole('textbox').fill('VA03')
   await catalogueFilter.getByRole('button', { name: 'OR', exact: true }).click()
   await expect(page.getByRole('article')).toHaveCount(2)
-  expect((await catalogueFilter.boundingBox())!.height).toBeLessThan(150)
+  // The compact grid uses display:contents for the semantic group. Measure the
+  // actual input-to-chips extent rather than an intentionally boxless wrapper.
+  const inputBox = (await catalogueFilter.getByRole('textbox').boundingBox())!
+  const chipsBox = (await catalogueFilter.locator('.transaction-chips').boundingBox())!
+  expect(chipsBox.y).toBeGreaterThanOrEqual(inputBox.y + inputBox.height)
+  expect(chipsBox.y + chipsBox.height - inputBox.y).toBeLessThan(150)
   await page.screenshot({ path: info.outputPath('role-lookup-buttons.png'), fullPage: true })
   await page.getByRole('button', { name: 'View details for Purchasing', exact: true }).click()
   const panel = page.getByRole('dialog'), codes = panel.getByRole('group', { name: 'Find transaction code', exact: true })

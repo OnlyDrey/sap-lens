@@ -20,6 +20,7 @@ def export_configuration(config: AppConfig, include_private: bool = False):
     exported.data_csv_path = ''
     exported.user_csv_path = ''
     exported.employee_csv_path = ''
+    exported.employee_snapshot_id = None
     exported.revision = 0
     image = logo_bytes(exported.logo_id) if include_private else None
     if not image: exported.logo_id = None
@@ -28,7 +29,7 @@ def export_configuration(config: AppConfig, include_private: bool = False):
 
 def read_portable(package: PortableConfig, local_path: str, local_user_path: str = ''):
     config = package.settings.model_copy(deep=True)
-    if config.data_csv_path or config.user_csv_path or config.employee_csv_path: raise ValueError('Portable packages must not contain filesystem paths.')
+    if config.data_csv_path or config.user_csv_path or config.employee_csv_path or config.employee_snapshot_id: raise ValueError('Portable packages must not contain filesystem paths.')
     if package.logo_base64:
         try: data = base64.b64decode(package.logo_base64, validate=True)
         except (ValueError,binascii.Error) as exc: raise ValueError('Logo encoding is invalid.') from exc

@@ -48,6 +48,8 @@ def configuration_router(loader):
         try:
             current = get_settings()
             validate_configuration(config,current)
+            if config.employee_snapshot_id and config.employee_snapshot_id != current.employee_snapshot_id:
+                raise HTTPException(400, 'Import directory records through the validated import workflow.')
             if config.employee_csv_path and config.employee_csv_path != current.employee_csv_path:
                 raise HTTPException(400, 'Preview and confirm Employee Directory replacements in Data Sources.')
             if config.revision != current.revision or expected != current.revision:
@@ -67,7 +69,7 @@ def configuration_router(loader):
                 save_configuration(config,expected)
                 if changed: cache.clear_cache()
                 if not (config.data_csv_path or config.user_csv_path): loader.error = 'Choose a SAP role catalogue or user access CSV in Settings.'
-            if not config.employee_csv_path:
+            if not config.employee_csv_path and not config.employee_snapshot_id:
                 from employee_directory import store
                 store.clear()
             return read_config()
@@ -117,6 +119,7 @@ def configuration_router(loader):
         try: candidate = read_portable(package,get_settings().data_csv_path,get_settings().user_csv_path)
         except (OSError,ValueError): raise HTTPException(400,'Invalid configuration package or logo; nothing was applied.')
         candidate.employee_csv_path = get_settings().employee_csv_path
+        candidate.employee_snapshot_id = get_settings().employee_snapshot_id
         candidate.revision = get_settings().revision
         return await apply(candidate,candidate.revision)
 

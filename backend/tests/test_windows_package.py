@@ -36,7 +36,7 @@ class WindowsPackageTests(unittest.TestCase):
 
     def test_private_and_development_inputs_rejected_without_disclosing_names(self):
         assets = list(package.REQUIRED)
-        for private in ['settings.json', 'data/private.csv', 'branding/private.sap-lens.json', 'sap-lens.log',
+        for private in ['employee-directory/snapshot.json', 'settings.json', 'data/private.csv', 'branding/private.sap-lens.json', 'sap-lens.log',
                         'credentials.yaml', '.npmrc', 'secrets.yml', 'sap-lens.log.1', '.env', '.env.production.local', 'runtime.json', 'credentials.json',
                         'key.pem', 'signing.pfx', 'key.key', 'frontend/dist/assets/source.js.map', 'debug.pdb',
                         'node_modules/pkg/index.js', 'tests/fixture.json', 'fixtures/data.json', '__pycache__/x.pyc',

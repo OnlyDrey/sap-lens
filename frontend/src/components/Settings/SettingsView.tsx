@@ -1,3 +1,4 @@
+import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
 import { EmployeeSource, FeatureSettings } from './EmployeeDirectory'
 import { ImportSection } from './ImportSection'
 import { SourceStatus } from "./SourceStatus"
@@ -117,6 +118,9 @@ export function SettingsView({
   const [busy, setBusy] = useState(false)
   const [native, setNative] = useState(Boolean(window.pywebview?.api))
   const [error, setError] = useState<string | null>(null)
+  const [settingsTarget] = useHistoryValue('settingsTarget')
+  const {change: changeSettingsTarget} = useViewHistory()
+  useEffect(()=>{if(open && settingsTarget) {setSection(settingsTarget === 'diagnostics' ? 4 : settingsTarget === 'features' ? 5 : 1); if(settingsTarget === 'employees') setImportSource('employees'); changeSettingsTarget({settingsTarget:undefined},true)}},[open,settingsTarget])
   const [message, setMessage] = useState<string | null>(null)
   const [columns, setColumns] = useState<string[]>([])
   const [inspectionMessage, setInspectionMessage] = useState('')
@@ -734,7 +738,7 @@ export function SettingsView({
                           } }}><Icon size={16} aria-hidden="true" className="shrink-0"/><span>{label}</span></button>)}
                       </div>
                       <div id="source-panel-employees" role="tabpanel" aria-labelledby="source-tab-employees" hidden={importSource !== 'employees'}>
-                        {importSource === 'employees' && <EmployeeSource revision={draft.revision} savedPath={config.data?.settings.employee_csv_path || ''} dirty={JSON.stringify(draft) !== JSON.stringify(config.data?.settings)} onImported={async () => { const result = await config.refetch(); if (result.data) setDraft(structuredClone(result.data.settings)) }}/>}
+                        {importSource === 'employees' && <EmployeeSource onFeatureSettings={() => setSection(5)} revision={draft.revision} savedPath={config.data?.settings.employee_csv_path || ''} dirty={JSON.stringify(draft) !== JSON.stringify(config.data?.settings)} onImported={async () => { const result = await config.refetch(); if (result.data) setDraft(structuredClone(result.data.settings)) }}/>}
                       </div>
                       <div id="source-panel-users" role="tabpanel" aria-labelledby="source-tab-users" hidden={importSource !== 'users'}>
                         <UserSourceEditor draft={draft} onChange={setDraft} native={native} active={importSource === 'users'} />
@@ -1068,10 +1072,10 @@ export function SettingsView({
                       </p>
                     </div>
                   }
-                  {section === 5 && <FeatureSettings draft={draft} onChange={setDraft} onConfigure={() => { setSection(1); setImportSource('employees') }}/>}
+                  {section === 5 && <FeatureSettings draft={draft} onChange={setDraft} onConfigure={source => { setSection(1); setImportSource(source) }}/>}
                   {section === 4 && (
                     <>
-                      <Diagnostics native={native} onEmployeeSettings={() => { setSection(1); setImportSource('employees') }}/>
+                      <Diagnostics native={native} onEmployeeFeatures={() => setSection(5)} onEmployeeSettings={() => { setSection(1); setImportSource('employees') }}/>
                       <h2 className="settings-subheading">Backup & recovery</h2>
                       <p className="text-sm text-[var(--text2)]">
                         Export saved settings before an update, or restore a
@@ -1232,7 +1236,7 @@ export function SettingsView({
             <Save size={16} aria-hidden="true" />
             {busy
               ? 'Working…'
-              : section === 1
+              : section === 1 && importSource !== 'employees'
                 ? 'Save and load CSV'
                 : 'Apply settings'}
           </button>

@@ -27,7 +27,7 @@ def diagnostics_snapshot(loader=None, private=False):
     ]:
         loaded_path = state.loaded_sources.get(key, '')
         attempt = getattr(loader, 'source_attempts', {}).get(key, {}) if loader else {}
-        source = dict(id=key, name=name, configured=bool(path), loaded=bool(loaded_path),
+        source = dict(enabled=settings.features.user_role_mapping if key == 'users' else True, id=key, name=name, configured=bool(path), loaded=bool(loaded_path),
                       records=count, assignments=state.users.report.get('assignments', 0) if key == 'users' else report.get('transaction_assignments', 0),
                       last_successful_load=state.last_loaded.isoformat() if loaded_path and state.last_loaded else None,
                       availability=attempt.get('error') if attempt.get('path') == path and path else 'available_at_last_load' if loaded_path and loaded_path == path else 'not_checked',

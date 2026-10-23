@@ -5,7 +5,7 @@ import { onColor } from '@/lib/theme'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
-  Search, GitCompare, X, Users, Activity, LayoutGrid,
+  Search, GitCompare, X,
   AlertTriangle, RefreshCw, ArrowUpDown, Zap
 } from 'lucide-react'
 import { useModules } from '@/hooks/useModules'
@@ -189,11 +189,6 @@ export function RoleList({
     return Object.entries(map).filter(([key]) => modules.find(m=>m.function_key===key)?.enabled !== false).sort(([a],[b]) => a.localeCompare(b))
   }, [allRolesRaw, modules])
 
-  const totalTcodes = useMemo(
-    () => allRolesRaw.reduce((s, r) => s + r.tcode_count, 0),
-    [allRolesRaw]
-  )
-
   const visible = useMemo(() => {
     let results: RoleSummary[]
 
@@ -249,74 +244,17 @@ export function RoleList({
   return (
     <div className="flex flex-col gap-4">
 
-      {!isLoading && !isError && allRolesRaw.length > 0 && (
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            {
-              label:'Roles',
-              value:allRolesRaw.length.toLocaleString(),
-              color:'var(--accent2)',
-              Icon:Users
-            },
-            {
-              label:'Enabled areas',
-              value:moduleGroups.length.toLocaleString(),
-              color:'var(--accent2)',
-              Icon:LayoutGrid
-            },
-            {
-              label:'Role / T-code pairs',
-              value:totalTcodes.toLocaleString(),
-              color:'var(--text)',
-              Icon:Activity
-            },
-          ].map(({ label, value, color, Icon }) => (
-            <div
-              key={label}
-              className="rounded-xl border px-4 py-3 shadow-sm flex items-center gap-3"
-              style={{
-                backgroundColor:'var(--surface)',
-                borderColor:'var(--border)'
-              }}
-            >
-              <div
-                className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
-                style={{ backgroundColor:'var(--surface2)' }}
-              >
-                <Icon className="w-4 h-4" style={{ color }} />
-              </div>
-
-              <div>
-                <p
-                  className="text-xl font-black leading-none"
-                  style={{ color }}
-                >
-                  {value}
-                </p>
-                <p
-                  className="text-xs font-medium mt-0.5"
-                  style={{ color:'var(--muted)' }}
-                >
-                  {label}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-
       <div
-        className="rounded-2xl border px-4 py-3 flex flex-col gap-3 shadow-sm"
+        className="catalogue-search-controls rounded-2xl border px-4 py-3 gap-3 shadow-sm"
         style={{
           backgroundColor:'var(--surface)',
           borderColor:'var(--border)'
         }}
       >
-        <TransactionFilter label="Filter catalogue by transaction" filter={transaction} mode={transactionMode} onModeChange={setTransactionMode} showClear={false}/>
+        <TransactionFilter compact label="Filter catalogue by transaction" filter={transaction} mode={transactionMode} onModeChange={setTransactionMode} showClear={false}/>
         {transaction.codes.length > 0 && <p className="text-xs text-[var(--muted)]">Exact transaction filters match {transactionMode === 'and' ? 'every selected code (AND)' : 'any selected code (OR)'}, combined with text and module filters (AND). Roles without supplied mappings are excluded; source completeness cannot be established.</p>}
         {exactTransactions.isError && transaction.codes.length > 0 && <p role="alert">Transaction filtering failed. {exactTransactions.error.message}</p>}
-        <div className="flex gap-2">
+        <div className="catalogue-role-search flex gap-2">
           <div className="relative flex-1">
             <Search
               className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"

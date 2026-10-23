@@ -397,7 +397,6 @@ button:hover .module-icon:not([data-disabled="true"]) { border-color: currentCol
 .user-role-toolbar > .transaction-filter { flex:1 1 220px; width:auto; }
 
 .assignment-date-filters { min-width:0; }
-.assignment-date-filters summary { cursor:pointer; flex-wrap:wrap; }
 .date-filter-input { min-width:0; width:100%; background:var(--surface); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px 12px; }
 .date-filter-input:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
 .assignment-date { white-space:nowrap; font-variant-numeric:tabular-nums; }
@@ -405,5 +404,67 @@ button:hover .module-icon:not([data-disabled="true"]) { border-color: currentCol
 .release-role-metadata { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:16px; }
 .release-role-metadata dt { font-size:13px; color:var(--text2); margin-bottom:4px; }
 .release-role-metadata dd { font-weight:600; overflow-wrap:anywhere; }
-.assignment-date-filters[open] .date-filter-chevron { transform:rotate(180deg); }
 .access-table[tabindex]:focus-visible { outline:2px solid var(--focus); outline-offset:3px; }
+
+/* Optional sources and compact assignment controls share semantic theme tokens. */
+.feature-card { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-3, .75rem); }
+.feature-card > div:first-child { flex:1 1 18rem; }
+.directory-quality-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,12rem),1fr)); gap:.75rem; }
+.employee-profile-heading { display:flex; align-items:center; gap:.75rem; overflow-wrap:anywhere; }
+.employee-avatar { display:grid; place-items:center; flex:none; width:3rem; height:3rem; border-radius:50%; background:var(--hover); color:var(--muted); }
+.employee-profile-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.75rem; }
+.employee-profile-fields dt { color:var(--muted); font-size:.75rem; }
+.employee-profile-fields dd { overflow-wrap:anywhere; }
+.employee-manager { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:.75rem; border-top:1px solid var(--border); padding-top:.75rem; }
+.assignment-date-filters { min-width:0; }
+.assignment-date-panel { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg,.75rem); padding:.75rem; margin-top:.5rem; }
+.date-input-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.75rem; }
+.norwegian-date-field { min-width:0; }
+.norwegian-date-field input { width:100%; min-width:0; }
+.norwegian-calendar { border:1px solid var(--border); border-radius:.5rem; padding:.5rem; margin-top:.5rem; background:var(--surface); }
+.calendar-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:.125rem; }
+.calendar-day { border-radius:.25rem; padding:.25rem 0; font-size:.8rem; }
+.calendar-day:hover { background:var(--hover); }
+.calendar-day[aria-pressed="true"] { background:var(--primary); color:var(--on-primary); }
+.calendar-day:focus-visible { outline:2px solid var(--focus); outline-offset:1px; }
+.user-role-toolbar > .assignment-date-filters:has(.assignment-date-panel) { flex-basis:100%; }
+@media(max-width:600px) { .employee-profile-fields,.date-input-grid { grid-template-columns:1fr; } }
+.assignment-date-panel .filter-toggle { flex-wrap:nowrap; }
+.assignment-date-panel .filter-toggle input[type="checkbox"] { width:16px; height:16px; min-height:16px; padding:0; }
+@media(max-width:640px) {
+  header[role="banner"] > div:first-child { flex-wrap:wrap; padding-top:.5rem; padding-bottom:.5rem; }
+  header[role="banner"] fieldset { order:3; flex-basis:100%; }
+  header[role="banner"] .primary-navigation { justify-content:center; }
+}
+.catalogue-search-controls { display:grid; grid-template-columns:minmax(0,7fr) minmax(0,3fr); }
+.catalogue-search-controls > * { grid-column:1/-1; }
+.catalogue-search-controls > .transaction-filter { display:contents; }
+.catalogue-search-controls .transaction-input-label { grid-column:2; grid-row:1; }
+.catalogue-search-controls .transaction-input { min-height:42px; }
+.catalogue-search-controls .catalogue-role-search { grid-column:1; grid-row:1; min-width:0; }
+.catalogue-search-controls .catalogue-role-search input { height:42px; }
+.catalogue-search-controls .transaction-chips { grid-column:1/-1; grid-row:2; }
+.dashboard-grid { display:grid; grid-auto-rows:1fr; grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr)); gap:1rem; }
+.dashboard-kpi { display:flex; flex-direction:column; gap:.75rem; text-align:left; height:100%; }
+.dashboard-kpi:hover { background:var(--hover); }
+.dashboard-kpi:focus-visible,.notification-close:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
+.notification { color:var(--text); background:var(--surface); }
+.notification-success { color:var(--success); }
+.notification-error { color:var(--error); background:var(--error-bg); }
+.notification-warning { color:var(--warning); }
+.notification-info { color:var(--info); }
+.notification-content { max-width:1536px; margin-inline:auto; padding:.5rem 1rem; display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; font-size:.8rem; }
+.notification-content > div { min-width:0; overflow-wrap:anywhere; }
+.notification-close { padding:.25rem; flex:none; border-radius:.375rem; }
+.notification-close:hover { background:var(--hover); }
+@media(max-width:800px) { .catalogue-search-controls { grid-template-columns:minmax(0,1fr); } .catalogue-search-controls .catalogue-role-search { grid-row:1; } .catalogue-search-controls .transaction-input-label { grid-column:1; grid-row:2; } .catalogue-search-controls .transaction-chips { grid-row:3; } }
+
+@media(min-width:640px) { .notification-content { padding-inline:1.5rem; } }
+.active-evidence-filter > .transaction-filter { flex:1 1 20rem; min-width:0; }
+.user-role-toolbar > .assignment-date-filters > button,
+.user-role-toolbar > .clear-filter-button { margin-top:24px; }
+.user-role-toolbar > .assignment-date-filters { max-width:100%; }
+
+.assignment-date-filters { max-width:100%; }
+.release-assignment-toolbar > .assignment-date-filters:has(.assignment-date-panel) { flex-basis:100%; }
+.release-filters .assignment-date-filters:has(.assignment-date-panel) { grid-column:1/-1; }
