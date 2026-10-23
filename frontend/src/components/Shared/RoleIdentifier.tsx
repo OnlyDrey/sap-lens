@@ -17,6 +17,7 @@ export function RoleIdentifier({ value, label = 'role identifier', onOpen, openL
     <span
       className="role-identifier"
       data-np
+      data-copied={message === 'Copied'}
       onClick={(e) => e.stopPropagation()}
     >
       {onOpen ? <button {...openButtonProps} type="button" className="role-identifier-link" aria-label={openLabel || `Open ${value}`} onClick={onOpen}><code>{value}</code><ArrowUpRight size={14} aria-hidden="true" className="shrink-0"/></button> : <code>{value}</code>}
@@ -31,7 +32,7 @@ export function RoleIdentifier({ value, label = 'role identifier', onOpen, openL
           } catch {
             setMessage('Copy failed. Select the identifier to copy manually.')
           }
-          timer.current = setTimeout(() => setMessage(''), 2200)
+          timer.current = setTimeout(() => setMessage(''), 2000)
         }}
       >
         {message === 'Copied' ? (

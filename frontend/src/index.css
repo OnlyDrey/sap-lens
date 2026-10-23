@@ -155,7 +155,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,su
 .role-identifier button:focus-visible, .role-expand:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .role-copy-feedback { color: var(--text); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
 .role-copy-feedback:empty { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-.role-copy-feedback:not(:empty) { padding-top:2px; flex-basis:100%; font-size:12px; }
+.role-identifier:not([data-copied="true"]) > .role-copy-feedback:not(:empty) { padding-top:2px; flex-basis:100%; font-size:12px; }
+.role-identifier[data-copied="true"] > .role-copy-feedback { position:absolute; inset:4px 36px 4px 6px; display:flex; align-items:center; justify-content:center; border-radius:4px; background:var(--surface2); color:var(--text); font-size:12px; pointer-events:none; }
 .module-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 50%; background: var(--module-tint); color: var(--module-foreground); border: 1px solid transparent; }
 .module-icon-small { width: 24px; height: 24px; }
 .module-icon-medium { width: 32px; height: 32px; }
