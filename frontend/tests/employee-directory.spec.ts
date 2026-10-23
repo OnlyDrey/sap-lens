@@ -205,7 +205,7 @@ for (const theme of ['light', 'dark'] as const)
     test(`directory settings visual and keyboard QA ${theme} ${width}`, async ({
       page,
       request,
-    }) => {
+    }, info) => {
       await importDirectory(request)
       await enable(request)
       const current = await settings(request)
@@ -242,7 +242,7 @@ for (const theme of ['light', 'dark'] as const)
           () => document.documentElement.scrollWidth <= innerWidth,
         ),
       ).toBe(true)
-      const out = '/workspace/sap-lens-dev/employee-directory-qa'
+      const out = info.outputPath('qa')
       mkdirSync(out, { recursive: true })
       await page.screenshot({
         path: `${out}/data-sources-${theme}-${width}.png`,
@@ -310,4 +310,30 @@ test('duplicate and missing email states remain distinct with diagnostics warnin
   ).json()
   expect(status.status).toBe('warning')
   expect(status.report.duplicate_emails).toBe(1)
+})
+
+test('directory import and clear preserve independent catalogue filters, comparison and SAP generation', async ({ page, request }) => {
+  const before = (await (await request.get('/api/access/users/DEMO_EMPLOYEE', { headers })).json()).data_revision
+  await page.goto('/#session=browser-test-session')
+  const search = page.getByPlaceholder('Search roles by name or description...')
+  await search.fill('finance')
+  await page.getByRole('button', { name: 'Add to comparison', exact: true }).first().click()
+  await page.getByRole('button', { name: 'Open settings', exact: true }).click()
+  await page.getByRole('tab', { name: 'Data Sources', exact: true }).click()
+  await page.getByRole('tab', { name: 'Employee Directory', exact: true }).click()
+  await page.getByLabel('Employee Directory CSV location', { exact: true }).fill(csv)
+  await page.getByRole('button', { name: 'Validate & preview directory', exact: true }).click()
+  await page.getByRole('button', { name: 'Confirm directory replacement', exact: true }).click()
+  await expect(page.getByRole('region', { name: 'Directory import preview' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Back to SAP Lens', exact: true }).click()
+  await expect(search).toHaveValue('finance')
+  await expect(page.getByRole('button', { name: 'Remove from comparison', exact: true })).toHaveCount(1)
+  expect((await (await request.get('/api/access/users/DEMO_EMPLOYEE', { headers })).json()).data_revision).toBe(before)
+  await page.getByRole('button', { name: 'Open settings', exact: true }).click()
+  page.once('dialog', dialog => dialog.accept())
+  await page.getByRole('button', { name: 'Clear directory data', exact: true }).click()
+  await expect(page.getByLabel('Employee Directory CSV location', { exact: true })).toHaveValue('')
+  await page.getByRole('button', { name: 'Back to SAP Lens', exact: true }).click()
+  await expect(search).toHaveValue('finance')
+  await expect(page.getByRole('button', { name: 'Remove from comparison', exact: true })).toHaveCount(1)
 })

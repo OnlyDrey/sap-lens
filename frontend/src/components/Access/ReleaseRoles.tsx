@@ -1,8 +1,11 @@
+import { formatDate } from '@/lib/dateFormat'
+import { AssignmentDateFilters, emptyDates, dateParams, datesActive, type AssignmentDates } from '@/components/Shared/AssignmentDateFilters'
+import { ClearFilterButton } from '@/components/Shared/ClearFilterButton'
 import { Select } from '@/components/Shared/Select';
 import { useHistoryValue, type ReleaseDrill } from '@/hooks/useViewHistory';
 import { List, Grid3X3 } from 'lucide-react';
 import { useRecordNavigation, type RecordNavigationState } from "@/hooks/useRecordNavigation";
-import { DetailNavigation, EvidenceBadge, AccountEvidence, DetailButton } from "@/components/Shared/InvestigationNavigation";
+import { DetailNavigation, AssignmentStatus, DetailButton } from "@/components/Shared/InvestigationNavigation";
 import { ReleaseFilter } from "./ReleaseFilter";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -12,6 +15,7 @@ import {
   type Cell,
   type Page,
   type ReleasePage,
+  type ReleaseInfo,
 } from "@/api/access";
 import { RoleIdentifier } from "@/components/Shared/RoleIdentifier";
 import {
@@ -31,6 +35,8 @@ export function ReleaseRoles({
   initialRole?: string;
   onUser: (name: string) => void;
 }) {
+  const [assignmentDates, setAssignmentDates] = useState({ ...emptyDates });
+  const dateKey = JSON.stringify(assignmentDates);
   const listScroll = useRef(0);
   const originFocus = useRef("");
   const originRole = useRef("");
@@ -66,13 +72,14 @@ export function ReleaseRoles({
     status,
     sort,
     descending,
-    compareGroups,
+    compareGroups, dateKey,
   ]);
-  const filters = { group, document_type: kind, release_group: releaseGroup, strategy, ...query, status, group_by_user_group: compareGroups, sort, descending };
+  const filters = { ...dateParams(assignmentDates), group, document_type: kind, release_group: releaseGroup, strategy, ...query, status, group_by_user_group: compareGroups, sort, descending };
   const navigation = useRecordNavigation('releases', { ...filters, status: drill?.status || status }, drill?.role || '', name => setDrill(previous => previous ? { ...previous, role: name } : previous));
   const result = useQuery({
     queryKey: [
       "release-roles",
+      assignmentDates,
       group,
       kind,
       releaseGroup,
@@ -98,6 +105,8 @@ export function ReleaseRoles({
   if (drill)
     return (
       <ReleaseDetail
+        assignmentDates={assignmentDates} onDatesChange={setAssignmentDates}
+        onStatusChange={value => { setStatus(value); setDrill(previous => previous ? { ...previous, status: value } : previous) }}
         drill={drill}
         status={drill.status || status}
         onBack={() => { setDrill(null); requestAnimationFrame(() => { const buttons = [...document.querySelectorAll<HTMLButtonElement>('button[aria-label]')];
@@ -127,14 +136,14 @@ export function ReleaseRoles({
       <EvidenceNote />
       <div className="investigation-filters release-filters">
         <fieldset><legend>Release classification</legend><div className="filter-grid">
-        <ReleaseFilter field="group" label="Release SAP User Group" value={group} onChange={setGroup} context={{ status }}/>
-        <ReleaseFilter field="document_type" label="PR/PO" value={kind} onChange={setKind} context={{ group, status }}/>
-        <ReleaseFilter field="release_group" label="Release Group" value={releaseGroup} onChange={setReleaseGroup} context={{ group, document_type:kind, status }}/>
-        <ReleaseFilter field="strategy" label="Release Strategy" value={strategy} onChange={setStrategy} context={{ group, document_type:kind, release_group:releaseGroup, status }}/>
+        <ReleaseFilter field="group" label="Release SAP User Group" value={group} onChange={setGroup} context={{ ...dateParams(assignmentDates), status }}/>
+        <ReleaseFilter field="document_type" label="PR/PO" value={kind} onChange={setKind} context={{ ...dateParams(assignmentDates), group, status }}/>
+        <ReleaseFilter field="release_group" label="Release Group" value={releaseGroup} onChange={setReleaseGroup} context={{ ...dateParams(assignmentDates), group, document_type:kind, status }}/>
+        <ReleaseFilter field="strategy" label="Release Strategy" value={strategy} onChange={setStrategy} context={{ ...dateParams(assignmentDates), group, document_type:kind, release_group:releaseGroup, status }}/>
         </div></fieldset>
         <fieldset><legend>Assignment</legend><div className="filter-grid">
-        <ReleaseFilter field="username" label="Release username" value={username} onChange={setUsername} context={{ group, document_type:kind, release_group:releaseGroup, strategy, status }}/>
-        <ReleaseFilter field="role" label="Release role name" value={role} onChange={setRole} context={{ group, document_type:kind, release_group:releaseGroup, strategy, status }}/>
+        <ReleaseFilter field="username" label="Release username" value={username} onChange={setUsername} context={{ ...dateParams(assignmentDates), group, document_type:kind, release_group:releaseGroup, strategy, status }}/>
+        <ReleaseFilter field="role" label="Release role name" value={role} onChange={setRole} context={{ ...dateParams(assignmentDates), group, document_type:kind, release_group:releaseGroup, strategy, status }}/>
         <Filter label="Release assignment status">
           <Select
             className={inputClass}
@@ -185,7 +194,8 @@ export function ReleaseRoles({
         </label>
         </div></fieldset>
       </div>
-      {(group || kind || releaseGroup || strategy || username || role || status !== 'active') && <button className="settings-secondary-button" onClick={() => { setGroup(''); setKind(''); setReleaseGroup(''); setStrategy(''); setUsername(''); setRole(''); setStatus('active') }}>Reset filters</button>}
+      <AssignmentDateFilters value={assignmentDates} onChange={setAssignmentDates}/>
+      {(group || kind || releaseGroup || strategy || username || role || status !== 'active' || datesActive(assignmentDates) || descending || sort !== 'role_name') && <ClearFilterButton onClick={() => { setGroup(''); setKind(''); setReleaseGroup(''); setStrategy(''); setUsername(''); setRole(''); setStatus('active'); setAssignmentDates({ ...emptyDates }); setSort('role_name'); setDescending(false) }}>Reset filters</ClearFilterButton>}
       <div className="results-toolbar">
         <h2>Release assignments <span>{result.data?.total.toLocaleString() ?? '…'} {result.data?.total === 1 ? 'role' : 'roles'}</span></h2>
         <div className="segmented-control" role="group" aria-label="Release results view">
@@ -251,7 +261,7 @@ export function ReleaseRoles({
                         {r.assigned_users} {r.assigned_users === 1 ? "user" : "users"} · {r.assignment_count} {r.assignment_count === 1 ? "record" : "records"}
                       </td>
                       <td>
-                        <div className="flex flex-wrap gap-1">{r.statuses.map(status => <EvidenceBadge key={status} value={status}/>)}</div>
+                        <div className="flex flex-wrap gap-1">{r.statuses.map(status => <AssignmentStatus key={status} value={status}/>)}</div>
                         <span className="validity-evidence text-sm text-[var(--muted)]">
                           Observed range: {dates(r.valid_from, r.valid_to)}
                           {r.missing_dates ? " · Missing dates present" : ""};
@@ -383,85 +393,172 @@ function ReleaseDetail({
   onBack,
   onUser,
   navigation,
+  assignmentDates,
+  onDatesChange,
+  onStatusChange,
 }: {
-  navigation: RecordNavigationState;
-  drill: Drill;
-  status: string;
-  onBack: () => void;
-  onUser: (name: string) => void;
+  navigation: RecordNavigationState
+  drill: Drill
+  status: string
+  onBack: () => void
+  onUser: (name: string) => void
+  assignmentDates: AssignmentDates
+  onDatesChange: (value: AssignmentDates) => void
+  onStatusChange: (value: string) => void
 }) {
-  const [offset, setOffset] = useState(0);
-  useEffect(() => setOffset(0), [drill]);
+  const [offset, setOffset] = useState(0)
+  const dateKey = JSON.stringify(assignmentDates)
+  useEffect(() => setOffset(0), [drill, dateKey, status])
   const result = useQuery({
-    queryKey: ["release-assignments", drill, status, offset],
+    queryKey: ['release-assignments', drill, status, offset, assignmentDates],
     queryFn: () =>
-      accessQuery<Page<Assignment> & { distinct_users: number }>(
-        "release-assignments",
-        { ...drill, status, offset } as Record<
-          string,
-          string | number | boolean
-        >,
-      ),
-  });
+      accessQuery<
+        Page<Assignment> & {
+          distinct_users: number
+          role_info: ReleaseInfo | null
+        }
+      >('release-assignments', {
+        ...drill,
+        ...dateParams(assignmentDates),
+        status,
+        offset,
+      } as Record<string, string | number | boolean>),
+  })
+  const info = result.data?.role_info
   return (
     <section aria-label="Release role details" className="space-y-4">
-      <DetailNavigation parent="Release Roles" current={drill.role || 'Release role details'} onBack={onBack} {...navigation}/>
-      <h1 className="text-xl font-semibold">Release role details</h1>
-      {drill.role && <RoleIdentifier value={drill.role} />}
-      <p>
-        {drill.document_type} {drill.release_group} {drill.strategy}{" "}
-        {drill.group}
-      </p>
-      <EvidenceNote />
+      <DetailNavigation
+        parent="Release Roles"
+        current={drill.role || 'Release role details'}
+        onBack={onBack}
+        {...navigation}
+      />
+      <header className="information-card space-y-3">
+        <h1 className="text-xl font-semibold">Release role details</h1>
+        {drill.role && <RoleIdentifier value={drill.role} />}
+        <dl
+          className="release-role-metadata"
+          aria-label="Release role metadata"
+        >
+          <div>
+            <dt>Release type</dt>
+            <dd>
+              {drill.role ? (result.isLoading ? '…' : info?.document_type || 'Unparsed') : drill.document_type || 'All'}
+            </dd>
+          </div>
+          <div>
+            <dt>Release group</dt>
+            <dd>{(drill.role ? info?.release_group : drill.release_group) || '—'}</dd>
+          </div>
+          <div>
+            <dt>Release strategy</dt>
+            <dd>{(drill.role ? info?.release_strategy : drill.strategy) || '—'}</dd>
+          </div>
+          <div>
+            <dt>Distinct assigned users</dt>
+            <dd>{result.data?.distinct_users ?? '…'}</dd>
+          </div>
+          <div>
+            <dt>Assignment records</dt>
+            <dd>{result.data?.total ?? '…'}</dd>
+          </div>
+        </dl>
+        {drill.group && <p>SAP User Group: {drill.group}</p>}
+      </header>
+      <div className="flex flex-wrap gap-3 items-end">
+        <Filter label="Assignment status">
+          <Select
+            className={inputClass}
+            value={status}
+            onChange={(event) => onStatusChange(event.target.value)}
+          >
+            <option value="active">Currently valid</option>
+            <option value="all">All assignments</option>
+            <option value="expired">Expired</option>
+            <option value="future">Future</option>
+            <option value="unknown">Unknown validity</option>
+          </Select>
+        </Filter>
+        {(datesActive(assignmentDates) || status !== 'active') && (
+          <ClearFilterButton
+            onClick={() => {
+              onDatesChange({ ...emptyDates })
+              onStatusChange('active')
+            }}
+          >
+            Clear assignment filters
+          </ClearFilterButton>
+        )}
+      </div>
+      <AssignmentDateFilters value={assignmentDates} onChange={onDatesChange} />
       <QueryState loading={result.isLoading} error={result.error} />
       {result.data && (
         <>
           <p>
-            {result.data.distinct_users} distinct users · {result.data.total}{" "}
-            assignment records
+            {drill.role
+              ? 'Counts reflect matching assignment records.'
+              : `${result.data.distinct_users} distinct users · ${result.data.total} assignment records in the current filters`}
           </p>
-          <div className="access-table">
+          <div
+            className="access-table"
+            role="region"
+            aria-label="Release role user assignments"
+            tabIndex={0}
+          >
             <table>
               <thead>
                 <tr>
-                  <th>Role</th>
-                  <th>PR/PO · Group · Strategy</th>
+                  {!drill.role && <th>Exact assigned role</th>}
                   <th>Username</th>
                   <th>User group</th>
-                  <th>Role validity / status</th>
-                  <th>Account evidence</th>
+                  <th>Valid from</th>
+                  <th>Valid to</th>
+                  <th>Assignment status</th>
+                  <th>Details</th>
                 </tr>
               </thead>
               <tbody>
                 {result.data.items.map((a) => (
                   <tr key={a.id}>
+                    {!drill.role && (
+                      <td>
+                        <RoleIdentifier value={a.role_name} />
+                      </td>
+                    )}
                     <td>
-                      <RoleIdentifier value={a.role_name} />
+                      <RoleIdentifier
+                        value={a.username}
+                        label="username"
+                        onOpen={() => onUser(a.username)}
+                        openLabel={`Open user ${a.username}`}
+                      />
+                    </td>
+                    <td>{a.user_group || 'Unknown'}</td>
+                    <td className="assignment-date">
+                      {formatDate(a.valid_from)}
+                    </td>
+                    <td className="assignment-date">
+                      {formatDate(a.valid_to)}
                     </td>
                     <td>
-                      {a.release?.parsed
-                        ? `${a.release.document_type} · ${a.release.release_group} · ${a.release.release_strategy}`
-                        : "Unparsed"}
+                      <AssignmentStatus value={a.status} />
                     </td>
                     <td>
                       <DetailButton
                         onClick={() => onUser(a.username)}
+                        aria-label={`View user details ${a.username}`}
                       >
-                        {a.username}
+                        View user details
                       </DetailButton>
-                    </td>
-                    <td>{a.user_group || "Unknown"}</td>
-                    <td>
-                      {dates(a.valid_from, a.valid_to)} <EvidenceBadge value={a.status}/>
-                    </td>
-                    <td>
-                      <AccountEvidence status={a.account_status} lock={a.user_locked === null ? 'Lock unknown' : a.user_locked ? 'Locked' : 'Unlocked'}/>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          {!result.data.items.length && (
+            <p>No assignments match these assignment filters.</p>
+          )}
           <Pagination
             offset={offset}
             total={result.data.total}
@@ -470,6 +567,7 @@ function ReleaseDetail({
           />
         </>
       )}
+      <EvidenceNote />
     </section>
-  );
+  )
 }

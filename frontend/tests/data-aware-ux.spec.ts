@@ -38,7 +38,7 @@ test('Back and Forward preserve meaningful views and detail state without reload
   await expect(detail.getByText('Copied',{exact:true})).toBeVisible()
   expect(await page.evaluate(()=>navigator.clipboard.readText())).toBe('DEMO_OTHER')
   await expect(page.getByRole('navigation', {name:'Account evidence pages'})).toHaveCount(0)
-  await expect(detail.locator('details')).toHaveCount(0)
+  await expect(detail.locator('details').filter({ hasText: 'User validity and account evidence' })).toHaveCount(0)
   await page.goBack()
   await expect(page.getByLabel('Search users', {exact:true})).toHaveValue('DEMO_OTHER')
   await expect(page.getByRole('button', {name:'DEMO_OTHER',exact:true})).toBeVisible()

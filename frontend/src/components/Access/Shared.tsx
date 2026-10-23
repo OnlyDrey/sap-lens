@@ -64,7 +64,7 @@ export function EvidenceNote() {
   return (
     <p className="text-sm text-[var(--muted)]">
       Role-derived transactions are investigation evidence, not proof of
-      effective SAP authorization. Missing dates mean unknown validity; account
+      effective SAP authorization. Missing dates never establish active access; account
       status and lock state are separate.
     </p>
   );

@@ -131,7 +131,7 @@ Windows behaviors. No real employee data should enter test logs or build inputs.
 The Employee Directory implementation was completed on `work` before starting
 subsequent role-filter refinements. The Linux baseline passed 236 backend tests
 (with deprecations treated as errors), TypeScript checking and the production
-build. Python runtime/development/desktop/build requirement audits found no known
+build, followed by all 113 browser tests. Python runtime/development/desktop/build requirement audits found no known
 vulnerabilities, and the JavaScript production audit found none. Seven unchanged
 JavaScript development-tool advisories remain (five high, two moderate).
 

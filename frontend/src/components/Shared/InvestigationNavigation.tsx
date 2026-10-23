@@ -46,3 +46,11 @@ export function AccountEvidence({ status, lock }: { status: string; lock: string
 export function DetailButton({ children, className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
   return <button {...props} className={`detail-button ${className}`}>{children}<ArrowRight size={14} aria-hidden="true"/></button>
 }
+
+/** Assignment validity only; account and lock evidence keep their own labels. */
+export function AssignmentStatus({ value }: { value: string }) {
+  const tone = value === 'active' ? 'success' : value === 'expired' ? 'error' : value === 'future' ? 'info' : 'neutral'
+  const Icon = value === 'active' ? CircleCheck : value === 'expired' ? CircleX : value === 'future' ? Clock : CircleHelp
+  const text = value === 'active' ? 'Active assignment' : value === 'expired' ? 'Expired assignment' : value === 'future' ? 'Future assignment' : 'Unknown validity'
+  return <span className={`evidence-badge evidence-${tone}`}><Icon size={13} aria-hidden="true"/>{text}</span>
+}

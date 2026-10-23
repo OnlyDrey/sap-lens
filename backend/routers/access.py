@@ -3,16 +3,18 @@
 from collections import defaultdict
 from datetime import date
 from typing import Literal
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
+from assignment_filters import assignment_dates, within_dates
 import cache
 from role_matching import normalize_role
-from transaction_filters import normalized_tcodes
+from transaction_filters import normalized_tcodes, matching_role_names
 from user_access import (
     assignment_view,
     interval_status,
     relevant,
     sap_date,
     normalize_username,
+    parse_release_role,
 )
 
 router = APIRouter(prefix="/api/access", tags=["User access"])
@@ -172,6 +174,7 @@ def users(
 @router.get("/users/{username:path}")
 def user_detail(
     username: str,
+    dates: dict = Depends(assignment_dates),
     show_expired: bool = False,
     status: Status = "",
     tcode: str = Query("", max_length=128),
@@ -191,12 +194,12 @@ def user_detail(
     entries = [
         a
         for a in user["assignments"]
-        if relevant(a, status, show_expired) and (not scope or (a["scope"] in {"business", "release"} if scope == "all" else a["scope"] == scope))
+        if within_dates(a, dates) and relevant(a, status, show_expired) and (not scope or (a["scope"] in {"business", "release"} if scope == "all" else a["scope"] == scope))
     ]
     unmapped = sum(a["match_status"] not in {"exact", "wildcard"} or not a["tcodes"] for a in entries)
     wanted_codes = normalized_tcodes([tcode] + tcodes if tcode else tcodes)
     if wanted_codes:
-        matched_names = {name for code in wanted_codes for name in state.tcode_index.get(code, [])}
+        matched_names = matching_role_names(state.tcode_index, wanted_codes, 'or')
         entries = [a for a in entries if a["match_status"] in {"exact", "wildcard"} and matched_names.intersection(a["catalogue_roles"])]
     rows = sorted(
         entries,
@@ -240,6 +243,7 @@ def user_detail(
 @router.get("/release-options")
 def release_options(
     field: Literal["group", "document_type", "release_group", "strategy", "username", "role"],
+    dates: dict = Depends(assignment_dates),
     search: str = Query("", max_length=512),
     selected: str = Query("", max_length=512),
     group: str = Query("", max_length=100),
@@ -258,7 +262,7 @@ def release_options(
     rank = {"group": 0, "document_type": 1, "release_group": 2, "strategy": 3, "username": 4, "role": 4}[field]
     values = set()
     for a in cache.get_snapshot().users.assignments:
-        if a["scope"] != "release" or not relevant(a, "" if status == "all" else status, True):
+        if a["scope"] != "release" or not within_dates(a, dates) or not relevant(a, "" if status == "all" else status, True):
             continue
         release = a["release"]
         kind = release["document_type"] or "Unparsed"
@@ -280,6 +284,7 @@ def release_options(
 
 @router.get("/releases")
 def releases(
+    dates: dict = Depends(assignment_dates),
     anchor: str = Query("", max_length=512),
     group: str = Query("", max_length=512),
     document_type: Literal["", "PR", "PO", "Unparsed"] = "",
@@ -306,7 +311,7 @@ def releases(
     buckets = defaultdict(list)
     cells = defaultdict(dict)
     for a in state.assignments:
-        if a["scope"] != "release":
+        if a["scope"] != "release" or not within_dates(a, dates):
             continue
         r = a["release"]
         if group and a["user_group"] != group:
@@ -393,6 +398,7 @@ def releases(
 
 @router.get("/release-assignments")
 def release_assignments(
+    dates: dict = Depends(assignment_dates),
     role: str = Query("", max_length=512),
     group: str = Query("", max_length=512),
     ungrouped: bool = False,
@@ -407,7 +413,7 @@ def release_assignments(
 ):
     entries = []
     for a in cache.get_snapshot().users.assignments:
-        if a["scope"] != "release":
+        if a["scope"] != "release" or not within_dates(a, dates):
             continue
         r = a["release"]
         if username and username.casefold() not in a["username"].casefold():
@@ -431,4 +437,4 @@ def release_assignments(
     )
     paged = page(entries, offset, limit)
     paged["items"] = [assignment_view(a) for a in paged["items"]]
-    return dict(**paged, distinct_users=len({a["user_key"] for a in entries}))
+    return dict(**paged, distinct_users=len({a["user_key"] for a in entries}), role_info=parse_release_role(role) if role else None)

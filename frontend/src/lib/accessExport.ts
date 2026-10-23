@@ -11,13 +11,13 @@ const csvHeader = ['Username', 'User group', 'Full name', 'Role', 'Role descript
 function assignmentLine(user: UserDetail, a: Assignment): string {
   return [user.username, a.user_group, [user.first_name, user.last_name].filter(Boolean).join(' '), a.role_name, a.role_description, a.scope === 'business' ? 'Business' : 'Release', a.valid_from, a.valid_to, a.status, a.release?.document_type, a.release?.release_group, a.release?.release_strategy].map(csvField).join(',') + '\r\n'
 }
-export async function exportAssignments(user: UserDetail, scope: string, status: string, current: () => boolean, tcodes: string[] = []): Promise<boolean> {
+export async function exportAssignments(user: UserDetail, scope: string, status: string, current: () => boolean, tcodes: string[] = [], dates: Record<string, string> = {}): Promise<boolean> {
   const chunks = ['\ufeff' + csvHeader + '\r\n'], seen = new Set<number>()
   const encoder = new TextEncoder()
   let byteCount = encoder.encode(chunks[0]).byteLength
   for (let offset = 0; offset < user.total; offset += 100) {
     if (!current()) throw new Error('Export cancelled because the selected user or filters changed.')
-    const page = await accessQuery<UserDetail>(`users/${encodeURIComponent(user.username)}`, { scope, tcodes, status: status === 'all' ? '' : status, show_expired: status === 'all', offset, limit: 100 })
+    const page = await accessQuery<UserDetail>(`users/${encodeURIComponent(user.username)}`, { scope, tcodes, ...dates, status: status === 'all' ? '' : status, show_expired: status === 'all', offset, limit: 100 })
     if (page.data_revision !== user.data_revision || page.total !== user.total || page.as_of !== user.as_of) throw new Error('Source data changed. Refresh the user before exporting.')
     if (!page.items.length) throw new Error('Incomplete assignment response. Refresh and retry.')
     for (const row of page.items) {

@@ -115,7 +115,7 @@ test('direct user and release investigations locate global position and handle r
   await page.goto('/#session=browser-test-session'); await destination(page, 'Release Roles')
   await page.getByRole('navigation', { name: 'Release role pages' }).getByRole('button', { name: 'Next', exact: true }).click()
   await page.getByRole('button', { name: 'Release role details', exact: true }).filter({ hasText: role(50) }).click()
-  await page.getByRole('region', { name: 'Release role details', exact: true }).getByRole('button', { name: user(50), exact: true }).click()
+  await page.getByRole('region', { name: 'Release role details', exact: true }).getByRole('button', { name: `Open user ${user(50)}`, exact: true }).click()
   const navigation = page.getByRole('navigation', { name: 'Detail records' })
   await expect(navigation).toContainText('51 of 126')
   await page.getByRole('button', { name: 'Release Roles — ZO:*', exact: true }).click()

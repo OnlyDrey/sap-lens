@@ -10,8 +10,8 @@ there is no Search button. Codes are trimmed and matched case-insensitively.
 - Duplicate chips are ignored regardless of case.
 - Backspace in an empty input removes the final chip.
 - The draft input remains active alongside saved chips.
-- Codes match with **OR**: MIGO or ME21N. Empty filters restore the normal results.
-- Clear filter removes only transaction chips/draft text, preserving other filters.
+- User Details/sidebar codes match with **OR**. The catalogue defaults to **AND**, with an explicit AND/OR switch for multiple codes. Empty filters restore normal results.
+- User Details/sidebar Clear filter removes only transaction chips/draft text. The catalogue has one Clear all filters action; individual chips remain removable.
 - Up to 20 saved chips plus one draft (128 characters each) are supported.
 
 The shared secondary Clear filter button has a FilterX icon, a subtle danger hover
@@ -32,8 +32,7 @@ Clearing restores normal expansion states. Changing the opened role resets chips
 and draft text. No source relationship or effective authorization is invented.
 
 Role Lookup filters catalogue summaries through the import-time exact transaction
-index. Transaction codes combine with OR, while module/text filters combine with
-AND. Existing text-search behavior, sorting, 100-role pagination and comparison
+index. Transaction codes default to AND across the full role, with optional OR. Selected SAP areas combine with OR; area, role-name/description text and transaction categories combine with AND. Text search no longer examines T-codes or module labels. Sorting, 100-role pagination and comparison
 selections remain intact. Roles without supplied transaction mappings cannot be
 confirmed as matches; the UI states that source completeness is unknown. The
 existing `tcode` API retains its legacy behavior for compatible callers.
@@ -120,3 +119,5 @@ machine. Browser tests and native bridge mocks do not replace those checks.
 - No native Windows/WebView2 or UNC validation was performed. Windows packaging,
   README branding, application version, release settings and build prerequisites
   were not changed. No push, workflow dispatch, Windows build or release occurred.
+
+For current catalogue reset, assignment dates, dedicated release tables and navigation contracts, see [investigation filters](INVESTIGATION_FILTERS.md).

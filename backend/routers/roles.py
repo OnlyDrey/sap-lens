@@ -1,15 +1,17 @@
 """Roles router -- list, search, filter, T-code search, detail."""
-from typing import Optional
+from typing import Optional, Literal
 from fastapi import APIRouter, HTTPException, Query
 import cache
 from models import RoleSummary, RoleDetail
-from transaction_filters import normalized_tcodes
+from transaction_filters import normalized_tcodes, matching_role_names
 
 router = APIRouter(prefix="/api/roles", tags=["Roles"])
 
 @router.get("", response_model=list[RoleSummary])
 def list_roles(
     function_key: Optional[str] = Query(None, description="Filter by module code, e.g. FI"),
+    function_keys: list[str] = Query(default=[], max_length=100),
+    transaction_mode: Literal['and', 'or'] = 'and',
     search: Optional[str] = Query(None, description="Search role name or description"),
     tcodes: list[str] = Query(default=[], max_length=21),
     tcode: Optional[str] = Query(None, description="Find all roles containing this T-code"),
@@ -25,16 +27,20 @@ def list_roles(
     all_roles: list[RoleSummary] = state.summaries
 
     # Module filter (applied regardless of search mode)
+    if any(len(key) > 256 for key in function_keys):
+        raise HTTPException(422, 'SAP area identifiers must not exceed 256 characters.')
+    if function_keys:
+        all_roles = [r for r in all_roles if r.function_key in function_keys]
     if function_key:
         all_roles = [r for r in all_roles if r.function_key == function_key]
 
     exact_codes = normalized_tcodes(tcodes)
     if exact_codes:
-        names = {name for code in exact_codes for name in state.tcode_index.get(code, [])}
+        names = matching_role_names(state.tcode_index, exact_codes, transaction_mode)
         all_roles = [r.model_copy(update={"matching_tcodes": [code for code in exact_codes if r.agr_name in state.tcode_index.get(code, [])]}) for r in all_roles if r.agr_name in names]
         if search and search.strip():
             query = search.strip().lower()
-            all_roles = [r for r in all_roles if query in r.agr_name.lower() or query in (r.text or "").lower() or query in (r.module_name or "").lower()]
+            all_roles = [r for r in all_roles if query in r.agr_name.lower() or query in (r.text or "").lower()]
         return all_roles
 
     # ---- T-code search -------------------------------------------------------
@@ -75,7 +81,6 @@ def list_roles(
             r for r in all_roles
             if q in (r.text or "").lower()
             or q in r.agr_name.lower()
-            or q in (r.module_name or "").lower()
         ]
 
     return all_roles

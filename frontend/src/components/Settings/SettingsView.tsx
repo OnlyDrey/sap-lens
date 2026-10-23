@@ -734,7 +734,7 @@ export function SettingsView({
                           } }}><Icon size={16} aria-hidden="true" className="shrink-0"/><span>{label}</span></button>)}
                       </div>
                       <div id="source-panel-employees" role="tabpanel" aria-labelledby="source-tab-employees" hidden={importSource !== 'employees'}>
-                        {importSource === 'employees' && <EmployeeSource revision={draft.revision} savedPath={config.data?.settings.employee_csv_path || ''} dirty={JSON.stringify(draft) !== JSON.stringify(config.data?.settings)} onImported={async () => { const result = await config.refetch(); if (result.data) setDraft(structuredClone(result.data.settings)); onDataChanged() }}/>}
+                        {importSource === 'employees' && <EmployeeSource revision={draft.revision} savedPath={config.data?.settings.employee_csv_path || ''} dirty={JSON.stringify(draft) !== JSON.stringify(config.data?.settings)} onImported={async () => { const result = await config.refetch(); if (result.data) setDraft(structuredClone(result.data.settings)) }}/>}
                       </div>
                       <div id="source-panel-users" role="tabpanel" aria-labelledby="source-tab-users" hidden={importSource !== 'users'}>
                         <UserSourceEditor draft={draft} onChange={setDraft} native={native} active={importSource === 'users'} />

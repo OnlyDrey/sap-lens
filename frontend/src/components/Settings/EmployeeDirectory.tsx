@@ -180,6 +180,13 @@ export function EmployeeBrowser() {
         `/api/employees?search=${encodeURIComponent(term)}&offset=${offset}`,
       ),
   })
+  useEffect(() => {
+    setSelected((previous) =>
+      previous && previous.generation !== query.data?.generation
+        ? null
+        : previous,
+    )
+  }, [query.data?.generation])
   const detail = useQuery({
     queryKey: ['employee-record', selected?.id, selected?.generation],
     enabled: selected != null,
@@ -268,7 +275,7 @@ export function EmployeeBrowser() {
           </div>
         </>
       )}
-      {detail.isError && (
+      {detail.isError && selected?.generation === query.data?.generation && (
         <p role="alert">
           Employee details unavailable; search again if the directory changed.
         </p>

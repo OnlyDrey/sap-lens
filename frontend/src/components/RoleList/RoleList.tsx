@@ -12,15 +12,16 @@ import { useModules } from '@/hooks/useModules'
 import { useRoles } from '@/hooks/useRoles'
 import { RoleCard } from './RoleCard'
 import type { RoleSummary } from '@/api/types'
-import { apiRequest, fetchRolesByTcode } from '@/api/client'
+import { apiRequest } from '@/api/client'
 
-const fetchExactRoles = (codes: string[]) => apiRequest<RoleSummary[]>(`/api/roles?${new URLSearchParams(codes.map(code => ['tcodes', code]))}`)
+const fetchExactRoles = (codes: string[], mode: 'and' | 'or') => apiRequest<RoleSummary[]>(`/api/roles?${new URLSearchParams([...codes.map(code => ['tcodes', code]), ['transaction_mode', mode]])}`)
 
 interface Props {
   selectedRoles: string[]
   onSelectRole: (n: string) => void
   onViewDetail: (n: string) => void
   onCompare: () => void
+  onFilteredRoles?: (roles: string[]) => void
 }
 
 function useDebounce<T>(v: T, ms: number): T {
@@ -140,12 +141,14 @@ export function RoleList({
   selectedRoles,
   onSelectRole,
   onViewDetail,
-  onCompare
+  onCompare,
+  onFilteredRoles
 }: Props) {
   const [page,setPage] = useState(0)
   const transaction = useTransactionFilter()
   const [search, setSearch] = useState('')
-  const [activeModule, setActiveModule] = useState<string | null>(null)
+  const [activeModules, setActiveModules] = useState<string[]>([])
+  const [transactionMode, setTransactionMode] = useState<'and' | 'or'>('and')
   const [sortBy, setSortBy] = useState<SortKey>('name-asc')
   const [sortOpen, setSortOpen] = useState(false)
 
@@ -161,25 +164,13 @@ export function RoleList({
     refetch
   } = useRoles()
 
-  const {
-    data: tcodeRoles = [],
-    isFetching: legacyTcodeLoading
-  } = useQuery({
-    queryKey: ['roles', 'tcode', debSearch.trim().toUpperCase()],
-    queryFn: () => fetchRolesByTcode(debSearch.trim()),
-    enabled: debSearch.trim().length >= 2,
-    staleTime: 120_000,
-    placeholderData: [],
-  })
-
-
   const exactTransactions = useQuery({
-    queryKey: ['roles', 'exact-transactions', transaction.deferredCodes],
-    queryFn: () => fetchExactRoles(transaction.deferredCodes),
+    queryKey: ['roles', 'exact-transactions', transaction.deferredCodes, transactionMode],
+    queryFn: () => fetchExactRoles(transaction.deferredCodes, transactionMode),
     enabled: transaction.deferredCodes.length > 0,
     staleTime: 120_000,
   })
-  const tcodeLoading = legacyTcodeLoading || exactTransactions.isFetching || transaction.settling
+  const tcodeLoading = exactTransactions.isFetching || transaction.settling
   const moduleNames = useMemo(
     () => Object.assign(Object.create(null),Object.fromEntries(
       modules.map(m => [m.function_key, m.module_name])
@@ -203,30 +194,23 @@ export function RoleList({
     [allRolesRaw]
   )
 
-  const hasTcodeResults =
-    tcodeRoles.length > 0 &&
-    debSearch.trim().length >= 2
-
   const visible = useMemo(() => {
     let results: RoleSummary[]
 
-    if (hasTcodeResults) {
-      results = tcodeRoles
-    } else if (debSearch.trim()) {
+    if (debSearch.trim()) {
       const q = debSearch.trim().toLowerCase()
 
       results = allRolesRaw.filter(x =>
         (x.text ?? '').toLowerCase().includes(q) ||
-        x.agr_name.toLowerCase().includes(q) ||
-        (x.module_name ?? '').toLowerCase().includes(q)
+        x.agr_name.toLowerCase().includes(q)
       )
     } else {
       results = allRolesRaw
     }
 
-    if (activeModule) {
+    if (activeModules.length) {
       results = results.filter(
-        x => x.function_key === activeModule
+        x => activeModules.includes(x.function_key ?? 'Other')
       )
     }
 
@@ -237,20 +221,22 @@ export function RoleList({
     return applySort(results, sortBy)
   }, [
     allRolesRaw,
-    tcodeRoles,
-    hasTcodeResults,
     debSearch,
-    activeModule,
+    activeModules,
     sortBy, transaction.key, transaction.deferredCodes, exactTransactions.data
   ])
 
-  useEffect(()=>setPage(0),[debSearch,activeModule,sortBy,transaction.key])
+  useEffect(()=>setPage(0),[debSearch,activeModules,sortBy,transaction.key,transactionMode])
   const pageCount=Math.max(1,Math.ceil(visible.length/100))
   const currentPage=Math.min(page,pageCount-1)
 
   const isFiltering =
     !!debSearch.trim() ||
-    !!activeModule || transaction.codes.length > 0
+    activeModules.length > 0 || transaction.codes.length > 0 || sortBy !== 'name-asc'
+
+  useEffect(() => { if (!isLoading && !isError) onFilteredRoles?.(visible.map(role => role.agr_name)) }, [visible, onFilteredRoles, isLoading, isError])
+
+  useEffect(() => { if (!transaction.codes.length) setTransactionMode('and') }, [transaction.codes.length])
 
   const currentLabel =
     SORT_OPTIONS.find(o => o.key === sortBy)?.label ?? 'Sort'
@@ -327,8 +313,8 @@ export function RoleList({
           borderColor:'var(--border)'
         }}
       >
-        <TransactionFilter label="Filter catalogue by transaction" filter={transaction}/>
-        {transaction.codes.length > 0 && <p className="text-xs text-[var(--muted)]">Exact transaction filters match any code (OR), combined with text and module filters (AND). Roles without supplied mappings are excluded; source completeness cannot be established.</p>}
+        <TransactionFilter label="Filter catalogue by transaction" filter={transaction} mode={transactionMode} onModeChange={setTransactionMode} showClear={false}/>
+        {transaction.codes.length > 0 && <p className="text-xs text-[var(--muted)]">Exact transaction filters match {transactionMode === 'and' ? 'every selected code (AND)' : 'any selected code (OR)'}, combined with text and module filters (AND). Roles without supplied mappings are excluded; source completeness cannot be established.</p>}
         {exactTransactions.isError && transaction.codes.length > 0 && <p role="alert">Transaction filtering failed. {exactTransactions.error.message}</p>}
         <div className="flex gap-2">
           <div className="relative flex-1">
@@ -341,7 +327,7 @@ export function RoleList({
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search roles by name, description or T-code (e.g. ME33K, FB01)..."
+              placeholder="Search roles by name or description..."
               className="w-full pl-9 pr-8 py-2.5 rounded-xl border text-sm focus:outline-none transition-all"
               style={{
                 backgroundColor:'var(--surface2)',
@@ -363,7 +349,8 @@ export function RoleList({
             {search && (
               <button
                 onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 focus:outline-none"
+                aria-label="Clear role search"
+                className="absolute right-3 top-1/2 -translate-y-1/2 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)] rounded"
                 style={{ color:'var(--muted)' }}
               >
                 <X className="w-4 h-4" />
@@ -431,12 +418,13 @@ export function RoleList({
         </div>
 
         {!isLoading && !isError && (
-          <div className="relative z-20 flex flex-wrap gap-1.5">
+          <div className="catalogue-area-filter relative z-20 flex flex-wrap gap-1.5" role="group" aria-label="SAP areas">
             <button
-              onClick={() => { setActiveModule(null) }}
+              onClick={() => setActiveModules([])}
+              aria-pressed={!activeModules.length}
               className="px-3 py-1.5 rounded-full text-xs font-bold border transition-all focus:outline-none"
               style={
-                activeModule === null
+                !activeModules.length
                   ? {
                       backgroundColor:'var(--accent)',
                       color:'var(--on-accent)',
@@ -453,7 +441,7 @@ export function RoleList({
             </button>
 
             {moduleGroups.map(([key, count]) => {
-              const active = activeModule === key
+              const active = activeModules.includes(key)
               const color = modules.find(m=>m.function_key===key)?.color || '#64748b'
               const full = moduleNames[key] ?? key
               const short =
@@ -465,8 +453,9 @@ export function RoleList({
                 <button
                   key={key}
                   onClick={() =>
-                    setActiveModule(active ? null : key)
+                    setActiveModules(previous => active ? previous.filter(value => value !== key) : [...previous, key])
                   }
+                  aria-pressed={active}
                   title={full}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all focus:outline-none"
                   style={
@@ -505,25 +494,7 @@ export function RoleList({
 
             {' '}role{visible.length !== 1 ? 's' : ''} in
 
-            {hasTcodeResults && debSearch.trim() && (
-              <span className="inline-flex items-center gap-1 ml-1">
-                <span style={{ color:'var(--muted)' }}>
-                  containing T-code
-                </span>
-
-                <span
-                  className="font-mono font-black px-1.5 py-0.5 rounded text-[10px]"
-                  style={{
-                    backgroundColor:'color-mix(in srgb, var(--accent) 15%, transparent)',
-                    color:'var(--accent2)'
-                  }}
-                >
-                  {debSearch.trim().toUpperCase()}
-                </span>
-              </span>
-            )}
-
-            {!hasTcodeResults && debSearch.trim() && (
+            {debSearch.trim() && (
               <span
                 style={{
                   color:'var(--accent2)',
@@ -534,9 +505,9 @@ export function RoleList({
               </span>
             )}
 
-            {activeModule && (
+            {activeModules.length > 0 && (
               <span style={{ fontWeight:700 }}>
-                {' '}{moduleNames[activeModule] ?? activeModule}
+                {' '}{activeModules.map(key => moduleNames[key] || key).join(' / ')}
               </span>
             )}
 
@@ -561,8 +532,8 @@ export function RoleList({
               </span>
             )}
 
-            {(debSearch.trim() || activeModule) && (
-              <ClearFilterButton onClick={() => { setSearch(''); setActiveModule(null); transaction.clear() }}>Clear all filters</ClearFilterButton>
+            {isFiltering && (
+              <ClearFilterButton onClick={() => { setSearch(''); setActiveModules([]); transaction.clear(); setTransactionMode('and'); setSortBy('name-asc') }}>Clear all filters</ClearFilterButton>
             )}
           </div>
         </div>
@@ -623,14 +594,11 @@ export function RoleList({
               </p>
 
               <p className="text-sm mt-1" style={{ color:'var(--muted)' }}>
-                {debSearch.trim()
-                  ? `No roles contain T-code "${debSearch.trim().toUpperCase()}" or match that name`
-                  : 'Open Settings to choose a CSV, or try a different filter'}
+                {allRolesRaw.length
+                  ? 'No roles match the selected name, description, SAP areas and exact transaction filters.'
+                  : 'Open Settings to choose a CSV.'}
               </p>
 
-              {isFiltering && (
-                <ClearFilterButton className="mt-3" onClick={() => { setSearch(''); setActiveModule(null); transaction.clear() }}>Clear all filters</ClearFilterButton>
-              )}
             </div>
           )
           : (

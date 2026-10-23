@@ -458,3 +458,7 @@ based header display hints and sidebar transaction search, see
 
 The latest live multi-T-code filters, active evidence summary and Norwegian date
 presentation are documented in [Live filters](LIVE_FILTERS.md).
+
+## Current assignment presentation and filtering
+
+Business and release user-role tabs now split assignment start/end dates. The dedicated release tab omits catalogue-match noise and separates PR/PO, group and strategy. Exact release-role details move role metadata into the header and show copyable users with assignment-only statuses. Shared date bounds are included in counts, matrix, navigation and CSV export. See [assignment filters and table contracts](INVESTIGATION_FILTERS.md). Account/lock evidence remains in User Details.

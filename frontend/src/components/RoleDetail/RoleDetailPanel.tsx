@@ -53,7 +53,7 @@ const SingleRoleRow = memo(function SingleRoleRow({ sr, onTcodeUsers, transactio
   )
 })
 
-export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, parent = 'Role Lookup' }: { parent?: string; roleName: string | null; onClose: () => void; onUsers?: (role:string)=>void; onTcodeUsers?: (code:string)=>void }) {
+export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, parent = 'Role Lookup', navigation }: { navigation?: { index: number; total: number; onPrevious?: () => void; onNext?: () => void; missing: boolean }; parent?: string; roleName: string | null; onClose: () => void; onUsers?: (role:string)=>void; onTcodeUsers?: (code:string)=>void }) {
   const { data: role, isLoading, isError, error } = useRoleDetail(roleName)
   const transactionFilter = useTransactionFilter(roleName)
   const transaction = useMemo(() => transactionFilter.deferredCodes, [transactionFilter.deferredKey])
@@ -92,7 +92,7 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, pare
         <ScrollArea.Root className="flex-1 overflow-hidden">
           <ScrollArea.Viewport className="h-full w-full">
             <div className="px-6 py-5 flex flex-col gap-5">
-              <DetailNavigation parent={parent} current="Role details" onBack={onClose}/>
+              <DetailNavigation {...navigation} parent={parent} current={roleName} onBack={onClose}/>
 
               {isLoading && (
                 <div className="flex flex-col items-center py-20 gap-3">

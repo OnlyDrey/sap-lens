@@ -228,7 +228,7 @@ export function UserSourceEditor({
       aria-label="User access CSV configuration"
       className="import-source-panel space-y-4"
     >
-      <ImportSection step={1} title="Source file" description="User Access · independent directory and assignments. Blank roles retain directory-only users.">
+      <ImportSection step={1} title="Source file" description="User Access · User–Role Mapping (CSV 2). Independent SAP directory and assignments; blank roles retain directory-only users.">
       <div className="source-file-row">
       <label className="block text-sm">
         User CSV file location

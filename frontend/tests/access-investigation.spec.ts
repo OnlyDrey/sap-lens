@@ -131,7 +131,7 @@ test("directory-only users, expired and future assignments, unknown validity and
   await detail
     .getByRole("button", { name: "Release Roles — ZO:*", exact: true })
     .click();
-  await expect(detail).toContainText("future");
+  await expect(detail.getByRole("region", { name: "User role assignments" })).toContainText("Future assignment");
   await detail
     .getByRole("button", { name: "Back to users", exact: true })
     .click();
@@ -174,7 +174,7 @@ test("release table matrix distinct counts, group comparison and user drilldown 
     exact: true,
   });
   await expect(detail).toContainText("2 distinct users · 4 assignment records");
-  await detail.getByRole("button", { name: "DEMO_BETA", exact: true }).click();
+  await detail.getByRole("button", { name: "Open user DEMO_BETA", exact: true }).click();
   await expect(
     page.getByRole("region", { name: "User details", exact: true }),
   ).toContainText("DEMO_BETA");

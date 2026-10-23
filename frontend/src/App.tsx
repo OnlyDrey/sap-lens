@@ -23,6 +23,7 @@ export function App() {
   const [releaseContext] = useHistoryValue('releaseContext')
   const investigateUsers = (filter:{user?:string;role?:string;tcode?:string}) => { setVisited(previous => new Set([...previous, 'users'])); change({page:'users', user:filter.user || '', userContext:{role:filter.role,tcode:filter.tcode},detailRole:null,settings:false}) }
   const investigateRelease = (release:string) => { setVisited(previous => new Set([...previous, 'releases'])); change({page:'releases', release:{role:release,status:'all'},releaseContext:release,detailRole:null,settings:false}) }
+  const [catalogueOrder, setCatalogueOrder] = useState<string[]>([])
   const [selectedRoles, setSelectedRoles] = useState<string[]>([])
   const [detailRole, setDetailRole] = useHistoryValue('detailRole')
   const [showComparison, setShowComparison] = useHistoryValue('comparison')
@@ -34,6 +35,15 @@ export function App() {
       prev.includes(name) ? prev.filter(r => r !== name) : prev.length >= 5 ? prev : [...prev, name]
     )
   }, [])
+
+  const cataloguePosition = detailRole ? catalogueOrder.indexOf(detailRole) : -1
+  const catalogueNavigation = {
+    index: cataloguePosition,
+    total: catalogueOrder.length,
+    onPrevious: cataloguePosition > 0 ? () => setDetailRole(catalogueOrder[cataloguePosition - 1]) : undefined,
+    onNext: cataloguePosition >= 0 && cataloguePosition + 1 < catalogueOrder.length ? () => setDetailRole(catalogueOrder[cataloguePosition + 1]) : undefined,
+    missing: cataloguePosition < 0,
+  }
 
   return (
     <AppLayout
@@ -57,6 +67,7 @@ export function App() {
       {showComparison
         ? <ComparisonView roleNames={selectedRoles} onBack={() => setShowComparison(false)} />
         : <RoleList key={dataGeneration}
+            onFilteredRoles={setCatalogueOrder}
             selectedRoles={selectedRoles}
             onSelectRole={handleSelectRole}
             onViewDetail={n => setDetailRole(n)}
@@ -66,7 +77,7 @@ export function App() {
       </div>
       {visited.has('users') && <div hidden={page!=='users'}><UserAccess key={JSON.stringify(userContext)} initialUser={selectedUser} initialRole={userContext.role} initialTcode={userContext.tcode} onRole={setDetailRole} onRelease={investigateRelease}/></div>}
       {visited.has('releases') && <div hidden={page!=='releases'}><ReleaseRoles key={releaseContext} initialRole={releaseDrill?.role || ''} onUser={user=>investigateUsers({user})}/></div>}
-      <RoleDetailPanel parent={page === 'users' ? 'User Access' : page === 'releases' ? 'Release Roles' : 'Role Lookup'} roleName={detailRole} onClose={() => setDetailRole(null)} onUsers={role=>investigateUsers({role})} onTcodeUsers={tcode=>investigateUsers({tcode})}/>
+      <RoleDetailPanel navigation={page === 'roles' && detailRole ? catalogueNavigation : undefined} parent={page === 'users' ? 'User Access' : page === 'releases' ? 'Release Roles' : 'Role Lookup'} roleName={detailRole} onClose={() => setDetailRole(null)} onUsers={role=>investigateUsers({role})} onTcodeUsers={tcode=>investigateUsers({tcode})}/>
     </AppLayout>
   )
 }

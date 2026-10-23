@@ -395,3 +395,15 @@ button:hover .module-icon:not([data-disabled="true"]) { border-color: currentCol
 @media (max-width:640px) { .user-role-toolbar { align-items:flex-end; } .user-role-toolbar > .user-export-button { margin-top:0; } }
 
 .user-role-toolbar > .transaction-filter { flex:1 1 220px; width:auto; }
+
+.assignment-date-filters { min-width:0; }
+.assignment-date-filters summary { cursor:pointer; flex-wrap:wrap; }
+.date-filter-input { min-width:0; width:100%; background:var(--surface); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px 12px; }
+.date-filter-input:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
+.assignment-date { white-space:nowrap; font-variant-numeric:tabular-nums; }
+.catalogue-area-filter button:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
+.release-role-metadata { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:16px; }
+.release-role-metadata dt { font-size:13px; color:var(--text2); margin-bottom:4px; }
+.release-role-metadata dd { font-weight:600; overflow-wrap:anywhere; }
+.assignment-date-filters[open] .date-filter-chevron { transform:rotate(180deg); }
+.access-table[tabindex]:focus-visible { outline:2px solid var(--focus); outline-offset:3px; }
