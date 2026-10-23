@@ -65,7 +65,7 @@ Dates accept YYYY-MM-DD or YYYYMMDD, including 9999-12-31. Empty/00000000/0000-0
 means unknown, not unrestricted access. Bounds are inclusive. An ended interval
 is expired, a not-yet-started interval future, two enclosing bounds active;
 otherwise unknown. Status is evaluated using the local backend calendar date.
-Nested transaction previews show the first 100 codes with a full count and a link to the complete catalogue role; reverse lookup still uses all codes.
+Assigned-role tables link to the existing role sidebar instead of expanding transaction lists inline. Submitted transaction searches and reverse lookup use the complete catalogue mappings.
 User Access hides expired assignments by default but identifies future/unknown
 records. Release Roles defaults to active assignment intervals only. These are
 assignment counts, not claims of usable access: account expiration and lock state
@@ -100,8 +100,9 @@ module/domain labels. Review unknown areas in the source export.
 
 Role Lookup preserves catalogue role and transaction investigation. User Access
 lists users with search, sorting and pagination, separate ZC business and ZO
-release sections, account evidence and exact identifier copying. Other roles
-remain available for explicit source review without becoming primary access roles.
+release sections, their All roles union, account evidence and exact identifier
+copying. Other roles remain retained in the imported source and compatible API
+source-review scope, but are not shown as primary access roles or exported.
 Release Roles supports table/matrix investigation and user drill-down.
 
 `role_matching.RoleMatcher` strips whitespace and normalizes casing for matching
@@ -354,3 +355,99 @@ User details show identity information and account validity in two cards. A
 single source account is presented once. Distinct account evidence remains in an
 expandable collection when multiple records exist, with its own pagination only
 when needed. Summary values never replace conflicting source evidence.
+
+## User role views, transaction search and CSV export
+
+User Details offers **Business Roles** (`ZC:*`), **Release Roles** (`ZO:*`) and
+**All roles** (their union). Technical/other families remain in the imported
+source and underlying relationships, but are excluded from these views and
+exports. All roles preserves separate assignment intervals and SAP user groups.
+The older API `other` scope remains compatible; it is no longer a user-facing tab.
+
+**Find roles by transaction** applies an exact, case-insensitive T-code lookup
+only when Search is submitted. It trims surrounding whitespace and respects the
+selected user, role view and assignment-status filter. Clear restores the current
+role view. The lookup reuses the import-time transaction index and validated
+exact/wildcard catalogue resolution; it never invents relationships for ambiguous
+or unmapped assignments. Results identify the transaction, assigned role,
+catalogue description and intermediate catalogue roles when available. Missing
+catalogues and assignments without resolved transaction mappings are reported
+separately from no matches. This is role-derived evidence, **not proof of effective
+SAP authorization**. ZD roles can appear as intermediate evidence, not standalone
+user assignments.
+
+**Export CSV** exports the complete current logical result, including a submitted
+transaction filter, rather than only the visible page. Requests fetch at most 100
+assignments at a time. Export aborts if the import generation, result count or
+validity evaluation date changes, or if the user/filter changes. Refresh and retry
+instead of accepting a partial or mixed-source export. A 32 MiB encoded output
+limit bounds memory use; narrow filters if this is exceeded. Duplicate source rows
+are handled by the existing importer; distinct intervals/groups remain separate.
+
+Columns are Username, User group, Full name, Role, Role description, Role family,
+Valid from, Valid to, Assignment status, Document type, Release group and Release
+strategy. Role family is Business or Release. Full name uses the canonical source name shown in the directory;
+conflicting identity records remain available in User Details. Role descriptions
+come only from an unambiguous resolved catalogue entry. Missing values are blank.
+Dates remain ISO dates, including `9999-12-31`; missing dates are not assumed valid.
+Non-expired includes future and unknown assignments, as before. Select **Currently
+valid**, **Expired** or **All assignments** explicitly when needed.
+
+CSV uses UTF-8 with BOM, CRLF records and quoted/escaped fields for Excel. Fields
+that could execute spreadsheet formulas are prefixed with an apostrophe; ordinary
+SAP identifiers, colons and wildcard catalogue notation are unchanged. The filename
+is `sap-lens-<safe-username>-<view>-<date>.csv`. Files contain personal/access data:
+keep them local and handle them according to your organization's access policy.
+No export is uploaded or included in application packages.
+
+Browser mode uses a local download. Desktop mode uses an authenticated native
+**Save CSV** dialog; global WebView2 downloads stay disabled. Cancelling the dialog
+creates no file. Older desktop bridges show an update message rather than silently
+falling back to a blocked download. Native Windows/WebView2 save-dialog, UNC-path
+and packaged-EXE testing is still required; Chromium tests and mocked native bridge
+tests do not replace it.
+
+User validity badges now include status icons without changing status evaluation
+or semantic colors. Lock state is a separate column/indicator: red Locked,
+neutral Unlocked, or distinct neutral unknown/mixed evidence. Missing lock data
+never means Unlocked. Role sidebars share explicit module metadata and a neutral
+Unclassified fallback; module information is never inferred from role names.
+
+### Implementation and local validation (2026-10-23)
+
+The changes preserve role matching, imported assignments, account-state evaluation,
+configuration and packaging rules. The implementation is limited to presentation,
+additive fields/filtering on the existing user-detail API, and a native CSV-save
+capability required because unrestricted desktop downloads remain disabled.
+
+| Area | Files |
+|---|---|
+| User/role presentation | `frontend/src/components/Access/UserAccess.tsx`, `frontend/src/components/RoleDetail/RoleDetailPanel.tsx`, `frontend/src/components/Shared/InvestigationNavigation.tsx`, `frontend/src/components/Shared/RoleMetadata.tsx`, `frontend/src/index.css` |
+| Export and API types | `frontend/src/lib/accessExport.ts`, `frontend/src/api/access.ts`, `frontend/src/vite-env.d.ts`, `backend/routers/access.py`, `backend/desktop.py` |
+| Regression coverage | `backend/tests/test_user_access.py`, `backend/tests/test_desktop.py`, `frontend/tests/user-role-export.spec.ts`, `frontend/tests/access-investigation.spec.ts`, `frontend/tests/global-navigation.spec.ts`, `frontend/tests/investigation-ux.spec.ts` |
+| Documentation | `docs/ACCESS_INVESTIGATION.md`, `docs/API_REFERENCE.md` |
+
+Executed locally on Linux:
+
+- `npm ci --cache /workspace/.npm-cache --no-audit --no-fund`: passed.
+- `npm run check:types` and `npm run build` in `frontend`: passed.
+- `python -W error::DeprecationWarning -m unittest discover -s backend/tests -v`:
+  214 passed with the available portable PowerShell on PATH; no skipped tests.
+- `npm run test:browser`: 87 passed. The nine new browser cases cover exact
+  transaction search, catalogue evidence/navigation, full-result export, UTF-8,
+  quoting/formula protection, native save contracts, cancellation/old bridges,
+  changed-source rejection and status icons in both themes at 800/1280 pixels.
+- `python -m pip check`: passed. Python requirements audit and production npm
+  audit found no vulnerabilities. Full npm audit still reports seven existing
+  development-tooling advisories (five high, two moderate), outside this change.
+- `python scripts/check-workflows.py`, `actionlint`,
+  `pwsh -NoProfile -File scripts/check-powershell.ps1`,
+  `node scripts/sync-lucide-catalog.mjs --check` and `git diff --check`: passed.
+
+Browser screenshots were inspected for both themes, compact assigned-role tables,
+sidebar spacing/single-role headers, status icons and responsive behavior. Narrow
+directory tables retain their existing horizontal scrolling rather than wrapping
+status labels mid-word. Native-dialog unit tests use a mock WebView; browser
+native-save tests use a bridge stub. No Windows EXE was built, and actual Windows
+WebView2/Save-dialog/UNC validation remains pending. No push, workflow dispatch,
+release, version change or signing change was performed.

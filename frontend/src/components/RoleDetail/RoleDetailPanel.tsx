@@ -1,5 +1,5 @@
 import { DetailNavigation } from "@/components/Shared/InvestigationNavigation"
-import { ModuleIcon } from '@/components/Modules/ModuleIcon'
+import { RoleMetadata } from '@/components/Shared/RoleMetadata'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import { useState, useEffect, useCallback } from 'react'
 import { X, ChevronDown, ChevronRight, AlertTriangle, Loader2, Layers, Zap, Users, ArrowRight } from 'lucide-react'
@@ -12,11 +12,11 @@ function SingleRoleRow({ sr, onTcodeUsers }: { sr: SingleRole; onTcodeUsers?: (c
   return (
     <div className="single-role-entry">
       <div className="single-role-heading" data-expanded={open}>
-        <ModuleIcon moduleId={sr.function_key} />
         <button type="button" className="role-expand" aria-label={`Expand single role ${sr.child_agr}`} aria-expanded={open} onClick={() => setOpen(p => !p)}>
           {open ? <ChevronDown size={14} aria-hidden="true"/> : <ChevronRight size={14} aria-hidden="true"/>}
         </button>
         <div className="single-role-heading-main">
+          <RoleMetadata code={sr.function_key} name={sr.module_name}/>
           <RoleIdentifier value={sr.child_agr} />
           {sr.child_agr_text && <p className="single-role-description">{sr.child_agr_text}</p>}
           {sr.assignment_kind === 'direct' && <span className="single-role-assignment">Direct assignment</span>}
@@ -70,21 +70,8 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, pare
             <p className="text-base font-black text-current leading-snug break-words">
               {cleanTitle(role?.text ?? null)}
             </p>
-            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-              <ModuleIcon moduleId={role?.function_key} size="medium" />
-              {role?.function_key && (
-                <span className="text-xs font-bold px-2 py-0.5 rounded-md text-current"
-                  style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}>
-                  {role.function_key}
-                </span>
-              )}
-              {role?.module_name && (
-                <span className="text-xs font-medium" style={{ color: 'var(--on-primary)' }}>
-                  {role.module_name}
-                </span>
-              )}
-            </div>
-            <RoleIdentifier value={roleName} />
+            <RoleMetadata code={role?.function_key} name={role?.module_name}/>
+            <div className="mt-3"><RoleIdentifier value={roleName}/></div>
           </div>
           <button aria-label="Close role details" onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-current/60 hover:text-current hover:bg-white/10 transition-colors flex-shrink-0 focus:outline-none">

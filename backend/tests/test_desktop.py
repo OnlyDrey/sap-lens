@@ -302,6 +302,34 @@ class DesktopTests(unittest.TestCase):
         self.window.load_url.assert_not_called()
         self.assertFalse((self.root/'runtime.json').exists())
 
+    def test_csv_save_requires_capability_and_explicit_csv_destination(self):
+        bridge = desktop.NativeDialogs('synthetic-capability')
+        bridge._window = self.window
+        filename = 'sap-lens-DEMO-all-2026-10-23.csv'
+        content = '\ufeff"Username","User group","Full name"\r\n"DEMO","G","Synthetïc"\r\n'
+        with self.assertRaises(ValueError):
+            bridge.save_user_access_csv('wrong', filename, content)
+        for bad in ['../' + filename, 'sap-lens.exe', None]:
+            with self.assertRaises(ValueError):
+                bridge.save_user_access_csv('synthetic-capability', bad, content)
+        with self.assertRaises(ValueError):
+            bridge.save_user_access_csv('synthetic-capability', filename, 'invalid')
+        self.window.create_file_dialog.return_value = None
+        self.assertFalse(bridge.save_user_access_csv('synthetic-capability', filename, content))
+        for bad in ['relative.csv', str(self.root / 'not-csv.exe')]:
+            self.window.create_file_dialog.return_value = [bad]
+            with self.assertRaises(ValueError):
+                bridge.save_user_access_csv('synthetic-capability', filename, content)
+        target = self.root / 'Synthetïc export.csv'
+        self.window.create_file_dialog.return_value = [str(target)]
+        self.assertTrue(bridge.save_user_access_csv('synthetic-capability', filename, content))
+        self.assertEqual(target.read_bytes(), content.encode('utf-8'))
+        self.assertTrue(bridge._picker_lock.acquire(blocking=False))
+        try:
+            self.assertFalse(bridge.save_user_access_csv('synthetic-capability', filename, content))
+        finally:
+            bridge._picker_lock.release()
+
     def test_startup_close_and_log_actions_require_capability(self):
         bridge=desktop.NativeDialogs('synthetic-capability');bridge._window=self.window
         for method in [bridge.close_application,bridge.open_logs,bridge.export_diagnostics]:

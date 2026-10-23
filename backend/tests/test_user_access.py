@@ -133,6 +133,49 @@ class UserAccessTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         return response.json()
 
+    def test_all_supported_roles_and_transaction_search_preserve_evidence(self):
+        all_roles = self.get("users/DEMO_ALFA?scope=all&show_expired=true&limit=100")
+        self.assertTrue(all(a["scope"] in {"business", "release"} for a in all_roles["items"]))
+        business = self.get("users/DEMO_ALFA?scope=business&show_expired=true&limit=100")
+        release = self.get("users/DEMO_ALFA?scope=release&show_expired=true&limit=100")
+        self.assertEqual({a["id"] for a in all_roles["items"]}, {a["id"] for a in business["items"] + release["items"]})
+        self.assertTrue(all_roles["data_revision"])
+        found = self.get("users/DEMO_ALFA?scope=all&tcode=%20me23n%20")
+        self.assertEqual({a["role_name"] for a in found["items"]}, {"ZC:MM:BUY:ENP", "ZC:FI:VIEW:ENO"})
+        self.assertTrue(all(a["transaction_roles"] for a in found["items"]))
+        self.assertTrue(found["mapping_available"])
+        self.assertTrue(all(a["status"] != "expired" for a in found["items"]))
+        self.assertEqual(self.get("users/DEMO_ALFA?scope=release&tcode=ME23N")["total"], 0)
+        self.assertEqual(self.get("users/DEMO_ALFA?scope=all&tcode=ME23")["total"], 0)
+        self.assertEqual(self.get("users/DEMO_BETA?scope=business&tcode=FB03")["total"], 0)
+
+    def test_supported_role_pagination_and_missing_mapping_are_explicit(self):
+        path = Path(self.temp.name) / "large-user.csv"
+        path.write_text("USERNAME,ROLE_NAME,USER_GROUP,ROLE_VALID_FROM,ROLE_VALID_TO\n" +
+                        "".join(f"DEMO_PAGE,ZC:UNMAPPED:{i},G{i % 2},20000101,99991231\n" for i in range(125)) +
+                        "DEMO_PAGE,ZD:TECHNICAL,G,20000101,99991231\nDEMO_PAGE,ZZ:OTHER,G,20000101,99991231\n")
+        candidate = config.get_settings().model_dump()
+        candidate["user_csv_path"] = str(path)
+        self.client.post("/api/configuration", headers=H, json=candidate).raise_for_status()
+        first = self.get("users/DEMO_PAGE?scope=all&limit=100")
+        second = self.get("users/DEMO_PAGE?scope=all&limit=100&offset=100")
+        self.assertEqual((first["total"], len(first["items"]), len(second["items"])), (125, 100, 25))
+        self.assertEqual(first["data_revision"], second["data_revision"])
+        self.assertEqual(len({a["id"] for a in first["items"] + second["items"]}), 125)
+        found = self.get("users/DEMO_PAGE?scope=all&tcode=MIGO")
+        self.assertEqual(found["total"], 0)
+        self.assertEqual(found["unmapped_assignments"], 125)
+        self.assertTrue(all(a["role_description"] == "" for a in first["items"]))
+
+    def test_transaction_search_reports_catalogue_unavailable(self):
+        candidate = config.get_settings().model_dump()
+        candidate["data_csv_path"] = ""
+        self.client.post("/api/configuration", headers=H, json=candidate).raise_for_status()
+        found = self.get("users/DEMO_ALFA?scope=all&tcode=ME23N")
+        self.assertFalse(found["mapping_available"])
+        self.assertGreater(found["unmapped_assignments"], 0)
+        self.assertEqual(found["items"], [])
+
     def load_navigation_export(self):
         path = Path(self.temp.name) / "navigation.csv"
         path.write_text(

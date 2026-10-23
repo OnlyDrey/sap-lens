@@ -1,6 +1,8 @@
+import { exportAssignments } from '@/lib/accessExport';
+import { Search, ArrowRight, Download } from 'lucide-react';
 import { useHistoryValue } from '@/hooks/useViewHistory';
 import { useRecordNavigation, type RecordNavigationState } from "@/hooks/useRecordNavigation";
-import { DetailNavigation, EvidenceBadge, AccountEvidence, DetailButton } from "@/components/Shared/InvestigationNavigation";
+import { DetailNavigation, EvidenceBadge, LockStatus } from "@/components/Shared/InvestigationNavigation";
 import { Combobox } from "@/components/Shared/Combobox";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -199,7 +201,8 @@ export function UserAccess({
                     "First name",
                     "Last name",
                     "Email",
-                    "User status / lock",
+                    "User status",
+                    "Lock status",
                     "Relevant roles",
                   ].map((h) => (
                     <th key={h}>{h}</th>
@@ -226,8 +229,9 @@ export function UserAccess({
                     <td>{user.first_name || "—"}</td>
                     <td>{user.last_name || "—"}</td>
                     <td>{user.email || "—"}</td>
-                    <td>
-                      <AccountEvidence status={user.account_status} lock={user.lock_status}/>
+                    <td aria-label="Account validity">
+                      {user.account_status.split("/").map(value => <EvidenceBadge key={value} value={value}/>)}
+                    </td><td aria-label="Account lock"><LockStatus value={user.lock_status}/>
                     </td>
                     <td><button className="role-count-button" aria-label={`View ${user.relevant_roles} relevant roles for ${user.username}`} onClick={() => openUser(user.username)}>{user.relevant_roles.toLocaleString()} <span>{user.relevant_roles === 1 ? "role" : "roles"}</span></button></td>
                   </tr>
@@ -263,17 +267,26 @@ function UserDetails({
   onRole: (role: string) => void;
   onRelease: (role: string) => void;
 }) {
+  const [exporting, setExporting] = useState(false);
+  const [exportMessage, setExportMessage] = useState('');
+  const [transactionInput, setTransactionInput] = useState('');
+  const [transaction, setTransaction] = useState('');
+  const exportGeneration = useRef(0);
   const [scope, setScope] = useState("business"),
     [status, setStatus] = useState(""),
     [offset, setOffset] = useState(0),
     [accountOffset, setAccountOffset] = useState(0),
     [nameOffset, setNameOffset] = useState(0),
     [emailOffset, setEmailOffset] = useState(0);
-  useEffect(() => { setOffset(0) }, [scope, status, username]);
+  useEffect(() => { setOffset(0) }, [scope, status, username, transaction]);
+  useEffect(() => { setTransaction(''); setTransactionInput('') }, [username]);
+  useEffect(() => { exportGeneration.current++; setExportMessage(''); return () => { exportGeneration.current++ } }, [username, scope, status, transaction]);
+
   useEffect(() => { setAccountOffset(0); setNameOffset(0); setEmailOffset(0) }, [username]);
   const result = useQuery({
     queryKey: [
       "access-user",
+      transaction,
       username,
       scope,
       status,
@@ -285,6 +298,7 @@ function UserDetails({
     queryFn: () =>
       accessQuery<UserDetail>(`users/${encodeURIComponent(username)}`, {
         scope,
+        tcode: transaction,
         status: status === "all" ? "" : status,
         show_expired: status === "all",
         offset,
@@ -313,13 +327,13 @@ function UserDetails({
               <dt>Valid from</dt><dd>{user.account_total === 1 ? user.accounts[0]?.valid_from || 'Unknown' : 'Multiple source records'}</dd>
               <dt>Valid until</dt><dd>{user.account_total === 1 ? user.accounts[0]?.valid_to || 'Unknown' : 'See account evidence'}</dd>
               <dt>Account status</dt><dd>{user.account_status.split('/').map(value => <EvidenceBadge key={value} value={value}/>)}</dd>
-              <dt>Lock status</dt><dd><EvidenceBadge value={user.lock_status}/></dd>
+              <dt>Lock status</dt><dd><LockStatus value={user.lock_status}/></dd>
             </dl></section>
           </div>
           {user.account_total > 1 && <details className="settings-advanced"><summary>User validity and account evidence · {user.account_total} source records</summary>
             <p className="text-sm text-[var(--muted)]">Distinct source records are retained below; a summary does not override conflicting validity or lock evidence.</p>
             <div className="access-table"><table><thead><tr><th>User group</th><th>User validity</th><th>Account status</th><th>Lock status</th><th>User type</th></tr></thead><tbody>
-              {user.accounts.map((a, i) => <tr key={i}><td>{a.user_group || 'Unknown'}</td><td>{dates(a.valid_from, a.valid_to)}</td><td><EvidenceBadge value={a.status}/></td><td><EvidenceBadge value={a.locked === null ? 'Lock unknown' : a.locked ? 'Locked' : 'Unlocked'}/></td><td>{a.user_type || 'Unknown'}</td></tr>)}
+              {user.accounts.map((a, i) => <tr key={i}><td>{a.user_group || 'Unknown'}</td><td>{dates(a.valid_from, a.valid_to)}</td><td><EvidenceBadge value={a.status}/></td><td><LockStatus value={a.locked == null ? 'Unknown' : a.locked ? 'Locked' : 'Unlocked'}/></td><td>{a.user_type || 'Unknown'}</td></tr>)}
             </tbody></table></div>
             <Pagination offset={accountOffset} total={user.account_total} onChange={setAccountOffset} label="Account evidence pages"/>
           </details>}
@@ -350,7 +364,7 @@ function UserDetails({
             {[
               ["business", "Business Roles — ZC:*"],
               ["release", "Release Roles — ZO:*"],
-              ["other", "Other source assignments"],
+              ["all", "All roles"],
             ].map(([v, l]) => (
               <button
                 key={v}
@@ -384,7 +398,29 @@ function UserDetails({
               </select>
             </Filter>
           </div>
-          <div className="access-table">
+          <form className="flex flex-wrap items-end gap-3" onSubmit={event => { event.preventDefault(); setTransaction(transactionInput.trim().toUpperCase()) }}>
+            <Filter label="Find roles by transaction"><input className={inputClass} aria-label="Find roles by transaction" value={transactionInput} maxLength={128} onChange={event => setTransactionInput(event.target.value)}/></Filter>
+            <button className="settings-secondary-button" type="submit"><Search size={15} aria-hidden="true"/>Search</button>
+            <button className="settings-secondary-button" type="button" disabled={!transaction && !transactionInput} onClick={() => { setTransaction(''); setTransactionInput('') }}>Clear transaction search</button>
+          </form>
+          {transaction && <section aria-label="Transaction search evidence"><p>Transaction {transaction} · selected user, role view and assignment-status filter. Role-derived evidence is not proof of effective SAP authorization.</p>
+            {!user.mapping_available && <p>Transaction mappings unavailable: no role catalogue is loaded.</p>}
+            {Boolean(user.unmapped_assignments) && <p>{user.unmapped_assignments} assignments have unavailable or unresolved catalogue mappings; transaction coverage may be incomplete.</p>}
+            {user.items.map(a => <div key={a.id} className="text-sm"><strong>{transaction}</strong> · {a.role_name}{a.role_description && ` · ${a.role_description}`}{Boolean(a.transaction_roles?.length) && <span> · Via {a.transaction_roles?.join(', ')}</span>}</div>)}
+          </section>}
+          <div className="flex flex-wrap items-center gap-3">
+            <button className="settings-secondary-button" disabled={exporting || result.isFetching || !user.total} onClick={async () => {
+              const generation = exportGeneration.current;
+              setExporting(true); setExportMessage('Preparing CSV…');
+              try { const saved = await exportAssignments(user, scope, status, () => generation === exportGeneration.current, transaction);
+                if (generation === exportGeneration.current) setExportMessage(saved ? 'CSV exported.' : 'Export cancelled.');
+              } catch (error) { if (generation === exportGeneration.current) setExportMessage(error instanceof Error ? error.message : 'CSV export failed.'); }
+              finally { setExporting(false); }
+            }}><Download size={15} aria-hidden="true"/>{exporting ? 'Exporting…' : 'Export CSV'}</button>
+            <span className="text-xs text-[var(--muted)]">Exports all assignments matching this role view, assignment status and submitted transaction search.</span>
+            <span role="status">{exportMessage}</span>
+          </div>
+          <div className="access-table user-assignment-table">
             <table>
               <thead>
                 <tr>
@@ -397,9 +433,7 @@ function UserDetails({
                   <th>Role validity</th>
                   <th>Assignment status</th>
                   <th>
-                    {scope === "release"
-                      ? "Release investigation"
-                      : "Catalogue / transactions"}
+                    Details
                   </th>
                 </tr>
               </thead>
@@ -417,7 +451,7 @@ function UserDetails({
           </div>
           {!user.items.length && (
             <p>
-              No assignments in this section for the selected validity filters.
+              {transaction ? "No matching roles for this transaction in the selected role view and validity filters." : "No assignments in this section for the selected validity filters."}
             </p>
           )}
           <Pagination
@@ -463,31 +497,17 @@ function AssignmentRow({
       <td>{dates(a.valid_from, a.valid_to)}</td>
       <td>
         <EvidenceBadge value={a.status}/>
-        <br />
-        <small>Group: {a.user_group || "Unknown"}</small>
       </td>
       <td>
         {a.scope === "release" ? (
-          <DetailButton onClick={() => onRelease(a.role_name)}>
-            Release role details
-          </DetailButton>
+          <button className="settings-secondary-button" onClick={() => onRelease(a.role_name)}>View role details<ArrowRight size={15} aria-hidden="true"/></button>
         ) : a.match_status === "exact" || a.match_status === "wildcard" ? (
           <>
             {a.catalogue_roles.map((name) => (
-              <DetailButton key={name} onClick={() => onRole(name)}>
-                Role details: {name}
-              </DetailButton>
+              <button className="settings-secondary-button" key={name} aria-label={`View role details: ${name}`} onClick={() => onRole(name)}>
+                View role details<ArrowRight size={15} aria-hidden="true"/>
+              </button>
             ))}
-            <details>
-              <summary>{a.tcode_count} associated transactions</summary>
-              {a.tcodes.join(", ") || "None in catalogue"}
-              {a.tcode_count > a.tcodes.length && (
-                <p>
-                  Showing the first 100. Open Role details to review all
-                  catalogue transactions.
-                </p>
-              )}
-            </details>
           </>
         ) : (
           <span>No transaction access inferred</span>

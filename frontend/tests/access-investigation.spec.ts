@@ -66,7 +66,7 @@ test("user to role to transactions and reverse role or transaction investigation
     detail.getByRole("status").filter({ hasText: "Copied" }),
   ).toBeVisible();
   await detail
-    .getByRole("button", { name: "Role details: ZC:MM:BUY:EN*", exact: true })
+    .getByRole("button", { name: "View role details: ZC:MM:BUY:EN*", exact: true })
     .click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("ZS:BUY");

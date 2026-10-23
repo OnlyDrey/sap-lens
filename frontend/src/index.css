@@ -327,7 +327,7 @@ button:hover .module-icon:not([data-disabled="true"]) { border-color: currentCol
 /* Single-role evidence keeps its header and transaction actions on separate rows. */
 .single-role-entry { border-bottom:1px solid var(--border); }
 .single-role-entry:last-child { border-bottom:0; }
-.single-role-heading { display:grid; grid-template-columns:auto auto minmax(0,1fr) auto; align-items:center; gap:8px; padding:12px 16px; background:var(--surface); }
+.single-role-heading { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:8px; padding:12px 16px; background:var(--surface); }
 .single-role-heading[data-expanded="true"] { background:color-mix(in srgb,var(--accent2) 8%,var(--surface)); }
 .single-role-heading-main { display:flex; flex-direction:column; align-items:flex-start; gap:6px; min-width:0; }
 .single-role-description, .single-role-assignment { font-size:12px; color:var(--muted); line-height:1.5; overflow-wrap:anywhere; }
@@ -345,3 +345,15 @@ button:hover .module-icon:not([data-disabled="true"]) { border-color: currentCol
 .transaction-description { width:100%; color:var(--text2); overflow-wrap:anywhere; }
 .transaction-action { text-align:right; white-space:nowrap; }
 .transaction-investigate { min-height:34px; padding:6px 10px; font-size:12px; white-space:nowrap; }
+
+/* Lock evidence remains separate from validity badges. */
+.lock-status { display: inline-flex; align-items: center; gap: 0.375rem; white-space: nowrap; color: var(--muted); font-size: 0.8125rem; }
+.lock-status-locked { color: var(--error); }
+.role-module-metadata { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; font-size: 0.75rem; }
+
+.evidence-badge { display: inline-flex; align-items: center; gap: 0.25rem; }
+
+.user-assignment-table td:has(.role-identifier) { min-width:200px; }
+.user-assignment-table .settings-secondary-button { white-space:nowrap; }
+.evidence-badge { white-space:nowrap; }
+.evidence-badge svg, .lock-status svg { flex-shrink:0; }

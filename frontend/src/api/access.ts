@@ -3,6 +3,8 @@ export interface Assignment {
   id: number;
   username: string;
   role_name: string;
+  role_description?: string;
+  transaction_roles?: string[];
   user_group: string;
   scope: "business" | "release" | "other";
   valid_from: string | null;
@@ -36,6 +38,9 @@ export interface UserRow {
   relevant_roles: number;
 }
 export interface UserDetail extends UserRow {
+  data_revision: string;
+  mapping_available?: boolean;
+  unmapped_assignments?: number;
   items: Assignment[];
   total: number;
   offset: number;
