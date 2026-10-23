@@ -81,6 +81,7 @@ for (const theme of ['dark', 'light']) for (const width of [1280, 800]) {
       await page.screenshot({ path: info.outputPath(`${name}.png`), animations: 'disabled', fullPage: true })
     }
     const nav = page.getByRole('navigation', { name: 'Main navigation' })
+    await nav.getByRole('button', { name: 'Role Lookup', exact: true }).click()
     await expect(page.getByRole('button', { name: 'View details for Purchasing', exact: true })).toBeVisible()
     await shot('role-lookup')
     await page.getByRole('button', { name: 'View details for Purchasing', exact: true }).click()

@@ -137,6 +137,7 @@ export function AssignmentDateFilters({
             }
           }}
         >
+          <details className="assignment-date-advanced"><summary>Advanced interval filtering</summary>
           <div className="date-input-grid">
             {fields.map((key) => (
               <NorwegianDateInput
@@ -150,6 +151,7 @@ export function AssignmentDateFilters({
               />
             ))}
           </div>
+          </details>
           <label className="filter-toggle">
             <input
               type="checkbox"

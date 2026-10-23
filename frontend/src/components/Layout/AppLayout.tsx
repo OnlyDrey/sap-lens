@@ -1,10 +1,11 @@
+import { useApplicationData } from '@/state/ApplicationData'
 import { Notification } from '@/components/Shared/Notification'
 import { formatTimestamp } from '@/lib/dateFormat'
 import { useHistoryValue } from '@/hooks/useViewHistory'
 import { type ReactNode, useState } from 'react'
 import { RefreshCw, Sun, Moon, Settings, Loader2, Database } from 'lucide-react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { refreshData, apiRequest } from '@/api/client'
+import { useQuery } from '@tanstack/react-query'
+import { apiRequest } from '@/api/client'
 import { fetchConfiguration } from '@/api/configuration'
 import { SettingsView } from '@/components/Settings/SettingsView'
 import { cn } from '@/lib/utils'
@@ -28,9 +29,9 @@ export function AppLayout({
   isDark,
   onToggleTheme
 }: Props) {
-  const qc = useQueryClient()
+  const dataState=useApplicationData()
   const configurationQuery = useQuery({
-    queryKey: ['configuration'], queryFn: fetchConfiguration, retry:false, refetchInterval:5000
+    queryKey: ['configuration'], queryFn: fetchConfiguration, retry:false
   })
   const configuration = configurationQuery.data
   const { data: application } = useQuery({
@@ -54,24 +55,21 @@ export function AppLayout({
     setSettingsOpen(true)
   }
   const [themeBusy, setThemeBusy] = useState(false)
-  const [busy, setBusy] = useState(false)
+  const busy = dataState.loading
   const [err, setErr] = useState<string | null>(null)
 
   const handleRefresh = async () => {
-    setBusy(true)
     setErr(null)
     try {
-      await refreshData()
-      await qc.invalidateQueries()
+      await dataState.refresh()
       onRefresh()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Refresh failed')
-    } finally {
-      setBusy(false)
     }
   }
 
-  const fmt = lastLoaded ? formatTimestamp(lastLoaded) : null
+  const loaded = dataState.lastLoaded || lastLoaded
+  const fmt = loaded ? formatTimestamp(loaded) : null
 
   return (
     <div className={`${settingsOpen ? 'h-dvh overflow-hidden' : 'min-h-screen'} flex flex-col bg-[var(--bg)] transition-colors duration-300`}>
@@ -240,7 +238,7 @@ export function AppLayout({
         <strong>Local service unavailable.</strong><span>The current view is retained. Retry the connection; navigation does not restart the backend.</span>
         <button className="settings-secondary-button" onClick={() => void configurationQuery.refetch()} disabled={configurationQuery.isFetching}>Retry connection</button>
       </div>}
-      {configuration?.loading && !configurationQuery.isError && !settingsOpen && <div role="status" className="service-notice">
+      {dataState.loading && !configurationQuery.isError && !settingsOpen && <div role="status" className="service-notice">
         <Loader2 size={20} className="animate-spin shrink-0" aria-hidden="true"/>
         <div><h2 className="font-semibold">Loading CSV data…</h2><p className="text-sm text-[var(--muted)]">Previous data remains visible until both sources are loaded. Review or cancel a slow read in Settings.</p></div>
         <button className="settings-secondary-button" onClick={reviewDataSource}>Review data source</button>

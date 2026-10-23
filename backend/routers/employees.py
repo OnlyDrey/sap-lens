@@ -18,8 +18,9 @@ class ImportRequest(StrictModel):
     revision: int = Field(ge=0)
 
 
-def directory_status(private=False):
+def directory_status(private=False, snapshot=None):
     settings = get_settings()
+    snapshot = snapshot or cache.get_snapshot()
     directory = store.get(settings.employee_csv_path, settings.employee_snapshot_id) if settings.employee_snapshot_id or settings.features.employee_directory else store.directory
     enabled = settings.features.employee_directory
     status = ('disabled' if not enabled else 'not_configured' if not (settings.employee_csv_path or settings.employee_snapshot_id) else
@@ -27,9 +28,9 @@ def directory_status(private=False):
     report = directory.report() if directory and (settings.employee_csv_path or settings.employee_snapshot_id) else {}
     coverage = Counter()
     user_mapping_enabled = settings.features.user_role_mapping
-    user_mapping_available = user_mapping_enabled and bool(cache.get_snapshot().users.report)
+    user_mapping_available = user_mapping_enabled and bool(snapshot.users.report)
     if enabled and directory and user_mapping_available:
-        for user in cache.get_snapshot().users.users.values():
+        for user in snapshot.users.users.values():
             coverage[directory.match(user['emails'])['status']] += 1
     if status == 'healthy' and (report.get('duplicate_emails') or report.get('missing_emails') or
                                 any(report.get('managers', {}).get(k) for k in ['ambiguous', 'unresolved', 'self_reference'])):
@@ -43,7 +44,7 @@ def directory_status(private=False):
                 coverage_reason=('Enable Employee Directory in Feature Settings.' if not enabled else 'Import directory records first.' if not directory else 'Enable User–Role Mapping in Feature Settings to evaluate SAP email matches.' if not user_mapping_enabled else 'Load the User Access CSV to evaluate SAP email matches.' if not user_mapping_available else 'The User Access CSV contains no SAP users.' if not coverage else ''),
                 coverage_total=sum(coverage.values()),
                 dependency_satisfied=user_mapping_available, user_mapping_enabled=user_mapping_enabled,
-                mapping_data_available=bool(cache.get_snapshot().users.report), user_mapping_available=user_mapping_available, action='Settings → Data Sources → Employee Directory')
+                mapping_data_available=bool(snapshot.users.report), user_mapping_available=user_mapping_available, action='Settings → Data Sources → Employee Directory')
 
 
 def available():

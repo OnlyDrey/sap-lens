@@ -120,7 +120,7 @@ export function SettingsView({
   const [error, setError] = useState<string | null>(null)
   const [settingsTarget] = useHistoryValue('settingsTarget')
   const {change: changeSettingsTarget} = useViewHistory()
-  useEffect(()=>{if(open && settingsTarget) {setSection(settingsTarget === 'diagnostics' ? 4 : settingsTarget === 'features' ? 5 : 1); if(settingsTarget === 'employees') setImportSource('employees'); changeSettingsTarget({settingsTarget:undefined},true)}},[open,settingsTarget])
+  useEffect(()=>{if(open && settingsTarget) {setSection(settingsTarget === 'diagnostics' ? 4 : settingsTarget === 'features' ? 5 : 1); if(['roles','users','employees'].includes(settingsTarget)) setImportSource(settingsTarget as 'roles'|'users'|'employees'); changeSettingsTarget({settingsTarget:undefined},true)}},[open,settingsTarget])
   const [message, setMessage] = useState<string | null>(null)
   const [columns, setColumns] = useState<string[]>([])
   const [inspectionMessage, setInspectionMessage] = useState('')
@@ -166,8 +166,7 @@ export function SettingsView({
   const config = useQuery({
     queryKey: ['configuration'],
     queryFn: fetchConfiguration,
-    refetchInterval: (query) =>
-      busy || query.state.data?.loading ? 1000 : false
+    retry: false
   })
   const registry = useQuery({
     queryKey: ['registry'],
@@ -202,12 +201,6 @@ export function SettingsView({
       }
     }
   }, [config.data])
-  useEffect(() => {
-    if (config.data && !config.data.loading)
-      void qc.invalidateQueries({
-        predicate: (q) => ['roles', 'modules'].includes(String(q.queryKey[0]))
-      })
-  }, [config.data?.loading, config.data?.analysis, qc])
 
   const run = async (action: () => Promise<void>) => {
     setBusy(true)

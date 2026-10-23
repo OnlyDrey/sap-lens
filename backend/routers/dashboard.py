@@ -15,7 +15,7 @@ def overview():
     state, settings = cache.get_snapshot(), get_settings()
     catalogue = bool(state.import_report)
     mapping = settings.features.user_role_mapping and bool(state.users.report)
-    directory = directory_status()
+    directory = directory_status(snapshot=state)
     metrics = []
     def add(key, label, value, destination, context, reason='Source not loaded'):
         metrics.append(dict(id=key, label=label, value=value, destination=destination,
@@ -36,4 +36,7 @@ def overview():
     coverage=directory['coverage']
     add('email_matches','Directory email matches',coverage.get('matched',0) if directory['coverage_total'] else None,'employees',f"Exact matches of {directory['coverage_total']} SAP identities; open directory data quality.",directory['coverage_reason'])
     add('unresolved','Missing or ambiguous directory matches',sum(v for k,v in coverage.items() if k!='matched') if directory['coverage_total'] else None,'employees','Includes missing SAP email, unmatched and ambiguous evidence; open data quality.',directory['coverage_reason'])
-    return dict(metrics=metrics,as_of=directory['report'].get('imported_at'),notice='Current local snapshots only; no historical trends or effective-authorization claims.')
+    return dict(metrics=metrics,coverage_total=directory['coverage_total'],
+                sources=[dict(id='roles',name='Role Catalogue',enabled=True,configured=bool(settings.data_csv_path),available=catalogue),
+                         dict(id='users',name='User–Role Mapping',enabled=settings.features.user_role_mapping,configured=bool(settings.user_csv_path),available=bool(state.users.report)),
+                         dict(id='employees',name='Employee Directory',enabled=enabled,configured=directory['configured'],available=directory['loaded'])],as_of=directory['report'].get('imported_at'),notice='Current local snapshots only; no historical trends or effective-authorization claims.')

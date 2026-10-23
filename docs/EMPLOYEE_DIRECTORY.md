@@ -20,8 +20,8 @@ sources. No direct AD connection, cloud upload or credentials are required.
    previewed again. Invalid replacements retain the previous valid directory.
 5. Use the employee search in this tab to search name, email, department, job
    title, site or manager. Results are paginated, with employee and manager details.
-6. Open a SAP user in **User Access**. A unique, exact email match adds an Employee
-   Directory section beneath the original SAP account information. Use **View SAP user** in **Reports to** to open the manager’s existing SAP User Details, when exactly one SAP username matches `ManagerMail`. Browser Back returns to the employee.
+6. Open a SAP user in **User Access**. A unique, exact email match enriches the unified
+   profile without replacing SAP source identity. Use **View SAP user** in **Reports to** to open the manager’s existing SAP User Details, when exactly one SAP username matches `ManagerMail`. Browser Back returns to the employee.
 
 Use the independent Role Catalogue and User Access tabs for their existing CSV
 formats, presets, mappings, delimiters and encodings. Their preview and save
@@ -167,3 +167,27 @@ integrity/privacy and the 1,447-entry Lucide catalog check passed. Synthetic
 light/dark Features and Data Sources screenshots were reviewed at 800 and 1280
 pixels. Native Windows packaging, WebView2, UNC access and the actual file picker
 remain pending; no remote builds or workflow dispatches were performed.
+
+## SAP User Details profile
+
+The profile has three responsive groups: **SAP Identity**, **Account & Validity**,
+and **Organization**. SAP CSV names/emails remain authoritative. Directory job
+title, department and AD username enrich Organization; AD account status appears
+separately from SAP validity/lock status in Account & Validity. Site remains in the
+source model and source investigation, not the primary SAP profile. Exact matching
+outcomes remain available in Data Sources and technical diagnostics rather than a
+repeated “Exact email match” label beside the profile.
+
+Organization shows a directory display name only when SAP provides no name.
+Display-only normalization recognizes exactly two letter-only comma-separated
+parts (`Surname, Given names`), preserving compound surnames/given names. Initials,
+multiple commas, annotations and ambiguous formats remain unchanged. This never
+changes imported values, SAP names, matching keys or manager resolution.
+
+Reports to keeps the manager's name/title without repeated technical attributes.
+A unique normalized exact `ManagerMail` → SAP email match enables **View SAP user**
+using the actual SAP username. Missing/ambiguous/unmatched identities use a neutral
+status pill and no broken link. Browser Back returns to the employee. No AD
+username/name-only fallback or organization chart is introduced. Disabled or
+unavailable optional sources leave an explanatory Organization group while core
+SAP profile/assignment evidence stays available.

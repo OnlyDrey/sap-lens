@@ -1,3 +1,4 @@
+import { useApplicationData } from '@/state/ApplicationData'
 import { formatDate } from '@/lib/dateFormat'
 import { AssignmentDateFilters, emptyDates, dateParams, datesActive, type AssignmentDates } from '@/components/Shared/AssignmentDateFilters'
 import { ClearFilterButton } from '@/components/Shared/ClearFilterButton'
@@ -35,6 +36,7 @@ export function ReleaseRoles({
   initialRole?: string;
   onUser: (name: string) => void;
 }) {
+  const {loading:dataLoading}=useApplicationData();
   const [assignmentDates, setAssignmentDates] = useState({ ...emptyDates });
   const dateKey = JSON.stringify(assignmentDates);
   const listScroll = useRef(0);
@@ -165,9 +167,14 @@ export function ReleaseRoles({
         </Filter>
       <AssignmentDateFilters value={assignmentDates} onChange={setAssignmentDates}/>
         </div></fieldset>
-        <fieldset><legend>Display</legend><div className="filter-grid">
+
+      </div>
+      {(group || kind || releaseGroup || strategy || username || role || status !== 'active' || datesActive(assignmentDates) || descending || sort !== 'role_name') && <ClearFilterButton onClick={() => { setGroup(''); setKind(''); setReleaseGroup(''); setStrategy(''); setUsername(''); setRole(''); setStatus('active'); setAssignmentDates({ ...emptyDates }); setSort('role_name'); setDescending(false) }}>Clear filters</ClearFilterButton>}
+      <div className="results-toolbar">
+        <h2>Release assignments <span>{result.data?.total.toLocaleString() ?? '…'} {result.data?.total === 1 ? 'role' : 'roles'}</span></h2>
+<div className="results-sort">
         <Filter label="Sort release roles">
-          <Select
+          <Select aria-label="Sort release roles"
             className={inputClass}
             value={sort}
             onChange={(e) => setSort(e.target.value)}
@@ -193,11 +200,7 @@ export function ReleaseRoles({
           />
           Descending
         </label>
-        </div></fieldset>
-      </div>
-      {(group || kind || releaseGroup || strategy || username || role || status !== 'active' || datesActive(assignmentDates) || descending || sort !== 'role_name') && <ClearFilterButton onClick={() => { setGroup(''); setKind(''); setReleaseGroup(''); setStrategy(''); setUsername(''); setRole(''); setStatus('active'); setAssignmentDates({ ...emptyDates }); setSort('role_name'); setDescending(false) }}>Reset filters</ClearFilterButton>}
-      <div className="results-toolbar">
-        <h2>Release assignments <span>{result.data?.total.toLocaleString() ?? '…'} {result.data?.total === 1 ? 'role' : 'roles'}</span></h2>
+</div>
         <div className="segmented-control" role="group" aria-label="Release results view">
           <button aria-pressed={!matrix} onClick={() => setMatrix(false)}><List size={16} aria-hidden="true"/>Table</button>
           <button aria-pressed={matrix} onClick={() => setMatrix(true)}><Grid3X3 size={16} aria-hidden="true"/>Matrix</button>
@@ -213,8 +216,8 @@ export function ReleaseRoles({
           </label>
         )}
       </div>
-      <QueryState loading={result.isLoading} error={result.error} />
-      {result.data && !result.data.loaded && (
+      <QueryState loading={result.isLoading || (dataLoading && !result.data?.loaded)} error={result.error} />
+      {result.data && !result.data.loaded && !dataLoading && (
         <p>No User Access CSV loaded. Configure it in Settings.</p>
       )}
       {result.data &&
@@ -406,6 +409,7 @@ function ReleaseDetail({
   onDatesChange: (value: AssignmentDates) => void
   onStatusChange: (value: string) => void
 }) {
+  const {loading:dataLoading}=useApplicationData();
   const [offset, setOffset] = useState(0)
   const dateKey = JSON.stringify(assignmentDates)
   useEffect(() => setOffset(0), [drill, dateKey, status])
@@ -556,7 +560,7 @@ function ReleaseDetail({
               </tbody>
             </table>
           </div>
-          {!result.data.items.length && (
+          {!result.data.items.length && !dataLoading && (
             <p>No assignments match these assignment filters.</p>
           )}
           <Pagination

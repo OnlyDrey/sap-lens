@@ -1,3 +1,4 @@
+import { useApplicationData } from '@/state/ApplicationData'
 import { TransactionFilter, useTransactionFilter } from '@/components/Shared/TransactionFilter'
 import { ClearFilterButton } from '@/components/Shared/ClearFilterButton'
 import { ModuleIcon } from '@/components/Modules/ModuleIcon'
@@ -144,6 +145,7 @@ export function RoleList({
   onCompare,
   onFilteredRoles
 }: Props) {
+  const {loading:dataLoading}=useApplicationData()
   const [page,setPage] = useState(0)
   const transaction = useTransactionFilter()
   const [search, setSearch] = useState('')
@@ -507,7 +509,7 @@ export function RoleList({
         </div>
       )}
 
-      {isLoading && (
+      {(isLoading || (dataLoading && !allRolesRaw.length)) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {Array.from({ length: 8 }).map((_, i) => (
             <Skeleton key={i} />
@@ -515,7 +517,7 @@ export function RoleList({
         </div>
       )}
 
-      {!isLoading && !isError && (
+      {!isLoading && !isError && !(dataLoading && !allRolesRaw.length) && (
         visible.length === 0
           ? (
             <div

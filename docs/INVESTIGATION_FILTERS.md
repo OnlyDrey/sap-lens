@@ -48,8 +48,9 @@ User Details and Release Roles share inclusive filters for:
 - Valid to: earliest and latest dates.
 - **Include assignments without end date** (checked by default).
 
-A compact calendar/filter button lives in the assignment toolbar, below User
-Information and account/profile cards. The expandable controls use Norwegian
+A compact calendar/filter button lives in the assignment toolbar, below the unified user profile. The four optional bounds are inside collapsed
+**Advanced interval filtering**; the missing-end checkbox remains a quick control.
+The expandable controls use Norwegian
 `DD.MM.YYYY` text entry and an integrated Norwegian calendar. Draft edits do not
 filter until **Apply date filters**. Invalid dates/reversed ranges remain editable.
 Cancel discards drafts; Clear resets date filters; applied date chips can each be
@@ -121,6 +122,22 @@ Role Lookup places name/description search and exact transaction search in a sha
 chips sit below, with the shared AND/OR selector before them. SAP area multi-selection
 and Clear all filters keep their previous semantics. Dashboard owns the former KPI
 row; see [Dashboard and shared notifications](DASHBOARD.md).
+
+## Responsive directory and release controls
+
+User Access places search, SAP User Group, sorting (with Descending directly below)
+and live transaction filtering in one four-column container. It becomes two columns
+below 1100 pixels and one below 640. The explicit **Clear filters** action resets
+all directory controls, including sort, direction and expiry; the narrower evidence
+**Clear filter** still removes only role/T-code evidence, preserving the other
+controls. Live typing, chip/AND/OR semantics and export evidence are unchanged.
+
+Release Roles uses four-column classification and assignment controls with the same
+responsive breakpoints. Status and the compact date button stay with assignment
+filters. Sorting and Descending sit together in the results toolbar. **Clear filters**
+restores the normal currently-valid view and resets advanced intervals/sort; no date
+capability or missing/SAP-maximum-date distinction has been removed. Assignment
+filters do not affect profile information or account status.
 
 ## API additions
 

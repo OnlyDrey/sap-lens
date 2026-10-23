@@ -32,7 +32,7 @@ test('Back and Forward preserve meaningful views and detail state without reload
   await page.getByLabel('Search users', { exact:true }).fill('DEMO_OTHER')
   await page.getByRole('button', { name:'DEMO_OTHER', exact:true }).click()
   const detail = page.getByRole('region', { name:'User details', exact:true })
-  await expect(detail.getByRole('region', {name:'User information',exact:true})).toContainText('Sample Other')
+  await expect(detail.getByRole('region', {name:'SAP Identity',exact:true})).toContainText('Sample Other')
   await expect(detail.getByText('Unlocked', {exact:true})).toHaveCount(1)
   await detail.getByRole('button',{name:'Copy username DEMO_OTHER',exact:true}).click()
   await expect(detail.getByText('Copied',{exact:true})).toBeVisible()
@@ -68,7 +68,7 @@ test('release facets are data-driven, bounded, retain invalid choices and refres
   await expect(page.getByRole('combobox',{name:'Release Group',exact:true})).toHaveValue('SH')
   await expect(page.getByText('No available value matches this filter', {exact:false}).first()).toBeVisible()
   await expect(page.getByText('No release assignments match.',{exact:false})).toBeVisible()
-  await page.getByRole('button',{name:'Reset filters',exact:true}).click()
+  await page.getByRole('button',{name:'Clear filters',exact:true}).click()
   await expect(page.getByRole('combobox',{name:'PR/PO',exact:true})).toHaveValue('')
   const settings = (await (await request.get('/api/configuration',{headers})).json()).settings
   settings.user_csv_path = path.join(directory,'many-users.csv')
@@ -100,7 +100,7 @@ test('loading and reconnect stay contextual during Back and Forward', async ({ p
   await expect(page.getByRole('heading',{name:'User Access',exact:true})).toBeVisible()
   await expect(page.locator('.startup-screen')).toHaveCount(0)
   failed = true
-  await page.getByRole('button',{name:'Refresh role data from CSV',exact:true}).click()
+  // The application-scoped poll detects service loss even while refresh is busy.
   await expect(page.getByText('Local service unavailable.',{exact:true})).toBeVisible()
   await expect(page.getByRole('heading',{name:'Loading CSV data…',exact:true})).toHaveCount(0)
   await expect(page.locator('.startup-screen')).toHaveCount(0)
@@ -117,7 +117,7 @@ for (const theme of ['dark','light']) for (const width of [1280,800]) test(`data
   await page.goto('/#session=browser-test-session')
   const shot = async (name:string) => { expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBeTruthy(); await page.screenshot({path:info.outputPath(`${name}.png`),fullPage:true}) }
   await navigate(page,'User Access'); await page.getByRole('button',{name:'DEMO_OTHER',exact:true}).click()
-  await expect(page.getByRole('region',{name:'Validity and account information',exact:true})).toBeVisible()
+  await expect(page.getByRole('region',{name:'Account & Validity',exact:true})).toBeVisible()
   await shot('user-two-column')
   await page.getByRole('button',{name:'Open settings',exact:true}).click()
   await page.getByRole('tab',{name:'Application & Diagnostics',exact:true}).click()
@@ -162,7 +162,7 @@ test('bootstrap handoff replaces its history entry and never reappears at the fi
   await expect(page.getByRole('navigation',{name:'Main navigation'})).toBeVisible()
   expect(await page.evaluate(()=>history.length)).toBe(bootstrapLength + 1) // one app boundary, no added bootstrap entry
   await navigate(page,'User Access'); await page.goBack()
-  await expect(page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Role Lookup',exact:true})).toHaveAttribute('aria-current','page')
+  await expect(page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Dashboard',exact:true})).toHaveAttribute('aria-current','page')
   await page.goBack()
   await expect.poll(()=>page.evaluate(()=>Boolean(history.state?.sapLensView && !history.state?.sapLensBoundary))).toBeTruthy()
   await expect(page.getByRole('navigation',{name:'Main navigation'})).toBeVisible()

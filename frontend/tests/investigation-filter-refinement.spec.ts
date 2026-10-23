@@ -45,6 +45,8 @@ async function user(page: Page) {
 async function openDates(page: Page) {
   const button = page.getByRole('button', {name:/^Assignment date filters/}).filter({visible:true})
   if ((await button.getAttribute('aria-expanded')) !== 'true') await button.click()
+  const advanced=page.locator('.assignment-date-advanced:visible')
+  if (!(await advanced.evaluate(el=>(el as HTMLDetailsElement).open))) await advanced.locator('summary').click()
 }
 
 test('catalogue AND/OR is exact across mapping rows; multi-area OR combines with role text using AND', async ({
@@ -200,7 +202,7 @@ test('catalogue detail neighbours and browser history keep the complete filtered
 })
 
 test('user date ranges are inclusive, independent, recover from invalid bounds and match the exported CSV', async ({page}) => {
-  const detail=await user(page), table=detail.getByRole('region',{name:'User role assignments'}), profile=detail.getByRole('region',{name:'User information',exact:true}), account=detail.getByRole('region',{name:'Validity and account information'})
+  const detail=await user(page), table=detail.getByRole('region',{name:'User role assignments'}), profile=detail.getByRole('region',{name:'SAP Identity',exact:true}), account=detail.getByRole('region',{name:'Account & Validity'})
   const originalProfile=await profile.textContent(), originalAccount=await account.textContent()
   await detail.getByLabel('Assignment status',{exact:true}).selectOption('all')
   await openDates(page)

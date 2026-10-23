@@ -1,3 +1,4 @@
+import { useApplicationData } from '@/state/ApplicationData'
 import { DetailNavigation } from "@/components/Shared/InvestigationNavigation"
 import { RoleMetadata } from '@/components/Shared/RoleMetadata'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
@@ -54,6 +55,7 @@ const SingleRoleRow = memo(function SingleRoleRow({ sr, onTcodeUsers, transactio
 })
 
 export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, parent = 'Role Lookup', navigation }: { navigation?: { index: number; total: number; onPrevious?: () => void; onNext?: () => void; missing: boolean }; parent?: string; roleName: string | null; onClose: () => void; onUsers?: (role:string)=>void; onTcodeUsers?: (code:string)=>void }) {
+  const {loading:dataLoading}=useApplicationData()
   const { data: role, isLoading, isError, error } = useRoleDetail(roleName)
   const transactionFilter = useTransactionFilter(roleName)
   const transaction = useMemo(() => transactionFilter.deferredCodes, [transactionFilter.deferredKey])
@@ -94,13 +96,13 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, pare
             <div className="px-6 py-5 flex flex-col gap-5">
               <DetailNavigation {...navigation} parent={parent} current={roleName} onBack={onClose}/>
 
-              {isLoading && (
+              {(isLoading || (dataLoading && !role)) && (
                 <div className="flex flex-col items-center py-20 gap-3">
                   <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--accent2)' }} />
                   <p className="text-sm" style={{ color: 'var(--muted)' }}>Loading...</p>
                 </div>
               )}
-              {isError && (
+              {isError && !dataLoading && (
                 <div className="flex gap-3 rounded-xl p-4" style={{ backgroundColor: 'var(--surface2)', border: '1px solid var(--error)' }}>
                   <AlertTriangle className="w-5 h-5 text-[var(--error)]" />
                   <div>

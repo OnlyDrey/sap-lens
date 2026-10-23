@@ -165,7 +165,7 @@ test('Dashboard counts and KPI routes are meaningful, with browser Back and disa
       name: 'Employee Directory records',
       exact: true,
     }),
-  ).toContainText('Unavailable')
+  ).toContainText('Employee Directory disabled')
   await dashboard
     .getByRole('button', { name: 'SAP users', exact: true })
     .click()

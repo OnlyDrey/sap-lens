@@ -1,9 +1,44 @@
 # Dashboard and shared notifications
 
-Dashboard is available from the main navigation and at `#/dashboard`. Role Lookup
-remains the default route for compatibility with existing links and desktop startup.
-Its former KPI row now appears only on Dashboard. No historical trends are inferred
+Dashboard is the default landing page, available from the main navigation and at
+`#/dashboard`. Explicit `#/role-lookup`, `#/user-access` and `#/release-roles` routes
+still work, and an existing detail history entry remains meaningful. No historical trends are inferred
 from a single import. All data stays on the managed loopback backend.
+
+## Startup, refresh and navigation
+
+Configured SAP sources initialize in the backend lifespan, independently of which
+page opens. `cache.load_cache` validates a complete candidate snapshot before
+publishing it; a failed second CSV leaves both sources on the previous snapshot.
+Directory confirmation remains its separate, persisted import workflow.
+
+`ApplicationDataProvider` observes configuration above the page routes. It polls
+at 500 ms during a load and 3 seconds otherwise. Configuration's `data_revision`
+is the published snapshot's timestamp (or `empty`), not CSV contents or a path.
+On initial readiness or a changed publication, the provider cancels obsolete
+query results and invalidates dataset queries across all routes, including inactive
+cached pages. Active queries refetch; inactive pages refetch when used. Backend
+publication remains atomic; requests can finish at different times, so a shared
+updating indicator remains visible while active views synchronize. Previously
+accepted data is retained while loading and after a rejected replacement. Initial
+empty/not-found states wait for startup completion. Service loss offers retry
+without restarting navigation or discarding the last accepted view.
+
+Previously, refresh state and role/module invalidation lived in page components.
+Dashboard, user and release results could remain cached after startup completion;
+a delayed response could repopulate an obsolete route cache. Browser regressions
+cover that failure, navigation during refresh, stale responses, recovery and restored
+detail history. Backend regressions verify atomic two-source publication.
+
+## Overview layout
+
+The compact Dashboard groups metrics into **Overview**, **User Access**, **Data
+Quality** and **Configuration**. Source setup buttons open the correct Data Sources
+tab. Smaller icon/value tiles replace the twelve equal, descriptive cards; metrics
+have explanatory accessible text/tooltips and no fabricated historical trends.
+The default Dashboard does not mount Role Lookup or download its catalogue until
+that investigation is visited. Profile/filter layouts use four/two/one-column
+breakpoints at 1100 and 640 pixels; the profile itself uses three/two/one groups.
 
 ## Metrics and data boundaries
 
@@ -11,8 +46,8 @@ from a single import. All data stays on the managed loopback backend.
 investigation APIs. It requires the existing application session/origin protections.
 Each metric contains `id`, `label`, numeric `value` or null, `destination`, `context`
 and an `unavailable_reason`. Null means disabled or unavailable; zero is used only
-when a loaded, enabled source genuinely has no matching records. No identity rows,
-paths, source filenames or snapshot IDs are returned.
+when a loaded, enabled source genuinely has no matching records. No identity rows, paths, source filenames or snapshot IDs are returned. Compact
+source availability and the email-coverage denominator accompany the metrics.
 
 | Metric | Definition | Destination |
 | --- | --- | --- |

@@ -58,6 +58,7 @@ test('live multi-code user filtering, chips, duplicate prevention, Backspace and
 })
 test('sidebar multi-code chips search collapsed mappings and reset on role changes', async ({ page }) => {
   await page.goto('/#session=browser-test-session')
+  await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Role Lookup',exact:true}).click()
   await page.getByRole('button', { name: 'View details for Purchasing', exact: true }).click()
   const dialog = page.getByRole('dialog'), filter = dialog.getByRole('group', { name: 'Find transaction code', exact: true }), input = filter.getByRole('textbox')
   await input.fill('MIGO'); await input.press('Enter'); await input.fill('ME21N')
@@ -73,6 +74,7 @@ test('sidebar multi-code chips search collapsed mappings and reset on role chang
 })
 test('catalogue exact OR filtering combines with text/modules, preserves selections and action isolation', async ({ page }) => {
   await page.goto('/#session=browser-test-session')
+  await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Role Lookup',exact:true}).click()
   await page.getByRole('button', { name: 'Add to comparison', exact: true }).first().click()
   await page.getByRole('button', { name: 'Add to comparison', exact: true }).first().click()
   const filter = page.getByRole('group', { name: 'Filter catalogue by transaction', exact: true }), input = filter.getByRole('textbox')
@@ -95,6 +97,7 @@ test('catalogue exact OR filtering combines with text/modules, preserves selecti
 })
 test('evidence summary clear preserves directory search, group, sorting and expired toggle', async ({ page }) => {
   await page.goto('/#session=browser-test-session')
+  await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Role Lookup',exact:true}).click()
   await page.getByRole('button', { name: 'View details for Purchasing', exact: true }).click()
   await page.getByRole('button', { name: 'Expand single role ZS:BUY', exact: true }).click()
   await page.getByRole('button', { name: 'Investigate users with MIGO', exact: true }).click()

@@ -1,5 +1,6 @@
+import { useApplicationData } from '@/state/ApplicationData'
 import { AssignmentDateFilters, emptyDates, dateParams, datesActive } from '@/components/Shared/AssignmentDateFilters'
-import { EmployeeEnrichment } from './EmployeeEnrichment'
+import { UserProfile } from './UserProfile'
 import { TransactionFilter, useTransactionFilter } from '@/components/Shared/TransactionFilter';
 import { ClearFilterButton } from '@/components/Shared/ClearFilterButton';
 import { Select } from '@/components/Shared/Select';
@@ -42,6 +43,7 @@ export function UserAccess({
   onRole: (role: string) => void;
   onRelease: (role: string) => void;
 }) {
+  const {loading:dataLoading}=useApplicationData();
   const listScroll = useRef(0);
   const originUser = useRef(initialUser || "");
   const restoreList = useRef(false);
@@ -120,7 +122,7 @@ export function UserAccess({
     <section aria-label="User Access" className="space-y-4">
       <h1 className="text-xl font-semibold">User Access</h1>
       <EvidenceNote />
-      <div className="investigation-filters user-filters"><fieldset><legend>User directory</legend><div className="filter-grid">
+      <div className="investigation-filters user-filters"><fieldset><legend>User directory</legend><div className="directory-filter-grid">
         <Filter label="Search users">
           <input
             className={inputClass}
@@ -133,7 +135,7 @@ export function UserAccess({
         <Filter label="SAP User Group">
           <Combobox label="SAP User Group" value={group} options={result.data?.groups || []} onChange={setGroup} placeholder="All groups; type a group to filter"/>
         </Filter>
-        <Filter label="Sort users">
+        <div className="directory-sort"><Filter label="Sort users">
           <Select aria-label="Sort users"
             className={inputClass}
             value={sort}
@@ -162,6 +164,13 @@ export function UserAccess({
           />
           Descending
         </label>
+        </div>
+      <section className="directory-transaction" aria-label={(role || tcode) ? 'Active evidence filter' : 'User transaction filter'}>
+        <TransactionFilter label="Filter users by transaction" filter={directoryTransaction} mode={transactionMode} onModeChange={setTransactionMode} showClear={false} chipPrefix="Transaction: "/>
+        {(role || tcode) && <><FilterIcon size={17} aria-hidden="true"/><strong>Active evidence filter</strong></>}
+        {role && <span className="transaction-chip">Role: {role}</span>}
+        {(role || tcode) && <ClearFilterButton className="ml-auto" onClick={clearEvidence}/>}
+      </section>
         <label className="filter-toggle">
           <input
             type="checkbox"
@@ -170,15 +179,10 @@ export function UserAccess({
           />
           Show expired assignments
         </label>
+        <ClearFilterButton className="directory-clear" disabled={!search && !group && sort==='username' && !descending && !expired && !role && !directoryTransaction.codes.length} onClick={()=>{setSearch('');setTerm('');setGroup('');setSort('username');setDescending(false);setExpired(false);clearEvidence()}}>Clear filters</ClearFilterButton>
       </div></fieldset></div>
-      <section className={(role || tcode) ? 'active-evidence-filter' : undefined} aria-label={(role || tcode) ? 'Active evidence filter' : 'User transaction filter'}>
-        {(role || tcode) && <><FilterIcon size={17} aria-hidden="true"/><strong>Active evidence filter</strong></>}
-        {role && <span className="transaction-chip">Role: {role}</span>}
-        <TransactionFilter label="Filter users by transaction" filter={directoryTransaction} mode={transactionMode} onModeChange={setTransactionMode} showClear={false} chipPrefix="Transaction: "/>
-        {(role || tcode) && <ClearFilterButton className="ml-auto" onClick={clearEvidence}/>}
-      </section>
-      <QueryState loading={result.isLoading} error={result.error} />
-      {result.data && !result.data.loaded && (
+      <QueryState loading={result.isLoading || (dataLoading && !result.data?.loaded)} error={result.error} />
+      {result.data && !result.data.loaded && !dataLoading && (
         <p>
           No User Access CSV loaded. Choose the second source in Settings → Data
           Source &amp; Import.
@@ -269,6 +273,7 @@ function UserDetails({
   onRole: (role: string) => void;
   onRelease: (role: string) => void;
 }) {
+  const {loading:dataLoading}=useApplicationData();
   const [exporting, setExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState('');
   const [assignmentDates, setAssignmentDates] = useState({ ...emptyDates });
@@ -318,25 +323,10 @@ function UserDetails({
     <section aria-label="User details" className="space-y-4">
       <DetailNavigation parent="User Access" current={username} onBack={onBack} {...navigation}/>
       <h1 className="text-xl font-semibold">User details</h1>
-      <QueryState loading={result.isLoading} error={result.error} />
+      <QueryState loading={result.isLoading || (dataLoading && !result.data)} error={dataLoading && !result.data ? null : result.error} />
       {user && (
         <>
-          <div className="user-information-grid">
-            <section className="information-card" aria-label="User information"><h2>User information</h2><dl className="information-list">
-              <dt>Username</dt><dd><RoleIdentifier value={username} label="username"/></dd>
-              <dt>Full name</dt><dd>{user.names.map(n => n.join(' ').trim()).filter(Boolean).join(' / ') || 'Unknown'}</dd>
-              <dt>Email</dt><dd>{user.emails.join(', ') || 'Unknown'}</dd>
-              <dt>SAP User Group</dt><dd>{user.groups.map(group => group || 'Unknown group').join(', ') || 'Unknown'}</dd>
-              <dt>User type</dt><dd>{user.account_total === 1 ? user.accounts[0]?.user_type || 'Unknown' : 'See account evidence'}</dd>
-            </dl></section>
-            <section className="information-card" aria-label="Validity and account information"><h2>Validity &amp; account</h2><dl className="information-list">
-              <dt>Valid from</dt><dd>{user.account_total === 1 ? formatDate(user.accounts[0]?.valid_from) : 'Multiple source records'}</dd>
-              <dt>Valid until</dt><dd>{user.account_total === 1 ? formatDate(user.accounts[0]?.valid_to) : 'See account evidence'}</dd>
-              <dt>Account status</dt><dd>{user.account_status.split('/').map(value => <EvidenceBadge key={value} value={value}/>)}</dd>
-              <dt>Lock status</dt><dd><LockStatus value={user.lock_status}/></dd>
-            </dl></section>
-          </div>
-          <EmployeeEnrichment username={username}/>
+          <UserProfile user={user}/>
           {user.account_total > 1 && <details className="settings-advanced"><summary>User validity and account evidence · {user.account_total} source records</summary>
             <p className="text-sm text-[var(--muted)]">Distinct source records are retained below; a summary does not override conflicting validity or lock evidence.</p>
             <div className="access-table"><table><thead><tr><th>User group</th><th>User validity</th><th>Account status</th><th>Lock status</th><th>User type</th></tr></thead><tbody>

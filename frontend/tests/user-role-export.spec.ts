@@ -121,7 +121,7 @@ for (const theme of ['light', 'dark']) for (const width of [800, 1280]) test(`se
   await locked.locator('.lock-status').scrollIntoViewIfNeeded()
   await page.screenshot({ path: info.outputPath('directory.png'), fullPage: true })
   await page.getByRole('button', { name: 'DEMO_EXPORT', exact: true }).click()
-  await expect(page.getByRole('region', { name: 'Validity and account information', exact: true }).locator('.lock-status')).toHaveText('Mixed / unknown')
+  await expect(page.getByRole('region', { name: 'Account & Validity', exact: true }).locator('.lock-status')).toHaveText('Mixed / unknown')
   await page.getByRole('button', { name: 'All roles', exact: true }).click()
   await page.getByRole('textbox', { name: 'Find roles by transaction' }).fill('ME21N')
   await expect(page.getByRole('button', { name: 'Search', exact: true })).toHaveCount(0)

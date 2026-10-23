@@ -113,16 +113,17 @@ test('directory preview, confirmation, feature persistence, manager drill-down a
     .click()
   await page.getByRole('button', { name: 'DEMO_EMPLOYEE', exact: true }).click()
   const enrichment = page.getByRole('region', {
-    name: 'Employee Directory enrichment',
+    name: 'Organization',
     exact: true,
   })
   await expect(enrichment).toContainText('Engineering')
   await enrichment.getByRole('button', { name: 'View SAP user' }).click()
-  await expect(page.getByRole('region',{name:'User information',exact:true})).toContainText('SAP_MANAGER')
+  await expect(page.getByRole('region',{name:'SAP Identity',exact:true})).toContainText('SAP_MANAGER')
   await page.goBack()
-  await expect(page.getByRole('region',{name:'User information',exact:true})).toContainText('DEMO_EMPLOYEE')
+  await expect(page.getByRole('region',{name:'SAP Identity',exact:true})).toContainText('DEMO_EMPLOYEE')
   await page.reload()
-  await expect(enrichment).toContainText('Exact email match')
+  await expect(enrichment).toContainText('Engineering')
+  await expect(enrichment).not.toContainText('Exact email match')
   await page.getByRole('button', { name: 'Open settings', exact: true }).click()
   await page.getByRole('tab', { name: 'Data Sources', exact: true }).click()
   await page
@@ -152,21 +153,21 @@ test('disabled and missing optional directory never replaces SAP information or 
     .click()
   await page.getByRole('button', { name: 'DEMO_EMPLOYEE', exact: true }).click()
   await expect(
-    page.getByRole('region', { name: 'Employee Directory enrichment' }),
-  ).toHaveCount(0)
+    page.getByRole('region', { name: 'Organization' }),
+  ).toContainText('Employee Directory disabled or unavailable.')
   await expect(
-    page.getByRole('region', { name: 'User information', exact: true }),
+    page.getByRole('region', { name: 'SAP Identity', exact: true }),
   ).toContainText('EMPLOYEE@example.test')
   await enable(request)
   await page.reload()
   await expect(
-    page.getByRole('region', { name: 'Employee Directory enrichment' }),
+    page.getByRole('region', { name: 'Organization' }),
   ).toContainText('Demo Employee')
   await enable(request, false)
   await page.reload()
   await expect(
-    page.getByRole('region', { name: 'Employee Directory enrichment' }),
-  ).toHaveCount(0)
+    page.getByRole('region', { name: 'Organization' }),
+  ).toContainText('Employee Directory disabled or unavailable.')
   expect((await request.get('/health')).ok()).toBeTruthy()
 })
 
@@ -298,15 +299,15 @@ test('duplicate and missing email states remain distinct with diagnostics warnin
     .click()
   await page.getByRole('button', { name: 'DEMO_EMPLOYEE', exact: true }).click()
   await expect(
-    page.getByRole('region', { name: 'Employee Directory enrichment' }),
-  ).toContainText('Duplicate directory email; no employee selected.')
+    page.getByRole('region', { name: 'Organization' }),
+  ).toContainText('No uniquely matched directory organization information.')
   await page
     .getByRole('button', { name: 'Back to users', exact: true })
     .click()
   await page.getByRole('button', { name: 'DEMO_NO_EMAIL', exact: true }).click()
   await expect(
-    page.getByRole('region', { name: 'Employee Directory enrichment' }),
-  ).toContainText('SAP email is missing.')
+    page.getByRole('region', { name: 'Organization' }),
+  ).toContainText('No uniquely matched directory organization information.')
   const status = await (
     await request.get('/api/employees/status', { headers })
   ).json()
@@ -317,6 +318,7 @@ test('duplicate and missing email states remain distinct with diagnostics warnin
 test('directory import and clear preserve independent catalogue filters, comparison and SAP generation', async ({ page, request }) => {
   const before = (await (await request.get('/api/access/users/DEMO_EMPLOYEE', { headers })).json()).data_revision
   await page.goto('/#session=browser-test-session')
+  await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Role Lookup',exact:true}).click()
   const search = page.getByPlaceholder('Search roles by name or description...')
   await search.fill('finance')
   await page.getByRole('button', { name: 'Add to comparison', exact: true }).first().click()
@@ -388,7 +390,7 @@ for (const [state,message] of [['unmatched','SAP user not found'],['ambiguous','
     await page.goto('/#session=browser-test-session')
     await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'User Access',exact:true}).click()
     await page.getByRole('button',{name:'DEMO_EMPLOYEE',exact:true}).click()
-    const profile=page.getByRole('region',{name:'Employee Directory enrichment',exact:true})
+    const profile=page.getByRole('region',{name:'Organization',exact:true})
     await expect(profile).toContainText(message)
     await expect(profile.getByRole('button',{name:'View SAP user',exact:true})).toHaveCount(0)
   })
@@ -403,14 +405,15 @@ for (const theme of ['light','dark'] as const) for (const width of [375,800,1280
     await page.goto('/#session=browser-test-session')
     await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'User Access',exact:true}).click()
     await page.getByRole('button',{name:'DEMO_EMPLOYEE',exact:true}).click()
-    const profile=page.getByRole('region',{name:'Employee Directory enrichment',exact:true})
-    await expect(profile).toContainText('Demo Employee'); await expect(profile).toContainText('AD account status')
+    const profile=page.getByRole('region',{name:'Organization',exact:true})
+    await expect(profile).toContainText('Demo Employee'); await expect(page.getByRole('region',{name:'Account & Validity',exact:true})).toContainText('AD account status')
     await expect(profile).not.toContainText('Manager department')
     const button=page.getByRole('button',{name:'Assignment date filters',exact:true})
-    const account=page.getByRole('region',{name:'Validity and account information'})
+    const account=page.getByRole('region',{name:'Account & Validity'})
     expect((await button.boundingBox())!.y).toBeGreaterThan((await account.boundingBox())!.y+(await account.boundingBox())!.height)
     await page.screenshot({path:info.outputPath('employee-profile.png'),fullPage:true})
     await button.click()
+    await page.getByText('Advanced interval filtering',{exact:true}).click()
     const input=page.getByLabel('Valid from earliest',{exact:true})
     await expect(input).toHaveAttribute('placeholder','DD.MM.YYYY')
     await input.fill('31.02.2024')
@@ -431,3 +434,19 @@ for (const theme of ['light','dark'] as const) for (const width of [375,800,1280
     await expect(page.getByLabel('Active assignment date filters',{exact:true})).toHaveCount(0)
   })
 }
+
+test('unified profile keeps SAP identity authoritative and directory fields in their own groups',async({page,request})=>{
+  await importDirectory(request);await enable(request)
+  writeFileSync(path.join(directory,'users.csv'),'USERNAME,ROLE_NAME,FIRST_NAME,LAST_NAME,EMAIL,USER_GROUP,USER_VALID_FROM,USER_VALID_TO,ROLE_VALID_FROM,ROLE_VALID_TO\nDEMO_EMPLOYEE,ZC:FI:VIEW,SAP,Authoritative,employee@example.test,DEMO,20200101,99991231,20200101,99991231\nSAP_MANAGER,,SAP,Manager,manager@example.test,DEMO,20200101,99991231,,\n')
+  expect((await request.post('/api/refresh',{headers})).ok()).toBeTruthy()
+  await page.goto('/#session=browser-test-session')
+  await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'User Access',exact:true}).click()
+  await page.getByRole('button',{name:'DEMO_EMPLOYEE',exact:true}).click()
+  const identity=page.getByRole('region',{name:'SAP Identity',exact:true}),account=page.getByRole('region',{name:'Account & Validity',exact:true}),organization=page.getByRole('region',{name:'Organization',exact:true})
+  await expect(identity).toContainText('SAP Authoritative');await expect(identity).toContainText('employee@example.test')
+  await expect(organization).toContainText('Engineering');await expect(organization).not.toContainText('Demo Employee')
+  await expect(organization).not.toContainText('employee@example.test');await expect(account).toContainText('AD account status')
+  await expect(organization).not.toContainText('Site');await expect(page.getByText('Exact email match',{exact:true})).toHaveCount(0)
+  await organization.getByRole('button',{name:'View SAP user',exact:true}).click()
+  await expect(identity).toContainText('SAP_MANAGER');await page.goBack();await expect(identity).toContainText('SAP Authoritative')
+})
