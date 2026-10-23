@@ -451,3 +451,7 @@ status labels mid-word. Native-dialog unit tests use a mock WebView; browser
 native-save tests use a bridge stub. No Windows EXE was built, and actual Windows
 WebView2/Save-dialog/UNC validation remains pending. No push, workflow dispatch,
 release, version change or signing change was performed.
+
+For the current default All roles view, shared toolbar, lock pills, description-
+based header display hints and sidebar transaction search, see
+[Role presentation and transaction investigation](ROLE_PRESENTATION.md).

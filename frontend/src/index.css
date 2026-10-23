@@ -330,7 +330,7 @@ button:hover .module-icon:not([data-disabled="true"]) { border-color: currentCol
 .single-role-heading { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:8px; padding:12px 16px; background:var(--surface); }
 .single-role-heading[data-expanded="true"] { background:color-mix(in srgb,var(--accent2) 8%,var(--surface)); }
 .single-role-heading-main { display:flex; flex-direction:column; align-items:flex-start; gap:6px; min-width:0; }
-.single-role-description, .single-role-assignment { font-size:12px; color:var(--muted); line-height:1.5; overflow-wrap:anywhere; }
+.single-role-assignment { font-size:12px; color:var(--muted); line-height:1.5; overflow-wrap:anywhere; }
 .single-role-count { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:8px; background:color-mix(in srgb,var(--accent) 12%,transparent); color:var(--accent2); font-size:12px; font-weight:900; font-variant-numeric:tabular-nums; }
 .single-role-transactions { border-top:1px solid var(--border); background:var(--surface2); }
 .transaction-table-scroll { max-width:100%; overflow-x:auto; }
@@ -347,8 +347,8 @@ button:hover .module-icon:not([data-disabled="true"]) { border-color: currentCol
 .transaction-investigate { min-height:34px; padding:6px 10px; font-size:12px; white-space:nowrap; }
 
 /* Lock evidence remains separate from validity badges. */
-.lock-status { display: inline-flex; align-items: center; gap: 0.375rem; white-space: nowrap; color: var(--muted); font-size: 0.8125rem; }
-.lock-status-locked { color: var(--error); }
+.lock-status { display: inline-flex; align-items: center; gap: 0.375rem; white-space: nowrap; color: var(--muted); font-size: 0.8125rem; padding:3px 8px; border-radius:6px; background:var(--surface2); font-weight:600; }
+.lock-status-locked { color: var(--error); background:color-mix(in srgb,var(--error) 12%,var(--surface)); }
 .role-module-metadata { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; font-size: 0.75rem; }
 
 .evidence-badge { display: inline-flex; align-items: center; gap: 0.25rem; }
@@ -357,3 +357,16 @@ button:hover .module-icon:not([data-disabled="true"]) { border-color: currentCol
 .user-assignment-table .settings-secondary-button { white-space:nowrap; }
 .evidence-badge { white-space:nowrap; }
 .evidence-badge svg, .lock-status svg { flex-shrink:0; }
+
+/* Shared account pills and compact, wrapping investigation toolbars. */
+.user-role-toolbar { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px; }
+.user-role-toolbar label { min-width:0; }
+.user-role-toolbar label:nth-child(2) { flex:1 1 180px; }
+.user-role-toolbar input, .user-role-toolbar select { min-height:42px; width:100%; }
+.user-export-button { margin-left:auto; }
+.role-transaction-search { display:flex; align-items:flex-end; flex-wrap:wrap; gap:8px; }
+.role-transaction-search input { min-height:42px; width:100%; }
+.role-metadata-title { overflow-wrap:anywhere; min-width:0; }
+.user-assignment-table td:has(.catalogue-match) { vertical-align:middle; }
+.transaction-table-scroll tr[data-transaction-match="true"] td { background:color-mix(in srgb,var(--accent2) 15%,var(--surface)); }
+.transaction-table-scroll tr[data-transaction-match="true"] .transaction-code { font-weight:800; text-decoration:underline; text-underline-offset:3px; }

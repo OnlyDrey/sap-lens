@@ -43,7 +43,7 @@ test('transaction search respects exact code, scope and status and opens catalog
   await expect(details).not.toContainText('associated transactions')
   await details.getByRole('button', { name: 'View role details: ZC:MM:BUY:EN*', exact: true }).first().click()
   await expect(page.getByRole('dialog')).toContainText('Purchasing evidence')
-  await expect(page.getByRole('dialog')).toContainText('Unclassified')
+  await expect(page.getByRole('dialog')).not.toContainText('Unclassified')
   await expect(page.getByRole('dialog').locator('.single-role-heading .lucide-layers')).toHaveCount(1)
   await page.getByRole('button', { name: 'Expand single role ZD:BUY', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Investigate users with ME21N', exact: true })).toBeVisible()
@@ -116,7 +116,8 @@ for (const theme of ['light', 'dark']) for (const width of [800, 1280]) test(`se
     const style = getComputedStyle(element), icon = element.querySelector('svg')!.getBoundingClientRect(), box = element.getBoundingClientRect()
     return { background: style.backgroundColor, border: style.borderWidth, centered: Math.abs(icon.y + icon.height / 2 - box.y - box.height / 2) < 1 }
   })
-  expect(appearance).toEqual({ background: 'rgba(0, 0, 0, 0)', border: '0px', centered: true })
+  expect(appearance.background).not.toBe('rgba(0, 0, 0, 0)')
+  expect(appearance.border).toBe('0px'); expect(appearance.centered).toBe(true)
   await locked.locator('.lock-status').scrollIntoViewIfNeeded()
   await page.screenshot({ path: info.outputPath('directory.png'), fullPage: true })
   await page.getByRole('button', { name: 'DEMO_EXPORT', exact: true }).click()

@@ -272,7 +272,7 @@ function UserDetails({
   const [transactionInput, setTransactionInput] = useState('');
   const [transaction, setTransaction] = useState('');
   const exportGeneration = useRef(0);
-  const [scope, setScope] = useState("business"),
+  const [scope, setScope] = useState("all"),
     [status, setStatus] = useState(""),
     [offset, setOffset] = useState(0),
     [accountOffset, setAccountOffset] = useState(0),
@@ -362,9 +362,9 @@ function UserDetails({
           </p>
           <nav aria-label="User role sections" className="flex flex-wrap gap-2">
             {[
+              ["all", "All roles"],
               ["business", "Business Roles — ZC:*"],
               ["release", "Release Roles — ZO:*"],
-              ["all", "All roles"],
             ].map(([v, l]) => (
               <button
                 key={v}
@@ -376,7 +376,7 @@ function UserDetails({
               </button>
             ))}
           </nav>
-          <div className="flex flex-wrap gap-3">
+          <form aria-label="User role toolbar" className="user-role-toolbar" onSubmit={event => { event.preventDefault(); setTransaction(transactionInput.trim().toUpperCase()) }}>
             <Filter label="Assignment status">
               <select aria-label="Assignment status"
                 className={inputClass}
@@ -397,19 +397,10 @@ function UserDetails({
                 ))}
               </select>
             </Filter>
-          </div>
-          <form className="flex flex-wrap items-end gap-3" onSubmit={event => { event.preventDefault(); setTransaction(transactionInput.trim().toUpperCase()) }}>
             <Filter label="Find roles by transaction"><input className={inputClass} aria-label="Find roles by transaction" value={transactionInput} maxLength={128} onChange={event => setTransactionInput(event.target.value)}/></Filter>
             <button className="settings-secondary-button" type="submit"><Search size={15} aria-hidden="true"/>Search</button>
-            <button className="settings-secondary-button" type="button" disabled={!transaction && !transactionInput} onClick={() => { setTransaction(''); setTransactionInput('') }}>Clear transaction search</button>
-          </form>
-          {transaction && <section aria-label="Transaction search evidence"><p>Transaction {transaction} · selected user, role view and assignment-status filter. Role-derived evidence is not proof of effective SAP authorization.</p>
-            {!user.mapping_available && <p>Transaction mappings unavailable: no role catalogue is loaded.</p>}
-            {Boolean(user.unmapped_assignments) && <p>{user.unmapped_assignments} assignments have unavailable or unresolved catalogue mappings; transaction coverage may be incomplete.</p>}
-            {user.items.map(a => <div key={a.id} className="text-sm"><strong>{transaction}</strong> · {a.role_name}{a.role_description && ` · ${a.role_description}`}{Boolean(a.transaction_roles?.length) && <span> · Via {a.transaction_roles?.join(', ')}</span>}</div>)}
-          </section>}
-          <div className="flex flex-wrap items-center gap-3">
-            <button className="settings-secondary-button" disabled={exporting || result.isFetching || !user.total} onClick={async () => {
+            {(transaction || transactionInput) && <button className="settings-secondary-button" type="button" onClick={() => { setTransaction(''); setTransactionInput('') }}>Clear transaction search</button>}
+            <button type="button" className="settings-secondary-button user-export-button" disabled={exporting || result.isFetching || !user.total} onClick={async () => {
               const generation = exportGeneration.current;
               setExporting(true); setExportMessage('Preparing CSV…');
               try { const saved = await exportAssignments(user, scope, status, () => generation === exportGeneration.current, transaction);
@@ -417,9 +408,14 @@ function UserDetails({
               } catch (error) { if (generation === exportGeneration.current) setExportMessage(error instanceof Error ? error.message : 'CSV export failed.'); }
               finally { setExporting(false); }
             }}><Download size={15} aria-hidden="true"/>{exporting ? 'Exporting…' : 'Export CSV'}</button>
-            <span className="text-xs text-[var(--muted)]">Exports all assignments matching this role view, assignment status and submitted transaction search.</span>
-            <span role="status">{exportMessage}</span>
-          </div>
+          </form>
+          {transaction && <section aria-label="Transaction search evidence"><p>Transaction {transaction} · selected user, role view and assignment-status filter. Role-derived evidence is not proof of effective SAP authorization.</p>
+            {!user.mapping_available && <p>Transaction mappings unavailable: no role catalogue is loaded.</p>}
+            {Boolean(user.unmapped_assignments) && <p>{user.unmapped_assignments} assignments have unavailable or unresolved catalogue mappings; transaction coverage may be incomplete.</p>}
+            {user.items.map(a => <div key={a.id} className="text-sm"><strong>{transaction}</strong> · {a.role_name}{a.role_description && ` · ${a.role_description}`}{Boolean(a.transaction_roles?.length) && <span> · Via {a.transaction_roles?.join(', ')}</span>}</div>)}
+          </section>}
+          <p className="text-xs text-[var(--muted)]">Exports all assignments matching this role view, assignment status and submitted transaction search.</p>
+          <p role="status">{exportMessage}</p>
           <div className="access-table user-assignment-table">
             <table>
               <thead>
@@ -442,6 +438,7 @@ function UserDetails({
                   <AssignmentRow
                     key={a.id}
                     assignment={a}
+                    releaseView={scope === "release"}
                     onRole={onRole}
                     onRelease={onRelease}
                   />
@@ -468,10 +465,12 @@ function UserDetails({
 
 function AssignmentRow({
   assignment: a,
+  releaseView,
   onRole,
   onRelease,
 }: {
   assignment: Assignment;
+  releaseView: boolean;
   onRole: (role: string) => void;
   onRelease: (role: string) => void;
 }) {
@@ -481,7 +480,7 @@ function AssignmentRow({
         <RoleIdentifier value={a.role_name} />
       </td>
       <td>
-        {a.scope === "release" ? (
+        {releaseView ? (
           a.release?.parsed ? (
             `${a.release.document_type} · ${a.release.release_group} · ${a.release.release_strategy}`
           ) : (
@@ -489,7 +488,7 @@ function AssignmentRow({
           )
         ) : (
           <div className="catalogue-match">
-            {a.match_status !== 'wildcard' && <EvidenceBadge value={a.match_status}/>}
+            {!a.catalogue_roles.length && <EvidenceBadge value="unmapped"/>}
             {a.catalogue_roles.map((name) => <RoleIdentifier key={name} value={name}/>)}
           </div>
         )}
@@ -510,7 +509,7 @@ function AssignmentRow({
             ))}
           </>
         ) : (
-          <span>No transaction access inferred</span>
+          <span>Catalogue evidence unavailable.</span>
         )}
       </td>
     </tr>

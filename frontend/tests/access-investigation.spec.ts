@@ -123,6 +123,8 @@ test("directory-only users, expired and future assignments, unknown validity and
     exact: true,
   });
   await expect(detail).toContainText("expired");
+  await expect(detail.getByRole("button", { name: "All roles", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await detail.getByRole("button", { name: "Business Roles — ZC:*", exact: true }).click();
   await expect(detail).toContainText("No assignments in this section");
   await page.getByLabel("Assignment status", { exact: true }).selectOption("all");
   await expect(detail).toContainText("ZC:MM:BUY:ENK");
@@ -430,8 +432,9 @@ for (const theme of ['light', 'dark'] as const) for (const width of [1280, 600])
       const expand = entry.getByRole('button', { name: 'Expand single role ZS:VIEW', exact: true })
       await expand.press('Enter')
       await expect(expand).toHaveAttribute('aria-expanded', 'true')
-      const description = entry.locator('.single-role-description'), identifier = entry.locator('.single-role-heading-main .role-identifier')
-      expect((await description.boundingBox())!.x).toBeCloseTo((await identifier.boundingBox())!.x, 0)
+      const description = entry.locator('.role-metadata-title'), identifier = entry.locator('.single-role-heading-main .role-identifier')
+      expect((await entry.locator('.role-module-metadata').boundingBox())!.x).toBeCloseTo((await identifier.boundingBox())!.x, 0)
+      expect((await description.boundingBox())!.y + (await description.boundingBox())!.height).toBeLessThanOrEqual((await identifier.boundingBox())!.y)
       await expect(description).not.toHaveCSS('text-overflow', 'ellipsis')
       const table = entry.getByRole('table')
       await expect(table.getByRole('columnheader')).toHaveText(['T-Code', 'Description', 'Action'])
