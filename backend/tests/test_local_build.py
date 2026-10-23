@@ -248,7 +248,14 @@ class LocalExportTests(unittest.TestCase):
         with zipfile.ZipFile(next((self.output / 'archive').glob('*.zip'))) as archive:
             self.assertEqual(set(archive.namelist()), {'SAP-Lens.exe','SAP-Lens.exe.sha256'})
         args = pe.call_args.args[0]
-        self.assertIn(str(self.output / 'application'), args)
+        distribution_index = args.index("--distribution")
+        actual_distribution = Path(args[distribution_index + 1])
+        expected_distribution = self.output / "application"
+
+        self.assertTrue(
+            os.path.samefile(actual_distribution, expected_distribution),
+            f"Distribution path mismatch: {actual_distribution} != {expected_distribution}",
+        )
         self.assertIn(self.sha, args)
         self.assertTrue(pe.call_args.kwargs['check'])
         manifest = json.loads((self.output / 'build-manifest.json').read_text())
