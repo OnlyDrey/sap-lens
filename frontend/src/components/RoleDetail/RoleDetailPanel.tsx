@@ -10,72 +10,40 @@ import type { SingleRole, TCode } from '@/api/types'
 function SingleRoleRow({ sr, onTcodeUsers }: { sr: SingleRole; onTcodeUsers?: (code:string)=>void }) {
   const [open, setOpen] = useState(false)
   return (
-    <div style={{ borderBottom: '1px solid var(--border)' }}>
-      <div
-        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:opacity-90 focus:outline-none transition-colors"
-        style={{ backgroundColor: open ? 'color-mix(in srgb, var(--accent2) 8%, var(--surface))' : 'var(--surface)' }}>
-
-        {/* Module icon */}
+    <div className="single-role-entry">
+      <div className="single-role-heading" data-expanded={open}>
         <ModuleIcon moduleId={sr.function_key} />
-
-        {/* Expand arrow */}
-        <button type="button" className="role-expand" aria-label={`Expand single role ${sr.child_agr}`} aria-expanded={open} onClick={() => setOpen(p => !p)}>{open
-          ? <ChevronDown  className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--accent2)' }} />
-          : <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--muted)'   }} />
-        }</button>
-
-        {/* Name + description */}
-        <div className="min-w-0 flex-1">
+        <button type="button" className="role-expand" aria-label={`Expand single role ${sr.child_agr}`} aria-expanded={open} onClick={() => setOpen(p => !p)}>
+          {open ? <ChevronDown size={14} aria-hidden="true"/> : <ChevronRight size={14} aria-hidden="true"/>}
+        </button>
+        <div className="single-role-heading-main">
           <RoleIdentifier value={sr.child_agr} />
-          <span className="text-xs">{sr.assignment_kind==='direct'?'Direct assignment':sr.assignment_kind==='effective'?'Effective-role assignment':''}</span>
-          {sr.child_agr_text && (
-            <p className="text-xs truncate mt-0.5" style={{ color: 'var(--muted)' }}>
-              {sr.child_agr_text}
-            </p>
-          )}
+          {sr.child_agr_text && <p className="single-role-description">{sr.child_agr_text}</p>}
+          {sr.assignment_kind === 'direct' && <span className="single-role-assignment">Direct assignment</span>}
+          {sr.assignment_kind === 'effective' && <span className="single-role-assignment">Effective-role assignment</span>}
         </div>
-
-        {/* T-code count: Zap icon + number (clearer than "8T") */}
-        <div className="flex items-center gap-1 flex-shrink-0 px-2 py-0.5 rounded-lg"
-          style={{ backgroundColor: 'color-mix(in srgb, var(--accent) 12%, transparent)' }}>
-          <Zap className="w-3 h-3" style={{ color: 'var(--accent2)' }} aria-hidden="true" />
-          <span className="text-xs font-black tabular-nums" style={{ color: 'var(--accent2)' }}>
-            {sr.tcodes.length}
-          </span>
-        </div>
+        <span className="single-role-count" aria-label={`${sr.tcodes.length} transactions`}>
+          <Zap size={12} aria-hidden="true"/>{sr.tcodes.length}
+        </span>
       </div>
-
-      {open && (
-        <div style={{ borderTop: '1px solid var(--border)', backgroundColor: 'var(--surface2)' }}>
-          {Boolean(sr.alternate_descriptions?.length) && <p className="text-xs px-4 py-2">Alternate descriptions: {sr.alternate_descriptions?.slice(0,5).join(' · ')}</p>}
-          {sr.tcodes.length === 0
-            ? <p className="px-4 py-3 text-xs italic" style={{ color: 'var(--muted)' }}>No transactions</p>
-            : <table className="w-full">
-                <thead><tr style={{ backgroundColor: 'var(--surface2)' }}>
-                  <th className="text-left px-4 py-2 text-xs font-black uppercase w-36"
-                    style={{ color: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>T-code</th>
-                  <th className="text-left px-4 py-2 text-xs font-black uppercase"
-                    style={{ color: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>Description</th>
-                </tr></thead>
-                <tbody>
-                  {sr.tcodes.map((tc: TCode, i: number) => (
-                    <tr key={tc.tcode} style={{ backgroundColor: i % 2 === 1 ? 'var(--surface)' : undefined }}>
-                      <td className="px-4 py-2 font-mono text-xs font-bold"
-                        style={{ color: 'var(--accent2)', borderBottom: '1px solid var(--border)' }}>
-                        <span>{tc.tcode}</span>
-                        {onTcodeUsers&&<button className="underline block mt-1" onClick={()=>onTcodeUsers(tc.tcode)}>Investigate users with {tc.tcode}</button>}
-                      </td>
-                      <td className="px-4 py-2 text-xs"
-                        style={{ color: 'var(--text2)', borderBottom: '1px solid var(--border)' }}>
-                        {tc.ttext ?? <span className="italic" style={{ color: 'var(--muted)' }}>No description</span>}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-          }
-        </div>
-      )}
+      {open && <div className="single-role-transactions">
+        {Boolean(sr.alternate_descriptions?.length) && <p className="text-xs px-4 py-2">Alternate descriptions: {sr.alternate_descriptions?.slice(0,5).join(' · ')}</p>}
+        {sr.tcodes.length === 0
+          ? <p className="text-xs italic text-[var(--muted)] px-4 py-3">No transactions</p>
+          : <div className="transaction-table-scroll" role="region" aria-label={`Transactions for ${sr.child_agr}`} tabIndex={0}>
+            <table>
+              <thead><tr><th scope="col">T-Code</th><th scope="col">Description</th><th scope="col" className="transaction-action">Action</th></tr></thead>
+              <tbody>{sr.tcodes.map((tc: TCode) => <tr key={tc.tcode}>
+                <td className="transaction-code">{tc.tcode}</td>
+                <td className="transaction-description">{tc.ttext ?? <span className="italic text-[var(--muted)]">No description</span>}</td>
+                <td className="transaction-action">{onTcodeUsers && <button type="button" className="settings-secondary-button transaction-investigate"
+                  aria-label={`Investigate users with ${tc.tcode}`} title={`Investigate users with ${tc.tcode}`} onClick={() => onTcodeUsers(tc.tcode)}>
+                  <Users size={14} aria-hidden="true"/>Investigate users
+                </button>}</td>
+              </tr>)}</tbody>
+            </table>
+          </div>}
+      </div>}
     </div>
   )
 }

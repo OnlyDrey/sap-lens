@@ -179,7 +179,7 @@ button:hover .module-icon:not([data-disabled="true"]) { border-color: currentCol
 .primary-navigation { display:flex; align-items:center; gap:4px; min-width:0; }
 .primary-nav-button { display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:10px; white-space:nowrap; font-size:13px; font-weight:600; color:var(--on-primary); }
 .primary-nav-button:hover { background:color-mix(in srgb,var(--on-primary) 12%,transparent); }
-.primary-nav-button[aria-current="page"] { background:color-mix(in srgb,var(--on-primary) 20%,transparent); box-shadow:inset 0 -3px var(--on-primary); }
+.primary-nav-button[aria-current="page"] { background:color-mix(in srgb,var(--on-primary) 20%,transparent); }
 .primary-nav-button:focus-visible { outline:2px solid var(--on-primary); outline-offset:2px; }
 .detail-navigation { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
 .source-navigation { display:flex; gap:6px; padding:6px; background:var(--surface2); border:1px solid var(--border); border-radius:12px; }
@@ -276,7 +276,9 @@ button:hover .module-icon:not([data-disabled="true"]) { border-color: currentCol
 .account-evidence { display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
 .account-evidence > div { display:flex; flex-wrap:wrap; gap:4px; }
 .evidence-warning { background:color-mix(in srgb,var(--warning) 12%,var(--surface)); color:var(--warning); }
-.user-directory-table td:nth-child(2) button { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-weight:600; color:var(--accent2); text-underline-offset:4px; }
+.user-directory-table td:nth-child(2) .role-identifier { max-width:260px; margin-bottom:0; }
+.catalogue-match { display:flex; flex-direction:column; align-items:flex-start; gap:8px; }
+.access-table .catalogue-match .role-identifier { margin-bottom:0; }
 .role-count-button { display:inline-flex; gap:6px; align-items:center; padding:4px 10px; border:1px solid var(--border); background:var(--surface2); border-radius:8px; font-weight:600; white-space:nowrap; }
 .role-count-button:hover { border-color:var(--accent2); }
 .role-count-button span { font-weight:400; color:var(--muted); }
@@ -320,3 +322,25 @@ button:hover .module-icon:not([data-disabled="true"]) { border-color: currentCol
 /* Only the empty/error data-source action; shared controls retain their styles. */
 .data-source-action { flex-shrink:0; white-space:nowrap; }
 .data-source-action:active:not(:disabled) { background:var(--surface2); }
+
+/* Single-role evidence keeps its header and transaction actions on separate rows. */
+.single-role-entry { border-bottom:1px solid var(--border); }
+.single-role-entry:last-child { border-bottom:0; }
+.single-role-heading { display:grid; grid-template-columns:auto auto minmax(0,1fr) auto; align-items:center; gap:8px; padding:12px 16px; background:var(--surface); }
+.single-role-heading[data-expanded="true"] { background:color-mix(in srgb,var(--accent2) 8%,var(--surface)); }
+.single-role-heading-main { display:flex; flex-direction:column; align-items:flex-start; gap:6px; min-width:0; }
+.single-role-description, .single-role-assignment { font-size:12px; color:var(--muted); line-height:1.5; overflow-wrap:anywhere; }
+.single-role-count { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:8px; background:color-mix(in srgb,var(--accent) 12%,transparent); color:var(--accent2); font-size:12px; font-weight:900; font-variant-numeric:tabular-nums; }
+.single-role-transactions { border-top:1px solid var(--border); background:var(--surface2); }
+.transaction-table-scroll { max-width:100%; overflow-x:auto; }
+.transaction-table-scroll:focus-visible { outline:2px solid var(--focus); outline-offset:-2px; }
+.single-role-transactions table { width:100%; min-width:440px; border-collapse:collapse; font-size:12px; text-align:left; }
+.single-role-transactions th, .single-role-transactions td { padding:8px 12px; border-bottom:1px solid var(--border); vertical-align:middle; }
+.single-role-transactions th { color:var(--muted); font-weight:700; }
+.single-role-transactions th:first-child { white-space:nowrap; }
+.single-role-transactions tbody tr:nth-child(even) { background:var(--surface); }
+.single-role-transactions tbody tr:last-child td { border-bottom:0; }
+.transaction-code { white-space:nowrap; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; color:var(--accent2); font-weight:700; }
+.transaction-description { width:100%; color:var(--text2); overflow-wrap:anywhere; }
+.transaction-action { text-align:right; white-space:nowrap; }
+.transaction-investigate { min-height:34px; padding:6px 10px; font-size:12px; white-space:nowrap; }

@@ -215,12 +215,13 @@ export function UserAccess({
                         .join(", ") || "Unknown"}
                     </td>
                     <td>
-                      <DetailButton
-                        data-user={user.username}
-                        onClick={() => openUser(user.username)}
-                      >
-                        {user.username}
-                      </DetailButton>
+                      <RoleIdentifier
+                        value={user.username}
+                        label="username"
+                        onOpen={() => openUser(user.username)}
+                        openLabel={user.username}
+                        openButtonProps={{ 'data-user': user.username }}
+                      />
                     </td>
                     <td>{user.first_name || "—"}</td>
                     <td>{user.last_name || "—"}</td>
@@ -453,12 +454,10 @@ function AssignmentRow({
             "Unparsed"
           )
         ) : (
-          <>
-            <EvidenceBadge value={a.match_status}/>
-            {a.catalogue_roles.map((name) => (
-              <div key={name} className="mt-2"><RoleIdentifier value={name}/></div>
-            ))}
-          </>
+          <div className="catalogue-match">
+            {a.match_status !== 'wildcard' && <EvidenceBadge value={a.match_status}/>}
+            {a.catalogue_roles.map((name) => <RoleIdentifier key={name} value={name}/>)}
+          </div>
         )}
       </td>
       <td>{dates(a.valid_from, a.valid_to)}</td>
