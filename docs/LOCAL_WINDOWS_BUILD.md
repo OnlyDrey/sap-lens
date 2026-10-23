@@ -65,7 +65,7 @@ privileges and does not change execution policy.
 |---|---|---|
 | Git for Windows | Available on `PATH` | Source identity and clean-checkout checks |
 | Python | **3.12 x64**, with `venv` and pip | Backend, tests, packaging and verification |
-| Node.js | **24 LTS** | Frontend tools and browser tests |
+| Node.js | **24 LTS (recommended) or 25** | Frontend tools and browser tests |
 | npm | **10 or 11** | Lockfile-based dependency installation |
 | PowerShell | **5.1 or 7**, x64 | Build orchestration |
 | Edge WebView2 | Evergreen Runtime | Actual desktop startup/smoke testing |
@@ -94,12 +94,18 @@ administrator rights. Review installer prompts rather than disabling controls.
    winget install --id Python.Python.3.12 --exact
    ```
 
-3. **Node.js 24 x64 and npm:** choose a **24.x** Windows x64 `.msi` from the
+3. **Node.js x64 and npm:** prefer a **24.x** Windows x64 `.msi` from the
    [official Node.js 24 archive](https://nodejs.org/download/release/latest-v24.x/).
    Keep **npm package manager** and **Add to PATH** enabled in the installer.
    Installing Node.js this way installs npm too; do not install npm separately
    to repair a missing Node installation. Avoid blindly choosing “latest LTS”
-   if it points to a newer major version than 24.
+   if it points to an unvalidated major version. Node 25 is also accepted; use
+   the [official Node.js 25 archive](https://nodejs.org/download/release/latest-v25.x/)
+   if you already standardize on that version. Node 25 is an odd-numbered,
+   non-LTS release; Node 24 remains the recommended build/CI baseline.
+   Node 25 reached upstream end of life on **2026-06-01**, so compatibility
+   acceptance does not mean it receives security maintenance. Prefer Node 24
+   for maintained tooling.
 
    For an approved winget-based installation, first inspect available versions:
 
@@ -161,7 +167,7 @@ $env:PROCESSOR_ARCHITECTURE  # Expected: AMD64
 git --version
 py -3.12 --version          # Expected: Python 3.12.x
 py -3.12 -c "import struct; print(struct.calcsize('P') * 8)"  # Expected: 64
-node --version             # Expected: v24.x.x
+node --version             # Expected: v24.x.x or v25.x.x
 npm --version              # Expected: 10.x.x or 11.x.x
 ```
 
@@ -186,14 +192,14 @@ where.exe node
 where.exe npm
 ```
 
-- If **both are missing**, install Node.js 24 x64 with npm and PATH enabled.
+- If **both are missing**, install Node.js 24 or 25 x64 with npm and PATH enabled.
 - If **node works but npm is missing**, repair the Node.js installation and enable
   its npm component. Avoid downloading an unrelated npm executable.
 - If the installer completed but **this window still cannot find them**, reopen
   PowerShell. A standard system-wide installation usually lives in
   `C:\Program Files\nodejs`, but a managed/per-user installation can differ.
 - If multiple installations are listed, use the approved version manager or
-  installer to select Node 24. Do not delete unrelated installations blindly.
+  installer to select Node 24 or 25. Do not delete unrelated installations blindly.
 
 To diagnose a standard installation without changing global PATH:
 
@@ -201,7 +207,7 @@ To diagnose a standard installation without changing global PATH:
 $nodeDirectory = Join-Path $env:ProgramFiles 'nodejs'
 Test-Path (Join-Path $nodeDirectory 'node.exe')
 Test-Path (Join-Path $nodeDirectory 'npm.cmd')
-# Run only if both files above exist and this is your trusted Node 24 installation:
+# Run only if both files above exist and this is your trusted Node 24/25 installation:
 & (Join-Path $nodeDirectory 'node.exe') --version
 & (Join-Path $nodeDirectory 'npm.cmd') --version
 $env:Path = $nodeDirectory + ';' + $env:Path
@@ -216,6 +222,26 @@ use the trusted-source process-scoped policy instructions below where permitted.
 
 Do not solve a missing npm command by manually skipping the Frontend stage.
 The compiled frontend is required in the Windows package.
+
+### Supported range versus minimum version
+
+The local wrapper and frontend manifest accept **`>=24 <26`**: Node 24 and 25.
+CI continues to use Node 24. According to the
+[official Node.js release schedule](https://github.com/nodejs/Release/blob/main/schedule.json),
+Node 25 ended support on 2026-06-01; Node 24 is supported until 2028-04-30.
+The installed Vite and Playwright engine ranges
+include Node 25, so their declared requirements do not require rejecting it.
+Changing Node versions invalidates a Package validation receipt; run Validate
+again before Package.
+
+Compatibility checks on Linux passed with Node **24.19.0** and **25.9.0**:
+lockfile installation, type checking and production builds on both versions;
+all **71 browser tests** on Node 25; and PowerShell version-gate regression tests.
+Native Windows packaging with Node 25 has not been executed in this environment.
+
+A bare `>=24` would also accept Node 26 and all future majors without testing
+them. Those are not enabled automatically. npm remains restricted to major 10
+or 11; npm's own major version is independent of the selected Node major.
 
 ### Network access
 
@@ -567,7 +593,7 @@ the console. Keep the original exit code when automating; a nonzero code is fail
 | Script not found | Confirm repository root and `Get-Item .\scripts\build-local.ps1`; obtain the reviewed local-build commits if missing |
 | Unsigned script / execution policy | See the scoped bypass and trusted-file unblocking instructions in section 2; managed policies require IT approval |
 | Missing/wrong Python | Check `py -3.12 --version` and x64 bitness; inspect `Get-Command python` if using the fallback |
-| Wrong Node/npm | Check `node --version`, `npm --version`, `Get-Command node`; reopen the shell after installing Node 24 |
+| Wrong Node/npm | Check `node --version`, `npm --version`, `Get-Command node`; reopen the shell after installing supported Node 24 or 25 |
 | Dirty source check | Review `git status --short`; commit only intended changes, then validate the final commit |
 | Stale receipt / Package | Run Validate with the exact same version on the clean final commit; do not edit the receipt |
 | Another local build / locked files | Let the other run finish; close SAP Lens. The lock file's existence alone does not mean a live lock is held |

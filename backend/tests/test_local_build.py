@@ -193,6 +193,38 @@ class LocalToolingTests(unittest.TestCase):
                 local.check_packaging_tools()
 
 
+    @unittest.skipUnless(shutil.which('pwsh'), 'Requires PowerShell')
+    def test_node_gate_accepts_24_and_25_and_rejects_unvalidated_majors(self):
+        # Execute the actual preflight expression without invoking Windows setup.
+        script = r'''$tokens = $null; $errors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile(
+    (Join-Path $env:SAP_LENS_TEST_ROOT 'scripts/build-local.ps1'), [ref]$tokens, [ref]$errors)
+if ($errors.Count) { throw 'PowerShell parse failure' }
+$guard = $ast.Find({ param($node)
+    $node -is [System.Management.Automation.Language.IfStatementAst] -and
+    $node.Clauses[0].Item1.Extent.Text -match 'nodeVersion'
+}, $true)
+if (-not $guard) { throw 'Missing Node preflight check' }
+$condition = [scriptblock]::Create($guard.Clauses[0].Item1.Extent.Text)
+foreach ($version in @('22.12.0', '23.0.0', '24.0.0', '24.19.0', '25.0.0', '25.9.0', '26.0.0')) {
+    $nodeVersion = $version; $LASTEXITCODE = 0
+    Write-Output "$version=$(& $condition)"
+}
+$nodeVersion = '24.0.0'; $LASTEXITCODE = 1
+Write-Output "command-failed=$(& $condition)"
+'''
+        result = subprocess.run(['pwsh', '-NoProfile', '-Command', script],
+                                env={**os.environ, 'SAP_LENS_TEST_ROOT':str(ROOT)},
+                                capture_output=True, text=True, check=True)
+        self.assertEqual(result.stdout.splitlines(), [
+            '22.12.0=True', '23.0.0=True', '24.0.0=False', '24.19.0=False',
+            '25.0.0=False', '25.9.0=False', '26.0.0=True', 'command-failed=True'])
+        manifest = json.loads((ROOT / 'frontend/package.json').read_text())
+        lock = json.loads((ROOT / 'frontend/package-lock.json').read_text())
+        self.assertEqual(manifest['engines']['node'], '>=24 <26')
+        self.assertEqual(lock['packages']['']['engines'], manifest['engines'])
+
+
 class LocalExportTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
