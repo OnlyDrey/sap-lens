@@ -6,6 +6,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, Query
 import cache
 from role_matching import normalize_role
+from transaction_filters import normalized_tcodes
 from user_access import (
     assignment_view,
     interval_status,
@@ -174,6 +175,7 @@ def user_detail(
     show_expired: bool = False,
     status: Status = "",
     tcode: str = Query("", max_length=128),
+    tcodes: list[str] = Query(default=[], max_length=21),
     scope: Literal["business", "release", "other", "all", ""] = "",
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
@@ -192,9 +194,9 @@ def user_detail(
         if relevant(a, status, show_expired) and (not scope or (a["scope"] in {"business", "release"} if scope == "all" else a["scope"] == scope))
     ]
     unmapped = sum(a["match_status"] not in {"exact", "wildcard"} or not a["tcodes"] for a in entries)
-    wanted = tcode.strip().upper()
-    if wanted:
-        matched_names = set(state.tcode_index.get(wanted, []))
+    wanted_codes = normalized_tcodes([tcode] + tcodes if tcode else tcodes)
+    if wanted_codes:
+        matched_names = {name for code in wanted_codes for name in state.tcode_index.get(code, [])}
         entries = [a for a in entries if a["match_status"] in {"exact", "wildcard"} and matched_names.intersection(a["catalogue_roles"])]
     rows = sorted(
         entries,
@@ -208,7 +210,7 @@ def user_detail(
         item["role_description"] = role.text if role else ""
         item["transaction_roles"] = sorted({sr.child_agr for name in matches
             for sr in (snapshot.roles[name].single_roles if name in snapshot.roles else [])
-            if wanted and any(tc.tcode.upper() == wanted for tc in sr.tcodes)}) if item["match_status"] in {"exact", "wildcard"} else []
+            if wanted_codes and any(tc.tcode.upper() in wanted_codes for tc in sr.tcodes)}) if item["match_status"] in {"exact", "wildcard"} else []
     return dict(
         mapping_available=bool(snapshot.roles),
         unmapped_assignments=unmapped,

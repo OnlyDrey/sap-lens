@@ -124,8 +124,8 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
           <button data-np
             onClick={e => { e.stopPropagation(); onClick(role.agr_name) }}
             aria-label={`View details for ${title || role.agr_name}`}
-            className="ml-auto flex items-center gap-0.5 text-xs font-bold hover:underline focus:outline-none flex-shrink-0"
-            style={{ color:'var(--accent2)' }}>
+            className="settings-secondary-button role-card-details ml-auto"
+>
             View details <ArrowRight className="w-3 h-3" />
           </button>
         </div>

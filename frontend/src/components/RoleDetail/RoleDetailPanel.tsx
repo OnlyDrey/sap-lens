@@ -2,21 +2,23 @@ import { DetailNavigation } from "@/components/Shared/InvestigationNavigation"
 import { RoleMetadata } from '@/components/Shared/RoleMetadata'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import { useState, useEffect, useCallback, useMemo, memo } from 'react'
-import { X, ChevronDown, ChevronRight, AlertTriangle, Loader2, Layers, Zap, Users, ArrowRight, Search } from 'lucide-react'
+import { X, ChevronDown, ChevronRight, AlertTriangle, Loader2, Layers, Zap, Users, ArrowRight } from 'lucide-react'
 import * as ScrollArea from '@radix-ui/react-scroll-area'
 import { useRoleDetail } from '@/hooks/useRoleDetail'
-import { inputClass } from '@/components/Access/Shared'
+import { TransactionFilter, useTransactionFilter } from '@/components/Shared/TransactionFilter'
 import type { SingleRole, TCode } from '@/api/types'
 
-const SingleRoleRow = memo(function SingleRoleRow({ sr, onTcodeUsers, transaction }: { sr: SingleRole; transaction: string; onTcodeUsers?: (code:string)=>void }) {
+const SingleRoleRow = memo(function SingleRoleRow({ sr, onTcodeUsers, transaction }: { sr: SingleRole; transaction: string[]; onTcodeUsers?: (code:string)=>void }) {
   const [expanded, setExpanded] = useState(false)
   const [searchExpanded, setSearchExpanded] = useState(true)
-  useEffect(() => { setSearchExpanded(true) }, [transaction])
-  const open = transaction ? searchExpanded : expanded
+  const filterKey = JSON.stringify(transaction)
+  useEffect(() => { setSearchExpanded(true) }, [filterKey])
+  const searching = transaction.length > 0
+  const open = searching ? searchExpanded : expanded
   return (
     <div className="single-role-entry">
       <div className="single-role-heading" data-expanded={open}>
-        <button type="button" className="role-expand" aria-label={`Expand single role ${sr.child_agr}`} aria-expanded={open} onClick={() => transaction ? setSearchExpanded(p => !p) : setExpanded(p => !p)}>
+        <button type="button" className="role-expand" aria-label={`Expand single role ${sr.child_agr}`} aria-expanded={open} onClick={() => searching ? setSearchExpanded(p => !p) : setExpanded(p => !p)}>
           {open ? <ChevronDown size={14} aria-hidden="true"/> : <ChevronRight size={14} aria-hidden="true"/>}
         </button>
         <div className="single-role-heading-main">
@@ -36,7 +38,7 @@ const SingleRoleRow = memo(function SingleRoleRow({ sr, onTcodeUsers, transactio
           : <div className="transaction-table-scroll" role="region" aria-label={`Transactions for ${sr.child_agr}`} tabIndex={0}>
             <table>
               <thead><tr><th scope="col">T-Code</th><th scope="col">Description</th><th scope="col" className="transaction-action">Action</th></tr></thead>
-              <tbody>{sr.tcodes.map((tc: TCode) => <tr key={tc.tcode} data-transaction-match={Boolean(transaction) && tc.tcode.trim().toUpperCase() === transaction}>
+              <tbody>{sr.tcodes.map((tc: TCode) => <tr key={tc.tcode} data-transaction-match={searching && transaction.includes(tc.tcode.trim().toUpperCase())}>
                 <td className="transaction-code">{tc.tcode}</td>
                 <td className="transaction-description">{tc.ttext ?? <span className="italic text-[var(--muted)]">No description</span>}</td>
                 <td className="transaction-action">{onTcodeUsers && <button type="button" className="settings-secondary-button transaction-investigate"
@@ -53,10 +55,10 @@ const SingleRoleRow = memo(function SingleRoleRow({ sr, onTcodeUsers, transactio
 
 export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, parent = 'Role Lookup' }: { parent?: string; roleName: string | null; onClose: () => void; onUsers?: (role:string)=>void; onTcodeUsers?: (code:string)=>void }) {
   const { data: role, isLoading, isError, error } = useRoleDetail(roleName)
-  const [transactionInput, setTransactionInput] = useState('')
-  const [transaction, setTransaction] = useState('')
-  useEffect(() => { setTransactionInput(''); setTransaction('') }, [roleName])
-  const matchingRoles = useMemo(() => new Set(role?.single_roles.filter(sr => sr.tcodes.some(tc => tc.tcode.trim().toUpperCase() === transaction)).map(sr => sr.child_agr)), [role, transaction])
+  const transactionFilter = useTransactionFilter(roleName)
+  const transaction = useMemo(() => transactionFilter.deferredCodes, [transactionFilter.deferredKey])
+  const searching = transaction.length > 0
+  const matchingRoles = useMemo(() => new Set(role?.single_roles.filter(sr => sr.tcodes.some(tc => transaction.includes(tc.tcode.trim().toUpperCase()))).map(sr => sr.child_agr)), [role, transaction])
   const missingMappings = role?.single_roles.filter(sr => !sr.tcodes.length).length || 0
   const onKey = useCallback((e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }, [onClose])
   useEffect(() => { document.addEventListener('keydown', onKey); return () => document.removeEventListener('keydown', onKey) }, [onKey])
@@ -152,14 +154,10 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, pare
                     </tbody></table>
                     {(role.relationships?.length||0)>200 && <p>Showing 200 of {role.relationships?.length} retained relationships.</p>}
                   </details>
-                  <form className="role-transaction-search" aria-label="Sidebar transaction search" onSubmit={event => { event.preventDefault(); setTransaction(transactionInput.trim().toUpperCase()) }}>
-                    <label className="flex flex-col gap-1 text-sm min-w-0 flex-1">Find transaction code
-                      <input className={inputClass} placeholder="e.g. MIGO" value={transactionInput} maxLength={128} onChange={event => setTransactionInput(event.target.value)}/>
-                    </label>
-                    <button className="settings-secondary-button" type="submit"><Search size={15} aria-hidden="true"/>Search</button>
-                    {(transaction || transactionInput) && <button className="settings-secondary-button" type="button" onClick={() => { setTransaction(''); setTransactionInput('') }}>Clear transaction code</button>}
-                    {transaction && <div role="status" className="basis-full text-sm">
-                      {matchingRoles.size ? `${matchingRoles.size} matching single ${matchingRoles.size === 1 ? 'role' : 'roles'} for ${transaction}.` : role.tcode_count ? `No matching single roles for ${transaction} in the imported mappings.` : 'Transaction mappings unavailable in this catalogue record.'}
+                  <form className="role-transaction-search" aria-label="Sidebar transaction search" onSubmit={event => event.preventDefault()}>
+                    <TransactionFilter label="Find transaction code" filter={transactionFilter}/>
+                    {searching && <div role="status" className="basis-full text-sm">
+                      {matchingRoles.size ? `${matchingRoles.size} matching single ${matchingRoles.size === 1 ? 'role' : 'roles'} for ${transaction.join(' OR ')}.` : role.tcode_count ? `No matching single roles for ${transaction.join(' OR ')} in the imported mappings.` : 'Transaction mappings unavailable in this catalogue record.'}
                       {missingMappings > 0 && <p>{missingMappings} single roles have no supplied transaction mappings; source completeness cannot be established.</p>}
                       <p>Role-derived evidence does not prove effective SAP authorization.</p>
                     </div>}
@@ -176,7 +174,7 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, pare
                       ? <p className="text-sm italic" style={{ color: 'var(--muted)' }}>No single roles found</p>
                       : (
                         <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-                          {role.single_roles.map(sr => <div key={`${roleName}:${sr.child_agr}`} hidden={Boolean(transaction) && !matchingRoles.has(sr.child_agr)}><SingleRoleRow sr={sr} transaction={transaction} onTcodeUsers={onTcodeUsers}/></div>)}
+                          {role.single_roles.map(sr => <div key={`${roleName}:${sr.child_agr}`} hidden={searching && !matchingRoles.has(sr.child_agr)}><SingleRoleRow sr={sr} transaction={transaction} onTcodeUsers={onTcodeUsers}/></div>)}
                         </div>
                       )
                     }

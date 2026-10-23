@@ -359,9 +359,8 @@ button:hover .module-icon:not([data-disabled="true"]) { border-color: currentCol
 .evidence-badge svg, .lock-status svg { flex-shrink:0; }
 
 /* Shared account pills and compact, wrapping investigation toolbars. */
-.user-role-toolbar { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px; }
+.user-role-toolbar { display:flex; flex-wrap:wrap; align-items:flex-start; gap:12px; }
 .user-role-toolbar label { min-width:0; }
-.user-role-toolbar label:nth-child(2) { flex:1 1 180px; }
 .user-role-toolbar input, .user-role-toolbar select { min-height:42px; width:100%; }
 .user-export-button { margin-left:auto; }
 .role-transaction-search { display:flex; align-items:flex-end; flex-wrap:wrap; gap:8px; }
@@ -370,3 +369,29 @@ button:hover .module-icon:not([data-disabled="true"]) { border-color: currentCol
 .user-assignment-table td:has(.catalogue-match) { vertical-align:middle; }
 .transaction-table-scroll tr[data-transaction-match="true"] td { background:color-mix(in srgb,var(--accent2) 15%,var(--surface)); }
 .transaction-table-scroll tr[data-transaction-match="true"] .transaction-code { font-weight:800; text-decoration:underline; text-underline-offset:3px; }
+
+/* Shared evidence summaries, chips and removal actions. */
+.clear-filter-button:hover:not(:disabled) { color:var(--error); border-color:var(--error); background:color-mix(in srgb,var(--error) 9%,var(--surface)); }
+.clear-filter-button:focus-visible, .transaction-chip button:focus-visible { outline:2px solid var(--focus); outline-offset:3px; }
+.active-evidence-filter { display:flex; align-items:center; flex-wrap:wrap; gap:12px; padding:12px 16px; border:1px solid var(--accent2); border-radius:12px; background:color-mix(in srgb,var(--accent2) 8%,var(--surface)); font-size:14px; }
+.transaction-filter { display:flex; align-items:flex-end; flex-wrap:wrap; gap:8px; min-width:0; width:100%; }
+.transaction-input-label { display:flex; flex-direction:column; gap:4px; min-width:0; flex:1 1 160px; font-size:14px; }
+.transaction-input { display:flex; align-items:center; gap:8px; min-height:42px; padding:0 12px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--muted); }
+.transaction-input:focus-within { outline:2px solid var(--focus); outline-offset:2px; }
+.transaction-input input { border:0; outline:0; min-width:0; width:100%; background:transparent; color:var(--text); font-size:14px; min-height:40px; }
+.transaction-input > svg { flex-shrink:0; }
+.transaction-chips { display:flex; flex-wrap:wrap; align-items:center; gap:8px; flex-basis:100%; }
+.transaction-chip { display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:6px; background:color-mix(in srgb,var(--accent2) 14%,var(--surface)); color:var(--text); font-size:13px; overflow-wrap:anywhere; max-width:100%; }
+.transaction-chip button { display:inline-flex; border-radius:4px; padding:3px; }
+.transaction-chip button:hover { background:var(--hover); color:var(--error); }
+.shared-select select { width:100%; }
+.source-badge-success { background:color-mix(in srgb,var(--success) 12%,var(--surface)); color:var(--success); }
+.source-badge-error { background:color-mix(in srgb,var(--error) 12%,var(--surface)); color:var(--error); }
+.source-badge-info { background:color-mix(in srgb,var(--info) 10%,var(--surface)); color:var(--info); }
+.comparison-selection-bar { max-width:calc(100vw - 24px); width:max-content; justify-content:center; }
+.role-card-details { min-height:34px; padding:6px 10px; font-size:12px; white-space:nowrap; }
+
+.user-role-toolbar > .user-export-button { margin-top:24px; }
+@media (max-width:640px) { .user-role-toolbar { align-items:flex-end; } .user-role-toolbar > .user-export-button { margin-top:0; } }
+
+.user-role-toolbar > .transaction-filter { flex:1 1 220px; width:auto; }

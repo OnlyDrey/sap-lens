@@ -95,8 +95,8 @@ export interface ReleasePage extends Page<ReleaseRow> {
 }
 export const accessQuery = <T>(
   path: string,
-  params: Record<string, string | number | boolean>,
+  params: Record<string, string | number | boolean | string[]>,
 ) =>
   apiRequest<T>(
-    `/api/access/${path}?${new URLSearchParams(Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v)])))}`,
+    `/api/access/${path}?${new URLSearchParams(Object.entries(params).flatMap(([k, v]) => Array.isArray(v) ? v.map(item => [k, item]) : [[k, String(v)]]))}`,
   );

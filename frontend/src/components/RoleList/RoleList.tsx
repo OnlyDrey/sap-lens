@@ -1,3 +1,5 @@
+import { TransactionFilter, useTransactionFilter } from '@/components/Shared/TransactionFilter'
+import { ClearFilterButton } from '@/components/Shared/ClearFilterButton'
 import { ModuleIcon } from '@/components/Modules/ModuleIcon'
 import { onColor } from '@/lib/theme'
 import { useState, useEffect, useMemo, useCallback } from 'react'
@@ -10,7 +12,9 @@ import { useModules } from '@/hooks/useModules'
 import { useRoles } from '@/hooks/useRoles'
 import { RoleCard } from './RoleCard'
 import type { RoleSummary } from '@/api/types'
-import { fetchRolesByTcode } from '@/api/client'
+import { apiRequest, fetchRolesByTcode } from '@/api/client'
+
+const fetchExactRoles = (codes: string[]) => apiRequest<RoleSummary[]>(`/api/roles?${new URLSearchParams(codes.map(code => ['tcodes', code]))}`)
 
 interface Props {
   selectedRoles: string[]
@@ -139,6 +143,7 @@ export function RoleList({
   onCompare
 }: Props) {
   const [page,setPage] = useState(0)
+  const transaction = useTransactionFilter()
   const [search, setSearch] = useState('')
   const [activeModule, setActiveModule] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<SortKey>('name-asc')
@@ -158,7 +163,7 @@ export function RoleList({
 
   const {
     data: tcodeRoles = [],
-    isFetching: tcodeLoading
+    isFetching: legacyTcodeLoading
   } = useQuery({
     queryKey: ['roles', 'tcode', debSearch.trim().toUpperCase()],
     queryFn: () => fetchRolesByTcode(debSearch.trim()),
@@ -168,6 +173,13 @@ export function RoleList({
   })
 
 
+  const exactTransactions = useQuery({
+    queryKey: ['roles', 'exact-transactions', transaction.deferredCodes],
+    queryFn: () => fetchExactRoles(transaction.deferredCodes),
+    enabled: transaction.deferredCodes.length > 0,
+    staleTime: 120_000,
+  })
+  const tcodeLoading = legacyTcodeLoading || exactTransactions.isFetching || transaction.settling
   const moduleNames = useMemo(
     () => Object.assign(Object.create(null),Object.fromEntries(
       modules.map(m => [m.function_key, m.module_name])
@@ -218,6 +230,10 @@ export function RoleList({
       )
     }
 
+    if (transaction.deferredCodes.length) {
+      const matches = new Map((exactTransactions.data || []).map(role => [role.agr_name, role]))
+      results = results.filter(role => matches.has(role.agr_name)).map(role => ({ ...role, matching_tcodes: matches.get(role.agr_name)?.matching_tcodes }))
+    }
     return applySort(results, sortBy)
   }, [
     allRolesRaw,
@@ -225,16 +241,16 @@ export function RoleList({
     hasTcodeResults,
     debSearch,
     activeModule,
-    sortBy
+    sortBy, transaction.key, transaction.deferredCodes, exactTransactions.data
   ])
 
-  useEffect(()=>setPage(0),[debSearch,activeModule,sortBy])
+  useEffect(()=>setPage(0),[debSearch,activeModule,sortBy,transaction.key])
   const pageCount=Math.max(1,Math.ceil(visible.length/100))
   const currentPage=Math.min(page,pageCount-1)
 
   const isFiltering =
     !!debSearch.trim() ||
-    !!activeModule
+    !!activeModule || transaction.codes.length > 0
 
   const currentLabel =
     SORT_OPTIONS.find(o => o.key === sortBy)?.label ?? 'Sort'
@@ -311,6 +327,9 @@ export function RoleList({
           borderColor:'var(--border)'
         }}
       >
+        <TransactionFilter label="Filter catalogue by transaction" filter={transaction}/>
+        {transaction.codes.length > 0 && <p className="text-xs text-[var(--muted)]">Exact transaction filters match any code (OR), combined with text and module filters (AND). Roles without supplied mappings are excluded; source completeness cannot be established.</p>}
+        {exactTransactions.isError && transaction.codes.length > 0 && <p role="alert">Transaction filtering failed. {exactTransactions.error.message}</p>}
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Search
@@ -529,7 +548,7 @@ export function RoleList({
           </p>
 
           <div className="flex items-center gap-2">
-            {tcodeLoading && debSearch.trim() && (
+            {tcodeLoading && (debSearch.trim() || transaction.codes.length > 0) && (
               <span
                 className="text-[10px] flex items-center gap-1"
                 style={{ color:'var(--muted)' }}
@@ -542,17 +561,8 @@ export function RoleList({
               </span>
             )}
 
-            {isFiltering && (
-              <button
-                onClick={() => {
-                  setSearch('')
-                  setActiveModule(null)
-                }}
-                className="text-xs underline focus:outline-none"
-                style={{ color:'var(--muted)' }}
-              >
-                Clear filters
-              </button>
+            {(debSearch.trim() || activeModule) && (
+              <ClearFilterButton onClick={() => { setSearch(''); setActiveModule(null); transaction.clear() }}>Clear all filters</ClearFilterButton>
             )}
           </div>
         </div>
@@ -619,16 +629,7 @@ export function RoleList({
               </p>
 
               {isFiltering && (
-                <button
-                  onClick={() => {
-                    setSearch('')
-                    setActiveModule(null)
-                  }}
-                  className="mt-3 text-sm underline focus:outline-none"
-                  style={{ color:'var(--accent2)' }}
-                >
-                  Clear all filters
-                </button>
+                <ClearFilterButton className="mt-3" onClick={() => { setSearch(''); setActiveModule(null); transaction.clear() }}>Clear all filters</ClearFilterButton>
               )}
             </div>
           )
@@ -655,7 +656,7 @@ export function RoleList({
 
       {selectedRoles.length >= 2 && (
         <div
-          className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40 flex items-center gap-4 rounded-2xl shadow-2xl border px-6 py-3.5"
+          className="comparison-selection-bar fixed bottom-8 left-1/2 -translate-x-1/2 z-40 flex flex-wrap items-center gap-4 rounded-2xl shadow-2xl border px-6 py-3.5"
           style={{
             backgroundColor:'var(--surface)',
             borderColor:'var(--border)'
@@ -694,13 +695,7 @@ export function RoleList({
             Compare now
           </button>
 
-          <button
-            onClick={clearSel}
-            className="text-xs font-semibold hover:underline focus:outline-none"
-            style={{ color:'var(--muted)' }}
-          >
-            Clear
-          </button>
+          <ClearFilterButton onClick={clearSel}>Clear selection</ClearFilterButton>
         </div>
       )}
     </div>

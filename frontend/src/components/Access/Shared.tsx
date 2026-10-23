@@ -1,3 +1,4 @@
+import { formatDate } from '@/lib/dateFormat';
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import type { ReactNode } from "react";
 export const inputClass =
@@ -58,7 +59,7 @@ export function Pagination({
   );
 }
 export const dates = (from: string | null, to: string | null) =>
-  `${from || "Unknown"} → ${to || "Unknown"}`;
+  `${formatDate(from)} → ${formatDate(to)}`;
 export function EvidenceNote() {
   return (
     <p className="text-sm text-[var(--muted)]">

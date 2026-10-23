@@ -34,7 +34,7 @@ test('transaction search respects exact code, scope and status and opens catalog
   await openUser(page)
   await page.getByRole('button', { name: 'All roles', exact: true }).click()
   await page.getByRole('textbox', { name: 'Find roles by transaction' }).fill(' me21n ')
-  await page.getByRole('button', { name: 'Search', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Search', exact: true })).toHaveCount(0)
   const details = page.getByRole('region', { name: 'User details', exact: true })
   await expect(details.getByRole('row')).toHaveCount(5) // header and four distinct assignments
   await expect(details).toContainText('Via ZD:BUY')
@@ -51,9 +51,9 @@ test('transaction search respects exact code, scope and status and opens catalog
   await page.getByRole('button', { name: 'Release Roles — ZO:*', exact: true }).click()
   await expect(details.getByRole('row')).toHaveCount(2)
   await page.getByRole('textbox', { name: 'Find roles by transaction' }).fill('ME21')
-  await page.getByRole('button', { name: 'Search', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Search', exact: true })).toHaveCount(0)
   await expect(details).toContainText('No matching roles for this transaction')
-  await page.getByRole('button', { name: 'Clear transaction search' }).click()
+  await page.getByRole('button', { name: 'Clear filter' }).click()
   await expect(details.getByRole('row')).toHaveCount(2)
 })
 test('CSV includes every filtered page, exact identifiers, dates, UTF-8 and safe spreadsheet fields', async ({ page }) => {
@@ -124,7 +124,7 @@ for (const theme of ['light', 'dark']) for (const width of [800, 1280]) test(`se
   await expect(page.getByRole('region', { name: 'Validity and account information', exact: true }).locator('.lock-status')).toHaveText('Mixed / unknown')
   await page.getByRole('button', { name: 'All roles', exact: true }).click()
   await page.getByRole('textbox', { name: 'Find roles by transaction' }).fill('ME21N')
-  await page.getByRole('button', { name: 'Search', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Search', exact: true })).toHaveCount(0)
   await expect(page.getByRole('region', { name: 'Transaction search evidence' })).toContainText('Via ZD:BUY')
   await page.screenshot({ path: info.outputPath('details.png'), fullPage: true })
   await page.getByRole('button', { name: 'View role details: ZC:MM:BUY:EN*', exact: true }).first().click()
@@ -145,7 +145,7 @@ test('changed source generation aborts export rather than downloading mixed page
   await expect(page.getByRole('status').filter({ hasText: 'Source data changed.' })).toBeVisible()
   expect(downloaded).toBe(false)
   await page.getByRole('textbox', { name: 'Find roles by transaction' }).fill('NO_SUCH_TRANSACTION')
-  await page.getByRole('button', { name: 'Search', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Search', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Export CSV', exact: true })).toBeDisabled()
 })
 

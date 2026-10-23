@@ -1,17 +1,14 @@
+import { Select } from '@/components/Shared/Select'
 import { useId, type SelectHTMLAttributes } from 'react'
-import { ChevronDown, RotateCcw } from 'lucide-react'
+import { RotateCcw } from 'lucide-react'
 import { isHex } from '@/lib/theme'
 
 export function SettingsSelect({
   className = '',
   ...props
 }: SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <span className="settings-select">
-      <select {...props} className={`settings-control ${className}`} />
-      <ChevronDown size={16} aria-hidden="true" />
-    </span>
-  )
+  return <Select {...props} className={`settings-control ${className}`}/>
+
 }
 
 export function ColorControl({

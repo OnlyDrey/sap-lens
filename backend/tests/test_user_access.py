@@ -176,6 +176,27 @@ class UserAccessTests(unittest.TestCase):
         self.assertGreater(found["unmapped_assignments"], 0)
         self.assertEqual(found["items"], [])
 
+    def test_multi_transaction_filters_use_exact_or_before_assignment_pagination(self):
+        combined = self.get("users/DEMO_ALFA?scope=all&tcodes=%20me23n%20&tcodes=fb03&tcodes=ME23N")
+        first = self.get("users/DEMO_ALFA?scope=all&tcode=ME23N")
+        second = self.get("users/DEMO_ALFA?scope=all&tcode=FB03")
+        self.assertEqual({a["id"] for a in combined["items"]}, {a["id"] for a in first["items"] + second["items"]})
+        self.assertEqual(combined["total"], len(combined["items"]))
+        self.assertEqual(self.get("users/DEMO_ALFA?scope=release&tcodes=ME23N")["total"], 0)
+        self.assertEqual(self.get("users/DEMO_ALFA?scope=all&tcodes=ME23")["total"], 0)
+        for suffix in ['tcodes=' + 'X' * 129, '&'.join('tcodes=T' + str(i) for i in range(22))]:
+            self.assertEqual(self.client.get('/api/access/users/DEMO_ALFA?' + suffix, headers=H).status_code, 422)
+
+    def test_catalogue_multi_transaction_filters_are_exact_or_and_other_filters(self):
+        response = self.client.get('/api/roles?tcodes=me23n&tcodes=fb03&function_key=FI&search=VIEW', headers=H)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([r['agr_name'] for r in response.json()], ['ZC:FI:VIEW:*'])
+        self.assertEqual(set(response.json()[0]['matching_tcodes']), {'ME23N', 'FB03'})
+        self.assertEqual(self.client.get('/api/roles?tcodes=ME23', headers=H).json(), [])
+        self.assertEqual(self.client.get('/api/roles?tcodes=' + 'X' * 129, headers=H).status_code, 422)
+        # Legacy prefix lookup is still available to existing callers.
+        self.assertTrue(self.client.get('/api/roles?tcode=ME23', headers=H).json())
+
     def load_navigation_export(self):
         path = Path(self.temp.name) / "navigation.csv"
         path.write_text(

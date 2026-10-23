@@ -127,3 +127,12 @@ CSV export uses these existing authenticated pages, checks generation/count/date
 consistency and runs locally. There is no new HTTP export/upload endpoint. Native
 CSV saving uses a separate capability-guarded Save dialog and does not enable
 unrestricted WebView2 downloads. See [User access](ACCESS_INVESTIGATION.md#user-role-views-transaction-search-and-csv-export).
+
+### Multiple exact transaction filters
+
+The existing role-list and user-detail endpoints additionally accept repeated
+`tcodes` parameters, for example `?tcodes=MIGO&tcodes=ME21N`. Values are trimmed,
+uppercased and deduplicated; matching uses OR before assignment pagination. Other
+filter categories still apply with AND. At most 21 values (20 chips plus one draft)
+of 128 characters each are accepted; larger inputs return 422. Legacy `tcode`
+behavior is preserved. API dates remain ISO; Norwegian formatting is UI-only.

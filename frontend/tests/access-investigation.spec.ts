@@ -76,7 +76,7 @@ test("user to role to transactions and reverse role or transaction investigation
     .click();
   await expect(
     page.getByRole("region", { name: "User Access", exact: true }),
-  ).toContainText("Evidence filter: Role ZC:MM:BUY:EN*");
+  ).toContainText("Role: ZC:MM:BUY:EN*");
   await expect(
     page.getByRole("button", { name: "DEMO_ALFA", exact: true }),
   ).toBeVisible();
@@ -100,7 +100,7 @@ test("user to role to transactions and reverse role or transaction investigation
     .click();
   await expect(
     page.getByRole("region", { name: "User Access", exact: true }),
-  ).toContainText("Evidence filter: Transaction ME23N");
+  ).toContainText("Transaction: ME23N");
   await expect(
     page.getByRole("button", { name: "DEMO_ALFA", exact: true }),
   ).toHaveCount(1);
@@ -457,7 +457,7 @@ for (const theme of ['light', 'dark'] as const) for (const width of [1280, 600])
       await expect(investigate).toHaveCSS('outline-style', 'solid')
       await page.screenshot({ path: info.outputPath(`transactions-${code}.png`), fullPage: true })
       await table.getByRole('button', { name: `Investigate users with ${code}`, exact: true }).press('Enter')
-      await expect(page.getByRole('region', { name: 'User Access', exact: true })).toContainText(`Evidence filter: Transaction ${code}`)
+      await expect(page.getByRole('region', { name: 'User Access', exact: true })).toContainText(`Transaction: ${code}`)
       await expect(page.getByRole('button', { name: 'DEMO_ALFA', exact: true })).toBeVisible()
     }
   })

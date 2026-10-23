@@ -455,3 +455,6 @@ release, version change or signing change was performed.
 For the current default All roles view, shared toolbar, lock pills, description-
 based header display hints and sidebar transaction search, see
 [Role presentation and transaction investigation](ROLE_PRESENTATION.md).
+
+The latest live multi-T-code filters, active evidence summary and Norwegian date
+presentation are documented in [Live filters](LIVE_FILTERS.md).

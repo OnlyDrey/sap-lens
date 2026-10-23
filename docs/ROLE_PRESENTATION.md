@@ -15,8 +15,8 @@ the directory starts with All roles.
 
 Assignment status, submitted transaction search and CSV export share one toolbar.
 On desktop, the input grows and Export CSV aligns right; controls wrap on narrow
-windows. Enter submits the exact transaction search. Clear removes both the
-submitted code and draft input. CSV export still includes every filtered page,
+windows. Live transaction filters match any saved chip or draft code. Enter saves a chip;
+Clear filter removes the transaction chips and draft input. CSV export still includes every filtered page,
 uses the existing source-generation checks and native save capability, and
 preserves distinct assignment evidence. See [access investigation](ACCESS_INVESTIGATION.md#user-role-views-transaction-search-and-csv-export).
 
@@ -68,11 +68,11 @@ prefix. This distinction is explained in the existing provenance disclosure.
 ## Role Details: Find transaction code
 
 The sidebar search sits below **Relationships & analysis provenance**, immediately
-above **Single Roles**. Search trims surrounding whitespace and uses an exact,
-case-insensitive comparison. It searches all imported single-role transaction
+above **Single Roles**. Live search trims surrounding whitespace and uses exact,
+case-insensitive OR matching across chips and draft text. It searches all imported single-role transaction
 mappings, including collapsed sections; it does not contact SAP.
 
-Submitting a code hides nonmatching sections, expands every matching section and
+Active codes hide nonmatching sections, expands every matching section and
 shows the matching count. Matching transaction rows have a theme-token background
 and underlined, heavier code text. Transaction descriptions and Investigate users
 buttons remain intact. Other transaction rows in each matching section remain
@@ -166,3 +166,6 @@ Changed files:
 | Presentation tokens/layout | `frontend/src/index.css` |
 | Browser regression coverage | `frontend/tests/consolidated-role-ui.spec.ts`, `frontend/tests/access-investigation.spec.ts`, `frontend/tests/user-role-export.spec.ts` |
 | Documentation | `docs/ROLE_PRESENTATION.md`, `docs/ACCESS_INVESTIGATION.md` |
+
+See [Live transaction filters and evidence presentation](LIVE_FILTERS.md) for the
+current shared chip interaction, Norwegian date display and active evidence summary.
