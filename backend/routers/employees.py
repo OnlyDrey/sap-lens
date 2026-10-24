@@ -144,8 +144,7 @@ async def import_directory(request: ImportRequest):
         store.directory, store.path, store.attempted_path, store.error = directory, request.path, ('snapshot', staged_id), None
         store.import_error = None
         published = cache.with_directory(cache.get_snapshot(), directory, request.path, staged_id)
-        from datetime import datetime, timezone
-        published.last_loaded = datetime.now(timezone.utc)
+        # Directory-only publication leaves SAP assignment revision unchanged.
         cache._cache = published
     result = directory_status(private=True)
     if previous_id and previous_id != staged_id:
@@ -166,8 +165,6 @@ def clear(request: ImportRequest):
         except (ValueError, OSError): raise HTTPException(409, 'Directory could not be cleared. Previous data retained.') from None
         store.clear()
         published = cache.with_directory(cache.get_snapshot(), None, '', None)
-        from datetime import datetime, timezone
-        published.last_loaded = datetime.now(timezone.utc)
         cache._cache = published
     warning = None
     try: discard_snapshot(previous_id)

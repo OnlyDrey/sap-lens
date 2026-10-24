@@ -1,5 +1,7 @@
 # UI consolidation — implementation and validation
 
+This document describes the UI-only consolidation checkpoint `246ef42`. The subsequent CSV lifecycle batch and final frozen stabilization are documented in [the final validation report](STABILIZATION_VALIDATION.md); its results supersede the intermediate execution results below.
+
 ## Baseline and boundaries
 
 Started from clean `work` at `4918bcc3657a463c8df7b593066479fe06574e54`, equal to fetched `origin/work`. Read AGENTS.md and inspected the existing shared controls, theme derivation, router, layout, source forms, tables, filters and browser suites before changing code. No reset, rebase, discarded work or new worktree.

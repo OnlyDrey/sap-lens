@@ -340,6 +340,7 @@ test('directory import and clear preserve independent catalogue filters, compari
   await page.getByRole('button', { name: 'Back to SAP Lens', exact: true }).click()
   await expect(search).toHaveValue('finance')
   await expect(page.getByRole('button', { name: 'Remove from comparison', exact: true })).toHaveCount(1)
+  expect((await (await request.get('/api/access/users/DEMO_EMPLOYEE', { headers })).json()).data_revision).toBe(before)
 })
 
 test('explicit import, independent feature toggles, retained data and Diagnostics stay synchronized', async ({page,request}) => {
