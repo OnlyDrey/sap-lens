@@ -41,7 +41,7 @@ def accounts(search: str = Query('', max_length=256), finding: str = Query('', m
              descending: bool = False, offset: int = Query(0, ge=0), limit: int = Query(25, ge=1, le=100)):
     state, directory, items, generation = current()
     if finding and finding not in {*review.FINDINGS, 'any', 'stale', 'matched'}: raise HTTPException(422, 'Unknown review finding.')
-    summary = dict(total=len(items), matched=sum(r['match_status'] == 'matched' for r in items) if directory else None,
+    summary = dict(total=len(items), outdated=sum(r['stale'] for r in items), matched=sum(r['match_status'] == 'matched' for r in items) if directory else None,
                    missing=sum('directory_match' in r['findings'] for r in items) if directory else None,
                    mismatch=sum('ad_disabled_open' in r['findings'] for r in items),
                    requiring_review=sum(r['needs_review'] for r in items), unlicensed=sum(r['unlicensed'] for r in items),

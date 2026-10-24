@@ -1,3 +1,4 @@
+import { SavedFilters } from '@/components/Shared/SavedFilters'
 import { useApplicationData } from '@/state/ApplicationData'
 import { TransactionFilter, useTransactionFilter } from '@/components/Shared/TransactionFilter'
 import { ClearFilterButton } from '@/components/Shared/ClearFilterButton'
@@ -246,6 +247,7 @@ export function RoleList({
   return (
     <div className="flex flex-col gap-4">
 
+      <SavedFilters view="roles" state={{search,activeModules,transactionMode,tcodes:transaction.codes,sortBy}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(Array.isArray(s.activeModules))setActiveModules(s.activeModules);if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(Array.isArray(s.tcodes)){transaction.setInput('');transaction.setChips(s.tcodes)};if(SORT_OPTIONS.some(o=>o.key===s.sortBy))setSortBy(s.sortBy as SortKey)}} clear={()=>{setSearch('');setActiveModules([]);setTransactionMode('and');transaction.clear();setSortBy('name-asc')}}/>
       <div
         className="catalogue-search-controls rounded-2xl border px-4 py-3 gap-3 shadow-sm"
         style={{

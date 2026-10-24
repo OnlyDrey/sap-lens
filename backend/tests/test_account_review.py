@@ -115,6 +115,8 @@ class AccountReviewTests(unittest.TestCase):
         self.csv.write_text(self.csv.read_text().replace('open@example.test','changed@example.test'))
         cache.load_cache();changed=self.get('?search=DEMO_OPEN')['items'][0]
         self.assertTrue(changed['stale']);self.assertEqual(changed['review_state'],'Needs review')
+        self.assertEqual(self.get()['summary']['outdated'],1)
+        self.assertEqual(self.get('?finding=stale')['total'],1)
         self.assertEqual(self.decision(row).status_code,409)
         saved=(config.config_dir()/'account-review.json').read_text()
         self.assertNotIn('open@example.test',saved);self.assertNotIn('DEMO_OPEN',saved)

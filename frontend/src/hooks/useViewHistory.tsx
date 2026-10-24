@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode, type SetStateAction } from 'react'
 
 export type ReleaseDrill = { status?: string; username?: string; role_search?: string; ungrouped?: boolean; role?: string; group?: string; document_type?: string; release_group?: string; strategy?: string }
-type View = { accessMode?: 'directory'|'review'; reviewFinding?: string; kpiNavigation?: Partial<Record<'roles'|'users'|'releases',number>>; settingsTarget?: 'roles' | 'users' | 'employees' | 'diagnostics' | 'features'; page: 'dashboard' | 'roles' | 'users' | 'releases'; user: string; release: ReleaseDrill | null; detailRole: string | null; comparison: boolean; settings: boolean; releaseContext: string; userContext: { role?: string; tcode?: string } }
+type View = { userComparison?:{a:string;b:string;validity:string;kind:string;difference:string;search:string;area:string}; accessMode?: 'directory'|'review'|'compare'; reviewFinding?: string; kpiNavigation?: Partial<Record<'roles'|'users'|'releases',number>>; settingsTarget?: 'roles' | 'users' | 'employees' | 'diagnostics' | 'features'; page: 'dashboard' | 'roles' | 'users' | 'releases'; user: string; release: ReleaseDrill | null; detailRole: string | null; comparison: boolean; settings: boolean; releaseContext: string; userContext: { role?: string; tcode?: string } }
 const paths = { dashboard: 'dashboard', roles: 'role-lookup', users: 'user-access', releases: 'release-roles' }
 const defaults: View = { page: 'dashboard', user: '', release: null, detailRole: null, comparison: false, settings: false, releaseContext: '', userContext: {} }
 function readView(): View {
@@ -21,7 +21,7 @@ export function initializeViewHistory() {
     } else history.replaceState({ ...history.state, sapLensView: current }, '', url)
 }
 const Context = createContext<{ view: View; change: (patch: Partial<View>, replace?: boolean) => void } | null>(null)
-/** Only navigation identities live in session history; CSV contents and credentials never do. */
+/** Navigation identities and bounded comparison controls live in session history; result datasets and credentials never do. */
 export function ViewHistory({ children }: { children: ReactNode }) {
   const [view, setView] = useState(readView)
   useEffect(() => {

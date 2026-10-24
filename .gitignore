@@ -83,3 +83,5 @@ SAP-Lens-diagnostics*.json
 
 # Private account review annotations
 **/account-review.json
+
+**/saved-filters.json

@@ -120,3 +120,7 @@ with the EXE or written into routine logs. All test records are synthetic.
 
 See [Employee Directory persistence](EMPLOYEE_DIRECTORY.md),
 [Dashboard and loading](DASHBOARD.md), and [assignment date filters](INVESTIGATION_FILTERS.md).
+
+## Follow-up investigations
+
+The **Outdated reviews** count and **Review changed evidence** action use the existing stale-evidence filter. CSV now includes both the current evidence fingerprint and the fingerprint retained with the original decision. A changed fingerprint does not rewrite reviewer metadata or rationale. [Saved Filters](SAVED_FILTERS.md) can retain a follow-up investigation, including finding, license-group classification, decision state and sorting. Bulk approvals and a mandatory reason taxonomy remain deferred; see the [gap analysis](ACCESS_INSIGHTS_FEASIBILITY.md#account-review-gap-analysis).

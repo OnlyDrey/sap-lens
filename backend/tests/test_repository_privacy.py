@@ -30,7 +30,7 @@ class RepositoryPrivacyTests(unittest.TestCase):
         self.assertIsNone(example['logo_base64'])
 
     def test_local_data_exclusions_and_explicit_distribution_inputs(self):
-        for file in ['account-review.json','nested/account-review.json','local-config/settings.json','user-branding/private.png','app-data/runtime.json','local.csv','private.sap-lens.json']:
+        for file in ['saved-filters.json','nested/saved-filters.json','account-review.json','nested/account-review.json','local-config/settings.json','user-branding/private.png','app-data/runtime.json','local.csv','private.sap-lens.json']:
             result=subprocess.run(['git','check-ignore','-q',file],cwd=ROOT)
             self.assertEqual(result.returncode,0,file)
         for file in ['examples/synthetic.csv','frontend/tests/fixtures/synthetic.csv','examples/synthetic-profile.sap-lens.json']:

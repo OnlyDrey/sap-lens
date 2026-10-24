@@ -1,3 +1,4 @@
+import { SavedFilters } from '@/components/Shared/SavedFilters'
 import { useApplicationData } from '@/state/ApplicationData'
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -153,6 +154,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
             'Reviewed at',
             'Rationale',
             'Evidence version',
+            'Reviewed evidence version',
             'Stale decision',
           ]
             .map(csvField)
@@ -189,6 +191,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
               row.decision?.timestamp,
               row.decision?.rationale,
               row.evidence_version,
+              row.decision?.evidence_version,
               row.stale ? 'Yes' : 'No',
             ]
               .map(csvField)
@@ -252,9 +255,10 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
               ['requiring_review', 'Accounts requiring review'],
               ['unlicensed', 'Classified unlicensed'],
               ['reviewed', 'Reviewed accounts'],
+              ['outdated', 'Outdated reviews'],
             ].map(([key, label]) => (
               <div key={key} className="compact-health">
-                <span>{label}</span>
+                <span>{label}</span>{key==='outdated'&&<button className="text-link" onClick={()=>setFinding('stale')}>Review changed evidence</button>}
                 <strong>
                   {data.summary[key]?.toLocaleString() ?? 'Unavailable'}
                 </strong>
@@ -270,6 +274,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
           )}
         </>
       )}
+      <SavedFilters view="review" state={{search,finding:finding||'',license,state,sort,descending}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(typeof s.finding==='string'&&['','any','stale','matched',...Object.keys(data?.finding_labels||{})].includes(s.finding))setFinding(s.finding);if(['','classified','exclude'].includes(String(s.license)))setLicense(String(s.license));if(['',...(data?.review_states||[])].includes(String(s.state)))setState(String(s.state));if(['username','name','sap_validity','lock_status','ad_status','review_state'].includes(String(s.sort)))setSort(String(s.sort));if(typeof s.descending==='boolean')setDescending(s.descending)}} clear={()=>{setSearch('');setFinding('');setLicense('');setState('');setSort('username');setDescending(false)}}/>
       <div className="review-filters">
         <Filter label="Search account reviews">
           <input
@@ -293,7 +298,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
                 {label}
               </option>
             ))}
-            <option value="stale">Changed evidence</option>
+            <option value="stale">Outdated reviews · changed evidence</option>
           </Select>
         </Filter>
         <Filter label="License group classification">

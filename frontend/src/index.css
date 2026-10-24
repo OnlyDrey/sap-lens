@@ -583,3 +583,18 @@ button.manager-identity:focus-visible { outline:2px solid var(--focus); outline-
 .review-table table { min-width:1200px; }
 .review-table th:nth-child(8),.review-table td:nth-child(8) { min-width:240px; }
 .review-table th:last-child,.review-table td:last-child { min-width:180px; }
+
+/* Shared compact investigation persistence and evidence tables. */
+.saved-filter-toolbar { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; padding:.65rem; border:1px solid var(--border); border-radius:.75rem; background:var(--surface); }
+.saved-filter-toolbar input, .saved-filter-toolbar select { max-width:15rem; min-width:8rem; flex:1 1 10rem; }
+.comparison-identity-grid, .health-source-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
+.health-source-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.health-findings { display:flex; flex-wrap:wrap; gap:.5rem; }
+.comparison-table th, .comparison-table td { text-align:left; vertical-align:top; padding:.75rem; border-bottom:1px solid var(--border); overflow-wrap:anywhere; }
+.comparison-table { min-width:640px; }
+@media (max-width:700px) { .comparison-identity-grid,.health-source-grid { grid-template-columns:minmax(0,1fr); } .saved-filter-toolbar { align-items:stretch; } }
+.saved-filter-toolbar > .shared-select { flex:1 1 12rem; width:auto; max-width:18rem; }
+.saved-filter-toolbar .shared-select select { width:100%; max-width:none; }
+.comparison-table th:nth-child(1) { min-width:180px; }
+.comparison-table th:nth-child(2) { min-width:115px; }
+.comparison-table th:nth-child(3), .comparison-table th:nth-child(4) { min-width:300px; }

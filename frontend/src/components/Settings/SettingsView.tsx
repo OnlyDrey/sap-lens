@@ -1,3 +1,4 @@
+import { DataHealth } from './DataHealth'
 import { About } from './About'
 import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
 import { EmployeeSource, FeatureSettings } from './EmployeeDirectory'
@@ -718,6 +719,7 @@ export function SettingsView({
                   )}
                   {section === 1 && imports && (
                     <>
+                      <DataHealth onSource={key=>{setImportSource(key);requestAnimationFrame(()=>document.getElementById(`source-tab-${key}`)?.focus())}}/>
                       <div className="flex flex-wrap gap-3">
                         <button className="settings-secondary-button" onClick={() => setSection(4)}>View data source diagnostics</button>
                         {importSource !== 'employees' && <button className="settings-secondary-button" disabled={busy || !(importSource === 'roles' ? draft.data_csv_path : draft.user_csv_path)} onClick={() => {

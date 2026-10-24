@@ -97,3 +97,7 @@ and review information; do not confuse it with the redacted support report.
 
 See [Employee Directory](EMPLOYEE_DIRECTORY.md), [Account Review](ACCOUNT_REVIEW.md),
 and [local Windows testing](LOCAL_WINDOWS_BUILD.md).
+
+## Investigation filter storage and data coverage
+
+[Saved Filters](SAVED_FILTERS.md) stores bounded investigation controls in the private per-user application settings directory, independently of imported source data and portable settings. [Data Health & Coverage](DATA_HEALTH.md) is a collapsible overview under Data Sources; source-specific import, snapshot recovery and directory diagnostics remain in their existing source tabs.

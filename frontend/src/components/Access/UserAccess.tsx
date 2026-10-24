@@ -1,3 +1,5 @@
+import { UserComparison, type ComparisonContext } from './UserComparison'
+import { SavedFilters } from '@/components/Shared/SavedFilters'
 import { AccountReview } from './AccountReview'
 import { AccountStatus } from '@/components/Shared/AccountStatus'
 import { useApplicationData } from '@/state/ApplicationData'
@@ -9,7 +11,7 @@ import { Select } from '@/components/Shared/Select';
 import { formatDate } from '@/lib/dateFormat';
 import { exportAssignments } from '@/lib/accessExport';
 import { Filter as FilterIcon, ArrowRight, Download } from 'lucide-react';
-import { useHistoryValue } from '@/hooks/useViewHistory';
+import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory';
 import { useRecordNavigation, type RecordNavigationState } from "@/hooks/useRecordNavigation";
 import { DetailNavigation, EvidenceBadge, LockStatus, AssignmentStatus } from "@/components/Shared/InvestigationNavigation";
 import { Combobox } from "@/components/Shared/Combobox";
@@ -45,8 +47,12 @@ export function UserAccess({
   onRole: (role: string) => void;
   onRelease: (role: string) => void;
 }) {
+  const {view:comparisonView,change:changeComparison}=useViewHistory();
+  const comparisonContext=comparisonView.userComparison;
+  const setComparisonContext=(state:ComparisonContext)=>changeComparison({userComparison:state},true);
+  const [compareInitial,setCompareInitial]=useState('');
   const [accessMode,setAccessMode]=useHistoryValue('accessMode');
-  const modeButtons=<div className="segmented-control" role="group" aria-label="User Access view"><button aria-pressed={accessMode!=='review'} onClick={()=>setAccessMode('directory')}>User directory</button><button aria-pressed={accessMode==='review'} onClick={()=>setAccessMode('review')}>Account Review</button></div>;
+  const modeButtons=<div className="segmented-control" role="group" aria-label="User Access view"><button aria-pressed={!accessMode || accessMode==='directory'} onClick={()=>setAccessMode('directory')}>User directory</button><button aria-pressed={accessMode==='review'} onClick={()=>setAccessMode('review')}>Account Review</button><button aria-pressed={accessMode==='compare'} onClick={()=>{setCompareInitial('');setAccessMode('compare')}}>Compare users</button></div>;
   const {loading:dataLoading}=useApplicationData();
   const listScroll = useRef(0);
   const originUser = useRef(initialUser || "");
@@ -112,11 +118,13 @@ export function UserAccess({
     });
     return () => cancelAnimationFrame(frame);
   }, [selected, result.data, result.isFetching]);
-  if(accessMode==='review') return <><div hidden={!!selected}>{modeButtons}<AccountReview onUser={openUser}/></div>{selected&&<UserDetails username={selected} onBack={()=>setSelected('')} onRole={onRole} onRelease={onRelease} navigation={{index:-1,total:0,loading:false,error:null,missing:false,onPrevious:undefined,onNext:undefined}}/>}</>;
+  if(accessMode==='compare') return <><div hidden={!!selected}>{modeButtons}<UserComparison context={comparisonContext} onContext={setComparisonContext} initialUser={compareInitial} onUser={openUser} onRole={onRole} onTransaction={code=>{setCompareInitial('');directoryTransaction.setInput('');directoryTransaction.setChips([code]);setAccessMode('directory')}}/></div>{selected&&<UserDetails username={selected} onCompare={()=>{setCompareInitial(selected);setSelected('')}} onBack={()=>setSelected('')} onRole={onRole} onRelease={onRelease} navigation={{index:-1,total:0,loading:false,error:null,missing:false,onPrevious:undefined,onNext:undefined}}/>}</>;
+  if(accessMode==='review') return <><div hidden={!!selected}>{modeButtons}<AccountReview onUser={openUser}/></div>{selected&&<UserDetails username={selected} onCompare={()=>{setCompareInitial(selected);setSelected('');setAccessMode('compare')}} onBack={()=>setSelected('')} onRole={onRole} onRelease={onRelease} navigation={{index:-1,total:0,loading:false,error:null,missing:false,onPrevious:undefined,onNext:undefined}}/>}</>;
   if (selected)
     return (
       <UserDetails
         username={selected}
+        onCompare={()=>{setCompareInitial(selected);setSelected('');setAccessMode('compare')}}
         onBack={() => { restoreList.current = true; setSelected("") }}
         onRole={onRole}
         onRelease={onRelease}
@@ -127,6 +135,8 @@ export function UserAccess({
     <section aria-label="User Access" className="space-y-4">
       <h1 className="text-xl font-semibold">User Access</h1>{modeButtons}
       <EvidenceNote />
+      <SavedFilters view="users" state={{search,group,sort,descending,role,tcodes:directoryTransaction.codes,transactionMode,expired}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(typeof s.group==='string')setGroup(s.group);if(typeof s.sort==='string'&&['username','group','first_name','last_name','email','account_status','relevant_roles'].includes(s.sort))setSort(s.sort);if(typeof s.descending==='boolean')setDescending(s.descending);if(typeof s.role==='string')setRole(s.role);if(Array.isArray(s.tcodes)){directoryTransaction.setInput('');directoryTransaction.setChips(s.tcodes)};if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(typeof s.expired==='boolean')setExpired(s.expired)}} clear={()=>{setSearch('');setGroup('');setSort('username');setDescending(false);setRole('');directoryTransaction.clear();setTransactionMode('and');setExpired(false)}}/>
+
       <div className="investigation-filters user-filters"><fieldset><legend>User directory</legend><div className="directory-filter-grid">
         <Filter label="Search users">
           <input
@@ -267,6 +277,7 @@ export function UserAccess({
 
 function UserDetails({
   username,
+  onCompare,
   onBack,
   onRole,
   onRelease,
@@ -274,6 +285,7 @@ function UserDetails({
 }: {
   navigation: RecordNavigationState;
   username: string;
+  onCompare: () => void;
   onBack: () => void;
   onRole: (role: string) => void;
   onRelease: (role: string) => void;
@@ -327,7 +339,7 @@ function UserDetails({
   return (
     <section aria-label="User details" className="space-y-4">
       <DetailNavigation parent="User Access" current={username} onBack={onBack} {...navigation}/>
-      <h1 className="text-xl font-semibold">User details</h1>
+      <div className="flex flex-wrap items-center gap-3"><h1 className="text-xl font-semibold">User details</h1><button className="settings-secondary-button" onClick={onCompare}>Compare users</button></div>
       <QueryState loading={result.isLoading || (dataLoading && !result.data)} error={dataLoading && !result.data ? null : result.error} />
       {user && (
         <>
