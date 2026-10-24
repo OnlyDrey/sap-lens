@@ -1,3 +1,5 @@
+import { Button } from './Button'
+import { Popover } from './Popover'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Save, FolderOpen, Trash2, Pencil, X } from 'lucide-react'
@@ -7,7 +9,7 @@ import { formatDate } from '@/lib/dateFormat'
 import { inputClass } from '@/components/Access/Shared'
 
 type State = Record<string, string | boolean | number | string[]>
-interface Entry {
+export interface Entry {
   id: string
   name: string
   view: string
@@ -15,27 +17,41 @@ interface Entry {
   filters: State
   modified: string
 }
+export interface FilterStorage {
+  key: string
+  list: () => Promise<{ items: Entry[] }>
+  save: (body: Record<string, unknown>) => Promise<Entry>
+  remove: (body: { id: string; expected: string }) => Promise<unknown>
+}
 /** Explicit operations only: unsupported definitions remain stored until deliberately updated. */
 export function SavedFilters({
   view,
   state,
   apply,
   clear,
+  storage,
+  showClear = true,
 }: {
   view: string
   state: State
   apply: (s: State) => void
   clear: () => void
+  storage?: FilterStorage
+  showClear?: boolean
 }) {
   const qc = useQueryClient(),
     [active, setActive] = useState(''),
+    [menuOpen, setMenuOpen] = useState(false),
     [applied, setApplied] = useState(''),
     [name, setName] = useState(''),
     [message, setMessage] = useState(''),
     [busy, setBusy] = useState(false)
   const result = useQuery({
-    queryKey: ['saved-filters'],
-    queryFn: () => apiRequest<{ items: Entry[] }>('/api/saved-filters'),
+    queryKey: ['saved-filters', storage?.key || 'local'],
+    queryFn: () =>
+      storage
+        ? storage.list()
+        : apiRequest<{ items: Entry[] }>('/api/saved-filters'),
   })
   const items = result.data?.items.filter((i) => i.view === view) || [],
     selected = items.find((i) => i.id === active),
@@ -48,7 +64,9 @@ export function SavedFilters({
     setMessage('')
     try {
       await action()
-      await qc.invalidateQueries({ queryKey: ['saved-filters'] })
+      await qc.invalidateQueries({
+        queryKey: ['saved-filters', storage?.key || 'local'],
+      })
       setMessage('Saved filters updated.')
     } catch (e) {
       setMessage((e as Error).message)
@@ -58,14 +76,17 @@ export function SavedFilters({
   }
   const save = (update: boolean, rename = false) =>
     void run(async () => {
-      const entry = await apiRequest<Entry>('/api/saved-filters', 'POST', {
+      const body = {
         name,
         view,
         filters: rename ? {} : state,
         id: update ? active : '',
         expected: update ? selected?.modified : '',
         rename,
-      })
+      }
+      const entry = await (storage
+        ? storage.save(body)
+        : apiRequest<Entry>('/api/saved-filters', 'POST', body))
       setActive(entry.id)
       if (!rename) setApplied(entry.id)
     })
@@ -173,108 +194,148 @@ export function SavedFilters({
   }
   return (
     <div className="saved-filter-toolbar" aria-label={`${view} saved filters`}>
-      <span className="inline-flex items-center gap-2 text-sm">
-        <FolderOpen size={16} aria-hidden="true" />
-        Saved filters
-      </span>
-      <Select
-        className={inputClass}
-        aria-label="Saved filter"
-        value={active}
-        disabled={busy}
-        onChange={(e) => {
-          setActive(e.target.value)
-          setName(items.find((i) => i.id === e.target.value)?.name || '')
-        }}
+      <Popover
+        onOpenChange={setMenuOpen}
+        label={`${view} saved filters`}
+        trigger={
+          <>
+            <FolderOpen size={16} aria-hidden="true" />
+            Saved filters
+            {appliedEntry && (
+              <span>
+                {' '}
+                · {appliedEntry.name}
+                {modified ? ' (Modified)' : ''}
+              </span>
+            )}
+          </>
+        }
       >
-        <option value="">Choose saved filter</option>
-        {items.map((i) => (
-          <option key={i.id} value={i.id}>
-            {i.name}
-          </option>
-        ))}
-      </Select>
-      <button
-        className="settings-secondary-button"
-        disabled={!selected || busy}
-        onClick={load}
-      >
-        Load
-      </button>
-      <input
-        className={inputClass}
-        aria-label="Saved filter name"
-        placeholder="Filter name"
-        maxLength={80}
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-      />
-      <button
-        className="settings-secondary-button"
-        disabled={!name.trim() || busy || !!result.error}
-        onClick={() => save(false)}
-      >
-        <Save size={15} aria-hidden="true" />
-        Save as new
-      </button>
-      {selected && (
-        <>
-          <button
-            className="settings-secondary-button"
-            disabled={busy || !name.trim()}
-            onClick={() => save(true)}
-          >
-            Update saved filter
-          </button>
-          <button
-            className="settings-secondary-button"
-            disabled={busy || !name.trim()}
-            onClick={() => save(true, true)}
-          >
-            <Pencil size={15} aria-hidden="true" />
-            Rename
-          </button>
-          <button
-            className="settings-secondary-button"
+        <div className="saved-filter-panel">
+          <Select
+            className={inputClass}
+            aria-label="Saved filter"
+            value={active}
             disabled={busy}
-            onClick={() => {
-              if (window.confirm(`Delete saved filter “${selected.name}”?`))
-                void run(async () => {
-                  await apiRequest('/api/saved-filters/delete', 'POST', {
-                    id: active,
-                    expected: selected.modified,
-                  })
-                  setActive('')
-                  setApplied('')
-                  setName('')
-                })
+            onChange={(e) => {
+              setActive(e.target.value)
+              setName(items.find((i) => i.id === e.target.value)?.name || '')
             }}
           >
-            <Trash2 size={15} aria-hidden="true" />
-            Delete
-          </button>
-        </>
+            <option value="">Choose saved filter</option>
+            {items.map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.name}
+              </option>
+            ))}
+          </Select>
+          <Button disabled={!selected || busy} onClick={load}>
+            Load
+          </Button>
+          <input
+            className={inputClass}
+            aria-label="Saved filter name"
+            placeholder="Filter name"
+            maxLength={80}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <Button
+            disabled={!name.trim() || busy || !!result.error}
+            onClick={() => save(false)}
+          >
+            <Save size={15} aria-hidden="true" />
+            Save as new
+          </Button>
+          {selected && (
+            <>
+              <Button
+                disabled={busy || !name.trim()}
+                onClick={() => save(true)}
+              >
+                Update saved filter
+              </Button>
+              <Button
+                disabled={busy || !name.trim()}
+                onClick={() => save(true, true)}
+              >
+                <Pencil size={15} aria-hidden="true" />
+                Rename
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={busy}
+                onClick={() => {
+                  if (window.confirm(`Delete saved filter “${selected.name}”?`))
+                    void run(async () => {
+                      await (storage
+                        ? storage.remove({
+                            id: active,
+                            expected: selected.modified,
+                          })
+                        : apiRequest('/api/saved-filters/delete', 'POST', {
+                            id: active,
+                            expected: selected.modified,
+                          }))
+                      setActive('')
+                      setApplied('')
+                      setName('')
+                    })
+                }}
+              >
+                <Trash2 size={15} aria-hidden="true" />
+                Delete
+              </Button>
+            </>
+          )}
+          {!showClear && (
+            <Button
+              variant="ghost"
+              onClick={() => {
+                clear()
+                setActive('')
+                setApplied('')
+                setName('')
+                setMessage('')
+              }}
+            >
+              <X size={15} aria-hidden="true" />
+              Clear filters
+            </Button>
+          )}
+          {(message || result.error) && (
+            <p role="status">{message || result.error?.message}</p>
+          )}
+          {selected?.filter_schema !== undefined &&
+            selected.filter_schema !== 1 && (
+              <p className="text-sm text-[var(--warning)]">
+                Incompatible saved filter schema; original retained.
+              </p>
+            )}
+        </div>
+      </Popover>
+      {showClear && (
+        <Button
+          variant="ghost"
+          onClick={() => {
+            clear()
+            setActive('')
+            setApplied('')
+            setName('')
+            setMessage('')
+          }}
+        >
+          <X size={15} aria-hidden="true" />
+          Clear filters
+        </Button>
       )}
-      <button
-        className="settings-secondary-button clear-filter-button"
-        onClick={() => {
-          clear()
-          setActive('')
-          setApplied('')
-          setName('')
-          setMessage('')
-        }}
-      >
-        <X size={15} aria-hidden="true" />
-        Clear applied filter
-      </button>
       {appliedEntry && (
-        <span className="text-sm" role="status">
+        <span className="sr-only" role="status">
           {appliedEntry.name}
           {modified ? ' · Modified' : ''}
         </span>
       )}
-      {(message || result.error) && (
+      {!menuOpen && (message || result.error) && (
         <p role="status" className="text-sm basis-full">
           {message || result.error?.message}
         </p>

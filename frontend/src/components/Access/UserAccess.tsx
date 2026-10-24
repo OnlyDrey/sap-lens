@@ -1,3 +1,5 @@
+import { Button } from '@/components/Shared/Button'
+import { SecondaryNavigation, ContentTabs } from '@/components/Shared/Navigation'
 import { UserComparison, type ComparisonContext } from './UserComparison'
 import { SavedFilters } from '@/components/Shared/SavedFilters'
 import { AccountReview } from './AccountReview'
@@ -11,7 +13,7 @@ import { Select } from '@/components/Shared/Select';
 import { formatDate } from '@/lib/dateFormat';
 import { exportAssignments } from '@/lib/accessExport';
 import { Filter as FilterIcon, ArrowRight, Download } from 'lucide-react';
-import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory';
+import { useHistoryValue, useViewHistory, userAccessHref } from '@/hooks/useViewHistory';
 import { useRecordNavigation, type RecordNavigationState } from "@/hooks/useRecordNavigation";
 import { DetailNavigation, EvidenceBadge, LockStatus, AssignmentStatus } from "@/components/Shared/InvestigationNavigation";
 import { Combobox } from "@/components/Shared/Combobox";
@@ -52,7 +54,7 @@ export function UserAccess({
   const setComparisonContext=(state:ComparisonContext)=>changeComparison({userComparison:state},true);
   const [compareInitial,setCompareInitial]=useState('');
   const [accessMode,setAccessMode]=useHistoryValue('accessMode');
-  const modeButtons=<div className="segmented-control" role="group" aria-label="User Access view"><button aria-pressed={!accessMode || accessMode==='directory'} onClick={()=>setAccessMode('directory')}>User directory</button><button aria-pressed={accessMode==='review'} onClick={()=>setAccessMode('review')}>Account Review</button><button aria-pressed={accessMode==='compare'} onClick={()=>{setCompareInitial('');setAccessMode('compare')}}>Compare users</button></div>;
+  const modeButtons=<SecondaryNavigation label="User Access view" items={(['directory','review','compare'] as const).map((value,index)=>({value,label:['User directory','Account Review','Compare users'][index],href:userAccessHref(value),active:(accessMode||'directory')===value,onSelect:()=>{setCompareInitial('');setAccessMode(value)}}))}/>;
   const {loading:dataLoading}=useApplicationData();
   const listScroll = useRef(0);
   const originUser = useRef(initialUser || "");
@@ -133,9 +135,9 @@ export function UserAccess({
     );
   return (
     <section aria-label="User Access" className="space-y-4">
-      <h1 className="text-xl font-semibold">User Access</h1>{modeButtons}
+      {modeButtons}<h1 className="text-xl font-semibold">User Access</h1>
       <EvidenceNote />
-      <SavedFilters view="users" state={{search,group,sort,descending,role,tcodes:directoryTransaction.codes,transactionMode,expired}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(typeof s.group==='string')setGroup(s.group);if(typeof s.sort==='string'&&['username','group','first_name','last_name','email','account_status','relevant_roles'].includes(s.sort))setSort(s.sort);if(typeof s.descending==='boolean')setDescending(s.descending);if(typeof s.role==='string')setRole(s.role);if(Array.isArray(s.tcodes)){directoryTransaction.setInput('');directoryTransaction.setChips(s.tcodes)};if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(typeof s.expired==='boolean')setExpired(s.expired)}} clear={()=>{setSearch('');setGroup('');setSort('username');setDescending(false);setRole('');directoryTransaction.clear();setTransactionMode('and');setExpired(false)}}/>
+      <SavedFilters showClear={false} view="users" state={{search,group,sort,descending,role,tcodes:directoryTransaction.codes,transactionMode,expired}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(typeof s.group==='string')setGroup(s.group);if(typeof s.sort==='string'&&['username','group','first_name','last_name','email','account_status','relevant_roles'].includes(s.sort))setSort(s.sort);if(typeof s.descending==='boolean')setDescending(s.descending);if(typeof s.role==='string')setRole(s.role);if(Array.isArray(s.tcodes)){directoryTransaction.setInput('');directoryTransaction.setChips(s.tcodes)};if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(typeof s.expired==='boolean')setExpired(s.expired)}} clear={()=>{setSearch('');setGroup('');setSort('username');setDescending(false);setRole('');directoryTransaction.clear();setTransactionMode('and');setExpired(false)}}/>
 
       <div className="investigation-filters user-filters"><fieldset><legend>User directory</legend><div className="directory-filter-grid">
         <Filter label="Search users">
@@ -339,7 +341,7 @@ function UserDetails({
   return (
     <section aria-label="User details" className="space-y-4">
       <DetailNavigation parent="User Access" current={username} onBack={onBack} {...navigation}/>
-      <div className="flex flex-wrap items-center gap-3"><h1 className="text-xl font-semibold">User details</h1><button className="settings-secondary-button" onClick={onCompare}>Compare users</button></div>
+      <div className="flex flex-wrap items-center gap-3"><h1 className="text-xl font-semibold">User details</h1><Button className="settings-secondary-button" onClick={onCompare}>Compare users</Button></div>
       <QueryState loading={result.isLoading || (dataLoading && !result.data)} error={dataLoading && !result.data ? null : result.error} />
       {user && (
         <>
@@ -374,22 +376,7 @@ function UserDetails({
             Validity evaluated on {formatDate(user.as_of)}. {user.retained_assignments}{" "}
             assignment records retained.
           </p>
-          <nav aria-label="User role sections" className="flex flex-wrap gap-2">
-            {[
-              ["all", "All roles"],
-              ["business", "Business Roles — ZC:*"],
-              ["release", "Release Roles — ZO:*"],
-            ].map(([v, l]) => (
-              <button
-                key={v}
-                className="settings-secondary-button"
-                aria-pressed={scope === v}
-                onClick={() => setScope(v)}
-              >
-                {l}
-              </button>
-            ))}
-          </nav>
+          <ContentTabs label="User role sections" value={scope} onChange={setScope} items={[{value:'all',label:'All roles'},{value:'business',label:'Business Roles — ZC:*'},{value:'release',label:'Release Roles — ZO:*'}]}>
           <form aria-label="User role toolbar" className="user-role-toolbar" onSubmit={event => event.preventDefault()}>
             <Filter label="Assignment status">
               <Select aria-label="Assignment status"
@@ -415,14 +402,14 @@ function UserDetails({
           {(datesActive(assignmentDates) || transaction.codes.length > 0 || status) && <ClearFilterButton onClick={() => { setAssignmentDates({ ...emptyDates }); transaction.clear(); setStatus('') }}>Clear all assignment filters</ClearFilterButton>}
 
             <TransactionFilter label="Find roles by transaction" filter={transaction}/>
-            <button type="button" className="settings-secondary-button user-export-button" disabled={exporting || result.isFetching || transaction.settling || !user.total} onClick={async () => {
+            <Button type="button" className="settings-secondary-button user-export-button" disabled={exporting || result.isFetching || transaction.settling || !user.total} onClick={async () => {
               const generation = exportGeneration.current;
               setExporting(true); setExportMessage('Preparing CSV…');
               try { const saved = await exportAssignments(user, scope, status, () => generation === exportGeneration.current, transactionCodes, dateParams(assignmentDates));
                 if (generation === exportGeneration.current) setExportMessage(saved ? 'CSV exported.' : 'Export cancelled.');
               } catch (error) { if (generation === exportGeneration.current) setExportMessage(error instanceof Error ? error.message : 'CSV export failed.'); }
               finally { setExporting(false); }
-            }}><Download size={15} aria-hidden="true"/>{exporting ? 'Exporting…' : 'Export CSV'}</button>
+            }}><Download size={15} aria-hidden="true"/>{exporting ? 'Exporting…' : 'Export CSV'}</Button>
           </form>
           {transactionCodes.length > 0 && <section aria-label="Transaction search evidence"><p>Transactions {transactionCodes.join(' OR ')} · selected user, role view and assignment-status filter. Role-derived evidence is not proof of effective SAP authorization.</p>
             {!user.mapping_available && <p>Transaction mappings unavailable: no role catalogue is loaded.</p>}
@@ -468,6 +455,7 @@ function UserDetails({
             onChange={setOffset}
             label="User assignment pages"
           />
+          </ContentTabs>
         </>
       )}
     </section>
@@ -502,13 +490,13 @@ function AssignmentRow({
       </td>
       <td>
         {a.scope === "release" ? (
-          <button className="settings-secondary-button" onClick={() => onRelease(a.role_name)}>View role details<ArrowRight size={15} aria-hidden="true"/></button>
+          <Button className="settings-secondary-button" onClick={() => onRelease(a.role_name)}>View role details<ArrowRight size={15} aria-hidden="true"/></Button>
         ) : a.match_status === "exact" || a.match_status === "wildcard" ? (
           <>
             {a.catalogue_roles.map((name) => (
-              <button className="settings-secondary-button" key={name} aria-label={`View role details: ${name}`} onClick={() => onRole(name)}>
+              <Button className="settings-secondary-button" key={name} aria-label={`View role details: ${name}`} onClick={() => onRole(name)}>
                 View role details<ArrowRight size={15} aria-hidden="true"/>
-              </button>
+              </Button>
             ))}
           </>
         ) : (

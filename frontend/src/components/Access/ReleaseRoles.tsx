@@ -1,3 +1,4 @@
+import { ButtonGroup } from '@/components/Shared/Button'
 import { SavedFilters } from '@/components/Shared/SavedFilters'
 import { useApplicationData } from '@/state/ApplicationData'
 import { formatDate } from '@/lib/dateFormat'
@@ -137,7 +138,7 @@ export function ReleaseRoles({
         naming tokens; no release-authority meaning is assumed.
       </p>
       <EvidenceNote />
-      <SavedFilters view="release" state={{group,kind,releaseGroup,strategy,username,role,status,sort,descending,...assignmentDates}} apply={s=>{for(const [k,set] of Object.entries({group:setGroup,kind:setKind,releaseGroup:setReleaseGroup,strategy:setStrategy,username:setUsername,role:setRole}))if(typeof s[k]==='string')set(s[k] as string);if(['active','expired','future','unknown','all'].includes(String(s.status)))setStatus(String(s.status));if(['role_name','assigned_users','document_type','release_group','release_strategy'].includes(String(s.sort)))setSort(String(s.sort));if(typeof s.descending==='boolean')setDescending(s.descending);setAssignmentDates(previous=>Object.fromEntries(Object.entries(previous).map(([k,v])=>[k,typeof s[k]===typeof v?s[k]:v])) as typeof previous)}} clear={()=>{setGroup('');setKind('');setReleaseGroup('');setStrategy('');setUsername('');setRole('');setStatus('active');setSort('role_name');setDescending(false);setAssignmentDates({...emptyDates})}}/>
+      <SavedFilters showClear={false} view="release" state={{group,kind,releaseGroup,strategy,username,role,status,sort,descending,...assignmentDates}} apply={s=>{for(const [k,set] of Object.entries({group:setGroup,kind:setKind,releaseGroup:setReleaseGroup,strategy:setStrategy,username:setUsername,role:setRole}))if(typeof s[k]==='string')set(s[k] as string);if(['active','expired','future','unknown','all'].includes(String(s.status)))setStatus(String(s.status));if(['role_name','assigned_users','document_type','release_group','release_strategy'].includes(String(s.sort)))setSort(String(s.sort));if(typeof s.descending==='boolean')setDescending(s.descending);setAssignmentDates(previous=>Object.fromEntries(Object.entries(previous).map(([k,v])=>[k,typeof s[k]===typeof v?s[k]:v])) as typeof previous)}} clear={()=>{setGroup('');setKind('');setReleaseGroup('');setStrategy('');setUsername('');setRole('');setStatus('active');setSort('role_name');setDescending(false);setAssignmentDates({...emptyDates})}}/>
 
       <div className="investigation-filters release-filters">
         <fieldset><legend>Release classification</legend><div className="filter-grid">
@@ -206,10 +207,8 @@ export function ReleaseRoles({
         <h2>Release assignments <span>{result.data?.total.toLocaleString() ?? '…'} {result.data?.total === 1 ? 'role' : 'roles'}</span></h2>
 
       <AssignmentDateFilters value={assignmentDates} onChange={setAssignmentDates}/>
-        <div className="segmented-control" role="group" aria-label="Release results view">
-          <button aria-pressed={!matrix} onClick={() => setMatrix(false)}><List size={16} aria-hidden="true"/>Table</button>
-          <button aria-pressed={matrix} onClick={() => setMatrix(true)}><Grid3X3 size={16} aria-hidden="true"/>Matrix</button>
-        </div>
+        <ButtonGroup label="Release results view" value={matrix?'matrix':'table'} onChange={value=>setMatrix(value==='matrix')} options={[{value:'table',label:'Table',icon:<List size={16} aria-hidden="true"/>},{value:'matrix',label:'Matrix',icon:<Grid3X3 size={16} aria-hidden="true"/>}]}/>
+
         {matrix && (
           <label className="filter-toggle">
             <input

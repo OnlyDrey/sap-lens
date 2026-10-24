@@ -1,10 +1,11 @@
+import { Button } from '@/components/Shared/Button'
 import { SavedFilters } from '@/components/Shared/SavedFilters'
 import { useApplicationData } from '@/state/ApplicationData'
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Download, ClipboardCheck, Save } from 'lucide-react'
 import { apiRequest, applicationToken } from '@/api/client'
-import { useHistoryValue } from '@/hooks/useViewHistory'
+import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
 import { AccountStatus } from '@/components/Shared/AccountStatus'
 import { ClearFilterButton } from '@/components/Shared/ClearFilterButton'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
@@ -48,12 +49,15 @@ interface Results {
 export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
   const { loading: dataLoading } = useApplicationData()
   const [finding, setFinding] = useHistoryValue('reviewFinding')
-  const [search, setSearch] = useState(''),
-    [license, setLicense] = useState(''),
-    [state, setState] = useState(''),
-    [sort, setSort] = useState('username'),
-    [descending, setDescending] = useState(false),
+  const {view,change}=useViewHistory()
+  const retained=view.accountReviewFilters
+  const [search, setSearch] = useState(retained?.search||''),
+    [license, setLicense] = useState(retained?.license||''),
+    [state, setState] = useState(retained?.state||''),
+    [sort, setSort] = useState(retained?.sort||'username'),
+    [descending, setDescending] = useState(retained?.descending||false),
     [offset, setOffset] = useState(0)
+  useEffect(()=>change({accountReviewFilters:{search,license,state,sort,descending}},true),[search,license,state,sort,descending,change])
   const [term, setTerm] = useState(''),
     [feedback, setFeedback] = useState(''),
     [busy, setBusy] = useState(false),
@@ -274,7 +278,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
           )}
         </>
       )}
-      <SavedFilters view="review" state={{search,finding:finding||'',license,state,sort,descending}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(typeof s.finding==='string'&&['','any','stale','matched',...Object.keys(data?.finding_labels||{})].includes(s.finding))setFinding(s.finding);if(['','classified','exclude'].includes(String(s.license)))setLicense(String(s.license));if(['',...(data?.review_states||[])].includes(String(s.state)))setState(String(s.state));if(['username','name','sap_validity','lock_status','ad_status','review_state'].includes(String(s.sort)))setSort(String(s.sort));if(typeof s.descending==='boolean')setDescending(s.descending)}} clear={()=>{setSearch('');setFinding('');setLicense('');setState('');setSort('username');setDescending(false)}}/>
+      <SavedFilters showClear={false} view="review" state={{search,finding:finding||'',license,state,sort,descending}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(typeof s.finding==='string'&&['','any','stale','matched',...Object.keys(data?.finding_labels||{})].includes(s.finding))setFinding(s.finding);if(['','classified','exclude'].includes(String(s.license)))setLicense(String(s.license));if(['',...(data?.review_states||[])].includes(String(s.state)))setState(String(s.state));if(['username','name','sap_validity','lock_status','ad_status','review_state'].includes(String(s.sort)))setSort(String(s.sort));if(typeof s.descending==='boolean')setDescending(s.descending)}} clear={()=>{setSearch('');setFinding('');setLicense('');setState('');setSort('username');setDescending(false)}}/>
       <div className="review-filters">
         <Filter label="Search account reviews">
           <input
@@ -372,14 +376,14 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
         >
           Clear filters
         </ClearFilterButton>
-        <button
+        <Button
           className="settings-secondary-button"
           disabled={busy || !data?.loaded}
           onClick={() => void exportCSV()}
         >
           <Download size={16} />
           Export review CSV
-        </button>
+        </Button>
       </div>
       <QueryState
         loading={result.isLoading || (dataLoading && !data?.loaded)}
@@ -461,7 +465,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
                       {!row.findings.length && <p>No supported finding</p>}
                     </td>
                     <td>
-                      <button
+                      <Button
                         className="settings-secondary-button"
                         disabled={busy}
                         data-review-user={row.username}
@@ -474,7 +478,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
                         }}
                       >
                         {row.review_state}
-                      </button>
+                      </Button>
                       {row.stale && (
                         <p className="text-[var(--warning)]">
                           Evidence changed — review again
@@ -544,7 +548,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
             Reviewer is a local self-declared annotation, not an authenticated
             approval. Nothing is sent to SAP.
           </p>
-          <button
+          <Button
             className="settings-secondary-button"
             disabled={busy || !reviewer.trim() || !rationale.trim()}
             onClick={() =>
@@ -572,14 +576,14 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
           >
             <Save size={16} />
             Save review decision
-          </button>
-          <button
+          </Button>
+          <Button
             className="settings-secondary-button"
             disabled={busy}
             onClick={() => setEditing(null)}
           >
             Cancel review changes
-          </button>
+          </Button>
         </section>
       )}
     </section>

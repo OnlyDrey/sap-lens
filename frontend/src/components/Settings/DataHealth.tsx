@@ -1,3 +1,4 @@
+import { Button } from '@/components/Shared/Button'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Activity, ChevronRight } from 'lucide-react'
@@ -96,14 +97,14 @@ export function DataHealth({
                   Last successful publication:{' '}
                   {formatTimestamp(s.last_successful)}
                 </p>
-                <button
+                <Button
                   className="settings-secondary-button"
                   onClick={() =>
                     onSource(s.id as 'roles' | 'users' | 'employees')
                   }
                 >
                   Source details <ChevronRight size={14} />
-                </button>
+                </Button>
               </article>
             ))}
           </div>
@@ -133,7 +134,7 @@ export function DataHealth({
           )}
           <div className="health-findings">
             {data.findings.map((f) => (
-              <button
+              <Button
                 className="settings-secondary-button text-left"
                 key={f.id}
                 disabled={f.count === null || f.count === 0}
@@ -149,7 +150,7 @@ export function DataHealth({
                   {f.severity}
                 </span>
                 {f.title} · {f.count ?? 'Unavailable'}
-              </button>
+              </Button>
             ))}
           </div>
           {finding && (

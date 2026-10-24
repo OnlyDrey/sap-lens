@@ -24,8 +24,8 @@ const current = async (request: any) =>
 async function review(page: Page) {
   await nav(page, 'User Access')
   await page
-    .getByRole('group', { name: 'User Access view', exact: true })
-    .getByRole('button', { name: 'Account Review', exact: true })
+    .getByRole('navigation', { name: 'User Access view', exact: true })
+    .getByRole('link', { name: 'Account Review', exact: true })
     .click()
   await expect(
     page.getByRole('heading', { name: 'Account Review', exact: true }),

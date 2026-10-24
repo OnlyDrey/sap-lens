@@ -1,3 +1,5 @@
+import { FormField, controlClass } from '@/components/Shared/Controls'
+import { ContentTabList } from '@/components/Shared/Navigation'
 import { DataHealth } from './DataHealth'
 import { About } from './About'
 import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
@@ -7,7 +9,7 @@ import { SourceStatus } from "./SourceStatus"
 import { Combobox } from "@/components/Shared/Combobox"
 import { SettingsSelect } from './Controls'
 import { isHex } from '@/lib/theme'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, lazy, Suspense, type ReactNode } from 'react'
 import {
   ArrowLeft,
   Save,
@@ -45,7 +47,8 @@ import {
   type ImportProfile
 } from '@/api/configuration'
 
-const sectionIcons = [Building2, Database, Layers, Palette, Activity, BookUser, Info]
+const ComponentLibrary=lazy(()=>import('./ComponentLibrary').then(module=>({default:module.ComponentLibrary})))
+const sectionIcons = [Building2, Database, Layers, Palette, Activity, BookUser, Info, Layers]
 const sections = [
   'Organization & SAP System',
   'Data Sources',
@@ -53,9 +56,10 @@ const sections = [
   'Appearance & Branding',
   'Health & Diagnostics',
   'Features',
-  'About SAP Lens'
+  'About SAP Lens',
+  'Component Library'
 ]
-const navigationOrder=[0,3,1,2,5,4,6]
+const navigationOrder=[0,3,1,2,5,4,6,7]
 const fieldLabels: Record<string, string> = {
   FUNCTION_KEY: 'SAP module or area',
   AGR_NAME: 'Role name (required)',
@@ -78,18 +82,9 @@ const fields = [
   'TCODE',
   'TTEXT'
 ]
-const inputClass =
-  'min-w-0 focus:outline-none focus:ring-2 focus:ring-[var(--focus)] w-full rounded-lg border px-3 py-2 text-sm bg-[var(--surface2)] border-[var(--border)] text-[var(--text)]'
-const buttonClass =
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)] border rounded-lg px-3 py-2 text-sm font-semibold hover:opacity-80 disabled:opacity-50'
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="flex flex-col gap-1 text-sm font-medium">
-      {label}
-      {children}
-    </label>
-  )
-}
+const inputClass = controlClass
+const buttonClass = 'ui-button ui-button-secondary ui-button-default'
+const Field=FormField
 function Result({ children }: { children: ReactNode }) {
   return (
     <div className="border rounded-xl p-3 space-y-2 text-sm overflow-x-auto">
@@ -540,7 +535,8 @@ export function SettingsView({
                   'Personalize the appearance of your local application.',
                   'Service health, local storage and safe configuration recovery.',
                   'Enable optional capabilities and configure review classification.',
-                  'Version, build and runtime information.'
+                  'Version, build and runtime information.',
+                  'Interactive reference for shared UI components; isolated synthetic previews.'
                 ][section]
               }
             </p>
@@ -728,16 +724,8 @@ export function SettingsView({
                           }
                         }}>Clear {importSource === 'roles' ? 'role catalogue' : 'User Access'} source</button>}
                       </div>
-                      <div className="source-navigation" role="tablist" aria-label="Import source">
-                        {([['roles', 'Role Catalogue', LibraryBig], ['users', 'User Access', UsersRound], ['employees', 'Employee Directory', BookUser]] as const).map(([key, label, Icon], index) => <button key={key}
-                          id={`source-tab-${key}`} role="tab" aria-selected={importSource === key}
-                          aria-controls={`source-panel-${key}`} tabIndex={importSource === key ? 0 : -1}
-                          className="settings-secondary-button" onClick={() => setImportSource(key)}
-                          onKeyDown={event => { if (['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) {
-                            event.preventDefault(); const tabs = ['roles', 'users', 'employees'] as const; const next = tabs[event.key === 'Home' ? 0 : event.key === 'End' ? 2 : (index + (event.key === 'ArrowRight' ? 1 : 2)) % 3];
-                            setImportSource(next); document.getElementById(`source-tab-${next}`)?.focus()
-                          } }}><Icon size={16} aria-hidden="true" className="shrink-0"/><span>{label}</span></button>)}
-                      </div>
+                      <ContentTabList label="Import source" value={importSource} onChange={value=>setImportSource(value as 'roles'|'users'|'employees')} idPrefix="source-tab" panelId={value=>`source-panel-${value}`} className="source-navigation" items={([['roles','Role Catalogue',LibraryBig],['users','User Access',UsersRound],['employees','Employee Directory',BookUser]] as const).map(([value,label,Icon])=>({value,label,icon:<Icon size={16} aria-hidden="true"/>}))}/>
+
                       <div id="source-panel-employees" role="tabpanel" aria-labelledby="source-tab-employees" hidden={importSource !== 'employees'}>
                         {importSource === 'employees' && <EmployeeSource onFeatureSettings={() => setSection(5)} revision={draft.revision} savedPath={config.data?.settings.employee_csv_path || ''} dirty={JSON.stringify(draft) !== JSON.stringify(config.data?.settings)} onImported={async () => { const result = await config.refetch(); if (result.data) setDraft(structuredClone(result.data.settings)) }}/>}
                       </div>
@@ -1074,6 +1062,7 @@ export function SettingsView({
                     </div>
                   }
                   {section === 6 && <About/>}
+                  {section === 7 && <Suspense fallback={<p role="status">Loading component previews…</p>}><ComponentLibrary/></Suspense>}
                   {section === 5 && <FeatureSettings draft={draft} onChange={setDraft} onConfigure={source => { setSection(1); setImportSource(source) }}/>}
                   {section === 4 && (
                     <>
@@ -1175,7 +1164,7 @@ export function SettingsView({
             </div>
           </div>
         </div>
-        <div className="settings-actions">
+        <div className={section===7?'hidden':'settings-actions'}>
           <p role="status" className="text-xs text-[var(--muted)] mr-auto">
             {draft &&
             (['dark', 'light'] as const).some(
@@ -1200,7 +1189,7 @@ export function SettingsView({
             Cancel
           </button>
           <button
-            className="bg-[var(--accent)] hover:opacity-90 text-[var(--on-accent)] rounded-lg px-5 py-2 text-sm font-semibold focus-visible:ring-2 focus-visible:ring-[var(--focus)] disabled:opacity-50"
+            className="ui-button ui-button-primary ui-button-default"
             disabled={
               busy ||
               inspecting ||

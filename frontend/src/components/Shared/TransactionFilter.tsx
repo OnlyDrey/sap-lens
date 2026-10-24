@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Search, X } from 'lucide-react'
+import { ButtonGroup } from './Button'
+import { FilterChip } from './FilterChip'
+import { Search } from 'lucide-react'
 import { ClearFilterButton } from './ClearFilterButton'
 
 const normalize = (value: string) => value.trim().toUpperCase()
@@ -120,37 +122,11 @@ export function TransactionFilter({
       {(filter.chips.length > 0 || (mode && filter.codes.length > 1)) && (
         <div className="transaction-chips" aria-label="Transaction filters">
           {mode && onModeChange && filter.codes.length > 1 && (
-            <div
-              className="segmented-control"
-              role="group"
-              aria-label="Transaction matching"
-            >
-              {(['and', 'or'] as const).map((operator) => (
-                <button
-                  key={operator}
-                  type="button"
-                  aria-pressed={mode === operator}
-                  onClick={() => onModeChange(operator)}
-                >
-                  {operator.toUpperCase()}
-                </button>
-              ))}
-            </div>
+            <ButtonGroup label="Transaction matching" value={mode} options={['and','or'].map(value=>({value,label:value.toUpperCase()}))} onChange={value=>onModeChange(value as 'and'|'or')}/>
+
           )}
           {filter.chips.map((code) => (
-            <span className="transaction-chip" key={code}>
-              {chipPrefix}{code}
-              <button
-                type="button"
-                aria-label={`Remove transaction ${code}`}
-                onClick={() => {
-                  filter.setChips(filter.chips.filter((item) => item !== code))
-                  input.current?.focus()
-                }}
-              >
-                <X size={13} aria-hidden="true" />
-              </button>
-            </span>
+            <FilterChip key={code} removeLabel={`Remove transaction ${code}`} onRemove={()=>{filter.setChips(filter.chips.filter(item=>item!==code));input.current?.focus()}}>{chipPrefix}{code}</FilterChip>
           ))}
           <span className="text-xs text-[var(--muted)]">
             {mode === 'and' ? 'Match all (AND)' : 'Match any (OR)'}

@@ -1,20 +1,17 @@
+import { IconButton } from '@/components/Shared/Button'
 import { useApplicationData } from '@/state/ApplicationData'
 import { Notification } from '@/components/Shared/Notification'
-import { formatTimestamp } from '@/lib/dateFormat'
 import { useHistoryValue } from '@/hooks/useViewHistory'
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useState, useRef } from 'react'
 import { RefreshCw, Sun, Moon, Settings, Loader2, Database } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { apiRequest } from '@/api/client'
 import { fetchConfiguration } from '@/api/configuration'
 import { SettingsView } from '@/components/Settings/SettingsView'
-import { cn } from '@/lib/utils'
 
 interface Props {
   navigation: ReactNode
   children: ReactNode
-  lastLoaded: string | null
-  onRefresh: () => void
   onDataChanged: () => void
   isDark: boolean
   onToggleTheme: () => Promise<void>
@@ -23,8 +20,6 @@ interface Props {
 export function AppLayout({
   children,
   navigation,
-  lastLoaded,
-  onRefresh,
   onDataChanged,
   isDark,
   onToggleTheme
@@ -58,18 +53,20 @@ export function AppLayout({
   const busy = dataState.loading
   const [err, setErr] = useState<string | null>(null)
 
+  const refreshLock=useRef(false)
+  const [refreshComplete,setRefreshComplete]=useState(false)
   const handleRefresh = async () => {
+    if(refreshLock.current||busy)return
+    refreshLock.current=true
+    setRefreshComplete(false)
     setErr(null)
     try {
       await dataState.refresh()
-      onRefresh()
+      setRefreshComplete(true)
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Refresh failed')
-    }
+    } finally {refreshLock.current=false}
   }
-
-  const loaded = dataState.lastLoaded || lastLoaded
-  const fmt = loaded ? formatTimestamp(loaded) : null
 
   return (
     <div className={`${settingsOpen ? 'h-dvh overflow-hidden' : 'min-h-screen'} flex flex-col bg-[var(--bg)] transition-colors duration-300`}>
@@ -82,9 +79,9 @@ export function AppLayout({
         }}
         role="banner"
       >
-        <div className="max-w-screen-2xl mx-auto px-4 min-h-20 flex items-center justify-between gap-3">
+        <div className="app-header-row max-w-screen-2xl mx-auto px-4 min-h-20 flex items-center justify-between gap-3">
           {/* Brand: logo image + name */}
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="app-brand flex items-center gap-3 shrink-0">
             {/* Logo image â€” fallback to styled "E" if file not found */}
             <img
               src={
@@ -125,80 +122,14 @@ export function AppLayout({
 
           <fieldset disabled={settingsOpen} className="min-w-0">{navigation}</fieldset>
 
-          {/* Right controls */}
-          <div className="flex items-center gap-3 shrink-0">
-            {fmt && (
-              <span
-                className="text-[11px] hidden lg:block font-medium"
-                style={{ color: 'var(--on-primary)' }}
-              >
-                Updated {fmt}
-              </span>
-            )}
-
-            {/* Theme toggle â€” WCAG: descriptive aria-label */}
-            <button
-              disabled={themeBusy || settingsOpen}
-              onClick={() => {
-                setErr(null)
-                setThemeBusy(true)
-                void onToggleTheme()
-                  .catch((e) =>
-                    setErr(
-                      e instanceof Error
-                        ? e.message
-                        : 'Could not save the theme.'
-                    )
-                  )
-                  .finally(() => setThemeBusy(false))
-              }}
-              aria-label={
-                isDark ? 'Switch to light mode' : 'Switch to dark mode'
-              }
-              className="flex items-center gap-1.5 text-[var(--on-primary)] text-xs font-semibold px-2.5 py-1.5 rounded-lg hover:bg-white/10 transition-all focus:outline-none focus:ring-2 focus:ring-[var(--on-primary)] focus:ring-offset-1 focus:ring-offset-[var(--primary)]"
-            >
-              {isDark ? (
-                <Sun className="w-4 h-4" aria-hidden="true" />
-              ) : (
-                <Moon className="w-4 h-4" aria-hidden="true" />
-              )}
-              <span className="hidden sm:inline">
-                {isDark ? 'Light' : 'Dark'}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setSettingsOpen(true)}
-              className="text-[var(--on-primary)] text-xs font-semibold px-3 py-2 rounded-lg hover:bg-white/10 flex gap-2 items-center focus-visible:ring-2 focus-visible:ring-[var(--on-primary)]"
-              aria-label="Open settings"
-            >
-              <Settings size={16} aria-hidden="true" /> Settings
-            </button>
-
-            {/* Refresh */}
-            <button
-              onClick={handleRefresh}
-              disabled={busy || settingsOpen}
-              aria-label={
-                busy ? 'Refreshing data' : 'Refresh role data from CSV'
-              }
-              className={cn(
-                'flex items-center gap-2 text-[var(--on-primary)] text-xs font-bold px-3 py-1.5 rounded-lg border border-[var(--on-primary)] transition-all',
-                'hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-[var(--on-primary)] focus:ring-offset-1 focus:ring-offset-[var(--primary)]',
-                busy && 'opacity-50 cursor-not-allowed'
-              )}
-            >
-              <RefreshCw
-                className={cn('w-3.5 h-3.5', busy && 'animate-spin')}
-                aria-hidden="true"
-              />
-              <span className="hidden sm:inline">
-                {busy ? 'Refreshing...' : 'Refresh Data'}
-              </span>
-            </button>
+          <div className="app-utilities">
+            <IconButton label={isDark?'Switch to light mode':'Switch to dark mode'} variant="ghost" disabled={themeBusy||settingsOpen} loading={themeBusy} onClick={()=>{setErr(null);setThemeBusy(true);void onToggleTheme().catch(e=>setErr(e instanceof Error?e.message:'Could not save the theme.')).finally(()=>setThemeBusy(false))}}>{!themeBusy&&(isDark?<Sun size={17} aria-hidden="true"/>:<Moon size={17} aria-hidden="true"/>)}</IconButton>
+            <IconButton label="Open settings" tooltip="Settings" variant="ghost" onClick={()=>setSettingsOpen(true)}><Settings size={17} aria-hidden="true"/></IconButton>
+            <IconButton label={busy?'Refreshing data':'Refresh role data from CSV'} tooltip="Refresh data" variant="ghost" disabled={busy||settingsOpen} loading={busy} onClick={()=>void handleRefresh()}>{!busy&&<RefreshCw size={17} aria-hidden="true"/>}</IconButton>
           </div>
         </div>
 
+        {refreshComplete && <Notification variant="success" onDismiss={()=>setRefreshComplete(false)}>Data refreshed successfully.</Notification>}
         {savedFeedback && <Notification variant="success" onDismiss={()=>setSavedFeedback(false)}>Settings saved successfully.</Notification>}
         {err && <Notification variant="error" onDismiss={()=>setErr(null)}>{err}</Notification>}
       </header>

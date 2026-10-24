@@ -124,13 +124,13 @@ test("directory-only users, expired and future assignments, unknown validity and
     exact: true,
   });
   await expect(detail).toContainText("expired");
-  await expect(detail.getByRole("button", { name: "All roles", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await detail.getByRole("button", { name: "Business Roles — ZC:*", exact: true }).click();
+  await expect(detail.getByRole("tab", { name: "All roles", exact: true })).toHaveAttribute("aria-selected", "true");
+  await detail.getByRole("tab", { name: "Business Roles — ZC:*", exact: true }).click();
   await expect(detail).toContainText("No assignments in this section");
   await page.getByLabel("Assignment status", { exact: true }).selectOption("all");
   await expect(detail).toContainText("ZC:MM:BUY:ENK");
   await detail
-    .getByRole("button", { name: "Release Roles — ZO:*", exact: true })
+    .getByRole("tab", { name: "Release Roles — ZO:*", exact: true })
     .click();
   await expect(detail.getByRole("region", { name: "User role assignments" })).toContainText("Future assignment");
   await detail

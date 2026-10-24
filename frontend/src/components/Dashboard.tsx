@@ -51,6 +51,8 @@ export function Dashboard() {
       ? change({
           page: 'users',
           accessMode: 'review',
+          accountReviewFilters:{search:'',license:'',state:'',sort:'username',descending:false},
+          kpiNavigation:{...view.kpiNavigation,users:(view.kpiNavigation?.users||0)+1},
           user: '',
           reviewFinding:
             metric.id === 'unresolved'

@@ -239,7 +239,7 @@ test('business and release assignment tabs have dedicated split-date columns wit
 }) => {
   const detail = await user(page)
   await detail
-    .getByRole('button', { name: 'Business Roles — ZC:*', exact: true })
+    .getByRole('tab', { name: 'Business Roles — ZC:*', exact: true })
     .click()
   let table = detail.getByRole('region', { name: 'User role assignments' })
   await expect(
@@ -249,7 +249,7 @@ test('business and release assignment tabs have dedicated split-date columns wit
     table.getByRole('columnheader', { name: 'Type', exact: true }),
   ).toHaveCount(0)
   await detail
-    .getByRole('button', { name: 'Release Roles — ZO:*', exact: true })
+    .getByRole('tab', { name: 'Release Roles — ZO:*', exact: true })
     .click()
   table = detail.getByRole('region', { name: 'User role assignments' })
   for (const name of [
@@ -391,7 +391,7 @@ for (const theme of ['light', 'dark'] as const)
         .click()
       await page.getByRole('button', { name: 'DEMO_ONE', exact: true }).click()
       await page
-        .getByRole('button', { name: 'Release Roles — ZO:*', exact: true })
+        .getByRole('tab', { name: 'Release Roles — ZO:*', exact: true })
         .click()
       await expect(
         page.getByRole('region', { name: 'User role assignments' }),

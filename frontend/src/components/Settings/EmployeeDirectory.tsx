@@ -1,4 +1,4 @@
-import { StatusPill } from '@/components/Shared/StatusPill'
+import { Toggle } from '@/components/Shared/Controls'
 import {
   EmployeeInformation,
   type Employee,
@@ -244,13 +244,7 @@ export function FeatureSettings({
                       : 'No imported data available.'}
               </p>
             </div>
-            <button
-              type="button"
-              className="settings-secondary-button"
-              role="switch"
-              aria-label={`${name} feature`}
-              aria-checked={enabled}
-              onClick={() =>
+            <Toggle label={`${name} feature`} checked={enabled} onChange={(next)=>
                 onChange({
                   ...draft,
                   features: {
@@ -258,13 +252,10 @@ export function FeatureSettings({
                       draft.features?.employee_directory ?? false,
                     user_role_mapping:
                       draft.features?.user_role_mapping ?? true,
-                    [key]: !enabled,
+                    [key]: next,
                   },
                 })
-              }
-            >
-              <StatusPill enabled={enabled} />
-            </button>
+            }/>
             <button
               type="button"
               className="settings-secondary-button"

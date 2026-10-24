@@ -1,6 +1,17 @@
+import { AssignmentStatus } from '@/components/Shared/InvestigationNavigation'
+import { Button, IconButton } from '@/components/Shared/Button'
+import { SAPUserSelector } from '@/components/Shared/SAPUserSelector'
+import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
+import {
+  Card,
+  Toolbar,
+  PageHeader,
+  EvidenceDisclosure,
+  DataTable,
+} from '@/components/Shared/Presentation'
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeftRight, Download } from 'lucide-react'
+import { ArrowLeftRight, Download, ArrowUpRight } from 'lucide-react'
 import { apiRequest, applicationToken } from '@/api/client'
 import {
   accessQuery,
@@ -13,14 +24,7 @@ import { Select } from '@/components/Shared/Select'
 import { AccountStatus } from '@/components/Shared/AccountStatus'
 import { SavedFilters } from '@/components/Shared/SavedFilters'
 import { csvField } from '@/lib/accessExport'
-import {
-  Filter,
-  inputClass,
-  Pagination,
-  QueryState,
-  EvidenceNote,
-  dates,
-} from './Shared'
+import { Filter, inputClass, Pagination, QueryState, dates } from './Shared'
 interface Row {
   identifier: string
   difference: string
@@ -67,27 +71,19 @@ function UserSelector({
           (u) => u.username.trim().toUpperCase() !== other.trim().toUpperCase(),
         ) || []
       : []
-  const text = (u: UserRow) =>
-    `${u.username} · ${[u.first_name, u.last_name].filter(Boolean).join(' ') || 'Name unavailable'} · ${u.email || 'Email unavailable'}`
-  const selected = rows.find((u) => u.username === value)
   return (
-    <Filter label={label}>
-      <Combobox
+    <>
+      <SAPUserSelector
         label={label}
-        value={selected ? text(selected) : value}
-        options={rows.map(text)}
+        value={value}
+        options={rows}
         onSearch={setSearch}
-        allowCustom={false}
-        serverFiltered
-        clearLabel="Choose user"
+        onChange={onChange}
         loading={result.isFetching || search !== term}
         hasMore={(result.data?.total || 0) > 25}
-        onChange={(s) =>
-          onChange(rows.find((u) => text(u) === s)?.username || '')
-        }
       />
-      {result.error && <span role="alert">{result.error.message}</span>}
-    </Filter>
+      {result.error && <p role="alert">{result.error.message}</p>}
+    </>
   )
 }
 function EvidenceCell({
@@ -154,9 +150,13 @@ function EvidenceCell({
                 </button>
               </p>
             ) : (
-              <p key={i}>
-                {e.role_name} · {dates(e.valid_from, e.valid_to)} · {e.status} ·{' '}
-                {e.user_group || 'No group'} · {e.match_status}
+              <div key={i} className="comparison-evidence-item">
+                <RoleIdentifier value={e.role_name} />
+                <p>{dates(e.valid_from, e.valid_to)}</p>
+                <p>
+                  <AssignmentStatus value={e.status} /> ·{' '}
+                  {e.user_group || 'No group'} · {e.match_status}
+                </p>
                 {e.catalogue_roles.map((r) => (
                   <button
                     key={r}
@@ -166,7 +166,7 @@ function EvidenceCell({
                     {r}
                   </button>
                 ))}
-              </p>
+              </div>
             ),
           )}
       <Pagination
@@ -426,14 +426,64 @@ export function UserComparison({
   }
   return (
     <section aria-label="User Comparison" className="space-y-4">
-      <h1 className="text-xl font-semibold flex items-center gap-2">
-        <ArrowLeftRight size={20} />
-        Compare users
-      </h1>
-      <EvidenceNote />
-      <div className="comparison-identity-grid">
-        <UserSelector label="User A" value={a} other={b} onChange={setA} />
-        <UserSelector label="User B" value={b} other={a} onChange={setB} />
+      <PageHeader title="Compare users">
+        <ArrowLeftRight size={20} aria-hidden="true" />
+      </PageHeader>
+      <EvidenceDisclosure title="About comparison evidence">
+        Role-derived transactions are investigation evidence, not proof of
+        effective SAP authorization. Missing dates never establish active
+        access; account status and lock state are separate.
+      </EvidenceDisclosure>
+      <div className="comparison-user-panels">
+        {[
+          { label: 'User A', value: a, other: b, change: setA },
+          { label: 'User B', value: b, other: a, change: setB },
+        ].map((side, index) => {
+          const user = data?.users[index]
+          return (
+            <Card key={side.label}>
+              <div className="flex items-end gap-2">
+                <div className="flex-1 min-w-0">
+                  <UserSelector
+                    label={side.label}
+                    value={side.value}
+                    other={side.other}
+                    onChange={side.change}
+                  />
+                </div>
+                {user && (
+                  <IconButton
+                    label={`Open ${side.label}`}
+                    variant="ghost"
+                    onClick={() => onUser(user.username)}
+                  >
+                    <ArrowUpRight size={17} aria-hidden="true" />
+                  </IconButton>
+                )}
+              </div>
+              {user && (
+                <>
+                  <p className="text-sm">
+                    {[user.first_name, user.last_name]
+                      .filter(Boolean)
+                      .join(' ') || 'Name unavailable'}{' '}
+                    · {user.email || 'Email unavailable'}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <AccountStatus value={user.account_status} />
+                    <AccountStatus kind="lock" value={user.lock_status} />
+                  </div>
+                  {user.identity_ambiguous && (
+                    <p className="text-xs text-[var(--muted)]">
+                      Multiple source identities; inspect User Details before
+                      interpreting this account.
+                    </p>
+                  )}
+                </>
+              )}
+            </Card>
+          )
+        })}
       </div>
       <SavedFilters
         view="comparison"
@@ -441,7 +491,7 @@ export function UserComparison({
         apply={apply}
         clear={clear}
       />
-      <div className="directory-filter-grid investigation-filters">
+      <div className="comparison-filter-bar">
         <Filter label="Assignment validity">
           <Select
             aria-label="Assignment validity"
@@ -518,61 +568,39 @@ export function UserComparison({
       )}
       {data && (
         <>
-          <div className="comparison-identity-grid">
-            {data.users.map((u, i) => (
-              <article key={u.username} className="settings-panel">
-                <h3>
-                  {i === 0 ? 'User A' : 'User B'} ·{' '}
-                  <button
-                    className="text-link"
-                    onClick={() => onUser(u.username)}
-                  >
-                    {u.username}
-                  </button>
-                </h3>
-                <p>
-                  {u.first_name} {u.last_name}
-                </p>
-                <p>{u.email || 'Email unavailable'}</p>
-                {u.identity_ambiguous && (
-                  <p className="text-sm">
-                    Multiple source identities; inspect User Details before
-                    interpreting this account.
-                  </p>
-                )}
-                <div className="flex flex-wrap gap-2">
-                  <AccountStatus value={u.account_status} />
-                  <AccountStatus kind="lock" value={u.lock_status} />
-                </div>
-              </article>
+          <div className="comparison-metrics" aria-label="Comparison summary">
+            {[
+              ['Shared roles', data.summary.roles.shared],
+              ['Only User A', data.summary.roles.a],
+              ['Only User B', data.summary.roles.b],
+              ['Shared mapped transactions', data.summary.transactions.shared],
+              ['Mapped transactions only A', data.summary.transactions.a],
+              ['Mapped transactions only B', data.summary.transactions.b],
+            ].map(([label, count]) => (
+              <div key={label}>
+                <span>{label}</span>
+                <strong>{count}</strong>
+              </div>
             ))}
           </div>
-          <p className="text-sm">
-            Roles — shared: {data.summary.roles.shared}; only A:{' '}
-            {data.summary.roles.a}; only B: {data.summary.roles.b}. Mapped
-            transactions — shared: {data.summary.transactions.shared}; only A:{' '}
-            {data.summary.transactions.a}; only B: {data.summary.transactions.b}
-            .
-          </p>
           {!data.catalogue_available && (
             <p role="status">
               Role catalogue unavailable. Transaction coverage is incomplete,
               not evidence of no access.
             </p>
           )}
-          <div className="flex flex-wrap gap-3 items-center">
+          <Toolbar>
             <span>
               {data.total} matching {kind}
             </span>
-            <button
-              className="settings-secondary-button"
+            <Button
               disabled={busy || result.isFetching || term !== search}
               onClick={() => void exportCSV()}
             >
               <Download size={16} />
               Export comparison CSV
-            </button>
-          </div>
+            </Button>
+          </Toolbar>
           {message && <p role="status">{message}</p>}
           {!data.total && (
             <p>
@@ -580,67 +608,63 @@ export function UserComparison({
               not proof of no effective SAP access.
             </p>
           )}
-          <div
-            className="overflow-x-auto"
-            tabIndex={0}
-            role="region"
-            aria-label="Scrollable comparison evidence"
+          <DataTable
+            caption="User comparison evidence"
+            tableClassName="comparison-table"
+            regionLabel="Scrollable comparison evidence"
           >
-            <table className="w-full text-sm comparison-table">
-              <caption className="sr-only">User comparison evidence</caption>
-              <thead>
-                <tr>
-                  <th>Role / Transaction</th>
-                  <th>Category</th>
-                  <th>User A evidence</th>
-                  <th>User B evidence</th>
+            <thead>
+              <tr>
+                <th>Role / Transaction</th>
+                <th>Category</th>
+                <th>User A evidence</th>
+                <th>User B evidence</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.items.map((row) => (
+                <tr key={row.identifier}>
+                  <td>
+                    {kind === 'roles' ? (
+                      <code className="font-mono">{row.identifier}</code>
+                    ) : (
+                      <button
+                        className="text-link"
+                        onClick={() => onTransaction(row.identifier)}
+                      >
+                        {row.identifier}
+                      </button>
+                    )}
+                    <p>{row.description}</p>
+                    <small>{row.areas.join(' · ')}</small>
+                  </td>
+                  <td>
+                    {row.difference === 'shared'
+                      ? 'Shared'
+                      : row.difference === 'a'
+                        ? 'Only User A'
+                        : 'Only User B'}
+                  </td>
+                  {(['a', 'b'] as const).map((side) => (
+                    <td key={side}>
+                      <EvidenceCell
+                        row={row}
+                        side={side}
+                        params={params}
+                        revision={data.data_revision}
+                        asOf={data.as_of}
+                        onRole={onRole}
+                        onAssignedRole={(e) => {
+                          setKind('roles')
+                          setSearch(e)
+                        }}
+                      />
+                    </td>
+                  ))}
                 </tr>
-              </thead>
-              <tbody>
-                {data.items.map((row) => (
-                  <tr key={row.identifier}>
-                    <td>
-                      {kind === 'roles' ? (
-                        <strong>{row.identifier}</strong>
-                      ) : (
-                        <button
-                          className="text-link"
-                          onClick={() => onTransaction(row.identifier)}
-                        >
-                          {row.identifier}
-                        </button>
-                      )}
-                      <p>{row.description}</p>
-                      <small>{row.areas.join(' · ')}</small>
-                    </td>
-                    <td>
-                      {row.difference === 'shared'
-                        ? 'Shared'
-                        : row.difference === 'a'
-                          ? 'Only User A'
-                          : 'Only User B'}
-                    </td>
-                    {(['a', 'b'] as const).map((side) => (
-                      <td key={side}>
-                        <EvidenceCell
-                          row={row}
-                          side={side}
-                          params={params}
-                          revision={data.data_revision}
-                          asOf={data.as_of}
-                          onRole={onRole}
-                          onAssignedRole={(e) => {
-                            setKind('roles')
-                            setSearch(e)
-                          }}
-                        />
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </DataTable>
           <Pagination
             label="Comparison pages"
             offset={offset}

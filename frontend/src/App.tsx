@@ -1,3 +1,4 @@
+import { MainNavigation, MainNavigationItem } from '@/components/Shared/Navigation'
 import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
 import { useState, useCallback, useRef, useLayoutEffect } from 'react'
 import { AppLayout } from '@/components/Layout/AppLayout'
@@ -31,7 +32,6 @@ export function App() {
   const [detailRole, setDetailRole] = useHistoryValue('detailRole')
   const [showComparison, setShowComparison] = useHistoryValue('comparison')
   const [dataGeneration,setDataGeneration] = useState(0)
-  const [lastLoaded, setLastLoaded] = useState<string | null>(null)
 
   const handleSelectRole = useCallback((name: string) => {
     setSelectedRoles(prev =>
@@ -51,18 +51,15 @@ export function App() {
   return (
     <AppLayout
       navigation={<>
-      <nav aria-label="Main navigation" className="primary-navigation">
-        {([['dashboard','Dashboard',LayoutDashboard],['roles','Role Lookup',Search],['users','User Access',Users],['releases','Release Roles',FileCheck2]] as const).map(([key,label,Icon])=><button key={key} title={label} className="primary-nav-button" aria-current={page===key?'page':undefined} onClick={()=>navigate(key)}><Icon size={17} aria-hidden="true"/><span>{label}</span></button>)}
-      </nav>
+      <MainNavigation>
+        {([['dashboard','Dashboard',LayoutDashboard],['roles','Role Lookup',Search],['users','User Access',Users],['releases','Release Roles',FileCheck2]] as const).map(([key,label,Icon])=><MainNavigationItem key={key} label={label} icon={<Icon size={17} aria-hidden="true"/>} active={page===key} onClick={()=>navigate(key)}/>)}
+      </MainNavigation>
       </>}
-      lastLoaded={lastLoaded}
-      onRefresh={() => setLastLoaded(new Date().toISOString())}
       onDataChanged={() => {
         setDataGeneration(value=>value+1)
         setSelectedRoles([])
         setDetailRole(null)
         setShowComparison(false)
-        setLastLoaded(new Date().toISOString())
       }}
       isDark={isDark}
       onToggleTheme={toggle}>

@@ -7,6 +7,7 @@ import { ModuleRegistryProvider } from './components/Modules/ModuleRegistry'
 import { StartupGate } from './components/Layout/StartupGate'
 import { App } from './App'
 import './index.css'
+import './styles/components.css'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 5 * 60 * 1000, retry: 2 } },

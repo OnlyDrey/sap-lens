@@ -1,5 +1,6 @@
+import { FilterChip } from './FilterChip'
 import { useId, useState, useRef, useEffect } from 'react'
-import { CalendarDays, X } from 'lucide-react'
+import { CalendarDays } from 'lucide-react'
 import { ClearFilterButton } from './ClearFilterButton'
 import { NorwegianDateInput, parseNorwegianDate } from './NorwegianDateInput'
 import { formatDate } from '@/lib/dateFormat'
@@ -226,30 +227,10 @@ export function AssignmentDateFilters({
           {fields
             .filter((key) => value[key])
             .map((key) => (
-              <span className="transaction-chip" key={key}>
-                {labels[key]}: {formatDate(value[key])}
-                <button
-                  type="button"
-                  aria-label={`Remove ${labels[key]} filter`}
-                  onClick={() => onChange({ ...value, [key]: '' })}
-                >
-                  <X size={13} aria-hidden="true" />
-                </button>
-              </span>
+              <FilterChip key={key} removeLabel={`Remove ${labels[key]} filter`} onRemove={()=>onChange({...value,[key]:''})}>{labels[key]}: {formatDate(value[key])}</FilterChip>
             ))}
           {!value.include_missing_end && (
-            <span className="transaction-chip">
-              Missing end dates excluded
-              <button
-                type="button"
-                aria-label="Remove missing end date filter"
-                onClick={() =>
-                  onChange({ ...value, include_missing_end: true })
-                }
-              >
-                <X size={13} />
-              </button>
-            </span>
+            <FilterChip removeLabel="Remove missing end date filter" onRemove={()=>onChange({...value,include_missing_end:true})}>Missing end dates excluded</FilterChip>
           )}
         </div>
       )}

@@ -1,3 +1,4 @@
+import { Button } from '@/components/Shared/Button'
 import { DirectoryDiagnostics } from './EmployeeDirectory'
 import { SourceBadge } from '@/components/Shared/SourceBadge'
 import { formatTimestamp } from '@/lib/dateFormat'
@@ -78,7 +79,7 @@ export function Diagnostics({ native, onEmployeeSettings, onEmployeeFeatures }: 
       <section className="settings-card space-y-4">
         <div className="flex items-center justify-between gap-3"><h2 className="settings-subheading">
           <Activity size={18} aria-hidden="true" /> Application status
-        </h2><button onClick={()=>void query.refetch()} className="settings-secondary-button">Check again</button></div>
+        </h2><Button onClick={()=>void query.refetch()} className="settings-secondary-button">Check again</Button></div>
         <div className="review-metrics"><div className="compact-health"><span>Local service</span><strong>{query.isError?'Unavailable':query.data?.backend_status||'Checking…'}</strong></div><div className="compact-health"><span>Last successful refresh</span><strong className="text-sm">{formatTimestamp(query.data?.last_successful_load)}</strong></div><div className="compact-health"><span>Application storage</span><strong>{query.data?.storage_available?'Present':'Not created'}</strong></div></div>
 
         <details className="settings-advanced"><summary>Health details and refresh history</summary>{query.data && (
@@ -116,7 +117,7 @@ export function Diagnostics({ native, onEmployeeSettings, onEmployeeFeatures }: 
           </dl>
         </section>)}</div>}
         <dl className="settings-status-list"><dt>Local application data</dt><dd>{query.data?.application_directory || 'Checking…'}</dd></dl>
-        <button
+        <Button
           className="settings-secondary-button"
           disabled={
             !native || busy || !window.pywebview?.api.open_configuration_folder
@@ -130,7 +131,7 @@ export function Diagnostics({ native, onEmployeeSettings, onEmployeeFeatures }: 
           }
         >
           <FolderOpen size={16} /> Open configuration folder
-        </button>
+        </Button>
         <p className="text-xs text-[var(--muted)]">
           Open the per-user folder containing settings, backups and application
           logs.

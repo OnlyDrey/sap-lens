@@ -50,7 +50,7 @@ test('live multi-code user filtering, chips, duplicate prevention, Backspace and
   await expect(detail.getByRole('row')).toHaveCount(2)
   await detail.getByLabel('Assignment status', { exact: true }).selectOption('expired')
   await expect(detail.getByRole('row')).toHaveCount(2)
-  await detail.getByRole('button', { name: 'Release Roles — ZO:*', exact: true }).click()
+  await detail.getByRole('tab', { name: 'Release Roles — ZO:*', exact: true }).click()
   await expect(detail).toContainText('No matching roles')
   await filter.getByRole('button', { name: 'Clear filter', exact: true }).click()
   await expect(filter.getByRole('button', { name: 'Clear filter', exact: true })).toHaveCount(0)

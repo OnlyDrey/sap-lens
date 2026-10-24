@@ -1,3 +1,4 @@
+import { StatusBadge } from './Presentation'
 import {
   CircleCheck,
   CircleX,
@@ -46,12 +47,12 @@ export function AccountStatus({
                 ? CircleX
                 : CircleHelp
   return (
-    <span
-      className={`${kind === 'lock' ? `lock-status ${text === 'Locked' ? 'lock-status-locked ' : ''}` : ''}evidence-badge evidence-${positive ? 'success' : negative ? 'error' : 'neutral'}`}
+    <StatusBadge tone={positive?'success':negative?'error':'neutral'}
+      className={kind==='lock'?`lock-status ${text==='Locked'?'lock-status-locked':''}`:''}
     >
       <Icon size={13} aria-hidden="true" />
       {text}
-    </span>
+    </StatusBadge>
   )
 }
 export const userTypeLabel = (value: string) =>

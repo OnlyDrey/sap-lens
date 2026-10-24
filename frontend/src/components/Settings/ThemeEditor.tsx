@@ -1,3 +1,4 @@
+import { controlClass } from '@/components/Shared/Controls'
 import { SettingsSelect, ColorControl } from './Controls'
 import { useState, type CSSProperties } from 'react'
 import { Building2, Layers, Palette, Shield, Save } from 'lucide-react'
@@ -18,8 +19,7 @@ const labels: Record<keyof ThemePalette, string> = {
   surface: 'Surface / card background',
   text: 'Primary text color'
 }
-const control =
-  'w-full min-w-0 rounded-lg border border-[var(--border)] bg-[var(--surface2)] px-3 py-2 text-sm focus:ring-2 focus:ring-[var(--focus)] focus:outline-none'
+const control = controlClass
 export function ThemeEditor({
   draft,
   onChange

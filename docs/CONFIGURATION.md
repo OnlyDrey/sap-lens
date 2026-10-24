@@ -101,3 +101,7 @@ and [local Windows testing](LOCAL_WINDOWS_BUILD.md).
 ## Investigation filter storage and data coverage
 
 [Saved Filters](SAVED_FILTERS.md) stores bounded investigation controls in the private per-user application settings directory, independently of imported source data and portable settings. [Data Health & Coverage](DATA_HEALTH.md) is a collapsible overview under Data Sources; source-specific import, snapshot recovery and directory diagnostics remain in their existing source tabs.
+
+## Component Library
+
+Settings → APPLICATION → Component Library contains interactive previews of the real shared controls, navigation, tables and SAP status components. Previews use synthetic identities and isolated memory, including saved-filter management, and cannot alter imports or persisted settings. See [Component Library](COMPONENT_LIBRARY.md) and the [design system](DESIGN_SYSTEM.md).

@@ -11,11 +11,18 @@ const nav = async (page: Page, name: string) =>
     .click()
 const mode = async (page: Page, name: string) =>
   page
-    .getByRole('group', { name: 'User Access view', exact: true })
-    .getByRole('button', { name, exact: true })
+    .getByRole('navigation', { name: 'User Access view', exact: true })
+    .getByRole('link', { name, exact: true })
     .click()
 const saved = (page: Page, view: string) =>
-  page.locator(`[aria-label="${view} saved filters"]`)
+  page.getByRole('dialog', { name: `${view} saved filters`, exact: true })
+async function openSaved(page: Page, view: string) {
+  if (!(await saved(page, view).isVisible()))
+    await page
+      .locator(`div.saved-filter-toolbar[aria-label="${view} saved filters"]`)
+      .getByRole('button', { name: /Saved filters/ })
+      .click()
+}
 async function comparison(page: Page) {
   await nav(page, 'User Access')
   await mode(page, 'Compare users')
@@ -80,14 +87,16 @@ test('comparison entry from details retains User A and original comparison on Ba
   ).toHaveValue(/DEMO_A/)
   await choose(page, 'User B', 'DEMO_B')
   await expect(
-    page.getByText('Roles — shared: 1; only A: 1; only B: 0.', {
-      exact: false,
-    }),
+    page
+      .getByLabel('Comparison summary')
+      .getByText('Shared roles', { exact: true })
+      .locator('..')
+      .getByText('1', { exact: true }),
   ).toBeVisible()
   const table = page.getByRole('table', { name: 'User comparison evidence' })
   await expect(table).toContainText('01.01.2000 → 31.12.9999')
   await expect(table).toContainText('01.01.2001 → 31.12.9999')
-  await page.getByRole('button', { name: 'DEMO_B', exact: true }).click()
+  await page.getByRole('button', { name: 'Open User B', exact: true }).click()
   await expect(
     page.getByRole('heading', { name: 'User details', exact: true }),
   ).toBeVisible()
@@ -191,40 +200,54 @@ test('saved filters save load rename update delete and survive page reload', asy
 }) => {
   await page.goto('/#session=browser-test-session')
   await nav(page, 'User Access')
+  const viewForBar = 'users'
   const bar = saved(page, 'users')
   await page.getByLabel('Search users', { exact: true }).fill('Alpha')
+  await openSaved(page, viewForBar)
   await bar.getByLabel('Saved filter name').fill('Alpha users')
   await bar.getByRole('button', { name: 'Save as new', exact: true }).click()
-  await expect(bar.getByRole('status').first()).toContainText('Alpha users')
+  await expect(
+    page.locator('div.saved-filter-toolbar[aria-label="users saved filters"]'),
+  ).toContainText('Alpha users')
   await page.getByLabel('Search users', { exact: true }).fill('Beta')
-  await expect(bar).toContainText('Modified')
+  await expect(
+    page.locator('div.saved-filter-toolbar[aria-label="users saved filters"]'),
+  ).toContainText('Modified')
+  await openSaved(page, viewForBar)
   await bar.getByRole('button', { name: 'Load', exact: true }).click()
   await expect(page.getByLabel('Search users', { exact: true })).toHaveValue(
     'Alpha',
   )
+  await openSaved(page, viewForBar)
   await bar.getByLabel('Saved filter name').fill('Renamed')
   await bar.getByRole('button', { name: 'Rename', exact: true }).click()
   await expect(
     bar.getByRole('option', { name: 'Renamed', exact: true }),
   ).toHaveCount(1)
   await page.getByLabel('Search users', { exact: true }).fill('Beta')
+  await openSaved(page, viewForBar)
   await bar
     .getByRole('button', { name: 'Update saved filter', exact: true })
     .click()
   await expect(bar).toContainText('Saved filters updated.')
   await page.reload()
+  await openSaved(page, viewForBar)
+  await openSaved(page, viewForBar)
   await bar
     .getByLabel('Saved filter', { exact: true })
     .selectOption({ label: 'Renamed' })
+  await openSaved(page, viewForBar)
   await bar.getByRole('button', { name: 'Load', exact: true }).click()
   await expect(page.getByLabel('Search users', { exact: true })).toHaveValue(
     'Beta',
   )
   await nav(page, 'Role Lookup')
+  await openSaved(page, 'roles')
   await expect(
     saved(page, 'roles').getByRole('option', { name: 'Renamed', exact: true }),
   ).toHaveCount(0)
   await nav(page, 'User Access')
+  await openSaved(page, viewForBar)
   page.once('dialog', (d) => d.accept())
   await bar.getByRole('button', { name: 'Delete', exact: true }).click()
   await expect(
@@ -246,10 +269,13 @@ test('unsupported saved values warn without overwriting original definition', as
   expect(item.ok()).toBeTruthy()
   await page.goto('/#session=browser-test-session')
   await nav(page, 'User Access')
+  const viewForBar = 'users'
   const bar = saved(page, 'users')
+  await openSaved(page, viewForBar)
   await bar
     .getByLabel('Saved filter', { exact: true })
     .selectOption({ label: 'Old sorting' })
+  await openSaved(page, viewForBar)
   await bar.getByRole('button', { name: 'Load', exact: true }).click()
   await expect(bar).toContainText('unsupported fields or values')
   await expect(page.getByLabel('Search users', { exact: true })).toHaveValue(
@@ -308,7 +334,9 @@ test('Account Review retains stale filter and includes evidence versions in expo
   await expect(page.getByLabel('Review finding', { exact: true })).toHaveValue(
     'stale',
   )
+  const viewForBar = 'review'
   const bar = saved(page, 'review')
+  await openSaved(page, viewForBar)
   await bar.getByLabel('Saved filter name').fill('Changed evidence')
   await bar.getByRole('button', { name: 'Save as new', exact: true }).click()
   await expect(bar).toContainText('Saved filters updated.')
@@ -473,6 +501,7 @@ test('Role Lookup saved filters restore multi-transaction and sorting controls',
 }) => {
   await page.goto('/#session=browser-test-session')
   await nav(page, 'Role Lookup')
+  const viewForBar = 'roles'
   const bar = saved(page, 'roles'),
     transaction = page.getByRole('textbox', {
       name: 'Filter catalogue by transaction',
@@ -482,16 +511,19 @@ test('Role Lookup saved filters restore multi-transaction and sorting controls',
   await transaction.press('Enter')
   await transaction.fill('ME23N')
   await transaction.press('Enter')
+  await openSaved(page, viewForBar)
   await bar.getByLabel('Saved filter name').fill('Catalogue investigation')
   await bar.getByRole('button', { name: 'Save as new', exact: true }).click()
   await expect(bar).toContainText('Saved filters updated.')
-  await bar
-    .getByRole('button', { name: 'Clear applied filter', exact: true })
+  await page
+    .getByRole('button', { name: 'Clear all filters', exact: true })
     .click()
   await transaction.fill('OTHER')
+  await openSaved(page, viewForBar)
   await bar
     .getByLabel('Saved filter', { exact: true })
     .selectOption({ label: 'Catalogue investigation' })
+  await openSaved(page, viewForBar)
   await bar.getByRole('button', { name: 'Load', exact: true }).click()
   await expect(bar).toContainText('Saved filter applied to the current data.')
   await expect(transaction).toHaveValue('')
@@ -525,8 +557,11 @@ test('future saved schema remains unavailable without crashing or replacing stor
   })
   await page.goto('/#session=browser-test-session')
   await nav(page, 'User Access')
+  const viewForBar = 'users'
   const bar = saved(page, 'users')
+  await openSaved(page, viewForBar)
   await bar.getByLabel('Saved filter', { exact: true }).selectOption('future')
+  await openSaved(page, viewForBar)
   await bar.getByRole('button', { name: 'Load', exact: true }).click()
   await expect(bar).toContainText('unsupported schema')
   await expect(page.getByLabel('Search users', { exact: true })).toHaveValue('')
