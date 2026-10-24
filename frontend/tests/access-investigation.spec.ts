@@ -149,7 +149,7 @@ test("directory-only users, expired and future assignments, unknown validity and
     .getByRole("button", { name: "Back to users", exact: true })
     .click();
   await page.getByRole("button", { name: "DEMO_DELTA", exact: true }).click();
-  await expect(detail).toContainText("unknown");
+  await expect(detail).toContainText("Unknown");
   await expect(detail).toContainText("ZC:FI:VIEW:ENS");
 });
 

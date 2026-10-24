@@ -1,6 +1,29 @@
 # Configuration and recovery
 
-Settings has six sections: System & Organization, Data Sources, SAP Modules, Appearance & Branding, Application & Diagnostics, and Features. Employee Directory is an optional third CSV source; see [Employee Directory and feature management](EMPLOYEE_DIRECTORY.md). Defaults are generic and configure one current dataset/system; there is no multi-system infrastructure.
+Settings groups existing configuration by purpose; saved settings, import presets,
+module preferences and theme colors retain their existing schema and behavior.
+
+| Category | Section | Responsibility |
+| --- | --- | --- |
+| General | Organization & SAP System | Organization identity and SAP system/client description |
+| General | Appearance & Branding | Themes, colors, local logo and appearance |
+| Data & Modules | Data Sources | Role Catalogue, User Access, Employee Directory; mappings, validation, imports and recovery |
+| Data & Modules | SAP Modules | Enabled areas, labels, icons, colors and filter preferences |
+| Application | Features | Optional capabilities and account-review group classification |
+| Application | Health & Diagnostics | Backend/storage status, refresh history, actionable recovery and safe export |
+| Application | About SAP Lens | Version, build and runtime information |
+
+Employee Directory remains a Data Sources subsection, not another top-level page.
+CSV paths never live in Features. The existing Apply/cancel mechanism saves ordinary
+settings. Import directory, durable-snapshot recovery and review decisions are
+explicit operations with their own confirmation/feedback, not duplicate generic
+Save buttons.
+
+Use Up/Down/Home/End to traverse the sidebar in its displayed order. The selected
+section has a matching panel and visible keyboard focus. Dashboard/source-recovery
+links open the relevant Data Sources subsection directly.
+
+Employee Directory is an optional third CSV source; see [Employee Directory](EMPLOYEE_DIRECTORY.md). Defaults describe one dataset/system; no multi-system infrastructure is introduced.
 
 Organization name, platform (S/4HANA, ECC or Other/Custom), system ID, client, description and footer are editable. The configured organization name is the primary header heading; an empty name uses SAP Lens. Windows and repository branding remain SAP Lens. Module display overrides preserve stable SAP area IDs; custom business-domain configuration has been retired. Theme supports System, Light and Dark, defaults to Dark, and persists independent color palettes and custom presets. See [desktop workspace and theme colors](UX_AND_THEMES.md).
 
@@ -16,7 +39,7 @@ Settings are validated, revision checked and atomically replaced. Concurrent sta
 
 Choose PNG, JPEG or WebP up to 2 MB and 4096 pixels per side. SVG and animated images are rejected. Decoded pixels are resized to at most 1024 per side, stripped of metadata and reencoded as PNG in the private `branding/` directory. Moving/deleting the original does not affect the saved image. Missing/invalid copied images fall back to SAP Lens. Replace, remove or restore the default in Appearance & Branding. Retained assets/backups permit recovery and are not automatically erased by reset.
 
-Export defaults to a redacted portable `.sap-lens.json` package. Including private organization details, import formats, inactive legacy configuration, mappings, module overrides and the logo requires the explicit private export option. Both modes include theme colors/custom preset names and exclude CSV paths and records, session capabilities and runtime state. Review private packages before sharing. Import validates the package/version/logo and preserves all three local CSV paths; it never trusts an embedded source path. Reset restores generic defaults after confirmation. Desktop export uses a native Save dialog; browser development downloads JSON. Open configuration folder is a guarded Windows native action.
+Export defaults to a redacted portable `.sap-lens.json` package. Including private organization details, import formats, inactive legacy configuration, mappings, module overrides, unlicensed-group classification and the logo requires the explicit private export option. Both modes include theme colors/custom preset names and exclude CSV paths and records, session capabilities and runtime state. Review private packages before sharing. Import validates the package/version/logo and preserves all three local CSV paths; it never trusts an embedded source path. Reset restores generic defaults after confirmation. Desktop export uses a native Save dialog; browser development downloads JSON. Open configuration folder is a guarded Windows native action.
 
 Logs rotate at 2 MB with two backups, contain safe stages/counts and omit source paths, SAP values and capabilities. `runtime.json` contains only process/origin/instance diagnostics and is removed on normal exit. A stale record cannot authorize a connection. Settings, assets and backups use normal per-user filesystem protection, not encryption.
 
@@ -25,3 +48,52 @@ See [CSV import](CSV_IMPORT.md), [classification](CLASSIFICATION.md) and [privac
 The removed frontend environment template was unused: no VITE_API_URL setting exists. Browser requests are same-origin and development uses the Vite proxy. Keep local data paths in application settings; backend/.env.example documents optional bootstrap variables only.
 
 Role catalogue and User Access have separate CSV Import Formats and local paths. Custom presets support create, rename, duplicate and confirmed deletion; the active source falls back to its protected default. Legacy classification is archived without execution or destructive rewrite. See [access investigation](ACCESS_INVESTIGATION.md).
+
+
+## Compact health information
+
+Health & Diagnostics shows service status, last successful refresh and whether
+application storage exists. Expand **Health details and refresh history** for
+source counts, configuration versions and last failed refresh in this process.
+**Source locations and storage details** reveals local paths privately in the
+application. **Employee Directory technical details** explains its optional source,
+storage and dependency states. Disabled optional sources do not fail core health.
+Import history and detailed data quality belong to Data Sources.
+
+A storage directory existing is not a claim that every future write will succeed.
+Import/annotation writes report actual failures and retain prior accepted data.
+Last failed refresh is session history; it is not invented from old successful data.
+Native logs are still available through the existing controlled desktop action.
+
+## “No durable records saved”
+
+A legacy path-only configuration may load and validate records in memory without
+having completed **Import directory**. A path is not a durable dataset. It can work
+until a restart/share disconnect makes that path unreadable.
+
+Open **Data Sources → Employee Directory**:
+
+1. If validated records are currently available, **Save durable directory snapshot**
+   saves them to existing private snapshot storage without rereading the CSV.
+   Save/cancel unrelated draft edits first. It verifies the directory digest and
+   current settings revision, then stages the snapshot and atomically saves its ID.
+2. Otherwise choose a readable CSV, validate/preview, then **Import directory**.
+3. Confirm **Records saved locally**. The import timestamp is retained. A successful
+   durable import/restoration no longer needs the original CSV at startup.
+
+Recovery never guesses records from a missing path. Failed writes retain the prior
+configuration and validated in-memory data. Restart and missing-source recovery
+are covered by backend tests using cleared configuration/directory caches; browser
+reload also checks status synchronization. Actual Windows/WebView2 and UNC testing
+still requires native validation; these tests do not establish share availability.
+
+## Safe diagnostic export
+
+Diagnostic JSON contains allowlisted versions, status, counts and refresh times.
+It excludes CSV paths/contents, organization/employee identities, review annotations,
+credentials and routine logs. Full source paths appear only in the protected local
+UI. Account Review CSV export is a separate explicit export containing identity
+and review information; do not confuse it with the redacted support report.
+
+See [Employee Directory](EMPLOYEE_DIRECTORY.md), [Account Review](ACCOUNT_REVIEW.md),
+and [local Windows testing](LOCAL_WINDOWS_BUILD.md).

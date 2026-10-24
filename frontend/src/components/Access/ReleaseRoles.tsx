@@ -165,14 +165,8 @@ export function ReleaseRoles({
             ))}
           </Select>
         </Filter>
-      <AssignmentDateFilters value={assignmentDates} onChange={setAssignmentDates}/>
-        </div></fieldset>
 
-      </div>
-      {(group || kind || releaseGroup || strategy || username || role || status !== 'active' || datesActive(assignmentDates) || descending || sort !== 'role_name') && <ClearFilterButton onClick={() => { setGroup(''); setKind(''); setReleaseGroup(''); setStrategy(''); setUsername(''); setRole(''); setStatus('active'); setAssignmentDates({ ...emptyDates }); setSort('role_name'); setDescending(false) }}>Clear filters</ClearFilterButton>}
-      <div className="results-toolbar">
-        <h2>Release assignments <span>{result.data?.total.toLocaleString() ?? '…'} {result.data?.total === 1 ? 'role' : 'roles'}</span></h2>
-<div className="results-sort">
+<div className="release-sort">
         <Filter label="Sort release roles">
           <Select aria-label="Sort release roles"
             className={inputClass}
@@ -201,6 +195,14 @@ export function ReleaseRoles({
           Descending
         </label>
 </div>
+        </div></fieldset>
+
+      </div>
+      {(group || kind || releaseGroup || strategy || username || role || status !== 'active' || datesActive(assignmentDates) || descending || sort !== 'role_name') && <ClearFilterButton onClick={() => { setGroup(''); setKind(''); setReleaseGroup(''); setStrategy(''); setUsername(''); setRole(''); setStatus('active'); setAssignmentDates({ ...emptyDates }); setSort('role_name'); setDescending(false) }}>Clear filters</ClearFilterButton>}
+      <div className="results-toolbar">
+        <h2>Release assignments <span>{result.data?.total.toLocaleString() ?? '…'} {result.data?.total === 1 ? 'role' : 'roles'}</span></h2>
+
+      <AssignmentDateFilters value={assignmentDates} onChange={setAssignmentDates}/>
         <div className="segmented-control" role="group" aria-label="Release results view">
           <button aria-pressed={!matrix} onClick={() => setMatrix(false)}><List size={16} aria-hidden="true"/>Table</button>
           <button aria-pressed={matrix} onClick={() => setMatrix(true)}><Grid3X3 size={16} aria-hidden="true"/>Matrix</button>

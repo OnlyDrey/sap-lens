@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 const headers = { 'X-SAP-Lens': 'browser-test-session' }
-const sections = ['System & Organization', 'Data Sources', 'SAP Modules', 'Appearance & Branding', 'Application & Diagnostics']
+const sections = ['Organization & SAP System', 'Data Sources', 'SAP Modules', 'Appearance & Branding', 'Health & Diagnostics']
 test.beforeEach(async ({ request }) => {
   expect((await request.post('/api/configuration/reset', { headers })).ok()).toBeTruthy()
 })
@@ -23,7 +23,9 @@ test('data-source actions override every previous section while normal opening k
     await expect(page.getByLabel('CSV file location', { exact: true })).toBeInViewport()
   }
   await page.reload()
-  await page.getByRole('tab', { name: 'Application & Diagnostics', exact: true }).click()
+  await page.getByRole('tab', { name: 'Health & Diagnostics', exact: true }).click()
+  await page.getByText('Source locations and storage details',{exact:true}).click()
+  await page.getByText('Employee Directory technical details',{exact:true}).click()
   await page.getByRole('button', { name: 'Back to SAP Lens', exact: true }).click()
   await page.getByRole('button', { name: 'Review data source', exact: true }).click()
   await expect(page.getByLabel('CSV file location', { exact: true })).toBeFocused()
@@ -53,7 +55,7 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(tab).toHaveCSS('box-shadow', 'none')
     await expect(tab).toHaveCSS('border-left-width', '0px')
     await tab.press('ArrowDown')
-    await page.getByRole('tab', { name: 'Appearance & Branding', exact: true }).press('ArrowUp')
+    await page.getByRole('tab', { name: 'Features', exact: true }).press('ArrowUp')
     await expect(tab).toBeFocused()
     await expect(tab).toHaveCSS('outline-style', 'solid')
     const colors = await page.locator('.module-list-row').evaluateAll((rows) => {

@@ -298,63 +298,7 @@ export function RoleList({
             )}
           </div>
 
-          <div className="relative flex-shrink-0">
-            <button
-              onClick={() => setSortOpen(p => !p)}
-              className="flex items-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-semibold focus:outline-none whitespace-nowrap"
-              style={{
-                backgroundColor:'var(--surface2)',
-                borderColor:'var(--border)',
-                color:'var(--text2)'
-              }}
-            >
-              <ArrowUpDown
-                className="w-3.5 h-3.5"
-                style={{ color:'var(--muted)' }}
-              />
-              {currentLabel}
-            </button>
 
-            {sortOpen && (
-              <>
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setSortOpen(false)}
-                />
-
-                <div
-                  className="absolute right-0 top-full mt-1 z-30 rounded-xl border shadow-lg overflow-hidden w-44"
-                  style={{
-                    backgroundColor:'var(--surface)',
-                    borderColor:'var(--border)'
-                  }}
-                >
-                  {SORT_OPTIONS.map(opt => (
-                    <button
-                      key={opt.key}
-                      onClick={() => {
-                        setSortBy(opt.key)
-                        setSortOpen(false)
-                      }}
-                      className="w-full text-left px-4 py-2.5 text-xs font-semibold focus:outline-none hover:opacity-80"
-                      style={{
-                        backgroundColor:
-                          sortBy === opt.key
-                            ? 'var(--accent2)'
-                            : 'transparent',
-                        color:
-                          sortBy === opt.key
-                            ? 'var(--on-accent2)'
-                            : 'var(--text2)',
-                      }}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
         </div>
 
         {!isLoading && !isError && (
@@ -459,6 +403,63 @@ export function RoleList({
           </p>
 
           <div className="flex items-center gap-2">
+          <div className="relative flex-shrink-0">
+            <button
+              onClick={() => setSortOpen(p => !p)}
+              className="flex items-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-semibold focus:outline-none whitespace-nowrap"
+              style={{
+                backgroundColor:'var(--surface2)',
+                borderColor:'var(--border)',
+                color:'var(--text2)'
+              }}
+            >
+              <ArrowUpDown
+                className="w-3.5 h-3.5"
+                style={{ color:'var(--muted)' }}
+              />
+              {currentLabel}
+            </button>
+
+            {sortOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setSortOpen(false)}
+                />
+
+                <div
+                  className="absolute right-0 top-full mt-1 z-30 rounded-xl border shadow-lg overflow-hidden w-44"
+                  style={{
+                    backgroundColor:'var(--surface)',
+                    borderColor:'var(--border)'
+                  }}
+                >
+                  {SORT_OPTIONS.map(opt => (
+                    <button
+                      key={opt.key}
+                      onClick={() => {
+                        setSortBy(opt.key)
+                        setSortOpen(false)
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-xs font-semibold focus:outline-none hover:opacity-80"
+                      style={{
+                        backgroundColor:
+                          sortBy === opt.key
+                            ? 'var(--accent2)'
+                            : 'transparent',
+                        color:
+                          sortBy === opt.key
+                            ? 'var(--on-accent2)'
+                            : 'var(--text2)',
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
             {tcodeLoading && (debSearch.trim() || transaction.codes.length > 0) && (
               <span
                 className="text-[10px] flex items-center gap-1"

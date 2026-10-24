@@ -273,7 +273,7 @@ test('shared success and error notifications align with content and dismiss by k
   await go(page, 'Role Lookup')
   await page.getByRole('button', { name: 'Open settings', exact: true }).click()
   await page
-    .getByRole('tab', { name: 'System & Organization', exact: true })
+    .getByRole('tab', { name: 'Organization & SAP System', exact: true })
     .click()
   await page.getByLabel('Organization name', { exact: true }).fill('Example QA')
   await page

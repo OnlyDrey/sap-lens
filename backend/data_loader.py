@@ -19,6 +19,7 @@ class DataLoader:
         self.loading=False
         self.error: str | None=None
         self.source_attempts = {}
+        self.last_failed_load = None
         self._generation=0
         self._cancel=None
         self._result=None
@@ -60,6 +61,8 @@ class DataLoader:
             self.loading=False
             self._result=None;self._cancel=None
             if error:
+                from datetime import datetime, timezone
+                self.last_failed_load = datetime.now(timezone.utc).isoformat()
                 if source in attempted_paths:
                     self.source_attempts[source] = {'path': attempted_paths[source], 'error': category}
                 self.error=error

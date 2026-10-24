@@ -112,6 +112,16 @@ class FeatureSettings(StrictModel):
 
 
 class AppConfig(StrictModel):
+    unlicensed_user_groups: list[str] = Field(default_factory=lambda: ['UNLICENSED'], max_length=100)
+
+    @field_validator('unlicensed_user_groups')
+    @classmethod
+    def review_groups(cls, values):
+        values = [v.strip() for v in values]
+        if any(not v or len(v) > 120 for v in values) or len({v.casefold() for v in values}) != len(values):
+            raise ValueError('Unlicensed user groups must be nonempty, unique and at most 120 characters.')
+        return values
+
     employee_snapshot_id: str | None = Field(default=None, pattern=r'^[a-f0-9]{64}$')
     employee_csv_path: str = Field(default='', max_length=4096)
     features: FeatureSettings = Field(default_factory=FeatureSettings)

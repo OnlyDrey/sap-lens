@@ -17,7 +17,7 @@ const Context = createContext<{
   lastLoaded: string | null
 }>({ loading: false, refresh: async () => {}, lastLoaded: null })
 const isDatasetQuery = (query: { queryKey: readonly unknown[] }) =>
-  !['configuration', 'logo', 'application-version'].includes(
+  !['configuration', 'logo', 'application-version', 'application-info'].includes(
     String(query.queryKey[0]),
   )
 /** Owns startup/background publication observation across every route. No CSV data is stored here. */

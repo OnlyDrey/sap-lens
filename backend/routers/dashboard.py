@@ -1,6 +1,7 @@
 """Aggregate validated local snapshots; missing/disabled sources are never zero-filled."""
 from collections import Counter
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+from datetime import date
 import cache
 from config import get_settings
 from role_matching import normalize_role
@@ -34,9 +35,21 @@ def overview():
     enabled=directory['enabled']
     add('employees','Employee Directory records',directory['report'].get('records') if enabled and directory['loaded'] else None,'employees','Open directory import and data quality.','Employee Directory disabled' if not enabled else 'Import directory records first')
     coverage=directory['coverage']
-    add('email_matches','Directory email matches',coverage.get('matched',0) if directory['coverage_total'] else None,'employees',f"Exact matches of {directory['coverage_total']} SAP identities; open directory data quality.",directory['coverage_reason'])
-    add('unresolved','Missing or ambiguous directory matches',sum(v for k,v in coverage.items() if k!='matched') if directory['coverage_total'] else None,'employees','Includes missing SAP email, unmatched and ambiguous evidence; open data quality.',directory['coverage_reason'])
-    return dict(metrics=metrics,coverage_total=directory['coverage_total'],
+    add('email_matches','Matched SAP identities',coverage.get('matched',0) if directory['coverage_total'] else None,'review',f"Exact matches of {directory['coverage_total']} SAP identities; open directory data quality.",directory['coverage_reason'])
+    add('unresolved','Missing or ambiguous directory matches',sum(v for k,v in coverage.items() if k!='matched') if directory['coverage_total'] else None,'review','Includes missing SAP email, unmatched and ambiguous evidence; open data quality.',directory['coverage_reason'])
+    if mapping:
+        from account_review import cached_rows, decisions
+        from .employees import available
+        try:
+            review_rows = cached_rows(state, available(), decisions(), settings.unlicensed_user_groups, date.today())
+        except HTTPException:
+            add('account_review', 'Accounts requiring review', None, 'review', 'Open Account Review for recovery.', 'Review annotations unavailable; other source metrics remain available.')
+        else:
+            add('account_review', 'Accounts requiring review', sum(r['needs_review'] for r in review_rows), 'review', 'Review supported account evidence and stale annotations, not effective authorization or license savings.')
+    else:
+        add('account_review', 'Accounts requiring review', None, 'review', 'Open Account Review.', reason)
+    return dict(metrics=metrics,last_successful_refresh=state.last_loaded.isoformat() if state.last_loaded else None,
+                source_warning='A source needs attention. Review Health & Diagnostics.' if directory['error'] else None,coverage_total=directory['coverage_total'],
                 sources=[dict(id='roles',name='Role Catalogue',enabled=True,configured=bool(settings.data_csv_path),available=catalogue),
                          dict(id='users',name='User–Role Mapping',enabled=settings.features.user_role_mapping,configured=bool(settings.user_csv_path),available=bool(state.users.report)),
                          dict(id='employees',name='Employee Directory',enabled=enabled,configured=directory['configured'],available=directory['loaded'])],as_of=directory['report'].get('imported_at'),notice='Current local snapshots only; no historical trends or effective-authorization claims.')

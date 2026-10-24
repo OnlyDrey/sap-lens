@@ -134,7 +134,7 @@ controls. Live typing, chip/AND/OR semantics and export evidence are unchanged.
 
 Release Roles uses four-column classification and assignment controls with the same
 responsive breakpoints. Status and the compact date button stay with assignment
-filters. Sorting and Descending sit together in the results toolbar. **Clear filters**
+filters. Sorting and Descending sit together in the primary filter container. The date button is outside it near result count and Table/Matrix controls. **Clear filters**
 restores the normal currently-valid view and resets advanced intervals/sort; no date
 capability or missing/SAP-maximum-date distinction has been removed. Assignment
 filters do not affect profile information or account status.
@@ -205,3 +205,26 @@ dispatches, tags, releases or Windows artifacts were created. Actual Windows EXE
 WebView2, file-picker and UNC validation remain pending; Linux unit/browser checks
 are not substitutes. Windows-only dependency resolution/auditing also remains part
 of that native validation.
+
+## Datepicker and grouped intervals
+
+Advanced bounds are grouped into **Valid from — Assignment start date** (Start
+date from/to) and **Valid to — Assignment end date** (End date from/to). Their
+original API keys, inclusive comparisons, missing-end checkbox and SAP maximum-date
+rules are unchanged. Apply/Clear/Cancel and individual active chips retain their
+scope; only assignment records are affected.
+
+The Norwegian calendar now renders in a floating portal above the application
+rather than expanding the filter panel. It follows viewport scroll/resize and
+chooses above/below placement, with bounded scrolling on short displays. It uses
+Monday-first Norwegian month/weekday labels and DD.MM.YYYY manual entry. Arrow keys
+navigate dates across month boundaries while staying inside years 0001–9999;
+Enter/Space selects the focused day, Escape returns focus to the trigger, and an
+outside click dismisses without stealing the new focus. Calendar controls keep
+four-digit years visible, including the maximum SAP date.
+
+Role Lookup places role/T-code search side by side and sorting beside the result
+count below. Module pills remain below search. Release Roles uses four primary
+classification controls plus username, role, status and sort in its second row;
+direction stays below sort. Four/two/one layouts retain existing live transaction
+chips, filter state, date semantics and contained table scrolling.

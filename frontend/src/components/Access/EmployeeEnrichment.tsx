@@ -8,7 +8,11 @@ import { useViewHistory } from '@/hooks/useViewHistory'
 export interface EmployeeMatch {
   status: string
   employee: Employee | null
-  manager_sap?: { status: string; username: string | null }
+  manager_sap?: {
+    status: string
+    username: string | null
+    display_name?: string
+  }
 }
 export function useEmployeeMatch(username: string) {
   return useQuery({
@@ -36,30 +40,43 @@ export function ManagerSummary({
         mapping_unavailable: 'SAP identity source unavailable',
       } as Record<string, string>
     )[manager?.status || 'missing_email'] || 'SAP identity unavailable'
+  const name =
+    manager?.display_name ||
+    directoryDisplayName(employee.manager.name) ||
+    'Manager not provided'
+  const identity = (
+    <>
+      <strong>{name}</strong>
+      {employee.manager.title && (
+        <span className="text-sm text-[var(--muted)]">
+          {employee.manager.title}
+        </span>
+      )}
+    </>
+  )
   return (
     <section aria-label="Reports to" className="profile-manager">
       <h3>Reports to</h3>
-      <p>
-        {directoryDisplayName(employee.manager.name) || 'Manager not provided'}
-      </p>
-      {employee.manager.title && (
-        <p className="text-sm text-[var(--muted)]">{employee.manager.title}</p>
-      )}
       {manager?.status === 'matched' && manager.username ? (
         <button
-          className="settings-secondary-button"
-          onClick={() =>
-            change({ page: 'users', user: manager.username!, userContext: {} })
-          }
+          className="manager-identity"
+          aria-label="View SAP user"
+          onClick={() => change({ page: 'users', user: manager.username! })}
         >
-          <ArrowUpRight size={15} aria-hidden="true" />
-          View SAP user
+          {identity}
+          <span className="text-xs">
+            View SAP user{' '}
+            <ArrowUpRight size={14} aria-hidden="true" className="inline" />
+          </span>
         </button>
       ) : (
-        <span className="evidence-badge evidence-neutral">
-          <UserRoundX size={13} aria-hidden="true" />
-          {status}
-        </span>
+        <div className="manager-identity">
+          {identity}
+          <span className="evidence-badge evidence-neutral">
+            <UserRoundX size={13} aria-hidden="true" />
+            {status}
+          </span>
+        </div>
       )}
     </section>
   )

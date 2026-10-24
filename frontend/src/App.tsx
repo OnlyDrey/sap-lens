@@ -24,7 +24,7 @@ export function App() {
   const [selectedUser] = useHistoryValue('user')
   const [releaseDrill] = useHistoryValue('release')
   const [releaseContext] = useHistoryValue('releaseContext')
-  const investigateUsers = (filter:{user?:string;role?:string;tcode?:string}) => { setVisited(previous => new Set([...previous, 'users'])); change({page:'users', user:filter.user || '', userContext:{role:filter.role,tcode:filter.tcode},detailRole:null,settings:false}) }
+  const investigateUsers = (filter:{user?:string;role?:string;tcode?:string}) => { setVisited(previous => new Set([...previous, 'users'])); change({accessMode:'directory',page:'users', user:filter.user || '', userContext:{role:filter.role,tcode:filter.tcode},detailRole:null,settings:false}) }
   const investigateRelease = (release:string) => { setVisited(previous => new Set([...previous, 'releases'])); change({page:'releases', release:{role:release,status:'all'},releaseContext:release,detailRole:null,settings:false}) }
   const [catalogueOrder, setCatalogueOrder] = useState<string[]>([])
   const [selectedRoles, setSelectedRoles] = useState<string[]>([])

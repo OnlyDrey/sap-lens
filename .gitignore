@@ -80,3 +80,6 @@ SAP-Lens-diagnostics*.json
 
 # Private imported Employee Directory snapshots (never build inputs)
 **/employee-directory/
+
+# Private account review annotations
+**/account-review.json

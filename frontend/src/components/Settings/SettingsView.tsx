@@ -1,3 +1,4 @@
+import { About } from './About'
 import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
 import { EmployeeSource, FeatureSettings } from './EmployeeDirectory'
 import { ImportSection } from './ImportSection'
@@ -21,7 +22,8 @@ import {
   CheckCircle,
   X,
   FolderOpen,
-  BookUser
+  BookUser,
+  Info
 } from 'lucide-react'
 import { ModuleEditor } from './ModuleEditor'
 import { UserSourceEditor, PresetActions } from './ImportPresets'
@@ -42,15 +44,17 @@ import {
   type ImportProfile
 } from '@/api/configuration'
 
-const sectionIcons = [Building2, Database, Layers, Palette, Activity, BookUser]
+const sectionIcons = [Building2, Database, Layers, Palette, Activity, BookUser, Info]
 const sections = [
-  'System & Organization',
+  'Organization & SAP System',
   'Data Sources',
   'SAP Modules',
   'Appearance & Branding',
-  'Application & Diagnostics',
-  'Features'
+  'Health & Diagnostics',
+  'Features',
+  'About SAP Lens'
 ]
+const navigationOrder=[0,3,1,2,5,4,6]
 const fieldLabels: Record<string, string> = {
   FUNCTION_KEY: 'SAP module or area',
   AGR_NAME: 'Role name (required)',
@@ -468,11 +472,11 @@ export function SettingsView({
           aria-orientation="vertical"
           className="flex flex-col gap-1"
         >
-          {sections.map((label, index) => {
+          {navigationOrder.map((index, position) => {
+            const label=sections[index]
             const Icon = sectionIcons[index]
             return (
-              <button
-                key={label}
+              <div key={label}>{[0,1,5].includes(index)&&<p className="settings-nav-category">{index===0?'GENERAL':index===1?'DATA & MODULES':'APPLICATION'}</p>}<button
                 role="tab"
                 aria-label={label}
                 id={`settings-tab-${index}`}
@@ -486,10 +490,10 @@ export function SettingsView({
                     event.preventDefault()
                     const next =
                       event.key === 'Home'
-                        ? 0
+                        ? navigationOrder[0]
                         : event.key === 'End'
-                          ? sections.length - 1
-                          : (index + (event.key === 'ArrowDown' ? 1 : sections.length - 1)) % sections.length
+                          ? navigationOrder[navigationOrder.length-1]
+                          : navigationOrder[(position + (event.key === 'ArrowDown' ? 1 : navigationOrder.length - 1)) % navigationOrder.length]
                     setSection(next)
                     document.getElementById(`settings-tab-${next}`)?.focus()
                   }
@@ -503,7 +507,7 @@ export function SettingsView({
               >
                 <Icon size={19} aria-hidden="true" />
                 <span>{label}</span>
-              </button>
+              </button></div>
             )
           })}
         </nav>
@@ -533,7 +537,9 @@ export function SettingsView({
                   'Connect an export, map its columns and validate before loading.',
                   'Manage area labels, icons and colors without changing their identifiers.',
                   'Personalize the appearance of your local application.',
-                  'Service health, local storage and safe configuration recovery.'
+                  'Service health, local storage and safe configuration recovery.',
+                  'Enable optional capabilities and configure review classification.',
+                  'Version, build and runtime information.'
                 ][section]
               }
             </p>
@@ -1065,6 +1071,7 @@ export function SettingsView({
                       </p>
                     </div>
                   }
+                  {section === 6 && <About/>}
                   {section === 5 && <FeatureSettings draft={draft} onChange={setDraft} onConfigure={source => { setSection(1); setImportSource(source) }}/>}
                   {section === 4 && (
                     <>
@@ -1174,7 +1181,7 @@ export function SettingsView({
                 paletteErrors((draft.theme_colors || defaultThemeColors)[mode])
                   .length
             ) ? (
-              <button className="underline" onClick={() => setSection(4)}>
+              <button className="underline" onClick={() => setSection(3)}>
                 Review invalid theme colors in Appearance & Branding
               </button>
             ) : dirty ? (

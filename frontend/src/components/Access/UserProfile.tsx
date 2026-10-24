@@ -1,12 +1,11 @@
-import { directoryDisplayName } from '@/lib/directoryDisplayName'
+import {
+  AccountStatus,
+  accountValidity,
+  userTypeLabel,
+} from '@/components/Shared/AccountStatus'
 import { UserRound, ShieldCheck, Building2 } from 'lucide-react'
 import type { UserDetail } from '@/api/access'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
-import {
-  EvidenceBadge,
-  LockStatus,
-} from '@/components/Shared/InvestigationNavigation'
-import { StatusPill } from '@/components/Shared/StatusPill'
 import { formatDate } from '@/lib/dateFormat'
 import { useEmployeeMatch, ManagerSummary } from './EmployeeEnrichment'
 export function UserProfile({ user }: { user: UserDetail }) {
@@ -18,6 +17,10 @@ export function UserProfile({ user }: { user: UserDetail }) {
     .join(' / ')
   return (
     <section className="user-profile" aria-label="User profile">
+      <header className="profile-identity-header">
+        <h2>{sapName || 'SAP name not provided'}</h2>
+        <p>{user.emails.join(', ') || 'SAP email not provided'}</p>
+      </header>
       <section aria-label="SAP Identity" className="profile-group">
         <h2>
           <UserRound size={18} aria-hidden="true" />
@@ -31,14 +34,6 @@ export function UserProfile({ user }: { user: UserDetail }) {
             </dd>
           </div>
           <div>
-            <dt>Full name</dt>
-            <dd>{sapName || 'Unknown'}</dd>
-          </div>
-          <div>
-            <dt>Email</dt>
-            <dd>{user.emails.join(', ') || 'Unknown'}</dd>
-          </div>
-          <div>
             <dt>SAP User Group</dt>
             <dd>
               {user.groups
@@ -50,16 +45,16 @@ export function UserProfile({ user }: { user: UserDetail }) {
             <dt>User type</dt>
             <dd>
               {user.account_total === 1
-                ? user.accounts[0]?.user_type || 'Unknown'
+                ? userTypeLabel(user.accounts[0]?.user_type || '')
                 : 'See account evidence'}
             </dd>
           </div>
         </dl>
       </section>
-      <section aria-label="Account & Validity" className="profile-group">
+      <section aria-label="Account Status" className="profile-group">
         <h2>
           <ShieldCheck size={18} aria-hidden="true" />
-          Account &amp; Validity
+          Account Status
         </h2>
         <dl className="profile-fields">
           <div>
@@ -81,29 +76,24 @@ export function UserProfile({ user }: { user: UserDetail }) {
           <div>
             <dt>SAP account status</dt>
             <dd>
-              {user.account_status.split('/').map((value) => (
-                <EvidenceBadge key={value} value={value} />
-              ))}
+              <AccountStatus value={user.account_status} />
             </dd>
           </div>
           <div>
             <dt>Lock status</dt>
             <dd>
-              <LockStatus value={user.lock_status} />
+              <AccountStatus value={user.lock_status} kind="lock" />
             </dd>
           </div>
-          {employee && (
-            <div>
-              <dt>AD account status</dt>
-              <dd>
-                {employee.account_status === 'Unknown' ? (
-                  <EvidenceBadge value="Unknown" />
-                ) : (
-                  <StatusPill enabled={employee.account_status === 'Enabled'} />
-                )}
-              </dd>
-            </div>
-          )}
+          <div>
+            <dt>AD account status</dt>
+            <dd>
+              <AccountStatus
+                value={employee?.account_status || 'Unknown'}
+                kind="ad"
+              />
+            </dd>
+          </div>
         </dl>
       </section>
       <section aria-label="Organization" className="profile-group">
@@ -114,12 +104,6 @@ export function UserProfile({ user }: { user: UserDetail }) {
         {employee ? (
           <>
             <dl className="profile-fields">
-              {!sapName && employee.name && (
-                <div>
-                  <dt>Directory display name</dt>
-                  <dd>{directoryDisplayName(employee.name)}</dd>
-                </div>
-              )}
               <div>
                 <dt>Job title</dt>
                 <dd>{employee.title || 'Not provided'}</dd>
@@ -127,10 +111,6 @@ export function UserProfile({ user }: { user: UserDetail }) {
               <div>
                 <dt>Department</dt>
                 <dd>{employee.department || 'Not provided'}</dd>
-              </div>
-              <div>
-                <dt>AD username</dt>
-                <dd>{employee.username || 'Not provided'}</dd>
               </div>
             </dl>
             <ManagerSummary
@@ -152,6 +132,14 @@ export function UserProfile({ user }: { user: UserDetail }) {
           </p>
         )}
       </section>
+      {employee?.account_status === 'Disabled' &&
+        accountValidity(user.account_status) === 'Valid' &&
+        user.lock_status === 'Unlocked' && (
+          <p role="status" className="profile-account-warning">
+            Account mismatch detected — AD is disabled while the SAP account
+            remains valid and unlocked.
+          </p>
+        )}
     </section>
   )
 }

@@ -20,6 +20,8 @@ interface Snapshot {
   application_directory: string
   cached_roles: number
   last_successful_load: string | null
+  last_failed_load?:string|null
+  storage_available?:boolean
   platform: string
 }
 export function Diagnostics({ native, onEmployeeSettings, onEmployeeFeatures }: { native: boolean; onEmployeeFeatures?: () => void; onEmployeeSettings?: () => void }) {
@@ -72,35 +74,20 @@ export function Diagnostics({ native, onEmployeeSettings, onEmployeeFeatures }: 
     })
   return (
     <div className="space-y-5">
-      <DirectoryDiagnostics onConfigure={onEmployeeSettings} onFeatureSettings={onEmployeeFeatures}/>
+<details className="settings-advanced"><summary>Employee Directory technical details</summary><DirectoryDiagnostics onConfigure={onEmployeeSettings} onFeatureSettings={onEmployeeFeatures}/></details>
       <section className="settings-card space-y-4">
-        <h2 className="settings-subheading">
+        <div className="flex items-center justify-between gap-3"><h2 className="settings-subheading">
           <Activity size={18} aria-hidden="true" /> Application status
-        </h2>
-        <div className="flex gap-2 items-center text-sm">
-          <span
-            className={
-              query.isError ? 'text-[var(--error)]' : 'text-[var(--success)]'
-            }
-          >
-            Local service:{' '}
-            {query.isError
-              ? 'unavailable'
-              : query.data?.backend_status || 'checking…'}
-          </span>
-          <button
-            onClick={() => void query.refetch()}
-            className="ml-auto settings-secondary-button"
-          >
-            Check again
-          </button>
-        </div>
-        {query.data && (
+        </h2><button onClick={()=>void query.refetch()} className="settings-secondary-button">Check again</button></div>
+        <div className="review-metrics"><div className="compact-health"><span>Local service</span><strong>{query.isError?'Unavailable':query.data?.backend_status||'Checking…'}</strong></div><div className="compact-health"><span>Last successful refresh</span><strong className="text-sm">{formatTimestamp(query.data?.last_successful_load)}</strong></div><div className="compact-health"><span>Application storage</span><strong>{query.data?.storage_available?'Present':'Not created'}</strong></div></div>
+
+        <details className="settings-advanced"><summary>Health details and refresh history</summary>{query.data && (
           <dl className="settings-status-list">
             <dt>Application version</dt>
             <dd>{query.data.version}</dd>
             <dt>Current data status</dt>
             <dd className="flex flex-wrap gap-2">{query.data.sources.map(source => <span key={source.id}>{source.name}: {source.records.toLocaleString()} {source.id === 'users' ? source.records === 1 ? 'user' : 'users' : source.records === 1 ? 'role' : 'roles'} · {source.enabled === false ? <span>Disabled · retained data</span> : <SourceBadge loading={source.loading} error={source.error} loaded={source.loaded}/>}</span>)}</dd>
+            <dt>Application storage</dt><dd>{query.data.storage_available ? 'Directory present' : 'Created on first save'}</dd><dt>Last failed refresh</dt><dd>{formatTimestamp(query.data.last_failed_load,'No failed refresh in this session')}</dd>
             <dt>Last successful refresh</dt>
             <dd>
               {query.data.last_successful_load
@@ -108,11 +95,11 @@ export function Diagnostics({ native, onEmployeeSettings, onEmployeeFeatures }: 
                 : 'No successful load yet'}
             </dd>
           </dl>
-        )}
+        )}</details>
       </section>
       <section className="settings-card space-y-3">
         <h2 className="settings-subheading">Data & storage</h2>
-        <p className="text-xs text-[var(--muted)]">
+        <details className="settings-advanced"><summary>Source locations and storage details</summary><p className="text-xs text-[var(--muted)]">
           These locations are shown only in this application and excluded from
           diagnostic exports.
         </p>
@@ -148,6 +135,7 @@ export function Diagnostics({ native, onEmployeeSettings, onEmployeeFeatures }: 
           Open the per-user folder containing settings, backups and application
           logs.
         </p>
+        </details>
       </section>
       <section className="settings-card space-y-3">
         <h2 className="settings-subheading">Troubleshooting</h2>

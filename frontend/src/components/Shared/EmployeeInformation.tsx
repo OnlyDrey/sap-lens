@@ -1,3 +1,4 @@
+import { directoryDisplayName } from '@/lib/directoryDisplayName'
 export interface Employee {
   id: string
   name: string
@@ -30,7 +31,7 @@ export function EmployeeInformation({
   return (
     <dl className="information-list">
       <dt>Name</dt>
-      <dd>{employee.name || 'Unknown'}</dd>
+      <dd>{directoryDisplayName(employee.name) || 'Unknown'}</dd>
       <dt>Email</dt>
       <dd>{employee.email || 'Missing'}</dd>
       <dt>Department</dt>
@@ -45,7 +46,7 @@ export function EmployeeInformation({
       <dd>{employee.account_status}</dd>
       <dt>Manager</dt>
       <dd>
-        {employee.manager.name || 'Not provided'} ·{' '}
+        {directoryDisplayName(employee.manager.name) || 'Not provided'} ·{' '}
         {label(employee.manager.status)}
         {employee.manager.employee_id != null && onManager && (
           <button

@@ -17,6 +17,21 @@ def normalized(value):
     return value.strip().casefold()
 
 
+def sap_email_owners(users):
+    from collections import Counter
+    counts = Counter()
+    for user in users:
+        counts.update({normalized(email) for email in user['emails'] if email.strip()})
+    return counts
+
+
+def match_sap_identity(directory, user, owners):
+    # Shared SAP email addresses cannot establish a reliable one-person identity.
+    if any(owners.get(normalized(email), 0) > 1 for email in user['emails'] if email.strip()):
+        return dict(status='ambiguous_sap_email', employee=None)
+    return directory.match(user['emails'])
+
+
 def parse_directory(path):
     source = Path(path)
     if not source.is_absolute():

@@ -15,6 +15,8 @@ def diagnostics_snapshot(loader=None, private=False):
         'platform': system(), 'python_version': python_version(),
         'configuration_schema': settings.schema_version,
         'configuration_revision': settings.revision,
+        'last_failed_load': getattr(loader, 'last_failed_load', None),
+        'storage_available': config_dir().is_dir(),
         'backend_status': 'loading' if loader and loader.loading else 'running',
         'data_source_configured': bool(settings.data_csv_path or settings.user_csv_path),
         'cached_roles': len(state.roles),

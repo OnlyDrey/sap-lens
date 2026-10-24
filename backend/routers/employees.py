@@ -6,7 +6,7 @@ import cache
 from config import get_settings, save_configuration
 from config_models import StrictModel
 from daemon_tasks import daemon_call
-from employee_directory import parse_directory, store, persist_directory, discard_snapshot
+from employee_directory import parse_directory, store, persist_directory, discard_snapshot, sap_email_owners, match_sap_identity
 from user_access import normalize_username
 
 router = APIRouter(prefix='/api/employees', tags=['Employee Directory'])
@@ -30,8 +30,9 @@ def directory_status(private=False, snapshot=None):
     user_mapping_enabled = settings.features.user_role_mapping
     user_mapping_available = user_mapping_enabled and bool(snapshot.users.report)
     if enabled and directory and user_mapping_available:
+        owners = sap_email_owners(snapshot.users.users.values())
         for user in snapshot.users.users.values():
-            coverage[directory.match(user['emails'])['status']] += 1
+            coverage[match_sap_identity(directory, user, owners)['status']] += 1
     if status == 'healthy' and (report.get('duplicate_emails') or report.get('missing_emails') or
                                 any(report.get('managers', {}).get(k) for k in ['ambiguous', 'unresolved', 'self_reference'])):
         status = 'warning'
@@ -40,6 +41,7 @@ def directory_status(private=False, snapshot=None):
                 status=status, error=(store.error or store.import_error) if enabled else None, report=report, coverage=dict(coverage),
                 persisted=bool(settings.employee_snapshot_id and directory),
                 operational_status='disabled' if not enabled else 'data_unavailable' if not directory else 'dependency_unavailable' if not user_mapping_available else 'ready',
+                digest=directory.digest if private and directory else None,
                 storage='persisted_snapshot' if settings.employee_snapshot_id else 'legacy_path_only' if settings.employee_csv_path else 'none',
                 coverage_reason=('Enable Employee Directory in Feature Settings.' if not enabled else 'Import directory records first.' if not directory else 'Enable User–Role Mapping in Feature Settings to evaluate SAP email matches.' if not user_mapping_enabled else 'Load the User Access CSV to evaluate SAP email matches.' if not user_mapping_available else 'The User Access CSV contains no SAP users.' if not coverage else ''),
                 coverage_total=sum(coverage.values()),
@@ -127,19 +129,24 @@ def match_user(username: str):
     if directory is None: return dict(status='directory_unavailable', employee=None)
     if not get_settings().features.user_role_mapping or not cache.get_snapshot().users.report:
         return dict(status='mapping_unavailable', employee=None)
-    user = cache.get_snapshot().users.users.get(normalize_username(username))
+    snapshot = cache.get_snapshot()
+    user = snapshot.users.users.get(normalize_username(username))
     if user is None: raise HTTPException(404, 'SAP user not found.')
-    result = directory.match(user['emails'])
+    result = match_sap_identity(directory, user, sap_email_owners(snapshot.users.users.values()))
     employee = result.get('employee')
     manager_sap = dict(status='missing_email', username=None)
     if employee:
         from employee_directory import normalized as normalize_email
         email = normalize_email(employee['manager']['email'])
         if email:
-            matches = [u['username'] for u in cache.get_snapshot().users.users.values()
+            matches = [u['username'] for u in snapshot.users.users.values()
                        if email in {normalize_email(e) for e in u['emails']}]
             manager_sap = dict(status='matched' if len(matches) == 1 else 'ambiguous' if matches else 'unmatched',
                                username=matches[0] if len(matches) == 1 else None)
+    if manager_sap.get('username'):
+        manager = snapshot.users.users[normalize_username(manager_sap['username'])]
+        names = [' '.join(n).strip() for n in manager['names'] if any(n)]
+        if len(names) == 1: manager_sap['display_name'] = names[0]
     return dict(**result, manager_sap=manager_sap, generation=directory.digest)
 
 
@@ -161,3 +168,31 @@ def employee(employee_id: int, generation: str = Query(..., pattern=r'^[a-f0-9]{
     if directory.digest != generation: raise HTTPException(409, 'Directory changed. Search again.')
     if employee_id < 0 or employee_id >= len(directory.rows): raise HTTPException(404, 'Employee not found.')
     return directory.view(directory.rows[employee_id])
+
+
+class PersistRequest(StrictModel):
+    revision: int = Field(ge=0)
+    digest: str = Field(pattern=r'^[a-f0-9]{64}$')
+
+
+@router.post('/persist')
+def persist_current(request: PersistRequest):
+    """Recover already validated legacy records without rereading a missing CSV."""
+    with store.lock:
+        settings = get_settings().model_copy(deep=True)
+        directory = store.directory
+        if settings.revision != request.revision or not directory or directory.digest != request.digest or store.path != settings.employee_csv_path:
+            raise HTTPException(409, 'Directory or settings changed. Review Data Sources before saving records.')
+        staged = None
+        try:
+            staged = persist_directory(directory)
+            settings.employee_snapshot_id = staged
+            save_configuration(settings, request.revision)
+        except (OSError, ValueError):
+            if staged and staged != get_settings().employee_snapshot_id:
+                try: discard_snapshot(staged)
+                except OSError: pass
+            raise HTTPException(409, 'Durable storage could not be saved. Validated in-memory records are retained; check local storage permissions.') from None
+        store.attempted_path = ('snapshot', staged)
+        store.error = None
+    return directory_status(private=True)

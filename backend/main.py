@@ -17,7 +17,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 import cache
 from config import get_settings
 from data_loader import DataLoader
-from routers import comparison, modules, roles, access, employees, dashboard
+from routers import comparison, modules, roles, access, employees, dashboard, account_review
 from request_limits import RequestBodyLimit
 from version import VERSION, BUILD_INFO
 from configuration_routes import configuration_router
@@ -94,12 +94,18 @@ def create_app(origin: str | None = None, session_token: str | None = None,
     app.include_router(access.router)
     app.include_router(employees.router)
     app.include_router(dashboard.router)
+    app.include_router(account_review.router)
     app.include_router(modules.router)
     app.include_router(comparison.router)
 
     @app.get('/api/version', tags=['Application'])
     def application_version():
         return {'app': 'SAP Lens', 'version': VERSION, 'mode': BUILD_INFO['mode']}
+
+    @app.get('/api/application-info', tags=['Application'])
+    def application_info():
+        from platform import python_version, system
+        return {key: BUILD_INFO.get(key) for key in ('version', 'mode', 'source_sha', 'file_version')} | {'python': python_version(), 'platform': system()}
 
     @app.get('/health', tags=['Health'])
     def health_check():

@@ -1,6 +1,8 @@
+import { formatTimestamp } from '@/lib/dateFormat'
 import { useQuery } from '@tanstack/react-query'
 import {
   ArrowUpRight,
+  ClipboardCheck,
   BookUser,
   Database,
   UsersRound,
@@ -18,7 +20,7 @@ interface Metric {
   id: string
   label: string
   value: number | null
-  destination: 'roles' | 'users' | 'releases' | 'employees'
+  destination: 'roles' | 'users' | 'releases' | 'employees' | 'review'
   context: string
   unavailable_reason: string | null
 }
@@ -39,40 +41,58 @@ export function Dashboard() {
         metrics: Metric[]
         sources?: Source[]
         coverage_total?: number
+        last_successful_refresh?: string | null
+        source_warning?: string | null
         notice: string
       }>('/api/dashboard'),
   })
   const open = (metric: Metric) =>
-    metric.destination === 'employees'
-      ? change({ settings: true, settingsTarget: 'employees' })
-      : change({
-          page: metric.destination,
-          kpiNavigation: {
-            ...view.kpiNavigation,
-            [metric.destination]:
-              (view.kpiNavigation?.[metric.destination] || 0) + 1,
-          },
-          ...(metric.destination === 'users'
-            ? { user: '', userContext: {} }
-            : {}),
-          ...(metric.destination === 'releases' ? { release: null } : {}),
-          ...(metric.destination === 'roles' ? { comparison: false } : {}),
-          detailRole: null,
+    metric.destination === 'review'
+      ? change({
+          page: 'users',
+          accessMode: 'review',
+          user: '',
+          reviewFinding:
+            metric.id === 'unresolved'
+              ? 'directory_match'
+              : metric.id === 'email_matches'
+                ? 'matched'
+                : 'any',
           settings: false,
+          detailRole: null,
         })
+      : metric.destination === 'employees'
+        ? change({ settings: true, settingsTarget: 'employees' })
+        : change({
+            page: metric.destination,
+            kpiNavigation: {
+              ...view.kpiNavigation,
+              [metric.destination]:
+                (view.kpiNavigation?.[metric.destination] || 0) + 1,
+            },
+            ...(metric.destination === 'users'
+              ? { user: '', userContext: {}, accessMode: 'directory' as const }
+              : {}),
+            ...(metric.destination === 'releases' ? { release: null } : {}),
+            ...(metric.destination === 'roles' ? { comparison: false } : {}),
+            detailRole: null,
+            settings: false,
+          })
   const tile = (metric: Metric) => {
     const Icon =
-      metric.id === 'areas'
-        ? Network
-        : metric.id === 'releases'
-          ? FileCheck2
-          : metric.id === 'expired' || metric.id === 'future'
-            ? CalendarDays
-            : metric.id.includes('match') || metric.id === 'unresolved'
-              ? MailCheck
-              : metric.destination === 'users'
-                ? UsersRound
-                : Database
+      metric.id === 'account_review'
+        ? ClipboardCheck
+        : metric.id === 'areas'
+          ? Network
+          : metric.id === 'releases'
+            ? FileCheck2
+            : metric.id === 'expired' || metric.id === 'future'
+              ? CalendarDays
+              : metric.id.includes('match') || metric.id === 'unresolved'
+                ? MailCheck
+                : metric.destination === 'users'
+                  ? UsersRound
+                  : Database
     return (
       <button
         key={metric.id}
@@ -105,9 +125,10 @@ export function Dashboard() {
     )
   }
   const groups = [
-    ['Overview', ['roles', 'areas', 'mappings']],
-    ['User Access', ['users', 'assignments', 'assigned_users', 'releases']],
-    ['Data Quality', ['email_matches', 'unresolved', 'expired', 'future']],
+    ['Overview', ['users', 'roles', 'releases', 'mappings']],
+    ['User Access', ['assignments', 'assigned_users', 'account_review']],
+    ['Access Lifecycle', ['expired', 'future']],
+    ['Data Quality', ['email_matches', 'unresolved']],
   ] as const
   return (
     <section aria-label="Dashboard" className="space-y-5">
@@ -128,7 +149,7 @@ export function Dashboard() {
       {query.isError && (
         <p role="alert">
           Overview could not be refreshed. Previously loaded data remains
-          available; review Application &amp; Diagnostics.
+          available; review Health &amp; Diagnostics.
         </p>
       )}
       {query.data && (
@@ -139,9 +160,43 @@ export function Dashboard() {
               <div className="dashboard-metrics">
                 {query.data.metrics
                   .filter((m) => (ids as readonly string[]).includes(m.id))
+                  .sort(
+                    (a, b) =>
+                      (ids as readonly string[]).indexOf(a.id) -
+                      (ids as readonly string[]).indexOf(b.id),
+                  )
                   .map(tile)}
               </div>
-              {name === 'Data Quality' && (
+              {name === 'Data Quality' && !!query.data.coverage_total && (
+                <section
+                  className="coverage-summary"
+                  aria-label="Directory match percentage"
+                >
+                  <strong>
+                    {(
+                      ((query.data.metrics.find((m) => m.id === 'email_matches')
+                        ?.value || 0) /
+                        query.data.coverage_total) *
+                      100
+                    ).toFixed(1)}
+                    % matched
+                  </strong>
+                  <progress
+                    aria-label="SAP identity match coverage"
+                    max={query.data.coverage_total}
+                    value={
+                      query.data.metrics.find((m) => m.id === 'email_matches')
+                        ?.value || 0
+                    }
+                  />
+                  <span>
+                    {query.data.metrics.find((m) => m.id === 'email_matches')
+                      ?.value || 0}{' '}
+                    of {query.data.coverage_total} SAP identities
+                  </span>
+                </section>
+              )}
+              {name === 'Access Lifecycle' && (
                 <p className="text-xs text-[var(--muted)]">
                   Expired/future totals open User Access; select assignment
                   status in a profile. Release Roles opens its currently-valid
@@ -151,11 +206,24 @@ export function Dashboard() {
               )}
             </section>
           ))}
+
           <section aria-label="Configuration" className="dashboard-section">
             <h2>
               <Settings2 size={17} aria-hidden="true" />
               Configuration
             </h2>
+            <p className="text-xs text-[var(--muted)]">
+              Last successful refresh:{' '}
+              {formatTimestamp(query.data.last_successful_refresh)} · Enabled
+              SAP areas:{' '}
+              {query.data.metrics.find((m) => m.id === 'areas')?.value ??
+                'Unavailable'}
+            </p>
+            {query.data.source_warning && (
+              <p role="status" className="text-sm text-[var(--warning)]">
+                {query.data.source_warning}
+              </p>
+            )}
             <div className="dashboard-sources">
               {query.data.sources
                 ?.filter((source) => source.id !== 'employees')

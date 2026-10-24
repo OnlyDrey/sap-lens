@@ -9,6 +9,7 @@ import {
   UsersRound,
   Settings2,
   BookUser,
+  Save,
   FolderOpen,
   Search,
   Trash2,
@@ -29,6 +30,7 @@ interface Report {
   validation: string
 }
 export interface DirectoryStatus {
+  digest?:string|null
   mapping_data_available?: boolean
   enabled: boolean
   configured: boolean
@@ -162,9 +164,7 @@ export function DirectoryDiagnostics({
       )}
       {data.storage === 'legacy_path_only' && (
         <p className="text-sm text-[var(--warning)]">
-          Legacy path-only configuration: re-import once to save a durable
-          snapshot. If the old CSV is missing, select it again; records cannot
-          be recovered from a path alone.
+          Legacy path-only configuration: loaded records have not been confirmed as a durable import. Use Save durable directory snapshot when validated records are available, or validate and import a CSV. A path alone cannot recover missing records.
         </p>
       )}
       {onFeatureSettings && (
@@ -195,6 +195,8 @@ export function FeatureSettings({
   onChange: (value: Configuration) => void
   onConfigure: (source: 'employees' | 'users') => void
 }) {
+  const [groupText,setGroupText]=useState((draft.unlicensed_user_groups||['UNLICENSED']).join(', '))
+  useEffect(()=>setGroupText((draft.unlicensed_user_groups||['UNLICENSED']).join(', ')),[draft.revision])
   const directory = useQuery({
     queryKey: ['employee-status'],
     queryFn: () => apiRequest<DirectoryStatus>('/api/employees/status'),
@@ -278,6 +280,7 @@ export function FeatureSettings({
           </section>
         )
       })}
+      <label className="flex flex-col gap-1 text-sm">Unlicensed SAP User Groups<input className="settings-review-groups" value={groupText} onChange={e=>{setGroupText(e.target.value);onChange({...draft,unlicensed_user_groups:e.target.value.split(',').map(v=>v.trim()).filter(Boolean)})}}/><span className="text-xs text-[var(--muted)]">Comma-separated group values. This classification does not prove license entitlement and never suppresses account security findings.</span></label>
       <p className="text-sm text-[var(--muted)]">
         Apply settings to save changes. Disabling preserves source configuration
         and imported data. Employee identity enrichment requires enabled
@@ -439,6 +442,7 @@ export function EmployeeSource({
   onImported: () => Promise<void>
   onFeatureSettings: () => void
 }) {
+  const currentStatus=useQuery({queryKey:['employee-status'],queryFn:()=>apiRequest<DirectoryStatus>('/api/employees/status')})
   const [path, setPath] = useState(savedPath),
     [preview, setPreview] = useState<
       (Report & { digest: string; samples: Employee[] }) | null
@@ -467,7 +471,7 @@ export function EmployeeSource({
     await qc.invalidateQueries({
       predicate: (q) =>
         String(q.queryKey[0]).includes('employee') ||
-        q.queryKey[0] === 'dashboard',
+        ['dashboard','account-review'].includes(String(q.queryKey[0])),
     })
     await onImported()
   }
@@ -487,6 +491,7 @@ export function EmployeeSource({
           sourceView
           onFeatureSettings={onFeatureSettings}
         />
+        {currentStatus.data?.loaded && !currentStatus.data.persisted && <button className="settings-secondary-button" disabled={busy||dirty||!currentStatus.data.digest} onClick={()=>void act(async()=>{await apiRequest('/api/employees/persist','POST',{revision,digest:currentStatus.data!.digest});await refresh();setSuccess('Validated directory records saved locally. The original CSV is no longer required for restart.')})}><Save size={16}/>Save durable directory snapshot</button>}
         <label className="block">
           Employee Directory CSV location
           <input

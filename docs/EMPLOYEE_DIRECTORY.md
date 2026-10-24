@@ -170,19 +170,20 @@ remain pending; no remote builds or workflow dispatches were performed.
 
 ## SAP User Details profile
 
-The profile has three responsive groups: **SAP Identity**, **Account & Validity**,
+The profile has three responsive groups: **SAP Identity**, **Account Status**,
 and **Organization**. SAP CSV names/emails remain authoritative. Directory job
-title, department and AD username enrich Organization; AD account status appears
-separately from SAP validity/lock status in Account & Validity. Site remains in the
+title and department enrich Organization; AD account status appears
+separately from SAP validity/lock status in Account Status. Site remains in the
 source model and source investigation, not the primary SAP profile. Exact matching
 outcomes remain available in Data Sources and technical diagnostics rather than a
 repeated “Exact email match” label beside the profile.
 
-Organization shows a directory display name only when SAP provides no name.
-Display-only normalization recognizes exactly two letter-only comma-separated
-parts (`Surname, Given names`), preserving compound surnames/given names. Initials,
-multiple commas, annotations and ambiguous formats remain unchanged. This never
-changes imported values, SAP names, matching keys or manager resolution.
+The SAP profile header never substitutes AD names or emails for missing SAP values.
+Display-only normalization in directory/manager displays recognizes letter-only
+comma-separated `Surname, Given names` or an uppercase surname prefix followed
+by mixed-case given names. Compound parts are retained; initials, annotations,
+all-uppercase and ambiguous structures remain unchanged. This never changes
+imported values, SAP names, matching keys or manager resolution.
 
 Reports to keeps the manager's name/title without repeated technical attributes.
 A unique normalized exact `ManagerMail` → SAP email match enables **View SAP user**
@@ -191,3 +192,23 @@ status pill and no broken link. Browser Back returns to the employee. No AD
 username/name-only fallback or organization chart is introduced. Disabled or
 unavailable optional sources leave an explanatory Organization group while core
 SAP profile/assignment evidence stays available.
+
+## Profile and recovery refinements
+
+The compact profile header contains SAP name/email only. SAP Identity contains
+username, group and user type; Account Status separates SAP validity/lock, AD state
+and SAP validity dates; Organization contains job title, department and the manager
+identity card. AD username and Site remain source attributes, not primary profile
+fields. A unique manager SAP identity makes that card navigable using the SAP name
+where unambiguous; unresolved identities remain non-clickable.
+
+A shared SAP email is ambiguous enrichment evidence even when the directory has one
+row for it. Coverage, profile matching and Account Review now apply this boundary
+consistently. A mismatch warning requires reliably matched AD Disabled plus SAP
+Valid and Unlocked; absent/ambiguous directory data cannot produce it.
+
+For legacy path-only imports, validated in-memory records can be committed through
+**Save durable directory snapshot** without rereading the original CSV. It preserves
+the original import timestamp and validates the current settings revision/digest.
+See [Settings and persistence recovery](CONFIGURATION.md) and
+[Account Review](ACCOUNT_REVIEW.md) for current behavior and privacy boundaries.

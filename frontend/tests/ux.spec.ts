@@ -12,10 +12,10 @@ test('full-window navigation preserves draft and main analysis state and warns b
   await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Role Lookup',exact:true}).click()
  await page.getByRole('article').first().getByRole('button',{name:'Add to comparison',exact:true}).click()
  await page.getByRole('button',{name:'Open settings'}).click()
- await page.getByRole('tab',{name:'System & Organization'}).click()
+ await page.getByRole('tab',{name:'Organization & SAP System'}).click()
  await page.getByLabel('Organization name',{exact:true}).fill('Synthetic unsaved organization')
  await page.getByRole('tab',{name:'Appearance & Branding'}).click()
- await page.getByRole('tab',{name:'System & Organization'}).click()
+ await page.getByRole('tab',{name:'Organization & SAP System'}).click()
  await expect(page.getByLabel('Organization name',{exact:true})).toHaveValue('Synthetic unsaved organization')
  page.once('dialog',dialog=>void dialog.dismiss())
  await page.getByRole('button',{name:'Back to SAP Lens'}).click()
@@ -26,10 +26,10 @@ test('full-window navigation preserves draft and main analysis state and warns b
  await expect(page.getByRole('button',{name:'Remove from comparison',exact:true})).toHaveCount(1)
  await page.getByRole('button',{name:'Open settings'}).click()
  await expect(page.getByLabel('Organization name',{exact:true})).toHaveValue('Example Inc.')
- await page.getByRole('tab',{name:'System & Organization'}).focus()
+ await page.getByRole('tab',{name:'Organization & SAP System'}).focus()
  await page.keyboard.press('ArrowDown')
- await expect(page.getByRole('tab',{name:'Data Sources'})).toBeFocused()
- await expect(page.getByRole('tab',{name:'Data Sources'})).toHaveAttribute('aria-selected','true')
+ await expect(page.getByRole('tab',{name:'Appearance & Branding'})).toBeFocused()
+ await expect(page.getByRole('tab',{name:'Appearance & Branding'})).toHaveAttribute('aria-selected','true')
 })
 
 test('theme preview, accessible validation, custom preset persistence, system appearance and cancel',async({page,request})=>{
@@ -74,7 +74,7 @@ test('theme preview, accessible validation, custom preset persistence, system ap
 
 test('empty organization fallback, icon search and keyboard selection', async ({ page }) => {
  await page.goto('/#session=browser-test-session')
- await page.getByRole('tab',{name:'System & Organization'}).click()
+ await page.getByRole('tab',{name:'Organization & SAP System'}).click()
  await page.getByLabel('Organization name',{exact:true}).fill('')
  await page.getByRole('button',{name:'Apply settings',exact:true}).click()
  // The header stays clickable during saving; wait for the async close before reopening.
@@ -104,7 +104,7 @@ for (const theme of ['SAP Lens Default', 'Light']) {
    await expect(settings(page)).toBeHidden()
    await page.getByRole('button',{name:'Open settings'}).click()
    await expect(settings(page)).toBeVisible()
-   for (const section of ['System & Organization','Data Sources','SAP Modules','Appearance & Branding','Application & Diagnostics']) {
+   for (const section of ['Organization & SAP System','Data Sources','SAP Modules','Appearance & Branding','Health & Diagnostics']) {
     await page.getByRole('tab',{name:section,exact:true}).click()
     const action = page.getByRole('button',{name:section==='Data Sources'?'Save and load CSV':'Apply settings',exact:true})
     await expect(action).toBeInViewport()
@@ -132,7 +132,7 @@ test('startup connection failure has actionable recovery and configuration notic
  await page.reload()
  await expect(page.getByText(/File settings migrated to schema 2/)).toBeVisible()
  await page.getByRole('button',{name:'Dismiss configuration notice'}).click()
- await page.getByRole('tab',{name:'System & Organization'}).click()
+ await page.getByRole('tab',{name:'Organization & SAP System'}).click()
  await expect(page.getByText(/File settings migrated to schema 2/)).toBeHidden()
  await page.reload()
  await expect(page.getByRole('button',{name:'Dismiss configuration notice'})).toBeHidden()

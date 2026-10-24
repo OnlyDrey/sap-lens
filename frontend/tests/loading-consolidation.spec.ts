@@ -279,7 +279,7 @@ for (const theme of ['light', 'dark'] as const)
       await expect(profile).toContainText('Demo One')
       for (const label of [
         'SAP Identity',
-        'Account & Validity',
+        'Account Status',
         'Organization',
       ])
         await expect(
@@ -307,13 +307,13 @@ for (const theme of ['light', 'dark'] as const)
         .getByRole('button', { name: 'Assignment date filters', exact: true })
         .click()
       await expect(
-        page.getByLabel('Valid from earliest', { exact: true }),
+        page.getByLabel('Start date from', { exact: true }),
       ).toBeHidden()
       await page
         .getByText('Advanced interval filtering', { exact: true })
         .click()
       await expect(
-        page.getByLabel('Valid from earliest', { exact: true }),
+        page.getByLabel('Start date from', { exact: true }),
       ).toBeVisible()
       await page.evaluate(() => window.scrollTo(0, 0))
       await page.screenshot({
@@ -333,6 +333,10 @@ test('directory-only name formatting preserves compounds and ambiguous structure
     ['van der Berg, Anna Maria', 'Anna Maria van der Berg'],
     ['O’Neill, Mary Anne', 'Mary Anne O’Neill'],
     ['Jean-Luc Martin', 'Jean-Luc Martin'],
+    ['SMITH John', 'John SMITH'],
+    ['VAN DER BERG Anna Maria', 'Anna Maria VAN DER BERG'],
+    ['SMITH JOHN', 'SMITH JOHN'],
+    ['McDonald John', 'McDonald John'],
     ['Smith, John, Jr.', 'Smith, John, Jr.'],
     ['Team 2, Demo', 'Team 2, Demo'],
     ['Demo (Group), Analyst', 'Demo (Group), Analyst'],
@@ -410,7 +414,7 @@ test('restored user detail waits for the startup publication instead of flashing
   ).toHaveCount(0)
   loading = false
   await expect(
-    page.getByRole('region', { name: 'SAP Identity', exact: true }),
+    page.locator('.profile-identity-header'),
   ).toContainText('Demo One')
 })
 

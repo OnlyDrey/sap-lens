@@ -1,3 +1,5 @@
+import { AccountReview } from './AccountReview'
+import { AccountStatus } from '@/components/Shared/AccountStatus'
 import { useApplicationData } from '@/state/ApplicationData'
 import { AssignmentDateFilters, emptyDates, dateParams, datesActive } from '@/components/Shared/AssignmentDateFilters'
 import { UserProfile } from './UserProfile'
@@ -43,6 +45,8 @@ export function UserAccess({
   onRole: (role: string) => void;
   onRelease: (role: string) => void;
 }) {
+  const [accessMode,setAccessMode]=useHistoryValue('accessMode');
+  const modeButtons=<div className="segmented-control" role="group" aria-label="User Access view"><button aria-pressed={accessMode!=='review'} onClick={()=>setAccessMode('directory')}>User directory</button><button aria-pressed={accessMode==='review'} onClick={()=>setAccessMode('review')}>Account Review</button></div>;
   const {loading:dataLoading}=useApplicationData();
   const listScroll = useRef(0);
   const originUser = useRef(initialUser || "");
@@ -108,6 +112,7 @@ export function UserAccess({
     });
     return () => cancelAnimationFrame(frame);
   }, [selected, result.data, result.isFetching]);
+  if(accessMode==='review') return <><div hidden={!!selected}>{modeButtons}<AccountReview onUser={openUser}/></div>{selected&&<UserDetails username={selected} onBack={()=>setSelected('')} onRole={onRole} onRelease={onRelease} navigation={{index:-1,total:0,loading:false,error:null,missing:false,onPrevious:undefined,onNext:undefined}}/>}</>;
   if (selected)
     return (
       <UserDetails
@@ -120,7 +125,7 @@ export function UserAccess({
     );
   return (
     <section aria-label="User Access" className="space-y-4">
-      <h1 className="text-xl font-semibold">User Access</h1>
+      <h1 className="text-xl font-semibold">User Access</h1>{modeButtons}
       <EvidenceNote />
       <div className="investigation-filters user-filters"><fieldset><legend>User directory</legend><div className="directory-filter-grid">
         <Filter label="Search users">
@@ -236,7 +241,7 @@ export function UserAccess({
                     <td>{user.last_name || "—"}</td>
                     <td>{user.email || "—"}</td>
                     <td aria-label="Account validity">
-                      {user.account_status.split("/").map(value => <EvidenceBadge key={value} value={value}/>)}
+                      <AccountStatus value={user.account_status}/>
                     </td><td aria-label="Account lock"><LockStatus value={user.lock_status}/>
                     </td>
                     <td><button className="role-count-button" aria-label={`View ${user.relevant_roles} relevant roles for ${user.username}`} onClick={() => openUser(user.username)}>{user.relevant_roles.toLocaleString()} <span>{user.relevant_roles === 1 ? "role" : "roles"}</span></button></td>
@@ -330,7 +335,7 @@ function UserDetails({
           {user.account_total > 1 && <details className="settings-advanced"><summary>User validity and account evidence · {user.account_total} source records</summary>
             <p className="text-sm text-[var(--muted)]">Distinct source records are retained below; a summary does not override conflicting validity or lock evidence.</p>
             <div className="access-table"><table><thead><tr><th>User group</th><th>User validity</th><th>Account status</th><th>Lock status</th><th>User type</th></tr></thead><tbody>
-              {user.accounts.map((a, i) => <tr key={i}><td>{a.user_group || 'Unknown'}</td><td>{dates(a.valid_from, a.valid_to)}</td><td><EvidenceBadge value={a.status}/></td><td><LockStatus value={a.locked == null ? 'Unknown' : a.locked ? 'Locked' : 'Unlocked'}/></td><td>{a.user_type || 'Unknown'}</td></tr>)}
+              {user.accounts.map((a, i) => <tr key={i}><td>{a.user_group || 'Unknown'}</td><td>{dates(a.valid_from, a.valid_to)}</td><td><AccountStatus value={a.status}/></td><td><LockStatus value={a.locked == null ? 'Unknown' : a.locked ? 'Locked' : 'Unlocked'}/></td><td>{a.user_type || 'Unknown'}</td></tr>)}
             </tbody></table></div>
             <Pagination offset={accountOffset} total={user.account_total} onChange={setAccountOffset} label="Account evidence pages"/>
           </details>}

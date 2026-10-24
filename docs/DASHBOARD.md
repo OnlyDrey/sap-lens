@@ -32,8 +32,7 @@ detail history. Backend regressions verify atomic two-source publication.
 
 ## Overview layout
 
-The compact Dashboard groups metrics into **Overview**, **User Access**, **Data
-Quality** and **Configuration**. Source setup buttons open the correct Data Sources
+The compact Dashboard groups metrics into **Overview**, **User Access**, **Access Lifecycle**, **Data Quality** and **Configuration**. Source setup buttons open the correct Data Sources
 tab. Smaller icon/value tiles replace the twelve equal, descriptive cards; metrics
 have explanatory accessible text/tooltips and no fabricated historical trends.
 The default Dashboard does not mount Role Lookup or download its catalogue until
@@ -60,8 +59,8 @@ source availability and the email-coverage denominator accompany the metrics.
 | Release roles | Distinct normalized ZO role names across all assignment validity states | Release Roles |
 | Expired/future assignment records | Existing assignment validity calculation, evaluated today; not account validity | User Access |
 | Employee Directory records | Confirmed directory records, when enabled and available | Employee Directory data source |
-| Directory email matches | SAP identities with unique exact directory-email matches; context supplies the denominator | Employee Directory data quality |
-| Missing or ambiguous directory matches | SAP identities in all non-matched coverage categories, including missing email and unmatched values | Employee Directory data quality |
+| Directory email matches | SAP identities with unique exact directory-email matches; context supplies the denominator | Filtered Account Review |
+| Missing or ambiguous directory matches | SAP identities in all non-matched coverage categories, including missing email and unmatched values | Filtered Account Review |
 
 Access metrics require enabled User–Role Mapping and a loaded User Access CSV.
 Directory record counts require enabled Employee Directory and imported records.
@@ -73,12 +72,11 @@ views alone. Release Roles opens its ordinary currently-valid assignment view, e
 though its KPI includes all validity states; the card explicitly explains this.
 Expired/future counts open User Access and explain how to select assignment status
 inside User Details. They do not pretend to apply an unsupported directory-wide
-status filter. Data-quality cards open the Employee Directory source tab, not a
-second Diagnostics implementation. Ordinary navbar navigation retains existing list
+status filter. Data-quality cards open filtered Account Review evidence, not a second Diagnostics implementation. Ordinary navbar navigation retains existing list
 filters. Browser Back/Forward uses the existing view-history provider.
 
 The dashboard summarizes data quality. Detailed technical health remains under
-Application & Diagnostics; import counts/history live under Data Sources, and
+Health & Diagnostics; import counts/history live under Data Sources, and
 Features contains preferences plus compact availability only.
 
 ## Shared notifications
@@ -99,3 +97,22 @@ retain their actionable recovery buttons and established status semantics.
 
 Automated Chromium screenshots cover both themes at 375, 800 and 1280 pixels.
 They do not replace Windows/WebView2, native file-dialog or UNC-share validation.
+
+## Operational overview and review links
+
+Overview prioritizes SAP users, Catalogue roles, Release roles and Role/T-code
+mappings. User Access groups users-with-assignments, assignment records and supported
+account-review findings. Access Lifecycle owns expired/future **assignment** totals:
+these are not inherently data-quality failures. Data Quality presents matched SAP
+identities, missing/ambiguous matches and an accessible progress indicator/count/
+one-decimal percentage (243 of 259 = 93.8%). Unavailable coverage is not zero.
+Configuration stays secondary with source state, enabled areas and last successful
+refresh. No historical trends or licensing savings are inferred.
+
+Matching/review KPI actions open filtered **User Access → Account Review**. Missing
+matches selects the directory-match finding; matched identities selects reliably
+matched rows; review findings selects accounts requiring investigation. Source
+configuration actions still open Data Sources directly. Release role KPI includes
+all imported validity states and opens the ordinary currently-valid view, explained
+by its context; lifecycle totals do not silently apply account-validity filters to
+assignment evidence. See [Account Review](ACCOUNT_REVIEW.md).

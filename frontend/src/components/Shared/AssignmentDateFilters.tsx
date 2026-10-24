@@ -24,10 +24,10 @@ const fields = [
   'valid_to_max',
 ] as const
 const labels = {
-  valid_from_min: 'Valid from earliest',
-  valid_from_max: 'Valid from latest',
-  valid_to_min: 'Valid to earliest',
-  valid_to_max: 'Valid to latest',
+  valid_from_min: 'Start date from',
+  valid_from_max: 'Start date to',
+  valid_to_min: 'End date from',
+  valid_to_max: 'End date to',
 }
 export const dateParams = (dates: AssignmentDates): Record<string, string> => ({
   ...Object.fromEntries(
@@ -137,20 +137,42 @@ export function AssignmentDateFilters({
             }
           }}
         >
-          <details className="assignment-date-advanced"><summary>Advanced interval filtering</summary>
-          <div className="date-input-grid">
-            {fields.map((key) => (
-              <NorwegianDateInput
-                key={key}
-                label={labels[key]}
-                value={draft[key]}
-                onChange={(text) => {
-                  setDraft((previous) => ({ ...previous, [key]: text }))
-                  setError('')
-                }}
-              />
-            ))}
-          </div>
+          <details className="assignment-date-advanced">
+            <summary>Advanced interval filtering</summary>
+            <div className="assignment-date-groups">
+              {(
+                [
+                  [
+                    'Valid from — Assignment start date',
+                    'When did the assignment begin?',
+                    fields.slice(0, 2),
+                  ],
+                  [
+                    'Valid to — Assignment end date',
+                    'When does the assignment expire?',
+                    fields.slice(2),
+                  ],
+                ] as const
+              ).map(([title, description, keys]) => (
+                <fieldset key={title}>
+                  <legend>{title}</legend>
+                  <p className="text-xs text-[var(--muted)]">{description}</p>
+                  <div className="date-input-grid">
+                    {keys.map((key) => (
+                      <NorwegianDateInput
+                        key={key}
+                        label={labels[key]}
+                        value={draft[key]}
+                        onChange={(text) => {
+                          setDraft((previous) => ({ ...previous, [key]: text }))
+                          setError('')
+                        }}
+                      />
+                    ))}
+                  </div>
+                </fieldset>
+              ))}
+            </div>
           </details>
           <label className="filter-toggle">
             <input
