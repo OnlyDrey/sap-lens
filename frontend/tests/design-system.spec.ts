@@ -73,7 +73,7 @@ test('compact navbar has labeled icon utilities, focus tooltips and refresh feed
     .getByRole('button', { name: 'Refresh role data from CSV', exact: true })
     .click()
   await expect(
-    page.getByText('Data refreshed successfully.', { exact: true }),
+    page.getByText('All data is up to date', { exact: true }),
   ).toBeVisible()
   await nav(page, 'Dashboard')
   await expect(
@@ -143,12 +143,21 @@ test('Account Review keeps investigation controls across secondary navigation an
   await expect(
     page.getByLabel('Sort account reviews', { exact: true }),
   ).toHaveValue('name')
-  await nav(page,'Dashboard')
-  await page.getByRole('button',{name:'Accounts requiring review',exact:true}).click()
-  await expect(page.getByLabel('Search account reviews',{exact:true})).toHaveValue('')
-  await expect(page.getByLabel('Sort account reviews',{exact:true})).toHaveValue('username')
-  await page.goBack();await page.goBack()
-  await expect(page.getByLabel('Search account reviews',{exact:true})).toHaveValue('Alpha')
+  await nav(page, 'Dashboard')
+  await page
+    .getByRole('button', { name: 'Accounts requiring review', exact: true })
+    .click()
+  await expect(
+    page.getByLabel('Search account reviews', { exact: true }),
+  ).toHaveValue('')
+  await expect(
+    page.getByLabel('Sort account reviews', { exact: true }),
+  ).toHaveValue('username')
+  await page.goBack()
+  await page.goBack()
+  await expect(
+    page.getByLabel('Search account reviews', { exact: true }),
+  ).toHaveValue('Alpha')
 })
 
 test('role content tabs have keyboard semantics and associated assignment panel', async ({
@@ -234,6 +243,22 @@ test('component library previews are isolated, interactive and use canonical com
   await page.keyboard.press('Escape')
   await expect(popover).toHaveCount(0)
   await expect(popoverTrigger).toBeFocused()
+  const dialogTrigger = preview.getByRole('button', {
+    name: 'Open demo dialog',
+    exact: true,
+  })
+  await dialogTrigger.click()
+  const demoDialog = page.getByRole('dialog', {
+    name: 'Isolated component dialog',
+    exact: true,
+  })
+  await expect(demoDialog).toBeFocused()
+  await demoDialog
+    .getByRole('textbox', { name: 'Demo dialog input', exact: true })
+    .fill('Synthetic only')
+  await page.keyboard.press('Escape')
+  await expect(demoDialog).toHaveCount(0)
+  await expect(dialogTrigger).toBeFocused()
   await preview
     .getByRole('button', { name: 'Saved filters', exact: true })
     .click()

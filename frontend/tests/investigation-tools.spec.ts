@@ -176,6 +176,76 @@ test('user selectors search alternate SAP email observations without guessing id
   ).toBeVisible()
 })
 
+test('comparison metrics filter results, sorting persists and expandable evidence preserves intervals', async ({
+  page,
+}) => {
+  await page.goto('/#session=browser-test-session')
+  await comparison(page)
+  await choose(page, 'User A', 'DEMO_A')
+  await choose(page, 'User B', 'DEMO_B')
+  const summary = page.getByLabel('Comparison summary', { exact: true })
+  await summary.getByRole('button', { name: /Shared roles/ }).click()
+  await expect(page.getByLabel('Differences', { exact: true })).toHaveValue(
+    'shared',
+  )
+  const table = page.getByRole('table', {
+    name: 'User comparison evidence',
+    exact: true,
+  })
+  await expect(table.locator('tbody>tr')).toHaveCount(1)
+  await page
+    .getByRole('button', { name: 'Clear comparison difference', exact: true })
+    .click()
+  await expect(table.locator('tbody>tr')).toHaveCount(2)
+  await page.getByLabel('Sort comparison', { exact: true }).selectOption('a')
+  await page.getByLabel('Descending comparison', { exact: true }).check()
+  await expect(table.locator('tbody>tr').first()).toContainText('ZC:SHARED:ENP')
+  const evidence = page.getByRole('region', {
+    name: 'User A evidence for ZC:SHARED:ENP',
+    exact: true,
+  })
+  await expect(evidence).toBeHidden()
+  await page
+    .getByLabel('Show evidence for ZC:SHARED:ENP', { exact: true })
+    .click()
+  await expect(evidence).toBeVisible()
+  await expect(evidence).toContainText('01.01.2000 → 31.12.9999')
+  await expect(evidence).toContainText('01.01.2001 → 31.12.9999')
+  await page.getByRole('button', { name: 'Open User A', exact: true }).click()
+  await page.goBack()
+  await expect(page.getByLabel('Sort comparison', { exact: true })).toHaveValue(
+    'a',
+  )
+  await expect(
+    page.getByLabel('Descending comparison', { exact: true }),
+  ).toBeChecked()
+  await openSaved(page, 'comparison')
+  const menu = saved(page, 'comparison')
+  await menu
+    .getByLabel('Saved filter name', { exact: true })
+    .fill('Evidence count order')
+  await menu.getByRole('button', { name: 'Save as new', exact: true }).click()
+  await expect(menu).toContainText('Saved filters updated.')
+  await page.keyboard.press('Escape')
+  await page
+    .getByLabel('Sort comparison', { exact: true })
+    .selectOption('identifier')
+  await page.getByLabel('Descending comparison', { exact: true }).uncheck()
+  await openSaved(page, 'comparison')
+  await menu.getByRole('button', { name: 'Load', exact: true }).click()
+  await expect(page.getByLabel('Sort comparison', { exact: true })).toHaveValue(
+    'a',
+  )
+  await expect(
+    page.getByLabel('Descending comparison', { exact: true }),
+  ).toBeChecked()
+  await expect(menu).toContainText('Saved filter applied to the current data.')
+  await page.keyboard.press('Escape')
+  await expect(
+    page.getByRole('button', { name: /Saved filters · Evidence count order/ }),
+  ).not.toContainText('Modified')
+})
+
 test('same user is excluded and no-assignment user has an honest empty state', async ({
   page,
 }) => {
@@ -361,6 +431,9 @@ test('paged comparison evidence rejects a different source generation', async ({
       json: { ...(await response.json()), data_revision: 'changed-generation' },
     })
   })
+  await page
+    .getByLabel('Show evidence for ZC:SHARED:ENP', { exact: true })
+    .click()
   await page
     .getByRole('navigation', {
       name: 'ZC:SHARED:ENP User A evidence',

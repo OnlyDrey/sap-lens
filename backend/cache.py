@@ -1,6 +1,7 @@
 """Atomic data generations; parsing/previews never silently rewrite role relationships."""
 import logging
 import threading
+from copy import copy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,6 +18,11 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class _CacheState:
+    directory: object | None = None
+    directory_bound: bool = False
+    directory_snapshot_id: str | None = None
+    directory_source_path: str = ''
+    source_records: list = field(default_factory=list)
     roles: dict[str, RoleDetail] = field(default_factory=dict)
     modules: list[ModuleInfo] = field(default_factory=list)
     last_loaded: datetime | None = None
@@ -32,7 +38,7 @@ _cache = _CacheState()
 _load_lock = threading.Lock()
 
 
-def _build_catalog(path=None, configuration=None):
+def _build_catalog(path=None, configuration=None, records=None, report=None):
     settings = configuration or get_settings()
     csv_path = path if path is not None else settings.data_csv_path
     if not csv_path or '://' in csv_path: raise ValueError('Choose a filesystem CSV in Settings.')
@@ -41,7 +47,9 @@ def _build_catalog(path=None, configuration=None):
     raw = {}
     assignments = set()
     warnings = []
-    for row in parser.records():
+    source_records = []
+    for row in parser.records() if records is None else records:
+        source_records.append(row)
         name = row['AGR_NAME']
         data = raw.setdefault(name, dict(text=row['TEXT'] or None, modules=[], singles={}, relationships=set(), texts=set()))
         if row['FUNCTION_KEY'] and row['FUNCTION_KEY'] not in data['modules']: data['modules'].append(row['FUNCTION_KEY'])
@@ -102,14 +110,14 @@ def _build_catalog(path=None, configuration=None):
             index.setdefault(code.upper(),set()).add(name)
     if any(r.alternate_descriptions or any(s.alternate_descriptions for s in r.single_roles) for r in roles.values()):
         warnings.append('Conflicting role descriptions are retained as alternate descriptions.')
-    report = parser.report()
+    report = parser.report() if report is None else dict(report)
     report.update(unique_roles=len(roles), unique_transactions=len(transaction_codes),transaction_assignments=len(assignments),
                   relationship_count=sum(len(r.relationships) for r in roles.values()),analysis=analysis)
     report['warnings'] = list(dict.fromkeys([*report['warnings'],*warnings]))
     report['count_definitions'] = dict(parsed_rows='Logical CSV records before blank/duplicate filtering',
         transaction_assignments='Distinct composite/child/parent/effective-role/T-code tuples',
         unique_transactions='Distinct source transaction spellings; search remains case-insensitive',unique_roles='Distinct AGR_NAME composites')
-    return _CacheState(roles=roles,summaries=summaries,modules=sorted(module_infos.values(),key=lambda m:m.function_key),
+    return _CacheState(source_records=source_records,roles=roles,summaries=summaries,modules=sorted(module_infos.values(),key=lambda m:m.function_key),
                        last_loaded=datetime.now(timezone.utc),tcode_index=index,import_report=report,analysis=analysis)
 
 
@@ -165,6 +173,14 @@ def clear_cache():
 
 
 def get_snapshot(): return _cache
+
+
+def with_directory(state, directory, path, identity):
+    """Bind enrichment to the same immutable SAP generation before publication."""
+    state = copy(state)
+    state.directory, state.directory_bound = directory, True
+    state.directory_source_path, state.directory_snapshot_id = path, identity
+    return state
 
 def get_role_detail(name): return _cache.roles.get(name)
 

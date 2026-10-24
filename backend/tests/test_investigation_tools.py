@@ -56,6 +56,17 @@ class InvestigationTools(unittest.TestCase):
         self.assertEqual(rows['FB03']['difference'],'shared');self.assertEqual(set(rows['FB03']['a']),{'ZC:SHARED:ENP','ZC:ONLY_A'})
         self.assertEqual(rows['ME23N']['difference'],'a')
         self.assertEqual(r['summary']['transactions'],dict(shared=1,a=1,b=0))
+    def test_comparison_sorting_is_stable_and_does_not_change_evidence(self):
+        original=self.compare()
+        sorted_rows=self.compare(sort='a',descending=True,limit=1)
+        self.assertEqual(sorted_rows['items'][0]['identifier'],'ZC:SHARED:ENP')
+        self.assertEqual(sorted_rows['items'][0]['a_total'],2)
+        self.assertEqual(sorted_rows['summary'],original['summary'])
+        identifiers=[]
+        for offset in range(original['total']):
+            identifiers.append(self.compare(sort='difference',descending=True,offset=offset,limit=1)['items'][0]['identifier'])
+        self.assertEqual(len(identifiers),len(set(identifiers)))
+        self.assertEqual(set(identifiers),{row['identifier'] for row in original['items']})
     def test_validity_filters_not_historical_current_access(self):
         self.assertEqual(self.compare(validity='expired')['items'][0]['identifier'],'ZC:HIST')
         self.assertEqual(self.compare(validity='future')['items'][0]['identifier'],'ZC:FUTURE')

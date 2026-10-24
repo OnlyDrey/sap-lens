@@ -105,3 +105,7 @@ and [local Windows testing](LOCAL_WINDOWS_BUILD.md).
 ## Component Library
 
 Settings → APPLICATION → Component Library contains interactive previews of the real shared controls, navigation, tables and SAP status components. Previews use synthetic identities and isolated memory, including saved-filter management, and cannot alter imports or persisted settings. See [Component Library](COMPONENT_LIBRARY.md) and the [design system](DESIGN_SYSTEM.md).
+
+## CSV modes and retained refresh evidence
+
+Each source can be Static (manual replacement) or Dynamic (Global Refresh rereads its configured path). Role/user sources default to Dynamic; Employee Directory defaults to Static. Validated observations now have durable local snapshots, separate from original CSV availability. See [CSV data lifecycle](CSV_DATA_LIFECYCLE.md) for replacement semantics, recovery, feature dependencies, preview and private change/error reports.

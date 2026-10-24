@@ -219,7 +219,7 @@ class DesktopTests(unittest.TestCase):
 
         self.gui_session = window
         try:
-            with patch('cache.load_cache', side_effect=stalled):
+            with patch('csv_lifecycle.load', side_effect=stalled):
                 self.assertEqual(desktop.run(), 0)
                 self.assertFalse(read_finished.is_set(), 'Shutdown waited for the stalled CSV reader')
         finally:
@@ -329,6 +329,20 @@ class DesktopTests(unittest.TestCase):
             self.assertFalse(bridge.save_user_access_csv('synthetic-capability', filename, content))
         finally:
             bridge._picker_lock.release()
+
+    def test_change_report_save_reuses_guarded_dialog_with_its_own_csv_contract(self):
+        bridge=desktop.NativeDialogs('synthetic-capability');bridge._window=self.window
+        filename='sap-lens-refresh-changes-report-2026-10-23.csv'
+        content='\ufeff"Timestamp","Source","Change","Identifier","Field","Before","After"\r\n"2026-10-23","Employee Directory","modified","DEMO","Name","Example","Synthetïc"\r\n'
+        with self.assertRaises(ValueError):bridge.save_refresh_changes_csv('wrong',filename,content)
+        with self.assertRaises(ValueError):bridge.save_refresh_changes_csv('synthetic-capability','../'+filename,content)
+        with self.assertRaises(ValueError):bridge.save_refresh_changes_csv('synthetic-capability',filename,'\ufeff"Username","User group",')
+        with self.assertRaises(ValueError):bridge.save_user_access_csv('synthetic-capability',filename,content)
+        self.window.create_file_dialog.return_value=None
+        self.assertFalse(bridge.save_refresh_changes_csv('synthetic-capability',filename,content))
+        target=self.root/'Synthetïc changes.csv';self.window.create_file_dialog.return_value=[str(target)]
+        self.assertTrue(bridge.save_refresh_changes_csv('synthetic-capability',filename,content))
+        self.assertEqual(target.read_bytes(),content.encode('utf-8'))
 
     def test_startup_close_and_log_actions_require_capability(self):
         bridge=desktop.NativeDialogs('synthetic-capability');bridge._window=self.window

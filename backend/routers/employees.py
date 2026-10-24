@@ -1,5 +1,8 @@
 """Session-protected directory APIs; optional failures never change SAP source data."""
 from collections import Counter
+from typing import Literal
+import threading
+import time
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import Field
 import cache
@@ -16,12 +19,27 @@ class ImportRequest(StrictModel):
     path: str = Field(min_length=1, max_length=4096)
     digest: str | None = Field(default=None, pattern=r'^[a-f0-9]{64}$')
     revision: int = Field(ge=0)
+    mode: Literal['static', 'dynamic'] | None = None
+    offset: int = Field(default=0, ge=0)
+    limit: int = Field(default=25, ge=1, le=100)
+    search: str = Field(default='', max_length=256)
+    filter: Literal['', 'missing_email', 'duplicate_email', 'missing_identifier', 'duplicate_identifier', 'missing_manager', 'ambiguous_manager', 'matched', 'unmatched'] = ''
+    sort: Literal['name', 'email', 'department', 'manager'] = 'name'
+    descending: bool = False
+
+
+_previews = {}
+_preview_lock = threading.Lock()
+_coverage_lock = threading.Lock()
+_coverage_key = None
+_coverage_value = None
 
 
 def directory_status(private=False, snapshot=None):
+    global _coverage_key, _coverage_value
     settings = get_settings()
     snapshot = snapshot or cache.get_snapshot()
-    directory = store.get(settings.employee_csv_path, settings.employee_snapshot_id) if settings.employee_snapshot_id or settings.features.employee_directory else store.directory
+    directory = snapshot.directory if snapshot.directory_bound else store.get(settings.employee_csv_path, settings.employee_snapshot_id) if settings.employee_snapshot_id or settings.features.employee_directory else store.directory
     enabled = settings.features.employee_directory
     status = ('disabled' if not enabled else 'not_configured' if not (settings.employee_csv_path or settings.employee_snapshot_id) else
               'error' if store.error or store.import_error else 'healthy' if directory else 'warning')
@@ -30,10 +48,14 @@ def directory_status(private=False, snapshot=None):
     user_mapping_enabled = settings.features.user_role_mapping
     user_mapping_available = user_mapping_enabled and bool(snapshot.users.report)
     if enabled and directory and user_mapping_available:
-        owners = sap_email_owners(snapshot.users.users.values())
-        for user in snapshot.users.users.values():
-            coverage[match_sap_identity(directory, user, owners)['status']] += 1
-    if status == 'healthy' and (report.get('duplicate_emails') or report.get('missing_emails') or
+        key = (id(snapshot), snapshot.last_loaded, directory.digest)
+        with _coverage_lock:
+            if key != _coverage_key:
+                owners = sap_email_owners(snapshot.users.users.values())
+                value = Counter(match_sap_identity(directory, user, owners)['status'] for user in snapshot.users.users.values())
+                _coverage_key, _coverage_value = key, value
+            coverage.update(_coverage_value)
+    if status == 'healthy' and (report.get('duplicate_emails') or report.get('missing_emails') or report.get('missing_identifiers') or any(report.get('duplicate_identifiers',{}).values()) or
                                 any(report.get('managers', {}).get(k) for k in ['ambiguous', 'unresolved', 'self_reference'])):
         status = 'warning'
     if not private: report.pop('file_name', None)
@@ -46,12 +68,20 @@ def directory_status(private=False, snapshot=None):
                 coverage_reason=('Enable Employee Directory in Feature Settings.' if not enabled else 'Import directory records first.' if not directory else 'Enable User–Role Mapping in Feature Settings to evaluate SAP email matches.' if not user_mapping_enabled else 'Load the User Access CSV to evaluate SAP email matches.' if not user_mapping_available else 'The User Access CSV contains no SAP users.' if not coverage else ''),
                 coverage_total=sum(coverage.values()),
                 dependency_satisfied=user_mapping_available, user_mapping_enabled=user_mapping_enabled,
-                mapping_data_available=bool(snapshot.users.report), user_mapping_available=user_mapping_available, action='Settings → Data Sources → Employee Directory')
+                mapping_data_available=bool(snapshot.users.report), user_mapping_available=user_mapping_available,
+                directory_operational=bool(enabled and directory),
+                enrichment=dict(enabled=bool(enabled and user_mapping_enabled),
+                                available=bool(directory and snapshot.users.report),
+                                operational=bool(enabled and directory and user_mapping_available),
+                                dependencies=['user_role_mapping', 'employee_directory']),
+                action='Settings → Data Sources → Employee Directory')
 
 
-def available():
+def available(snapshot=None):
     settings = get_settings()
     if not settings.features.employee_directory: return None
+    snapshot = snapshot or cache.get_snapshot()
+    if snapshot.directory_bound: return snapshot.directory
     return store.get(settings.employee_csv_path, settings.employee_snapshot_id)
 
 
@@ -70,8 +100,21 @@ async def parsed(request):
 
 @router.post('/preview')
 async def preview(request: ImportRequest):
-    directory = await parsed(request)
-    return dict(**directory.report(), digest=directory.digest, samples=[directory.view(r) for r in directory.rows[:5]])
+    key = (request.path, request.digest, request.revision)
+    with _preview_lock:
+        cached = _previews.get(key) if request.digest else None
+    directory = cached[1] if cached and time.monotonic() - cached[0] < 600 else await parsed(request)
+    if request.digest and directory.digest != request.digest:
+        raise HTTPException(409, 'Preview source changed. Validate the CSV again.')
+    with _preview_lock:
+        if len(_previews) >= 2:
+            _previews.pop(next(iter(_previews)))
+        _previews[(request.path, directory.digest, request.revision)] = (time.monotonic(), directory)
+    settings = get_settings()
+    snapshot = cache.get_snapshot()
+    previous = snapshot.directory if snapshot.directory_bound else store.get(settings.employee_csv_path, settings.employee_snapshot_id)
+    from employee_preview import preview_page
+    return await daemon_call(preview_page, directory, previous, snapshot, settings, request)
 
 
 @router.post('/import')
@@ -79,7 +122,7 @@ async def import_directory(request: ImportRequest):
     directory = await parsed(request)
     if not request.digest or directory.digest != request.digest:
         raise HTTPException(409, 'The CSV changed or has not been previewed. Preview it again before confirmation.')
-    with store.lock:
+    with cache._load_lock, store.lock:
         settings = get_settings().model_copy(deep=True)
         if settings.revision != request.revision:
             raise HTTPException(409, 'Settings changed. Reload before importing.')
@@ -89,6 +132,7 @@ async def import_directory(request: ImportRequest):
             staged_id = persist_directory(directory)
             settings.employee_csv_path = request.path
             settings.employee_snapshot_id = staged_id
+            if request.mode is not None: settings.source_modes.employees = request.mode
             save_configuration(settings, request.revision)
         except (ValueError, OSError):
             if staged_id and staged_id != previous_id:
@@ -99,6 +143,10 @@ async def import_directory(request: ImportRequest):
         store.generation += 1
         store.directory, store.path, store.attempted_path, store.error = directory, request.path, ('snapshot', staged_id), None
         store.import_error = None
+        published = cache.with_directory(cache.get_snapshot(), directory, request.path, staged_id)
+        from datetime import datetime, timezone
+        published.last_loaded = datetime.now(timezone.utc)
+        cache._cache = published
     result = directory_status(private=True)
     if previous_id and previous_id != staged_id:
         try: discard_snapshot(previous_id)
@@ -108,7 +156,7 @@ async def import_directory(request: ImportRequest):
 
 @router.post('/clear')
 def clear(request: ImportRequest):
-    with store.lock:
+    with cache._load_lock, store.lock:
         settings = get_settings().model_copy(deep=True)
         if settings.revision != request.revision: raise HTTPException(409, 'Settings changed. Reload before clearing.')
         previous_id = settings.employee_snapshot_id
@@ -117,6 +165,10 @@ def clear(request: ImportRequest):
         try: save_configuration(settings, request.revision)
         except (ValueError, OSError): raise HTTPException(409, 'Directory could not be cleared. Previous data retained.') from None
         store.clear()
+        published = cache.with_directory(cache.get_snapshot(), None, '', None)
+        from datetime import datetime, timezone
+        published.last_loaded = datetime.now(timezone.utc)
+        cache._cache = published
     warning = None
     try: discard_snapshot(previous_id)
     except OSError: warning = 'Source cleared, but the private snapshot could not be removed. Review local application storage.'
@@ -125,11 +177,11 @@ def clear(request: ImportRequest):
 
 @router.get('/match/{username:path}')
 def match_user(username: str):
-    directory = available()
-    if directory is None: return dict(status='directory_unavailable', employee=None)
-    if not get_settings().features.user_role_mapping or not cache.get_snapshot().users.report:
-        return dict(status='mapping_unavailable', employee=None)
     snapshot = cache.get_snapshot()
+    directory = available(snapshot)
+    if directory is None: return dict(status='directory_unavailable', employee=None)
+    if not get_settings().features.user_role_mapping or not snapshot.users.report:
+        return dict(status='mapping_unavailable', employee=None)
     user = snapshot.users.users.get(normalize_username(username))
     if user is None: raise HTTPException(404, 'SAP user not found.')
     result = match_sap_identity(directory, user, sap_email_owners(snapshot.users.users.values()))
@@ -178,7 +230,7 @@ class PersistRequest(StrictModel):
 @router.post('/persist')
 def persist_current(request: PersistRequest):
     """Recover already validated legacy records without rereading a missing CSV."""
-    with store.lock:
+    with cache._load_lock, store.lock:
         settings = get_settings().model_copy(deep=True)
         directory = store.directory
         if settings.revision != request.revision or not directory or directory.digest != request.digest or store.path != settings.employee_csv_path:
@@ -195,4 +247,5 @@ def persist_current(request: PersistRequest):
             raise HTTPException(409, 'Durable storage could not be saved. Validated in-memory records are retained; check local storage permissions.') from None
         store.attempted_path = ('snapshot', staged)
         store.error = None
+        cache._cache = cache.with_directory(cache.get_snapshot(), directory, settings.employee_csv_path, staged)
     return directory_status(private=True)

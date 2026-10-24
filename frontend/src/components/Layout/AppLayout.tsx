@@ -1,4 +1,5 @@
 import { IconButton } from '@/components/Shared/Button'
+import { RefreshBanner } from '@/components/Shared/RefreshReport'
 import { useApplicationData } from '@/state/ApplicationData'
 import { Notification } from '@/components/Shared/Notification'
 import { useHistoryValue } from '@/hooks/useViewHistory'
@@ -54,15 +55,12 @@ export function AppLayout({
   const [err, setErr] = useState<string | null>(null)
 
   const refreshLock=useRef(false)
-  const [refreshComplete,setRefreshComplete]=useState(false)
   const handleRefresh = async () => {
     if(refreshLock.current||busy)return
     refreshLock.current=true
-    setRefreshComplete(false)
     setErr(null)
     try {
       await dataState.refresh()
-      setRefreshComplete(true)
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Refresh failed')
     } finally {refreshLock.current=false}
@@ -129,7 +127,6 @@ export function AppLayout({
           </div>
         </div>
 
-        {refreshComplete && <Notification variant="success" onDismiss={()=>setRefreshComplete(false)}>Data refreshed successfully.</Notification>}
         {savedFeedback && <Notification variant="success" onDismiss={()=>setSavedFeedback(false)}>Settings saved successfully.</Notification>}
         {err && <Notification variant="error" onDismiss={()=>setErr(null)}>{err}</Notification>}
       </header>
@@ -171,7 +168,7 @@ export function AppLayout({
       </div>}
       {dataState.loading && !configurationQuery.isError && !settingsOpen && <div role="status" className="service-notice">
         <Loader2 size={20} className="animate-spin shrink-0" aria-hidden="true"/>
-        <div><h2 className="font-semibold">Loading CSV data…</h2><p className="text-sm text-[var(--muted)]">Previous data remains visible until both sources are loaded. Review or cancel a slow read in Settings.</p></div>
+        <div><h2 className="font-semibold">Loading CSV data…</h2><p className="text-sm text-[var(--muted)]">Previous data remains visible while replacements are validated. Review or cancel a slow read in Settings.</p></div>
         <button className="settings-secondary-button" onClick={reviewDataSource}>Review data source</button>
       </div>}
       <main
@@ -182,6 +179,7 @@ export function AppLayout({
         }
         id="main-content" tabIndex={-1}
       >
+        {dataState.report&&<RefreshBanner report={dataState.report} onDismiss={dataState.dismissReport}/>}
         {children}
       </main>
 

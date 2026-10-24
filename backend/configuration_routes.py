@@ -48,13 +48,18 @@ def configuration_router(loader):
         try:
             current = get_settings()
             validate_configuration(config,current)
+            if config.data_lifecycle != current.data_lifecycle:
+                raise HTTPException(409, 'Dataset metadata changed. Reload Settings before saving.')
+            config.data_lifecycle = config.data_lifecycle.model_copy(deep=True)
+            if not config.data_csv_path: config.data_lifecycle.sources.pop('roles',None)
+            if not config.user_csv_path: config.data_lifecycle.sources.pop('users',None)
             if config.employee_snapshot_id and config.employee_snapshot_id != current.employee_snapshot_id:
                 raise HTTPException(400, 'Import directory records through the validated import workflow.')
             if config.employee_csv_path and config.employee_csv_path != current.employee_csv_path:
                 raise HTTPException(400, 'Preview and confirm Employee Directory replacements in Data Sources.')
             if config.revision != current.revision or expected != current.revision:
                 raise HTTPException(409,'Settings changed. Reload before applying your edits.')
-            analysis_fields = ['data_csv_path','import_profiles','active_import','user_csv_path','user_import_profiles','active_user_import','module_overrides']
+            analysis_fields = ['data_csv_path','import_profiles','active_import','user_csv_path','user_import_profiles','active_user_import','module_overrides','source_modes']
             changed = any(getattr(config,k) != getattr(current,k) for k in analysis_fields)
             # Profile versions increase automatically on content changes.
             for field in ['import_profiles','user_import_profiles']:
@@ -63,7 +68,7 @@ def configuration_router(loader):
                     if p.id in old and p.model_dump(exclude={'version'}) != old[p.id].model_dump(exclude={'version'}):
                         p.version = max(p.version,old[p.id].version+1)
             if changed and (config.data_csv_path or config.user_csv_path):
-                await loader.load(config.data_csv_path, configuration=config.model_copy(update={'revision':expected+1}), commit=lambda:save_configuration(config,expected))
+                await loader.load(configuration=config)
             else:
                 if changed and not (config.data_csv_path or config.user_csv_path): loader.cancel()
                 save_configuration(config,expected)
@@ -122,13 +127,14 @@ def configuration_router(loader):
         except (OSError,ValueError): raise HTTPException(400,'Invalid configuration package or logo; nothing was applied.')
         candidate.employee_csv_path = get_settings().employee_csv_path
         candidate.employee_snapshot_id = get_settings().employee_snapshot_id
+        candidate.data_lifecycle = get_settings().data_lifecycle.model_copy(deep=True)
         candidate.revision = get_settings().revision
         return await apply(candidate,candidate.revision)
 
     @router.post('/configuration/reset')
     async def reset():
         current = get_settings()
-        return await apply(AppConfig(revision=current.revision),current.revision)
+        return await apply(AppConfig(revision=current.revision, data_lifecycle=current.data_lifecycle.model_copy(deep=True)),current.revision)
 
     @router.get('/registry/modules')
     def registry():
@@ -161,7 +167,7 @@ def configuration_router(loader):
         config = get_settings().model_copy(deep=True)
         if request.profile:
             config.import_profiles = [request.profile]; config.active_import = request.profile.id
-        try: return (await daemon_call(cache.build_cache,request.data_csv_path,config)).import_report
+        try: return (await daemon_call(cache._build_catalog,request.data_csv_path,config)).import_report
         except HTTPException: raise
         except Exception:
             # All CSV/encoding/parser failures are user-facing validation failures.

@@ -10,12 +10,15 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchConfiguration } from '@/api/configuration'
 import { refreshData } from '@/api/client'
+import type { RefreshSummary } from '@/components/Shared/RefreshReport'
 
 const Context = createContext<{
   loading: boolean
   refresh: () => Promise<void>
   lastLoaded: string | null
-}>({ loading: false, refresh: async () => {}, lastLoaded: null })
+  report: RefreshSummary | null
+  dismissReport: () => void
+}>({ loading: false, refresh: async () => {}, lastLoaded: null, report:null,dismissReport:()=>{} })
 const isDatasetQuery = (query: { queryKey: readonly unknown[] }) =>
   !['configuration', 'logo', 'application-version', 'application-info'].includes(
     String(query.queryKey[0]),
@@ -27,6 +30,7 @@ export function ApplicationDataProvider({ children }: { children: ReactNode }) {
   const [refreshing, setRefreshing] = useState(false),
     [synchronizing, setSynchronizing] = useState(false)
   const running = useRef(false)
+  const [report,setReport]=useState<RefreshSummary|null>(null)
   const configuration = useQuery({
     queryKey: ['configuration'],
     queryFn: fetchConfiguration,
@@ -63,13 +67,15 @@ export function ApplicationDataProvider({ children }: { children: ReactNode }) {
     running.current = true
     setRefreshing(true)
     try {
-      await refreshData()
+      const result=await refreshData()
+      setReport(result.refresh || {id:null,timestamp:new Date().toISOString(),status:'unchanged',checked:0,updated:0,unchanged:0,failed:0,skipped:0,sources:[]})
       const data = await qc.fetchQuery({
         queryKey: ['configuration'],
         queryFn: fetchConfiguration,
         staleTime: 0,
       })
       await synchronize(data.data_revision ?? JSON.stringify(data.analysis))
+      await qc.invalidateQueries({predicate:q=>['dashboard','diagnostics','refresh-history','employee-status','data-health'].includes(String(q.queryKey[0]))})
     } finally {
       running.current = false
       setRefreshing(false)
@@ -83,6 +89,8 @@ export function ApplicationDataProvider({ children }: { children: ReactNode }) {
         loading:
           refreshing || synchronizing || Boolean(configuration.data?.loading),
         refresh,
+        report,
+        dismissReport:()=>setReport(null),
         lastLoaded:
           configuration.data?.data_revision &&
           configuration.data.data_revision !== 'empty'

@@ -88,8 +88,8 @@ export async function compareRoles(
   return data
 }
 
-export async function refreshData(): Promise<HealthResponse> {
-  const { data } = await apiClient.post<HealthResponse>('/api/refresh')
+export async function refreshData(): Promise<HealthResponse & {refresh?: import('@/components/Shared/RefreshReport').RefreshSummary}> {
+  const { data } = await apiClient.post<HealthResponse & {refresh?: import('@/components/Shared/RefreshReport').RefreshSummary}>('/api/refresh')
   return data
 }
 

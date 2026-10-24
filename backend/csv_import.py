@@ -58,7 +58,9 @@ class CsvImport:
         return dict(detected_columns=headers,delimiter=delimiter,encoding=encoding,proposed_mapping=proposed,issues=issues)
 
     def records(self):
-        if self.path.stat().st_size > MAX_BYTES: raise AnalysisValidationError('CSV exceeds the 128 MiB safety limit.')
+        initial = self.path.stat()
+        signature = lambda stat: (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
+        if initial.st_size > MAX_BYTES: raise AnalysisValidationError('CSV exceeds the 128 MiB safety limit.')
         with self.path.open('rb') as raw: bom = raw.read(3)
         encoding = self.profile.encoding
         if encoding == 'auto':
@@ -108,6 +110,8 @@ class CsvImport:
                 yield row
             if self.duplicate_rows: self.warnings.append(f'{self.duplicate_rows} identical duplicate records were deduplicated.')
             if self.blank_rows: self.warnings.append(f'{self.blank_rows} empty records were ignored.')
+        if signature(self.path.stat()) != signature(initial):
+            raise AnalysisValidationError('The CSV changed while being read. Wait for its export to finish and retry; previous data is retained.')
 
     def report(self):
         return dict(file_name=self.path.name, import_profile=self.profile.id, import_version=self.profile.version,

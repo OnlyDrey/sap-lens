@@ -75,6 +75,7 @@ def comparison(user_a: str = Query(..., min_length=1, max_length=512), user_b: s
                validity: Literal['active','expired','future','unknown','all'] = 'active',
                kind: Literal['roles','transactions'] = 'roles', difference: Literal['','shared','a','b'] = '',
                search: str = Query('', max_length=256), area: str = Query('', max_length=256),
+               sort: Literal['identifier','difference','a','b'] = 'identifier', descending: bool = False,
                offset: int = Query(0, ge=0), limit: int = Query(25, ge=1, le=100)):
     snapshot = cache.get_snapshot()
     result = compare(snapshot, user_a, user_b, validity)
@@ -83,7 +84,7 @@ def comparison(user_a: str = Query(..., min_length=1, max_length=512), user_b: s
     areas = sorted({a for r in result['roles'].values() for a in r['areas']})
     term = search.strip().casefold()
     rows = [r for r in rows if (not difference or r['difference']==difference) and (not area or area in r['areas']) and (not term or term in (r['identifier']+' '+r.get('description','')).casefold())]
-    rows.sort(key=lambda r:r['identifier'])
+    rows.sort(key=lambda r:(len(r[sort]) if sort in {'a','b'} else r[sort], r['identifier']), reverse=descending)
     bounded=[{**r, 'a':r['a'][:25], 'b':r['b'][:25], 'a_total':len(r['a']), 'b_total':len(r['b'])} for r in rows[offset:offset+limit]]
     return dict(items=bounded,total=len(rows),offset=offset,limit=limit, users=result['users'], summary=summaries, areas=areas,
                 catalogue_available=bool(snapshot.roles), as_of=date.today().isoformat(),

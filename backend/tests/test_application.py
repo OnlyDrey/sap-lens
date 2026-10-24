@@ -87,7 +87,7 @@ class ApplicationTests(unittest.TestCase):
     def test_persistence_failure_preserves_cache(self):
         self.save()
         self.write_csv('NEW')
-        with patch('data_loader.save_data_path', side_effect=OSError('Disk full')):
+        with patch('csv_lifecycle.save_configuration', side_effect=OSError('Disk full')):
             self.assertEqual(self.save().status_code, 400)
         self.assertEqual(len(self.client.get('/api/roles?tcode=OLD').json()), 2)
         self.assertEqual(self.client.get('/api/roles?tcode=NEW').json(), [])
@@ -108,7 +108,7 @@ class ApplicationTests(unittest.TestCase):
 
     def test_unreadable_and_malformed_csv_have_safe_errors(self):
         self.save()
-        with patch('cache.load_cache', side_effect=PermissionError('/private/path')):
+        with patch('csv_lifecycle.load', side_effect=PermissionError('/private/path')):
             result = self.save()
         self.assertEqual(result.status_code, 400)
         self.assertIn('permissions', result.json()['detail'])

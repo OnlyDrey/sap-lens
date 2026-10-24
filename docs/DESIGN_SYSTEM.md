@@ -52,3 +52,7 @@ Desktop navbar utilities are compact icons on one row where space permits. At na
 Prefer shared responsive classes before adding another page-specific breakpoint. Validate labels, chevrons, focus rings, floating panels and table scrolling at 375, 800 and 1280 px in both themes.
 
 See [Component Library](COMPONENT_LIBRARY.md), [Navigation patterns](NAVIGATION_PATTERNS.md) and [validation report](UI_CONSOLIDATION_VALIDATION.md).
+
+## Refresh evidence surfaces
+
+Refresh banners use semantic success/error backgrounds and a neutral unchanged state. Error styling describes failed operations, not intentionally disabled modules. Modal surfaces use the same elevation, surface, border, spacing and radius tokens as anchored popovers. Source cards keep technical information expandable within the relevant source; record-level evidence stays inside private report dialogs.

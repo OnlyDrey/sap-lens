@@ -1,4 +1,5 @@
 import { AssignmentStatus } from '@/components/Shared/InvestigationNavigation'
+import { FilterChip } from '@/components/Shared/FilterChip'
 import { Button, IconButton } from '@/components/Shared/Button'
 import { SAPUserSelector } from '@/components/Shared/SAPUserSelector'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
@@ -180,6 +181,8 @@ function EvidenceCell({
   )
 }
 export interface ComparisonContext {
+  sort?: string
+  descending?: boolean
   a: string
   b: string
   validity: string
@@ -212,6 +215,8 @@ export function UserComparison({
     [term, setTerm] = useState(context?.search || ''),
     [area, setArea] = useState(context?.area || ''),
     [offset, setOffset] = useState(0),
+    [sort, setSort] = useState(context?.sort || 'identifier'),
+    [descending, setDescending] = useState(context?.descending || false),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState('')
   useEffect(() => {
@@ -229,10 +234,32 @@ export function UserComparison({
     return () => clearTimeout(t)
   }, [search])
   useEffect(
-    () => onContext({ a, b, validity, kind, difference, search, area }),
-    [a, b, validity, kind, difference, search, area, onContext],
+    () =>
+      onContext({
+        a,
+        b,
+        validity,
+        kind,
+        difference,
+        search,
+        area,
+        sort,
+        descending,
+      }),
+    [
+      a,
+      b,
+      validity,
+      kind,
+      difference,
+      search,
+      area,
+      sort,
+      descending,
+      onContext,
+    ],
   )
-  const state = { validity, kind, difference, search, area }
+  const state = { validity, kind, difference, search, area, sort, descending }
   const params = new URLSearchParams({
     user_a: a,
     user_b: b,
@@ -241,6 +268,8 @@ export function UserComparison({
     difference,
     search: term,
     area,
+    sort,
+    descending: String(descending),
   })
   const key = params.toString(),
     operationKey = JSON.stringify([
@@ -251,6 +280,8 @@ export function UserComparison({
       difference,
       search,
       area,
+      sort,
+      descending,
     ]),
     current = useRef(operationKey)
   current.current = operationKey
@@ -281,6 +312,9 @@ export function UserComparison({
       setDifference(String(s.difference))
     if (typeof s.search === 'string') setSearch(s.search)
     if (typeof s.area === 'string') setArea(s.area)
+    if (['identifier', 'difference', 'a', 'b'].includes(String(s.sort)))
+      setSort(String(s.sort))
+    if (typeof s.descending === 'boolean') setDescending(s.descending)
   }
   const clear = () => {
     setValidity('active')
@@ -288,6 +322,8 @@ export function UserComparison({
     setDifference('')
     setSearch('')
     setArea('')
+    setSort('identifier')
+    setDescending(false)
   }
   const exportCSV = async () => {
     if (!data) return
@@ -568,21 +604,62 @@ export function UserComparison({
       )}
       {data && (
         <>
+          <p className="text-xs text-[var(--muted)]">
+            Whole comparison · selected assignment validity · before result
+            filters
+          </p>
           <div className="comparison-metrics" aria-label="Comparison summary">
-            {[
-              ['Shared roles', data.summary.roles.shared],
-              ['Only User A', data.summary.roles.a],
-              ['Only User B', data.summary.roles.b],
-              ['Shared mapped transactions', data.summary.transactions.shared],
-              ['Mapped transactions only A', data.summary.transactions.a],
-              ['Mapped transactions only B', data.summary.transactions.b],
-            ].map(([label, count]) => (
-              <div key={label}>
+            {(kind === 'roles'
+              ? [
+                  ['Shared roles', 'shared', data.summary.roles.shared],
+                  ['Only User A', 'a', data.summary.roles.a],
+                  ['Only User B', 'b', data.summary.roles.b],
+                ]
+              : [
+                  [
+                    'Shared mapped transactions',
+                    'shared',
+                    data.summary.transactions.shared,
+                  ],
+                  [
+                    'Mapped transactions only A',
+                    'a',
+                    data.summary.transactions.a,
+                  ],
+                  [
+                    'Mapped transactions only B',
+                    'b',
+                    data.summary.transactions.b,
+                  ],
+                ]
+            ).map(([label, value, count]) => (
+              <Button
+                key={label}
+                variant="ghost"
+                aria-pressed={difference === value}
+                className="comparison-metric"
+                onClick={() =>
+                  setDifference(difference === value ? '' : String(value))
+                }
+              >
                 <span>{label}</span>
                 <strong>{count}</strong>
-              </div>
+              </Button>
             ))}
           </div>
+          {difference && (
+            <FilterChip
+              removeLabel="Clear comparison difference"
+              onRemove={() => setDifference('')}
+            >
+              Difference:{' '}
+              {difference === 'shared'
+                ? 'Shared'
+                : difference === 'a'
+                  ? 'Only User A'
+                  : 'Only User B'}
+            </FilterChip>
+          )}
           {!data.catalogue_available && (
             <p role="status">
               Role catalogue unavailable. Transaction coverage is incomplete,
@@ -590,6 +667,32 @@ export function UserComparison({
             </p>
           )}
           <Toolbar>
+            <Filter label="Sort comparison">
+              <Select
+                className={inputClass}
+                value={sort}
+                onChange={(e) => setSort(e.target.value)}
+              >
+                {[
+                  ['identifier', 'Role / Transaction'],
+                  ['difference', 'Difference'],
+                  ['a', 'User A evidence count'],
+                  ['b', 'User B evidence count'],
+                ].map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </Select>
+            </Filter>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={descending}
+                onChange={(e) => setDescending(e.target.checked)}
+              />
+              Descending comparison
+            </label>
             <span>
               {data.total} matching {kind}
             </span>
@@ -616,9 +719,10 @@ export function UserComparison({
             <thead>
               <tr>
                 <th>Role / Transaction</th>
-                <th>Category</th>
-                <th>User A evidence</th>
-                <th>User B evidence</th>
+                <th>Difference</th>
+                <th>User A</th>
+                <th>User B</th>
+                <th>Details</th>
               </tr>
             </thead>
             <tbody>
@@ -626,7 +730,7 @@ export function UserComparison({
                 <tr key={row.identifier}>
                   <td>
                     {kind === 'roles' ? (
-                      <code className="font-mono">{row.identifier}</code>
+                      <RoleIdentifier value={row.identifier} />
                     ) : (
                       <button
                         className="text-link"
@@ -645,22 +749,47 @@ export function UserComparison({
                         ? 'Only User A'
                         : 'Only User B'}
                   </td>
-                  {(['a', 'b'] as const).map((side) => (
-                    <td key={side}>
-                      <EvidenceCell
-                        row={row}
-                        side={side}
-                        params={params}
-                        revision={data.data_revision}
-                        asOf={data.as_of}
-                        onRole={onRole}
-                        onAssignedRole={(e) => {
-                          setKind('roles')
-                          setSearch(e)
-                        }}
-                      />
-                    </td>
-                  ))}
+                  <td>
+                    {row.a_total}{' '}
+                    {kind === 'roles' ? 'assignment records' : 'mapped roles'}
+                  </td>
+                  <td>
+                    {row.b_total}{' '}
+                    {kind === 'roles' ? 'assignment records' : 'mapped roles'}
+                  </td>
+                  <td>
+                    <details className="comparison-evidence-details">
+                      <summary
+                        aria-label={`Show evidence for ${row.identifier}`}
+                      >
+                        Show evidence
+                      </summary>
+                      <div className="comparison-evidence-columns">
+                        {(['a', 'b'] as const).map((side) => (
+                          <section
+                            key={side}
+                            aria-label={`User ${side.toUpperCase()} evidence for ${row.identifier}`}
+                          >
+                            <h3 className="font-semibold">
+                              User {side.toUpperCase()} evidence
+                            </h3>
+                            <EvidenceCell
+                              row={row}
+                              side={side}
+                              params={params}
+                              revision={data.data_revision}
+                              asOf={data.as_of}
+                              onRole={onRole}
+                              onAssignedRole={(e) => {
+                                setKind('roles')
+                                setSearch(e)
+                              }}
+                            />
+                          </section>
+                        ))}
+                      </div>
+                    </details>
+                  </td>
                 </tr>
               ))}
             </tbody>

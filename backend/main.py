@@ -17,7 +17,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 import cache
 from config import get_settings
 from data_loader import DataLoader
-from routers import comparison, modules, roles, access, employees, dashboard, account_review, user_comparison, data_health, saved_filters
+from routers import comparison, modules, roles, access, employees, dashboard, account_review, user_comparison, data_health, saved_filters, data_sources
 from request_limits import RequestBodyLimit
 from version import VERSION, BUILD_INFO
 from configuration_routes import configuration_router
@@ -45,7 +45,7 @@ def create_app(origin: str | None = None, session_token: str | None = None,
                 await loader.load()
 
         task = None
-        if get_settings().data_csv_path or get_settings().user_csv_path:
+        if get_settings().data_csv_path or get_settings().user_csv_path or get_settings().employee_csv_path or get_settings().employee_snapshot_id:
             task = asyncio.create_task(initial_load())
         else:
             loader.error = 'Choose a SAP role catalogue or user access CSV in Settings.'
@@ -98,6 +98,7 @@ def create_app(origin: str | None = None, session_token: str | None = None,
     app.include_router(user_comparison.router)
     app.include_router(data_health.router)
     app.include_router(saved_filters.router)
+    app.include_router(data_sources.router)
     app.include_router(modules.router)
     app.include_router(comparison.router)
 
@@ -121,8 +122,9 @@ def create_app(origin: str | None = None, session_token: str | None = None,
 
     @app.post('/api/refresh', tags=['Data'])
     async def refresh_data():
-        await loader.load()
-        return health_check()
+        report = await loader.load(operation='refresh')
+        summary = {**report, 'sources': [{k:v for k,v in source.items() if k != 'changes'} for source in report['sources']]}
+        return {**health_check(), 'refresh': summary}
 
     @app.get('/api/settings', tags=['Settings'])
     def read_settings():

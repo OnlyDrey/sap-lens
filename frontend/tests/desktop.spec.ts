@@ -43,7 +43,7 @@ test('first launch, native picker contract, invalid CSV, persistence and private
   await expect(page.getByLabel('CSV file location', {exact:true})).toHaveValue(file)
   await page.getByRole('button', { name: 'Back to SAP Lens' }).click()
   await page.getByRole('button', { name: 'Refresh role data from CSV' }).click()
-  await expect(page.getByText('Data refreshed successfully.',{exact:true})).toBeVisible()
+  await expect(page.getByText('All data is up to date',{exact:true})).toBeVisible()
   await expect(page.getByRole('banner').getByText(/Updated /)).toHaveCount(0)
   expect((await request.get('/api/settings')).status()).toBe(403)
   expect((await request.get('/api/settings', { headers: { 'X-SAP-Lens': 'browser-test-session', Origin: 'http://127.0.0.1:18743' } })).status()).toBe(403)

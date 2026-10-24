@@ -4,15 +4,20 @@ export function Notification({
   children,
   variant = 'info',
   onDismiss,
+  label,
+  className = '',
 }: {
   children: ReactNode
-  variant?: 'success' | 'warning' | 'error' | 'info'
+  variant?: 'success' | 'warning' | 'error' | 'info' | 'neutral'
+  label?: string
+  className?: string
   onDismiss?: () => void
 }) {
   return (
     <div
-      className={`notification notification-${variant}`}
+      className={`notification notification-${variant} ${className}`}
       role={variant === 'error' ? 'alert' : 'status'}
+      aria-label={label}
     >
       <div className="notification-content">
         <div>{children}</div>

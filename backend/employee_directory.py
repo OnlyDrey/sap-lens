@@ -36,8 +36,12 @@ def parse_directory(path):
     source = Path(path)
     if not source.is_absolute():
         raise ValueError('Choose an absolute Employee Directory CSV path.')
+    initial = source.stat()
     with source.open('rb') as stream:
         raw = stream.read(MAX_BYTES + 1)
+    final = source.stat()
+    if (initial.st_dev, initial.st_ino, initial.st_size, initial.st_mtime_ns) != (final.st_dev, final.st_ino, final.st_size, final.st_mtime_ns):
+        raise ValueError('The Employee Directory CSV changed while being read. Wait for the export to finish and retry.')
     if len(raw) > MAX_BYTES:
         raise ValueError('Employee Directory CSV exceeds the 50 MB limit.')
     try:
@@ -58,8 +62,10 @@ def parse_directory(path):
             record = {expected[key]: value.strip() for key, value in zip(keys, row)}
             record['id'] = str(len(rows))
             rows.append(record)
-    except (UnicodeError, csv.Error):
+    except UnicodeError:
         raise ValueError('Employee Directory must be valid UTF-8 semicolon CSV with correctly quoted fields.') from None
+    except csv.Error:
+        raise ValueError('Employee Directory contains malformed CSV quoting. Correct the export before importing.') from None
     if not rows:
         raise ValueError('Employee Directory contains no employee records.')
     return Directory(rows, source.name, hashlib.sha256(raw).hexdigest())
@@ -114,6 +120,9 @@ class Directory:
         for record in self.rows: manager_counts[self.manager(record)[0]] += 1
         self._report = dict(records=len(self.rows), file_name=self.filename, imported_at=self.imported_at,
                     duplicate_emails=sum(len(v) > 1 for v in self.indexes['Mail'].values()),
+                    missing_identifiers=sum(not r['DistinguishedName'] and not r['SamAccountName'] for r in self.rows),
+                    duplicate_identifiers=dict(usernames=sum(len(v)>1 for v in self.indexes['SamAccountName'].values()),
+                                               distinguished_names=sum(len(v)>1 for v in self.indexes['DistinguishedName'].values())),
                     missing_emails=sum(not r['Mail'] for r in self.rows), managers=dict(manager_counts),
                     validation='Valid UTF-8 semicolon CSV; all required headers present')
         return dict(self._report)
@@ -128,7 +137,7 @@ def snapshot_path(identity):
 
 def persist_directory(directory):
     """Stage a content-addressed private snapshot before committing its settings pointer."""
-    from config import atomic_write
+    from config import ensure_content_file
     payload = json.dumps(dict(version=1, records=directory.rows, file_name=directory.filename,
                               imported_at=directory.imported_at, csv_digest=directory.digest),
                          ensure_ascii=False, separators=(',', ':')).encode('utf-8')
@@ -137,7 +146,7 @@ def persist_directory(directory):
     identity = hashlib.sha256(payload).hexdigest()
     target = snapshot_path(identity)
     target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    if not target.exists(): atomic_write(target, payload)
+    ensure_content_file(target, payload, identity, 128 * 1024 * 1024)
     return identity
 
 

@@ -142,7 +142,9 @@ class EmployeeDirectoryTests(unittest.TestCase):
         self.enable(); self.assertEqual(self.client.get('/api/employees/status', headers=H).json()['status'], 'not_configured')
         self.import_data(); store.clear(); self.path.unlink()
         status = self.client.get('/api/employees/status', headers=H).json()
-        self.assertEqual(status['status'], 'healthy')
+        self.assertEqual(status['status'], 'warning')
+        self.assertEqual(status['report']['missing_identifiers'],2)
+        self.assertTrue(status['loaded'])
         self.assertTrue(status['persisted'])
         self.assertEqual(self.client.get('/health').status_code, 200)
         self.assertEqual(self.client.get('/api/access/users', headers=H).status_code, 200)
@@ -265,6 +267,7 @@ class EmployeeDirectoryTests(unittest.TestCase):
         self.import_data(); self.enable()
         snapshot_path(config.get_settings().employee_snapshot_id).write_text('private malformed data')
         store.clear()
+        cache.clear_cache()  # Simulate restart: discard the complete published generation too.
         result=self.client.get('/api/employees/status',headers=H)
         self.assertEqual(result.json()['status'],'error'); self.assertNotIn('private malformed',result.text)
         self.assertEqual(self.client.get('/health').status_code,200)

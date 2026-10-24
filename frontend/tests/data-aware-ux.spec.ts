@@ -81,6 +81,7 @@ test('release facets are data-driven, bounded, retain invalid choices and refres
   await expect(options).toContainText('Type to narrow')
   await page.getByRole('combobox',{name:'Release username',exact:true}).fill('DEMO_149')
   await page.getByRole('option',{name:'DEMO_149',exact:true}).click()
+  await expect(page.getByRole('button',{name:'Release role details',exact:true})).toHaveCount(1)
   await expect(page.getByRole('button',{name:'Release role details',exact:true})).toContainText('G149')
 })
 
@@ -122,10 +123,11 @@ for (const theme of ['dark','light']) for (const width of [1280,800]) test(`data
   await page.getByRole('button',{name:'Open settings',exact:true}).click()
   await page.getByRole('tab',{name:'Health & Diagnostics',exact:true}).click()
   await page.getByText('Source locations and storage details',{exact:true}).click()
+  for (const name of ['Role Catalogue CSV','User Access CSV']) await page.getByRole('region',{name,exact:true}).getByText('Technical source details',{exact:true}).click()
   await page.getByText('Employee Directory technical details',{exact:true}).click()
   const storage = page.getByRole('heading',{name:'Data & storage',exact:true})
   await expect(storage).toBeVisible()
-  await expect(page.getByRole('region',{name:'User Access CSV',exact:true})).toContainText('7 users')
+  await expect(page.getByRole('region',{name:'User Access CSV',exact:true})).toContainText('7 records')
   await storage.scrollIntoViewIfNeeded(); await shot('diagnostics-sources')
   for (const name of ['Role Catalogue CSV', 'User Access CSV']) {
     await page.getByRole('region',{name,exact:true}).scrollIntoViewIfNeeded()

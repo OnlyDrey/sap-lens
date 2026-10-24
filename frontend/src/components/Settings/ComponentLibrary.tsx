@@ -15,6 +15,7 @@ import {
   ContentTabs,
 } from '@/components/Shared/Navigation'
 import { Popover } from '@/components/Shared/Popover'
+import { Dialog } from '@/components/Shared/Dialog'
 import {
   Card,
   Toolbar,
@@ -104,6 +105,7 @@ function memoryStorage(): FilterStorage {
 }
 export function ComponentLibrary() {
   const [text, setText] = useState(''),
+    [dialogOpen, setDialogOpen] = useState(false),
     [select, setSelect] = useState('all'),
     [check, setCheck] = useState(false),
     [toggle, setToggle] = useState(false),
@@ -333,6 +335,19 @@ export function ComponentLibrary() {
             </>
           )}
         </Popover>
+        <Button onClick={() => setDialogOpen(true)}>Open demo dialog</Button>
+        {dialogOpen && (
+          <Dialog
+            title="Isolated component dialog"
+            onClose={() => setDialogOpen(false)}
+          >
+            <p>
+              This preview uses the real modal with isolated state. Escape
+              closes it and restores focus.
+            </p>
+            <Input aria-label="Demo dialog input" />
+          </Dialog>
+        )}
       </Card>
       <Card>
         <h2>Status &amp; feedback</h2>

@@ -19,3 +19,5 @@ Source cards count catalogue roles, SAP users and directory records; raw CSV row
 Select a nonzero finding to inspect paginated exact identifiers and open an existing user/role record. Source-specific directory email/identifier/manager statistics use the existing directory report rather than duplicate rules. Source health details remain available in the existing source panels.
 
 Aggregate catalogue/assignment calculations are cached for one publication/date; refresh invalidates them. A failed replacement preserves previous data and coverage. Browser queries participate in application-scoped refresh invalidation. No result datasets are persisted by Data Health. Routine metrics contain no personal emails or source paths; authenticated drilldown contains the necessary local identifiers.
+
+Role and user sources now restore durable canonical snapshots rather than relying only on startup CSV availability. Source mode, latest import and live-source access remain separate from snapshot availability. Recent operation reports are available under Data Sources and Diagnostics. See [CSV data lifecycle](CSV_DATA_LIFECYCLE.md).

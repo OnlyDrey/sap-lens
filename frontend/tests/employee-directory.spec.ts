@@ -94,7 +94,7 @@ test('directory preview, confirmation, feature persistence, manager drill-down a
   })
   await expect(preview).toContainText('2 records')
   expect((await settings(request)).employee_csv_path).toBe('')
-  await preview
+  await page.getByRole('region',{name:'Import / Replace',exact:true})
     .getByRole('button', { name: 'Import directory' })
     .click()
   await expect(preview).toBeHidden()
@@ -371,6 +371,7 @@ test('explicit import, independent feature toggles, retained data and Diagnostic
   await page.getByRole('button',{name:'Open settings',exact:true}).click()
   await page.getByRole('tab',{name:'Health & Diagnostics',exact:true}).click()
   await page.getByText('Source locations and storage details',{exact:true}).click()
+  for (const name of ['Role Catalogue CSV','User Access CSV']) await page.getByRole('region',{name,exact:true}).getByText('Technical source details',{exact:true}).click()
   await page.getByText('Employee Directory technical details',{exact:true}).click()
   await expect(page.getByRole('region',{name:'Employee Directory diagnostics'})).toContainText('Enable User–Role Mapping')
   await page.getByRole('tab',{name:'Features',exact:true}).click()

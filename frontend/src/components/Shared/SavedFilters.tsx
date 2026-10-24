@@ -43,6 +43,7 @@ export function SavedFilters({
     [active, setActive] = useState(''),
     [menuOpen, setMenuOpen] = useState(false),
     [applied, setApplied] = useState(''),
+    [appliedState, setAppliedState] = useState(''),
     [name, setName] = useState(''),
     [message, setMessage] = useState(''),
     [busy, setBusy] = useState(false)
@@ -56,9 +57,7 @@ export function SavedFilters({
   const items = result.data?.items.filter((i) => i.view === view) || [],
     selected = items.find((i) => i.id === active),
     appliedEntry = items.find((i) => i.id === applied)
-  const modified =
-    appliedEntry &&
-    JSON.stringify(appliedEntry.filters) !== JSON.stringify(state)
+  const modified = appliedEntry && appliedState !== JSON.stringify(state)
   const run = async (action: () => Promise<unknown>) => {
     setBusy(true)
     setMessage('')
@@ -88,7 +87,10 @@ export function SavedFilters({
         ? storage.save(body)
         : apiRequest<Entry>('/api/saved-filters', 'POST', body))
       setActive(entry.id)
-      if (!rename) setApplied(entry.id)
+      if (!rename) {
+        setApplied(entry.id)
+        setAppliedState(JSON.stringify(state))
+      }
     })
   const load = () => {
     if (!selected) return
@@ -154,22 +156,24 @@ export function SavedFilters({
               'account_status',
               'relevant_roles',
             ]
-          : view === 'review'
-            ? [
-                'username',
-                'name',
-                'sap_validity',
-                'lock_status',
-                'ad_status',
-                'review_state',
-              ]
-            : [
-                'role_name',
-                'assigned_users',
-                'document_type',
-                'release_group',
-                'release_strategy',
-              ],
+          : view === 'comparison'
+            ? ['identifier', 'difference', 'a', 'b']
+            : view === 'review'
+              ? [
+                  'username',
+                  'name',
+                  'sap_validity',
+                  'lock_status',
+                  'ad_status',
+                  'review_state',
+                ]
+              : [
+                  'role_name',
+                  'assigned_users',
+                  'document_type',
+                  'release_group',
+                  'release_strategy',
+                ],
     }
     Object.keys(safe).forEach((k) => {
       if (
@@ -184,6 +188,7 @@ export function SavedFilters({
       }
     })
     setApplied(selected.id)
+    setAppliedState(JSON.stringify({ ...state, ...safe }))
     apply(safe)
     setName(selected.name)
     setMessage(

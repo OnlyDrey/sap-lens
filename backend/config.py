@@ -1,5 +1,6 @@
 """Versioned per-user settings with migration/recovery backups and atomic writes."""
 import ctypes
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -46,6 +47,22 @@ def atomic_write(path: Path, data: bytes):
         os.replace(temporary, path)
     finally:
         if os.path.exists(temporary): os.unlink(temporary)
+
+
+def ensure_content_file(path: Path, data: bytes, identity: str, limit: int):
+    """Reuse only verified immutable bytes; repair a corrupt target atomically."""
+    if len(data) > limit or hashlib.sha256(data).hexdigest() != identity:
+        raise ValueError('Invalid content-addressed payload.')
+    if path.exists():
+        digest, count = hashlib.sha256(), 0
+        with path.open('rb') as stream:
+            while block := stream.read(512 * 1024):
+                count += len(block)
+                if count > limit: break
+                digest.update(block)
+        if count <= limit and digest.hexdigest() == identity:
+            return
+    atomic_write(path, data)
 
 
 def backup_settings(reason: str):

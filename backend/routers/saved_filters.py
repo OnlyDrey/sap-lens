@@ -44,7 +44,7 @@ def save(request:Saved):
       'roles':{'search','activeModules','transactionMode','tcodes','sortBy'},
       'release':{'group','kind','releaseGroup','strategy','username','role','status','sort','descending','valid_from_min','valid_from_max','valid_to_min','valid_to_max','include_missing_end'},
       'review':{'search','finding','license','state','sort','descending'},
-      'comparison':{'validity','kind','difference','search','area'}}
+      'comparison':{'validity','kind','difference','search','area','sort','descending'}}
     if not request.rename and set(request.filters)-allowed[request.view]: raise HTTPException(422,'Unsupported filter fields; result datasets cannot be saved.')
     return store.save(request.name,request.view,request.filters,request.id,request.expected,request.rename)
 

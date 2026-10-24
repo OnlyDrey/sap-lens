@@ -4,6 +4,8 @@ import { DataHealth } from './DataHealth'
 import { About } from './About'
 import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
 import { EmployeeSource, FeatureSettings } from './EmployeeDirectory'
+import { SourceMode } from './SourceMode'
+import { RefreshHistory } from '@/components/Shared/RefreshReport'
 import { ImportSection } from './ImportSection'
 import { SourceStatus } from "./SourceStatus"
 import { Combobox } from "@/components/Shared/Combobox"
@@ -716,6 +718,7 @@ export function SettingsView({
                   {section === 1 && imports && (
                     <>
                       <DataHealth onSource={key=>{setImportSource(key);requestAnimationFrame(()=>document.getElementById(`source-tab-${key}`)?.focus())}}/>
+                      <details className="settings-advanced"><summary>Recent refresh reports</summary><RefreshHistory/></details>
                       <div className="flex flex-wrap gap-3">
                         <button className="settings-secondary-button" onClick={() => setSection(4)}>View data source diagnostics</button>
                         {importSource !== 'employees' && <button className="settings-secondary-button" disabled={busy || !(importSource === 'roles' ? draft.data_csv_path : draft.user_csv_path)} onClick={() => {
@@ -726,6 +729,7 @@ export function SettingsView({
                       </div>
                       <ContentTabList label="Import source" value={importSource} onChange={value=>setImportSource(value as 'roles'|'users'|'employees')} idPrefix="source-tab" panelId={value=>`source-panel-${value}`} className="source-navigation" items={([['roles','Role Catalogue',LibraryBig],['users','User Access',UsersRound],['employees','Employee Directory',BookUser]] as const).map(([value,label,Icon])=>({value,label,icon:<Icon size={16} aria-hidden="true"/>}))}/>
 
+                      <SourceMode value={draft.source_modes?.[importSource] || (importSource==='employees'?'static':'dynamic')} onChange={value=>setDraft({...draft,source_modes:{roles:'dynamic',users:'dynamic',employees:'static',...draft.source_modes,[importSource]:value}})}/>
                       <div id="source-panel-employees" role="tabpanel" aria-labelledby="source-tab-employees" hidden={importSource !== 'employees'}>
                         {importSource === 'employees' && <EmployeeSource onFeatureSettings={() => setSection(5)} revision={draft.revision} savedPath={config.data?.settings.employee_csv_path || ''} dirty={JSON.stringify(draft) !== JSON.stringify(config.data?.settings)} onImported={async () => { const result = await config.refetch(); if (result.data) setDraft(structuredClone(result.data.settings)) }}/>}
                       </div>
@@ -1066,7 +1070,7 @@ export function SettingsView({
                   {section === 5 && <FeatureSettings draft={draft} onChange={setDraft} onConfigure={source => { setSection(1); setImportSource(source) }}/>}
                   {section === 4 && (
                     <>
-                      <Diagnostics native={native} onEmployeeFeatures={() => setSection(5)} onEmployeeSettings={() => { setSection(1); setImportSource('employees') }}/>
+                      <Diagnostics onSource={source=>{setSection(1);setImportSource(source)}} native={native} onEmployeeFeatures={() => setSection(5)} onEmployeeSettings={() => { setSection(1); setImportSource('employees') }}/>
                       <h2 className="settings-subheading">Backup & recovery</h2>
                       <p className="text-sm text-[var(--text2)]">
                         Export saved settings before an update, or restore a

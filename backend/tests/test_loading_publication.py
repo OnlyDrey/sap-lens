@@ -37,8 +37,8 @@ class LoadingPublicationTests(unittest.TestCase):
         self.fail('Synthetic load did not finish')
     def test_configured_sources_initialize_at_startup_without_page_requests(self):
         self.configured();started,finish=threading.Event(),threading.Event();original=cache.build_users
-        def slow(*args):
-            started.set();finish.wait(3);return original(*args)
+        def slow(*args,**kwargs):
+            started.set();finish.wait(3);return original(*args,**kwargs)
         with patch('cache.build_users',side_effect=slow):
             with self.client() as client:
                 try:
@@ -57,7 +57,7 @@ class LoadingPublicationTests(unittest.TestCase):
             self.wait_ready(client);previous=cache.get_snapshot();revision=client.get('/api/configuration',headers=H).json()['data_revision']
             self.roles.write_text(ROLES.format('ME21N'));self.users.write_text(USERS.format('DEMO_NEW','new'))
             started,finish=threading.Event(),threading.Event();original=cache.build_users
-            def slow(*args):started.set();finish.wait(3);return original(*args)
+            def slow(*args,**kwargs):started.set();finish.wait(3);return original(*args,**kwargs)
             with patch('cache.build_users',side_effect=slow),ThreadPoolExecutor(max_workers=1) as pool:
                 future=pool.submit(client.post,'/api/refresh',headers=H)
                 try:
@@ -73,14 +73,18 @@ class LoadingPublicationTests(unittest.TestCase):
             self.assertNotEqual(client.get('/api/configuration',headers=H).json()['data_revision'],revision)
             self.assertEqual(client.get('/api/access/users',headers=H).json()['items'][0]['username'],'DEMO_NEW')
             self.assertEqual(client.get('/api/roles?tcodes=MIGO',headers=H).json(),[])
-    def test_failed_second_source_preserves_publication_and_recovery_replaces_it(self):
+    def test_failed_second_source_preserves_users_and_remaps_successful_catalogue(self):
         self.configured()
         with self.client() as client:
             self.wait_ready(client);previous=cache.get_snapshot();revision=client.get('/api/configuration',headers=H).json()['data_revision']
             self.roles.write_text(ROLES.format('ME21N'));self.users.write_text('invalid')
-            self.assertEqual(client.post('/api/refresh',headers=H).status_code,400)
-            self.assertIs(cache.get_snapshot(),previous)
-            self.assertEqual(client.get('/api/configuration',headers=H).json()['data_revision'],revision)
+            result=client.post('/api/refresh',headers=H)
+            self.assertEqual(result.status_code,200)
+            self.assertEqual(result.json()['refresh']['status'],'partial')
+            self.assertIsNot(cache.get_snapshot(),previous)
+            self.assertEqual(set(cache.get_snapshot().users.users),set(previous.users.users))
+            self.assertEqual(cache.get_snapshot().users.assignments[0]['tcodes'],['ME21N'])
+            self.assertNotEqual(client.get('/api/configuration',headers=H).json()['data_revision'],revision)
             self.users.write_text(USERS.format('DEMO_NEW','new'))
             self.assertEqual(client.post('/api/refresh',headers=H).status_code,200)
             self.assertNotEqual(client.get('/api/configuration',headers=H).json()['data_revision'],revision)

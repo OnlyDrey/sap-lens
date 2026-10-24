@@ -75,3 +75,7 @@ Native confirmation dialogs remain the existing deletion safeguard. There is no 
 Search Shared, Access/Shared and Settings/Controls first. Add a variant when behavior is the same. Keep domain calculations outside presentation. Choose tokens instead of copying color/radius strings; preserve native form semantics and accessible names. Add a library example only after the actual shared component exists. Test keyboard/focus, loading/disabled/invalid states and both themes. Validate real callers as well as the showcase. Do not connect previews to production data APIs or settings mutations.
 
 See [Design system](DESIGN_SYSTEM.md), [Navigation patterns](NAVIGATION_PATTERNS.md) and [validation report](UI_CONSOLIDATION_VALIDATION.md).
+
+## CSV lifecycle additions
+
+`Shared/Dialog.tsx` is the canonical modal used by refresh change/error viewers and the isolated Component Library preview. It portals outside overflow boundaries, makes the app root inert, traps Tab focus, supports Escape, and restores the originating control. `Shared/RefreshReport.tsx` shares the result banner, bounded report viewer and history presentation between Data Sources and Diagnostics. `Settings/DirectoryPreview.tsx` reuses the shared fields, table, status and pagination controls. These components introduce no external service or UI dependency.

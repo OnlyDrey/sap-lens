@@ -1,4 +1,8 @@
+import { DirectoryPreview } from './DirectoryPreview'
+import { ImportSection } from './ImportSection'
 import { Toggle } from '@/components/Shared/Controls'
+import { Button } from '@/components/Shared/Button'
+import { StatusBadge } from '@/components/Shared/Presentation'
 import {
   EmployeeInformation,
   type Employee,
@@ -21,6 +25,8 @@ import type { Configuration } from '@/api/configuration'
 import { formatTimestamp } from '@/lib/dateFormat'
 
 interface Report {
+  missing_identifiers?: number
+  duplicate_identifiers?: { usernames: number; distinguished_names: number }
   records: number
   file_name?: string
   imported_at: string
@@ -30,7 +36,7 @@ interface Report {
   validation: string
 }
 export interface DirectoryStatus {
-  digest?:string|null
+  digest?: string | null
   mapping_data_available?: boolean
   enabled: boolean
   configured: boolean
@@ -107,6 +113,18 @@ export function DirectoryDiagnostics({
               ['Validation', data.report.validation || 'Not validated'],
               ['Missing emails', data.report.missing_emails ?? 0],
               ['Duplicate emails', data.report.duplicate_emails ?? 0],
+              [
+                'Missing employee identifiers',
+                data.report.missing_identifiers ?? 0,
+              ],
+              [
+                'Duplicate AD username keys',
+                data.report.duplicate_identifiers?.usernames ?? 0,
+              ],
+              [
+                'Duplicate DN keys',
+                data.report.duplicate_identifiers?.distinguished_names ?? 0,
+              ],
             ].map(([name, value]) => (
               <div key={name}>
                 <span className="text-xs text-[var(--muted)]">{name}</span>
@@ -164,7 +182,10 @@ export function DirectoryDiagnostics({
       )}
       {data.storage === 'legacy_path_only' && (
         <p className="text-sm text-[var(--warning)]">
-          Legacy path-only configuration: loaded records have not been confirmed as a durable import. Use Save durable directory snapshot when validated records are available, or validate and import a CSV. A path alone cannot recover missing records.
+          Legacy path-only configuration: loaded records have not been confirmed
+          as a durable import. Use Save durable directory snapshot when
+          validated records are available, or validate and import a CSV. A path
+          alone cannot recover missing records.
         </p>
       )}
       {onFeatureSettings && (
@@ -195,8 +216,14 @@ export function FeatureSettings({
   onChange: (value: Configuration) => void
   onConfigure: (source: 'employees' | 'users') => void
 }) {
-  const [groupText,setGroupText]=useState((draft.unlicensed_user_groups||['UNLICENSED']).join(', '))
-  useEffect(()=>setGroupText((draft.unlicensed_user_groups||['UNLICENSED']).join(', ')),[draft.revision])
+  const [groupText, setGroupText] = useState(
+    (draft.unlicensed_user_groups || ['UNLICENSED']).join(', '),
+  )
+  useEffect(
+    () =>
+      setGroupText((draft.unlicensed_user_groups || ['UNLICENSED']).join(', ')),
+    [draft.revision],
+  )
   const directory = useQuery({
     queryKey: ['employee-status'],
     queryFn: () => apiRequest<DirectoryStatus>('/api/employees/status'),
@@ -206,18 +233,18 @@ export function FeatureSettings({
       {(
         [
           [
-            'employee_directory',
-            'Employee Directory',
-            BookUser,
-            'Enrich SAP identities with local employee and manager information.',
-            directory.data?.loaded,
-          ],
-          [
             'user_role_mapping',
             'User–Role Mapping',
             UsersRound,
             'Investigate SAP users, role assignments and release roles.',
             directory.data?.mapping_data_available,
+          ],
+          [
+            'employee_directory',
+            'Employee Directory',
+            BookUser,
+            'Keep local employee and manager records available independently of SAP matching.',
+            directory.data?.loaded,
           ],
         ] as const
       ).map(([key, name, Icon, description, available]) => {
@@ -243,8 +270,16 @@ export function FeatureSettings({
                       ? 'Imported data available.'
                       : 'No imported data available.'}
               </p>
+              <StatusBadge
+                tone={!enabled ? 'neutral' : available ? 'success' : 'warning'}
+              >
+                {!enabled ? 'Disabled' : available ? 'Ready' : 'Data required'}
+              </StatusBadge>
             </div>
-            <Toggle label={`${name} feature`} checked={enabled} onChange={(next)=>
+            <Toggle
+              label={`${name} feature`}
+              checked={enabled}
+              onChange={(next) =>
                 onChange({
                   ...draft,
                   features: {
@@ -255,7 +290,8 @@ export function FeatureSettings({
                     [key]: next,
                   },
                 })
-            }/>
+              }
+            />
             <button
               type="button"
               className="settings-secondary-button"
@@ -271,7 +307,72 @@ export function FeatureSettings({
           </section>
         )
       })}
-      <label className="flex flex-col gap-1 text-sm">Unlicensed SAP User Groups<input className="settings-review-groups" value={groupText} onChange={e=>{setGroupText(e.target.value);onChange({...draft,unlicensed_user_groups:e.target.value.split(',').map(v=>v.trim()).filter(Boolean)})}}/><span className="text-xs text-[var(--muted)]">Comma-separated group values. This classification does not prove license entitlement and never suppresses account security findings.</span></label>
+      <section
+        className="settings-card feature-card"
+        aria-label="SAP Identity Enrichment dependencies"
+      >
+        <div>
+          <h2 className="settings-subheading">
+            <UsersRound size={18} aria-hidden="true" />
+            SAP Identity Enrichment
+          </h2>
+          <p className="text-sm text-[var(--muted)]">
+            Derived from User–Role Mapping and Employee Directory. Exact email
+            matching enriches SAP profiles without overwriting SAP attributes.
+          </p>
+          <StatusBadge
+            tone={
+              directory.data?.operational_status === 'ready'
+                ? 'success'
+                : 'neutral'
+            }
+          >
+            {directory.data?.operational_status === 'ready'
+              ? 'Operational'
+              : 'Unavailable'}
+          </StatusBadge>
+          <p className="text-xs">Runtime status uses saved preferences.</p>
+          <p className="text-xs">
+            {!draft.features?.employee_directory
+              ? 'Enable Employee Directory. '
+              : ''}
+            {draft.features?.user_role_mapping === false
+              ? 'Enable User–Role Mapping. '
+              : ''}
+            {!directory.data?.loaded ? 'Import directory records. ' : ''}
+            {!directory.data?.mapping_data_available
+              ? 'Import SAP user records. '
+              : ''}
+            Preferences and records are retained when dependencies are
+            unavailable.
+          </p>
+        </div>
+        <Button onClick={() => onConfigure('employees')}>
+          <Settings2 size={16} />
+          Configure identity sources
+        </Button>
+      </section>
+      <label className="flex flex-col gap-1 text-sm">
+        Unlicensed SAP User Groups
+        <input
+          className="settings-review-groups"
+          value={groupText}
+          onChange={(e) => {
+            setGroupText(e.target.value)
+            onChange({
+              ...draft,
+              unlicensed_user_groups: e.target.value
+                .split(',')
+                .map((v) => v.trim())
+                .filter(Boolean),
+            })
+          }}
+        />
+        <span className="text-xs text-[var(--muted)]">
+          Comma-separated group values. This classification does not prove
+          license entitlement and never suppresses account security findings.
+        </span>
+      </label>
       <p className="text-sm text-[var(--muted)]">
         Apply settings to save changes. Disabling preserves source configuration
         and imported data. Employee identity enrichment requires enabled
@@ -323,7 +424,11 @@ export function EmployeeBrowser() {
   return (
     <section className="space-y-3" aria-label="Employee search">
       <label className="block text-sm">
-        <Search size={16} aria-hidden="true" className="inline-block mr-2 align-middle" />
+        <Search
+          size={16}
+          aria-hidden="true"
+          className="inline-block mr-2 align-middle"
+        />
         Search employees by name, email, department, job title, site or manager
         <input
           className="w-full rounded-lg border px-3 py-2 text-sm bg-[var(--surface2)] border-[var(--border)] text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]"
@@ -433,15 +538,23 @@ export function EmployeeSource({
   onImported: () => Promise<void>
   onFeatureSettings: () => void
 }) {
-  const currentStatus=useQuery({queryKey:['employee-status'],queryFn:()=>apiRequest<DirectoryStatus>('/api/employees/status')})
+  const qc = useQueryClient()
+  const status = useQuery({
+    queryKey: ['employee-status'],
+    queryFn: () => apiRequest<DirectoryStatus>('/api/employees/status'),
+  })
   const [path, setPath] = useState(savedPath),
     [preview, setPreview] = useState<
-      (Report & { digest: string; samples: Employee[] }) | null
+      | (Report & {
+          digest: string
+          current_records?: number
+          replacement?: Record<string, number>
+        })
+      | null
     >(null),
     [success, setSuccess] = useState(''),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false)
-  const qc = useQueryClient()
   useEffect(() => {
     setPath(savedPath)
     setPreview(null)
@@ -461,41 +574,102 @@ export function EmployeeSource({
   const refresh = async () => {
     await qc.invalidateQueries({
       predicate: (q) =>
-        String(q.queryKey[0]).includes('employee') ||
-        ['dashboard','account-review'].includes(String(q.queryKey[0])),
+        [
+          'employee-status',
+          'employees',
+          'employee-match',
+          'dashboard',
+          'account-review',
+          'diagnostics',
+          'data-health',
+          'refresh-history',
+        ].includes(String(q.queryKey[0])),
     })
     await onImported()
   }
+  const choose = (value: string) => {
+    setPath(value)
+    setPreview(null)
+    setSuccess('')
+    setError('')
+  }
   return (
     <div className="space-y-4">
-      <section className="settings-card space-y-3">
-        <h2 className="settings-subheading">
-          <BookUser size={18} />
-          Employee Directory CSV
-        </h2>
-        <p>
-          1. Choose a CSV. 2. Validate and preview it. 3. Import directory. 4.
-          Enable enrichment in Feature Settings. Import saves a private local
-          snapshot; no cloud upload.
-        </p>
-        <DirectoryDiagnostics
-          sourceView
-          onFeatureSettings={onFeatureSettings}
-        />
-        {currentStatus.data?.loaded && !currentStatus.data.persisted && <button className="settings-secondary-button" disabled={busy||dirty||!currentStatus.data.digest} onClick={()=>void act(async()=>{await apiRequest('/api/employees/persist','POST',{revision,digest:currentStatus.data!.digest});await refresh();setSuccess('Validated directory records saved locally. The original CSV is no longer required for restart.')})}><Save size={16}/>Save durable directory snapshot</button>}
-        <label className="block">
+      <DirectoryDiagnostics sourceView onFeatureSettings={onFeatureSettings} />
+      {status.data?.loaded && !status.data.persisted && (
+        <Button
+          disabled={busy || dirty || !status.data.digest}
+          onClick={() =>
+            void act(async () => {
+              await apiRequest('/api/employees/persist', 'POST', {
+                revision,
+                digest: status.data!.digest,
+              })
+              await refresh()
+              setSuccess(
+                'Validated directory records saved locally. The original CSV is no longer required for restart.',
+              )
+            })
+          }
+        >
+          <Save size={16} />
+          Save durable directory snapshot
+        </Button>
+      )}
+      <ImportSection
+        step={1}
+        title="Select source"
+        description="Choose a local Employee Directory CSV. Selection alone does not import or replace records."
+      >
+        <label className="block text-sm">
           Employee Directory CSV location
           <input
-            className="w-full rounded-lg border px-3 py-2 text-sm bg-[var(--surface2)] border-[var(--border)] text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]"
+            className="ui-control w-full"
             value={path}
-            onChange={(e) => {
-              setPath(e.target.value)
-              setPreview(null)
-              setSuccess('')
-              setError('')
-            }}
+            onChange={(e) => choose(e.target.value)}
           />
         </label>
+        <div className="ui-toolbar">
+          <Button
+            disabled={busy || !window.pywebview?.api}
+            onClick={() =>
+              void act(async () => {
+                const selected =
+                  await window.pywebview?.api.choose_csv(applicationToken())
+                if (selected) choose(selected)
+              })
+            }
+          >
+            <FolderOpen size={16} />
+            Browse employee CSV
+          </Button>
+          <Button
+            disabled={busy || !savedPath || dirty}
+            onClick={() => {
+              if (
+                window.confirm(
+                  'Remove the loaded Employee Directory and source configuration? The original CSV is not deleted.',
+                )
+              )
+                void act(async () => {
+                  const result = await apiRequest<{ cleanup_warning?: string }>(
+                    '/api/employees/clear',
+                    'POST',
+                    { path: savedPath, revision },
+                  )
+                  setPreview(null)
+                  await refresh()
+                  setSuccess(
+                    result.cleanup_warning ||
+                      'Directory records and source configuration cleared. Original CSV unchanged.',
+                  )
+                })
+            }}
+          >
+            <Trash2 size={16} />
+            Clear directory data
+          </Button>
+        </div>
         <p className="text-sm" aria-label="Directory selection state">
           {preview
             ? 'Validated — review the preview and choose Import directory to save records.'
@@ -505,142 +679,135 @@ export function EmployeeSource({
                 ? 'Previously imported source — validate again before replacement.'
                 : 'No CSV selected. Employee Directory is optional.'}
         </p>
-        <div className="flex gap-3 flex-wrap">
-          <button
-            className="settings-secondary-button"
-            disabled={busy || !window.pywebview?.api}
-            onClick={() =>
-              void act(async () => {
-                const selected =
-                  await window.pywebview?.api.choose_csv(applicationToken())
-                if (selected) {
-                  setPath(selected)
-                  setPreview(null)
-                }
-              })
-            }
-          >
-            <FolderOpen size={16} />
-            Browse employee CSV
-          </button>
-          <button
-            className="settings-secondary-button"
-            disabled={busy || !path || dirty}
-            onClick={() =>
-              void act(async () => {
-                setPreview(null)
-                setPreview(
-                  await apiRequest('/api/employees/preview', 'POST', {
-                    path,
-                    revision,
-                  }),
-                )
-              })
-            }
-          >
-            Validate &amp; preview directory
-          </button>
-          <button
-            className="settings-secondary-button"
-            disabled={busy || !savedPath || dirty}
-            onClick={() => {
-              if (
-                window.confirm(
-                  'Remove the loaded Employee Directory and source configuration? The original CSV is not deleted.',
-                )
+      </ImportSection>
+      <ImportSection
+        step={2}
+        title="Validate & Preview"
+        description="Validate the entire file, inspect data quality and review a paginated preview before confirming."
+      >
+        <Button
+          disabled={busy || !path || dirty}
+          onClick={() =>
+            void act(async () => {
+              setPreview(null)
+              setPreview(
+                await apiRequest('/api/employees/preview', 'POST', {
+                  path,
+                  revision,
+                }),
               )
-                void act(async () => {
-                  const cleared = await apiRequest<{
-                    cleanup_warning?: string
-                  }>('/api/employees/clear', 'POST', {
-                    path: savedPath,
-                    revision,
-                  })
-                  setPreview(null)
-                  await refresh()
-                  setSuccess(
-                    cleared.cleanup_warning ||
-                      'Directory records and source configuration cleared. Original CSV unchanged.',
-                  )
-                })
-            }}
-          >
-            <Trash2 size={16} />
-            Clear directory data
-          </button>
-        </div>
-        {dirty && (
-          <p role="status">
-            Save or cancel pending settings changes before importing directory
-            data.
-          </p>
-        )}
-        {busy && <p role="status">Reading local directory…</p>}
-        {success && (
-          <p
-            role="status"
-            className="text-[var(--success)] flex gap-2 items-center"
-          >
-            <CheckCircle size={16} aria-hidden="true" />
-            {success}
-          </p>
-        )}
-        {error && (
-          <p role="alert" className="text-[var(--error)]">
-            {error} Previous valid data is retained.
-          </p>
-        )}
+            })
+          }
+        >
+          <CheckCircle size={16} />
+          Validate &amp; preview directory
+        </Button>
         {preview && (
-          <section
-            className="information-card space-y-3"
-            aria-label="Directory import preview"
-          >
+          <section className="space-y-3" aria-label="Directory import preview">
             <p>
               {preview.file_name} · {preview.records} records ·{' '}
               {preview.validation}
             </p>
             <p>
               {preview.duplicate_emails} duplicate email keys ·{' '}
-              {preview.missing_emails} missing emails. Duplicates are never
-              automatically matched.
+              {preview.missing_emails} missing emails. Missing emails are
+              warnings; records are retained. Duplicates are never automatically
+              matched.
             </p>
-            <ul>
-              {preview.samples.map((employee) => (
-                <li key={employee.id}>
-                  {employee.name || 'Unnamed employee'} ·{' '}
-                  {employee.email || 'Missing email'} ·{' '}
-                  {employee.department || 'No department'}
-                </li>
-              ))}
-            </ul>
-            <button
-              className="settings-primary-button"
-              disabled={busy || dirty}
-              onClick={() =>
-                void act(async () => {
-                  const imported = await apiRequest<
-                    DirectoryStatus & { cleanup_warning?: string }
-                  >('/api/employees/import', 'POST', {
-                    path,
-                    digest: preview.digest,
-                    revision,
-                  })
-                  setPreview(null)
-                  await refresh()
-                  setSuccess(
-                    imported.cleanup_warning ||
-                      `Directory imported: ${imported.report.records} records saved locally. ${imported.enabled ? 'Enrichment is enabled.' : 'Enrichment is disabled; open Feature Settings to enable it.'}`,
-                  )
-                })
-              }
-            >
-              <Upload size={16} aria-hidden="true" />
-              Import directory
-            </button>
+            <DirectoryPreview
+              path={path}
+              digest={preview.digest}
+              revision={revision}
+            />
           </section>
         )}
-      </section>
-
+      </ImportSection>
+      <ImportSection
+        step={3}
+        title="Import / Replace"
+        description="Confirmation activates a complete validated replacement and saves a private local snapshot. No cloud upload."
+      >
+        {preview ? (
+          <>
+            <p>
+              Current:{' '}
+              {preview.current_records ?? status.data?.report.records ?? 0}{' '}
+              records · Incoming: {preview.records} records
+            </p>
+            {preview.replacement && (
+              <p className="text-sm">
+                {preview.replacement.added} added ·{' '}
+                {preview.replacement.removed} removed ·{' '}
+                {preview.replacement.modified} modified ·{' '}
+                {preview.replacement.unchanged} unchanged
+              </p>
+            )}
+            <p className="text-sm">
+              Importing this file will replace the existing Employee Directory
+              dataset. Records missing from the new CSV will be removed from the
+              active dataset.
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-[var(--muted)]">
+            Validate a CSV to enable import confirmation.
+          </p>
+        )}
+        <Button
+          variant="primary"
+          disabled={busy || dirty || !preview}
+          onClick={() => {
+            if (!preview) return
+            if (
+              (preview.current_records ?? 0) > 0 &&
+              preview.digest !== status.data?.digest &&
+              !window.confirm(
+                'Replace the entire Employee Directory with this validated CSV? Records absent from the new file will be removed.',
+              )
+            )
+              return
+            void act(async () => {
+              const imported = await apiRequest<
+                DirectoryStatus & { cleanup_warning?: string }
+              >('/api/employees/import', 'POST', {
+                path,
+                digest: preview.digest,
+                revision,
+              })
+              setPreview(null)
+              await refresh()
+              setSuccess(
+                imported.cleanup_warning ||
+                  `Directory imported: ${imported.report.records} records saved locally. ${imported.enabled ? 'Enrichment is enabled.' : 'Enrichment is disabled; open Feature Settings to enable it.'}`,
+              )
+            })
+          }}
+        >
+          <Upload size={16} />
+          Import directory
+        </Button>
+      </ImportSection>
+      {dirty && (
+        <p role="status">
+          Save or cancel pending settings changes before importing directory
+          data.
+        </p>
+      )}
+      {busy && <p role="status">Reading local directory…</p>}
+      {success && (
+        <p
+          role="status"
+          className="text-[var(--success)] flex gap-2 items-center"
+        >
+          <CheckCircle size={16} />
+          {success}
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="text-[var(--error)]">
+          {error} Previous valid data is retained.
+        </p>
+      )}
       <EmployeeBrowser />
     </div>
   )

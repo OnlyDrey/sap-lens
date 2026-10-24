@@ -99,16 +99,16 @@ class ImportTests(unittest.TestCase):
         slow=self.root/'slow.csv';slow.write_text('AGR_NAME\nDEMO_SLOW\n')
         good=self.root/'good.csv';good.write_text('AGR_NAME,TCODE\nDEMO_GOOD,DEMO_T\n')
         started,release,finished=threading.Event(),threading.Event(),threading.Event()
-        original=cache.build_cache
-        def build(path=None,configuration=None):
+        original=cache._build_catalog
+        def build(path=None,configuration=None,**kwargs):
             if path==str(slow) or (path is None and config.get_settings().data_csv_path==str(slow)):
                 started.set();release.wait(5)
-                result=original(str(slow),configuration)
+                result=original(str(slow),configuration,**kwargs)
                 finished.set();return result
-            return original(path,configuration)
+            return original(path,configuration,**kwargs)
         with patch.dict(os.environ,{'DATA_CSV_PATH':str(slow)}):
             config.get_settings.cache_clear()
-            with patch('cache.build_cache',side_effect=build):
+            with patch('cache._build_catalog',side_effect=build):
                 try:
                     with TestClient(create_app(),base_url='http://127.0.0.1:18743') as client:
                         self.assertTrue(started.wait(1))

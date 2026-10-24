@@ -81,11 +81,20 @@ export function Popover({
         )
           close(false)
       },
-      pop = () => close(false)
+      pop = () => close(false),
+      escape = (event: KeyboardEvent) => {
+        if (event.key === 'Escape' && !event.defaultPrevented) {
+          event.preventDefault()
+          event.stopPropagation()
+          close()
+        }
+      }
     document.addEventListener('pointerdown', outside)
+    document.addEventListener('keydown', escape)
     window.addEventListener('popstate', pop)
     return () => {
       document.removeEventListener('pointerdown', outside)
+      document.removeEventListener('keydown', escape)
       window.removeEventListener('popstate', pop)
     }
   }, [open])
@@ -111,13 +120,6 @@ export function Popover({
             aria-label={label}
             className="ui-popover"
             style={{ position: 'fixed', ...position }}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                e.preventDefault()
-                e.stopPropagation()
-                close()
-              }
-            }}
             onBlur={(e) => {
               if (
                 e.relatedTarget &&

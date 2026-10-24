@@ -340,6 +340,7 @@ test('theme preview screenshot changes and cancel restores the original pixels',
     .getByRole('tab', { name: 'Health & Diagnostics', exact: true })
     .click()
   await page.getByText('Source locations and storage details',{exact:true}).click()
+  for (const name of ['Role Catalogue CSV','User Access CSV']) await page.getByRole('region',{name,exact:true}).getByText('Technical source details',{exact:true}).click()
   await page.getByText('Employee Directory technical details',{exact:true}).click()
   for (const name of [
     'Application status',

@@ -24,6 +24,7 @@
 [data-theme="dark"] { --primary:#1a003b; --on-primary:#ffffff; --on-accent:#111111; --focus:#7c85d4; --hover:#242b43; --success:#6fe0a0; --warning:#ffd078; --error:#ffb4a9; --info:#9ac7ff; --error-bg:#401f26; --info-bg:#162b44; }
 /* Existing color names remain the runtime theme contract. New aliases are semantic. */
 :root {
+ --success-bg:color-mix(in srgb,var(--success) 12%,var(--surface));
  --color-background:var(--bg); --color-surface:var(--surface); --color-elevated:var(--surface2);
  --color-text:var(--text); --color-secondary:var(--text2); --color-muted:var(--muted); --color-border:var(--border);
  --color-action:var(--accent2); --color-hover:var(--hover); --color-focus:var(--focus); --color-danger:var(--error);

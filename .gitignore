@@ -85,3 +85,6 @@ SAP-Lens-diagnostics*.json
 **/account-review.json
 
 **/saved-filters.json
+
+# Local canonical CSV snapshots and private refresh evidence
+**/csv-data/

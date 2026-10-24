@@ -111,7 +111,55 @@ class FeatureSettings(StrictModel):
     employee_directory: bool = False
 
 
+class SourceModes(StrictModel):
+    roles: Literal['static', 'dynamic'] = 'dynamic'
+    users: Literal['static', 'dynamic'] = 'dynamic'
+    employees: Literal['static', 'dynamic'] = 'static'
+
+
+class SourceSnapshot(StrictModel):
+    snapshot: str = Field(pattern=r'^[a-f0-9]{64}$')
+    path: str = Field(max_length=4096)
+    imported_at: str = Field(max_length=40)
+    checked_at: str = Field(max_length=40)
+
+
+class RefreshMetadata(StrictModel):
+    timestamp: str = Field(max_length=40)
+    operation: Literal['startup', 'import', 'refresh']
+    status: Literal['changed', 'unchanged', 'partial', 'failed']
+    checked: int = Field(ge=0, le=3)
+    updated: int = Field(ge=0, le=3)
+    unchanged: int = Field(ge=0, le=3)
+    failed: int = Field(ge=0, le=3)
+    skipped: int = Field(ge=0, le=3)
+
+
+class DataLifecycle(StrictModel):
+    history_metadata: dict[str, RefreshMetadata] = Field(default_factory=dict, max_length=5)
+    last_successful_refresh: str | None = Field(default=None, max_length=40)
+    last_failed_refresh: str | None = Field(default=None, max_length=40)
+    sources: dict[Literal['roles', 'users'], SourceSnapshot] = Field(default_factory=dict, max_length=2)
+    history: list[str] = Field(default_factory=list, max_length=5)
+
+    @field_validator('history')
+    @classmethod
+    def safe_reports(cls, values):
+        import re
+        if any(not re.fullmatch(r'[a-f0-9]{64}', v) for v in values):
+            raise ValueError('Invalid refresh report reference.')
+        return values
+
+    @field_validator('history_metadata')
+    @classmethod
+    def safe_summary_keys(cls, values):
+        cls.safe_reports(list(values))
+        return values
+
+
 class AppConfig(StrictModel):
+    source_modes: SourceModes = Field(default_factory=SourceModes)
+    data_lifecycle: DataLifecycle = Field(default_factory=DataLifecycle)
     unlicensed_user_groups: list[str] = Field(default_factory=lambda: ['UNLICENSED'], max_length=100)
 
     @field_validator('unlicensed_user_groups')

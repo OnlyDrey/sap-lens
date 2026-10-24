@@ -22,7 +22,7 @@ class Decision(StrictModel):
 
 def current():
     state = cache.get_snapshot()
-    directory = available()
+    directory = available(state)
     saved = review.decisions()
     groups = get_settings().unlicensed_user_groups
     day = date.today()

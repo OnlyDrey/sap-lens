@@ -41,14 +41,14 @@ def overview():
         from account_review import cached_rows, decisions
         from .employees import available
         try:
-            review_rows = cached_rows(state, available(), decisions(), settings.unlicensed_user_groups, date.today())
+            review_rows = cached_rows(state, available(state), decisions(), settings.unlicensed_user_groups, date.today())
         except HTTPException:
             add('account_review', 'Accounts requiring review', None, 'review', 'Open Account Review for recovery.', 'Review annotations unavailable; other source metrics remain available.')
         else:
             add('account_review', 'Accounts requiring review', sum(r['needs_review'] for r in review_rows), 'review', 'Review supported account evidence and stale annotations, not effective authorization or license savings.')
     else:
         add('account_review', 'Accounts requiring review', None, 'review', 'Open Account Review.', reason)
-    return dict(metrics=metrics,last_successful_refresh=state.last_loaded.isoformat() if state.last_loaded else None,
+    return dict(metrics=metrics,last_successful_refresh=settings.data_lifecycle.last_successful_refresh,
                 source_warning='A source needs attention. Review Health & Diagnostics.' if directory['error'] else None,coverage_total=directory['coverage_total'],
                 sources=[dict(id='roles',name='Role Catalogue',enabled=True,configured=bool(settings.data_csv_path),available=catalogue),
                          dict(id='users',name='User–Role Mapping',enabled=settings.features.user_role_mapping,configured=bool(settings.user_csv_path),available=bool(state.users.report)),
