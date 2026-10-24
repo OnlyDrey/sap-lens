@@ -13,6 +13,26 @@ Windows build/install/SCM/reboot/UNC tests have to run on Windows; the Linux
 validation report cannot certify this distribution. The following is the implemented
 build/install procedure, pending native acceptance testing.
 
+## Download from Actions
+
+Choose `Windows Server Service` or `All` in
+[Build Deployment Packages](DEPLOYMENT_PACKAGES.md). After a successful approved
+run, download `SAP-Lens-Windows-Service-x64-<version>`, extract GitHub's wrapper ZIP,
+verify the inner ZIP's `.sha256`, and extract it into a new installation directory.
+The inner ZIP contains `app/` (headless EXE/Python runtime/frontend), pinned WinSW,
+management script, WinSW MIT license, README, PE verification report, package
+manifest and per-file hashes. Actual machine-specific `SAPLensService.xml` is
+created by **Install** using the canonical management script; no organization
+configuration or credentials are shipped.
+
+Target: x64 Windows Server, no logged-in user or Node/Python development environment.
+Copy to `C:\Program Files\SAP Lens Server` and use the management commands below.
+Do not launch the desktop EXE as a service. The workflow verifies PE/resources and
+runs SCM install/start/health/version/stop/uninstall, when actually dispatched on a
+Windows runner; reboot/recovery/UNC acceptance remains manual. See the
+[execution report](PACKAGING_VALIDATION.md) before interpreting implemented checks
+as executed results.
+
 ## Build on x64 Windows
 
 Use the existing local build prerequisites and full validation first. Run from the
@@ -39,7 +59,7 @@ metadata/resource validation, keeps `--noupx`, verifies x64 console PE, version,
 icon, manifest, embedded identity/modules, frontend hashes, private-file exclusion
 and wrapper/file SHA-256. It excludes WebView2. Output:
 `dist/server/<version>/` containing `app/`, `SAPLensService.exe`, management script
-and `verification-report.json`. This is an **unofficial local build** with the same
+and `verification-report.json`, README and WinSW license. This is an **unofficial local build** with the same
 local version identity rules as desktop. No release/tag/publication is performed.
 Copy the complete folder to `C:\Program Files\SAP Lens Server`; verify its report
 checksums over a trusted channel. Do not mix desktop and headless executables.
@@ -76,7 +96,8 @@ For an initial secret, the headless executable supports:
 .\app\SAP-Lens.exe --init-secret 'C:\ProgramData\SAP Lens Server\access.secret'
 ```
 
-Create its parent directory first. Supply `-SecretFile` when installing basic/proxy
+Create its parent directory first. The installer preserves an existing administrator XML
+configuration and refuses to overwrite it during reinstall; review it explicitly. Supply `-SecretFile` when installing basic/proxy
 mode; installer restricts its ACL. Do not put domain passwords in this file.
 Service failure recovery restarts after 10/30 seconds with a one-hour reset window.
 The backend refuses a duplicate data store or occupied port rather than silently

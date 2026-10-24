@@ -1,85 +1,107 @@
-# Linux native and workstation server
+# Linux native/systemd and browser client
 
-Use Python 3.12, Node 24 LTS (25 also supported for frontend tooling), npm 10/11,
-Git, and a supported Linux distribution. Node is needed only to build frontend
-assets. Desktop/WebView2 dependencies are not needed at runtime.
+## Supported target
 
-## Local Linux workstation, no systemd/root
+The downloadable **Linux-Native-x64** archive targets Ubuntu 22.04/24.04 x86-64,
+glibc 2.35+, Python **3.12**, its `venv` module, CA certificates, `libgcc-s1` and
+`libstdc++6`. Other distributions are not certified; Alpine/musl, ARM and older
+glibc are unsupported by this bundle. Provision Python 3.12 through your supported
+OS/provider (Ubuntu 22.04 does not include it as its default Python).
 
-From the repository root:
+**Node.js and React compilation are not required on the target.** The archive
+contains backend, production frontend, version metadata, hash-locked Python
+requirements and compatible binary wheels, environment/unit templates, installer,
+operator documentation and checksums. A fresh venv is created on the destination;
+a build-machine venv is never relocated. No compiler/Rust toolchain should be needed.
 
-```sh
-python3.12 -m venv .venv
-.venv/bin/python -m pip install -r backend/requirements.txt
-npm --prefix frontend ci
-npm --prefix frontend run build
-# Default is loopback only and separate XDG user storage.
-.venv/bin/python backend/server.py
-```
+## Download and install
 
-Open `http://127.0.0.1:18743`; Ctrl+C stops gracefully. For a custom store:
-
-```sh
-export SAP_LENS_DATA_DIR="$HOME/.local/share/sap-lens-server-testing"
-export SAP_LENS_SOURCE_DIR="$HOME/sap-lens-exports"
-.venv/bin/python backend/server.py
-```
-
-A source directory need not contain files to start the application. Create it and
-grant permissions before configuring a Dynamic source. For shared machines use the
-Basic access boundary, even on loopback, as documented in Security.
-
-## Dedicated systemd host
-
-Build from the reviewed checkout in `/opt/sap-lens` using the commands above, then
-protect application files from writes by the service identity. These example
-commands require administrator access for installation, not runtime:
+Build `Linux Native/systemd` or `All` using [manual packaging](DEPLOYMENT_PACKAGES.md).
+Extract GitHub's download wrapper, verify the sidecar checksum, then extract the
+inner archive into a new staging directory:
 
 ```sh
-sudo useradd --system --home-dir /var/lib/sap-lens --shell /usr/sbin/nologin saplens
-sudo install -d -o saplens -g saplens -m 0700 /var/lib/sap-lens
-sudo install -d -o root -g saplens -m 0750 /srv/sap-lens-sources /etc/sap-lens
-sudo install -o root -g saplens -m 0640 deploy/server.env.example /etc/sap-lens/server.env
-sudo install -o root -g root -m 0644 deploy/linux/sap-lens.service /etc/systemd/system/sap-lens.service
-# Review exact paths, origin and boundary before starting.
-sudoedit /etc/sap-lens/server.env
-sudo systemctl daemon-reload
-sudo systemctl enable --now sap-lens
+sha256sum -c SAP-Lens-Linux-Native-x64-<version>.tar.gz.sha256
+mkdir sap-lens-staging
+tar -xzf SAP-Lens-Linux-Native-x64-<version>.tar.gz -C sap-lens-staging
+cd sap-lens-staging
+sudo python3.12 scripts/install-linux-server.py install
 sudo systemctl status sap-lens
 sudo journalctl -u sap-lens -f
 ```
 
-The unit uses `/opt/sap-lens/.venv/bin/python`, a dedicated user, private temporary
-storage, restrictive umask and a read-only filesystem except `/var/lib/sap-lens`.
-Changing the data directory requires updating `ReadWritePaths` and permissions in
-an explicit unit override. Home directories are inaccessible with `ProtectHome`.
-Give the service read access to source files; avoid group/world-writable exports.
-For TLS/gateway deployment see [Security](DEPLOYMENT_SECURITY.md). The service does
-not grant access to a remote share automatically; mount an administrator-managed
-read-only source directory with appropriate credentials outside application config.
+Default binaries: `/opt/sap-lens/releases/<identity>/`, selected atomically through
+`/opt/sap-lens/current`. Data: `/var/lib/sap-lens`. Administrator configuration:
+`/etc/sap-lens/server.env`. The service uses dedicated `saplens`, loopback by default,
+a restrictive umask/read-only filesystem and private temporary storage. Installer
+verifies every bundle file, installs offline with hashes and checks configuration
+before switching the active release. Existing configuration is never overwritten.
+
+Options `--prefix`, `--data`, `--config` select **absolute** separate locations;
+`--no-start` installs without enabling/starting the unit. A running systemd host is
+required for system installation. Existing administrator-managed or differing units
+are preserved and require explicit migration/review; do not delete them blindly.
+Failed staging leaves the active release intact; review the unused release directory
+before retrying. If configuration is invalid, correct it explicitly and retry.
 
 ```sh
 sudo systemctl stop sap-lens
 sudo systemctl start sap-lens
 sudo systemctl restart sap-lens
-sudo systemctl is-enabled sap-lens
+sudoedit /etc/sap-lens/server.env
 ```
 
-## Upgrade and uninstall
+Read [security](DEPLOYMENT_SECURITY.md) before remote access. For Basic/proxy mode
+create a private secret readable by the service and configure the exact public
+origin/allowed hosts/trusted proxy peers. Dynamic CSV paths must be under the
+configured source root; give `saplens` read access. Uploads become Static after
+confirmation and snapshots persist independently of the original client file.
 
-Stop the unit, back up all `/var/lib/sap-lens` plus protected environment/secret
-files, update the immutable checkout to the reviewed version, reinstall pinned
-runtime requirements in its venv, rebuild production frontend, and start the unit.
-Review logs and health before removing the previous checkout/backup. Do not replace
-individual private snapshot files. Existing configuration migrations are retained.
+## Upgrade, rollback and uninstall
+
+Back up the full stopped data directory and administrator environment/secret files.
+Extract/verify the next archive into a new staging directory and run its installer
+with the **same** prefix/data/config options. It stages a new environment, preserves
+configuration, stops the existing service before switching and starts it again.
+Keep the previous release and backup until acceptance checks succeed. A modified
+systemd unit is not silently replaced. Rollback requires stopping the service,
+reviewing storage migration compatibility, restoring the prior `current` link (and
+consistent backup if necessary), then restarting; never run two versions against
+one writable store.
 
 ```sh
-sudo systemctl disable --now sap-lens
-sudo rm /etc/systemd/system/sap-lens.service
-sudo systemctl daemon-reload
+sudo python3.12 scripts/install-linux-server.py uninstall
 ```
 
-This removes service registration only. Data, source files, secrets, service user
-and application installation are deliberately preserved. Remove those separately
-only after retention/backup decisions. Linux automated process tests are not a
-claim that installation/reboot recovery was tested on a running systemd host.
+Uninstall stops/disables and unregisters the managed service. Binaries, source
+files, secrets, configuration and data are preserved by default. Remove them only
+through a separate retention decision. Use the matching prefix/config/data options
+if defaults were changed.
+
+## Linux workstation, no systemd or root
+
+The **same native archive** supports a local browser client. It is not an AppImage
+or standalone GUI. After verification/extraction:
+
+```sh
+python3.12 scripts/install-linux-server.py install --user \
+  --prefix "$HOME/.local/opt/sap-lens" \
+  --data "$HOME/.local/share/sap-lens-server" \
+  --config "$HOME/.config/sap-lens/server.env"
+"$HOME/.local/opt/sap-lens/current/.venv/bin/python" \
+  "$HOME/.local/opt/sap-lens/current/scripts/run-installed-server.py" \
+  --env "$HOME/.config/sap-lens/server.env"
+```
+
+Open `http://127.0.0.1:18743`; Ctrl+C stops. Stop this process before a user-mode
+upgrade. Use `uninstall --user` with the same paths to retain local state. On shared
+workstations configure Basic/proxy protection even on loopback.
+
+Source development remains available: install `backend/requirements.txt`, run
+`npm --prefix frontend ci` and `npm --prefix frontend run build`, then start
+`python backend/server.py`. Those Node/build requirements apply to **source builds**,
+not to downloaded native packages.
+
+CI's non-root install/start/import/synthetic-upgrade/persistence/uninstall smoke
+test does not certify systemd boot, journald, OS hardening or production permissions.
+Those require a real target host. See [actual validation](PACKAGING_VALIDATION.md).

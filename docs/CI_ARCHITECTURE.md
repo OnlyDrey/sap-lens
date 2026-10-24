@@ -75,6 +75,7 @@ packager consumes that same output and the verifier compares its bytes.
 | Workflow / file | Exact triggers | Jobs and responsibility |
 | --- | --- | --- |
 | Fast Validation / `.github/workflows/validate.yml` | Every push (including all branches/tags); every pull_request with no branch/path filters | Backend & Frontend: all existing backend/repository tests, deprecations as errors, pip consistency, workflow contracts/actionlint and frontend type checks |
+| Build Deployment Packages / `.github/workflows/build-deployments.yml` | workflow_dispatch only; platform selector and All | Shared Validation & Frontend, followed by independent Desktop, Service, Docker and native packaging jobs |
 | Full Validation / `.github/workflows/full-validation.yml` | pull_request targeting main only; no push/manual/tag/release trigger | Backend & Repository and Frontend & Browser run independently in parallel |
 | Build Windows Application / `.github/workflows/build-windows.yml` | workflow_dispatch only; caller selects branch/ref | Optional Reserve Release Version job before Windows Build & Verification; optional dependent Publish Verified Windows Release job for explicit beta/stable mode |
 
@@ -305,3 +306,14 @@ Windows Application → Run workflow → work (normal benchmark inputs false).
 One manual Windows run should verify the complete pipeline and report. A PR
 targeting main is separately needed to measure Full Validation and its two
 required jobs; do not add a manual Full trigger to sidestep that policy.
+
+## Cross-platform build-only packaging
+
+The additional manual **Build Deployment Packages** workflow supports Desktop,
+Windows Service, Docker, Linux native and All. Shared validation is performed once
+for the exact commit/run; independent platform jobs retain package audits, native
+checks and distribution roundtrips. It never publishes releases or registry images.
+The existing Windows release workflow remains unchanged. See
+[deployment artifacts and attestation](DEPLOYMENT_PACKAGES.md) and
+[current packaging validation](PACKAGING_VALIDATION.md). Four workflow files are
+now explicitly covered by the repository workflow contract.

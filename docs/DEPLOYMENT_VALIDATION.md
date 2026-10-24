@@ -1,6 +1,9 @@
 # Cross-platform deployment validation — 24 October 2026
 
-Status: **local implementation checkpoint; native Windows acceptance pending**.
+Historical runtime checkpoint at `a857539`: **native Windows acceptance pending**.
+The subsequent packaging/workflow implementation and current results are in
+[Packaging validation](PACKAGING_VALIDATION.md). Statements below describe the
+earlier runtime checkpoint, before the additional packaging workflow.
 Starting branch `work`, source baseline `f82973125b4b028c8dc59bb02d10c209741fc271`.
 Remote `work` was fetched and subsequently confirmed unchanged during delivery.
 No Windows builds, Actions dispatches, tags, releases or repository settings changed.

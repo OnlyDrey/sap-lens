@@ -12,6 +12,9 @@ same origin. It does not import WebView2. No SAP interpretation changes are made
 | Linux Docker | Compose container | Browser | Named `/data` volume |
 | Linux native/client | Python, optional systemd | Browser | Explicit directory or XDG data home/sap-lens-server |
 
+For downloadable artifacts, manual platform selection and Build All, start with
+[deployment packages](DEPLOYMENT_PACKAGES.md).
+
 Start with [security](DEPLOYMENT_SECURITY.md), then choose
 [Windows Server](DEPLOYMENT_WINDOWS_SERVER.md), [Docker](DEPLOYMENT_LINUX_DOCKER.md)
 or [Linux native](DEPLOYMENT_LINUX_NATIVE.md). Existing desktop builds remain

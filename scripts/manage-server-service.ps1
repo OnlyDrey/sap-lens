@@ -54,6 +54,18 @@ if ($Action -eq 'Install') {
         SAP_LENS_AUTH=$Authentication; SAP_LENS_AUTH_SECRET_FILE=$SecretFile;
         SAP_LENS_TRUSTED_PROXIES=$TrustedProxies; SAP_LENS_LOG_LEVEL='info'
     }
+    $address=$null
+    if (-not [Net.IPAddress]::TryParse($ListenHost,[ref]$address)) { throw 'ListenHost must be a numeric IP address.' }
+    $origin=[Uri]$PublicOrigin
+    if ($origin.Scheme -notin @('http','https') -or $origin.AbsolutePath -ne '/' -or $origin.Query -or $origin.Fragment -or $origin.UserInfo) { throw 'Use an HTTP(S) origin without a path, credentials, query or fragment.' }
+    if ($AllowedHosts.Split(',').Trim() -notcontains $origin.Host -or $AllowedHosts.Contains('*')) { throw 'AllowedHosts must explicitly include the public hostname, without wildcards.' }
+    if ($Authentication -eq 'local' -and $origin.Host -notin @('127.0.0.1','localhost','::1')) { throw 'Local access requires a loopback public origin.' }
+    if ($origin.Host -notin @('127.0.0.1','localhost','::1') -and $origin.Scheme -ne 'https') { throw 'Network public origins require HTTPS.' }
+    if ($Authentication -eq 'proxy' -and -not $TrustedProxies) { throw 'Proxy authentication requires explicit trusted peer CIDRs.' }
+    if ($Authentication -ne 'local') {
+        $secret=([IO.File]::ReadAllText($SecretFile)).Trim()
+        if ($secret.Length -lt 32 -or $secret.Length -gt 256 -or $secret -match '[^!-~]') { throw 'Access secret must contain 32-256 non-whitespace ASCII characters.' }
+    }
     $escape = { param([string]$Text) [Security.SecurityElement]::Escape($Text) }
     $environment = ($settings.GetEnumerator() | Sort-Object Name | ForEach-Object {
         '<env name="' + (& $escape $_.Name) + '" value="' + (& $escape $_.Value) + '"/>'
@@ -74,6 +86,7 @@ if ($Action -eq 'Install') {
 </service>
 "@
     $configuration = Join-Path $InstallDirectory 'SAPLensService.xml'
+    if (Test-Path $configuration) { throw 'Existing administrator service configuration is preserved. Review it explicitly before reinstalling.' }
     [IO.File]::WriteAllText($configuration,$xml,[Text.UTF8Encoding]::new($false))
     # Restrict private state to SYSTEM, Administrators and the dedicated service SID.
     Invoke-ServiceCommand 'install'
@@ -98,6 +111,7 @@ if ($Action -eq 'Install') {
 } elseif ($Action -eq 'Uninstall') {
     $service = Get-Service SAPLens -ErrorAction SilentlyContinue
     if ($service -and $service.Status -ne 'Stopped') { Invoke-ServiceCommand 'stop' }
+    if ($service) { $service.Dispose() }
     Invoke-ServiceCommand 'uninstall'
     Write-Host 'Service removed. Application data, logs, source files and bundle are preserved.'
 } else { Invoke-ServiceCommand $Action.ToLowerInvariant() }

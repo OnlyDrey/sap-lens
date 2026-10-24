@@ -18,8 +18,9 @@ def digest(path):
 def verify(directory):
     spec=importlib.util.spec_from_file_location('desktop_verifier',ROOT/'scripts/verify-windows-package.py')
     rules=importlib.util.module_from_spec(spec);spec.loader.exec_module(rules)
+    if directory.is_symlink() or any(p.is_symlink() for p in directory.rglob('*')): raise ValueError('Links are forbidden.')
     if digest(directory/'SAPLensService.exe')!=WINSW_SHA: raise ValueError('Service wrapper integrity mismatch.')
-    if {p.name for p in directory.iterdir()} != {'app','SAPLensService.exe','manage-server-service.ps1'}:
+    if {p.name for p in directory.iterdir()} != {'app','SAPLensService.exe','manage-server-service.ps1','README.md','LICENSE-WinSW.txt'}:
         raise ValueError('Unexpected server bundle root files.')
     executable=directory/'app/SAP-Lens.exe';data=executable.read_bytes()
     pe=struct.unpack_from('<I',data,0x3c)[0]

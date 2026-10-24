@@ -11,7 +11,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED = {'validate.yml': 'Fast Validation', 'full-validation.yml': 'Full Validation',
-            'build-windows.yml': 'Build Windows Application'}
+            'build-windows.yml': 'Build Windows Application', 'build-deployments.yml':'Build Deployment Packages'}
 
 
 class UniqueLoader(yaml.BaseLoader):
@@ -68,7 +68,7 @@ def validate(workflows):
         if not condition:
             raise ValueError(message)
 
-    require(set(workflows) == set(EXPECTED), 'Exactly three primary workflows are required')
+    require(set(workflows) == set(EXPECTED), 'Exactly four approved workflows are required')
     for filename, name in EXPECTED.items():
         workflow = workflows[filename]
         require(workflow['name'] == name, 'Workflow display name changed')
@@ -90,7 +90,19 @@ def validate(workflows):
                 if step.get('uses', '').startswith('actions/checkout@'):
                     require(step.get('with', {}).get('persist-credentials') == 'false', 'Checkout must not persist credentials')
                 require('${{ secrets.' not in str(step), 'Validation must not require repository secrets')
-    fast, full, windows = (workflows[n] for n in EXPECTED)
+    fast, full, windows = (workflows[n] for n in ('validate.yml','full-validation.yml','build-windows.yml'))
+    deployment=workflows['build-deployments.yml']
+    require(set(deployment['on'])=={'workflow_dispatch'}, 'Deployment packaging must be manual-only')
+    require(deployment['concurrency']['cancel-in-progress']=='false' and 'github.ref' in deployment['concurrency']['group'], 'Deployment runs must not cancel active builds')
+    require(deployment['on']['workflow_dispatch']['inputs']['platform']['options']==['Windows Desktop','Windows Server Service','Linux Docker','Linux Native/systemd','All'], 'Deployment platform choices changed')
+    require(set(deployment['jobs'])=={'validation','desktop','service','docker','native'}, 'Deployment job architecture changed')
+    for key in ('desktop','service','docker','native'):
+        job=deployment['jobs'][key]
+        require(job['needs']=='validation', 'Platform jobs must depend only on shared validation')
+        require('inputs.platform' in job['if'] and 'All' in job['if'], 'Platform selection must include All')
+        commands='\n'.join(s.get('run','') for s in job['steps'])
+        require('deployment-package.py consume' in commands and 'check-deployment-download.py --directory' in commands, 'Attestation and distribution roundtrip are mandatory')
+    require(not any(s.get('uses','').startswith('actions/') and 'login' in s.get('uses','') or 'release-windows.py publish' in s.get('run','') for j in deployment['jobs'].values() for s in j['steps']), 'Deployment packaging may not publish')
     require(fast['on'] == {'push': '', 'pull_request': ''}, 'Fast must run on every push and PR without filters')
     require(full['on'] == {'pull_request': {'branches': ['main']}}, 'Full must run only on PRs targeting main')
     require(set(windows['on']) == {'workflow_dispatch'}, 'Windows must be manual-only')

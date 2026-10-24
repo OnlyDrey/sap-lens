@@ -106,6 +106,7 @@ the application. [EXE packaging](docs/LOCAL_WINDOWS_BUILD.md) is a separate work
 
 The desktop API binds only to `127.0.0.1`, prefers port `18743`, allows the selected origin and requires a fresh launch capability. Desktop mode is a local single-user application. A nonstandard port is not authentication. Headless Windows/Linux hosting uses a separate server mode, persistent storage and an explicit access boundary; see the [deployment guide](docs/DEPLOYMENT.md).
 
+- [Downloadable deployment packages and Build All](docs/DEPLOYMENT_PACKAGES.md)
 - [Architecture and performance](docs/ARCHITECTURE.md)
 - [API reference](docs/API_REFERENCE.md)
 - [Security review](docs/SECURITY_REVIEW.md)

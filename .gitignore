@@ -92,3 +92,6 @@ SAP-Lens-diagnostics*.json
 # Cross-platform service distributions and private access configuration
 /dist/server/
 *.secret
+
+# Verified cross-platform distribution output
+/dist/deployment/

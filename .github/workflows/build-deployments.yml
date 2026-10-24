@@ -1,0 +1,363 @@
+name: Build Deployment Packages
+'on':
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Build one deployment or all independently
+        type: choice
+        options:
+        - Windows Desktop
+        - Windows Server Service
+        - Linux Docker
+        - Linux Native/systemd
+        - All
+        default: All
+        required: true
+      version:
+        description: Build-only base MAJOR.MINOR.PATCH; no release or tag
+        type: string
+        default: 0.1.0
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: sap-lens-deployment-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  validation:
+    name: Shared Validation & Frontend
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    env:
+      BASE_VERSION: ${{ inputs.version }}
+      DEPLOYMENT_PLATFORM: ${{ inputs.platform }}
+    outputs:
+      version: ${{ steps.identity.outputs.version }}
+    steps:
+    - name: Check out exact source
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.sha }}
+        persist-credentials: false
+      id: s0
+    - name: Set up Python 3.12
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+      with:
+        python-version: '3.12'
+        cache: pip
+        cache-dependency-path: 'backend/requirements*.txt
+
+          scripts/requirements-audit.txt'
+      id: s1
+    - name: Set up Node 24
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+      with:
+        node-version: '24'
+        cache: npm
+        cache-dependency-path: frontend/package-lock.json
+        package-manager-cache: false
+      id: s2
+    - name: Install shared validation dependencies
+      run: python -m pip install -r backend/requirements-dev.txt -r backend/requirements-build.txt -r scripts/requirements-audit.txt
+      id: s3
+    - name: Resolve build-only identity
+      run: python scripts/deployment-package.py prepare --version "$BASE_VERSION"
+      id: identity
+    - name: Check Python dependencies
+      run: python scripts/ci.py run pip_check -- python -m pip check
+      id: pip_check
+    - name: Validate workflows
+      run: python scripts/ci.py run workflow_lint -- python scripts/ci.py lint
+      id: workflow_lint
+    - name: Validate PowerShell scripts
+      run: python scripts/ci.py run powershell -- pwsh -NoProfile -File scripts/check-powershell.ps1
+      id: powershell
+    - name: Run shared backend regressions
+      run: python scripts/ci.py run backend -- python -W error::DeprecationWarning -m unittest discover -s backend/tests -v
+      id: backend
+    - name: Install locked frontend dependencies
+      run: npm --prefix frontend ci --no-audit --no-fund
+      id: s9
+    - name: Check frontend types
+      run: python scripts/ci.py run types -- npm --prefix frontend run check:types
+      id: types
+    - name: Check icon catalog
+      run: python scripts/ci.py run catalog -- node scripts/sync-lucide-catalog.mjs --check
+      id: catalog
+    - name: Build production frontend
+      run: python scripts/ci.py run build -- npm --prefix frontend run build
+      id: build
+    - name: Audit shared Python dependencies
+      run: python scripts/ci.py run python_audit -- python -m pip_audit --vulnerability-service pypi --progress-spinner off
+      id: python_audit
+    - name: Audit production JavaScript
+      run: python scripts/ci.py run javascript_audit -- npm --prefix frontend audit --omit=dev
+      id: javascript_audit
+    - name: Configure browser cache
+      id: browser_path
+      run: echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/sap-lens-playwright" >> "$GITHUB_ENV"
+    - name: Cache pinned browser
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+      with:
+        path: ${{ runner.temp }}/sap-lens-playwright
+        key: playwright-headless-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/package-lock.json') }}
+      id: s15
+    - name: Install Chromium and system libraries
+      run: node frontend/node_modules/playwright/cli.js install --with-deps chromium --only-shell
+      id: s16
+    - name: Run shared browser regressions
+      run: python scripts/ci.py run browser -- npm --prefix frontend run test:browser -- --reporter=line,github
+      id: browser
+    - name: Seal same-commit validated inputs
+      run: python scripts/deployment-package.py seal --output backend/build/validated-inputs.zip
+      id: s18
+    - name: Upload validated frontend and attestation
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: deployment-inputs-${{ github.run_id }}-${{ github.run_attempt }}
+        path: backend/build/validated-inputs.zip
+        if-no-files-found: error
+        retention-days: 1
+      id: s19
+    - name: Write shared validation summary
+      run: python scripts/ci.py summary
+      if: always()
+      env:
+        CI_STEPS: ${{ toJSON(steps) }}
+        CI_REQUIRED: browser_path s0 s1 s2 s3 identity pip_check workflow_lint powershell backend s9 types catalog build python_audit javascript_audit
+          s15 s16 browser s18 s19
+        CI_JOB_NAME: Shared validation
+  desktop:
+    name: Windows Desktop Packaging & Verification
+    runs-on: windows-latest
+    timeout-minutes: 25
+    needs: validation
+    if: ${{ inputs.platform == 'All' || inputs.platform == 'Windows Desktop' }}
+    env:
+      RELEASE_MODE: build
+      RELEASE_VERSION: ${{ inputs.version }}
+    steps:
+    - name: Check out exact source
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.sha }}
+        persist-credentials: false
+    - name: Set up Python 3.12
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+      with:
+        python-version: '3.12'
+        cache: pip
+        cache-dependency-path: 'backend/requirements*.txt
+
+          scripts/requirements-audit.txt'
+    - name: Download same-run validated inputs
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: deployment-inputs-${{ github.run_id }}-${{ github.run_attempt }}
+        path: backend/build/shared
+        digest-mismatch: error
+    - name: Verify and consume validated inputs
+      run: python scripts/deployment-package.py consume --archive backend/build/shared/validated-inputs.zip
+    - name: Build and smoke-test platform package
+      run: ./scripts/package-windows-deployment.ps1 -Target Desktop
+      shell: pwsh
+    - name: Upload verified platform distribution
+      id: distribution
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: SAP-Lens-Windows-Desktop-x64-${{ needs.validation.outputs.version }}
+        path: dist/deployment/*
+        if-no-files-found: error
+        retention-days: 14
+        compression-level: 0
+    - name: Download uploaded distribution for integrity verification
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        artifact-ids: ${{ steps.distribution.outputs.artifact-id }}
+        path: ${{ runner.temp }}/deployment-roundtrip
+        digest-mismatch: error
+    - name: Verify uploaded archives and exact contents
+      run: python scripts/check-deployment-download.py --directory "${{ runner.temp }}/deployment-roundtrip"
+    - name: Write platform outcome
+      run: python scripts/check-deployment-download.py --summary
+      if: always()
+      env:
+        PLATFORM_LABEL: Windows Desktop
+        PLATFORM_RESULT: ${{ job.status }}
+        DEPLOYMENT_VERSION: ${{ needs.validation.outputs.version }}
+  service:
+    name: Windows Server Service Packaging & Verification
+    runs-on: windows-latest
+    timeout-minutes: 25
+    needs: validation
+    if: ${{ inputs.platform == 'All' || inputs.platform == 'Windows Server Service' }}
+    env:
+      RELEASE_MODE: build
+      RELEASE_VERSION: ${{ inputs.version }}
+    steps:
+    - name: Check out exact source
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.sha }}
+        persist-credentials: false
+    - name: Set up Python 3.12
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+      with:
+        python-version: '3.12'
+        cache: pip
+        cache-dependency-path: 'backend/requirements*.txt
+
+          scripts/requirements-audit.txt'
+    - name: Download same-run validated inputs
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: deployment-inputs-${{ github.run_id }}-${{ github.run_attempt }}
+        path: backend/build/shared
+        digest-mismatch: error
+    - name: Verify and consume validated inputs
+      run: python scripts/deployment-package.py consume --archive backend/build/shared/validated-inputs.zip
+    - name: Build and smoke-test platform package
+      run: ./scripts/package-windows-deployment.ps1 -Target Service
+      shell: pwsh
+    - name: Upload verified platform distribution
+      id: distribution
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: SAP-Lens-Windows-Service-x64-${{ needs.validation.outputs.version }}
+        path: dist/deployment/*
+        if-no-files-found: error
+        retention-days: 14
+        compression-level: 0
+    - name: Download uploaded distribution for integrity verification
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        artifact-ids: ${{ steps.distribution.outputs.artifact-id }}
+        path: ${{ runner.temp }}/deployment-roundtrip
+        digest-mismatch: error
+    - name: Verify uploaded archives and exact contents
+      run: python scripts/check-deployment-download.py --directory "${{ runner.temp }}/deployment-roundtrip"
+    - name: Write platform outcome
+      run: python scripts/check-deployment-download.py --summary
+      if: always()
+      env:
+        PLATFORM_LABEL: Windows Server Service
+        PLATFORM_RESULT: ${{ job.status }}
+        DEPLOYMENT_VERSION: ${{ needs.validation.outputs.version }}
+  docker:
+    name: Linux Docker Packaging & Verification
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    needs: validation
+    if: ${{ inputs.platform == 'All' || inputs.platform == 'Linux Docker' }}
+    env:
+      RELEASE_MODE: build
+      RELEASE_VERSION: ${{ inputs.version }}
+    steps:
+    - name: Check out exact source
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.sha }}
+        persist-credentials: false
+    - name: Set up Python 3.12
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+      with:
+        python-version: '3.12'
+        cache: pip
+        cache-dependency-path: 'backend/requirements*.txt
+
+          scripts/requirements-audit.txt'
+    - name: Download same-run validated inputs
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: deployment-inputs-${{ github.run_id }}-${{ github.run_attempt }}
+        path: backend/build/shared
+        digest-mismatch: error
+    - name: Verify and consume validated inputs
+      run: python scripts/deployment-package.py consume --archive backend/build/shared/validated-inputs.zip
+    - name: Install pinned package audit tooling
+      run: python -m pip install -r scripts/requirements-audit.txt
+    - name: Build and smoke-test platform package
+      run: python scripts/package-docker.py
+    - name: Upload verified platform distribution
+      id: distribution
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: SAP-Lens-Linux-Docker-amd64-${{ needs.validation.outputs.version }}
+        path: dist/deployment/*
+        if-no-files-found: error
+        retention-days: 14
+        compression-level: 0
+    - name: Download uploaded distribution for integrity verification
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        artifact-ids: ${{ steps.distribution.outputs.artifact-id }}
+        path: ${{ runner.temp }}/deployment-roundtrip
+        digest-mismatch: error
+    - name: Verify uploaded archives and exact contents
+      run: python scripts/check-deployment-download.py --directory "${{ runner.temp }}/deployment-roundtrip"
+    - name: Write platform outcome
+      run: python scripts/check-deployment-download.py --summary
+      if: always()
+      env:
+        PLATFORM_LABEL: Linux Docker
+        PLATFORM_RESULT: ${{ job.status }}
+        DEPLOYMENT_VERSION: ${{ needs.validation.outputs.version }}
+  native:
+    name: Linux Native/systemd Packaging & Verification
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    needs: validation
+    if: ${{ inputs.platform == 'All' || inputs.platform == 'Linux Native/systemd' }}
+    env:
+      RELEASE_MODE: build
+      RELEASE_VERSION: ${{ inputs.version }}
+    steps:
+    - name: Check out exact source
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.sha }}
+        persist-credentials: false
+    - name: Set up Python 3.12
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+      with:
+        python-version: '3.12'
+        cache: pip
+        cache-dependency-path: 'backend/requirements*.txt
+
+          scripts/requirements-audit.txt'
+    - name: Download same-run validated inputs
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: deployment-inputs-${{ github.run_id }}-${{ github.run_attempt }}
+        path: backend/build/shared
+        digest-mismatch: error
+    - name: Verify and consume validated inputs
+      run: python scripts/deployment-package.py consume --archive backend/build/shared/validated-inputs.zip
+    - name: Build and smoke-test platform package
+      run: 'python scripts/deployment-package.py native
+
+        python scripts/test-native-deployment.py --artifacts dist/deployment'
+    - name: Upload verified platform distribution
+      id: distribution
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: SAP-Lens-Linux-Native-x64-${{ needs.validation.outputs.version }}
+        path: dist/deployment/*
+        if-no-files-found: error
+        retention-days: 14
+        compression-level: 0
+    - name: Download uploaded distribution for integrity verification
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        artifact-ids: ${{ steps.distribution.outputs.artifact-id }}
+        path: ${{ runner.temp }}/deployment-roundtrip
+        digest-mismatch: error
+    - name: Verify uploaded archives and exact contents
+      run: python scripts/check-deployment-download.py --directory "${{ runner.temp }}/deployment-roundtrip"
+    - name: Write platform outcome
+      run: python scripts/check-deployment-download.py --summary
+      if: always()
+      env:
+        PLATFORM_LABEL: Linux Native/systemd
+        PLATFORM_RESULT: ${{ job.status }}
+        DEPLOYMENT_VERSION: ${{ needs.validation.outputs.version }}

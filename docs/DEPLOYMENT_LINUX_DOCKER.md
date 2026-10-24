@@ -4,39 +4,51 @@ Requires Docker Engine with Compose v2 and BuildKit. Node and Python are built
 inside the image. Use the repository root, not a directory containing private CSVs.
 The allowlisted `.dockerignore` excludes settings, snapshots, Git history and tests.
 
-## First deployment
+## Downloaded image (no source build)
+
+Choose `Linux Docker` or `All` in [Build Deployment Packages](DEPLOYMENT_PACKAGES.md).
+The Linux amd64 archive contains `image.tar`, a Compose file referencing that
+**locally loaded versioned image**, documentation, manifest and checksum. No registry
+is used. After extracting GitHub's outer download ZIP:
 
 ```sh
+sha256sum -c SAP-Lens-Linux-Docker-amd64-<version>.tar.gz.sha256
+mkdir sap-lens-docker
+tar -xzf SAP-Lens-Linux-Docker-amd64-<version>.tar.gz -C sap-lens-docker
+cd sap-lens-docker
+docker load -i image.tar
 mkdir -p local-config
-# UID/GID 10001 is the image's non-root runtime identity.
 sudo install -d -m 0750 -o "$(id -u)" -g 10001 local-config
 (umask 077; openssl rand -hex 32 > local-config/server-access.secret)
 sudo chgrp 10001 local-config/server-access.secret
 chmod 0640 local-config/server-access.secret
-
-docker compose up -d --build
+docker compose up -d
 docker compose ps
 docker compose logs -f
 ```
 
-Open `http://127.0.0.1:18743`. Username `saplens`; password is the private access
-secret. This uses shared Basic access, only suitable for controlled local testing
-without HTTPS. Access from another device requires the explicitly configured
-HTTPS reverse proxy and security boundary described in [Security](DEPLOYMENT_SECURITY.md).
-Mobile browsers use that same HTTPS URL and browser CSV picker/downloads.
+Open `http://127.0.0.1:18743`; username `saplens`, password from the private secret.
+No Python/Node installation or React compilation is needed on the Docker host.
+The image embeds the same workflow version/source identity as other platform builds.
+Docker amd64 is the tested build target; ARM/multi-architecture images are not claimed.
 
-The Dockerfile uses Node 24, Python 3.12, locked frontend install and pinned runtime
-Python dependencies, no development dependencies in the final image, UID/GID10001,
-read-only root filesystem, dropped capabilities and a private tmpfs. Production
-assets are compiled once in a separate stage. Base image tags receive security
-updates; record image digests during controlled deployment for byte-for-byte
-rollback. Builds are source deployments and show development identity unless a
-separately reviewed release identity is included; no tags/releases are generated.
+For another device, configure an explicit HTTPS reverse proxy and the
+[access boundary](DEPLOYMENT_SECURITY.md). Default publication is loopback-only.
+The image runs UID/GID10001 with read-only root, private tmpfs and dropped capabilities.
+Keep the access secret outside the image and source control. The pipeline builds,
+audits and smoke-tests the image, exports it and verifies its downloadable archive;
+it never pushes to an external registry.
 
-For an environment with an explicitly supplied build proxy CA, use BuildKit
-`--secret id=build_ca,src=/absolute/ca.crt` with `docker build`. Trust is mounted only
-for dependency download steps and is not retained in the runtime image. Do not
-bypass TLS checks. Ordinary builds require no CA secret.
+## Source-build alternative
+
+From a reviewed source checkout, create the same private secret, then use
+`docker compose up -d --build`. This compiles assets inside a Node24 build stage;
+the final Python3.12 image contains production assets/runtime only. Source builds
+without supplied validated build metadata show development identity. Base tags can
+receive updates; record image digests for controlled rollback.
+
+For managed environments an optional BuildKit `build_ca` secret supplies build-time
+trust only; never disable TLS or bake a session CA into the image.
 
 ## Sources and storage
 
@@ -62,7 +74,9 @@ docker compose restart
 docker compose stop
 docker compose start
 # Upgrade after backing up data; check out the intended source commit first.
-docker compose up -d --build
+docker load -i /path/to/new-package/image.tar
+# Use the new package Compose file, preserving reviewed administrator configuration.
+docker compose up -d
 # Removes containers/network, preserves named volume and private secret:
 docker compose down
 ```
@@ -79,8 +93,9 @@ docker run --rm --network none --user 0:0 \
 docker compose start
 ```
 
-Compose's default built image is `sap-lens-sap-lens`; confirm with `docker compose
-images` before running this command. The backup helper uses root only to read
+The source-build example uses image `sap-lens-sap-lens`; downloaded packages use
+`sap-lens:<version>`. Substitute the image shown by `docker compose images` in the
+backup command. The backup helper uses root only to read
 volume ownership, no network or Docker socket. Store backups encrypted/offline.
 For restore, stop/remove the application container, restore the archive into the
 volume using `tar -xzf ... -C /data`, retain UID/GID10001 ownership, and start it.
