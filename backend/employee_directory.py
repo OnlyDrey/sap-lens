@@ -33,7 +33,8 @@ def match_sap_identity(directory, user, owners):
 
 
 def parse_directory(path):
-    source = Path(path)
+    from deployment import source_path
+    source = source_path(path)
     if not source.is_absolute():
         raise ValueError('Choose an absolute Employee Directory CSV path.')
     initial = source.stat()

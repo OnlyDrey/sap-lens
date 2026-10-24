@@ -24,6 +24,11 @@ class BootstrapSettings(BaseSettings):
 
 
 def config_dir() -> Path:
+    from deployment import server_mode, default_server_data
+    if server_mode():
+        directory=Path(os.environ.get('SAP_LENS_DATA_DIR',str(default_server_data()))).expanduser()
+        if not directory.is_absolute(): raise ValueError('Server data directory must be absolute.')
+        return directory
     if root := os.environ.get('SAP_LENS_CONFIG_DIR'):
         directory=Path(root).expanduser()
         if not directory.is_absolute(): raise ValueError('Configuration directory override must be absolute.')

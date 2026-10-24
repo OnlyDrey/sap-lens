@@ -5,6 +5,7 @@ import { About } from './About'
 import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
 import { EmployeeSource, FeatureSettings } from './EmployeeDirectory'
 import { SourceMode } from './SourceMode'
+import { BrowserSourceUpload } from './BrowserSourceUpload'
 import { RefreshHistory } from '@/components/Shared/RefreshReport'
 import { ImportSection } from './ImportSection'
 import { SourceStatus } from "./SourceStatus"
@@ -738,6 +739,7 @@ export function SettingsView({
                       </div>
                       <div id="source-panel-roles" role="tabpanel" aria-labelledby="source-tab-roles" hidden={importSource !== 'roles'} className="import-source-panel space-y-4">
                       <ImportSection step={1} title="Source file" description="Role catalogue · composite roles, single roles and transaction relationships.">
+                      <BrowserSourceUpload source="roles" disabled={busy} onUploaded={path=>setDraft({...draft,data_csv_path:path,source_modes:{roles:'static',users:draft.source_modes?.users||'dynamic',employees:draft.source_modes?.employees||'static'}})}/>
                       <div className="source-file-row">
                       <Field label="CSV file location">
                         <input

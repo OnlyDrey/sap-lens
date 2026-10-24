@@ -1,4 +1,5 @@
 import { DirectoryPreview } from './DirectoryPreview'
+import { BrowserSourceUpload } from './BrowserSourceUpload'
 import { ImportSection } from './ImportSection'
 import { Toggle } from '@/components/Shared/Controls'
 import { Button } from '@/components/Shared/Button'
@@ -543,6 +544,7 @@ export function EmployeeSource({
     queryKey: ['employee-status'],
     queryFn: () => apiRequest<DirectoryStatus>('/api/employees/status'),
   })
+  const [uploaded,setUploaded]=useState(false)
   const [path, setPath] = useState(savedPath),
     [preview, setPreview] = useState<
       | (Report & {
@@ -588,6 +590,7 @@ export function EmployeeSource({
     await onImported()
   }
   const choose = (value: string) => {
+    setUploaded(false)
     setPath(value)
     setPreview(null)
     setSuccess('')
@@ -621,6 +624,7 @@ export function EmployeeSource({
         title="Select source"
         description="Choose a local Employee Directory CSV. Selection alone does not import or replace records."
       >
+        <BrowserSourceUpload source="employees" disabled={busy||dirty} onUploaded={value=>{choose(value);setUploaded(true)}}/>
         <label className="block text-sm">
           Employee Directory CSV location
           <input
@@ -773,6 +777,7 @@ export function EmployeeSource({
                 path,
                 digest: preview.digest,
                 revision,
+                ...(uploaded?{mode:'static'}:{}),
               })
               setPreview(null)
               await refresh()

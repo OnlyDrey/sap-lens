@@ -1,4 +1,5 @@
 import { controlClass } from '@/components/Shared/Controls'
+import { BrowserSourceUpload } from './BrowserSourceUpload'
 import { ImportSection } from './ImportSection';
 import { SourceStatus } from "./SourceStatus";
 import { useQuery } from "@tanstack/react-query";
@@ -229,6 +230,7 @@ export function UserSourceEditor({
       className="import-source-panel space-y-4"
     >
       <ImportSection step={1} title="Source file" description="User Access · User–Role Mapping (CSV 2). Independent SAP directory and assignments; blank roles retain directory-only users.">
+      <BrowserSourceUpload source="users" onUploaded={path=>onChange({...draft,user_csv_path:path,source_modes:{roles:draft.source_modes?.roles||'dynamic',users:'static',employees:draft.source_modes?.employees||'static'}})}/>
       <div className="source-file-row">
       <label className="block text-sm">
         User CSV file location

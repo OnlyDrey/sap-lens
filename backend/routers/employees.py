@@ -133,6 +133,8 @@ async def import_directory(request: ImportRequest):
             settings.employee_csv_path = request.path
             settings.employee_snapshot_id = staged_id
             if request.mode is not None: settings.source_modes.employees = request.mode
+            from deployment import validate_server_sources
+            validate_server_sources(settings)
             save_configuration(settings, request.revision)
         except (ValueError, OSError):
             if staged_id and staged_id != previous_id:

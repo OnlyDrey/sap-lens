@@ -23,6 +23,8 @@ def diagnostics_snapshot(loader=None, private=False):
         'last_successful_load': state.last_loaded.isoformat() if state.last_loaded else None,
         'last_successful_refresh': settings.data_lifecycle.last_successful_refresh,
     }
+    from deployment import server_mode
+    result['deployment_mode'] = 'server' if server_mode() else 'desktop'
     result['last_failed_load'] = result['last_failed_load'] or settings.data_lifecycle.last_failed_refresh
     sources = []
     for key, name, path, count, report in [

@@ -17,6 +17,8 @@ from portable_config import PortableConfig, export_configuration, read_portable
 
 
 def validate_configuration(config,current=None):
+    from deployment import validate_server_sources
+    validate_server_sources(config)
     if any(key not in REGISTRY for key in config.module_overrides):
         raise ValueError('Module overrides must use a stable registry identifier.')
     if config.logo_id and logo_bytes(config.logo_id) is None and (current is None or config.logo_id!=current.logo_id):
@@ -85,7 +87,8 @@ def configuration_router(loader):
     @router.get('/diagnostics')
     def diagnostics():
         from diagnostics import diagnostics_snapshot
-        return diagnostics_snapshot(loader, private=True)
+        from deployment import server_mode
+        return diagnostics_snapshot(loader, private=not server_mode())
 
     @router.get('/diagnostics/export')
     def diagnostics_export():

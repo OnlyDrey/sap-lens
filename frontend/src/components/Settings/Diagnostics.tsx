@@ -28,6 +28,7 @@ interface DataSource {
   loading: boolean
 }
 interface Snapshot {
+  deployment_mode?: string
   last_successful_refresh?: string | null
   sources: DataSource[]
   version: string
@@ -123,6 +124,7 @@ export function Diagnostics({
           <h2 className="settings-subheading">
             <Activity size={18} aria-hidden="true" /> Application status
           </h2>
+          <span className="text-xs">{query.data?.deployment_mode||'desktop'} · {query.data?.platform||'Checking platform'}</span>
           <Button
             onClick={() => void query.refetch()}
             className="settings-secondary-button"

@@ -236,6 +236,7 @@ def run() -> int:
     handler = None
     runtime_file = None
     identity = None
+    storage_lease = None
     startup_lock = threading.Lock()
     closing = threading.Event()
     crashed = threading.Event()
@@ -253,6 +254,8 @@ def run() -> int:
                 'from Microsoft, or ask your IT administrator, then reopen SAP Lens. No Python or Node.js installation is needed.')
         directory = config_dir()
         directory.mkdir(parents=True, exist_ok=True)
+        from storage_lease import StorageLease
+        storage_lease = StorageLease(directory,'desktop').acquire()
         handler = RotatingFileHandler(directory / 'sap-lens.log', maxBytes=2_000_000,
                                       backupCount=2, encoding='utf-8')
         handler.addFilter(AppLogFilter())
@@ -364,6 +367,8 @@ def run() -> int:
         if handler:
             logging.getLogger().removeHandler(handler)
             handler.close()
+        if storage_lease:
+            storage_lease.close()
 
 
 if __name__ == '__main__':

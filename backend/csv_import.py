@@ -30,6 +30,8 @@ class CsvImport:
         self.unique_records = 0
 
     def inspect_header(self):
+        from deployment import source_path
+        self.path = source_path(self.path)
         if self.path.stat().st_size > MAX_BYTES: raise AnalysisValidationError('CSV exceeds its size limit.')
         with self.path.open('rb') as stream: bom = stream.read(3)
         encoding = self.profile.encoding
@@ -58,6 +60,8 @@ class CsvImport:
         return dict(detected_columns=headers,delimiter=delimiter,encoding=encoding,proposed_mapping=proposed,issues=issues)
 
     def records(self):
+        from deployment import source_path
+        self.path = source_path(self.path)
         initial = self.path.stat()
         signature = lambda stat: (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
         if initial.st_size > MAX_BYTES: raise AnalysisValidationError('CSV exceeds the 128 MiB safety limit.')
