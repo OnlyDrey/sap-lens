@@ -25,7 +25,9 @@ manifest and per-file hashes. Actual machine-specific `SAPLensService.xml` is
 created by **Install** using the canonical management script; no organization
 configuration or credentials are shipped.
 
-Target: x64 Windows Server, no logged-in user or Node/Python development environment.
+Intended targets: Windows Server 2022/2025 x64, subject to native acceptance;
+older Server versions are not certified. CI uses `windows-latest`. No logged-in
+user or Node/Python development environment is required on the target.
 Copy to `C:\Program Files\SAP Lens Server` and use the management commands below.
 Do not launch the desktop EXE as a service. The workflow verifies PE/resources and
 runs SCM install/start/health/version/stop/uninstall, when actually dispatched on a
