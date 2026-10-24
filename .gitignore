@@ -88,3 +88,7 @@ SAP-Lens-diagnostics*.json
 
 # Local canonical CSV snapshots and private refresh evidence
 **/csv-data/
+
+# Cross-platform service distributions and private access configuration
+/dist/server/
+*.secret

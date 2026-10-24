@@ -1,0 +1,31 @@
+name: sap-lens
+services:
+  sap-lens:
+    build: .
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${SAP_LENS_PUBLISH_ADDRESS:-127.0.0.1}:${SAP_LENS_PUBLISH_PORT:-18743}:18743"
+    environment:
+      SAP_LENS_PUBLIC_ORIGIN: ${SAP_LENS_PUBLIC_ORIGIN:-http://127.0.0.1:18743}
+      SAP_LENS_ALLOWED_HOSTS: ${SAP_LENS_ALLOWED_HOSTS:-127.0.0.1}
+      SAP_LENS_AUTH: ${SAP_LENS_AUTH:-basic}
+      SAP_LENS_AUTH_SECRET_FILE: /run/secrets/access
+      SAP_LENS_TRUSTED_PROXIES: ${SAP_LENS_TRUSTED_PROXIES:-}
+    volumes:
+      - sap-lens-data:/data
+      # Optional read-only source mount; paths configured in SAP Lens use /sources/...
+      # - ./sources:/sources:ro
+    secrets:
+      - access
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 25s
+secrets:
+  access:
+    file: ./local-config/server-access.secret
+volumes:
+  sap-lens-data:

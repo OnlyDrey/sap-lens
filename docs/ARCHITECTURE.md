@@ -59,3 +59,12 @@ The atomic cache also contains a separately parsed user export, a reusable liter
 ## CSV lifecycle and private refresh evidence
 
 `csv_lifecycle.py` stages immutable canonical observations and commits their references, bounded history metadata and feature/source settings in one atomic configuration write. It publishes one coherent cache generation after independent source results are prepared. `employee_preview.py` filters raw preview rows off the event loop and renders only the selected page; replacement summaries and identity coverage are cached against immutable dataset identities. History listings read compact metadata, not full record reports. See [CSV data lifecycle](CSV_DATA_LIFECYCLE.md) for modes, recovery, identities and consistency guarantees.
+
+## Headless server deployment
+
+`backend/server.py` hosts the same FastAPI factory and production frontend without
+WebView2. Hosting policy is centralized in `backend/deployment.py`; server data
+uses a separate directory and a process-held lease. Browser uploads stage inputs
+for the existing CSV validation/confirmation lifecycle. Desktop startup and its
+release pipeline remain independent. See [deployment modes and operations](DEPLOYMENT.md)
+and [access-boundary assumptions](DEPLOYMENT_SECURITY.md).
