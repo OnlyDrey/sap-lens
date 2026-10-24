@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -32,8 +33,11 @@ class ServerTestBase(unittest.TestCase):
             'SAP_LENS_PORT':'18743','SAP_LENS_PUBLIC_ORIGIN':'http://127.0.0.1:18743','SAP_LENS_ALLOWED_HOSTS':'127.0.0.1',
             'SAP_LENS_AUTH':'local','SAP_LENS_AUTH_SECRET_FILE':str(self.secret),'SAP_LENS_TRUSTED_PROXIES':'','DATA_CSV_PATH':''})
         self.env.start();config.get_settings.cache_clear();cache.clear_cache();store.clear()
+        # Unit boundaries must not depend on an ignored production build being present.
+        frontend=self.root/'unit-frontend';frontend.mkdir();(frontend/'index.html').write_text('<html>synthetic unit frontend</html>')
+        self.frontend_patch=patch('main.frontend_dir',frontend);self.frontend_patch.start()
     def tearDown(self):
-        config.get_settings.cache_clear();cache.clear_cache();store.clear();self.env.stop();self.temp.cleanup()
+        self.frontend_patch.stop();config.get_settings.cache_clear();cache.clear_cache();store.clear();self.env.stop();self.temp.cleanup()
     def client(self,peer='127.0.0.1',origin='http://127.0.0.1:18743'):
         return TestClient(create_app(server=ServerSettings.from_env()),base_url=origin,client=(peer,50000))
     def basic(self): return {'Authorization':'Basic '+base64.b64encode(('saplens:'+self.secret.read_text()).encode()).decode(),'X-SAP-Lens':'1'}
@@ -127,7 +131,13 @@ class ServerProcessTests(ServerTestBase):
     def test_headless_process_shutdown_port_conflicts_and_restart_persistence(self):
         with socket.socket() as reserve:reserve.bind(('127.0.0.1',0));port=reserve.getsockname()[1]
         env={**os.environ,'SAP_LENS_PORT':str(port),'SAP_LENS_PUBLIC_ORIGIN':f'http://127.0.0.1:{port}'}
-        command=[sys.executable,str(Path(__file__).resolve().parents[1]/'server.py')]
+        # Exercise the real entry point with isolated source/assets, not a prebuilt checkout.
+        runtime=self.root/'runtime';backend=runtime/'backend';backend.mkdir(parents=True)
+        source=Path(__file__).resolve().parents[1]
+        for file in source.glob('*.py'):shutil.copyfile(file,backend/file.name)
+        shutil.copytree(source/'routers',backend/'routers',ignore=shutil.ignore_patterns('__pycache__'))
+        frontend=runtime/'frontend/dist';frontend.mkdir(parents=True);(frontend/'index.html').write_text('<html>synthetic process frontend</html>')
+        command=[sys.executable,str(backend/'server.py')]
         def start():
             process=subprocess.Popen(command,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
             deadline=time.monotonic()+8

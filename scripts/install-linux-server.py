@@ -43,6 +43,8 @@ def main():
     for path in (a.prefix,a.data,a.config):
         if not path.is_absolute() or any(c in str(path) for c in '\n\r%') or path.is_symlink():raise ValueError('Use absolute paths without links/control characters/specifiers.')
     a.prefix=a.prefix.resolve();a.data=a.data.resolve();a.config=a.config.resolve()
+    protected={Path(value) for value in ('/','/etc','/usr','/var','/opt','/home','/srv','/root','/bin','/sbin','/tmp')}
+    if a.prefix in protected or a.data in protected:raise ValueError('Choose dedicated application and data directories, never an OS directory.')
     if a.data.is_relative_to(a.prefix) or a.config.is_relative_to(a.prefix):raise ValueError('Keep mutable data/config outside binaries.')
     if not a.user and os.geteuid()!=0:raise ValueError('Use sudo for systemd installation, or --user with explicit user-owned paths.')
     unit=Path('/etc/systemd/system/sap-lens.service')
@@ -55,6 +57,11 @@ def main():
         if not a.user and unit.exists():
             command('systemctl','disable','--now','sap-lens');unit.unlink();command('systemctl','daemon-reload')
         print('Service registration removed. Application, configuration, sources and data are preserved.');return
+    if a.prefix.exists() and any(p.name not in {'releases','current'} for p in a.prefix.iterdir()):raise ValueError('Installation prefix contains unrelated files; migrate explicitly.')
+    if a.data.exists() and any(a.data.iterdir()):
+        marker=a.data/'deployment.json'
+        if not marker.is_file() or json.loads(marker.read_text())!={'version':1,'mode':'server'}:
+            raise ValueError('Existing data directory is not an initialized SAP Lens server store.')
     manifest=validate_bundle()
     if not a.user:
         result=subprocess.run(['id','-u','saplens'],capture_output=True,text=True)

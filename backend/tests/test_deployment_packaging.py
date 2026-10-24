@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import subprocess
 import tarfile
 import tempfile
 import time
@@ -63,6 +64,11 @@ class PackagingTests(unittest.TestCase):
             archive=self.root/'validation.zip'
             with zipfile.ZipFile(archive,'w') as out:out.writestr('validation.json',json.dumps(current));out.writestr('frontend/index.html',payload)
             with patch.object(pkg,'ROOT',self.root),patch.object(pkg,'git_sha',return_value='a'*40),patch.dict(os.environ,env),self.subTest(mutation=mutation),self.assertRaises(ValueError):pkg.consume(archive)
+    def test_native_installer_refuses_os_data_directory_before_any_mutation(self):
+        prefix=self.root/'not-created'
+        result=subprocess.run([sys.executable,str(ROOT/'scripts/install-linux-server.py'),'install','--user','--prefix',str(prefix),'--data','/','--config',str(self.root/'config/env')],capture_output=True)
+        self.assertNotEqual(result.returncode,0);self.assertFalse(prefix.exists())
+
     def test_failed_shared_stage_cannot_issue_attestation(self):
         temp=self.root/'timings';temp.mkdir()
         records=[dict(stage=name,status='failed' if name=='browser' else 'passed') for name in pkg.CHECKS]
