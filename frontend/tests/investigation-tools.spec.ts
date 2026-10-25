@@ -176,7 +176,7 @@ test('user selectors search alternate SAP email observations without guessing id
   ).toBeVisible()
 })
 
-test('comparison metrics filter results, sorting persists and expandable evidence preserves intervals', async ({
+test('comparison metrics filter results, sorting persists and inline evidence preserves intervals', async ({
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
@@ -200,15 +200,13 @@ test('comparison metrics filter results, sorting persists and expandable evidenc
   await page.getByLabel('Sort comparison', { exact: true }).selectOption('a')
   await page.getByLabel('Descending comparison', { exact: true }).check()
   await expect(table.locator('tbody>tr').first()).toContainText('ZC:SHARED:ENP')
-  const evidence = page.getByRole('region', {
+  const evidence = page.getByRole('cell', {
     name: 'User A evidence for ZC:SHARED:ENP',
     exact: true,
   })
-  await expect(evidence).toBeHidden()
-  await page
-    .getByLabel('Show evidence for ZC:SHARED:ENP', { exact: true })
-    .click()
   await expect(evidence).toBeVisible()
+  await expect(table.getByRole('columnheader')).toHaveText(['Role / Transaction','Difference','User A Evidence','User B Evidence'])
+  await expect(table.locator('details')).toHaveCount(0)
   await expect(evidence).toContainText('01.01.2000 → 31.12.9999')
   await expect(evidence).toContainText('01.01.2001 → 31.12.9999')
   await page.getByRole('button', { name: 'Open User A', exact: true }).click()
@@ -232,6 +230,9 @@ test('comparison metrics filter results, sorting persists and expandable evidenc
     .selectOption('identifier')
   await page.getByLabel('Descending comparison', { exact: true }).uncheck()
   await openSaved(page, 'comparison')
+  await expect(menu.getByRole('combobox',{name:'Saved filter',exact:true})).toHaveAttribute('aria-expanded','false')
+  await expect(menu.getByRole('button',{name:'Clear filters',exact:true})).toBeVisible()
+  await expect(page.getByRole('button',{name:'Clear filters',exact:true})).toHaveCount(1)
   await menu.getByRole('button', { name: 'Load', exact: true }).click()
   await expect(page.getByLabel('Sort comparison', { exact: true })).toHaveValue(
     'a',
@@ -428,9 +429,6 @@ test('paged comparison evidence rejects a different source generation', async ({
     })
   })
   await page
-    .getByLabel('Show evidence for ZC:SHARED:ENP', { exact: true })
-    .click()
-  await page
     .getByRole('navigation', {
       name: 'ZC:SHARED:ENP User A evidence',
       exact: true,
@@ -458,7 +456,7 @@ test('transaction investigation and browser Back retain comparison users and fil
     page.getByRole('heading', { name: 'User Access', exact: true }),
   ).toBeVisible()
   await expect(
-    page.getByRole('region', { name: 'Active evidence filter' }),
+    page.getByRole('region', { name: 'User transaction filter' }),
   ).toContainText('ME23N')
   await page.goBack()
   await expect(
@@ -685,3 +683,23 @@ for (const theme of ['light', 'dark'])
         path: info.outputPath('data-health-findings.png'),
       })
     })
+
+
+test('directory role description selection and removable chips preserve unrelated controls', async ({page}) => {
+  await page.goto('/#session=browser-test-session')
+  await nav(page,'User Access')
+  await page.getByLabel('Search users',{exact:true}).fill('DEMO_')
+  await page.getByLabel('Sort users',{exact:true}).selectOption('email')
+  const role = page.getByRole('combobox',{name:'Filter users by role',exact:true})
+  await role.fill('Materials')
+  await page.getByRole('option').filter({hasText:'ZC:ONLY_A'}).click()
+  await expect(page.getByRole('button',{name:'DEMO_A',exact:true})).toBeVisible()
+  await expect(page.getByRole('button',{name:'DEMO_B',exact:true})).toHaveCount(0)
+  await page.getByRole('button',{name:'Remove role filter',exact:true}).click()
+  await expect(page.getByRole('button',{name:'DEMO_B',exact:true})).toBeVisible()
+  await expect(page.getByLabel('Search users',{exact:true})).toHaveValue('DEMO_')
+  await expect(page.getByLabel('Sort users',{exact:true})).toHaveValue('email')
+  await page.getByRole('button',{name:'Clear filters',exact:true}).click()
+  await expect(page.getByLabel('Search users',{exact:true})).toHaveValue('')
+  await expect(page.getByLabel('Sort users',{exact:true})).toHaveValue('username')
+})

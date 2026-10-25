@@ -1,3 +1,5 @@
+import { useRoles } from '@/hooks/useRoles'
+import { FilterChip } from '@/components/Shared/FilterChip'
 import { Button } from '@/components/Shared/Button'
 import { SecondaryNavigation, ContentTabs } from '@/components/Shared/Navigation'
 import { UserComparison, type ComparisonContext } from './UserComparison'
@@ -12,7 +14,7 @@ import { ClearFilterButton } from '@/components/Shared/ClearFilterButton';
 import { Select } from '@/components/Shared/Select';
 import { formatDate } from '@/lib/dateFormat';
 import { exportAssignments } from '@/lib/accessExport';
-import { Filter as FilterIcon, ArrowRight, Download } from 'lucide-react';
+import { ArrowRight, Download } from 'lucide-react';
 import { useHistoryValue, useViewHistory, userAccessHref } from '@/hooks/useViewHistory';
 import { useRecordNavigation, type RecordNavigationState } from "@/hooks/useRecordNavigation";
 import { DetailNavigation, EvidenceBadge, LockStatus, AssignmentStatus } from "@/components/Shared/InvestigationNavigation";
@@ -68,11 +70,13 @@ export function UserAccess({
     [selected, setSelected] = useHistoryValue('user');
   const [role, setRole] = useState(initialRole),
     [expired, setExpired] = useState(false);
+  const [roleSearch, setRoleSearch] = useState(''), [roleTerm, setRoleTerm] = useState('')
+  useEffect(() => { const timer = setTimeout(() => setRoleTerm(roleSearch), 200); return () => clearTimeout(timer) }, [roleSearch])
+  const roleOptions = useRoles(undefined, roleTerm)
   const directoryTransaction = useTransactionFilter()
   const [transactionMode,setTransactionMode] = useState<'and'|'or'>('and')
   useEffect(()=>{ directoryTransaction.setChips(initialTcode ? [initialTcode.trim().toUpperCase()] : []) },[initialTcode])
   useEffect(()=>{ if (!directoryTransaction.codes.length) setTransactionMode('and') },[directoryTransaction.key])
-  const tcode = directoryTransaction.codes.join(' ')
   const clearEvidence = () => {setRole(''); directoryTransaction.clear(); setTransactionMode('and')}
   const [term, setTerm] = useState("");
   useEffect(() => {
@@ -152,6 +156,9 @@ export function UserAccess({
         <Filter label="SAP User Group">
           <Combobox label="SAP User Group" value={group} options={result.data?.groups || []} onChange={setGroup} placeholder="All groups; type a group to filter"/>
         </Filter>
+        <Filter label="Filter users by role">
+          <Combobox label="Filter users by role" value={role} options={(roleOptions.data || []).slice(0,100).map(item=>item.agr_name)} onChange={setRole} onSearch={setRoleSearch} serverFiltered loading={roleOptions.isFetching} hasMore={(roleOptions.data?.length||0)>100} optionLabel={value=>{const item=roleOptions.data?.find(item=>item.agr_name===value);return item?.text ? `${value} · ${item.text}` : value}} placeholder="Role name or description"/>
+        </Filter>
         <div className="directory-sort"><Filter label="Sort users">
           <Select aria-label="Sort users"
             className={inputClass}
@@ -182,11 +189,9 @@ export function UserAccess({
           Descending
         </label>
         </div>
-      <section className="directory-transaction" aria-label={(role || tcode) ? 'Active evidence filter' : 'User transaction filter'}>
+      <section className="directory-transaction" aria-label="User transaction filter">
         <TransactionFilter label="Filter users by transaction" filter={directoryTransaction} mode={transactionMode} onModeChange={setTransactionMode} showClear={false} chipPrefix="Transaction: "/>
-        {(role || tcode) && <><FilterIcon size={17} aria-hidden="true"/><strong>Active evidence filter</strong></>}
-        {role && <span className="transaction-chip">Role: {role}</span>}
-        {(role || tcode) && <ClearFilterButton className="ml-auto" onClick={clearEvidence}/>}
+
       </section>
         <label className="filter-toggle">
           <input
@@ -198,6 +203,12 @@ export function UserAccess({
         </label>
         <ClearFilterButton className="directory-clear" disabled={!search && !group && sort==='username' && !descending && !expired && !role && !directoryTransaction.codes.length} onClick={()=>{setSearch('');setTerm('');setGroup('');setSort('username');setDescending(false);setExpired(false);clearEvidence()}}>Clear filters</ClearFilterButton>
       </div></fieldset></div>
+      {(role || group || search || expired) && <div className="active-filter-row" aria-label="Active user filters">
+        {expired && <FilterChip removeLabel="Remove expired assignment filter" onRemove={()=>setExpired(false)}>Include Expired Assignments</FilterChip>}
+        {role && <FilterChip removeLabel="Remove role filter" onRemove={()=>setRole('')}>Role: {role}</FilterChip>}
+        {group && <FilterChip removeLabel="Remove user group filter" onRemove={()=>setGroup('')}>User Group: {group}</FilterChip>}
+        {search && <FilterChip removeLabel="Remove user search filter" onRemove={()=>{setSearch('');setTerm('')}}>Search: {search}</FilterChip>}
+      </div>}
       <QueryState loading={result.isLoading || (dataLoading && !result.data?.loaded)} error={result.error} />
       {result.data && !result.data.loaded && !dataLoading && (
         <p>

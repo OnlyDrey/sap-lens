@@ -70,7 +70,7 @@ export function AppLayout({
     <div className={`${settingsOpen ? 'h-dvh overflow-hidden' : 'min-h-screen'} flex flex-col bg-[var(--bg)] transition-colors duration-300`}>
       {/* â”€â”€ Header â”€â”€ */}
       <header
-        className="shadow-lg sticky top-0 z-30 shrink-0"
+        className=" sticky top-0 z-30 shrink-0"
         style={{
           backgroundColor: 'var(--primary)',
           color: 'var(--on-primary)'

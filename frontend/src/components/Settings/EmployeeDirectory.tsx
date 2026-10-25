@@ -433,7 +433,7 @@ export function EmployeeBrowser() {
         />
         Search employees by name, email, department, job title, site or manager
         <input
-          className="w-full rounded-lg border px-3 py-2 text-sm bg-[var(--surface2)] border-[var(--border)] text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]"
+          className="w-full rounded-lg border px-3 py-2 text-sm bg-[var(--surface2)] border-[var(--border)] text-[var(--text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--focus)]"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           autoComplete="off"
@@ -601,8 +601,7 @@ export function EmployeeSource({
   }
   return (
     <div className="space-y-4">
-      {status.data&&<SourceHealthSummary source={{id:'employees',mode,enabled:status.data.enabled,loaded:status.data.loaded,loading:busy,error:status.data.error||null,records:status.data.report.records,last_successful_load:status.data.report.imported_at||null,snapshot_available:status.data.persisted}}/>}
-      <DirectoryDiagnostics sourceView onFeatureSettings={onFeatureSettings} />
+
       {status.data?.loaded && !status.data.persisted && (
         <Button
           disabled={busy || dirty || !status.data.digest}
@@ -798,6 +797,8 @@ export function EmployeeSource({
           {error} Previous valid data is retained.
         </p>
       )}
+      {status.data&&<SourceHealthSummary source={{id:'employees',mode,enabled:status.data.enabled,loaded:status.data.loaded,loading:busy,error:status.data.error||null,records:status.data.report.records,last_successful_load:status.data.report.imported_at||null,snapshot_available:status.data.persisted}}/>}
+      <DirectoryDiagnostics sourceView onFeatureSettings={onFeatureSettings} />
       <EmployeeBrowser />
     </div>
   )

@@ -339,7 +339,7 @@ test('floating Norwegian calendar stays outside layout, handles maximum dates, E
       name: 'Assignment date filters',
       exact: true,
     }),
-  ).toHaveCount(0)
+  ).toHaveCount(1)
   await page
     .getByRole('button', { name: 'Assignment date filters', exact: true })
     .click()
@@ -388,9 +388,12 @@ test('floating Norwegian calendar stays outside layout, handles maximum dates, E
   await expect(calendar).toHaveCount(0)
   await expect(choose).toBeFocused()
   await choose.click()
-  await page
-    .getByRole('heading', { name: 'Release Roles', exact: true })
-    .click()
+  // The upward-positioned date panel can cover the page heading. Use a point
+  // in the navbar that is outside both floating panels, without force-clicking.
+  const bannerBox = (await page.getByRole('banner').boundingBox())!
+  const panelBox = (await page.getByRole('dialog',{name:'Assignment date controls',exact:true}).boundingBox())!
+  expect(bannerBox.y + 2).toBeLessThan(panelBox.y)
+  await page.getByRole('banner').click({position:{x:2,y:2}})
   await expect(calendar).toHaveCount(0)
   // Outside dismissal cancels the staged dates. Reopen and apply explicitly.
   await page.getByRole('button',{name:'Assignment date filters',exact:true}).click()

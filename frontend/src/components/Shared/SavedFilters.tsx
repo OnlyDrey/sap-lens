@@ -217,7 +217,7 @@ export function SavedFilters({
         }
       >
         <div className="saved-filter-panel">
-          <Combobox label="Saved filter" value={active} options={items.map(item=>item.id)} disabled={busy} allowCustom={false} placeholder={items.length?'Choose saved filter':'No saved filters'} clearLabel="Choose saved filter" optionLabel={value=>items.find(item=>item.id===value)?.name||value} onChange={value=>{setActive(value);setName(items.find(item=>item.id===value)?.name||'')}}/>
+          <Combobox openOnFocus={false} label="Saved filter" value={active} options={items.map(item=>item.id)} disabled={busy} allowCustom={false} placeholder={items.length?'Choose saved filter':'No saved filters'} clearLabel="Choose saved filter" optionLabel={value=>items.find(item=>item.id===value)?.name||value} onChange={value=>{setActive(value);setName(items.find(item=>item.id===value)?.name||'')}}/>
           <Button disabled={!selected || busy} onClick={load}>
             Load
           </Button>
@@ -229,6 +229,7 @@ export function SavedFilters({
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
+          <div className="saved-filter-actions">
           <Button
             disabled={!name.trim() || busy || !!result.error}
             onClick={() => save(false)}
@@ -236,6 +237,22 @@ export function SavedFilters({
             <Save size={15} aria-hidden="true" />
             Save as new
           </Button>
+          {(
+            <Button
+              variant="ghost"
+              onClick={() => {
+                clear()
+                setActive('')
+                setApplied('')
+                setName('')
+                setMessage('')
+              }}
+            >
+              <X size={15} aria-hidden="true" />
+              Clear filters
+            </Button>
+          )}
+          </div>
           {selected && (
             <>
               <Button
@@ -277,21 +294,6 @@ export function SavedFilters({
               </Button>
             </>
           )}
-          {!showClear && (
-            <Button
-              variant="ghost"
-              onClick={() => {
-                clear()
-                setActive('')
-                setApplied('')
-                setName('')
-                setMessage('')
-              }}
-            >
-              <X size={15} aria-hidden="true" />
-              Clear filters
-            </Button>
-          )}
           {(message || result.error) && (
             <p role="status">{message || result.error?.message}</p>
           )}
@@ -303,7 +305,7 @@ export function SavedFilters({
             )}
         </div>
       </Popover>
-      {showClear && (
+      {showClear && !menuOpen && (
         <Button
           variant="ghost"
           onClick={() => {

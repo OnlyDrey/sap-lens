@@ -435,8 +435,11 @@ for (const theme of ['light', 'dark'] as const) for (const width of [1280, 600])
       await expand.press('Enter')
       await expect(expand).toHaveAttribute('aria-expanded', 'true')
       const description = entry.locator('.role-metadata-title'), identifier = entry.locator('.single-role-heading-main .role-identifier')
-      expect((await entry.locator('.role-module-metadata').boundingBox())!.x).toBeCloseTo((await identifier.boundingBox())!.x, 0)
-      expect((await description.boundingBox())!.y + (await description.boundingBox())!.height).toBeLessThanOrEqual((await identifier.boundingBox())!.y)
+      const metadataBox = (await entry.locator('.role-module-metadata').boundingBox())!, identifierBox = (await identifier.boundingBox())!
+      expect(metadataBox.x + metadataBox.width).toBeLessThanOrEqual(identifierBox.x + 1)
+      expect(metadataBox.y + metadataBox.height / 2).toBeCloseTo(identifierBox.y + identifierBox.height / 2, 0)
+      const headingBox = (await entry.locator('.single-role-heading').boundingBox())!
+      expect(identifierBox.x + identifierBox.width).toBeLessThanOrEqual(headingBox.x + headingBox.width)
       await expect(description).not.toHaveCSS('text-overflow', 'ellipsis')
       const table = entry.getByRole('table')
       await expect(table.getByRole('columnheader')).toHaveText(['T-Code', 'Description', 'Action'])

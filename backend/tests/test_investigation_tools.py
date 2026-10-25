@@ -55,6 +55,13 @@ class InvestigationTools(unittest.TestCase):
         r=self.compare(kind='transactions');rows={i['identifier']:i for i in r['items']}
         self.assertEqual(rows['FB03']['difference'],'shared');self.assertEqual(set(rows['FB03']['a']),{'ZC:SHARED:ENP','ZC:ONLY_A'})
         self.assertEqual(rows['ME23N']['difference'],'a')
+        evidence=r['assignment_evidence']['a']['ZC:SHARED:ENP']
+        self.assertEqual(evidence['total'],2)
+        self.assertEqual([a['valid_from'] for a in evidence['items']],['2000-01-01','2001-01-01'])
+        self.assertEqual(evidence['items'][0]['match_status'],'wildcard')
+        self.assertEqual(evidence['items'][0]['user_group'],'DEMO')
+        paged=self.get('/api/user-comparison/evidence',user_a='DEMO_A',user_b='DEMO_B',kind='transactions',identifier='FB03',side='a',limit=1)
+        self.assertEqual(set(paged['assignment_evidence']),set(paged['items']))
         self.assertEqual(r['summary']['transactions'],dict(shared=1,a=1,b=0))
     def test_comparison_sorting_is_stable_and_does_not_change_evidence(self):
         original=self.compare()

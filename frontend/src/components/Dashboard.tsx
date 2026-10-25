@@ -116,8 +116,8 @@ export function Dashboard() {
         <ArrowUpRight size={14} aria-hidden="true" />
         {metric.value === null && <small>{metric.unavailable_reason}</small>}
         <span className="sr-only">{metric.context}</span>
-        {['assignments','assigned_users','expired','future'].includes(metric.id)&&<small>Assignment evidence · opens the complete user directory</small>}
-        {metric.id==='releases'&&<small>All validity states · opens the active release view</small>}
+
+
         {metric.id === 'email_matches' &&
           metric.value !== null &&
           !!query.data?.coverage_total && (
@@ -160,7 +160,7 @@ export function Dashboard() {
           {groups.map(([name, ids]) => (
             <section key={name} aria-label={name} className="dashboard-section">
               <h2>{name}</h2>
-              <div className="dashboard-metrics">
+              <div className={`dashboard-metrics ${name === 'Overview' ? 'dashboard-primary-metrics' : 'dashboard-secondary-metrics'}`}>
                 {query.data.metrics
                   .filter((m) => (ids as readonly string[]).includes(m.id))
                   .sort(

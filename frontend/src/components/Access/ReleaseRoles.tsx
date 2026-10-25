@@ -141,13 +141,13 @@ export function ReleaseRoles({
       <SavedFilters showClear={false} view="release" state={{group,kind,releaseGroup,strategy,username,role,status,sort,descending,...assignmentDates}} apply={s=>{for(const [k,set] of Object.entries({group:setGroup,kind:setKind,releaseGroup:setReleaseGroup,strategy:setStrategy,username:setUsername,role:setRole}))if(typeof s[k]==='string')set(s[k] as string);if(['active','expired','future','unknown','all'].includes(String(s.status)))setStatus(String(s.status));if(['role_name','assigned_users','document_type','release_group','release_strategy'].includes(String(s.sort)))setSort(String(s.sort));if(typeof s.descending==='boolean')setDescending(s.descending);setAssignmentDates(previous=>Object.fromEntries(Object.entries(previous).map(([k,v])=>[k,typeof s[k]===typeof v?s[k]:v])) as typeof previous)}} clear={()=>{setGroup('');setKind('');setReleaseGroup('');setStrategy('');setUsername('');setRole('');setStatus('active');setSort('role_name');setDescending(false);setAssignmentDates({...emptyDates})}}/>
 
       <div className="investigation-filters release-filters">
-        <fieldset><legend>Release classification</legend><div className="filter-grid">
+        <fieldset><legend className="sr-only">Release classification</legend><div className="filter-grid">
         <ReleaseFilter field="group" label="Release SAP User Group" value={group} onChange={setGroup} context={{ ...dateParams(assignmentDates), status }}/>
         <ReleaseFilter field="document_type" label="PR/PO" value={kind} onChange={setKind} context={{ ...dateParams(assignmentDates), group, status }}/>
         <ReleaseFilter field="release_group" label="Release Group" value={releaseGroup} onChange={setReleaseGroup} context={{ ...dateParams(assignmentDates), group, document_type:kind, status }}/>
         <ReleaseFilter field="strategy" label="Release Strategy" value={strategy} onChange={setStrategy} context={{ ...dateParams(assignmentDates), group, document_type:kind, release_group:releaseGroup, status }}/>
         </div></fieldset>
-        <fieldset><legend>Assignment</legend><div className="filter-grid">
+        <fieldset><legend className="sr-only">Assignment</legend><div className="filter-grid">
         <ReleaseFilter field="username" label="Release username" value={username} onChange={setUsername} context={{ ...dateParams(assignmentDates), group, document_type:kind, release_group:releaseGroup, strategy, status }}/>
         <ReleaseFilter field="role" label="Release role name" value={role} onChange={setRole} context={{ ...dateParams(assignmentDates), group, document_type:kind, release_group:releaseGroup, strategy, status }}/>
         <Filter label="Release assignment status">
@@ -199,6 +199,7 @@ export function ReleaseRoles({
           Descending
         </label>
 </div>
+        <AssignmentDateFilters value={assignmentDates} onChange={setAssignmentDates}/>
         </div></fieldset>
 
       </div>
@@ -206,9 +207,12 @@ export function ReleaseRoles({
       <div className="results-toolbar">
         <h2>Release assignments <span>{result.data?.total.toLocaleString() ?? '…'} {result.data?.total === 1 ? 'role' : 'roles'}</span></h2>
 
-      <AssignmentDateFilters value={assignmentDates} onChange={setAssignmentDates}/>
+
         <ButtonGroup label="Release results view" value={matrix?'matrix':'table'} onChange={value=>setMatrix(value==='matrix')} options={[{value:'table',label:'Table',icon:<List size={16} aria-hidden="true"/>},{value:'matrix',label:'Matrix',icon:<Grid3X3 size={16} aria-hidden="true"/>}]}/>
 
+
+      </div>
+      <div className="release-secondary-toolbar">
         {matrix && (
           <label className="filter-toggle">
             <input

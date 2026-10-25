@@ -319,9 +319,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
             ))}
           </Select>
         </Filter>
-      </FilterPanel>
-      <ResultsToolbar>
-        <strong>{data?.total.toLocaleString() ?? '…'} accounts</strong>
+
         <Filter label="Sort account reviews">
           <Select
             className={inputClass}
@@ -338,7 +336,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
               'review_state',
             ].map((s) => (
               <option key={s} value={s}>
-                {s.replace(/_/g, ' ')}
+                {{username:'Username',name:'Name',sap_validity:'SAP Validity',lock_status:'Lock Status',ad_status:'AD Status',review_state:'Review State'}[s]}
               </option>
             ))}
           </Select>
@@ -373,7 +371,8 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
           <Download size={16} />
           Export review CSV
         </Button>
-      </ResultsToolbar>
+      </FilterPanel>
+      <ResultsToolbar><strong>{data?.total.toLocaleString() ?? '…'} accounts</strong></ResultsToolbar>
       <QueryState
         loading={result.isLoading || (dataLoading && !data?.loaded)}
         error={result.error}
@@ -441,7 +440,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
                     <td>
                       <AccountStatus kind="ad" value={row.ad_status} />
                     </td>
-                    <td>{row.match_status.replace(/_/g, ' ')}</td>
+                    <td>{({matched:'Matched',duplicate_email:'Duplicate Email',missing_email:'Missing Email',ambiguous:'Ambiguous Match',unmatched:'Unmatched',disabled:'Disabled',unavailable:'Unavailable'} as Record<string,string>)[row.match_status] || row.match_status.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</td>
                     <td>
                       {row.findings.map((f) => (
                         <p key={f}>{data.finding_labels[f]}</p>

@@ -1,4 +1,13 @@
 import { useId, type ReactNode } from 'react'
+/** One layout primitive; routes remain links and content switches remain tabs. */
+function NavigationStrip({ variant, label, children, className = '' }: {
+  variant: 'main' | 'secondary' | 'tabs'; label: string; children: ReactNode; className?: string
+}) {
+  const classes = `ui-navigation ${variant === 'main' ? 'primary-navigation' : variant === 'secondary' ? 'ui-secondary-navigation' : 'ui-content-tabs'} ${className}`
+  return variant === 'tabs'
+    ? <div role="tablist" aria-label={label} className={classes}>{children}</div>
+    : <nav aria-label={label} className={classes}>{children}</nav>
+}
 export function MainNavigation({
   children,
   label = 'Main navigation',
@@ -7,9 +16,9 @@ export function MainNavigation({
   label?: string
 }) {
   return (
-    <nav aria-label={label} className="primary-navigation">
+    <NavigationStrip variant="main" label={label}>
       {children}
-    </nav>
+    </NavigationStrip>
   )
 }
 export function SecondaryNavigation({
@@ -26,7 +35,7 @@ export function SecondaryNavigation({
   }[]
 }) {
   return (
-    <nav aria-label={label} className="ui-secondary-navigation">
+    <NavigationStrip variant="secondary" label={label}>
       {items.map((item) => (
         <a
           key={item.value}
@@ -48,7 +57,7 @@ export function SecondaryNavigation({
           <span>{item.label}</span>
         </a>
       ))}
-    </nav>
+    </NavigationStrip>
   )
 }
 type TabItem = {
@@ -75,11 +84,7 @@ export function ContentTabList({
   className?: string
 }) {
   return (
-    <div
-      role="tablist"
-      aria-label={label}
-      className={`ui-content-tabs ${className}`}
-    >
+    <NavigationStrip variant="tabs" label={label} className={className}>
       {items.map((item, index) => (
         <button
           type="button"
@@ -117,7 +122,7 @@ export function ContentTabList({
           )}
         </button>
       ))}
-    </div>
+    </NavigationStrip>
   )
 }
 export function ContentTabs({

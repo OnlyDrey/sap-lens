@@ -35,10 +35,12 @@ interface Row {
   b: Assignment[] | string[]
   description?: string
   areas: string[]
+  assignment_evidence?: Partial<Record<'a' | 'b', Record<string, {items: Assignment[]; total: number}>>>
   a_total: number
   b_total: number
 }
 interface Result extends Page<Row> {
+  assignment_evidence?: Row['assignment_evidence']
   users: (UserRow & { identity_ambiguous?: boolean })[]
   summary: Record<string, Record<string, number>>
   areas: string[]
@@ -125,7 +127,7 @@ function EvidenceCell({
     ],
     queryFn: async () => {
       const page = await apiRequest<
-        Page<Assignment | string> & { data_revision: string; as_of: string }
+        Page<Assignment | string> & { data_revision: string; as_of: string; assignment_evidence?: Record<string,{items: Assignment[];total:number}> }
       >(`/api/user-comparison/evidence?${query}`)
       if (page.data_revision !== revision || page.as_of !== asOf)
         throw Error(
@@ -144,21 +146,28 @@ function EvidenceCell({
         error={result.error}
       />
       {!total
-        ? 'No matching evidence'
+        ? <span className="ui-description">No matching evidence</span>
         : items.map((e, i) =>
             typeof e === 'string' ? (
-              <p key={i}>
-                <button className="text-link" onClick={() => onAssignedRole(e)}>
-                  {e}
-                </button>
-              </p>
+              <div key={e} className="comparison-evidence-item">
+                <button className="text-link" onClick={() => onAssignedRole(e)}>{e}</button>
+                <p className="ui-description">Role-derived transaction mapping</p>
+                {(() => {
+                  const evidence = offset ? result.data?.assignment_evidence?.[e] : row.assignment_evidence?.[side]?.[e]
+                  const roleParams = new URLSearchParams(params); roleParams.set('kind','roles')
+                  return evidence ? <EvidenceCell
+                    row={{identifier:e,difference:row.difference,a:side==='a'?evidence.items:[],b:side==='b'?evidence.items:[],a_total:side==='a'?evidence.total:0,b_total:side==='b'?evidence.total:0,areas:[]}}
+                    side={side} params={roleParams} revision={revision} asOf={asOf} onRole={onRole} onAssignedRole={onAssignedRole}
+                  /> : <span className="ui-description">Assignment details unavailable</span>
+                })()}
+              </div>
             ) : (
               <div key={i} className="comparison-evidence-item">
                 <RoleIdentifier value={e.role_name} />
                 <p>{dates(e.valid_from, e.valid_to)}</p>
                 <p>
                   <AssignmentStatus value={e.status} /> ·{' '}
-                  {e.user_group || 'No group'} · {e.match_status}
+                  SAP User Group: {e.user_group || 'Unknown'} · {e.match_status === 'wildcard' ? 'Wildcard match' : e.match_status === 'exact' ? 'Exact match' : e.match_status === 'ambiguous' ? 'Ambiguous match' : 'Unmapped'}
                 </p>
                 {e.catalogue_roles.map((r) => (
                   <button
@@ -523,12 +532,6 @@ export function UserComparison({
           )
         })}
       </div>
-      <SavedFilters
-        view="comparison"
-        state={state}
-        apply={apply}
-        clear={clear}
-      />
       <FilterPanel label="Comparison filters" className="comparison-filter-bar">
         <Filter label="Assignment validity">
           <Select
@@ -543,7 +546,7 @@ export function UserComparison({
                   ? 'Currently valid'
                   : v === 'all'
                     ? 'All intervals'
-                    : v}
+                    : v.charAt(0).toUpperCase() + v.slice(1)}
               </option>
             ))}
           </Select>
@@ -597,6 +600,38 @@ export function UserComparison({
             onChange={setArea}
           />
         </Filter>
+            <Filter label="Sort comparison">
+              <Select
+                className={inputClass}
+                value={sort}
+                onChange={(e) => setSort(e.target.value)}
+              >
+                {[
+                  ['identifier', 'Role / Transaction'],
+                  ['difference', 'Difference'],
+                  ['a', 'User A evidence count'],
+                  ['b', 'User B evidence count'],
+                ].map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </Select>
+            </Filter>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={descending}
+                onChange={(e) => setDescending(e.target.checked)}
+              />
+              Descending comparison
+            </label>
+      <SavedFilters
+        view="comparison"
+        state={state}
+        apply={apply}
+        clear={clear}
+      />
       </FilterPanel>
       <QueryState loading={result.isFetching} error={result.error} />
       {(!a || !b) && (
@@ -669,32 +704,6 @@ export function UserComparison({
             </p>
           )}
           <Toolbar>
-            <Filter label="Sort comparison">
-              <Select
-                className={inputClass}
-                value={sort}
-                onChange={(e) => setSort(e.target.value)}
-              >
-                {[
-                  ['identifier', 'Role / Transaction'],
-                  ['difference', 'Difference'],
-                  ['a', 'User A evidence count'],
-                  ['b', 'User B evidence count'],
-                ].map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </Select>
-            </Filter>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={descending}
-                onChange={(e) => setDescending(e.target.checked)}
-              />
-              Descending comparison
-            </label>
             <span>
               {data.total} matching {kind}
             </span>
@@ -722,9 +731,8 @@ export function UserComparison({
               <tr>
                 <th>Role / Transaction</th>
                 <th>Difference</th>
-                <th>User A</th>
-                <th>User B</th>
-                <th>Details</th>
+                <th>User A Evidence</th>
+                <th>User B Evidence</th>
               </tr>
             </thead>
             <tbody>
@@ -745,53 +753,22 @@ export function UserComparison({
                     <small>{row.areas.join(' · ')}</small>
                   </td>
                   <td>
-                    {row.difference === 'shared'
+                    <span className="evidence-difference">{row.difference === 'shared'
                       ? 'Shared'
                       : row.difference === 'a'
                         ? 'Only User A'
-                        : 'Only User B'}
+                        : 'Only User B'}</span>
                   </td>
-                  <td>
-                    {row.a_total}{' '}
-                    {kind === 'roles' ? 'assignment records' : 'mapped roles'}
-                  </td>
-                  <td>
-                    {row.b_total}{' '}
-                    {kind === 'roles' ? 'assignment records' : 'mapped roles'}
-                  </td>
-                  <td>
-                    <details className="comparison-evidence-details">
-                      <summary
-                        aria-label={`Show evidence for ${row.identifier}`}
-                      >
-                        Show evidence
-                      </summary>
-                      <div className="comparison-evidence-columns">
-                        {(['a', 'b'] as const).map((side) => (
-                          <section
-                            key={side}
-                            aria-label={`User ${side.toUpperCase()} evidence for ${row.identifier}`}
-                          >
-                            <h3 className="font-semibold">
-                              User {side.toUpperCase()} evidence
-                            </h3>
-                            <EvidenceCell
-                              row={row}
-                              side={side}
-                              params={params}
-                              revision={data.data_revision}
-                              asOf={data.as_of}
-                              onRole={onRole}
-                              onAssignedRole={(e) => {
-                                setKind('roles')
-                                setSearch(e)
-                              }}
-                            />
-                          </section>
-                        ))}
-                      </div>
-                    </details>
-                  </td>
+                  {(['a', 'b'] as const).map((side) => (
+                    <td key={side} aria-label={`User ${side.toUpperCase()} evidence for ${row.identifier}`}>
+                      <EvidenceCell
+                        row={{...row,assignment_evidence:data.assignment_evidence}} side={side} params={params}
+                        revision={data.data_revision} asOf={data.as_of}
+                        onRole={onRole}
+                        onAssignedRole={(role) => { setKind('roles'); setSearch(role) }}
+                      />
+                    </td>
+                  ))}
                 </tr>
               ))}
             </tbody>

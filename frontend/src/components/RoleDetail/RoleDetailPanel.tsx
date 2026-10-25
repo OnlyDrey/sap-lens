@@ -73,19 +73,19 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, pare
   return (
     <>
       <div className="fixed inset-0 z-40" style={{ backgroundColor: 'rgba(0,0,0,0.25)' }} onClick={onClose} />
-      <aside className="fixed right-0 top-0 h-full z-50 flex flex-col shadow-2xl w-full sm:w-[560px] lg:w-[45vw] max-w-[700px]"
+      <aside className="fixed right-0 top-0 h-full z-50 flex flex-col  w-full sm:w-[560px] lg:w-[45vw] max-w-[700px]"
         style={{ backgroundColor: 'var(--surface)' }} role="dialog" aria-modal="true" aria-label={`Role details: ${roleName}`}>
 
         {/* Header */}
-        <div className="flex items-start justify-between gap-3 px-6 py-4 flex-shrink-0"
+        <div className="role-detail-header flex items-start justify-between gap-3 px-4 py-3 flex-shrink-0"
           style={{ backgroundColor: 'var(--primary)', color:'var(--on-primary)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
           <div className="min-w-0 flex-1">
-            <nav aria-label="Breadcrumb" className="mb-3"><Button onClick={onClose}><ArrowLeft size={16} aria-hidden="true"/>Back to {parent === 'User Access' ? 'users' : parent}</Button></nav>
+            <nav aria-label="Breadcrumb" className="mb-2"><Button variant="ghost" size="compact" onClick={onClose}><ArrowLeft size={16} aria-hidden="true"/>Back to {parent === 'User Access' ? 'users' : parent}</Button></nav>
             <p className="text-base font-black text-current leading-snug break-words">
               {cleanTitle(role?.text ?? null)}
             </p>
             <RoleMetadata code={role?.function_key} name={role?.module_name}/>
-            <div className="mt-3"><RoleIdentifier value={roleName}/></div>
+            <div className="role-detail-identifier"><RoleIdentifier value={roleName}/></div>
           </div>
           <button aria-label="Close role details" onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-current/60 hover:text-current hover:bg-white/10 transition-colors flex-shrink-0">
@@ -95,7 +95,7 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, pare
 
         <ScrollArea.Root className="flex-1 overflow-hidden">
           <ScrollArea.Viewport className="h-full w-full">
-            <div className="px-6 py-5 flex flex-col gap-5">
+            <div className="px-4 py-3 flex flex-col gap-3">
               <DetailNavigation showBreadcrumb={false} {...navigation} parent={parent} current={roleName} onBack={onClose}/>
 
               {(isLoading || (dataLoading && !role)) && (
@@ -116,16 +116,15 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, pare
 
               {role && (
                 <>
-                  {onUsers&&<button className="settings-secondary-button" onClick={()=>onUsers(role.agr_name)}><Users size={16} aria-hidden="true"/>Assigned users<ArrowRight size={16} aria-hidden="true"/></button>}
                   {/* Stats: Single roles FIRST (left), T-codes SECOND (right) */}
-                  <div className="flex gap-4 rounded-xl p-4"
+                  <div className="flex gap-3 rounded-lg p-2"
                     style={{ backgroundColor: 'var(--surface2)', border: '1px solid var(--border)' }}>
-
+                    {onUsers&&<Button size="compact" onClick={()=>onUsers(role.agr_name)}><Users size={16} aria-hidden="true"/>Assigned users<ArrowRight size={16} aria-hidden="true"/></Button>}
                     {/* Single roles â€” LEFT */}
                     <div className="flex-1 text-center">
                       <div className="flex items-center justify-center gap-1.5 mb-1">
                         <Layers className="w-4 h-4" style={{ color: 'var(--accent2)' }} />
-                        <p className="text-3xl font-black leading-none" style={{ color: 'var(--accent2)' }}>
+                        <p className="text-xl font-bold leading-none" style={{ color: 'var(--accent2)' }}>
                           {role.single_roles.length}
                         </p>
                       </div>
@@ -138,7 +137,7 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, pare
                     <div className="flex-1 text-center">
                       <div className="flex items-center justify-center gap-1.5 mb-1">
                         <Zap className="w-4 h-4" style={{ color: 'var(--accent2)' }} />
-                        <p className="text-3xl font-black leading-none" style={{ color: 'var(--accent2)' }}>
+                        <p className="text-xl font-bold leading-none" style={{ color: 'var(--accent2)' }}>
                           {role.tcode_count.toLocaleString()}
                         </p>
                       </div>

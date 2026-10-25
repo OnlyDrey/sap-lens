@@ -58,6 +58,12 @@ def compare(snapshot,left,right,validity='active'):
         return _cached_value
 
 
+def transaction_evidence(result, names, side):
+    """Bounded first pages; full intervals remain available through /evidence."""
+    return {name: dict(items=result['roles'][name][side][:25], total=len(result['roles'][name][side]))
+            for name in names}
+
+
 @router.get('/evidence')
 def evidence(user_a:str=Query(...,min_length=1,max_length=512),user_b:str=Query(...,min_length=1,max_length=512),
              identifier:str=Query(...,min_length=1,max_length=512),side:Literal['a','b']='a',
@@ -67,7 +73,7 @@ def evidence(user_a:str=Query(...,min_length=1,max_length=512),user_b:str=Query(
     result=compare(snapshot,user_a,user_b,validity)
     row=result[kind].get(normalize_role(identifier) if kind=='roles' else identifier)
     items=row[side] if row else []
-    return dict(**page(items,offset,limit),data_revision=snapshot.last_loaded.isoformat() if snapshot.last_loaded else None,as_of=date.today().isoformat())
+    return dict(**page(items,offset,limit), assignment_evidence=transaction_evidence(result, items[offset:offset+limit], side) if kind=='transactions' else {}, data_revision=snapshot.last_loaded.isoformat() if snapshot.last_loaded else None,as_of=date.today().isoformat())
 
 
 @router.get('')
@@ -86,6 +92,7 @@ def comparison(user_a: str = Query(..., min_length=1, max_length=512), user_b: s
     rows = [r for r in rows if (not difference or r['difference']==difference) and (not area or area in r['areas']) and (not term or term in (r['identifier']+' '+r.get('description','')).casefold())]
     rows.sort(key=lambda r:(len(r[sort]) if sort in {'a','b'} else r[sort], r['identifier']), reverse=descending)
     bounded=[{**r, 'a':r['a'][:25], 'b':r['b'][:25], 'a_total':len(r['a']), 'b_total':len(r['b'])} for r in rows[offset:offset+limit]]
-    return dict(items=bounded,total=len(rows),offset=offset,limit=limit, users=result['users'], summary=summaries, areas=areas,
+    provenance = {side: transaction_evidence(result, sorted({name for row in bounded for name in row[side]}), side) for side in ('a','b')} if kind == 'transactions' else {}
+    return dict(items=bounded,assignment_evidence=provenance,total=len(rows),offset=offset,limit=limit, users=result['users'], summary=summaries, areas=areas,
                 catalogue_available=bool(snapshot.roles), as_of=date.today().isoformat(),
                 data_revision=snapshot.last_loaded.isoformat() if snapshot.last_loaded else None)

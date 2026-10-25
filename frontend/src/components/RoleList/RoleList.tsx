@@ -250,7 +250,7 @@ export function RoleList({
 
       <SavedFilters showClear={false} view="roles" state={{search,activeModules,transactionMode,tcodes:transaction.codes,sortBy}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(Array.isArray(s.activeModules))setActiveModules(s.activeModules);if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(Array.isArray(s.tcodes)){transaction.setInput('');transaction.setChips(s.tcodes)};if(SORT_OPTIONS.some(o=>o.key===s.sortBy))setSortBy(s.sortBy as SortKey)}} clear={()=>{setSearch('');setActiveModules([]);setTransactionMode('and');transaction.clear();setSortBy('name-asc')}}/>
       <div
-        className="catalogue-search-controls rounded-2xl border px-4 py-3 gap-3 shadow-sm"
+        className="catalogue-search-controls rounded-2xl border px-4 py-3 gap-3 "
         style={{
           backgroundColor:'var(--surface)',
           borderColor:'var(--border)'
@@ -268,7 +268,7 @@ export function RoleList({
               <button
                 onClick={() => setSearch('')}
                 aria-label="Clear role search"
-                className="absolute right-3 top-1/2 -translate-y-1/2 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)] rounded"
+                className="absolute right-3 top-1/2 -translate-y-1/2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--focus)] rounded"
                 style={{ color:'var(--muted)' }}
               >
                 <X className="w-4 h-4" />
@@ -406,7 +406,7 @@ export function RoleList({
                 />
 
                 <div
-                  className="absolute right-0 top-full mt-1 z-30 rounded-xl border shadow-lg overflow-hidden w-44"
+                  className="absolute right-0 top-full mt-1 z-30 rounded-xl border  overflow-hidden w-44"
                   style={{
                     backgroundColor:'var(--surface)',
                     borderColor:'var(--border)'
@@ -543,7 +543,7 @@ export function RoleList({
 
       {selectedRoles.length >= 2 && (
         <div
-          className="comparison-selection-bar fixed bottom-8 left-1/2 -translate-x-1/2 z-40 flex flex-wrap items-center gap-4 rounded-2xl shadow-2xl border px-6 py-3.5"
+          className="comparison-selection-bar fixed bottom-8 left-1/2 -translate-x-1/2 z-40 flex flex-wrap items-center gap-4 rounded-2xl  border px-6 py-3.5"
           style={{
             backgroundColor:'var(--surface)',
             borderColor:'var(--border)'

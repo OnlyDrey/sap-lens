@@ -4,9 +4,9 @@ import { createPortal } from 'react-dom'
 import { Check, ChevronDown, ChevronUp, Search } from 'lucide-react'
 
 /** Bounded local or server-backed options; portal avoids scroll-container clipping. */
-export function Combobox({ value, options, onChange, label, placeholder = 'All', disabled = false, allowCustom = true, clearLabel = 'All', id, onSearch, hasMore = false, loading = false, maxLength = 512, serverFiltered = false, optionLabel = (value:string)=>value }: {
+export function Combobox({ value, options, onChange, label, placeholder = 'All', disabled = false, allowCustom = true, clearLabel = 'All', id, onSearch, hasMore = false, loading = false, maxLength = 512, serverFiltered = false, openOnFocus = true, optionLabel = (value:string)=>value }: {
   value: string; options: string[]; onChange: (value: string) => void; label: string;
-  placeholder?: string; disabled?: boolean; allowCustom?: boolean; clearLabel?: string; id?: string; onSearch?: (query: string) => void; hasMore?: boolean; loading?: boolean; maxLength?: number; serverFiltered?: boolean; optionLabel?:(value:string)=>string;
+  placeholder?: string; disabled?: boolean; allowCustom?: boolean; clearLabel?: string; id?: string; onSearch?: (query: string) => void; hasMore?: boolean; loading?: boolean; maxLength?: number; serverFiltered?: boolean; openOnFocus?: boolean; optionLabel?:(value:string)=>string;
 }) {
   const owners=usePopoverOwners()
   const uid = useId(), listId = `${uid}-list`
@@ -48,7 +48,7 @@ export function Combobox({ value, options, onChange, label, placeholder = 'All',
       aria-autocomplete="list" aria-activedescendant={open && choices[index] !== undefined ? `${uid}-option-${index}` : undefined}
       autoComplete="off" spellCheck={false} disabled={disabled} placeholder={placeholder} value={query ?? (value ? optionLabel(value) : '')} maxLength={maxLength}
       onClick={() => { if (!disabled) { setOpen(true); if (!open) onSearch?.(''); setIndex(Math.max(0, choices.indexOf(value))) } }}
-      onFocus={() => { if (!disabled) { setOpen(true); if (!open) onSearch?.(''); setIndex(Math.max(0, choices.indexOf(value))) } }}
+      onFocus={() => { if (!disabled && openOnFocus) { setOpen(true); if (!open) onSearch?.(''); setIndex(Math.max(0, choices.indexOf(value))) } }}
       onChange={event => { setOpen(true); setIndex(0); setQuery(event.target.value); onSearch?.(event.target.value); if (allowCustom) onChange(event.target.value) }}
       onBlur={event => { if (!anchor.current?.contains(event.relatedTarget as Node)) close() }}
       onKeyDown={event => {
