@@ -100,3 +100,58 @@ No vulnerabilities were suppressed.
 Python dependency audit, actual EXE packaging/PE verification and smoke tests,
 WebView2/file-picker/UNC testing. No Windows artifact was built on Linux. No push,
 workflow dispatch, tag or release was performed for this task.
+
+## Final cross-platform CLI integration — 25 October 2026
+
+Validated source: `d8a6604f2afda02adb4a11fc42b74e7f536cd5f5`.
+The All-target command produced the two available Linux artifacts and returned
+nonzero for the two explicitly unavailable Windows builders, as required. It did
+not rerun shared validation for sibling targets. Output and manifest:
+`dist/0.1.0-alpha.1-validation3/` (ignored).
+
+- Full local backend: **376 passed**, zero skipped, 16.722 seconds.
+- Browser: **233 passed**, 6.7 minutes, production assets and explicit system
+  Chromium QA override; this did not exercise browser-binary download or WebView2.
+- Types, production frontend build, icon catalog, dependency consistency,
+  workflow/actionlint and PowerShell guards: passed through the actual CLI.
+- Audits of all installed build/runtime Python versions, production JavaScript,
+  actual Docker runtime and native wheelhouse: no known vulnerabilities.
+- Docker: **built, archive verified and runtime smoke-tested**. Actual
+  frontend/auth/import/health/version/restart/recreation persistence passed.
+  Additional image inventory found no CSV, snapshots, personal settings, secrets,
+  tests, Git history or node_modules under the application, and no data in /data.
+- Linux Native: **built, archive verified and installed/runtime smoke-tested**.
+  Offline hash-locked wheelhouse, Unicode/space paths, startup/version/import,
+  shutdown, synthetic upgrade/configuration/data preservation and uninstall passed.
+  This was user-mode process testing; **systemd was not running/tested**.
+- Both artifacts were copied to fresh download directories and verified again with
+  `check-deployment-download.py`: exact contents, identity and SHA-256 passed.
+- The actual `--reuse-validation` native command passed receipt admission,
+  packaging and installation/runtime checks in **13.31 seconds**, without another
+  browser/backend suite. An independent output directory preserved prior artifacts.
+- PowerShell facade parsing and malformed-version rejection were exercised on
+  Linux/PowerShell; this is not Windows host validation.
+
+| Target | Bytes | SHA-256 |
+| --- | ---: | --- |
+| Docker `0.1.0-alpha.1` | 64810689 | `38a2bab864ea8eb93c9f10fc28a3966f38a9da4b1130b7799671291c888de55c` |
+| Linux native `0.1.0-alpha.1` | 14001437 | `b4ee081fd52b9fdfd084fbbbf80265daeac0e7131c0f64c4e2d9f14fa34052ea` |
+
+All-target validation/build duration: **500.78 seconds** on this Linux host.
+Archives include timestamps; repeat builds are not claimed byte-identical. Their
+identity, dependency wheel hashes and artifact digests are validated independently.
+
+The first attempt found an old API-mode assertion excluding Alpha/RC; it was
+corrected with an exact metadata/API comparison. A subsequent run exposed an
+inherited validation-only config path in native installation smoke testing; the
+handoff now removes those overrides, without relaxing server configuration
+validation. Buildx also needed a writable `BUILDX_CONFIG` in this managed cloud
+workspace (normal Docker credentials/configuration were preserved). Prior failed
+reports remain intact; no failed artifact was marked successful.
+
+Windows native, remote SSH integration, SCM/WebView2/reboot/recovery/UNC, real
+Ubuntu baseline/systemd and physical-client acceptance remain pending. The current
+Linux host uses glibc 2.41; compatibility checks are not target-distribution tests.
+No pushes, Git tags, GitHub Releases, image pushes or Actions dispatches occurred.
+The next phase can implement installation/lifecycle improvements; these package
+results do not claim that the new installer requirements already exist.
