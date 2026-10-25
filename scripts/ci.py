@@ -115,6 +115,9 @@ def summary():
 
 
 def lint():
+    documentation = subprocess.call([sys.executable, str(ROOT / 'scripts/check-docs.py')], cwd=ROOT)
+    if documentation:
+        return documentation
     system = platform.system()
     if system not in {'Linux', 'Windows'} or platform.machine() not in {'x86_64', 'AMD64'}:
         raise RuntimeError('Pinned actionlint installer requires Windows or Linux x64.')

@@ -53,6 +53,13 @@ All selected packages, checksum sidecars and a source/digest manifest are attach
 A failed/skipped/cancelled selected platform prevents publication. Build-only runs
 still upload successful independent platform packages when a sibling fails.
 
+Publication asks GitHub to generate release notes from repository history, keeping
+the validated-package/source explanation as the prefix. Authorized maintainers can
+review/edit the published notes using GitHub's Release editor. The workflow does
+not pause its private draft for manual editing; use existing environment approval
+before publication. Build-only mode creates neither a draft nor release notes.
+GitHub Releases remains the release-history record; no CHANGELOG.md is used.
+
 ### Examples after workflow registration
 
 For test packages: select `All`, base `0.1.0`, `Beta`, sequence `1`, and leave
@@ -96,10 +103,12 @@ release, owned tag and run summary before a new dispatch. Do not blindly retry a
 failed version or delete a pre-existing reservation. Mocks validate this policy;
 live GitHub publication/rollback has not been exercised in this task.
 
-GitHub requires a workflow-dispatch definition on the default branch before its
-normal manual UI is available. Adding it only to `work` does not guarantee that
-registration. Review/merge the approved workflow through the normal repository
-process; no default-branch/settings change or merge is performed automatically.
+This workflow is registered on the default branch as well as `work` (registration
+was verified on 25 October 2026). No merge or default-branch change is needed merely
+to select `work`. The GitHub form may reflect the default branch's older inputs;
+CLI/API dispatch with an explicit `ref` selects the intended branch definition.
+Always inspect its inputs and use the matching source version. No dispatch is
+performed automatically by these instructions.
 
 Shared validation runs once per dispatch: backend/browser regressions, types,
 production frontend, audits, workflow/PowerShell checks. Its frontend and identity
@@ -126,6 +135,19 @@ GitHub wraps these files in another downloadable ZIP: extract that wrapper first
 The workflow downloads each upload again, checks its digest, inner checksum,
 exact expected members and hashes. Desktop additionally uses its existing EXE/ZIP
 verifiers; Service includes its PE/resource report and native SCM smoke result.
+
+The desktop deployment ZIP now wraps the unchanged portable EXE/checksum with a
+per-user Setup executable/checksum, license notices, installation guide, exact
+manifest and native installer receipt. Its portable verifier still enforces its
+exactly-two-file ZIP contract. See [desktop installation](INSTALLATION_WINDOWS_DESKTOP.md).
+This installer definition has not been compiled or accepted on Windows in the
+Linux development environment. The separate legacy Windows release artifact
+remains the portable pair; it is not silently changed into an installer release.
+
+Docker packages include an offline image, Compose configuration and the
+[managed lifecycle entry point](DEPLOYMENT_LINUX_DOCKER.md). Native packages
+include their installer and offline wheelhouse. No target needs Node.js or React
+compilation; native Linux explicitly requires Python 3.12 and venv support.
 
 Server archives contain `package-manifest.json` with per-file hashes and build
 identity. Windows Service includes pinned WinSW and its MIT license. Native

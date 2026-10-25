@@ -275,6 +275,9 @@ class DeploymentPublicationTests(unittest.TestCase):
             self.assertEqual(api.ref, 'b' * 40)
             self.assertEqual(result['target_commitish'], SHA)
             self.assertEqual(result['make_latest'], 'true' if channel == 'stable' else 'false')
+            create=next(data for method,path,data in api.calls if method=='POST' and path=='/releases')
+            self.assertTrue(create['generate_release_notes'])
+            self.assertTrue(create['draft'])
 
     def test_existing_tag_or_release_never_mutated(self):
         for existing in ('tag', 'release'):

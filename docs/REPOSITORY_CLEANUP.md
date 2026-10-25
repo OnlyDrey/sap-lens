@@ -66,3 +66,39 @@ Implementation commit: `70a696e5415bc4495471da36b70ca3cd024e95ba`, branch `work`
 The first Windows attempt exposed a test-only CP1252/UTF-8 boundary: subprocess HTML printed a replacement character in a status label. The fixture now writes UTF-8 bytes explicitly, passes a CP1252 reproduction, and the Windows rerun passed. Build-stage failures now produce authored GitHub annotations; no application analysis semantics were changed.
 
 Manual Explorer/native dialog/high-DPI, clean-PC and organizational signing checks remain required. Windows packaging stays manual-only; cleanup did not enable recurring EXE builds. Historical sensitive assets remain in Git history and require owner review, not an automatic rewrite.
+
+## Current maintenance follow-up — 25 October 2026
+
+The earlier inventory above is historical; removed files are not recommendations
+to delete similarly named active implementations now. The current tracked tree
+contains no batch wrappers, generated EXEs, imported CSV exports, local settings,
+virtual environments or dependency directories. The active build/maintenance
+scripts were traced through workflow, local orchestration and smoke-test callers.
+
+| Current area | Classification and reason |
+| --- | --- |
+| `backend`, routers and CSV/identity/role services | KEEP — shared runtime/business contracts across desktop and server |
+| React Shared components and Component Library | CONSOLIDATE incrementally — reuse real components, retain specialized evidence semantics |
+| `build.sh`, `build.ps1`, canonical package scripts | KEEP — thin orchestration/native packaging; no cross-compilation claim |
+| `scripts/build-local.ps1`, local Windows receipt utilities | KEEP — documented compatibility interface, now shares Windows build locking; removal would break developer commands |
+| Desktop installer, WinSW manager and Docker/native lifecycle entry points | KEEP / VALIDATE — implemented with explicit native acceptance gaps |
+| Versioned deployment metadata and publication safeguards | KEEP — explicit channels, same-commit admission, exact artifact verification and generated GitHub release notes |
+| Flat task-focused docs | MODERNIZE — add a navigable index and canonical guides; avoid cosmetic moves and broken paths |
+| Historical validation/classification reports and old synthetic profile | KEEP — label historical scope; preserve migration/provenance context without reactivating removed settings |
+| Dependency manifests/locks | KEEP — direct runtime consumers exist; no speculative removals or forced major upgrades |
+| Existing product artwork | KEEP — canonical paths unchanged; ownership description is not a legal determination |
+| Historical organization branding | REVIEW — P-01 remains unresolved and separately accepted; no history rewrite or asset republishing performed |
+
+README now separates deployment options, build support and measured acceptance.
+AGENTS.md maps shared hosting/security/storage and documentation maintenance while
+preserving existing approval and validation rules. `scripts/check-docs.py` provides
+offline Markdown/HTML relative file, image and anchor checks through local/CI lint.
+GitHub Releases remains the release-history mechanism; no CHANGELOG.md was added.
+
+Available follow-up validation: 55 targeted documentation/release/workflow/
+repository tests passed, npm ci/types/production build passed, and the targeted
+Diagnostics Running/Loading browser regression passed (2.9 seconds). All 63
+Markdown files passed offline relative-file/image/anchor checks. The existing
+Vite >500 kB chunk advisory remains visible; no warnings were suppressed.
+Release-note tests use a mocked GitHub API, not live publication. Native Windows,
+real systemd, reboot/recovery/UNC and final current-source packages remain pending.

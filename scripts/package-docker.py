@@ -42,6 +42,8 @@ def main(output=None, no_cache=False):
         shutil.copyfile(ROOT/'LICENSE.md',target/'LICENSE.md')
         shutil.copyfile(ROOT/'docs/DEPLOYMENT_LINUX_DOCKER.md',target/'README.md')
         shutil.copyfile(ROOT/'docs/DEPLOYMENT_SECURITY.md',target/'SECURITY.md')
+        pkg.package_document(ROOT/'docs/DEPLOYMENT_LINUX_DOCKER.md',target/'README.md')
+        pkg.package_document(ROOT/'docs/DEPLOYMENT_SECURITY.md',target/'SECURITY.md')
         pkg.finish(target,'Linux-Docker-amd64',output or ROOT/'dist/deployment')
 
 

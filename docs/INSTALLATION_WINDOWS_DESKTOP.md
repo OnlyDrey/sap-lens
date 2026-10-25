@@ -88,6 +88,24 @@ restore a compatible archive into **empty** destinations; see
 permissions before selecting restored data. Do not extract a backup over a live
 store or delete the prior valid data as a shortcut.
 
+For a desktop backup, after retaining/renaming the original store and closing the
+application, restore into an empty directory with the verified portable EXE:
+
+```powershell
+$restore = Start-Process '.\SAP-Lens.exe' -ArgumentList @(
+  '--maintenance','restore','--mode','desktop',
+  '--archive','"D:\PrivateBackups\SAP-Lens-example.tar.gz"',
+  '--data','"C:\Recovery\SAP Lens"','--confirm-restore',
+  '--report','"C:\Recovery\restore-report.json"'
+) -Wait -PassThru
+if ($restore.ExitCode -ne 0) { throw 'Restore refused; inspect the safe report.' }
+```
+
+Selecting that recovery directory requires the existing `SAP_LENS_CONFIG_DIR`
+override; otherwise restore into the empty original configured path after moving
+its old contents aside. Keep the old store and backup until runtime/data checks
+pass. The report's parent directory must already exist and remain private.
+
 ## Uninstall and explicit private-data removal
 
 Use **Windows Settings → Apps → Installed Apps → SAP Lens → Uninstall**, or the
