@@ -30,6 +30,7 @@ def smoke(artifacts):
         def install(source,action):
             subprocess.run([sys.executable,str(source/'scripts/install-linux-server.py'),action,'--user','--prefix',str(prefix),'--data',str(data),'--config',str(config)],check=True)
         install(bundle,'install')
+        install(bundle,'install')  # Idempotent installation preserves administrator configuration.
         with socket.socket() as reserve:reserve.bind(('127.0.0.1',0));port=reserve.getsockname()[1]
         config.write_text(config.read_text().replace('"18743"',json.dumps(str(port))).replace('127.0.0.1:18743',f'127.0.0.1:{port}'))
         expected=config.read_bytes()
@@ -63,13 +64,31 @@ def smoke(artifacts):
             settings['data_csv_path']=json.loads(raw)['path'];settings['source_modes']['roles']='static'
             if request('POST','/api/configuration',settings)[0]!=200:raise ValueError('Installed import failed.')
         finally:process.terminate();process.wait(timeout=20)
+        # Exercise the supported local lifecycle rather than only direct process startup.
+        install(bundle,'start')
+        try:
+            install(bundle,'status')
+            install(bundle,'restart')
+            if request('GET','/api/version')[0]!=200:raise ValueError('Managed restart did not recover readiness.')
+        finally:install(bundle,'stop')
+        install(bundle,'backup')
+        backups=list((root/'data-backups').glob('*.tar.gz'))
+        if len(backups)!=1:raise ValueError('Expected one explicit private backup.')
+        restored=root/'recovered-data';restored_config=root/'recovered-config'
+        subprocess.run([str(prefix/'current/.venv/bin/python'),str(bundle/'backend/maintenance.py'),'restore',
+                        '--archive',str(backups[0]),'--data',str(restored),'--config-destination',str(restored_config),
+                        '--mode','server','--target-version',manifest['identity']['version'],'--confirm-restore'],check=True)
+        if (restored/'settings.json').read_bytes()!=(data/'settings.json').read_bytes():raise ValueError('Backup recovery did not preserve settings.')
+        if (restored_config/'server.env').read_bytes()!=expected:raise ValueError('Backup recovery did not preserve administrator configuration.')
         # Exercise upgrade semantics with a synthetic next-version bundle; never publish it.
         upgraded=root/'upgrade';shutil.copytree(bundle,upgraded)
-        new_info=pkg.make_local_package_info('0.1.1','b'*40)
+        next_version=manifest['identity']['version'].split('-',1)[0].split('+',1)[0].split('.')
+        next_version[-1]=str(int(next_version[-1])+1)
+        new_info=pkg.make_local_package_info('.'.join(next_version),'b'*40)
         pkg.write(upgraded/'backend/build/build-version.json',new_info)
         new_files=pkg.files(upgraded);new_files.pop('package-manifest.json')
         pkg.write(upgraded/'package-manifest.json',dict(schema=1,platform='Linux-Native-x64',identity=new_info,files=new_files))
-        install(upgraded,'install')
+        install(upgraded,'upgrade')
         process=start(new_info['version'])
         try:
             for _ in range(100):
@@ -80,7 +99,7 @@ def smoke(artifacts):
         finally:process.terminate();process.wait(timeout=20)
         install(bundle,'uninstall')
         if config.read_bytes()!=expected or not (data/'settings.json').is_file():raise ValueError('Upgrade/uninstall changed configuration or removed data.')
-        print('Linux archive, offline wheelhouse installation, Unicode paths, startup/version/import/shutdown, synthetic upgrade persistence and data-preserving uninstall passed. systemd was not exercised.')
+        print('Linux archive, offline wheelhouse installation, Unicode paths, startup/version/import/shutdown, managed start/status/restart/stop, private backup/empty-target restore, synthetic upgrade persistence and data-preserving uninstall passed. systemd was not exercised.')
 
 
 if __name__=='__main__':

@@ -372,4 +372,7 @@ def run() -> int:
 
 
 if __name__ == '__main__':
+    if sys.argv[1:2] == ['--maintenance']:
+        from maintenance import cli
+        raise SystemExit(cli(sys.argv[2:]))
     raise SystemExit(run())
