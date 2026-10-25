@@ -29,6 +29,9 @@ async function comparison(page: Page) {
 }
 async function choose(page: Page, label: string, query: string) {
   const box = page.getByRole('combobox', { name: label, exact: true })
+  // Saved-filter popovers deliberately focus this selector without opening it.
+  // Click explicitly, including when searching for the already-selected value.
+  await box.click()
   await box.fill(query)
   await page.getByRole('option').filter({ hasText: query }).first().click()
 }

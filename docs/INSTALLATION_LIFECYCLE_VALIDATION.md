@@ -1,10 +1,17 @@
-# Installation lifecycle validation — work in progress
+# Installation lifecycle implementation and validation
 
-This records the installation phase separately from the completed local-build
-validation in [LOCAL_BUILD_VALIDATION.md](LOCAL_BUILD_VALIDATION.md). It does not
-claim completion of the remaining Windows/Docker installer work.
+Current status: lifecycle tooling, Docker management integration, documentation
+alignment and linked synthetic examples are implemented locally. Windows installer
+and SCM execution, real systemd, reboot/recovery and UNC acceptance remain pending.
+Docker and Linux user-mode results below use their documented synthetic fixtures;
+they do not certify a newly built current-source production distribution.
+See [UI and final integrated validation](UI_CONSOLIDATION_VALIDATION.md) and
+[local-build validation](LOCAL_BUILD_VALIDATION.md) for their separate scopes.
 
-## Implemented and exercised locally
+The initial checkpoint and subsequent dated sections retain historical results.
+Later sections supersede their earlier pending-work statements.
+
+## Initial implementation and local checkpoint
 
 - Local-only maintenance commands: private backup, checksum/schema verification,
   empty-destination restore and downgrade rejection. No HTTP maintenance endpoint.
@@ -100,7 +107,7 @@ source records and saved state before declaring recovery complete. Preserve the
 old directories and the archive until acceptance. Do not restore newer data into
 older binaries; use a compatible application version and backup.
 
-## Pending acceptance and remaining phase work
+## Initial pending list — historical, superseded by later sections
 
 - Native Windows installer/service lifecycle, reboot, recovery and UNC acceptance.
 - Real systemd installation/start/stop/reboot and service-account permissions.
