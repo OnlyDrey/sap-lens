@@ -5,8 +5,9 @@ from pathlib import Path
 
 
 class StorageLease:
-    def __init__(self, directory, mode):
+    def __init__(self, directory, mode, initialize=True):
         self.directory, self.mode, self.stream = Path(directory), mode, None
+        self.initialize = initialize
 
     def acquire(self):
         self.directory.mkdir(parents=True,exist_ok=True,mode=0o700)
@@ -24,7 +25,7 @@ class StorageLease:
             marker=self.directory/'deployment.json'
             if marker.exists() and json.loads(marker.read_text()) != {'version':1,'mode':self.mode}:
                 raise ValueError('Desktop and server must use separate data directories.')
-            if not marker.exists():
+            if not marker.exists() and self.initialize:
                 from config import atomic_write
                 atomic_write(marker,json.dumps(dict(version=1,mode=self.mode)).encode())
             return self

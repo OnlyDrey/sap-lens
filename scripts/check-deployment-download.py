@@ -23,19 +23,12 @@ def check(directory):
     match=re.fullmatch(r'([0-9a-f]{64})  '+re.escape(archive.name),value)
     if not match or pkg.sha(archive)!=match[1]:raise ValueError('Distributed checksum mismatch.')
     with tempfile.TemporaryDirectory() as temp:
+        manifest=pkg.verify_extract(archive,Path(temp)/'application',match[1])
+        if manifest['identity']!=info:raise ValueError('Downloaded artifact identity mismatch.')
         if 'Windows-Desktop-x64-' in archive.name:
-            verifier_spec=importlib.util.spec_from_file_location('zip_rules',ROOT/'scripts/verify-artifact-zip.py')
-            rules=importlib.util.module_from_spec(verifier_spec);verifier_spec.loader.exec_module(rules)
-            # Desktop canonical verifier requires its distribution directory contain exactly the ZIP.
-            incoming=Path(temp)/'incoming';incoming.mkdir()
-            import shutil,subprocess
-            shutil.copyfile(archive,incoming/archive.name)
-            destination=Path(temp)/'application';rules.verify(incoming,destination,match[1])
-            subprocess.run([str(ROOT/'backend/build/python-env/Scripts/python.exe'),str(ROOT/'scripts/verify-windows-package.py'),
-                            '--distribution',str(destination)],check=True)
-        else:
-            manifest=pkg.verify_extract(archive,Path(temp)/'application',match[1])
-            if manifest['identity']!=info:raise ValueError('Downloaded artifact identity mismatch.')
+            import subprocess
+            subprocess.run([str(ROOT/'backend/build/python-env/Scripts/python.exe'),str(ROOT/'scripts/verify-desktop-distribution.py'),
+                            '--directory',str(Path(temp)/'application')],check=True)
     print('Distributed package checksum and exact contents verified: '+archive.name)
     if os.environ.get('GITHUB_OUTPUT'):
         with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as output:

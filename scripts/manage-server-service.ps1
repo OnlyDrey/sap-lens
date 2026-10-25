@@ -18,10 +18,14 @@ param(
     [string]$Archive = '',
     [string]$RestoreDataDirectory = '',
     [string]$RestoreConfigurationDirectory = '',
-    [switch]$ConfirmRestore
+    [switch]$ConfirmRestore,
+    [switch]$PurgeData,
+    [switch]$ConfirmPurge
 )
 $ErrorActionPreference = 'Stop'
 if ($env:OS -ne 'Windows_NT') { throw 'Service management requires Windows.' }
+if (-not [IO.Path]::IsPathRooted($InstallDirectory)) { throw 'Use an absolute installation directory.' }
+$InstallDirectory = [IO.Path]::GetFullPath($InstallDirectory).TrimEnd('\')
 $wrapper = Join-Path $InstallDirectory 'SAPLensService.exe'
 function Assert-Wrapper {
     $expected = '05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da'
@@ -30,6 +34,7 @@ function Assert-Wrapper {
     }
 }
 Assert-Wrapper
+if ($PurgeData -and ($Action -ne 'Uninstall' -or -not $ConfirmPurge)) { throw 'Private-data removal requires Uninstall -PurgeData -ConfirmPurge.' }
 if ($Action -eq 'Status') { & $wrapper status; exit $LASTEXITCODE }
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 if (-not ([Security.Principal.WindowsPrincipal]$identity).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'Open an elevated PowerShell for SCM management.' }
@@ -64,6 +69,9 @@ function Assert-NewBundle([string]$Directory) {
     return $report
 }
 function Invoke-PrivateBackup([string]$Executable,[string]$Version,[string]$Data) {
+    if (-not [IO.Path]::IsPathRooted($BackupDirectory)) { throw 'Use an absolute dedicated backup directory.' }
+    $BackupDirectory = [IO.Path]::GetFullPath($BackupDirectory).TrimEnd('\')
+    $Data = [IO.Path]::GetFullPath($Data).TrimEnd('\')
     if (-not [IO.Path]::IsPathRooted($BackupDirectory) -or $BackupDirectory.StartsWith($Data.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase) -or $BackupDirectory.TrimEnd('\') -eq $Data.TrimEnd('\') -or $BackupDirectory.StartsWith($InstallDirectory.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase) -or $BackupDirectory.TrimEnd('\') -eq $InstallDirectory.TrimEnd('\')) { throw 'Choose a dedicated absolute backup directory outside application data and binaries.' }
     New-Item -ItemType Directory -Force $BackupDirectory | Out-Null
     $staging = Join-Path $BackupDirectory ('configuration-'+[guid]::NewGuid().ToString('N'))
@@ -140,6 +148,7 @@ if ($Action -in @('Upgrade','Backup','Restore')) {
     Write-Host 'Upgrade ready. Administrator XML, data and service identity preserved; previous binaries and private backup retained.'
     return
 }
+if ($Action -in @('Start','Stop','Restart','Uninstall')) { $installedValues = Read-ServiceConfiguration }
 if ($Action -eq 'Install') {
     if (Get-Service SAPLens -ErrorAction SilentlyContinue) { throw 'SAPLens already exists. Stop and upgrade it rather than overwriting its configuration.' }
     $report = Get-Content (Join-Path $InstallDirectory 'verification-report.json') -Raw | ConvertFrom-Json
@@ -221,6 +230,11 @@ if ($Action -eq 'Install') {
     $service = Get-Service SAPLens -ErrorAction SilentlyContinue
     if ($service -and $service.Status -ne 'Stopped') { Invoke-ServiceCommand 'stop' }
     if ($service) { $service.Dispose() }
+    if ($PurgeData) {
+        & (Join-Path $InstallDirectory 'app\SAP-Lens.exe') --maintenance purge --data $installedValues.SAP_LENS_DATA_DIR --mode server --confirm-purge
+        if ($LASTEXITCODE -ne 0) { throw 'Private-data removal failed; service remains stopped. Review ownership and locks before retrying.' }
+    }
     Invoke-ServiceCommand 'uninstall'
-    Write-Host 'Service removed. Application data, logs, source files and bundle are preserved.'
+    if ($PurgeData) { Write-Host 'Service and confirmed private data removed. Nonprivate lock stub, backups, external sources/secrets, XML and application bundle retained for an administrator retention decision.' }
+    else { Write-Host 'Service removed. Application data, logs, source files and bundle are preserved.' }
 } else { Invoke-ServiceCommand $Action.ToLowerInvariant() }

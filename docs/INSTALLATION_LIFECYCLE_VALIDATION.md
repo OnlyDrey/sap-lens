@@ -179,3 +179,39 @@ third-party notices. Native and Windows service packages also include LICENSE.md
 the service verifier requires that known file explicitly. Current-source final
 packages, Windows desktop installer work, native SCM/systemd, reboot/recovery and
 UNC acceptance remain pending. No image registry or GitHub publication occurred.
+
+## Desktop installer and shared recovery guards — implementation pending Windows
+
+The desktop deployment path now wraps the existing canonical portable EXE in a
+per-user Inno Setup 7.1.0 installer, with hash-pinned build-tool provisioning,
+WebView2 prerequisite checks, Start Menu/optional desktop shortcuts, Installed
+Apps registration, downgrade rejection, private pre-replacement backup and
+managed-file uninstall which preserves private data. The license is installed
+as a notice, not an EULA. The legacy Windows release workflow is unchanged.
+The outer deployment ZIP adds explicit installer assets/manifest; the portable
+verifier's exactly-two-file ZIP contract remains unchanged and is called again
+on download. Native installer acceptance is defined but has not executed here.
+
+Four installer resource/source-contract and outer-distribution tests passed using synthetic parser
+fixtures. They cover version identity, numeric version, unsigned GUI resources,
+data-preserving recipe and explicit WebView2 requirements. They do not compile
+Pascal Script or execute an installer. PowerShell parsing is separate from native
+compiler/installation acceptance.
+
+Restore now holds the actual runtime storage lease without initializing a marker
+before extracting the backup, rechecks each copied hash, and cleans up failures
+before releasing the lease. Normal runtime lease initialization is unchanged.
+An explicit local `purge --confirm-purge` removes private files only from a stopped,
+recognized store, rejects links, and retains the nonprivate lock stub after release.
+Windows Service exposes that option only with Uninstall -PurgeData -ConfirmPurge;
+Desktop removal is a separate explicit portable-maintenance command. Eleven
+maintenance regressions passed, including lock exclusion, post-verification
+archive change, confirmed removal and retention of external backups.
+
+After the storage-lease changes, both disposable Docker lifecycle acceptance and
+the offline native Linux installation/recovery smoke passed again. The latter
+still did not exercise systemd. These remain synthetic integration fixtures,
+not final current-source production package builds. The targeted backend set
+passed 89 tests before the additional outer-distribution regression; that
+additional regression also passed. All twelve PowerShell scripts parsed and the
+portable service helper tests passed. No native Windows result is claimed.

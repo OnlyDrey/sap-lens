@@ -187,3 +187,10 @@ should be included in routine application logs. Native acceptance must cover SCM
 start/stop/restart/recovery/reboot, no interactive session, WebView2 independence,
 local/UNC reads, browser upload/download, snapshot recovery, graceful lock release
 and retained desktop native dialogs/exports.
+
+For intentional private-data removal, `-Action Uninstall -PurgeData -ConfirmPurge`
+first stops the recognized installed service and invokes the local maintenance
+purge under the runtime storage lease. Back up first. It refuses unknown stores,
+links or an active writer. The nonprivate lock stub, configuration XML, previous
+binaries, external sources/secrets and private backups remain for an explicit
+administrator retention decision. There is no automatic global directory removal.
