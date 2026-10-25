@@ -60,6 +60,9 @@ htmlcov/
 *.csv
 !**/fixtures/*.csv
 !examples/synthetic.csv
+!examples/role-catalogue.example.csv
+!examples/user-access.example.csv
+!examples/employee-directory.example.csv
 **/settings.json
 **/classification-profiles.json
 **/import-profiles.json
