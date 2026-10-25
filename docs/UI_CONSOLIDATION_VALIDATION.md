@@ -1,5 +1,56 @@
 # UI consolidation — implementation and validation
 
+## Final integrated validation and conditional delivery — 25.10.2026
+
+Validated test/source checkpoint: `8e11ae7577e893379ddb8effa4ba4ca5d06dd527`.
+The application implementation remains `005bf19`; this delivery changed two test
+assumptions and clarified the lifecycle document's historical checkpoints.
+
+| Check | Actual result |
+| --- | --- |
+| Complete browser suite | **235 passed together in 7.2 minutes**, one worker, retries disabled |
+| Backend suite | **406 passed in 21.929 seconds**, portable PowerShell available |
+| Frontend | Locked npm installation, TypeScript and production build passed |
+| Dependencies | pip check passed; installed Python and production npm audits found no known vulnerabilities |
+| Static/repository checks | Actionlint, PowerShell parsing/helper regressions, Lucide catalogue, whitespace and 63 Markdown link checks passed |
+| Additional Compare Users QA | Six isolated scenarios: light/dark at 375/800/1280px; 223-character role, four validity states/intervals, wildcard patterns, exact copying, transaction provenance and no document overflow |
+
+The first complete run passed 233/235 and caught two remaining test assumptions:
+vertical metadata stacking and filling an already-selected Saved Filter without
+opening its deliberately closed selector. `8e11ae7` checks the requested horizontal
+layout/non-overlap and explicitly clicks the selector before searching. Both
+focused cases passed, followed by the clean complete run above. No data/evidence,
+classification, persistence or export assertion was removed to obtain a pass.
+There were no application runtime changes in this final stabilization.
+
+The complete suite captured responsive light/dark surfaces. Representative
+comparison/evidence, navigation, source, role-detail and Saved Filter screenshots
+were inspected. Synthetic screenshots/logs remain outside Git under
+`/workspace/sap-lens-dev/delivery-visual-qa/`,
+`/workspace/sap-lens-dev/delivery-compare-qa/` and `delivery-*.log`.
+These are Chromium/Linux tests and reviewed captures, not native Windows or
+physical mobile-browser certification.
+
+The outgoing privacy review is recorded in [Privacy](PRIVACY.md). README LOGO
+links and documentation targets resolved locally; no external download/release
+availability is implied. The four deployment filenames and five target choices
+(including All) match the canonical scripts/workflow. No CHANGELOG.md was added.
+The lifecycle guide now distinguishes the initial pending list from later
+implemented Docker/installer definitions and still-pending native acceptance.
+
+Native Windows/WebView2, compiled installer/EXE/SCM, real systemd, reboot/recovery,
+UNC and physical Safari/mobile acceptance remain pending. No Windows package,
+release, tag, registry publication or manually dispatched Actions run was created.
+Existing nonblocking warnings remain: three moderate npm development-chain
+advisories and Vite's >500 kB chunk advisory. No dependency audit was suppressed.
+
+The user's standing `[skip ci]` instruction applies to the final documentation
+record/push; local results above are separate from GitHub Actions status. The
+conditional push must recheck a clean `work`, remote ancestry and the live remote
+SHA and use a normal non-force push. Existing history and accepted P-01 branding
+handling are preserved.
+
+
 ## Current coordinated refinement — 25.10.2026
 
 This section describes the current local batch; earlier sections below are
