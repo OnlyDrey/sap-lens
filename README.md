@@ -113,3 +113,9 @@ The desktop API binds only to `127.0.0.1`, prefers port `18743`, allows the sele
 - [Privacy and historical exposure](docs/PRIVACY.md)
 - [Repository cleanup inventory and maintenance decisions](docs/REPOSITORY_CLEANUP.md)
 - [Validation results and outstanding Windows checks](docs/VALIDATION.md)
+
+## Licensing
+
+SAP Lens is proprietary software. All rights reserved; no open-source license is
+granted. Use or distribution requires authorization from the applicable rights
+holder. See [LICENSE.md](LICENSE.md). Third-party components retain their own licenses.
