@@ -156,9 +156,13 @@ class Builder:
         print(label, flush=True)
         if timed:
             command = [str(self.python), 'scripts/ci.py', 'run', timed, '--', *map(str, command)]
+        child_env = self.env.copy()
+        if any(Path(str(value)).name == 'test-native-deployment.py' for value in command):
+            for key in ('SAP_LENS_CONFIG_DIR','SAP_LENS_DATA_DIR','SAP_LENS_SOURCE_DIR','SAP_LENS_DEPLOYMENT_MODE'):
+                child_env.pop(key,None)
         with self.log.open('a', encoding='utf-8') as log:
             log.write('\n' + label + '\n'); log.flush()
-            subprocess.run(list(map(str, command)), cwd=ROOT, env=self.env, stdout=log,
+            subprocess.run(list(map(str, command)), cwd=ROOT, env=child_env, stdout=log,
                            stderr=subprocess.STDOUT, check=True)
 
     def save(self):

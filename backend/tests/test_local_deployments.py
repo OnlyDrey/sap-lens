@@ -82,6 +82,17 @@ class LocalDeploymentTests(unittest.TestCase):
             with self.assertRaises(ValueError):pkg.require_inputs()
             ci.assert_called_once();local.assert_not_called()
 
+    def test_native_install_smoke_does_not_inherit_validation_storage_overrides(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            run=object.__new__(builder.Builder)
+            run.log=Path(temporary)/'build.log'
+            run.env={'SAP_LENS_CONFIG_DIR':'isolated-validation','PATH':'kept'}
+            with patch.object(builder.subprocess,'run') as command:
+                run.run('Native installation',['python','scripts/test-native-deployment.py','--artifacts','synthetic'])
+                self.assertEqual(command.call_args.kwargs['env'],{'PATH':'kept'})
+                run.run('Backend validation',['python','test.py'])
+                self.assertEqual(command.call_args.kwargs['env']['SAP_LENS_CONFIG_DIR'],'isolated-validation')
+
     def test_shared_validation_failure_is_not_repeated_for_another_target(self):
         run=object.__new__(builder.Builder);run.validated=False;run.validation_started=True
         with patch.object(builder,'prerequisite_versions') as prerequisites,self.assertRaisesRegex(ValueError,'No repeated full suite'):
