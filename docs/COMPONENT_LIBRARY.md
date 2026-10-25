@@ -94,3 +94,19 @@ popover ownership so an inner selection does not dismiss its parent. Escape clos
 the inner popup first; the next Escape restores focus to the outer trigger. The
 Component Library uses these actual components with isolated synthetic state.
 See [the current refinement report](UI_REFINEMENT_PHASE1.md) for scope and validation.
+
+
+Navigation containers share the internal `NavigationStrip` in
+`frontend/src/components/Shared/Navigation.tsx`. Main/secondary routes retain
+navigation landmarks; content tabs retain roving focus and associated panels.
+Do not substitute tab semantics for a route. The Settings showcase uses these
+same exported components and isolated state.
+
+`SourceBadge` displays Loaded in success styling when a valid dataset remains
+available. A failed replacement attempt is reported separately by source health;
+it does not erase the distinction between available data and the last attempt.
+
+`Combobox` accepts `openOnFocus` (default `true`). Saved Filters sets it to `false`
+so programmatic popover focus does not open a second overlay over Load/Save.
+Click, typing and Arrow keys still open the list; Escape closes the list before
+its parent popover and restores the expected focus.

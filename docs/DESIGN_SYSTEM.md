@@ -56,3 +56,13 @@ See [Component Library](COMPONENT_LIBRARY.md), [Navigation patterns](NAVIGATION_
 ## Refresh evidence surfaces
 
 Refresh banners use semantic success/error backgrounds and a neutral unchanged state. Error styling describes failed operations, not intentionally disabled modules. Modal surfaces use the same elevation, surface, border, spacing and radius tokens as anchored popovers. Source cards keep technical information expandable within the relevant source; record-level evidence stays inside private report dialogs.
+
+
+## Clean interaction states
+
+Shared controls use background changes, borders and crisp two-pixel focus outlines.
+Blurred elevation and colored glow are removed in both themes; autofill masking is
+an inset fill, not a focus effect. Popovers remain portal-positioned with opaque
+surfaces and visible borders. Navigation uses a shared strip implementation while
+preserving distinct link and tab semantics. Secondary navigation has a subtle
+underline hover state rather than a large background treatment.

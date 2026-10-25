@@ -1,5 +1,146 @@
 # UI consolidation — implementation and validation
 
+## Current coordinated refinement — 25.10.2026
+
+This section describes the current local batch; earlier sections below are
+historical checkpoints, not certification of this source revision.
+
+- Shared navigation containers now use one strip primitive, preserving main and
+  secondary navigation landmarks, actual secondary links, tab roles, roving focus
+  and associated panels. Component Library continues to use the real exports.
+- Blurred/glow shadows are removed from cards, role selection, drawers, floating
+  surfaces and shared controls. Crisp focus outlines and opaque bordered portal
+  surfaces remain. No dependencies or theme/preset schemas changed.
+- Dashboard retains its four primary metrics, uses compact secondary statistics,
+  and retains coverage counts/progress, source health and existing drilldowns.
+- Role Details uses a compact ghost back action, responsive identifier/header,
+  smaller navigation/statistics spacing and horizontal single-role metadata where
+  space permits. Zebra backgrounds apply to the row rather than an inner block.
+- Saved Filter selection remains searchable and all schema/CRUD behavior is
+  retained. Save and clear actions share a wrapping row in the compact popover.
+- User Directory adds a catalogue identifier/description selector, preserving the
+  existing single-role exact/pattern association rather than inventing multi-role
+  AND/OR behavior. Individual role/group/search/expired/transaction chips and one
+  panel reset preserve unrelated controls when an individual chip is removed.
+- Account Review metrics are compact; sorting/direction/export are in its filter
+  panel. Display capitalization changes do not alter enums, review decisions or
+  account interpretation.
+- Compare Users has exactly four columns and direct evidence, not counts or an
+  evidence accordion. All distinct intervals, assigned identifiers, copy actions,
+  groups, status and matching patterns remain inspectable. Transaction evidence
+  now includes bounded assignment provenance alongside the unchanged explanatory
+  role lists. Provenance is deduplicated across the result page. Further evidence
+  pages preserve source-generation/date guards; arithmetic and exports remain
+  unchanged. Wide evidence tables intentionally scroll inside their named region.
+- Release date controls belong to the primary filter panel; optional group
+  comparison has its own toolbar. Table/matrix codes are more prominent without
+  changing counts, date bounds or drilldowns.
+- Employee Directory health/diagnostics follow selection and import controls.
+  Retained valid data is Loaded in success styling; failed replacement warnings
+  are reported separately. No parser, snapshot or replacement semantics changed.
+
+The earlier queued lifecycle, documentation-index and synthetic-example work is
+preserved in separate commits. README LOGO links, platform guides, standalone
+package instructions, offline link checks and repository guidance were aligned in
+`62895c9`. Linked synthetic examples and real import/fresh-process recovery tests
+were added in `3b923df`; they are not auto-loaded or packaged.
+
+### Current validation
+
+- Backend: 406 tests passed in 21.013 seconds, with the installed portable
+  PowerShell available. Comparison provenance and source recovery are covered.
+- TypeScript and production build passed; Vite retains its existing >500 kB chunk
+  advisory. No warning suppression or dependency upgrade was used.
+- Documentation checker: 63 Markdown files, no broken local targets/anchors.
+  External URLs were not fetched. Actionlint and Lucide catalogue checks passed.
+- Portable PowerShell parsing and isolated service-helper regressions passed.
+  These did not install a Windows service or compile/run the desktop installer.
+- Python installed-dependency audit and production npm audit found no known
+  vulnerabilities. Full npm audit retains three moderate development-chain
+  advisories (Tailwind/PostCSS); no forced major update or suppression.
+
+Browser validation used one full run (235 scenarios): 227 passed in 7.6 minutes;
+eight older visual assertions failed. Four required the former stacked single-role
+layout; four required filled tab hover backgrounds. Updated assertions check the
+requested alignment, non-overlap, containment and persistent active underline.
+A 33-case affected/visual run passed 27 and exposed six remaining cases: the four
+long-description row cases, an outside-click target covered by the upward date
+popover, and Saved Filters autofocus opening its selector over Load. The row grid
+and selector focus behavior were corrected; the outside-click test now verifies
+an actually uncovered navbar point without force-clicking. All 14 final affected
+checks passed in 37.1 seconds, including keyboard focus, load/CRUD, direct evidence
+and six light/dark comparison captures. The four tab-hover cases passed in the
+33-case run. No second complete browser suite was executed.
+
+Representative screenshots were inspected in both themes at 375, 800 and 1280 px.
+They show crisp focus outlines, retained long evidence, scroll-contained tables,
+responsive navigation and filters. Synthetic captures are retained outside Git at
+`/workspace/sap-lens-dev/ui-refinement-final-qa/`. These are reviewed screenshots
+and geometry assertions, not cross-platform pixel-golden certification.
+
+Exact local commands included `npm --prefix frontend ci --no-audit --no-fund`,
+`npm --prefix frontend run check:types`, `npm --prefix frontend run build`,
+`python -m unittest discover -s backend/tests -v`, `python -m pip check`, installed
+Python `pip_audit --path`, `npm --prefix frontend audit --omit=dev`, full npm audit,
+`python scripts/check-docs.py`, pinned actionlint, `node
+scripts/sync-lucide-catalog.mjs --check`, `pwsh -NoProfile -File
+scripts/check-powershell.ps1`, and `git diff --check`. Browser commands used the
+prepared Python environment and `PLAYWRIGHT_EXECUTABLE_PATH=/usr/bin/chromium`.
+Reports/logs are retained under `/workspace/sap-lens-dev/refinement-*`.
+
+The final visual-only set passed 10/10 in 43.7 seconds. The final Saved Filters
+set passed 9/9 in 21.2 seconds, including six theme/viewport captures. Its internal
+Save/Clear row is shared across callers; the component hides its external Clear
+while open. All known browser failures from the complete/targeted runs above have
+passing affected-case results. There is no claim of a second green full-suite run.
+Implementation commit: `005bf19` (backend/frontend/tests only).
+
+### Current changed-file inventory
+
+- `backend/routers/user_comparison.py`
+- `backend/tests/test_investigation_tools.py`
+- `backend/tests/test_local_build.py`
+- `docs/COMPONENT_LIBRARY.md`
+- `docs/DESIGN_SYSTEM.md`
+- `docs/INVESTIGATION_FILTERS.md`
+- `docs/UI_CONSOLIDATION_VALIDATION.md`
+- `docs/USER_COMPARISON.md`
+- `frontend/src/components/Access/AccountReview.tsx`
+- `frontend/src/components/Access/ReleaseRoles.tsx`
+- `frontend/src/components/Access/UserAccess.tsx`
+- `frontend/src/components/Access/UserComparison.tsx`
+- `frontend/src/components/Dashboard.tsx`
+- `frontend/src/components/Layout/AppLayout.tsx`
+- `frontend/src/components/RoleComparison/ComparisonView.tsx`
+- `frontend/src/components/RoleDetail/RoleDetailPanel.tsx`
+- `frontend/src/components/RoleList/RoleCard.tsx`
+- `frontend/src/components/RoleList/RoleList.tsx`
+- `frontend/src/components/Settings/EmployeeDirectory.tsx`
+- `frontend/src/components/Shared/Combobox.tsx`
+- `frontend/src/components/Shared/Navigation.tsx`
+- `frontend/src/components/Shared/SavedFilters.tsx`
+- `frontend/src/components/Shared/SourceBadge.tsx`
+- `frontend/src/index.css`
+- `frontend/src/styles/components.css`
+- `frontend/src/styles/tokens.css`
+- `frontend/tests/access-investigation.spec.ts`
+- `frontend/tests/account-review-refinement.spec.ts`
+- `frontend/tests/dashboard-user-transactions.spec.ts`
+- `frontend/tests/design-system.spec.ts`
+- `frontend/tests/investigation-tools.spec.ts`
+- `frontend/tests/investigation-ux.spec.ts`
+- `frontend/tests/live-filters-polish.spec.ts`
+
+Native Windows/WebView2, compiled EXE/installer, SCM, real systemd, reboot/recovery,
+UNC and physical mobile/Safari acceptance remain unexecuted here. Earlier Docker
+and Linux user-mode lifecycle results apply to their documented source fixtures,
+not a newly built current-source production distribution. Nothing in this batch
+was pushed, published or remotely dispatched. P-01 remains separately unresolved;
+no history was rewritten.
+
+---
+
+
 This document describes the UI-only consolidation checkpoint `246ef42`. The subsequent CSV lifecycle batch and final frozen stabilization are documented in [the final validation report](STABILIZATION_VALIDATION.md); its results supersede the intermediate execution results below.
 
 ## Baseline and boundaries

@@ -228,3 +228,19 @@ count below. Module pills remain below search. Release Roles uses four primary
 classification controls plus username, role, status and sort in its second row;
 direction stays below sort. Four/two/one layouts retain existing live transaction
 chips, filter state, date semantics and contained table scrolling.
+
+
+## Compact investigation controls
+
+User Directory has a catalogue-backed role selector searchable by identifier or
+description. It preserves the existing single-role exact/catalogue-pattern
+association, combined with other directory controls. Multiple-role semantics are
+not introduced. Role, user-group and user-search chips remove only their own
+filter; transaction chips retain their existing AND/OR mode. Clear filters resets
+the whole directory panel. Saved definitions retain the original `role` field.
+
+Account Review sorting, direction and export belong to its filter panel. Compare
+Users sorting belongs alongside its comparison filters. Release Roles keeps date
+controls inside its primary filter panel and places optional user-group comparison
+in a separate secondary toolbar. Date bounds and missing-date semantics are
+unchanged.
