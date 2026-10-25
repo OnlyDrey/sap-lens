@@ -106,6 +106,10 @@ class MaintenanceTests(unittest.TestCase):
             ops.ensure_upgrade(previous,target)
             with self.assertRaises(ValueError):ops.ensure_upgrade(target,previous)
         self.assertEqual(ops.version_key('0.1.0-beta-4'),ops.version_key('0.1.0-beta.4'))
+        ops.ensure_upgrade('0.1.0-dev.123', '0.1.0-dev.123.2')
+        ops.ensure_upgrade('0.1.0-dev.123.2', '0.1.0-beta.1')
+        with self.assertRaises(ValueError): ops.ensure_upgrade('0.1.0-dev.123.2', '0.1.0-dev.123')
+        with self.assertRaises(ValueError): ops.version_key('0.1.0-beta.1.2')
 
     def test_backup_cli_reports_no_records_or_credentials(self):
         report=self.root/'report.json'

@@ -30,9 +30,11 @@ class MaintenanceError(ValueError):
 
 
 def version_key(value):
-    match = re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-(alpha|beta|rc|dev)[.-]([0-9]+|local))?(?:\+local\.[0-9a-f]{12})?', value)
+    match = re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-(alpha|beta|rc|dev)[.-]([0-9]+|local)(?:\.([1-9][0-9]*))?)?(?:\+local\.[0-9a-f]{12})?', value)
     if not match: raise MaintenanceError('Unsupported installed version; review upgrade compatibility explicitly.')
-    return (*map(int, match.group(1, 2, 3)), {'dev': -1, 'alpha': 0, 'beta': 1, 'rc': 2, None: 3}[match[4]], 0 if match[5] in (None, 'local') else int(match[5]))
+    if match[6] and (match[4] != 'dev' or match[5] == 'local'):
+        raise MaintenanceError('Only legacy CI development builds have an attempt suffix.')
+    return (*map(int, match.group(1, 2, 3)), {'dev': -1, 'alpha': 0, 'beta': 1, 'rc': 2, None: 3}[match[4]], 0 if match[5] in (None, 'local') else int(match[5]), int(match[6] or 1))
 
 
 def ensure_upgrade(installed, target):

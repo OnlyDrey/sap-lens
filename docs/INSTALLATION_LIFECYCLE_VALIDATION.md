@@ -127,3 +127,21 @@ Targeted maintenance, Linux lifecycle, local deployment and packaging regression
 **33 passed**. PowerShell parsing/static checks and whitespace checks passed.
 These are narrow prerequisite fixes, not completion of the pending installer,
 Docker lifecycle, native Windows or systemd acceptance work.
+
+## Windows Service management implementation
+
+The canonical WinSW management script now includes Upgrade, Backup and Restore.
+It preserves registration/XML/identity, verifies the replacement's exact file set
+and hashes, rejects downgrades through the new headless runtime, creates a private
+stopped-state backup, stages application files and checks listener ownership and
+readiness. Failed activation leaves the service stopped with backup and prior
+binaries retained. Restore targets empty directories and never silently activates
+them. Uninstall continues to preserve all private state and installation files.
+
+The portable `test-service-management.ps1` helper tests passed on Linux/PowerShell:
+valid identity, unexpected-file and checksum rejection, administrator XML
+preservation and external-entity rejection. Static parsing passed for all ten
+PowerShell scripts and three deployment-contract tests passed. The native SCM
+smoke definition was extended to backup, restore and same-version staged upgrade;
+it has **not been executed here**. Windows installer, real service upgrade,
+reboot/recovery/UNC and Docker lifecycle acceptance remain pending.

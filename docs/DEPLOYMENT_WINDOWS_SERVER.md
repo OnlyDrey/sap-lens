@@ -123,11 +123,49 @@ grant permissions to the domain service identity before starting. No plaintext d
 
 ## Upgrade, backup and removal
 
-Stop the service, back up the complete data directory and private service config,
-replace only the immutable bundle (retain the existing reviewed XML), verify new
-checksums and start it. Keep rollback files until health and imports are checked.
-Do not replace the data directory. Runtime storage and existing migrations preserve
-settings/snapshots/reviews/saved filters across executable replacement.
+Use an elevated PowerShell and a newly extracted, checksum-verified service
+package. Management actions retain the installed XML, service identity, external
+sources and mutable data. Do not overwrite an installed directory by extracting
+an archive over it.
+
+```powershell
+.\manage-server-service.ps1 -Action Backup
+.\manage-server-service.ps1 -Action Start
+.\manage-server-service.ps1 -Action Upgrade -NewBundleDirectory 'C:\Staging\SAP-Lens-Service'
+```
+
+Backup stops the service and leaves it stopped. The default private backup
+directory is `C:\ProgramData\SAP Lens Server Backups`; `-BackupDirectory` selects
+another dedicated location outside data and binaries. The archive includes
+persistent records and the administrator service XML. External source files and
+external access-secret files are not followed; preserve them separately.
+
+Upgrade verifies exact replacement contents, pinned WinSW and hashes, rejects a
+downgrade, stops the installed service and creates a private backup before
+activating staged application files. The XML and registration are retained.
+Readiness requires a listener belonging to the registered service process tree.
+Previous application files remain under `app.previous.<identifier>` until an
+administrator accepts the upgrade and makes a retention decision. If startup
+fails, the service stays stopped; review logs and compatible data recovery before
+switching binaries back. A binary-only rollback is not a data recovery guarantee.
+
+Restore stages into **empty** operator-selected destinations, without overwriting
+the live configuration or data:
+
+```powershell
+.\manage-server-service.ps1 -Action Restore `
+  -Archive 'D:\PrivateBackups\SAP-Lens-Service-example.tar.gz' `
+  -RestoreDataDirectory 'D:\Recovery\SAP-Lens-Data' `
+  -RestoreConfigurationDirectory 'D:\Recovery\SAP-Lens-Configuration' `
+  -ConfirmRestore
+```
+
+Keep the original stores and archive until recovery is accepted. Review restored
+paths, restore the service SID's required data/configuration access, and explicitly
+activate the restored paths/XML before starting. Restore does not rewrite SCM or
+silently switch the selected data directory. Test readiness and imported data
+before declaring recovery complete. Newer settings cannot be restored into an
+older application version.
 
 ```powershell
 .\manage-server-service.ps1 -Action Uninstall
@@ -135,6 +173,13 @@ settings/snapshots/reviews/saved filters across executable replacement.
 
 Uninstall stops and unregisters the service; it preserves data, logs, source files,
 secrets and the installation. Remove them separately only under retention policy.
+
+Portable helper tests cover exact contents, checksum rejection, XML preservation
+and external-entity rejection. The native smoke definition also covers private
+backup, empty-target restore and same-version staged upgrade. These native steps
+remain **unexecuted in the Linux development environment**, as do reboot, service
+recovery and UNC acceptance. No signed installer or unattended OS reboot test is
+implied by the management scripts.
 
 Inspect rotating wrapper/application logs under the log directory and Windows
 Event Viewer for SCM/wrapper startup failures. No personal data or raw CSV content
