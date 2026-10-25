@@ -14,9 +14,29 @@ name: Build Deployment Packages
         default: All
         required: true
       version:
-        description: Build-only base MAJOR.MINOR.PATCH; no release or tag
+        description: Base MAJOR.MINOR.PATCH without prerelease suffix
         type: string
         default: 0.1.0
+        required: true
+      release_channel:
+        description: Explicit version channel (does not publish by itself)
+        type: choice
+        options:
+        - Alpha
+        - Beta
+        - Release Candidate (RC)
+        - Stable / Production
+        default: Beta
+        required: true
+      prerelease_number:
+        description: Positive sequence, without leading zeros; ignored for Stable
+        type: string
+        default: '1'
+        required: false
+      publish_release:
+        description: Publish only after every selected platform passes verification
+        type: boolean
+        default: false
         required: true
 permissions:
   contents: read
@@ -31,8 +51,12 @@ jobs:
     env:
       BASE_VERSION: ${{ inputs.version }}
       DEPLOYMENT_PLATFORM: ${{ inputs.platform }}
+      DEPLOYMENT_CHANNEL: ${{ inputs.release_channel }}
+      DEPLOYMENT_SEQUENCE: ${{ inputs.prerelease_number }}
+      PUBLISH_RELEASE: ${{ inputs.publish_release }}
     outputs:
       version: ${{ steps.identity.outputs.version }}
+      identity: ${{ steps.identity.outputs.identity }}
     steps:
     - name: Check out exact source
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -60,9 +84,11 @@ jobs:
     - name: Install shared validation dependencies
       run: python -m pip install -r backend/requirements-dev.txt -r backend/requirements-build.txt -r scripts/requirements-audit.txt
       id: s3
-    - name: Resolve build-only identity
+    - name: Resolve version and check publication eligibility
       run: python scripts/deployment-package.py prepare --version "$BASE_VERSION"
       id: identity
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
     - name: Check Python dependencies
       run: python scripts/ci.py run pip_check -- python -m pip check
       id: pip_check
@@ -131,6 +157,10 @@ jobs:
     name: Windows Desktop Packaging & Verification
     runs-on: windows-latest
     timeout-minutes: 25
+    outputs:
+      artifact_id: ${{ steps.distribution.outputs.artifact-id }}
+      package_name: ${{ steps.integrity.outputs.package_name }}
+      package_sha: ${{ steps.integrity.outputs.package_sha }}
     needs: validation
     if: ${{ inputs.platform == 'All' || inputs.platform == 'Windows Desktop' }}
     env:
@@ -177,6 +207,7 @@ jobs:
         path: ${{ runner.temp }}/deployment-roundtrip
         digest-mismatch: error
     - name: Verify uploaded archives and exact contents
+      id: integrity
       run: python scripts/check-deployment-download.py --directory "${{ runner.temp }}/deployment-roundtrip"
     - name: Write platform outcome
       run: python scripts/check-deployment-download.py --summary
@@ -189,6 +220,10 @@ jobs:
     name: Windows Server Service Packaging & Verification
     runs-on: windows-latest
     timeout-minutes: 25
+    outputs:
+      artifact_id: ${{ steps.distribution.outputs.artifact-id }}
+      package_name: ${{ steps.integrity.outputs.package_name }}
+      package_sha: ${{ steps.integrity.outputs.package_sha }}
     needs: validation
     if: ${{ inputs.platform == 'All' || inputs.platform == 'Windows Server Service' }}
     env:
@@ -235,6 +270,7 @@ jobs:
         path: ${{ runner.temp }}/deployment-roundtrip
         digest-mismatch: error
     - name: Verify uploaded archives and exact contents
+      id: integrity
       run: python scripts/check-deployment-download.py --directory "${{ runner.temp }}/deployment-roundtrip"
     - name: Write platform outcome
       run: python scripts/check-deployment-download.py --summary
@@ -247,6 +283,10 @@ jobs:
     name: Linux Docker Packaging & Verification
     runs-on: ubuntu-22.04
     timeout-minutes: 25
+    outputs:
+      artifact_id: ${{ steps.distribution.outputs.artifact-id }}
+      package_name: ${{ steps.integrity.outputs.package_name }}
+      package_sha: ${{ steps.integrity.outputs.package_sha }}
     needs: validation
     if: ${{ inputs.platform == 'All' || inputs.platform == 'Linux Docker' }}
     env:
@@ -294,6 +334,7 @@ jobs:
         path: ${{ runner.temp }}/deployment-roundtrip
         digest-mismatch: error
     - name: Verify uploaded archives and exact contents
+      id: integrity
       run: python scripts/check-deployment-download.py --directory "${{ runner.temp }}/deployment-roundtrip"
     - name: Write platform outcome
       run: python scripts/check-deployment-download.py --summary
@@ -306,6 +347,10 @@ jobs:
     name: Linux Native/systemd Packaging & Verification
     runs-on: ubuntu-22.04
     timeout-minutes: 25
+    outputs:
+      artifact_id: ${{ steps.distribution.outputs.artifact-id }}
+      package_name: ${{ steps.integrity.outputs.package_name }}
+      package_sha: ${{ steps.integrity.outputs.package_sha }}
     needs: validation
     if: ${{ inputs.platform == 'All' || inputs.platform == 'Linux Native/systemd' }}
     env:
@@ -353,6 +398,7 @@ jobs:
         path: ${{ runner.temp }}/deployment-roundtrip
         digest-mismatch: error
     - name: Verify uploaded archives and exact contents
+      id: integrity
       run: python scripts/check-deployment-download.py --directory "${{ runner.temp }}/deployment-roundtrip"
     - name: Write platform outcome
       run: python scripts/check-deployment-download.py --summary
@@ -361,3 +407,45 @@ jobs:
         PLATFORM_LABEL: Linux Native/systemd
         PLATFORM_RESULT: ${{ job.status }}
         DEPLOYMENT_VERSION: ${{ needs.validation.outputs.version }}
+
+  publish:
+    name: Publish Complete Deployment Release
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    needs: [validation, desktop, service, docker, native]
+    if: ${{ always() && !cancelled() && inputs.publish_release && needs.validation.result == 'success' }}
+    permissions:
+      contents: write
+    concurrency:
+      group: sap-lens-deployment-publication
+      cancel-in-progress: false
+    environment:
+      name: ${{ inputs.release_channel == 'Stable / Production' && 'sap-lens-stable' || 'sap-lens-beta' }}
+    env:
+      PUBLISH_RELEASE: ${{ inputs.publish_release }}
+      DEPLOYMENT_PLATFORM: ${{ inputs.platform }}
+      DEPLOYMENT_IDENTITY: ${{ needs.validation.outputs.identity }}
+      DEPLOYMENT_NEEDS: ${{ toJSON(needs) }}
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+    - name: Check out validated source
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.sha }}
+        persist-credentials: false
+    - name: Set up Python 3.12
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+      with:
+        python-version: '3.12'
+    - name: Require all selected verified platforms and unused version
+      id: eligible
+      run: python scripts/deployment-release.py preflight
+    - name: Collect only selected same-run platform artifacts
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        artifact-ids: ${{ steps.eligible.outputs.artifact_ids }}
+        path: dist/publication
+        merge-multiple: true
+        digest-mismatch: error
+    - name: Verify collected assets and publish complete release
+      run: python scripts/deployment-release.py publish --directory dist/publication

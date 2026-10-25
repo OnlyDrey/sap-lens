@@ -1,5 +1,8 @@
 # Cross-platform packaging validation — 24 October 2026
 
+Historical execution record. The subsequent optional channel/publication changes
+and their local-only tests are documented in [Phase 2 validation](DEPLOYMENT_RELEASE_VALIDATION.md).
+
 Status: **local implementation and Linux packages validated; GitHub/Windows native
 execution pending**. No push, workflow dispatch, release, registry publication or
 merge was performed. Runtime commits `27e0622` and `a857539` remain ancestors.

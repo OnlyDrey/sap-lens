@@ -6,6 +6,7 @@ param(
     [string]$ArtifactDigest,
     [string]$PythonExecutable,
     [string]$AuditPython,
+    [switch]$ValidatedDeployment,
     [switch]$BenchmarkPackaging
 )
 $ErrorActionPreference = 'Stop'
@@ -123,7 +124,13 @@ try {
     }
     Invoke-Stage Package {
         # Standalone local builds get an unmistakable dev identity; CI requires its resolved metadata.
-        & $buildPython scripts/release-windows.py ensure-local-build
+        if ($ValidatedDeployment) {
+            # Deployment dispatches carry an explicit channel identity sealed by
+            # same-run shared validation, rather than legacy desktop reservation.
+            & $buildPython scripts/deployment-package.py require-ci
+        } else {
+            & $buildPython scripts/release-windows.py ensure-local-build
+        }
         Assert-Success 'Require resolved build identity'
         & $buildPython scripts/write-windows-metadata.py
         Assert-Success 'Generate Windows metadata'

@@ -17,7 +17,7 @@ import zipfile
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'backend'))
-from version import make_build_info,make_local_package_info,parse_build_info
+from version import make_build_info,make_local_package_info,parse_build_info,make_deployment_info
 CHECKS={'backend','browser','types','build','catalog','python_audit','javascript_audit','pip_check','workflow_lint','powershell'}
 
 
@@ -64,11 +64,25 @@ def prepare(version):
     selected=os.environ.get('DEPLOYMENT_PLATFORM')
     if selected and selected not in {'Windows Desktop','Windows Server Service','Linux Docker','Linux Native/systemd','All'}:raise ValueError('Invalid deployment platform.')
     if os.environ.get('GITHUB_ACTIONS')=='true':
-        value=make_build_info('build',version,git_sha(),os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_NUMBER'],int(os.environ['GITHUB_RUN_ATTEMPT']))
+        if os.environ.get('DEPLOYMENT_CHANNEL'):
+            release_spec=importlib.util.spec_from_file_location('deployment_release',ROOT/'scripts/deployment-release.py')
+            release=importlib.util.module_from_spec(release_spec);release_spec.loader.exec_module(release)
+            value=make_deployment_info(version,release.channel(os.environ['DEPLOYMENT_CHANNEL']),
+                os.environ.get('DEPLOYMENT_SEQUENCE',''),git_sha(),os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_NUMBER'],int(os.environ['GITHUB_RUN_ATTEMPT']))
+            if os.environ.get('PUBLISH_RELEASE') not in {'true','false'}:raise ValueError('Explicit publication choice is required.')
+            if os.environ['PUBLISH_RELEASE']=='true':
+                try:release.GitHub(os.environ['GITHUB_REPOSITORY'],os.environ['GITHUB_TOKEN']).available(value['tag'])
+                except release.DeliveryError as error:
+                    print(str(error),file=sys.stderr)
+                    raise ValueError('Publication preflight failed.') from None
+        else:
+            value=make_build_info('build',version,git_sha(),os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_NUMBER'],int(os.environ['GITHUB_RUN_ATTEMPT']))
     else:value=make_local_package_info(version,git_sha())
     write(ROOT/'backend/build/build-version.json',value)
     if os.environ.get('GITHUB_OUTPUT'):
-        with open(os.environ['GITHUB_OUTPUT'],'a') as output:output.write('version='+value['version']+'\n')
+        with open(os.environ['GITHUB_OUTPUT'],'a') as output:
+            output.write('version='+value['version']+'\n')
+            output.write('identity='+json.dumps(value,separators=(',',':'))+'\n')
     print(value['version'])
 
 

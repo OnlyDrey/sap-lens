@@ -14,7 +14,7 @@ foreach ($pattern in @('test_desktop.py','test_windows_package.py','test_server.
     Checked { & $python -W error::DeprecationWarning -m unittest discover -s backend/tests -p $pattern -v }
 }
 if ($Target -eq 'Desktop') {
-    & ./scripts/build-windows.ps1 -Stage Package
+    & ./scripts/build-windows.ps1 -Stage Package -ValidatedDeployment
     & ./scripts/build-windows.ps1 -Stage Verify
     & ./scripts/build-windows.ps1 -Stage Smoke
     # Desktop exact-file ZIP roundtrip is also checked by the canonical verifier.

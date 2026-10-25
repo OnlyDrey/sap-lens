@@ -16,11 +16,83 @@ branch (normally `work`), then choose:
 - `Linux Native/systemd`
 - `All`
 
-Supply base `version`, such as `0.1.0`. One immutable build identity is generated,
-for example `0.1.0-dev.123`; all selected artifacts embed that version and the same
-source commit. This workflow does **not** reserve release tags, publish GitHub
-Releases, sign binaries, or push images. Existing **Build Windows Application**
-remains the separate desktop build/beta/stable release workflow, unchanged.
+Supply base `version`, such as `0.1.0`, a `release_channel`, and a positive
+`prerelease_number` for prereleases. Publication is controlled separately by
+`publish_release`, **false by default**. All selected artifacts embed the same
+resolved version, source commit and workflow run/attempt.
+
+| Channel | Example |
+| --- | --- |
+| Alpha | `0.1.0-alpha.1` |
+| Beta | `0.1.0-beta.1` |
+| Release Candidate (RC) | `0.1.0-rc.1` |
+| Stable / Production | `0.1.0` |
+
+Base components and prerelease numbers are limited to 65535 for Windows PE
+compatibility. Leading zeros, suffixes in the base, invalid channels and malformed
+numbers are rejected. Stable ignores a valid supplied sequence; leaving it blank
+is supported. There is no automatic sequence allocation: deliberately choose an
+unused version when publishing. Legacy desktop `beta-N` tags are not moved or
+reused by this SemVer scheme.
+
+With `publish_release=false`, only Actions artifacts are created: **no tag or
+GitHub Release**, even for a Stable version. An embedded version/tag name is
+candidate metadata, not proof of publication. No binary signing or registry push
+is enabled. Existing **Build Windows Application** retains its independent,
+legacy desktop build/beta/stable release behavior unchanged.
+
+With `publish_release=true`, every selected platform must finish its native
+packaging and artifact roundtrip successfully. Only then can the isolated,
+write-scoped publisher collect those exact same-run artifact IDs, verify their
+names/checksums against successful job outputs, stage a draft, verify every
+uploaded release asset's server-side SHA-256, create an owned annotated version
+tag and publish. Alpha/Beta/RC are prereleases; Stable is a normal/latest release.
+All selected packages, checksum sidecars and a source/digest manifest are attached.
+A failed/skipped/cancelled selected platform prevents publication. Build-only runs
+still upload successful independent platform packages when a sibling fails.
+
+### Examples after workflow registration
+
+For test packages: select `All`, base `0.1.0`, `Beta`, sequence `1`, and leave
+**Publish release unchecked**. Download each successful job's Actions artifact.
+
+For a Beta release: select the desired targets, base `0.1.0`, `Beta`, an unused
+sequence (for example `2`), and explicitly check **Publish release**.
+
+For Stable: select the desired targets (normally `All`), base `0.1.0`,
+`Stable / Production`, and explicitly check **Publish release**. Existing
+`sap-lens-stable` environment protection applies; prereleases use `sap-lens-beta`.
+No repository/environment settings are modified by these source changes.
+
+The CLI equivalent for a build-only run, **after the workflow is registered**:
+
+```bash
+gh workflow run build-deployments.yml --repo OnlyDrey/sap-lens --ref work \
+  -f platform=All -f version=0.1.0 -f release_channel=Beta \
+  -f prerelease_number=1 -f publish_release=false
+```
+
+Do not run publication commands without approval. Actions artifacts have the
+configured retention period and an outer GitHub ZIP wrapper; release assets are
+the actual deployment archives/sidecars and remain attached until explicitly
+removed. This implementation does not publish anything during local development.
+
+### Failure and concurrency safety
+
+A read-only preflight rejects existing tags/releases before shared validation;
+the publisher checks again after all packages pass. Existing refs/releases are
+never overwritten, adopted or force-updated. Draft assets are uploaded before
+tag creation. Publication is serialized independently across branches. A normal
+failure removes only this invocation's draft and its provably owned annotated
+tag; foreign tags and published releases are never removed. A lost successful
+publish response is reconciled once without retrying publication.
+
+GitHub does not offer a transaction spanning all release/tag calls. If remote
+state cannot be read during recovery, cleanup stops and reports manual
+reconciliation rather than guessing or deleting uncertain state. Inspect the
+release, owned tag and run summary before a new dispatch. Do not blindly retry a
+failed version or delete a pre-existing reservation. Mocks validate this policy;
+live GitHub publication/rollback has not been exercised in this task.
 
 GitHub requires a workflow-dispatch definition on the default branch before its
 normal manual UI is available. Adding it only to `work` does not guarantee that

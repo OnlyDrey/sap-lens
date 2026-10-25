@@ -100,14 +100,52 @@ def make_local_package_info(requested_version, source_sha):
                 source_sha=source_sha, run_id="", run_number="", attempt=0, tag="")
 
 
+def deployment_version(base, channel, sequence=""):
+    """Explicit SemVer for deployment dispatches; legacy desktop numbering is unchanged."""
+    base_numbers(base)
+    if channel not in {"alpha", "beta", "rc", "stable"}:
+        raise ValueError("Choose alpha, beta, rc or stable.")
+    if not isinstance(sequence, str) or (sequence and not re.fullmatch(r"[1-9][0-9]{0,4}", sequence)):
+        raise ValueError("Prerelease number must be a positive integer without leading zeros.")
+    if sequence and int(sequence) > 65535:
+        raise ValueError("Prerelease number exceeds Windows FileVersion limits.")
+    if channel != "stable" and not sequence:
+        raise ValueError("A prerelease number is required for alpha, beta and rc.")
+    return base if channel == "stable" else f"{base}-{channel}.{sequence}"
+
+
+def make_deployment_info(base, channel, sequence, source_sha, run_id, run_number, attempt=1):
+    # Reuse the existing strict source/run/PE validation. Schema 2 distinguishes
+    # explicit SemVer candidates from schema 1's reserved legacy beta-N releases.
+    value = make_build_info("build", base, source_sha, run_id, run_number, attempt)
+    resolved = deployment_version(base, channel, sequence)
+    value.update(schema=2, version=resolved, mode=channel,
+                 file_version=[*base_numbers(base), 0 if channel == "stable" else int(sequence)],
+                 tag="v" + resolved)
+    return value
+
+
 def parse_build_info(value):
     if (
         not isinstance(value, dict)
         or set(value) != FIELDS
         or type(value["schema"]) is not int
-        or value["schema"] != 1
+        or value["schema"] not in {1, 2}
     ):
         raise ValueError("Invalid build metadata schema.")
+    if value["schema"] == 2:
+        sequence = ""
+        if value["mode"] != "stable":
+            match = re.fullmatch(re.escape(str(value["base_version"])) +
+                                 r"-(alpha|beta|rc)\.([1-9][0-9]{0,4})", str(value["version"]))
+            if not match or match[1] != value["mode"]:
+                raise ValueError("Invalid deployment prerelease identity.")
+            sequence = match[2]
+        expected = make_deployment_info(value["base_version"], value["mode"], sequence,
+                                       value["source_sha"], value["run_id"], value["run_number"], value["attempt"])
+        if value != expected or any(type(n) is not int for n in value["file_version"]):
+            raise ValueError("Inconsistent deployment metadata.")
+        return expected
     if value["mode"] == "local-build":
         requested = str(value["version"]).split("+", 1)[0]
         expected = make_local_package_info(requested, value["source_sha"])
