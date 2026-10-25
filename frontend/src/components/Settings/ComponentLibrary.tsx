@@ -1,3 +1,7 @@
+import { SourceFileField, MappingField, ImportPreview } from './ImportControls'
+import { SourceHealthSummary } from './SourceStatus'
+import { AssignmentDateFilters, emptyDates } from '@/components/Shared/AssignmentDateFilters'
+import { StatusCard, FilterPanel, ResultsToolbar } from '@/components/Shared/InvestigationPatterns'
 import { useRef, useState, useEffect } from 'react'
 import { Copy, Download, Search, Users, Info } from 'lucide-react'
 import { Button, IconButton, ButtonGroup } from '@/components/Shared/Button'
@@ -118,6 +122,7 @@ export function ComponentLibrary() {
     [offset, setOffset] = useState(0),
     [user, setUser] = useState('DEMO_ANALYST'),
     [role, setRole] = useState('ZC:DEMO:VIEW')
+  const [demoPath,setDemoPath]=useState('C:/synthetic/catalogue.csv'),[demoMapping,setDemoMapping]=useState('AGR_NAME'),[demoDates,setDemoDates]=useState({...emptyDates})
   const storage = useRef<FilterStorage>()
   if (!storage.current) storage.current = memoryStorage()
   const timer = useRef<ReturnType<typeof setTimeout>>()
@@ -145,7 +150,7 @@ export function ComponentLibrary() {
               variant={variant}
               onClick={() => setFeedback(`${variant} demo action`)}
             >
-              {variant}
+              {variant.charAt(0).toUpperCase()+variant.slice(1)}
             </Button>
           ))}
           <IconButton
@@ -218,6 +223,8 @@ export function ComponentLibrary() {
           <p className="text-sm">Selected content: {tab}</p>
         </ContentTabs>
       </Card>
+      <Card><h2>Import and source controls</h2><p className="ui-description">Real import components with isolated synthetic state. Browse selects a demo string; no files, settings or datasets are changed.</p><SourceFileField label="Demo source file" value={demoPath} onChange={setDemoPath} native onBrowse={()=>setDemoPath('C:/synthetic/replacement.csv')} browseLabel="Browse demo source"/><div className="demo-grid"><MappingField field="AGR_NAME" label="Demo role name" required value={demoMapping} columns={['AGR_NAME','ROLE_NAME']} onChange={setDemoMapping}/><SourceHealthSummary source={{id:'roles',mode:'static',loaded:true,loading:false,error:null,records:2,last_successful_load:'2026-01-01T12:00:00Z',snapshot_available:true}}/></div><ImportPreview fileName="synthetic.csv" metrics={[{label:'Records',value:2}]} samples={[{AGR_NAME:'ZC:DEMO',TCODE:'MIGO'},{AGR_NAME:'ZC:EXAMPLE',TCODE:'ME23N'}]} warnings={['Example warning: an optional description was not supplied.']}/></Card>
+      <Card><h2>Operational status and filtering</h2><div className="demo-grid"><StatusCard label="Demo service" value="Running" tone="success"/><StatusCard label="Demo source" value="Needs attention" tone="warning"/></div><FilterPanel label="Demo filters"><p className="ui-description">Apply commits only demo date state; Cancel leaves it unchanged. Calendar and filter popovers do not reflow their parent.</p><AssignmentDateFilters value={demoDates} onChange={setDemoDates}/></FilterPanel><ResultsToolbar><span>2 demo results</span><Button onClick={()=>setDemoDates({...emptyDates})}>Clear demo filters</Button></ResultsToolbar></Card>
       <Card>
         <h2>Form controls</h2>
         <p className="ui-description">

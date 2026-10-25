@@ -116,6 +116,8 @@ export function Dashboard() {
         <ArrowUpRight size={14} aria-hidden="true" />
         {metric.value === null && <small>{metric.unavailable_reason}</small>}
         <span className="sr-only">{metric.context}</span>
+        {['assignments','assigned_users','expired','future'].includes(metric.id)&&<small>Assignment evidence · opens the complete user directory</small>}
+        {metric.id==='releases'&&<small>All validity states · opens the active release view</small>}
         {metric.id === 'email_matches' &&
           metric.value !== null &&
           !!query.data?.coverage_total && (
@@ -128,9 +130,8 @@ export function Dashboard() {
   }
   const groups = [
     ['Overview', ['users', 'roles', 'releases', 'mappings']],
-    ['User Access', ['assignments', 'assigned_users', 'account_review']],
-    ['Access Lifecycle', ['expired', 'future']],
-    ['Data Quality', ['email_matches', 'unresolved']],
+    ['Access & risk review', ['assigned_users','assignments','account_review','expired','future']],
+    ['Data & system health', ['email_matches','unresolved']],
   ] as const
   return (
     <section aria-label="Dashboard" className="space-y-5">
@@ -169,7 +170,7 @@ export function Dashboard() {
                   )
                   .map(tile)}
               </div>
-              {name === 'Data Quality' && !!query.data.coverage_total && (
+              {name === 'Data & system health' && !!query.data.coverage_total && (
                 <section
                   className="coverage-summary"
                   aria-label="Directory match percentage"
@@ -198,7 +199,7 @@ export function Dashboard() {
                   </span>
                 </section>
               )}
-              {name === 'Access Lifecycle' && (
+              {name === 'Access & risk review' && (
                 <p className="text-xs text-[var(--muted)]">
                   Expired/future totals open User Access; select assignment
                   status in a profile. Release Roles opens its currently-valid

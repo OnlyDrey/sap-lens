@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Save, FolderOpen, Trash2, Pencil, X } from 'lucide-react'
 import { apiRequest } from '@/api/client'
-import { Select } from './Select'
+import { Combobox } from './Combobox'
 import { formatDate } from '@/lib/dateFormat'
 import { inputClass } from '@/components/Access/Shared'
 
@@ -217,23 +217,7 @@ export function SavedFilters({
         }
       >
         <div className="saved-filter-panel">
-          <Select
-            className={inputClass}
-            aria-label="Saved filter"
-            value={active}
-            disabled={busy}
-            onChange={(e) => {
-              setActive(e.target.value)
-              setName(items.find((i) => i.id === e.target.value)?.name || '')
-            }}
-          >
-            <option value="">Choose saved filter</option>
-            {items.map((i) => (
-              <option key={i.id} value={i.id}>
-                {i.name}
-              </option>
-            ))}
-          </Select>
+          <Combobox label="Saved filter" value={active} options={items.map(item=>item.id)} disabled={busy} allowCustom={false} placeholder={items.length?'Choose saved filter':'No saved filters'} clearLabel="Choose saved filter" optionLabel={value=>items.find(item=>item.id===value)?.name||value} onChange={value=>{setActive(value);setName(items.find(item=>item.id===value)?.name||'')}}/>
           <Button disabled={!selected || busy} onClick={load}>
             Load
           </Button>

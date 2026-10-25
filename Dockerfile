@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1.7
+ARG SAP_LENS_FRONTEND_STAGE=frontend
 FROM node:24-bookworm-slim AS frontend
 WORKDIR /build/frontend
 COPY frontend/package.json frontend/package-lock.json ./
@@ -8,6 +9,11 @@ RUN --mount=type=secret,id=build_ca \
 COPY frontend/ ./
 COPY scripts/frontend-licenses.mjs ../scripts/frontend-licenses.mjs
 RUN npm run check:types && npm run build && node ../scripts/frontend-licenses.mjs
+
+FROM scratch AS validated_frontend
+COPY frontend/dist/ /build/frontend/dist/
+
+FROM ${SAP_LENS_FRONTEND_STAGE} AS selected_frontend
 
 FROM python:3.12-slim-bookworm AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
@@ -27,7 +33,7 @@ RUN groupadd --gid 10001 saplens && useradd --uid 10001 --gid saplens --no-creat
 COPY backend/*.py ./backend/
 COPY backend/routers/ ./backend/routers/
 COPY assets/ ./assets/
-COPY --from=frontend /build/frontend/dist ./frontend/dist/
+COPY --from=selected_frontend /build/frontend/dist ./frontend/dist/
 ARG SAP_LENS_BUILD_INFO=""
 RUN if [ -n "$SAP_LENS_BUILD_INFO" ]; then \
       PYTHONPATH=backend python -c 'import json,os,pathlib; from version import parse_build_info; info=parse_build_info(json.loads(os.environ["SAP_LENS_BUILD_INFO"])); p=pathlib.Path("backend/build/build-version.json");p.parent.mkdir(exist_ok=True);p.write_text(json.dumps(info))'; \

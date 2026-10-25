@@ -311,6 +311,9 @@ test('saved filters portal handles keyboard, outside dismissal and neutral clear
   ).toBeTruthy()
   await expect(panel.getByLabel('Saved filter', { exact: true })).toBeFocused()
   await page.keyboard.press('Escape')
+  await expect(panel).toBeVisible()
+  await expect(panel.getByLabel('Saved filter', { exact: true })).toBeFocused()
+  await page.keyboard.press('Escape')
   await expect(trigger).toBeFocused()
   await trigger.click()
   await page.getByRole('heading', { name: 'User Access', exact: true }).click()
@@ -353,7 +356,7 @@ for (const theme of ['light', 'dark'])
           exact: true,
         }),
         buttons = preview.getByRole('button', {
-          name: /^(primary|secondary|outline|ghost|destructive)$/,
+          name: /^(Primary|Secondary|Outline|Ghost|Destructive)$/,
         })
       const heights = await buttons.evaluateAll((elements) =>
         elements.map((el) => Math.round(el.getBoundingClientRect().height)),
@@ -418,3 +421,57 @@ for (const theme of ['light', 'dark'])
       ).toBeTruthy()
       await page.screenshot({ path: info.outputPath('saved-filters.png') })
     })
+
+test('shared import controls and nested date drafts use isolated showcase state', async ({page,request}) => {
+  await page.goto('/#session=browser-test-session')
+  const before=await (await request.get('/api/configuration',{headers})).json()
+  await library(page)
+  const demo=page.getByLabel('Component Library previews',{exact:true})
+  await demo.getByRole('button',{name:'Browse demo source',exact:true}).click()
+  await expect(demo.getByLabel('Demo source file',{exact:true})).toHaveValue('C:/synthetic/replacement.csv')
+  const mapping=demo.getByRole('combobox',{name:'AGR_NAME',exact:true})
+  await mapping.fill('ROLE_NAME')
+  await page.getByRole('option',{name:'ROLE_NAME',exact:true}).click()
+  await expect(mapping).toHaveValue('ROLE_NAME')
+  await demo.getByRole('button',{name:/^Assignment date filters/}).click()
+  const dates=page.getByRole('dialog',{name:'Assignment date controls',exact:true})
+  await dates.getByText('Advanced interval filtering',{exact:true}).click()
+  await dates.getByLabel('Start date from',{exact:true}).fill('01.01.2024')
+  await dates.getByRole('button',{name:'Apply date filters',exact:true}).click()
+  await expect(demo.getByLabel('Active assignment date filters',{exact:true})).toContainText('01.01.2024')
+  await demo.getByRole('button',{name:/^Assignment date filters/}).click()
+  await dates.getByRole('button',{name:'Clear date filters',exact:true}).click()
+  await dates.getByRole('button',{name:'Cancel date changes',exact:true}).click()
+  await expect(demo.getByLabel('Active assignment date filters',{exact:true})).toContainText('01.01.2024')
+  expect(await (await request.get('/api/configuration',{headers})).json()).toEqual(before)
+})
+
+for(const theme of ['light','dark']) for(const width of [375,800,1280])
+ test(`import settings visual contracts ${theme} ${width}`,async({page,request},info)=>{
+  const settings=(await(await request.get('/api/configuration',{headers})).json()).settings
+  settings.theme=theme
+  await request.post('/api/configuration',{headers,data:settings})
+  await page.setViewportSize({width,height:1000})
+  await page.goto('/#session=browser-test-session')
+  await page.getByRole('button',{name:'Open settings',exact:true}).click()
+  const tabs=page.getByRole('tab')
+  const names=await tabs.allTextContents()
+  expect(names.indexOf('Component Library')).toBeLessThan(names.indexOf('About SAP Lens'))
+  await page.getByRole('tab',{name:'Data Sources',exact:true}).click()
+  for(const source of ['Role Catalogue','User Access','Employee Directory']){
+   await page.getByRole('tab',{name:source,exact:true}).click()
+   const row=page.locator('.source-file-row:visible').first()
+   await row.scrollIntoViewIfNeeded()
+   await expect(row.locator('input')).toBeVisible()
+   const input=await row.locator('input').boundingBox(),button=await row.getByRole('button').boundingBox()
+   expect(input!.width).toBeGreaterThan(width<1000?180:300)
+   if(width>=800) expect(Math.abs(input!.y-button!.y)).toBeLessThan(4)
+   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBeTruthy()
+   await page.screenshot({path:info.outputPath(`${source.toLowerCase().replaceAll(' ','-')}.png`),animations:'disabled'})
+  }
+  await page.getByRole('tab',{name:'SAP Modules',exact:true}).click()
+  const search=page.getByRole('searchbox',{name:'Find SAP module or area',exact:true})
+  await expect(search).toBeVisible()
+  expect(await search.evaluate(el=>parseFloat(getComputedStyle(el).paddingLeft))).toBeGreaterThanOrEqual(36)
+  await page.screenshot({path:info.outputPath('sap-modules.png')})
+ })

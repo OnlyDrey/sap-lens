@@ -1,9 +1,10 @@
+import { Button } from '@/components/Shared/Button'
 import { useApplicationData } from '@/state/ApplicationData'
 import { DetailNavigation } from "@/components/Shared/InvestigationNavigation"
 import { RoleMetadata } from '@/components/Shared/RoleMetadata'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import { useState, useEffect, useCallback, useMemo, memo } from 'react'
-import { X, ChevronDown, ChevronRight, AlertTriangle, Loader2, Layers, Zap, Users, ArrowRight } from 'lucide-react'
+import { X, ChevronDown, ChevronRight, AlertTriangle, Loader2, Layers, Zap, Users, ArrowRight, ArrowLeft } from 'lucide-react'
 import * as ScrollArea from '@radix-ui/react-scroll-area'
 import { useRoleDetail } from '@/hooks/useRoleDetail'
 import { TransactionFilter, useTransactionFilter } from '@/components/Shared/TransactionFilter'
@@ -73,12 +74,13 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, pare
     <>
       <div className="fixed inset-0 z-40" style={{ backgroundColor: 'rgba(0,0,0,0.25)' }} onClick={onClose} />
       <aside className="fixed right-0 top-0 h-full z-50 flex flex-col shadow-2xl w-full sm:w-[560px] lg:w-[45vw] max-w-[700px]"
-        style={{ backgroundColor: 'var(--surface)' }} role="dialog" aria-modal="true">
+        style={{ backgroundColor: 'var(--surface)' }} role="dialog" aria-modal="true" aria-label={`Role details: ${roleName}`}>
 
         {/* Header */}
         <div className="flex items-start justify-between gap-3 px-6 py-4 flex-shrink-0"
           style={{ backgroundColor: 'var(--primary)', color:'var(--on-primary)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
           <div className="min-w-0 flex-1">
+            <nav aria-label="Breadcrumb" className="mb-3"><Button onClick={onClose}><ArrowLeft size={16} aria-hidden="true"/>Back to {parent === 'User Access' ? 'users' : parent}</Button></nav>
             <p className="text-base font-black text-current leading-snug break-words">
               {cleanTitle(role?.text ?? null)}
             </p>
@@ -86,7 +88,7 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, pare
             <div className="mt-3"><RoleIdentifier value={roleName}/></div>
           </div>
           <button aria-label="Close role details" onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-current/60 hover:text-current hover:bg-white/10 transition-colors flex-shrink-0 focus:outline-none">
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-current/60 hover:text-current hover:bg-white/10 transition-colors flex-shrink-0">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -94,7 +96,7 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, pare
         <ScrollArea.Root className="flex-1 overflow-hidden">
           <ScrollArea.Viewport className="h-full w-full">
             <div className="px-6 py-5 flex flex-col gap-5">
-              <DetailNavigation {...navigation} parent={parent} current={roleName} onBack={onClose}/>
+              <DetailNavigation showBreadcrumb={false} {...navigation} parent={parent} current={roleName} onBack={onClose}/>
 
               {(isLoading || (dataLoading && !role)) && (
                 <div className="flex flex-col items-center py-20 gap-3">
@@ -169,13 +171,13 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, pare
                     <div className="flex items-center gap-2 mb-3">
                       <Layers className="w-3.5 h-3.5" style={{ color: 'var(--muted)' }} />
                       <p className="text-xs font-black uppercase tracking-wider" style={{ color: 'var(--muted)' }}>
-                        Single Roles
+                        Single roles
                       </p>
                     </div>
                     {role.single_roles.length === 0
                       ? <p className="text-sm italic" style={{ color: 'var(--muted)' }}>No single roles found</p>
                       : (
-                        <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                        <div className="single-role-list rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
                           {role.single_roles.map(sr => <div key={`${roleName}:${sr.child_agr}`} hidden={searching && !matchingRoles.has(sr.child_agr)}><SingleRoleRow sr={sr} transaction={transaction} onTcodeUsers={onTcodeUsers}/></div>)}
                         </div>
                       )

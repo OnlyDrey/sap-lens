@@ -78,9 +78,10 @@ def validate(workflows):
         for job in workflow['jobs'].values():
             require(bool(job.get('name')), 'Job needs a descriptive display name')
             publisher = filename == 'build-windows.yml' and job is workflow['jobs'].get('publish-release')
+            deployment_publisher = filename == 'build-deployments.yml' and job is workflow['jobs'].get('publish')
             require('continue-on-error' not in job, 'Job overrides failure policy')
             allocator = filename == 'build-windows.yml' and job is workflow['jobs'].get('reserve-version')
-            require(job.get('permissions') == {'contents': 'write', 'actions': 'read'} if publisher else job.get('permissions') == {'contents':'write'} if allocator else 'permissions' not in job, 'Unexpected job permissions')
+            require(job.get('permissions') == {'contents': 'write', 'actions': 'read'} if publisher else job.get('permissions') == {'contents':'write'} if allocator or deployment_publisher else 'permissions' not in job, 'Unexpected job permissions')
             require(1 <= int(job.get('timeout-minutes', 0)) <= 25, 'Missing or excessive timeout')
             for step in job['steps']:
                 require(bool(step.get('name')), 'Step needs a descriptive name')
@@ -95,14 +96,31 @@ def validate(workflows):
     require(set(deployment['on'])=={'workflow_dispatch'}, 'Deployment packaging must be manual-only')
     require(deployment['concurrency']['cancel-in-progress']=='false' and 'github.ref' in deployment['concurrency']['group'], 'Deployment runs must not cancel active builds')
     require(deployment['on']['workflow_dispatch']['inputs']['platform']['options']==['Windows Desktop','Windows Server Service','Linux Docker','Linux Native/systemd','All'], 'Deployment platform choices changed')
-    require(set(deployment['jobs'])=={'validation','desktop','service','docker','native'}, 'Deployment job architecture changed')
+    inputs=deployment['on']['workflow_dispatch']['inputs']
+    require(inputs['release_channel']['options']==['Alpha','Beta','Release Candidate (RC)','Stable / Production'], 'Deployment channel options changed')
+    require(inputs['publish_release']['type']=='boolean' and inputs['publish_release']['default']=='false', 'Publication must be explicit and off by default')
+    require(set(deployment['jobs'])=={'validation','desktop','service','docker','native','publish'}, 'Deployment job architecture changed')
     for key in ('desktop','service','docker','native'):
         job=deployment['jobs'][key]
         require(job['needs']=='validation', 'Platform jobs must depend only on shared validation')
         require('inputs.platform' in job['if'] and 'All' in job['if'], 'Platform selection must include All')
         commands='\n'.join(s.get('run','') for s in job['steps'])
         require('deployment-package.py consume' in commands and 'check-deployment-download.py --directory' in commands, 'Attestation and distribution roundtrip are mandatory')
-    require(not any(s.get('uses','').startswith('actions/') and 'login' in s.get('uses','') or 'release-windows.py publish' in s.get('run','') for j in deployment['jobs'].values() for s in j['steps']), 'Deployment packaging may not publish')
+        require(job['outputs']=={'artifact_id':'${{ steps.distribution.outputs.artifact-id }}','package_name':'${{ steps.integrity.outputs.package_name }}','package_sha':'${{ steps.integrity.outputs.package_sha }}'}, 'Publication must use roundtrip-verified outputs')
+        integrity=next((s for s in job['steps'] if s.get('id')=='integrity'),{})
+        require('if' not in integrity and 'check-deployment-download.py --directory' in integrity.get('run',''), 'Integrity verification cannot be skipped')
+    deployment_publish=deployment['jobs']['publish']
+    require(set(deployment_publish['needs'])=={'validation','desktop','service','docker','native'}, 'Publication must await all platform results')
+    require(deployment_publish['if']=="${{ always() && !cancelled() && inputs.publish_release && needs.validation.result == 'success' }}", 'Publication must be manual, explicit and validated')
+    require(deployment_publish['concurrency']=={'group':'sap-lens-deployment-publication','cancel-in-progress':'false'}, 'Publication must be serialized without cancellation')
+    require(deployment_publish['environment']['name']=="${{ inputs.release_channel == 'Stable / Production' && 'sap-lens-stable' || 'sap-lens-beta' }}", 'Stable release protection must be retained')
+    commands=[s.get('run','') for s in deployment_publish['steps']]
+    require('python scripts/deployment-release.py preflight' in commands and 'python scripts/deployment-release.py publish --directory dist/publication' in commands, 'Publication eligibility and asset verification are mandatory')
+    require(all('if' not in s for s in deployment_publish['steps']), 'Publication safeguards may not be conditionally skipped')
+    download=next(s for s in deployment_publish['steps'] if s.get('uses','').startswith('actions/download-artifact@'))
+    require(download['with']=={'artifact-ids':'${{ steps.eligible.outputs.artifact_ids }}','path':'dist/publication','merge-multiple':'true','digest-mismatch':'error'}, 'Collect only selected immutable same-run artifacts with strict digests')
+    require(deployment_publish['env'].get('DEPLOYMENT_IDENTITY')=='${{ needs.validation.outputs.identity }}' and deployment_publish['env'].get('DEPLOYMENT_NEEDS')=='${{ toJSON(needs) }}' and deployment_publish['env'].get('PUBLISH_RELEASE')=='${{ inputs.publish_release }}', 'Publication context must come from validated job results')
+    require(not any(s.get('uses','').startswith('actions/') and 'login' in s.get('uses','') or 'release-windows.py publish' in s.get('run','') or ('deployment-release.py' in s.get('run','') and key!='publish') for key,j in deployment['jobs'].items() for s in j['steps']), 'Build jobs may not publish releases or images')
     require(fast['on'] == {'push': '', 'pull_request': ''}, 'Fast must run on every push and PR without filters')
     require(full['on'] == {'pull_request': {'branches': ['main']}}, 'Full must run only on PRs targeting main')
     require(set(windows['on']) == {'workflow_dispatch'}, 'Windows must be manual-only')

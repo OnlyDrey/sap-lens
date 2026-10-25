@@ -41,7 +41,9 @@ class ConfigurationTests(unittest.TestCase):
         self.assertEqual(response.status_code,200)
         self.assertEqual(response.json()['app'],'SAP Lens')
         self.assertEqual(response.json()['version'],self.client.get('/health').json()['version'])
-        self.assertIn(response.json()['mode'],{'local','local-build','build','beta','stable'})
+        self.assertIn(response.json()['mode'],{'local','local-build','build','alpha','beta','rc','stable'})
+        from version import BUILD_INFO
+        self.assertEqual(response.json()['mode'],BUILD_INFO['mode'])
         self.assertEqual(set(response.json()),{'app','version','mode'})
         with TestClient(create_app(session_token='1'),base_url='http://127.0.0.1:18743') as desktop:
             self.assertEqual(desktop.get('/api/version').status_code,403)

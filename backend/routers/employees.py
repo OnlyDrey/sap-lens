@@ -198,7 +198,20 @@ def match_user(username: str):
         manager = snapshot.users.users[normalize_username(manager_sap['username'])]
         names = [' '.join(n).strip() for n in manager['names'] if any(n)]
         if len(names) == 1: manager_sap['display_name'] = names[0]
-    return dict(**result, manager_sap=manager_sap, generation=directory.digest)
+    from employee_directory import normalized
+    from itertools import chain, islice
+    keys=sorted({normalized(value) for value in user['emails'] if value.strip()})
+    pools=[directory.indexes['Mail'].get(key,[]) for key in keys]
+    reasons={
+        'matched':'One directory record matches the SAP email exactly after trimming whitespace and normalizing case.',
+        'duplicate_email':'Multiple Employee Directory records share an email used for SAP identity matching. No candidate is selected.',
+        'ambiguous_sap_email':'SAP email evidence is shared or conflicting. A unique person cannot be established safely.',
+        'missing_email':'The SAP source does not provide an email usable for identity matching.',
+        'unmatched':'No Employee Directory record matches the supplied SAP email. Names and AD usernames are not used as substitutes.'}
+    diagnostics=dict(source='Employee Directory CSV',sap_source='User Access CSV',source_file=directory.filename,
+        matching_method='Normalized exact email',sap_username=user['username'],explanation=reasons.get(result['status'],'Identity evidence is unavailable.'),
+        candidate_count=sum(map(len,pools)),candidates=[dict(id=row['id'],name=row['Name'],email=row['Mail'],username=row['SamAccountName'],account_status=directory.view(row)['account_status']) for row in islice(chain.from_iterable(pools),25)])
+    return dict(**result, manager_sap=manager_sap, generation=directory.digest,diagnostics=diagnostics)
 
 
 @router.get('')

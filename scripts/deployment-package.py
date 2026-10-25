@@ -17,7 +17,7 @@ import zipfile
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'backend'))
-from version import make_build_info,make_local_package_info,parse_build_info
+from version import make_build_info,make_local_package_info,parse_build_info,make_deployment_info
 CHECKS={'backend','browser','types','build','catalog','python_audit','javascript_audit','pip_check','workflow_lint','powershell'}
 
 
@@ -64,11 +64,25 @@ def prepare(version):
     selected=os.environ.get('DEPLOYMENT_PLATFORM')
     if selected and selected not in {'Windows Desktop','Windows Server Service','Linux Docker','Linux Native/systemd','All'}:raise ValueError('Invalid deployment platform.')
     if os.environ.get('GITHUB_ACTIONS')=='true':
-        value=make_build_info('build',version,git_sha(),os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_NUMBER'],int(os.environ['GITHUB_RUN_ATTEMPT']))
+        if os.environ.get('DEPLOYMENT_CHANNEL'):
+            release_spec=importlib.util.spec_from_file_location('deployment_release',ROOT/'scripts/deployment-release.py')
+            release=importlib.util.module_from_spec(release_spec);release_spec.loader.exec_module(release)
+            value=make_deployment_info(version,release.channel(os.environ['DEPLOYMENT_CHANNEL']),
+                os.environ.get('DEPLOYMENT_SEQUENCE',''),git_sha(),os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_NUMBER'],int(os.environ['GITHUB_RUN_ATTEMPT']))
+            if os.environ.get('PUBLISH_RELEASE') not in {'true','false'}:raise ValueError('Explicit publication choice is required.')
+            if os.environ['PUBLISH_RELEASE']=='true':
+                try:release.GitHub(os.environ['GITHUB_REPOSITORY'],os.environ['GITHUB_TOKEN']).available(value['tag'])
+                except release.DeliveryError as error:
+                    print(str(error),file=sys.stderr)
+                    raise ValueError('Publication preflight failed.') from None
+        else:
+            value=make_build_info('build',version,git_sha(),os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_NUMBER'],int(os.environ['GITHUB_RUN_ATTEMPT']))
     else:value=make_local_package_info(version,git_sha())
     write(ROOT/'backend/build/build-version.json',value)
     if os.environ.get('GITHUB_OUTPUT'):
-        with open(os.environ['GITHUB_OUTPUT'],'a') as output:output.write('version='+value['version']+'\n')
+        with open(os.environ['GITHUB_OUTPUT'],'a') as output:
+            output.write('version='+value['version']+'\n')
+            output.write('identity='+json.dumps(value,separators=(',',':'))+'\n')
     print(value['version'])
 
 
@@ -85,6 +99,7 @@ def seal(output):
     if info['source_sha']!=git_sha():raise ValueError('Validation source mismatch.')
     frontend_licenses()
     manifest={'frontend/'+name:value for name,value in files(ROOT/'frontend/dist').items()}
+    privacy(manifest)
     receipt=dict(schema=1,identity=info,checks=sorted(CHECKS),validated_at=time.time(),files=manifest)
     output.parent.mkdir(parents=True,exist_ok=True)
     with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED) as archive:
@@ -126,6 +141,45 @@ def require_ci():
         raise ValueError('Missing same-run validated inputs.')
     if set(receipt['checks'])!=CHECKS or not 0<=time.time()-receipt['validated_at']<=86400 or receipt['files']!={'frontend/'+n:h for n,h in files(ROOT/'frontend/dist').items()}:
         raise ValueError('Validated inputs changed or expired.')
+    return receipt
+
+
+def local_tools():
+    spec=importlib.util.spec_from_file_location('local_deployment_inputs',ROOT/'scripts/local-build.py')
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+    return module
+
+
+def record_local():
+    tools=local_tools();tools.clean(ROOT)
+    info=identity()
+    if os.environ.get('GITHUB_ACTIONS')=='true' or info['schema']!=3 or info['source_sha']!=git_sha():
+        raise ValueError('Local validation requires a local identity for the clean source commit.')
+    timings=Path(os.environ['RUNNER_TEMP'])/'sap-lens-ci-timings.jsonl'
+    records={row['stage']:row for row in map(json.loads,timings.read_text().splitlines())}
+    if any(records.get(key,{}).get('status')!='passed' for key in CHECKS):
+        raise ValueError('Local deployment validation is incomplete.')
+    frontend_licenses()
+    privacy(files(ROOT/'frontend/dist'))
+    value=dict(schema=1,identity=info,host=sys.platform,checks=sorted(CHECKS),
+               validated_at=time.time(),inputs=tools.inputs(ROOT,allow_interpreter_links=True))
+    write(ROOT/'backend/build/deployment-local-validation.json',value)
+    return value
+
+
+def require_inputs():
+    if os.environ.get('GITHUB_ACTIONS')=='true':return require_ci()
+    tools=local_tools();tools.clean(ROOT)
+    path=ROOT/'backend/build/deployment-local-validation.json'
+    if path.is_symlink() or not path.is_file() or path.stat().st_size>16384:
+        raise ValueError('Run build.sh/build.ps1 without --reuse-validation first.')
+    receipt=json.loads(path.read_text());info=identity()
+    if (info['schema']!=3 or receipt['identity']!=info or info['source_sha']!=git_sha()
+            or receipt.get('schema')!=1 or receipt.get('host')!=sys.platform
+            or set(receipt.get('checks',[]))!=CHECKS
+            or not 0<=time.time()-receipt.get('validated_at',0)<=86400
+            or receipt.get('inputs')!=tools.inputs(ROOT,allow_interpreter_links=True)):
+        raise ValueError('Local validation is stale or inputs changed; rebuild without --reuse-validation.')
     return receipt
 
 
@@ -193,10 +247,13 @@ def copy_source(target):
     write(target/'backend/build/build-version.json',identity())
     shutil.copyfile(ROOT/'docs/DEPLOYMENT_LINUX_NATIVE.md',target/'README.md')
     shutil.copyfile(ROOT/'docs/DEPLOYMENT_SECURITY.md',target/'SECURITY.md')
+    for name in ('DEPLOYMENT_LINUX_NATIVE.md','DEPLOYMENT_SECURITY.md','DEPLOYMENT_PACKAGES.md',
+                 'PACKAGING_VALIDATION.md','LOCAL_BUILD_VALIDATION.md','INSTALLATION_LIFECYCLE_VALIDATION.md'):
+        shutil.copyfile(ROOT/'docs'/name,target/name)
 
 
 def native(output):
-    if os.environ.get('GITHUB_ACTIONS')=='true':require_ci()
+    require_inputs()
     if sys.platform!='linux' or sys.version_info[:2]!=(3,12):raise ValueError('Build native bundles on Linux/Python 3.12.')
     import platform
     if platform.machine() not in {'x86_64','AMD64'}:raise ValueError('Linux x86-64 is required.')
@@ -226,7 +283,7 @@ def native(output):
 
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('operation',choices=['prepare','seal','consume','require-ci','native','finish','extract'])
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('operation',choices=['prepare','seal','consume','require-ci','require-inputs','record-local','native','finish','extract'])
     p.add_argument('--version',default='0.1.0');p.add_argument('--archive',type=Path);p.add_argument('--output',type=Path,default=ROOT/'dist/deployment')
     p.add_argument('--directory',type=Path);p.add_argument('--platform');p.add_argument('--sha256')
     a=p.parse_args()
@@ -235,6 +292,8 @@ def main():
         elif a.operation=='seal':seal(a.output)
         elif a.operation=='consume':consume(a.archive)
         elif a.operation=='require-ci':require_ci()
+        elif a.operation=='require-inputs':require_inputs()
+        elif a.operation=='record-local':record_local()
         elif a.operation=='native':native(a.output)
         elif a.operation=='finish':finish(a.directory,a.platform,a.output)
         elif a.operation=='extract':verify_extract(a.archive,a.directory,a.sha256)

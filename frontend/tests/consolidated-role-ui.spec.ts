@@ -110,7 +110,7 @@ test('All roles default, match codes only and one toolbar preserve search and CS
   const toolbar = detail.getByRole('form', { name: 'User role toolbar' })
   await expect(toolbar.getByLabel('Assignment status', { exact: true })).toBeVisible()
   await toolbar.getByRole('textbox', { name: 'Find roles by transaction' }).fill('migo')
-  const activeControls = toolbar.locator('.transaction-input, select, button.ui-button, button.settings-secondary-button')
+  const activeControls = toolbar.locator('.ui-search, select, button.ui-button, button.settings-secondary-button')
   await expect(activeControls).toHaveCount(6) // Includes the scoped date filter and assignment reset.
   const tops = await activeControls.evaluateAll(elements => elements.map(element => Math.round(element.getBoundingClientRect().y)))
   expect(new Set(tops).size).toBe(1)
@@ -128,7 +128,7 @@ for (const theme of ['light', 'dark']) for (const width of [800, 1280]) test(`co
   const detail = await openUser(page)
   const toolbar = detail.getByRole('form', { name: 'User role toolbar' })
   await expect(toolbar).toBeVisible()
-  const controls = toolbar.locator('.transaction-input, select, button.ui-button, button.settings-secondary-button')
+  const controls = toolbar.locator('.ui-search, select, button.ui-button, button.settings-secondary-button')
   const boxes = await controls.evaluateAll(elements => elements.map(e => { const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, right: b.right, height: b.height } }))
   expect(boxes.every(box => box.x >= 0 && box.right <= width)).toBe(true)
   if (width === 1280) { expect(new Set(boxes.map(box => Math.round(box.y))).size).toBe(1); expect(boxes.every(box => box.height >= 42)).toBe(true) }

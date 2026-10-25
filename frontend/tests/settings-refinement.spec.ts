@@ -170,7 +170,7 @@ test('CSV detection previews without loading and preserves intentional manual ov
   try {
     await page.goto('/#session=browser-test-session')
     await page.getByLabel('CSV file location', { exact: true }).fill(first)
-    await expect(page.getByText(/1 composite roles/)).toBeVisible()
+    await expect(page.locator('.preview-metrics > div').filter({has:page.getByText('Catalogue roles',{exact:true})}).locator('dd')).toHaveText('1')
     expect((await (await request.get('/health')).json()).cached_roles).toBe(0)
     const role = page.getByLabel('AGR_NAME (required)', { exact: true })
     await role.click()

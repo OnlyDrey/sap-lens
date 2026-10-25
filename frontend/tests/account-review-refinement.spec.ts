@@ -122,7 +122,7 @@ test('profile header, status pills, mismatch warning and manager card keep SAP i
   await expect(profile.locator('.profile-account-warning')).toContainText(
     'Account mismatch detected',
   )
-  await expect(profile).not.toContainText('AD username')
+  await expect(profile.getByRole('region',{name:'Organization',exact:true})).not.toContainText('AD username')
   await expect(profile).not.toContainText('Site')
   const manager = profile.getByRole('button', {
     name: 'View SAP user',
@@ -392,6 +392,10 @@ test('floating Norwegian calendar stays outside layout, handles maximum dates, E
     .getByRole('heading', { name: 'Release Roles', exact: true })
     .click()
   await expect(calendar).toHaveCount(0)
+  // Outside dismissal cancels the staged dates. Reopen and apply explicitly.
+  await page.getByRole('button',{name:'Assignment date filters',exact:true}).click()
+  await page.getByText('Advanced interval filtering',{exact:true}).click()
+  await page.getByLabel('End date to',{exact:true}).fill('31.12.9999')
   await page
     .getByRole('button', { name: 'Apply date filters', exact: true })
     .click()
@@ -644,4 +648,33 @@ test('calendar reopening restores the selected day and Back dismisses its portal
     page.getByRole('heading', { name: 'Release Roles', exact: true }),
   ).toBeVisible()
   await expect(calendar).toHaveCount(0)
+})
+
+for(const theme of ['light','dark']) test(`directory conflict evidence identifies source records without selecting an identity ${theme}`,async({page,request},info)=>{
+  const settings=await current(request);settings.theme=theme
+  await request.post('/api/configuration',{headers,data:settings})
+  const rows=[{Name:'Demo Conflict A',Mail:'open@example.test',SamAccountName:'DEMO_AD_A',Enabled:''},{Name:'Demo Conflict B',Mail:'open@example.test',SamAccountName:'DEMO_AD_B',Enabled:'false'}]
+  writeFileSync(source,fields.join(';')+'\n'+rows.map(row=>fields.map(field=>(row as Record<string,string>)[field]||'').join(';')).join('\n'))
+  const revision=(await current(request)).revision
+  const preview=await request.post('/api/employees/preview',{headers,data:{revision,path:source}})
+  expect(preview.ok()).toBeTruthy()
+  expect((await request.post('/api/employees/import',{headers,data:{revision,path:source,digest:(await preview.json()).digest}})).ok()).toBeTruthy()
+  await page.setViewportSize({width:800,height:1000})
+  await page.goto('/#session=browser-test-session');await nav(page,'User Access')
+  await page.getByRole('button',{name:'DEMO_OPEN',exact:true}).click()
+  const details=page.locator('.matching-details')
+  await details.locator('summary').click()
+  await expect(details).toContainText('No candidate is selected')
+  await expect(details).toContainText('User Access CSV')
+  await expect(details).toContainText('directory.csv')
+  await expect(details).toContainText('not physical CSV line numbers')
+  const table=details.getByRole('table',{name:'Directory matching source records',exact:true})
+  await expect(table.getByRole('row')).toHaveCount(3)
+  await expect(table).toContainText('DEMO_AD_A');await expect(table).toContainText('DEMO_AD_B')
+  await expect(table.getByRole('cell',{name:'Unknown',exact:true})).toHaveCount(1)
+  await expect(page.locator('.profile-account-warning')).toHaveCount(0)
+  await details.scrollIntoViewIfNeeded()
+  await page.screenshot({path:info.outputPath('matching-evidence.png')})
+  await details.getByRole('button',{name:'Inspect Employee Directory source',exact:true}).click()
+  await expect(page.getByRole('tab',{name:'Employee Directory',exact:true})).toHaveAttribute('aria-selected','true')
 })

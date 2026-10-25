@@ -37,6 +37,9 @@ def check(directory):
             manifest=pkg.verify_extract(archive,Path(temp)/'application',match[1])
             if manifest['identity']!=info:raise ValueError('Downloaded artifact identity mismatch.')
     print('Distributed package checksum and exact contents verified: '+archive.name)
+    if os.environ.get('GITHUB_OUTPUT'):
+        with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as output:
+            output.write('package_name='+archive.name+'\npackage_sha='+match[1]+'\n')
 
 
 if __name__=='__main__':

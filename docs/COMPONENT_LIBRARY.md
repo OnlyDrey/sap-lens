@@ -48,7 +48,7 @@ Paths below are relative to `frontend/src/components/`. The inventory covers reu
 | `Modules/ModuleRegistry.tsx`, ModuleIcon, CatalogIcon, IconCatalog | All module/role views, Settings icon picker | Existing Lucide catalog, module preferences and theme-aware classification colors retained; no duplicate icon library |
 | Settings Controls/ColorControl, ImportSection, ImportPresets, SourceStatus | Settings data/branding workflows | Specialized mapping/preset/color contracts retained; common dimensions and tab behavior consolidated |
 | RoleList/RoleCard, RoleDetail panels and RoleComparison subcomponents | Existing role investigations | Specialized selection/overlap/hierarchy presentation retained. No duplicate Role Comparison or generalized data model |
-| Settings navigation/sidebar, diagnostics and health source cards | Existing Settings workspace | Existing section IDs preserved, Component Library appended. Detailed source/diagnostic responsibilities retained |
+| Settings navigation/sidebar, diagnostics and health source cards | Existing Settings workspace | Existing section IDs preserved, Component Library ordered immediately before About. Detailed source/diagnostic responsibilities retained |
 
 Native confirmation dialogs remain the existing deletion safeguard. There is no separate custom ConfirmationDialog or new toast service to showcase. Do not create a second abstraction simply to populate the library.
 
@@ -79,3 +79,18 @@ See [Design system](DESIGN_SYSTEM.md), [Navigation patterns](NAVIGATION_PATTERNS
 ## CSV lifecycle additions
 
 `Shared/Dialog.tsx` is the canonical modal used by refresh change/error viewers and the isolated Component Library preview. It portals outside overflow boundaries, makes the app root inert, traps Tab focus, supports Escape, and restores the originating control. `Shared/RefreshReport.tsx` shares the result banner, bounded report viewer and history presentation between Data Sources and Diagnostics. `Settings/DirectoryPreview.tsx` reuses the shared fields, table, status and pagination controls. These components introduce no external service or UI dependency.
+
+## Import and evidence refinement
+
+`Settings/ImportControls.tsx` owns SourceFileField, MappingField and ImportPreview.
+Their callers retain all selection, parsing and activation decisions. Mapping labels
+retain technical accessible names where existing workflows rely on them. Previews
+are bounded and explicitly separate from loaded datasets. `SourceHealthSummary`
+is shared between Diagnostics and source settings. `InvestigationPatterns.tsx`
+provides compact StatusCard, FilterPanel and ResultsToolbar wrappers.
+
+Assignment dates use the shared Popover. Combobox/calendar portals register their
+popover ownership so an inner selection does not dismiss its parent. Escape closes
+the inner popup first; the next Escape restores focus to the outer trigger. The
+Component Library uses these actual components with isolated synthetic state.
+See [the current refinement report](UI_REFINEMENT_PHASE1.md) for scope and validation.

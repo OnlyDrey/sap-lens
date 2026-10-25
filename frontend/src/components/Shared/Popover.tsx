@@ -1,4 +1,6 @@
 import {
+  createContext,
+  useContext,
   useId,
   useLayoutEffect,
   useEffect,
@@ -8,18 +10,24 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from './Button'
+const PopoverOwners = createContext<string|undefined>(undefined)
+export const usePopoverOwners=()=>useContext(PopoverOwners)
+
 /** Nonmodal, anchored portal. Escape restores focus; outside click keeps its destination. */
 export function Popover({
   label,
   trigger,
   children,
   onOpenChange,
+  preferredWidth=380,
 }: {
   label: string
   trigger: ReactNode
+  preferredWidth?:number
   onOpenChange?: (open: boolean) => void
   children: ReactNode | ((close: () => void) => ReactNode)
 }) {
+  const inheritedOwners=usePopoverOwners()
   const [open, setOpen] = useState(false),
     [position, setPosition] = useState({
       top: 0,
@@ -30,6 +38,7 @@ export function Popover({
     id = useId(),
     anchor = useRef<HTMLButtonElement>(null),
     panel = useRef<HTMLDivElement>(null)
+  const owned=(target:EventTarget|null)=>target instanceof Element&&!!target.closest(`[data-popover-owner~="${id}"]`)
   const close = (restore = true) => {
     setOpen(false)
     onOpenChange?.(false)
@@ -40,7 +49,7 @@ export function Popover({
     const place = () => {
       const box = anchor.current?.getBoundingClientRect()
       if (!box) return
-      const width = Math.min(380, innerWidth - 16),
+      const width = Math.min(preferredWidth, innerWidth - 16),
         below = innerHeight - box.bottom - 12,
         above = box.top - 12,
         height = Math.min(
@@ -60,24 +69,24 @@ export function Popover({
     }
     place()
     const frame = requestAnimationFrame(() =>
-      panel.current
-        ?.querySelector<HTMLElement>('input,select,button,[tabindex="0"]')
-        ?.focus(),
+      Array.from(panel.current?.querySelectorAll<HTMLElement>('input:not(:disabled),select:not(:disabled),button:not(:disabled),[tabindex="0"]')||[]).find(element=>element.getClientRects().length)?.focus(),
     )
+    panel.current?.addEventListener('toggle',place,true)
     window.addEventListener('resize', place)
     window.addEventListener('scroll', place, true)
     return () => {
       cancelAnimationFrame(frame)
+      panel.current?.removeEventListener('toggle',place,true)
       window.removeEventListener('resize', place)
       window.removeEventListener('scroll', place, true)
     }
-  }, [open])
+  }, [open,preferredWidth])
   useEffect(() => {
     if (!open) return
     const outside = (e: PointerEvent) => {
         if (
           !panel.current?.contains(e.target as Node) &&
-          !anchor.current?.contains(e.target as Node)
+          !anchor.current?.contains(e.target as Node) && !owned(e.target)
         )
           close(false)
       },
@@ -114,6 +123,7 @@ export function Popover({
         createPortal(
           <div
             id={id}
+            data-popover-owner={inheritedOwners}
             ref={panel}
             role="dialog"
             aria-modal="false"
@@ -124,14 +134,14 @@ export function Popover({
               if (
                 e.relatedTarget &&
                 !e.currentTarget.contains(e.relatedTarget as Node) &&
-                !anchor.current?.contains(e.relatedTarget as Node)
+                !anchor.current?.contains(e.relatedTarget as Node) && !owned(e.relatedTarget)
               )
                 close(false)
             }}
           >
-            {typeof children === 'function'
+            <PopoverOwners.Provider value={[inheritedOwners,id].filter(Boolean).join(' ')}>{typeof children === 'function'
               ? children(() => close())
-              : children}
+              : children}</PopoverOwners.Provider>
           </div>,
           document.body,
         )}

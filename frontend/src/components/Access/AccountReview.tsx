@@ -1,3 +1,5 @@
+import { StatusCard, FilterPanel, ResultsToolbar } from '@/components/Shared/InvestigationPatterns'
+import { SearchInput } from '@/components/Shared/Controls'
 import { Button } from '@/components/Shared/Button'
 import { SavedFilters } from '@/components/Shared/SavedFilters'
 import { useApplicationData } from '@/state/ApplicationData'
@@ -251,24 +253,11 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
       </p>
       {data && (
         <>
-          <div className="review-metrics">
-            {[
-              ['total', 'SAP accounts'],
-              ['mismatch', 'AD disabled / SAP valid and unlocked'],
-              ['missing', 'Missing or ambiguous directory matches'],
-              ['requiring_review', 'Accounts requiring review'],
-              ['unlicensed', 'Classified unlicensed'],
-              ['reviewed', 'Reviewed accounts'],
-              ['outdated', 'Outdated reviews'],
-            ].map(([key, label]) => (
-              <div key={key} className="compact-health">
-                <span>{label}</span>{key==='outdated'&&<button className="text-link" onClick={()=>setFinding('stale')}>Review changed evidence</button>}
-                <strong>
-                  {data.summary[key]?.toLocaleString() ?? 'Unavailable'}
-                </strong>
-              </div>
-            ))}
-          </div>
+          <div className="review-metric-groups">{[
+            ['Account status',[['total','SAP accounts'],['mismatch','AD disabled / SAP valid and unlocked'],['missing','Missing or ambiguous directory matches']]],
+            ['Review findings',[['requiring_review','Accounts requiring review'],['unlicensed','Classified unlicensed']]],
+            ['Review progress',[['reviewed','Reviewed accounts'],['outdated','Outdated reviews']]],
+          ].map(([title,metrics])=><section key={String(title)} aria-label={String(title)}><h2>{String(title)}</h2><div className="review-metrics">{(metrics as string[][]).map(([key,label])=><StatusCard key={key} label={label} value={data.summary[key]?.toLocaleString()??'Unavailable'} tone={['mismatch','missing','outdated'].includes(key)&&!!data.summary[key]?'warning':'neutral'}>{key==='outdated'&&<button className="text-link" onClick={()=>setFinding('stale')}>Review changed evidence</button>}</StatusCard>)}</div></section>)}</div>
           {!data.directory_available && (
             <p role="status">
               Directory enrichment unavailable. Enable and import Employee
@@ -279,9 +268,9 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
         </>
       )}
       <SavedFilters showClear={false} view="review" state={{search,finding:finding||'',license,state,sort,descending}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(typeof s.finding==='string'&&['','any','stale','matched',...Object.keys(data?.finding_labels||{})].includes(s.finding))setFinding(s.finding);if(['','classified','exclude'].includes(String(s.license)))setLicense(String(s.license));if(['',...(data?.review_states||[])].includes(String(s.state)))setState(String(s.state));if(['username','name','sap_validity','lock_status','ad_status','review_state'].includes(String(s.sort)))setSort(String(s.sort));if(typeof s.descending==='boolean')setDescending(s.descending)}} clear={()=>{setSearch('');setFinding('');setLicense('');setState('');setSort('username');setDescending(false)}}/>
-      <div className="review-filters">
+      <FilterPanel label="Review filters" className="review-filters">
         <Filter label="Search account reviews">
-          <input
+          <SearchInput
             className={inputClass}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -330,8 +319,8 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
             ))}
           </Select>
         </Filter>
-      </div>
-      <div className="results-toolbar">
+      </FilterPanel>
+      <ResultsToolbar>
         <strong>{data?.total.toLocaleString() ?? '…'} accounts</strong>
         <Filter label="Sort account reviews">
           <Select
@@ -384,7 +373,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
           <Download size={16} />
           Export review CSV
         </Button>
-      </div>
+      </ResultsToolbar>
       <QueryState
         loading={result.isLoading || (dataLoading && !data?.loaded)}
         error={result.error}
@@ -548,8 +537,8 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
             Reviewer is a local self-declared annotation, not an authenticated
             approval. Nothing is sent to SAP.
           </p>
-          <Button
-            className="settings-secondary-button"
+          <div className="review-decision-actions"><Button
+            variant="primary"
             disabled={busy || !reviewer.trim() || !rationale.trim()}
             onClick={() =>
               void action(async () => {
@@ -583,7 +572,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
             onClick={() => setEditing(null)}
           >
             Cancel review changes
-          </Button>
+          </Button></div>
         </section>
       )}
     </section>

@@ -11,6 +11,9 @@ from deployment import ServerSettings
 
 
 def run():
+    if sys.argv[1:2] == ['--maintenance']:
+        from maintenance import cli
+        return cli(sys.argv[2:])
     parser=argparse.ArgumentParser(description='SAP Lens headless server')
     parser.add_argument('--init-secret',type=Path,help='Create a new private shared-access secret, without printing it')
     args=parser.parse_args()

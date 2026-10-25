@@ -127,7 +127,7 @@ for (const theme of ['dark','light']) for (const width of [1280,800]) test(`data
   await page.getByText('Employee Directory technical details',{exact:true}).click()
   const storage = page.getByRole('heading',{name:'Data & storage',exact:true})
   await expect(storage).toBeVisible()
-  await expect(page.getByRole('region',{name:'User Access CSV',exact:true})).toContainText('7 records')
+  await expect(page.getByRole('region',{name:'User Access CSV',exact:true}).locator('dl > div').filter({has:page.getByText('Records',{exact:true})}).locator('dd')).toHaveText('7')
   await storage.scrollIntoViewIfNeeded(); await shot('diagnostics-sources')
   for (const name of ['Role Catalogue CSV', 'User Access CSV']) {
     await page.getByRole('region',{name,exact:true}).scrollIntoViewIfNeeded()

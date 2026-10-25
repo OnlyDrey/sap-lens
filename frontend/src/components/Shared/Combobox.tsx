@@ -1,3 +1,4 @@
+import { usePopoverOwners } from './Popover'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, ChevronDown, ChevronUp, Search } from 'lucide-react'
@@ -7,6 +8,7 @@ export function Combobox({ value, options, onChange, label, placeholder = 'All',
   value: string; options: string[]; onChange: (value: string) => void; label: string;
   placeholder?: string; disabled?: boolean; allowCustom?: boolean; clearLabel?: string; id?: string; onSearch?: (query: string) => void; hasMore?: boolean; loading?: boolean; maxLength?: number; serverFiltered?: boolean; optionLabel?:(value:string)=>string;
 }) {
+  const owners=usePopoverOwners()
   const uid = useId(), listId = `${uid}-list`
   const anchor = useRef<HTMLDivElement>(null), popup = useRef<HTMLDivElement>(null), input = useRef<HTMLInputElement>(null)
   const [open, setOpen] = useState(false), [query, setQuery] = useState<string | null>(null), [index, setIndex] = useState(0)
@@ -44,13 +46,13 @@ export function Combobox({ value, options, onChange, label, placeholder = 'All',
     <Search size={15} aria-hidden="true" className="combobox-search"/>
     <input id={id} ref={input} role="combobox" aria-label={label} aria-expanded={open} aria-controls={open ? listId : undefined}
       aria-autocomplete="list" aria-activedescendant={open && choices[index] !== undefined ? `${uid}-option-${index}` : undefined}
-      autoComplete="off" spellCheck={false} disabled={disabled} placeholder={placeholder} value={query ?? value} maxLength={maxLength}
+      autoComplete="off" spellCheck={false} disabled={disabled} placeholder={placeholder} value={query ?? (value ? optionLabel(value) : '')} maxLength={maxLength}
       onClick={() => { if (!disabled) { setOpen(true); if (!open) onSearch?.(''); setIndex(Math.max(0, choices.indexOf(value))) } }}
       onFocus={() => { if (!disabled) { setOpen(true); if (!open) onSearch?.(''); setIndex(Math.max(0, choices.indexOf(value))) } }}
       onChange={event => { setOpen(true); setIndex(0); setQuery(event.target.value); onSearch?.(event.target.value); if (allowCustom) onChange(event.target.value) }}
       onBlur={event => { if (!anchor.current?.contains(event.relatedTarget as Node)) close() }}
       onKeyDown={event => {
-        if (event.key === 'Escape') { event.preventDefault(); close() }
+        if (event.key === 'Escape' && open) { event.preventDefault(); close() }
         if (event.key === 'Tab') close()
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setOpen(true); setIndex(previous => Math.max(0, Math.min(choices.length - 1, previous + (event.key === 'ArrowDown' ? 1 : -1)))) }
         if (event.key === 'Enter' && open) { event.preventDefault(); if (choices[index] !== undefined) choose(choices[index]) }
@@ -58,7 +60,7 @@ export function Combobox({ value, options, onChange, label, placeholder = 'All',
     <button type="button" disabled={disabled} aria-label={`${open ? 'Close' : 'Open'} ${label} options`} tabIndex={-1}
       onMouseDown={event => event.preventDefault()} onClick={() => { if (open) close(); else { input.current?.focus(); setOpen(true) } }}>
       {open ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}</button>
-    {open && createPortal(<div ref={popup} className="combobox-popup" style={{ position: 'fixed', ...position }} onMouseDown={event => event.preventDefault()}>
+    {open && createPortal(<div ref={popup} data-popover-owner={owners} className="combobox-popup" style={{ position: 'fixed', ...position }} onMouseDown={event => event.preventDefault()}>
       <div id={listId} role="listbox" aria-label={`${label} options`}>
         {choices.map((option, i) => <div key={option} id={`${uid}-option-${i}`} role="option" aria-selected={option === value}
           className={`combobox-option ${i === index ? 'highlighted' : ''}`} onMouseMove={() => setIndex(i)} onClick={() => choose(option)}>

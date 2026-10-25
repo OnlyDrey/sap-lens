@@ -1,5 +1,8 @@
 # Build SAP Lens locally on Windows
 
+For all deployment targets use the root [cross-platform build interface](LOCAL_DEPLOYMENT_BUILDS.md).
+The commands below remain the Windows-only development/validation interface.
+
 This guide takes a cloned repository through validation, EXE packaging and checksum
 verification. Local builds use no GitHub Actions minutes and do not create remote
 commits, tags or releases. They produce an **unsigned, unofficial local build**.

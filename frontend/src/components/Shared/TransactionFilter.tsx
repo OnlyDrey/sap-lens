@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ButtonGroup } from './Button'
 import { FilterChip } from './FilterChip'
-import { Search } from 'lucide-react'
+import { SearchInput } from './Controls'
 import { ClearFilterButton } from './ClearFilterButton'
 
 const normalize = (value: string) => value.trim().toUpperCase()
@@ -70,9 +70,8 @@ export function TransactionFilter({
     >
       <label className="transaction-input-label text-sm">
         <span className={compact ? "sr-only" : undefined}>{label}</span>
-        <span className="transaction-input">
-          <Search size={15} aria-hidden="true" />
-          <input
+          <SearchInput
+            type="text"
             ref={input}
             aria-label={label}
             value={filter.input}
@@ -108,7 +107,6 @@ export function TransactionFilter({
               }
             }}
           />
-        </span>
       </label>
       {showClear && filter.codes.length > 0 && (
         <ClearFilterButton

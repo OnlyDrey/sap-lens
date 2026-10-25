@@ -1,3 +1,4 @@
+import { SearchInput } from '@/components/Shared/Controls'
 import { SavedFilters } from '@/components/Shared/SavedFilters'
 import { useApplicationData } from '@/state/ApplicationData'
 import { TransactionFilter, useTransactionFilter } from '@/components/Shared/TransactionFilter'
@@ -7,7 +8,7 @@ import { onColor } from '@/lib/theme'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
-  Search, GitCompare, X,
+  GitCompare, X,
   AlertTriangle, RefreshCw, ArrowUpDown, Zap
 } from 'lucide-react'
 import { useModules } from '@/hooks/useModules'
@@ -260,33 +261,8 @@ export function RoleList({
         {exactTransactions.isError && transaction.codes.length > 0 && <p role="alert">Transaction filtering failed. {exactTransactions.error.message}</p>}
         <div className="catalogue-role-search flex gap-2">
           <div className="relative flex-1">
-            <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
-              style={{ color:'var(--muted)' }}
-            />
+            <SearchInput value={search} onChange={event=>setSearch(event.target.value)} placeholder="Search roles by name or description..."/>
 
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search roles by name or description..."
-              className="w-full pl-9 pr-8 py-2.5 rounded-xl border text-sm focus:outline-none transition-all"
-              style={{
-                backgroundColor:'var(--surface2)',
-                borderColor:'var(--border)',
-                color:'var(--text)'
-              }}
-              onFocus={e => {
-                e.currentTarget.style.backgroundColor = 'var(--surface)'
-                e.currentTarget.style.borderColor = 'var(--accent2)'
-                e.currentTarget.style.boxShadow = '0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent)'
-              }}
-              onBlur={e => {
-                e.currentTarget.style.backgroundColor = 'var(--surface2)'
-                e.currentTarget.style.borderColor = 'var(--border)'
-                e.currentTarget.style.boxShadow = 'none'
-              }}
-            />
 
             {search && (
               <button

@@ -243,7 +243,7 @@ export function ReleaseRoles({
           </>
         ) : (
           <>
-            <div className="access-table release-directory-table">
+            <div className="access-table release-directory-table" role="region" aria-label="Release role results" tabIndex={0}>
               <table>
                 <thead>
                   <tr>
@@ -338,7 +338,7 @@ function ReleaseMatrix({
               </h2>
               <div className="access-table">
                 <table
-                  aria-label={`${compare ? (group || "Unknown group") + " " : ""}${kind} release matrix`}
+                  className="release-matrix" aria-label={`${compare ? (group || "Unknown group") + " " : ""}${kind} release matrix`}
                 >
                   <thead>
                     <tr>

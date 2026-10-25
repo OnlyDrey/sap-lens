@@ -1,6 +1,6 @@
 <# Local headless server bundle. The canonical desktop build remains unchanged. #>
 [CmdletBinding()]
-param([Parameter(Mandatory=$true)][string]$WinSW,[string]$Version='0.1.0',[switch]$ValidatedCI)
+param([Parameter(Mandatory=$true)][string]$WinSW,[string]$Version='0.1.0',[Alias('ValidatedCI')][switch]$ValidatedDeployment,[string]$OutputDirectory='')
 $ErrorActionPreference = 'Stop'
 if ($env:OS -ne 'Windows_NT' -or $env:PROCESSOR_ARCHITECTURE -ne 'AMD64') { throw 'Build the server bundle on x64 Windows.' }
 $root=Split-Path $PSScriptRoot -Parent
@@ -10,12 +10,12 @@ function Invoke-Checked([scriptblock]$Command) { & $Command; if ($LASTEXITCODE -
 Push-Location $root
 try {
     Invoke-Checked { & $python scripts/local-build.py tools }
-    if ($ValidatedCI) {
-        Invoke-Checked { & $python scripts/deployment-package.py require-ci }
+    if ($ValidatedDeployment) {
+        Invoke-Checked { & $python scripts/deployment-package.py require-inputs }
         $Version=(Get-Content backend/build/build-version.json -Raw | ConvertFrom-Json).version
     } else { Invoke-Checked { & $python scripts/local-build.py check --version $Version } }
     if ((Get-FileHash $WinSW -Algorithm SHA256).Hash.ToLowerInvariant() -ne '05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da') { throw 'WinSW SHA-256 does not match the official pinned v2.12.0 x64 release.' }
-    $output=Join-Path $root "dist/server/$Version"
+    $output=if ($OutputDirectory) { $OutputDirectory } else { Join-Path $root "dist/server/$Version" }
     if (Test-Path $output) { throw 'Output already exists. Use a new empty output directory/version after reviewing the previous build.' }
     Invoke-Checked { & $python scripts/write-windows-metadata.py }
     # Console bootloader is required for WinSW Ctrl+C shutdown. No WebView2 runtime hooks.

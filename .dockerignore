@@ -29,6 +29,8 @@ assets/*
 !scripts/
 scripts/*
 !scripts/frontend-licenses.mjs
+!frontend/dist/
+!frontend/dist/**
 **/*.csv
 **/*.secret
 **/.env*
@@ -36,6 +38,5 @@ scripts/*
 **/snapshots/**
 **/employee-directory/**
 frontend/node_modules/
-frontend/dist/
 frontend/test-results/
 frontend/playwright-report/
