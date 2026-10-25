@@ -1,9 +1,18 @@
+import { FormField, controlClass } from '@/components/Shared/Controls'
+import { ContentTabList } from '@/components/Shared/Navigation'
+import { DataHealth } from './DataHealth'
+import { About } from './About'
+import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
+import { EmployeeSource, FeatureSettings } from './EmployeeDirectory'
+import { SourceMode } from './SourceMode'
+import { BrowserSourceUpload } from './BrowserSourceUpload'
+import { RefreshHistory } from '@/components/Shared/RefreshReport'
 import { ImportSection } from './ImportSection'
 import { SourceStatus } from "./SourceStatus"
 import { Combobox } from "@/components/Shared/Combobox"
 import { SettingsSelect } from './Controls'
 import { isHex } from '@/lib/theme'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, lazy, Suspense, type ReactNode } from 'react'
 import {
   ArrowLeft,
   Save,
@@ -18,7 +27,9 @@ import {
   Activity,
   CheckCircle,
   X,
-  FolderOpen
+  FolderOpen,
+  BookUser,
+  Info
 } from 'lucide-react'
 import { ModuleEditor } from './ModuleEditor'
 import { UserSourceEditor, PresetActions } from './ImportPresets'
@@ -39,14 +50,19 @@ import {
   type ImportProfile
 } from '@/api/configuration'
 
-const sectionIcons = [Building2, Database, Layers, Palette, Activity]
+const ComponentLibrary=lazy(()=>import('./ComponentLibrary').then(module=>({default:module.ComponentLibrary})))
+const sectionIcons = [Building2, Database, Layers, Palette, Activity, BookUser, Info, Layers]
 const sections = [
-  'System & Organization',
-  'Data Source & Import',
+  'Organization & SAP System',
+  'Data Sources',
   'SAP Modules',
   'Appearance & Branding',
-  'Application & Diagnostics'
+  'Health & Diagnostics',
+  'Features',
+  'About SAP Lens',
+  'Component Library'
 ]
+const navigationOrder=[0,3,1,2,5,4,6,7]
 const fieldLabels: Record<string, string> = {
   FUNCTION_KEY: 'SAP module or area',
   AGR_NAME: 'Role name (required)',
@@ -69,18 +85,9 @@ const fields = [
   'TCODE',
   'TTEXT'
 ]
-const inputClass =
-  'min-w-0 focus:outline-none focus:ring-2 focus:ring-[var(--focus)] w-full rounded-lg border px-3 py-2 text-sm bg-[var(--surface2)] border-[var(--border)] text-[var(--text)]'
-const buttonClass =
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)] border rounded-lg px-3 py-2 text-sm font-semibold hover:opacity-80 disabled:opacity-50'
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="flex flex-col gap-1 text-sm font-medium">
-      {label}
-      {children}
-    </label>
-  )
-}
+const inputClass = controlClass
+const buttonClass = 'ui-button ui-button-secondary ui-button-default'
+const Field=FormField
 function Result({ children }: { children: ReactNode }) {
   return (
     <div className="border rounded-xl p-3 space-y-2 text-sm overflow-x-auto">
@@ -105,7 +112,7 @@ export function SettingsView({
   onSaved: () => void
 }) {
   const [section, setSection] = useState(0)
-  const [importSource, setImportSource] = useState<'roles' | 'users'>('roles')
+  const [importSource, setImportSource] = useState<'roles' | 'users' | 'employees'>('roles')
   const scrollPane = useRef<HTMLDivElement>(null)
   useEffect(() => {
     scrollPane.current?.scrollTo({ top: 0 })
@@ -114,6 +121,9 @@ export function SettingsView({
   const [busy, setBusy] = useState(false)
   const [native, setNative] = useState(Boolean(window.pywebview?.api))
   const [error, setError] = useState<string | null>(null)
+  const [settingsTarget] = useHistoryValue('settingsTarget')
+  const {change: changeSettingsTarget} = useViewHistory()
+  useEffect(()=>{if(open && settingsTarget) {setSection(settingsTarget === 'diagnostics' ? 4 : settingsTarget === 'features' ? 5 : 1); if(['roles','users','employees'].includes(settingsTarget)) setImportSource(settingsTarget as 'roles'|'users'|'employees'); changeSettingsTarget({settingsTarget:undefined},true)}},[open,settingsTarget])
   const [message, setMessage] = useState<string | null>(null)
   const [columns, setColumns] = useState<string[]>([])
   const [inspectionMessage, setInspectionMessage] = useState('')
@@ -159,8 +169,7 @@ export function SettingsView({
   const config = useQuery({
     queryKey: ['configuration'],
     queryFn: fetchConfiguration,
-    refetchInterval: (query) =>
-      busy || query.state.data?.loading ? 1000 : false
+    retry: false
   })
   const registry = useQuery({
     queryKey: ['registry'],
@@ -195,12 +204,6 @@ export function SettingsView({
       }
     }
   }, [config.data])
-  useEffect(() => {
-    if (config.data && !config.data.loading)
-      void qc.invalidateQueries({
-        predicate: (q) => ['roles', 'modules'].includes(String(q.queryKey[0]))
-      })
-  }, [config.data?.loading, config.data?.analysis, qc])
 
   const run = async (action: () => Promise<void>) => {
     setBusy(true)
@@ -468,11 +471,11 @@ export function SettingsView({
           aria-orientation="vertical"
           className="flex flex-col gap-1"
         >
-          {sections.map((label, index) => {
+          {navigationOrder.map((index, position) => {
+            const label=sections[index]
             const Icon = sectionIcons[index]
             return (
-              <button
-                key={label}
+              <div key={label}>{[0,1,5].includes(index)&&<p className="settings-nav-category">{index===0?'GENERAL':index===1?'DATA & MODULES':'APPLICATION'}</p>}<button
                 role="tab"
                 aria-label={label}
                 id={`settings-tab-${index}`}
@@ -486,10 +489,10 @@ export function SettingsView({
                     event.preventDefault()
                     const next =
                       event.key === 'Home'
-                        ? 0
+                        ? navigationOrder[0]
                         : event.key === 'End'
-                          ? sections.length - 1
-                          : (index + (event.key === 'ArrowDown' ? 1 : sections.length - 1)) % sections.length
+                          ? navigationOrder[navigationOrder.length-1]
+                          : navigationOrder[(position + (event.key === 'ArrowDown' ? 1 : navigationOrder.length - 1)) % navigationOrder.length]
                     setSection(next)
                     document.getElementById(`settings-tab-${next}`)?.focus()
                   }
@@ -503,7 +506,7 @@ export function SettingsView({
               >
                 <Icon size={19} aria-hidden="true" />
                 <span>{label}</span>
-              </button>
+              </button></div>
             )
           })}
         </nav>
@@ -533,7 +536,10 @@ export function SettingsView({
                   'Connect an export, map its columns and validate before loading.',
                   'Manage area labels, icons and colors without changing their identifiers.',
                   'Personalize the appearance of your local application.',
-                  'Service health, local storage and safe configuration recovery.'
+                  'Service health, local storage and safe configuration recovery.',
+                  'Enable optional capabilities and configure review classification.',
+                  'Version, build and runtime information.',
+                  'Interactive reference for shared UI components; isolated synthetic previews.'
                 ][section]
               }
             </p>
@@ -712,21 +718,28 @@ export function SettingsView({
                   )}
                   {section === 1 && imports && (
                     <>
-                      <div className="source-navigation" role="tablist" aria-label="Import source">
-                        {([['roles', 'Role Catalogue', LibraryBig], ['users', 'User Access', UsersRound]] as const).map(([key, label, Icon], index) => <button key={key}
-                          id={`source-tab-${key}`} role="tab" aria-selected={importSource === key}
-                          aria-controls={`source-panel-${key}`} tabIndex={importSource === key ? 0 : -1}
-                          className="settings-secondary-button" onClick={() => setImportSource(key)}
-                          onKeyDown={event => { if (['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) {
-                            event.preventDefault(); const next = event.key === 'Home' ? 'roles' : event.key === 'End' ? 'users' : index === 0 ? 'users' : 'roles';
-                            setImportSource(next); document.getElementById(`source-tab-${next}`)?.focus()
-                          } }}><Icon size={16} aria-hidden="true" className="shrink-0"/><span>{label}</span></button>)}
+                      <DataHealth onSource={key=>{setImportSource(key);requestAnimationFrame(()=>document.getElementById(`source-tab-${key}`)?.focus())}}/>
+                      <details className="settings-advanced"><summary>Recent refresh reports</summary><RefreshHistory/></details>
+                      <div className="flex flex-wrap gap-3">
+                        <button className="settings-secondary-button" onClick={() => setSection(4)}>View data source diagnostics</button>
+                        {importSource !== 'employees' && <button className="settings-secondary-button" disabled={busy || !(importSource === 'roles' ? draft.data_csv_path : draft.user_csv_path)} onClick={() => {
+                          if (window.confirm('Clear this source and its loaded data when settings are saved? The original CSV will not be deleted.')) {
+                            setDraft({ ...draft, [importSource === 'roles' ? 'data_csv_path' : 'user_csv_path']: '' }); setImportResult(null)
+                          }
+                        }}>Clear {importSource === 'roles' ? 'role catalogue' : 'User Access'} source</button>}
+                      </div>
+                      <ContentTabList label="Import source" value={importSource} onChange={value=>setImportSource(value as 'roles'|'users'|'employees')} idPrefix="source-tab" panelId={value=>`source-panel-${value}`} className="source-navigation" items={([['roles','Role Catalogue',LibraryBig],['users','User Access',UsersRound],['employees','Employee Directory',BookUser]] as const).map(([value,label,Icon])=>({value,label,icon:<Icon size={16} aria-hidden="true"/>}))}/>
+
+                      <SourceMode value={draft.source_modes?.[importSource] || (importSource==='employees'?'static':'dynamic')} onChange={value=>setDraft({...draft,source_modes:{roles:'dynamic',users:'dynamic',employees:'static',...draft.source_modes,[importSource]:value}})}/>
+                      <div id="source-panel-employees" role="tabpanel" aria-labelledby="source-tab-employees" hidden={importSource !== 'employees'}>
+                        {importSource === 'employees' && <EmployeeSource onFeatureSettings={() => setSection(5)} revision={draft.revision} savedPath={config.data?.settings.employee_csv_path || ''} dirty={JSON.stringify(draft) !== JSON.stringify(config.data?.settings)} onImported={async () => { const result = await config.refetch(); if (result.data) setDraft(structuredClone(result.data.settings)) }}/>}
                       </div>
                       <div id="source-panel-users" role="tabpanel" aria-labelledby="source-tab-users" hidden={importSource !== 'users'}>
                         <UserSourceEditor draft={draft} onChange={setDraft} native={native} active={importSource === 'users'} />
                       </div>
                       <div id="source-panel-roles" role="tabpanel" aria-labelledby="source-tab-roles" hidden={importSource !== 'roles'} className="import-source-panel space-y-4">
                       <ImportSection step={1} title="Source file" description="Role catalogue · composite roles, single roles and transaction relationships.">
+                      <BrowserSourceUpload source="roles" disabled={busy} onUploaded={path=>setDraft({...draft,data_csv_path:path,source_modes:{roles:'static',users:draft.source_modes?.users||'dynamic',employees:draft.source_modes?.employees||'static'}})}/>
                       <div className="source-file-row">
                       <Field label="CSV file location">
                         <input
@@ -1054,9 +1067,12 @@ export function SettingsView({
                       </p>
                     </div>
                   }
+                  {section === 6 && <About/>}
+                  {section === 7 && <Suspense fallback={<p role="status">Loading component previews…</p>}><ComponentLibrary/></Suspense>}
+                  {section === 5 && <FeatureSettings draft={draft} onChange={setDraft} onConfigure={source => { setSection(1); setImportSource(source) }}/>}
                   {section === 4 && (
                     <>
-                      <Diagnostics native={native} />
+                      <Diagnostics onSource={source=>{setSection(1);setImportSource(source)}} native={native} onEmployeeFeatures={() => setSection(5)} onEmployeeSettings={() => { setSection(1); setImportSource('employees') }}/>
                       <h2 className="settings-subheading">Backup & recovery</h2>
                       <p className="text-sm text-[var(--text2)]">
                         Export saved settings before an update, or restore a
@@ -1154,7 +1170,7 @@ export function SettingsView({
             </div>
           </div>
         </div>
-        <div className="settings-actions">
+        <div className={section===7?'hidden':'settings-actions'}>
           <p role="status" className="text-xs text-[var(--muted)] mr-auto">
             {draft &&
             (['dark', 'light'] as const).some(
@@ -1162,7 +1178,7 @@ export function SettingsView({
                 paletteErrors((draft.theme_colors || defaultThemeColors)[mode])
                   .length
             ) ? (
-              <button className="underline" onClick={() => setSection(4)}>
+              <button className="underline" onClick={() => setSection(3)}>
                 Review invalid theme colors in Appearance & Branding
               </button>
             ) : dirty ? (
@@ -1179,7 +1195,7 @@ export function SettingsView({
             Cancel
           </button>
           <button
-            className="bg-[var(--accent)] hover:opacity-90 text-[var(--on-accent)] rounded-lg px-5 py-2 text-sm font-semibold focus-visible:ring-2 focus-visible:ring-[var(--focus)] disabled:opacity-50"
+            className="ui-button ui-button-primary ui-button-default"
             disabled={
               busy ||
               inspecting ||
@@ -1217,7 +1233,7 @@ export function SettingsView({
             <Save size={16} aria-hidden="true" />
             {busy
               ? 'Working…'
-              : section === 1
+              : section === 1 && importSource !== 'employees'
                 ? 'Save and load CSV'
                 : 'Apply settings'}
           </button>

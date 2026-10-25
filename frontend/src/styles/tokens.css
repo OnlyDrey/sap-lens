@@ -1,0 +1,42 @@
+:root, [data-theme="light"] {
+  --bg:       #f0f2f7;
+  --surface:  #ffffff;
+  --surface2: #f8f9fc;
+  --border:   #e2e8f0;
+  --text:     #182C53;
+  --text2:    #374151;
+  --muted:    #64748b;
+  --accent:   #FA6414;
+  --accent2:  #515793;
+}
+[data-theme="dark"] {
+  --bg:       #0d0d1a;
+  --surface:  #111827;
+  --surface2: #1a2234;
+  --border:   #2d3748;
+  --text:     #f1f5f9;
+  --text2:    #cbd5e1;
+  --muted:    #94a3b8;
+  --accent:   #ff7a3d;
+  --accent2:  #7c85d4;
+}
+:root { --primary:#182c53; --on-primary:#ffffff; --on-accent:#ffffff; --focus:#515793; --hover:#eef0f9; --success:#17623c; --warning:#805000; --error:#b42318; --info:#1858a4; --error-bg:#fff1f0; --info-bg:#eaf2ff; }
+[data-theme="dark"] { --primary:#1a003b; --on-primary:#ffffff; --on-accent:#111111; --focus:#7c85d4; --hover:#242b43; --success:#6fe0a0; --warning:#ffd078; --error:#ffb4a9; --info:#9ac7ff; --error-bg:#401f26; --info-bg:#162b44; }
+/* Existing color names remain the runtime theme contract. New aliases are semantic. */
+:root {
+ --success-bg:color-mix(in srgb,var(--success) 12%,var(--surface));
+ --color-background:var(--bg); --color-surface:var(--surface); --color-elevated:var(--surface2);
+ --color-text:var(--text); --color-secondary:var(--text2); --color-muted:var(--muted); --color-border:var(--border);
+ --color-action:var(--accent2); --color-hover:var(--hover); --color-focus:var(--focus); --color-danger:var(--error);
+ --space-1:.25rem; --space-2:.5rem; --space-3:.75rem; --space-4:1rem; --space-5:1.25rem; --space-6:1.5rem; --space-8:2rem;
+ --font-title:1.25rem; --font-section:1rem; --font-body:.875rem; --font-meta:.75rem; --font-label:.8125rem;
+ --font-ui:'Montserrat',Arial,sans-serif;
+ --font-code:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+ --radius-control:.5rem; --radius-card:.75rem; --radius-popover:.625rem; --radius-badge:.25rem;
+ --copy-hit-size:2rem;
+ --control-height:2.625rem; --control-compact:2.125rem; --icon-size:1rem; --toolbar-gap:.75rem;
+ --shadow-color:#182c5333;
+ --elevation:0 8px 28px var(--shadow-color);
+}
+
+[data-theme="dark"] { --shadow-color:#00000080; }

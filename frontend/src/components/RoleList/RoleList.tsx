@@ -1,3 +1,5 @@
+import { SavedFilters } from '@/components/Shared/SavedFilters'
+import { useApplicationData } from '@/state/ApplicationData'
 import { TransactionFilter, useTransactionFilter } from '@/components/Shared/TransactionFilter'
 import { ClearFilterButton } from '@/components/Shared/ClearFilterButton'
 import { ModuleIcon } from '@/components/Modules/ModuleIcon'
@@ -5,22 +7,23 @@ import { onColor } from '@/lib/theme'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
-  Search, GitCompare, X, Users, Activity, LayoutGrid,
+  Search, GitCompare, X,
   AlertTriangle, RefreshCw, ArrowUpDown, Zap
 } from 'lucide-react'
 import { useModules } from '@/hooks/useModules'
 import { useRoles } from '@/hooks/useRoles'
 import { RoleCard } from './RoleCard'
 import type { RoleSummary } from '@/api/types'
-import { apiRequest, fetchRolesByTcode } from '@/api/client'
+import { apiRequest } from '@/api/client'
 
-const fetchExactRoles = (codes: string[]) => apiRequest<RoleSummary[]>(`/api/roles?${new URLSearchParams(codes.map(code => ['tcodes', code]))}`)
+const fetchExactRoles = (codes: string[], mode: 'and' | 'or') => apiRequest<RoleSummary[]>(`/api/roles?${new URLSearchParams([...codes.map(code => ['tcodes', code]), ['transaction_mode', mode]])}`)
 
 interface Props {
   selectedRoles: string[]
   onSelectRole: (n: string) => void
   onViewDetail: (n: string) => void
   onCompare: () => void
+  onFilteredRoles?: (roles: string[]) => void
 }
 
 function useDebounce<T>(v: T, ms: number): T {
@@ -140,12 +143,15 @@ export function RoleList({
   selectedRoles,
   onSelectRole,
   onViewDetail,
-  onCompare
+  onCompare,
+  onFilteredRoles
 }: Props) {
+  const {loading:dataLoading}=useApplicationData()
   const [page,setPage] = useState(0)
   const transaction = useTransactionFilter()
   const [search, setSearch] = useState('')
-  const [activeModule, setActiveModule] = useState<string | null>(null)
+  const [activeModules, setActiveModules] = useState<string[]>([])
+  const [transactionMode, setTransactionMode] = useState<'and' | 'or'>('and')
   const [sortBy, setSortBy] = useState<SortKey>('name-asc')
   const [sortOpen, setSortOpen] = useState(false)
 
@@ -161,25 +167,13 @@ export function RoleList({
     refetch
   } = useRoles()
 
-  const {
-    data: tcodeRoles = [],
-    isFetching: legacyTcodeLoading
-  } = useQuery({
-    queryKey: ['roles', 'tcode', debSearch.trim().toUpperCase()],
-    queryFn: () => fetchRolesByTcode(debSearch.trim()),
-    enabled: debSearch.trim().length >= 2,
-    staleTime: 120_000,
-    placeholderData: [],
-  })
-
-
   const exactTransactions = useQuery({
-    queryKey: ['roles', 'exact-transactions', transaction.deferredCodes],
-    queryFn: () => fetchExactRoles(transaction.deferredCodes),
+    queryKey: ['roles', 'exact-transactions', transaction.deferredCodes, transactionMode],
+    queryFn: () => fetchExactRoles(transaction.deferredCodes, transactionMode),
     enabled: transaction.deferredCodes.length > 0,
     staleTime: 120_000,
   })
-  const tcodeLoading = legacyTcodeLoading || exactTransactions.isFetching || transaction.settling
+  const tcodeLoading = exactTransactions.isFetching || transaction.settling
   const moduleNames = useMemo(
     () => Object.assign(Object.create(null),Object.fromEntries(
       modules.map(m => [m.function_key, m.module_name])
@@ -198,35 +192,23 @@ export function RoleList({
     return Object.entries(map).filter(([key]) => modules.find(m=>m.function_key===key)?.enabled !== false).sort(([a],[b]) => a.localeCompare(b))
   }, [allRolesRaw, modules])
 
-  const totalTcodes = useMemo(
-    () => allRolesRaw.reduce((s, r) => s + r.tcode_count, 0),
-    [allRolesRaw]
-  )
-
-  const hasTcodeResults =
-    tcodeRoles.length > 0 &&
-    debSearch.trim().length >= 2
-
   const visible = useMemo(() => {
     let results: RoleSummary[]
 
-    if (hasTcodeResults) {
-      results = tcodeRoles
-    } else if (debSearch.trim()) {
+    if (debSearch.trim()) {
       const q = debSearch.trim().toLowerCase()
 
       results = allRolesRaw.filter(x =>
         (x.text ?? '').toLowerCase().includes(q) ||
-        x.agr_name.toLowerCase().includes(q) ||
-        (x.module_name ?? '').toLowerCase().includes(q)
+        x.agr_name.toLowerCase().includes(q)
       )
     } else {
       results = allRolesRaw
     }
 
-    if (activeModule) {
+    if (activeModules.length) {
       results = results.filter(
-        x => x.function_key === activeModule
+        x => activeModules.includes(x.function_key ?? 'Other')
       )
     }
 
@@ -237,20 +219,22 @@ export function RoleList({
     return applySort(results, sortBy)
   }, [
     allRolesRaw,
-    tcodeRoles,
-    hasTcodeResults,
     debSearch,
-    activeModule,
+    activeModules,
     sortBy, transaction.key, transaction.deferredCodes, exactTransactions.data
   ])
 
-  useEffect(()=>setPage(0),[debSearch,activeModule,sortBy,transaction.key])
+  useEffect(()=>setPage(0),[debSearch,activeModules,sortBy,transaction.key,transactionMode])
   const pageCount=Math.max(1,Math.ceil(visible.length/100))
   const currentPage=Math.min(page,pageCount-1)
 
   const isFiltering =
     !!debSearch.trim() ||
-    !!activeModule || transaction.codes.length > 0
+    activeModules.length > 0 || transaction.codes.length > 0 || sortBy !== 'name-asc'
+
+  useEffect(() => { if (!isLoading && !isError) onFilteredRoles?.(visible.map(role => role.agr_name)) }, [visible, onFilteredRoles, isLoading, isError])
+
+  useEffect(() => { if (!transaction.codes.length) setTransactionMode('and') }, [transaction.codes.length])
 
   const currentLabel =
     SORT_OPTIONS.find(o => o.key === sortBy)?.label ?? 'Sort'
@@ -263,74 +247,18 @@ export function RoleList({
   return (
     <div className="flex flex-col gap-4">
 
-      {!isLoading && !isError && allRolesRaw.length > 0 && (
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            {
-              label:'Roles',
-              value:allRolesRaw.length.toLocaleString(),
-              color:'var(--accent2)',
-              Icon:Users
-            },
-            {
-              label:'Enabled areas',
-              value:moduleGroups.length.toLocaleString(),
-              color:'var(--accent2)',
-              Icon:LayoutGrid
-            },
-            {
-              label:'Role / T-code pairs',
-              value:totalTcodes.toLocaleString(),
-              color:'var(--text)',
-              Icon:Activity
-            },
-          ].map(({ label, value, color, Icon }) => (
-            <div
-              key={label}
-              className="rounded-xl border px-4 py-3 shadow-sm flex items-center gap-3"
-              style={{
-                backgroundColor:'var(--surface)',
-                borderColor:'var(--border)'
-              }}
-            >
-              <div
-                className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
-                style={{ backgroundColor:'var(--surface2)' }}
-              >
-                <Icon className="w-4 h-4" style={{ color }} />
-              </div>
-
-              <div>
-                <p
-                  className="text-xl font-black leading-none"
-                  style={{ color }}
-                >
-                  {value}
-                </p>
-                <p
-                  className="text-xs font-medium mt-0.5"
-                  style={{ color:'var(--muted)' }}
-                >
-                  {label}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-
+      <SavedFilters showClear={false} view="roles" state={{search,activeModules,transactionMode,tcodes:transaction.codes,sortBy}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(Array.isArray(s.activeModules))setActiveModules(s.activeModules);if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(Array.isArray(s.tcodes)){transaction.setInput('');transaction.setChips(s.tcodes)};if(SORT_OPTIONS.some(o=>o.key===s.sortBy))setSortBy(s.sortBy as SortKey)}} clear={()=>{setSearch('');setActiveModules([]);setTransactionMode('and');transaction.clear();setSortBy('name-asc')}}/>
       <div
-        className="rounded-2xl border px-4 py-3 flex flex-col gap-3 shadow-sm"
+        className="catalogue-search-controls rounded-2xl border px-4 py-3 gap-3 shadow-sm"
         style={{
           backgroundColor:'var(--surface)',
           borderColor:'var(--border)'
         }}
       >
-        <TransactionFilter label="Filter catalogue by transaction" filter={transaction}/>
-        {transaction.codes.length > 0 && <p className="text-xs text-[var(--muted)]">Exact transaction filters match any code (OR), combined with text and module filters (AND). Roles without supplied mappings are excluded; source completeness cannot be established.</p>}
+        <TransactionFilter compact label="Filter catalogue by transaction" filter={transaction} mode={transactionMode} onModeChange={setTransactionMode} showClear={false}/>
+        {transaction.codes.length > 0 && <p className="text-xs text-[var(--muted)]">Exact transaction filters match {transactionMode === 'and' ? 'every selected code (AND)' : 'any selected code (OR)'}, combined with text and module filters (AND). Roles without supplied mappings are excluded; source completeness cannot be established.</p>}
         {exactTransactions.isError && transaction.codes.length > 0 && <p role="alert">Transaction filtering failed. {exactTransactions.error.message}</p>}
-        <div className="flex gap-2">
+        <div className="catalogue-role-search flex gap-2">
           <div className="relative flex-1">
             <Search
               className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
@@ -341,7 +269,7 @@ export function RoleList({
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search roles by name, description or T-code (e.g. ME33K, FB01)..."
+              placeholder="Search roles by name or description..."
               className="w-full pl-9 pr-8 py-2.5 rounded-xl border text-sm focus:outline-none transition-all"
               style={{
                 backgroundColor:'var(--surface2)',
@@ -363,7 +291,8 @@ export function RoleList({
             {search && (
               <button
                 onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 focus:outline-none"
+                aria-label="Clear role search"
+                className="absolute right-3 top-1/2 -translate-y-1/2 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)] rounded"
                 style={{ color:'var(--muted)' }}
               >
                 <X className="w-4 h-4" />
@@ -371,6 +300,111 @@ export function RoleList({
             )}
           </div>
 
+
+        </div>
+
+        {!isLoading && !isError && (
+          <div className="catalogue-area-filter relative z-20 flex flex-wrap gap-1.5" role="group" aria-label="SAP areas">
+            <button
+              onClick={() => setActiveModules([])}
+              aria-pressed={!activeModules.length}
+              className="px-3 py-1.5 rounded-full text-xs font-bold border transition-all focus:outline-none"
+              style={
+                !activeModules.length
+                  ? {
+                      backgroundColor:'var(--accent)',
+                      color:'var(--on-accent)',
+                      borderColor:'var(--primary)'
+                    }
+                  : {
+                      backgroundColor:'var(--surface2)',
+                      color:'var(--muted)',
+                      borderColor:'var(--border)'
+                    }
+              }
+            >
+              All ({allRolesRaw.length})
+            </button>
+
+            {moduleGroups.map(([key, count]) => {
+              const active = activeModules.includes(key)
+              const color = modules.find(m=>m.function_key===key)?.color || '#64748b'
+              const full = moduleNames[key] ?? key
+              const short =
+                full.length > 14
+                  ? shortenModName(full)
+                  : full
+
+              return (
+                <button
+                  key={key}
+                  onClick={() =>
+                    setActiveModules(previous => active ? previous.filter(value => value !== key) : [...previous, key])
+                  }
+                  aria-pressed={active}
+                  title={full}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all focus:outline-none"
+                  style={
+                    active
+                      ? {
+                          backgroundColor:color,
+                          color:onColor(color),
+                          borderColor:color
+                        }
+                      : {
+                          backgroundColor:'var(--surface2)',
+                          color:'var(--muted)',
+                          borderColor:'var(--border)'
+                        }
+                  }
+                >
+                  <ModuleIcon moduleId={key} selected={active} />
+                  {key} &ndash; {short}
+
+                  <span className="opacity-60 font-medium">
+                    ({count})
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {!isLoading && !isError && (
+        <div className="flex items-center justify-between px-1">
+          <p className="text-sm" style={{ color:'var(--muted)' }}>
+            <span style={{ fontWeight:700, color:'var(--text)' }}>
+              {visible.length}
+            </span>
+
+            {' '}role{visible.length !== 1 ? 's' : ''} in
+
+            {debSearch.trim() && (
+              <span
+                style={{
+                  color:'var(--accent2)',
+                  fontWeight:700
+                }}
+              >
+                {' '}matching &ldquo;{debSearch.trim()}&rdquo;
+              </span>
+            )}
+
+            {activeModules.length > 0 && (
+              <span style={{ fontWeight:700 }}>
+                {' '}{activeModules.map(key => moduleNames[key] || key).join(' / ')}
+              </span>
+            )}
+
+            {!isFiltering && (
+              <span className="text-xs opacity-60">
+                {' '}&mdash; {currentLabel}
+              </span>
+            )}
+          </p>
+
+          <div className="flex items-center gap-2">
           <div className="relative flex-shrink-0">
             <button
               onClick={() => setSortOpen(p => !p)}
@@ -428,126 +462,6 @@ export function RoleList({
               </>
             )}
           </div>
-        </div>
-
-        {!isLoading && !isError && (
-          <div className="relative z-20 flex flex-wrap gap-1.5">
-            <button
-              onClick={() => { setActiveModule(null) }}
-              className="px-3 py-1.5 rounded-full text-xs font-bold border transition-all focus:outline-none"
-              style={
-                activeModule === null
-                  ? {
-                      backgroundColor:'var(--accent)',
-                      color:'var(--on-accent)',
-                      borderColor:'var(--primary)'
-                    }
-                  : {
-                      backgroundColor:'var(--surface2)',
-                      color:'var(--muted)',
-                      borderColor:'var(--border)'
-                    }
-              }
-            >
-              All ({allRolesRaw.length})
-            </button>
-
-            {moduleGroups.map(([key, count]) => {
-              const active = activeModule === key
-              const color = modules.find(m=>m.function_key===key)?.color || '#64748b'
-              const full = moduleNames[key] ?? key
-              const short =
-                full.length > 14
-                  ? shortenModName(full)
-                  : full
-
-              return (
-                <button
-                  key={key}
-                  onClick={() =>
-                    setActiveModule(active ? null : key)
-                  }
-                  title={full}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all focus:outline-none"
-                  style={
-                    active
-                      ? {
-                          backgroundColor:color,
-                          color:onColor(color),
-                          borderColor:color
-                        }
-                      : {
-                          backgroundColor:'var(--surface2)',
-                          color:'var(--muted)',
-                          borderColor:'var(--border)'
-                        }
-                  }
-                >
-                  <ModuleIcon moduleId={key} selected={active} />
-                  {key} &ndash; {short}
-
-                  <span className="opacity-60 font-medium">
-                    ({count})
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-        )}
-      </div>
-
-      {!isLoading && !isError && (
-        <div className="flex items-center justify-between px-1">
-          <p className="text-sm" style={{ color:'var(--muted)' }}>
-            <span style={{ fontWeight:700, color:'var(--text)' }}>
-              {visible.length}
-            </span>
-
-            {' '}role{visible.length !== 1 ? 's' : ''} in
-
-            {hasTcodeResults && debSearch.trim() && (
-              <span className="inline-flex items-center gap-1 ml-1">
-                <span style={{ color:'var(--muted)' }}>
-                  containing T-code
-                </span>
-
-                <span
-                  className="font-mono font-black px-1.5 py-0.5 rounded text-[10px]"
-                  style={{
-                    backgroundColor:'color-mix(in srgb, var(--accent) 15%, transparent)',
-                    color:'var(--accent2)'
-                  }}
-                >
-                  {debSearch.trim().toUpperCase()}
-                </span>
-              </span>
-            )}
-
-            {!hasTcodeResults && debSearch.trim() && (
-              <span
-                style={{
-                  color:'var(--accent2)',
-                  fontWeight:700
-                }}
-              >
-                {' '}matching &ldquo;{debSearch.trim()}&rdquo;
-              </span>
-            )}
-
-            {activeModule && (
-              <span style={{ fontWeight:700 }}>
-                {' '}{moduleNames[activeModule] ?? activeModule}
-              </span>
-            )}
-
-            {!isFiltering && (
-              <span className="text-xs opacity-60">
-                {' '}&mdash; {currentLabel}
-              </span>
-            )}
-          </p>
-
-          <div className="flex items-center gap-2">
             {tcodeLoading && (debSearch.trim() || transaction.codes.length > 0) && (
               <span
                 className="text-[10px] flex items-center gap-1"
@@ -561,8 +475,8 @@ export function RoleList({
               </span>
             )}
 
-            {(debSearch.trim() || activeModule) && (
-              <ClearFilterButton onClick={() => { setSearch(''); setActiveModule(null); transaction.clear() }}>Clear all filters</ClearFilterButton>
+            {isFiltering && (
+              <ClearFilterButton onClick={() => { setSearch(''); setActiveModules([]); transaction.clear(); setTransactionMode('and'); setSortBy('name-asc') }}>Clear all filters</ClearFilterButton>
             )}
           </div>
         </div>
@@ -598,7 +512,7 @@ export function RoleList({
         </div>
       )}
 
-      {isLoading && (
+      {(isLoading || (dataLoading && !allRolesRaw.length)) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {Array.from({ length: 8 }).map((_, i) => (
             <Skeleton key={i} />
@@ -606,7 +520,7 @@ export function RoleList({
         </div>
       )}
 
-      {!isLoading && !isError && (
+      {!isLoading && !isError && !(dataLoading && !allRolesRaw.length) && (
         visible.length === 0
           ? (
             <div
@@ -623,14 +537,11 @@ export function RoleList({
               </p>
 
               <p className="text-sm mt-1" style={{ color:'var(--muted)' }}>
-                {debSearch.trim()
-                  ? `No roles contain T-code "${debSearch.trim().toUpperCase()}" or match that name`
-                  : 'Open Settings to choose a CSV, or try a different filter'}
+                {allRolesRaw.length
+                  ? 'No roles match the selected name, description, SAP areas and exact transaction filters.'
+                  : 'Open Settings to choose a CSV.'}
               </p>
 
-              {isFiltering && (
-                <ClearFilterButton className="mt-3" onClick={() => { setSearch(''); setActiveModule(null); transaction.clear() }}>Clear all filters</ClearFilterButton>
-              )}
             </div>
           )
           : (

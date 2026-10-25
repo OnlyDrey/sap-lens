@@ -53,11 +53,11 @@ def validate_names(names):
         base = parts[-1]
         blocked_dirs = {'node_modules', 'tests', 'fixtures', '.git', '.ssh', '.aws', '.azure',
                         '.github', '.vscode', '.idea', '.venv', '__pycache__', '.pytest_cache', '.mypy_cache', '.cache',
-                        'configuration-backups', 'user-branding', 'local-config', 'app-data'}
+                        'employee-directory', 'configuration-backups', 'user-branding', 'local-config', 'app-data'}
         if any(part in blocked_dirs for part in parts):
             raise PackageValidationError('Development or private directories are present in the package.')
         if (base == '.env' or base.startswith('.env.') or base in {
-                'settings.json', 'runtime.json', 'credentials', 'credentials.json', 'credentials.yaml', 'credentials.yml', 'secrets.json', 'secrets.yaml', 'secrets.yml', '.netrc', '.npmrc', '.pypirc', '.envrc', '.git-credentials',
+                'account-review.json', 'settings.json', 'runtime.json', 'credentials', 'credentials.json', 'credentials.yaml', 'credentials.yml', 'secrets.json', 'secrets.yaml', 'secrets.yml', '.netrc', '.npmrc', '.pypirc', '.envrc', '.git-credentials',
                 'id_rsa', 'id_ed25519', 'package-lock.json', 'package.json',
                 'tsconfig.json', 'pytest.ini', 'pyproject.toml', 'pipfile', 'pipfile.lock',
                 'classification-profiles.json', 'import-profiles.json', 'client_secret.json'}

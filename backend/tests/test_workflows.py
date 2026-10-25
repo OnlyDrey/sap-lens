@@ -30,7 +30,7 @@ class WorkflowTests(unittest.TestCase):
         ]:
             with self.subTest(event=event, branch=branch):
                 self.assertEqual(tuple(contracts.triggered(self.workflows[name], event, branch)
-                                       for name in contracts.EXPECTED), expected)
+                                       for name in contracts.EXPECTED), (*expected,event=='workflow_dispatch'))
 
     def test_branch_path_or_manual_trigger_drift_rejected(self):
         for filename, event, value in [

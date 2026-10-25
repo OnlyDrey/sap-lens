@@ -1,3 +1,5 @@
+import { controlClass } from '@/components/Shared/Controls'
+import { BrowserSourceUpload } from './BrowserSourceUpload'
 import { ImportSection } from './ImportSection';
 import { SourceStatus } from "./SourceStatus";
 import { useQuery } from "@tanstack/react-query";
@@ -9,8 +11,7 @@ import { apiRequest, applicationToken } from "@/api/client";
 import { FolderOpen, Plus, Copy, Trash2 } from "lucide-react";
 import { SettingsSelect } from "./Controls";
 
-const input =
-  "w-full rounded-lg border px-3 py-2 text-sm bg-[var(--surface2)] border-[var(--border)] text-[var(--text)]";
+const input = controlClass
 const button = "settings-secondary-button";
 const fields = [
   "USERNAME",
@@ -228,7 +229,8 @@ export function UserSourceEditor({
       aria-label="User access CSV configuration"
       className="import-source-panel space-y-4"
     >
-      <ImportSection step={1} title="Source file" description="User Access · independent directory and assignments. Blank roles retain directory-only users.">
+      <ImportSection step={1} title="Source file" description="User Access · User–Role Mapping (CSV 2). Independent SAP directory and assignments; blank roles retain directory-only users.">
+      <BrowserSourceUpload source="users" onUploaded={path=>onChange({...draft,user_csv_path:path,source_modes:{roles:draft.source_modes?.roles||'dynamic',users:'static',employees:draft.source_modes?.employees||'static'}})}/>
       <div className="source-file-row">
       <label className="block text-sm">
         User CSV file location

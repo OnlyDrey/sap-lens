@@ -76,6 +76,7 @@ def parse_release_role(value):
 
 @dataclass
 class UserState:
+    source_records: list = field(default_factory=list)
     users: dict = field(default_factory=dict)
     assignments: list = field(default_factory=list)
     report: dict = field(default_factory=dict)
@@ -85,13 +86,14 @@ class UserState:
     group_count: int = 0
 
 
-def build_users(path, profile, catalogue):
+def build_users(path, profile, catalogue, records=None, report=None):
     parser = UserCsvImport(Path(path).expanduser(), profile)
     state = UserState()
     matcher = RoleMatcher(catalogue)
     matched = {}
     unique_assignments = set()
-    for row in parser.records():
+    for row in parser.records() if records is None else records:
+        state.source_records.append(row)
         key = normalize_username(row["USERNAME"])
         if key not in state.users and len(state.users) >= MAX_USERS:
             raise AnalysisValidationError(
@@ -229,7 +231,7 @@ def build_users(path, profile, catalogue):
     import heapq
 
     state.groups = heapq.nsmallest(1000, all_groups)
-    state.report = parser.report()
+    state.report = parser.report() if report is None else dict(report)
     # Preview stays local and authenticated, but needs no personal-data sample payload.
     state.report["samples"] = []
     state.report.update(

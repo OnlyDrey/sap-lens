@@ -1,0 +1,26 @@
+[Unit]
+Description=SAP Lens headless investigation server
+After=network.target
+
+[Service]
+Type=simple
+User=saplens
+Group=saplens
+WorkingDirectory=/opt/sap-lens
+EnvironmentFile=/etc/sap-lens/server.env
+ExecStart=/opt/sap-lens/.venv/bin/python /opt/sap-lens/backend/server.py
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=25
+KillSignal=SIGTERM
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/sap-lens
+StateDirectory=sap-lens
+StateDirectoryMode=0700
+
+[Install]
+WantedBy=multi-user.target

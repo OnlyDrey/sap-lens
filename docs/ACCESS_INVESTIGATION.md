@@ -458,3 +458,19 @@ based header display hints and sidebar transaction search, see
 
 The latest live multi-T-code filters, active evidence summary and Norwegian date
 presentation are documented in [Live filters](LIVE_FILTERS.md).
+
+## Current assignment presentation and filtering
+
+Business and release user-role tabs now split assignment start/end dates. The dedicated release tab omits catalogue-match noise and separates PR/PO, group and strategy. Exact release-role details move role metadata into the header and show copyable users with assignment-only statuses. Shared date bounds are included in counts, matrix, navigation and CSV export. See [assignment filters and table contracts](INVESTIGATION_FILTERS.md). Account/lock evidence remains in User Details.
+
+## Account Review
+
+**User Access** contains User Directory and Account Review views. The review uses
+existing SAP and optional directory evidence, supports independent unlicensed-group
+classification and private annotations, and never modifies SAP accounts or infers
+license savings. See [Account Review](ACCOUNT_REVIEW.md) for findings, persistence,
+stale-evidence detection and filtered CSV export.
+
+## Repeatable comparisons and coverage
+
+Use [User Comparison](USER_COMPARISON.md) under User Access to investigate shared/unique role assignments and role-derived transactions for two SAP usernames. Existing Role Comparison remains the separate role-structure tool. Reuse investigations with [Saved Filters](SAVED_FILTERS.md), and inspect completeness in [Data Health & Coverage](DATA_HEALTH.md) under Settings → Data Sources. The [Access Insights feasibility assessment](ACCESS_INSIGHTS_FEASIBILITY.md) documents which findings the available exports support and why no duplicate Insights module was added.

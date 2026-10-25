@@ -1,3 +1,7 @@
+import { RefreshHistory } from '@/components/Shared/RefreshReport'
+import { StatusBadge } from '@/components/Shared/Presentation'
+import { Button } from '@/components/Shared/Button'
+import { DirectoryDiagnostics } from './EmployeeDirectory'
 import { SourceBadge } from '@/components/Shared/SourceBadge'
 import { formatTimestamp } from '@/lib/dateFormat'
 import { useState } from 'react'
@@ -5,10 +9,27 @@ import { useQuery } from '@tanstack/react-query'
 import { Activity, Download, FileText, FolderOpen } from 'lucide-react'
 import { apiRequest, applicationToken } from '@/api/client'
 interface DataSource {
-  id: string; name: string; configured: boolean; loaded: boolean; configured_path?: string; loaded_path?: string; attempted_path?: string;
-  availability: string; records: number; assignments: number; last_successful_load: string | null; error: string | null; loading: boolean
+  mode?: string
+  snapshot_available?: boolean
+  dependency?: string
+  enabled?: boolean
+  id: string
+  name: string
+  configured: boolean
+  loaded: boolean
+  configured_path?: string
+  loaded_path?: string
+  attempted_path?: string
+  availability: string
+  records: number
+  assignments: number
+  last_successful_load: string | null
+  error: string | null
+  loading: boolean
 }
 interface Snapshot {
+  deployment_mode?: string
+  last_successful_refresh?: string | null
   sources: DataSource[]
   version: string
   configuration_schema: number
@@ -18,13 +39,41 @@ interface Snapshot {
   application_directory: string
   cached_roles: number
   last_successful_load: string | null
+  last_failed_load?: string | null
+  storage_available?: boolean
   platform: string
 }
-export function Diagnostics({ native }: { native: boolean }) {
+const availabilityLabel = (value: string) =>
+  (
+    ({
+      available_at_last_load:
+        'Available at last successful load; current access not checked',
+      not_checked: 'Not checked',
+      missing: 'File missing on last attempt',
+      access_denied: 'Access denied on last attempt',
+      invalid: 'Validation failed on last attempt',
+      validation: 'Validation failed on last attempt',
+      headers: 'Header validation failed on last attempt',
+      encoding: 'Encoding validation failed on last attempt',
+      snapshot: 'Durable snapshot unavailable',
+      failed: 'Read failed on last attempt',
+    }) as Record<string, string>
+  )[value] || value.replace(/_/g, ' ')
+export function Diagnostics({
+  native,
+  onEmployeeSettings,
+  onEmployeeFeatures,
+  onSource,
+}: {
+  onSource?: (source: 'roles' | 'users' | 'employees') => void
+  native: boolean
+  onEmployeeFeatures?: () => void
+  onEmployeeSettings?: () => void
+}) {
   const query = useQuery({
     queryKey: ['diagnostics'],
     queryFn: () => apiRequest<Snapshot>('/api/diagnostics'),
-    refetchInterval: 5000
+    refetchInterval: 5000,
   })
   const [feedback, setFeedback] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
@@ -38,7 +87,7 @@ export function Diagnostics({ native }: { native: boolean }) {
     } catch {
       setFailed(true)
       setFeedback(
-        'The action could not be completed. Check access to your application directory.'
+        'The action could not be completed. Check access to your application directory.',
       )
     } finally {
       setBusy(false)
@@ -49,15 +98,15 @@ export function Diagnostics({ native }: { native: boolean }) {
       if (window.pywebview?.api.export_diagnostics) {
         if (await window.pywebview.api.export_diagnostics(applicationToken()))
           setFeedback(
-            'Diagnostics exported without source paths, organization details or file contents.'
+            'Diagnostics exported without source paths, organization details or file contents.',
           )
         return
       }
       const report = await apiRequest('/api/diagnostics/export')
       const url = URL.createObjectURL(
         new Blob([JSON.stringify(report, null, 2)], {
-          type: 'application/json'
-        })
+          type: 'application/json',
+        }),
       )
       const link = document.createElement('a')
       link.href = url
@@ -65,86 +114,221 @@ export function Diagnostics({ native }: { native: boolean }) {
       link.click()
       URL.revokeObjectURL(url)
       setFeedback(
-        'Diagnostics exported without source paths, organization details or file contents.'
+        'Diagnostics exported without source paths, organization details or file contents.',
       )
     })
   return (
     <div className="space-y-5">
       <section className="settings-card space-y-4">
-        <h2 className="settings-subheading">
-          <Activity size={18} aria-hidden="true" /> Application status
-        </h2>
-        <div className="flex gap-2 items-center text-sm">
-          <span
-            className={
-              query.isError ? 'text-[var(--error)]' : 'text-[var(--success)]'
-            }
-          >
-            Local service:{' '}
-            {query.isError
-              ? 'unavailable'
-              : query.data?.backend_status || 'checking…'}
-          </span>
-          <button
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="settings-subheading">
+            <Activity size={18} aria-hidden="true" /> Application status
+          </h2>
+          <span className="text-xs">{query.data?.deployment_mode||'desktop'} · {query.data?.platform||'Checking platform'}</span>
+          <Button
             onClick={() => void query.refetch()}
-            className="ml-auto settings-secondary-button"
+            className="settings-secondary-button"
           >
             Check again
-          </button>
+          </Button>
         </div>
-        {query.data && (
-          <dl className="settings-status-list">
-            <dt>Application version</dt>
-            <dd>{query.data.version}</dd>
-            <dt>Current data status</dt>
-            <dd className="flex flex-wrap gap-2">{query.data.sources.map(source => <span key={source.id}>{source.name}: {source.records.toLocaleString()} {source.id === 'users' ? source.records === 1 ? 'user' : 'users' : source.records === 1 ? 'role' : 'roles'} · <SourceBadge loading={source.loading} error={source.error} loaded={source.loaded}/></span>)}</dd>
-            <dt>Last successful refresh</dt>
-            <dd>
-              {query.data.last_successful_load
-                ? formatTimestamp(query.data.last_successful_load)
-                : 'No successful load yet'}
-            </dd>
-          </dl>
-        )}
+        <div className="review-metrics">
+          <div className="compact-health">
+            <span>Source health</span>
+            <strong>
+              {query.isError
+                ? 'Unavailable'
+                : !query.data
+                  ? 'Checking…'
+                  : query.data.sources.some(
+                        (source) => source.enabled !== false && source.error,
+                      )
+                    ? 'Warnings'
+                    : query.data.sources.some(
+                          (source) => source.enabled !== false && source.loaded,
+                        )
+                      ? 'Ready'
+                      : 'Not configured'}
+            </strong>
+          </div>
+          <div className="compact-health">
+            <span>Local service</span>
+            <strong>
+              {query.isError
+                ? 'Unavailable'
+                : query.data?.backend_status || 'Checking…'}
+            </strong>
+          </div>
+          <div className="compact-health">
+            <span>Last successful refresh</span>
+            <strong className="text-sm">
+              {formatTimestamp(
+                query.data?.last_successful_refresh,
+                'No successful refresh yet',
+              )}
+            </strong>
+          </div>
+          <div className="compact-health">
+            <span>Application storage</span>
+            <strong>
+              {query.data?.storage_available ? 'Present' : 'Not created'}
+            </strong>
+          </div>
+        </div>
+
+        <details className="settings-advanced">
+          <summary>Health details and refresh history</summary>
+          {query.data && (
+            <dl className="settings-status-list">
+              <dt>Application version</dt>
+              <dd>{query.data.version}</dd>
+              <dt>Application storage</dt>
+              <dd>
+                {query.data.storage_available
+                  ? 'Directory present'
+                  : 'Created on first save'}
+              </dd>
+              <dt>Last failed refresh</dt>
+              <dd>
+                {formatTimestamp(
+                  query.data.last_failed_load,
+                  'No failed refresh in this session',
+                )}
+              </dd>
+              <dt>Last dataset activation</dt>
+              <dd>
+                {query.data.last_successful_load
+                  ? formatTimestamp(query.data.last_successful_load)
+                  : 'No successful load yet'}
+              </dd>
+            </dl>
+          )}
+        </details>
       </section>
+      <section className="space-y-3" aria-label="Data source health">
+        <h2 className="settings-subheading">Data source health</h2>
+        <div className="diagnostic-source-grid">
+          {query.data?.sources.map((source) => (
+            <section
+              className="settings-card space-y-3"
+              key={source.id}
+              aria-label={source.name}
+            >
+              <h3 className="font-semibold">{source.name}</h3>
+              <div className="ui-toolbar">
+                <StatusBadge>{source.mode || 'dynamic'}</StatusBadge>
+                {source.enabled === false ? (
+                  <StatusBadge>Disabled · retained data</StatusBadge>
+                ) : (
+                  <SourceBadge
+                    loading={source.loading}
+                    error={source.error}
+                    loaded={source.loaded}
+                  />
+                )}
+              </div>
+              <p className="text-sm">
+                {source.records.toLocaleString()} records ·{' '}
+                {source.snapshot_available
+                  ? 'Durable snapshot available'
+                  : 'No durable snapshot'}
+              </p>
+              <p className="text-xs text-[var(--muted)]">
+                Last import:{' '}
+                {formatTimestamp(source.last_successful_load, 'Never')}
+              </p>
+              {source.error && source.enabled !== false && (
+                <p className="text-sm text-[var(--warning)]">
+                  Last refresh: {source.error.replace(/_/g, ' ')}.{' '}
+                  {source.loaded
+                    ? 'Previously loaded data is retained.'
+                    : 'No prior valid data is available.'}
+                </p>
+              )}
+              <Button
+                onClick={() =>
+                  onSource?.(source.id as 'roles' | 'users' | 'employees')
+                }
+              >
+                Review{' '}
+                {source.id === 'employees'
+                  ? 'Employee Directory'
+                  : source.id === 'users'
+                    ? 'User Access'
+                    : 'Role Catalogue'}{' '}
+                source
+              </Button>
+              <details className="settings-advanced">
+                <summary>
+                  {source.id === 'employees'
+                    ? 'Employee Directory technical details'
+                    : 'Technical source details'}
+                </summary>
+                <dl className="information-list">
+                  <dt>Configured file</dt>
+                  <dd>{source.configured_path || 'Not configured'}</dd>
+                  <dt>Loaded source</dt>
+                  <dd>{source.loaded_path || 'No successful load'}</dd>
+                  <dt>Availability</dt>
+                  <dd>{availabilityLabel(source.availability)}</dd>
+                  <dt>Assignments</dt>
+                  <dd>{source.assignments}</dd>
+                  {source.error && (
+                    <>
+                      <dt>Last attempt</dt>
+                      <dd>
+                        {source.attempted_path || 'Unknown location'} ·{' '}
+                        {source.error.replace(/_/g, ' ')}
+                      </dd>
+                    </>
+                  )}
+                </dl>
+                {source.id === 'employees' && (
+                  <DirectoryDiagnostics
+                    onConfigure={onEmployeeSettings}
+                    onFeatureSettings={onEmployeeFeatures}
+                  />
+                )}
+              </details>
+            </section>
+          ))}
+        </div>
+      </section>
+      <RefreshHistory />
       <section className="settings-card space-y-3">
         <h2 className="settings-subheading">Data & storage</h2>
-        <p className="text-xs text-[var(--muted)]">
-          These locations are shown only in this application and excluded from
-          diagnostic exports.
-        </p>
-        {query.data && <div className="diagnostic-sources">{query.data.sources.map(source => <section className="information-card" key={source.id} aria-label={source.name}>
-          <h3 className="font-semibold mb-3">{source.name}</h3>
-          <dl className="information-list">
-            <dt>Configured file</dt><dd>{source.configured_path || 'Not configured'}</dd>
-            <dt>Loaded source</dt><dd>{source.loaded_path || 'No successful load'}</dd>
-            <dt>Availability</dt><dd>{({ available_at_last_load:'Available at last successful load; current access not checked', not_checked:'Not checked', missing:'File missing on last attempt', access_denied:'Access denied on last attempt', invalid:'Validation failed on last attempt', failed:'Read failed on last attempt' } as Record<string,string>)[source.availability] || 'Not checked'}</dd>
-            <dt>Last loaded</dt><dd>{source.last_successful_load ? formatTimestamp(source.last_successful_load) : 'Never'}</dd>
-            <dt>Records</dt><dd>{source.records.toLocaleString()} {source.id === 'users' ? source.records === 1 ? 'user' : 'users' : source.records === 1 ? 'role' : 'roles'} · {source.assignments.toLocaleString()} {source.assignments === 1 ? 'assignment' : 'assignments'}</dd>
-            <dt>Status</dt><dd><SourceBadge loading={source.loading} error={source.error} loaded={source.loaded}/></dd>
-            {source.error && <><dt>Last attempt</dt><dd>{source.attempted_path || 'Unknown location'} · {source.error.replace(/_/g, ' ')}. Previously loaded data is retained.</dd></>}
+        <details className="settings-advanced">
+          <summary>Source locations and storage details</summary>
+          <p className="text-xs text-[var(--muted)]">
+            These locations are shown only in this application and excluded from
+            diagnostic exports.
+          </p>
+          <dl className="settings-status-list">
+            <dt>Local application data</dt>
+            <dd>{query.data?.application_directory || 'Checking…'}</dd>
           </dl>
-        </section>)}</div>}
-        <dl className="settings-status-list"><dt>Local application data</dt><dd>{query.data?.application_directory || 'Checking…'}</dd></dl>
-        <button
-          className="settings-secondary-button"
-          disabled={
-            !native || busy || !window.pywebview?.api.open_configuration_folder
-          }
-          onClick={() =>
-            void act(async () => {
-              await window.pywebview?.api.open_configuration_folder?.(
-                applicationToken()
-              )
-            })
-          }
-        >
-          <FolderOpen size={16} /> Open configuration folder
-        </button>
-        <p className="text-xs text-[var(--muted)]">
-          Open the per-user folder containing settings, backups and application
-          logs.
-        </p>
+          <Button
+            className="settings-secondary-button"
+            disabled={
+              !native ||
+              busy ||
+              !window.pywebview?.api.open_configuration_folder
+            }
+            onClick={() =>
+              void act(async () => {
+                await window.pywebview?.api.open_configuration_folder?.(
+                  applicationToken(),
+                )
+              })
+            }
+          >
+            <FolderOpen size={16} /> Open configuration folder
+          </Button>
+          <p className="text-xs text-[var(--muted)]">
+            Open the per-user folder containing settings, backups and
+            application logs.
+          </p>
+        </details>
       </section>
       <section className="settings-card space-y-3">
         <h2 className="settings-subheading">Troubleshooting</h2>

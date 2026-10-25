@@ -1,12 +1,21 @@
+import { Button } from '@/components/Shared/Button'
+import { SecondaryNavigation, ContentTabs } from '@/components/Shared/Navigation'
+import { UserComparison, type ComparisonContext } from './UserComparison'
+import { SavedFilters } from '@/components/Shared/SavedFilters'
+import { AccountReview } from './AccountReview'
+import { AccountStatus } from '@/components/Shared/AccountStatus'
+import { useApplicationData } from '@/state/ApplicationData'
+import { AssignmentDateFilters, emptyDates, dateParams, datesActive } from '@/components/Shared/AssignmentDateFilters'
+import { UserProfile } from './UserProfile'
 import { TransactionFilter, useTransactionFilter } from '@/components/Shared/TransactionFilter';
 import { ClearFilterButton } from '@/components/Shared/ClearFilterButton';
 import { Select } from '@/components/Shared/Select';
 import { formatDate } from '@/lib/dateFormat';
 import { exportAssignments } from '@/lib/accessExport';
 import { Filter as FilterIcon, ArrowRight, Download } from 'lucide-react';
-import { useHistoryValue } from '@/hooks/useViewHistory';
+import { useHistoryValue, useViewHistory, userAccessHref } from '@/hooks/useViewHistory';
 import { useRecordNavigation, type RecordNavigationState } from "@/hooks/useRecordNavigation";
-import { DetailNavigation, EvidenceBadge, LockStatus } from "@/components/Shared/InvestigationNavigation";
+import { DetailNavigation, EvidenceBadge, LockStatus, AssignmentStatus } from "@/components/Shared/InvestigationNavigation";
 import { Combobox } from "@/components/Shared/Combobox";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -40,6 +49,13 @@ export function UserAccess({
   onRole: (role: string) => void;
   onRelease: (role: string) => void;
 }) {
+  const {view:comparisonView,change:changeComparison}=useViewHistory();
+  const comparisonContext=comparisonView.userComparison;
+  const setComparisonContext=(state:ComparisonContext)=>changeComparison({userComparison:state},true);
+  const [compareInitial,setCompareInitial]=useState('');
+  const [accessMode,setAccessMode]=useHistoryValue('accessMode');
+  const modeButtons=<SecondaryNavigation label="User Access view" items={(['directory','review','compare'] as const).map((value,index)=>({value,label:['User directory','Account Review','Compare users'][index],href:userAccessHref(value),active:(accessMode||'directory')===value,onSelect:()=>{setCompareInitial('');setAccessMode(value)}}))}/>;
+  const {loading:dataLoading}=useApplicationData();
   const listScroll = useRef(0);
   const originUser = useRef(initialUser || "");
   const restoreList = useRef(false);
@@ -51,8 +67,13 @@ export function UserAccess({
     [offset, setOffset] = useState(0),
     [selected, setSelected] = useHistoryValue('user');
   const [role, setRole] = useState(initialRole),
-    [tcode, setTcode] = useState(initialTcode),
     [expired, setExpired] = useState(false);
+  const directoryTransaction = useTransactionFilter()
+  const [transactionMode,setTransactionMode] = useState<'and'|'or'>('and')
+  useEffect(()=>{ directoryTransaction.setChips(initialTcode ? [initialTcode.trim().toUpperCase()] : []) },[initialTcode])
+  useEffect(()=>{ if (!directoryTransaction.codes.length) setTransactionMode('and') },[directoryTransaction.key])
+  const tcode = directoryTransaction.codes.join(' ')
+  const clearEvidence = () => {setRole(''); directoryTransaction.clear(); setTransactionMode('and')}
   const [term, setTerm] = useState("");
   useEffect(() => {
     const t = setTimeout(() => setTerm(search), 250);
@@ -60,8 +81,8 @@ export function UserAccess({
   }, [search]);
   useEffect(() => {
     setOffset(0);
-  }, [term, group, sort, descending, role, tcode, expired]);
-  const filters = { search: term, group, sort, descending, role, tcode, show_expired: expired };
+  }, [term, group, sort, descending, role, directoryTransaction.deferredKey, transactionMode, expired]);
+  const filters = { search: term, group, sort, descending, role, tcodes: directoryTransaction.deferredCodes, transaction_mode: transactionMode, show_expired: expired };
   const navigation = useRecordNavigation('users', filters, selected, setSelected);
   const result = useQuery({
     queryKey: [
@@ -71,7 +92,8 @@ export function UserAccess({
       sort,
       descending,
       role,
-      tcode,
+      directoryTransaction.deferredCodes,
+      transactionMode,
       offset,
       expired,
     ],
@@ -98,10 +120,13 @@ export function UserAccess({
     });
     return () => cancelAnimationFrame(frame);
   }, [selected, result.data, result.isFetching]);
+  if(accessMode==='compare') return <><div hidden={!!selected}>{modeButtons}<UserComparison context={comparisonContext} onContext={setComparisonContext} initialUser={compareInitial} onUser={openUser} onRole={onRole} onTransaction={code=>{setCompareInitial('');directoryTransaction.setInput('');directoryTransaction.setChips([code]);setAccessMode('directory')}}/></div>{selected&&<UserDetails username={selected} onCompare={()=>{setCompareInitial(selected);setSelected('')}} onBack={()=>setSelected('')} onRole={onRole} onRelease={onRelease} navigation={{index:-1,total:0,loading:false,error:null,missing:false,onPrevious:undefined,onNext:undefined}}/>}</>;
+  if(accessMode==='review') return <><div hidden={!!selected}>{modeButtons}<AccountReview onUser={openUser}/></div>{selected&&<UserDetails username={selected} onCompare={()=>{setCompareInitial(selected);setSelected('');setAccessMode('compare')}} onBack={()=>setSelected('')} onRole={onRole} onRelease={onRelease} navigation={{index:-1,total:0,loading:false,error:null,missing:false,onPrevious:undefined,onNext:undefined}}/>}</>;
   if (selected)
     return (
       <UserDetails
         username={selected}
+        onCompare={()=>{setCompareInitial(selected);setSelected('');setAccessMode('compare')}}
         onBack={() => { restoreList.current = true; setSelected("") }}
         onRole={onRole}
         onRelease={onRelease}
@@ -110,9 +135,11 @@ export function UserAccess({
     );
   return (
     <section aria-label="User Access" className="space-y-4">
-      <h1 className="text-xl font-semibold">User Access</h1>
+      {modeButtons}<h1 className="text-xl font-semibold">User Access</h1>
       <EvidenceNote />
-      <div className="investigation-filters user-filters"><fieldset><legend>User directory</legend><div className="filter-grid">
+      <SavedFilters showClear={false} view="users" state={{search,group,sort,descending,role,tcodes:directoryTransaction.codes,transactionMode,expired}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(typeof s.group==='string')setGroup(s.group);if(typeof s.sort==='string'&&['username','group','first_name','last_name','email','account_status','relevant_roles'].includes(s.sort))setSort(s.sort);if(typeof s.descending==='boolean')setDescending(s.descending);if(typeof s.role==='string')setRole(s.role);if(Array.isArray(s.tcodes)){directoryTransaction.setInput('');directoryTransaction.setChips(s.tcodes)};if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(typeof s.expired==='boolean')setExpired(s.expired)}} clear={()=>{setSearch('');setGroup('');setSort('username');setDescending(false);setRole('');directoryTransaction.clear();setTransactionMode('and');setExpired(false)}}/>
+
+      <div className="investigation-filters user-filters"><fieldset><legend>User directory</legend><div className="directory-filter-grid">
         <Filter label="Search users">
           <input
             className={inputClass}
@@ -125,7 +152,7 @@ export function UserAccess({
         <Filter label="SAP User Group">
           <Combobox label="SAP User Group" value={group} options={result.data?.groups || []} onChange={setGroup} placeholder="All groups; type a group to filter"/>
         </Filter>
-        <Filter label="Sort users">
+        <div className="directory-sort"><Filter label="Sort users">
           <Select aria-label="Sort users"
             className={inputClass}
             value={sort}
@@ -154,6 +181,13 @@ export function UserAccess({
           />
           Descending
         </label>
+        </div>
+      <section className="directory-transaction" aria-label={(role || tcode) ? 'Active evidence filter' : 'User transaction filter'}>
+        <TransactionFilter label="Filter users by transaction" filter={directoryTransaction} mode={transactionMode} onModeChange={setTransactionMode} showClear={false} chipPrefix="Transaction: "/>
+        {(role || tcode) && <><FilterIcon size={17} aria-hidden="true"/><strong>Active evidence filter</strong></>}
+        {role && <span className="transaction-chip">Role: {role}</span>}
+        {(role || tcode) && <ClearFilterButton className="ml-auto" onClick={clearEvidence}/>}
+      </section>
         <label className="filter-toggle">
           <input
             type="checkbox"
@@ -162,17 +196,10 @@ export function UserAccess({
           />
           Show expired assignments
         </label>
+        <ClearFilterButton className="directory-clear" disabled={!search && !group && sort==='username' && !descending && !expired && !role && !directoryTransaction.codes.length} onClick={()=>{setSearch('');setTerm('');setGroup('');setSort('username');setDescending(false);setExpired(false);clearEvidence()}}>Clear filters</ClearFilterButton>
       </div></fieldset></div>
-      {(role || tcode) && (
-        <section className="active-evidence-filter" aria-label="Active evidence filter">
-          <FilterIcon size={17} aria-hidden="true"/><strong>Active evidence filter</strong>
-          {role && <span className="transaction-chip">Role: {role}</span>}
-          {tcode && <span className="transaction-chip">Transaction: {tcode}</span>}
-          <ClearFilterButton className="ml-auto" onClick={() => { setRole(''); setTcode('') }}/>
-        </section>
-      )}
-      <QueryState loading={result.isLoading} error={result.error} />
-      {result.data && !result.data.loaded && (
+      <QueryState loading={result.isLoading || (dataLoading && !result.data?.loaded)} error={result.error} />
+      {result.data && !result.data.loaded && !dataLoading && (
         <p>
           No User Access CSV loaded. Choose the second source in Settings → Data
           Source &amp; Import.
@@ -181,7 +208,7 @@ export function UserAccess({
       {result.data?.loaded && !result.data.catalogue_loaded && (
         <p role="status">
           No role catalogue loaded. Assignments are retained as Unmapped;
-          transaction access is not inferred.
+          transaction access is not inferred. Transaction filters cannot be evaluated and are not applied; user search and group filters still apply.
         </p>
       )}
       {result.data && (
@@ -226,7 +253,7 @@ export function UserAccess({
                     <td>{user.last_name || "—"}</td>
                     <td>{user.email || "—"}</td>
                     <td aria-label="Account validity">
-                      {user.account_status.split("/").map(value => <EvidenceBadge key={value} value={value}/>)}
+                      <AccountStatus value={user.account_status}/>
                     </td><td aria-label="Account lock"><LockStatus value={user.lock_status}/>
                     </td>
                     <td><button className="role-count-button" aria-label={`View ${user.relevant_roles} relevant roles for ${user.username}`} onClick={() => openUser(user.username)}>{user.relevant_roles.toLocaleString()} <span>{user.relevant_roles === 1 ? "role" : "roles"}</span></button></td>
@@ -252,6 +279,7 @@ export function UserAccess({
 
 function UserDetails({
   username,
+  onCompare,
   onBack,
   onRole,
   onRelease,
@@ -259,12 +287,16 @@ function UserDetails({
 }: {
   navigation: RecordNavigationState;
   username: string;
+  onCompare: () => void;
   onBack: () => void;
   onRole: (role: string) => void;
   onRelease: (role: string) => void;
 }) {
+  const {loading:dataLoading}=useApplicationData();
   const [exporting, setExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState('');
+  const [assignmentDates, setAssignmentDates] = useState({ ...emptyDates });
+  const dateKey = JSON.stringify(assignmentDates);
   const transaction = useTransactionFilter(username);
   const transactionCodes = transaction.deferredCodes;
   const exportGeneration = useRef(0);
@@ -274,14 +306,15 @@ function UserDetails({
     [accountOffset, setAccountOffset] = useState(0),
     [nameOffset, setNameOffset] = useState(0),
     [emailOffset, setEmailOffset] = useState(0);
-  useEffect(() => { setOffset(0) }, [scope, status, username, transaction.key]);
-  useEffect(() => { exportGeneration.current++; setExportMessage(''); return () => { exportGeneration.current++ } }, [username, scope, status, transaction.key]);
+  useEffect(() => { setOffset(0) }, [scope, status, username, transaction.key, dateKey]);
+  useEffect(() => { exportGeneration.current++; setExportMessage(''); return () => { exportGeneration.current++ } }, [username, scope, status, transaction.key, dateKey]);
 
-  useEffect(() => { setAccountOffset(0); setNameOffset(0); setEmailOffset(0) }, [username]);
+  useEffect(() => { setAssignmentDates({ ...emptyDates }); setAccountOffset(0); setNameOffset(0); setEmailOffset(0) }, [username]);
   const result = useQuery({
     queryKey: [
       "access-user",
       transactionCodes,
+      assignmentDates,
       username,
       scope,
       status,
@@ -290,9 +323,11 @@ function UserDetails({
       nameOffset,
       emailOffset,
     ],
+    placeholderData: previous => previous?.username === username ? previous : undefined,
     queryFn: () =>
       accessQuery<UserDetail>(`users/${encodeURIComponent(username)}`, {
         scope,
+        ...dateParams(assignmentDates),
         tcodes: transactionCodes,
         status: status === "all" ? "" : status,
         show_expired: status === "all",
@@ -306,29 +341,15 @@ function UserDetails({
   return (
     <section aria-label="User details" className="space-y-4">
       <DetailNavigation parent="User Access" current={username} onBack={onBack} {...navigation}/>
-      <h1 className="text-xl font-semibold">User details</h1>
-      <QueryState loading={result.isLoading} error={result.error} />
+      <div className="flex flex-wrap items-center gap-3"><h1 className="text-xl font-semibold">User details</h1><Button className="settings-secondary-button" onClick={onCompare}>Compare users</Button></div>
+      <QueryState loading={result.isLoading || (dataLoading && !result.data)} error={dataLoading && !result.data ? null : result.error} />
       {user && (
         <>
-          <div className="user-information-grid">
-            <section className="information-card" aria-label="User information"><h2>User information</h2><dl className="information-list">
-              <dt>Username</dt><dd><RoleIdentifier value={username} label="username"/></dd>
-              <dt>Full name</dt><dd>{user.names.map(n => n.join(' ').trim()).filter(Boolean).join(' / ') || 'Unknown'}</dd>
-              <dt>Email</dt><dd>{user.emails.join(', ') || 'Unknown'}</dd>
-              <dt>SAP User Group</dt><dd>{user.groups.map(group => group || 'Unknown group').join(', ') || 'Unknown'}</dd>
-              <dt>User type</dt><dd>{user.account_total === 1 ? user.accounts[0]?.user_type || 'Unknown' : 'See account evidence'}</dd>
-            </dl></section>
-            <section className="information-card" aria-label="Validity and account information"><h2>Validity &amp; account</h2><dl className="information-list">
-              <dt>Valid from</dt><dd>{user.account_total === 1 ? formatDate(user.accounts[0]?.valid_from) : 'Multiple source records'}</dd>
-              <dt>Valid until</dt><dd>{user.account_total === 1 ? formatDate(user.accounts[0]?.valid_to) : 'See account evidence'}</dd>
-              <dt>Account status</dt><dd>{user.account_status.split('/').map(value => <EvidenceBadge key={value} value={value}/>)}</dd>
-              <dt>Lock status</dt><dd><LockStatus value={user.lock_status}/></dd>
-            </dl></section>
-          </div>
+          <UserProfile user={user}/>
           {user.account_total > 1 && <details className="settings-advanced"><summary>User validity and account evidence · {user.account_total} source records</summary>
             <p className="text-sm text-[var(--muted)]">Distinct source records are retained below; a summary does not override conflicting validity or lock evidence.</p>
             <div className="access-table"><table><thead><tr><th>User group</th><th>User validity</th><th>Account status</th><th>Lock status</th><th>User type</th></tr></thead><tbody>
-              {user.accounts.map((a, i) => <tr key={i}><td>{a.user_group || 'Unknown'}</td><td>{dates(a.valid_from, a.valid_to)}</td><td><EvidenceBadge value={a.status}/></td><td><LockStatus value={a.locked == null ? 'Unknown' : a.locked ? 'Locked' : 'Unlocked'}/></td><td>{a.user_type || 'Unknown'}</td></tr>)}
+              {user.accounts.map((a, i) => <tr key={i}><td>{a.user_group || 'Unknown'}</td><td>{dates(a.valid_from, a.valid_to)}</td><td><AccountStatus value={a.status}/></td><td><LockStatus value={a.locked == null ? 'Unknown' : a.locked ? 'Locked' : 'Unlocked'}/></td><td>{a.user_type || 'Unknown'}</td></tr>)}
             </tbody></table></div>
             <Pagination offset={accountOffset} total={user.account_total} onChange={setAccountOffset} label="Account evidence pages"/>
           </details>}
@@ -355,22 +376,7 @@ function UserDetails({
             Validity evaluated on {formatDate(user.as_of)}. {user.retained_assignments}{" "}
             assignment records retained.
           </p>
-          <nav aria-label="User role sections" className="flex flex-wrap gap-2">
-            {[
-              ["all", "All roles"],
-              ["business", "Business Roles — ZC:*"],
-              ["release", "Release Roles — ZO:*"],
-            ].map(([v, l]) => (
-              <button
-                key={v}
-                className="settings-secondary-button"
-                aria-pressed={scope === v}
-                onClick={() => setScope(v)}
-              >
-                {l}
-              </button>
-            ))}
-          </nav>
+          <ContentTabs label="User role sections" value={scope} onChange={setScope} items={[{value:'all',label:'All roles'},{value:'business',label:'Business Roles — ZC:*'},{value:'release',label:'Release Roles — ZO:*'}]}>
           <form aria-label="User role toolbar" className="user-role-toolbar" onSubmit={event => event.preventDefault()}>
             <Filter label="Assignment status">
               <Select aria-label="Assignment status"
@@ -392,34 +398,33 @@ function UserDetails({
                 ))}
               </Select>
             </Filter>
+          <AssignmentDateFilters value={assignmentDates} onChange={setAssignmentDates}/>
+          {(datesActive(assignmentDates) || transaction.codes.length > 0 || status) && <ClearFilterButton onClick={() => { setAssignmentDates({ ...emptyDates }); transaction.clear(); setStatus('') }}>Clear all assignment filters</ClearFilterButton>}
+
             <TransactionFilter label="Find roles by transaction" filter={transaction}/>
-            <button type="button" className="settings-secondary-button user-export-button" disabled={exporting || result.isFetching || transaction.settling || !user.total} onClick={async () => {
+            <Button type="button" className="settings-secondary-button user-export-button" disabled={exporting || result.isFetching || transaction.settling || !user.total} onClick={async () => {
               const generation = exportGeneration.current;
               setExporting(true); setExportMessage('Preparing CSV…');
-              try { const saved = await exportAssignments(user, scope, status, () => generation === exportGeneration.current, transactionCodes);
+              try { const saved = await exportAssignments(user, scope, status, () => generation === exportGeneration.current, transactionCodes, dateParams(assignmentDates));
                 if (generation === exportGeneration.current) setExportMessage(saved ? 'CSV exported.' : 'Export cancelled.');
               } catch (error) { if (generation === exportGeneration.current) setExportMessage(error instanceof Error ? error.message : 'CSV export failed.'); }
               finally { setExporting(false); }
-            }}><Download size={15} aria-hidden="true"/>{exporting ? 'Exporting…' : 'Export CSV'}</button>
+            }}><Download size={15} aria-hidden="true"/>{exporting ? 'Exporting…' : 'Export CSV'}</Button>
           </form>
           {transactionCodes.length > 0 && <section aria-label="Transaction search evidence"><p>Transactions {transactionCodes.join(' OR ')} · selected user, role view and assignment-status filter. Role-derived evidence is not proof of effective SAP authorization.</p>
             {!user.mapping_available && <p>Transaction mappings unavailable: no role catalogue is loaded.</p>}
             {Boolean(user.unmapped_assignments) && <p>{user.unmapped_assignments} assignments have unavailable or unresolved catalogue mappings; transaction coverage may be incomplete.</p>}
             {user.items.map(a => <div key={a.id} className="text-sm"><strong>{transactionCodes.join(' OR ')}</strong> · {a.role_name}{a.role_description && ` · ${a.role_description}`}{Boolean(a.transaction_roles?.length) && <span> · Via {a.transaction_roles?.join(', ')}</span>}</div>)}
           </section>}
-          <p className="text-xs text-[var(--muted)]">Exports all assignments matching this role view, assignment status and live transaction filters.</p>
+          <p className="text-xs text-[var(--muted)]">Exports all assignments matching this role view, assignment status, assignment date bounds and live transaction filters.</p>
           <p role="status">{exportMessage}</p>
-          <div className="access-table user-assignment-table">
+          <div className="access-table user-assignment-table" role="region" aria-label="User role assignments" tabIndex={0}>
             <table>
               <thead>
                 <tr>
                   <th>Exact assigned role</th>
-                  <th>
-                    {scope === "release"
-                      ? "PR/PO · Group · Strategy"
-                      : "Catalogue match"}
-                  </th>
-                  <th>Role validity</th>
+                  {scope === 'release' ? <><th>Type</th><th>Release group</th><th>Release strategy</th></> : <th>Catalogue match</th>}
+                  <th>Valid from</th><th>Valid to</th>
                   <th>Assignment status</th>
                   <th>
                     Details
@@ -450,6 +455,7 @@ function UserDetails({
             onChange={setOffset}
             label="User assignment pages"
           />
+          </ContentTabs>
         </>
       )}
     </section>
@@ -472,33 +478,25 @@ function AssignmentRow({
       <td>
         <RoleIdentifier value={a.role_name} />
       </td>
-      <td>
-        {releaseView ? (
-          a.release?.parsed ? (
-            `${a.release.document_type} · ${a.release.release_group} · ${a.release.release_strategy}`
-          ) : (
-            "Unparsed"
-          )
-        ) : (
+      {releaseView ? <><td>{a.release?.document_type || 'Unparsed'}</td><td>{a.release?.release_group || '—'}</td><td>{a.release?.release_strategy || '—'}</td></> : <td>
           <div className="catalogue-match">
             {!a.catalogue_roles.length && <EvidenceBadge value="unmapped"/>}
             {a.catalogue_roles.map((name) => <RoleIdentifier key={name} value={name}/>)}
-          </div>
-        )}
-      </td>
-      <td>{dates(a.valid_from, a.valid_to)}</td>
+          </div></td>}
+      <td className="assignment-date">{formatDate(a.valid_from)}</td><td className="assignment-date">{formatDate(a.valid_to)}</td>
+
       <td>
-        <EvidenceBadge value={a.status}/>
+        <AssignmentStatus value={a.status}/>
       </td>
       <td>
         {a.scope === "release" ? (
-          <button className="settings-secondary-button" onClick={() => onRelease(a.role_name)}>View role details<ArrowRight size={15} aria-hidden="true"/></button>
+          <Button className="settings-secondary-button" onClick={() => onRelease(a.role_name)}>View role details<ArrowRight size={15} aria-hidden="true"/></Button>
         ) : a.match_status === "exact" || a.match_status === "wildcard" ? (
           <>
             {a.catalogue_roles.map((name) => (
-              <button className="settings-secondary-button" key={name} aria-label={`View role details: ${name}`} onClick={() => onRole(name)}>
+              <Button className="settings-secondary-button" key={name} aria-label={`View role details: ${name}`} onClick={() => onRole(name)}>
                 View role details<ArrowRight size={15} aria-hidden="true"/>
-              </button>
+              </Button>
             ))}
           </>
         ) : (

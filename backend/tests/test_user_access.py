@@ -302,7 +302,8 @@ class UserAccessTests(unittest.TestCase):
         self.assertEqual(sources['roles']['records'], 3)
         self.assertEqual(sources['users']['records'], 7)
         self.assertEqual(sources['users']['loaded_path'], str(FIXTURE.resolve()))
-        self.assertTrue(all(source['last_successful_load'] for source in sources.values()))
+        self.assertTrue(all(sources[key]['last_successful_load'] for key in ('roles','users')))
+        self.assertFalse(sources['employees']['loaded'])
         self.assertEqual(sources['users']['availability'], 'available_at_last_load')
         exported = self.client.get('/api/diagnostics/export', headers=H).json()
         raw = json.dumps(exported)
@@ -313,7 +314,9 @@ class UserAccessTests(unittest.TestCase):
         old = cache.get_snapshot()
         candidate = config.get_settings().model_copy(update={'user_csv_path': str(Path(self.temp.name)/'missing-private-users.csv')})
         config.save_configuration(candidate, candidate.revision)
-        self.assertEqual(self.client.post('/api/refresh', headers=H).status_code, 400)
+        response=self.client.post('/api/refresh', headers=H)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['refresh']['status'], 'partial')
         self.assertIs(cache.get_snapshot(), old)
         sources = {source['id']:source for source in self.client.get('/api/diagnostics', headers=H).json()['sources']}
         self.assertEqual(sources['users']['availability'], 'missing')
@@ -327,7 +330,9 @@ class UserAccessTests(unittest.TestCase):
 
     def test_diagnostics_permission_errors_are_static_and_successful_refresh_clears_them(self):
         with patch('cache.build_users', side_effect=PermissionError('private username and filename must not escape')):
-            self.assertEqual(self.client.post('/api/refresh', headers=H).status_code, 400)
+            response=self.client.post('/api/refresh', headers=H)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()['refresh']['status'], 'partial')
         sources = self.client.get('/api/diagnostics/export', headers=H).json()['sources']
         self.assertEqual(sources[1]['error'], 'access_denied')
         self.assertNotIn('private username', json.dumps(sources))

@@ -1,18 +1,27 @@
 import { createContext, useContext, useEffect, useState, type ReactNode, type SetStateAction } from 'react'
 
 export type ReleaseDrill = { status?: string; username?: string; role_search?: string; ungrouped?: boolean; role?: string; group?: string; document_type?: string; release_group?: string; strategy?: string }
-type View = { page: 'roles' | 'users' | 'releases'; user: string; release: ReleaseDrill | null; detailRole: string | null; comparison: boolean; settings: boolean; releaseContext: string; userContext: { role?: string; tcode?: string } }
-const paths = { roles: 'role-lookup', users: 'user-access', releases: 'release-roles' }
-const defaults: View = { page: 'roles', user: '', release: null, detailRole: null, comparison: false, settings: false, releaseContext: '', userContext: {} }
+type View = { accountReviewFilters?:{search:string;license:string;state:string;sort:string;descending:boolean}; userComparison?:{sort?:string;descending?:boolean;a:string;b:string;validity:string;kind:string;difference:string;search:string;area:string}; accessMode?: 'directory'|'review'|'compare'; reviewFinding?: string; kpiNavigation?: Partial<Record<'roles'|'users'|'releases',number>>; settingsTarget?: 'roles' | 'users' | 'employees' | 'diagnostics' | 'features'; page: 'dashboard' | 'roles' | 'users' | 'releases'; user: string; release: ReleaseDrill | null; detailRole: string | null; comparison: boolean; settings: boolean; releaseContext: string; userContext: { role?: string; tcode?: string } }
+const paths = { dashboard: 'dashboard', roles: 'role-lookup', users: 'user-access', releases: 'release-roles' }
+const defaults: View = { page: 'dashboard', user: '', release: null, detailRole: null, comparison: false, settings: false, releaseContext: '', userContext: {} }
+export function userAccessHref(mode:'directory'|'review'|'compare') {return '#/user-access'+(mode==='directory'?'':mode==='review'?'/account-review':'/compare')}
+function viewUrl(view:View) {
+ const base=view.page==='users'?userAccessHref(view.accessMode||'directory'):`#/${paths[view.page]}`
+ const query=location.hash.startsWith('#/')?location.hash.split('?').slice(1).join('?'):''
+ return base+(query?'?'+query:'')
+}
 function readView(): View {
-  const stored = history.state?.sapLensView as View | undefined
-  const path = location.hash.slice(2).split('?')[0]
-  const page = Object.entries(paths).find(([, value]) => value === path)?.[0] as View['page'] | undefined
-  return stored && ['roles', 'users', 'releases'].includes(stored.page) ? { ...defaults, ...stored } : { ...defaults, page: page || 'roles' }
+ const stored=history.state?.sapLensView as View|undefined
+ const segments=location.hash.slice(2).split('?')[0].split('/')
+ const page=Object.entries(paths).find(([,value])=>value===segments[0])?.[0] as View['page']|undefined
+ const base=stored&&['dashboard','roles','users','releases'].includes(stored.page)?{...defaults,...stored}:{...defaults,page:page||'dashboard'}
+ if(page)base.page=page
+ if(page==='users'&&segments[1])base.accessMode=segments[1]==='account-review'?'review':segments[1]==='compare'?'compare':'directory'
+ return base
 }
 export function initializeViewHistory() {
     const current = readView()
-    const url = `#/${paths[current.page]}`
+    const url = viewUrl(current)
     if (!history.state?.sapLensView) {
       // Boundary is the same meaningful view, never a bootstrap document. Back at
       // the app's first record stays here; normal Back/Forward is untouched.
@@ -21,7 +30,7 @@ export function initializeViewHistory() {
     } else history.replaceState({ ...history.state, sapLensView: current }, '', url)
 }
 const Context = createContext<{ view: View; change: (patch: Partial<View>, replace?: boolean) => void } | null>(null)
-/** Only navigation identities live in session history; CSV contents and credentials never do. */
+/** Navigation identities and bounded comparison controls live in session history; result datasets and credentials never do. */
 export function ViewHistory({ children }: { children: ReactNode }) {
   const [view, setView] = useState(readView)
   useEffect(() => {
@@ -29,13 +38,15 @@ export function ViewHistory({ children }: { children: ReactNode }) {
       if (event.state?.sapLensBoundary) { history.forward(); return }
       setView(readView())
     }
+    const hash=()=>{if(!history.state?.sapLensBoundary)setView(readView())}
     window.addEventListener('popstate', pop)
-    return () => window.removeEventListener('popstate', pop)
+    window.addEventListener('hashchange',hash)
+    return () => {window.removeEventListener('popstate',pop);window.removeEventListener('hashchange',hash)}
   }, [])
   const change = (patch: Partial<View>, replace = false) => {
     const next = { ...readView(), ...patch }
     if (JSON.stringify(next) === JSON.stringify(readView())) return
-    history[replace ? 'replaceState' : 'pushState']({ sapLensView: next }, '', `#/${paths[next.page]}`)
+    history[replace ? 'replaceState' : 'pushState']({ sapLensView: next }, '', viewUrl(next))
     setView(next)
   }
   return <Context.Provider value={{ view, change }}>{children}</Context.Provider>

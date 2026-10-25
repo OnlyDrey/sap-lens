@@ -1,3 +1,4 @@
+import { controlClass } from '@/components/Shared/Controls'
 import { ModuleIcon } from '@/components/Modules/ModuleIcon'
 import { StatusPill } from '@/components/Shared/StatusPill'
 import { ColorControl } from './Controls'
@@ -24,8 +25,7 @@ const IconPicker = lazy(() =>
     )
   }))
 )
-const control =
-  'w-full min-w-0 rounded-lg border border-[var(--border)] bg-[var(--surface2)] px-3 py-2 text-sm focus:ring-2 focus:ring-[var(--focus)] focus:outline-none'
+const control = controlClass
 
 export function ModuleEditor({
   modules,

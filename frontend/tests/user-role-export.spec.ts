@@ -32,7 +32,7 @@ async function openUser(page: import('@playwright/test').Page) {
 }
 test('transaction search respects exact code, scope and status and opens catalogue evidence', async ({ page }) => {
   await openUser(page)
-  await page.getByRole('button', { name: 'All roles', exact: true }).click()
+  await page.getByRole('tab', { name: 'All roles', exact: true }).click()
   await page.getByRole('textbox', { name: 'Find roles by transaction' }).fill(' me21n ')
   await expect(page.getByRole('button', { name: 'Search', exact: true })).toHaveCount(0)
   const details = page.getByRole('region', { name: 'User details', exact: true })
@@ -48,7 +48,7 @@ test('transaction search respects exact code, scope and status and opens catalog
   await page.getByRole('button', { name: 'Expand single role ZD:BUY', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Investigate users with ME21N', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Close role details' }).click()
-  await page.getByRole('button', { name: 'Release Roles — ZO:*', exact: true }).click()
+  await page.getByRole('tab', { name: 'Release Roles — ZO:*', exact: true }).click()
   await expect(details.getByRole('row')).toHaveCount(2)
   await page.getByRole('textbox', { name: 'Find roles by transaction' }).fill('ME21')
   await expect(page.getByRole('button', { name: 'Search', exact: true })).toHaveCount(0)
@@ -58,7 +58,7 @@ test('transaction search respects exact code, scope and status and opens catalog
 })
 test('CSV includes every filtered page, exact identifiers, dates, UTF-8 and safe spreadsheet fields', async ({ page }) => {
   await openUser(page)
-  await page.getByRole('button', { name: 'All roles', exact: true }).click()
+  await page.getByRole('tab', { name: 'All roles', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Export CSV', exact: true })).toBeEnabled()
   const downloadPromise = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Export CSV', exact: true }).click()
@@ -106,11 +106,11 @@ for (const theme of ['light', 'dark']) for (const width of [800, 1280]) test(`se
   await expect(unlocked.locator('.lock-status')).toHaveText('Unlocked')
   await expect(unlocked.locator('.lock-status svg')).toHaveClass(/lucide-lock-open/)
   const unknown = page.getByRole('row').filter({ has: page.getByRole('button', { name: 'DEMO_EXPORT', exact: true }) })
-  await expect(unknown.locator('.lock-status')).toHaveText('Mixed / unknown')
+  await expect(unknown.locator('.lock-status')).toHaveText('Unknown')
   await expect(unknown.locator('.evidence-success svg')).toHaveClass(/lucide-circle-check/)
-  for (const [username, icon] of [['DEMO_FUTURE', 'clock'], ['DEMO_EXPIRED', 'circle-x'], ['DEMO_UNKNOWN', 'circle-help']]) {
+  for (const [username, icon] of [['DEMO_FUTURE', 'circle-x'], ['DEMO_EXPIRED', 'circle-x'], ['DEMO_UNKNOWN', 'circle-help']]) {
     const row = page.getByRole('row').filter({ has: page.getByRole('button', { name: username, exact: true }) })
-    await expect(row.locator(`.evidence-badge svg.lucide-${icon}`)).toBeVisible()
+    await expect(row.locator(`td[aria-label="Account validity"] .evidence-badge svg.lucide-${icon}`)).toBeVisible()
   }
   const appearance = await locked.locator('.lock-status').evaluate(element => {
     const style = getComputedStyle(element), icon = element.querySelector('svg')!.getBoundingClientRect(), box = element.getBoundingClientRect()
@@ -121,8 +121,8 @@ for (const theme of ['light', 'dark']) for (const width of [800, 1280]) test(`se
   await locked.locator('.lock-status').scrollIntoViewIfNeeded()
   await page.screenshot({ path: info.outputPath('directory.png'), fullPage: true })
   await page.getByRole('button', { name: 'DEMO_EXPORT', exact: true }).click()
-  await expect(page.getByRole('region', { name: 'Validity and account information', exact: true }).locator('.lock-status')).toHaveText('Mixed / unknown')
-  await page.getByRole('button', { name: 'All roles', exact: true }).click()
+  await expect(page.getByRole('region', { name: 'Account Status', exact: true }).locator('.lock-status')).toHaveText('Unknown')
+  await page.getByRole('tab', { name: 'All roles', exact: true }).click()
   await page.getByRole('textbox', { name: 'Find roles by transaction' }).fill('ME21N')
   await expect(page.getByRole('button', { name: 'Search', exact: true })).toHaveCount(0)
   await expect(page.getByRole('region', { name: 'Transaction search evidence' })).toContainText('Via ZD:BUY')

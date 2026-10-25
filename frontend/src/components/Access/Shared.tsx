@@ -1,8 +1,10 @@
+import { Button } from '@/components/Shared/Button'
+import { FormField, controlClass } from '@/components/Shared/Controls'
+import { LoadingState } from '@/components/Shared/Presentation'
 import { formatDate } from '@/lib/dateFormat';
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import type { ReactNode } from "react";
-export const inputClass =
-  "rounded-lg border px-3 py-2 text-sm bg-[var(--surface)] border-[var(--border)] text-[var(--text)] min-w-0";
+export const inputClass = controlClass;
 export function Filter({
   label,
   children,
@@ -10,12 +12,7 @@ export function Filter({
   label: string;
   children: ReactNode;
 }) {
-  return (
-    <label className="flex flex-col gap-1 text-sm">
-      {label}
-      {children}
-    </label>
-  );
+  return <FormField label={label}>{children}</FormField>;
 }
 export function Pagination({
   offset,
@@ -36,25 +33,25 @@ export function Pagination({
       aria-label={label}
       className="flex flex-wrap gap-4 items-center py-4 text-sm"
     >
-      <button
-        className="settings-secondary-button"
+      <Button
+        size="compact"
         disabled={offset === 0}
         onClick={() => onChange(Math.max(0, offset - limit))}
       >
         <ArrowLeft size={16} aria-hidden="true"/> Previous
-      </button>
+      </Button>
       <span>
         {total
           ? `${offset + 1}–${Math.min(offset + limit, total)} of ${total}`
           : "0 records"}
       </span>
-      <button
-        className="settings-secondary-button"
+      <Button
+        size="compact"
         disabled={offset + limit >= total}
         onClick={() => onChange(offset + limit)}
       >
         Next <ArrowRight size={16} aria-hidden="true"/>
-      </button>
+      </Button>
     </nav>
   );
 }
@@ -64,7 +61,7 @@ export function EvidenceNote() {
   return (
     <p className="text-sm text-[var(--muted)]">
       Role-derived transactions are investigation evidence, not proof of
-      effective SAP authorization. Missing dates mean unknown validity; account
+      effective SAP authorization. Missing dates never establish active access; account
       status and lock state are separate.
     </p>
   );
@@ -78,7 +75,7 @@ export function QueryState({
 }) {
   return (
     <>
-      {loading && <p role="status">Loading local records…</p>}
+      {loading && <LoadingState/>}
       {error && (
         <p role="alert" className="text-[var(--error)]">
           {error.message}

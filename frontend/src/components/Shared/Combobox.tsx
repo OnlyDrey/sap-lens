@@ -3,15 +3,15 @@ import { createPortal } from 'react-dom'
 import { Check, ChevronDown, ChevronUp, Search } from 'lucide-react'
 
 /** Bounded local or server-backed options; portal avoids scroll-container clipping. */
-export function Combobox({ value, options, onChange, label, placeholder = 'All', disabled = false, allowCustom = true, clearLabel = 'All', id, onSearch, hasMore = false, loading = false, maxLength = 512 }: {
+export function Combobox({ value, options, onChange, label, placeholder = 'All', disabled = false, allowCustom = true, clearLabel = 'All', id, onSearch, hasMore = false, loading = false, maxLength = 512, serverFiltered = false, optionLabel = (value:string)=>value }: {
   value: string; options: string[]; onChange: (value: string) => void; label: string;
-  placeholder?: string; disabled?: boolean; allowCustom?: boolean; clearLabel?: string; id?: string; onSearch?: (query: string) => void; hasMore?: boolean; loading?: boolean; maxLength?: number;
+  placeholder?: string; disabled?: boolean; allowCustom?: boolean; clearLabel?: string; id?: string; onSearch?: (query: string) => void; hasMore?: boolean; loading?: boolean; maxLength?: number; serverFiltered?: boolean; optionLabel?:(value:string)=>string;
 }) {
   const uid = useId(), listId = `${uid}-list`
   const anchor = useRef<HTMLDivElement>(null), popup = useRef<HTMLDivElement>(null), input = useRef<HTMLInputElement>(null)
   const [open, setOpen] = useState(false), [query, setQuery] = useState<string | null>(null), [index, setIndex] = useState(0)
   const [position, setPosition] = useState({ left: 0, top: 0, width: 0, maxHeight: 240 })
-  const choices = ['', ...new Set(options.filter(Boolean))].filter(option => !query || (option || clearLabel).toLocaleLowerCase().includes(query.toLocaleLowerCase()))
+  const choices = ['', ...new Set(options.filter(Boolean))].filter(option => !query || serverFiltered || (option ? optionLabel(option) : clearLabel).toLocaleLowerCase().includes(query.toLocaleLowerCase()))
   const close = () => { setOpen(false); setQuery(null) }
   const choose = (option: string) => { onChange(option); close(); input.current?.focus() }
   useLayoutEffect(() => {
@@ -62,7 +62,7 @@ export function Combobox({ value, options, onChange, label, placeholder = 'All',
       <div id={listId} role="listbox" aria-label={`${label} options`}>
         {choices.map((option, i) => <div key={option} id={`${uid}-option-${i}`} role="option" aria-selected={option === value}
           className={`combobox-option ${i === index ? 'highlighted' : ''}`} onMouseMove={() => setIndex(i)} onClick={() => choose(option)}>
-          <span>{option || clearLabel}</span>{option === value && <Check size={16} aria-hidden="true"/>}
+          <span>{option ? optionLabel(option) : clearLabel}</span>{option === value && <Check size={16} aria-hidden="true"/>}
         </div>)}
         {loading && <p role="status" className="p-3 text-sm text-[var(--muted)]">Searching available values…</p>}
         {hasMore && <p className="p-3 text-sm text-[var(--muted)]">Showing the first {options.length} values. Type to narrow the options.</p>}

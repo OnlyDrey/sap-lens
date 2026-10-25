@@ -1,3 +1,4 @@
+import { ApplicationDataProvider } from './state/ApplicationData'
 import { ViewHistory, initializeViewHistory } from './hooks/useViewHistory'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -6,6 +7,7 @@ import { ModuleRegistryProvider } from './components/Modules/ModuleRegistry'
 import { StartupGate } from './components/Layout/StartupGate'
 import { App } from './App'
 import './index.css'
+import './styles/components.css'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 5 * 60 * 1000, retry: 2 } },
@@ -28,7 +30,7 @@ initializeViewHistory()
 createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <ModuleRegistryProvider><ViewHistory><StartupGate><App /></StartupGate></ViewHistory></ModuleRegistryProvider>
+      <ModuleRegistryProvider><ViewHistory><ApplicationDataProvider><StartupGate><App /></StartupGate></ApplicationDataProvider></ViewHistory></ModuleRegistryProvider>
     </QueryClientProvider>
   </StrictMode>
 )

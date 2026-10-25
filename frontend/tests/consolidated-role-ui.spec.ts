@@ -29,6 +29,7 @@ test.beforeEach(async ({ request }) => {
 test.afterEach(async ({ request }) => { await request.post('/api/configuration/reset', { headers }); rmSync(directory, { recursive: true, force: true }) })
 async function openRole(page: Page, role = pattern) {
   await page.goto('/#session=browser-test-session')
+  await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Role Lookup',exact:true}).click()
   await page.getByRole('button', { name: `View details for ${role === pattern ? 'Investigation example' : role === 'ZC:BC:SECOND:*' ? 'Second example' : role}`, exact: true }).click()
   return page.getByRole('dialog')
 }
@@ -97,9 +98,9 @@ test('role change resets sidebar search, provenance distinguishes missing descri
 })
 test('All roles default, match codes only and one toolbar preserve search and CSV export', async ({ page }) => {
   const detail = await openUser(page)
-  const sections = detail.getByRole('navigation', { name: 'User role sections' })
-  await expect(sections.getByRole('button')).toHaveText(['All roles', 'Business Roles — ZC:*', 'Release Roles — ZO:*'])
-  await expect(sections.getByRole('button', { name: 'All roles', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  const sections = detail.getByRole('tablist', { name: 'User role sections' })
+  await expect(sections.getByRole('tab')).toHaveText(['All roles', 'Business Roles — ZC:*', 'Release Roles — ZO:*'])
+  await expect(sections.getByRole('tab', { name: 'All roles', exact: true })).toHaveAttribute('aria-selected', 'true')
   await expect(detail).not.toContainText('ZD:HIDDEN'); await expect(detail).not.toContainText('ZZ:HIDDEN')
   const row = detail.getByRole('row').filter({ has: page.getByRole('button', { name: 'Copy role identifier ZC:BC:EXACT', exact: true }) })
   await expect(row.locator('.catalogue-match .evidence-badge')).toHaveCount(0)
@@ -109,8 +110,8 @@ test('All roles default, match codes only and one toolbar preserve search and CS
   const toolbar = detail.getByRole('form', { name: 'User role toolbar' })
   await expect(toolbar.getByLabel('Assignment status', { exact: true })).toBeVisible()
   await toolbar.getByRole('textbox', { name: 'Find roles by transaction' }).fill('migo')
-  const activeControls = toolbar.locator('.transaction-input, select, .settings-secondary-button')
-  await expect(activeControls).toHaveCount(4)
+  const activeControls = toolbar.locator('.transaction-input, select, button.ui-button, button.settings-secondary-button')
+  await expect(activeControls).toHaveCount(6) // Includes the scoped date filter and assignment reset.
   const tops = await activeControls.evaluateAll(elements => elements.map(element => Math.round(element.getBoundingClientRect().y)))
   expect(new Set(tops).size).toBe(1)
   await toolbar.getByRole('textbox', { name: 'Find roles by transaction' }).press('Enter')
@@ -127,7 +128,7 @@ for (const theme of ['light', 'dark']) for (const width of [800, 1280]) test(`co
   const detail = await openUser(page)
   const toolbar = detail.getByRole('form', { name: 'User role toolbar' })
   await expect(toolbar).toBeVisible()
-  const controls = toolbar.locator('.transaction-input, select, .settings-secondary-button')
+  const controls = toolbar.locator('.transaction-input, select, button.ui-button, button.settings-secondary-button')
   const boxes = await controls.evaluateAll(elements => elements.map(e => { const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, right: b.right, height: b.height } }))
   expect(boxes.every(box => box.x >= 0 && box.right <= width)).toBe(true)
   if (width === 1280) { expect(new Set(boxes.map(box => Math.round(box.y))).size).toBe(1); expect(boxes.every(box => box.height >= 42)).toBe(true) }

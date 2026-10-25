@@ -8,3 +8,10 @@ def normalized_tcodes(values):
     if any(len(value) > 128 for value in values):
         raise HTTPException(422, 'Transaction filters must not exceed 128 characters.')
     return tuple(dict.fromkeys(value.strip().upper() for value in values if value.strip()))
+
+
+def matching_role_names(index, codes, mode='and'):
+    """Combine aggregate role transaction sets, never individual CSV rows."""
+    if not codes: return set()
+    groups = [set(index.get(code, [])) for code in codes]
+    return set.intersection(*groups) if mode == 'and' else set.union(*groups)

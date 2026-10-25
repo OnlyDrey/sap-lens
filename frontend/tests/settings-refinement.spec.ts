@@ -16,7 +16,7 @@ test('shared navigation and dropdown geometry retain keyboard access', async ({
 }) => {
   await page.goto('/#session=browser-test-session')
   const tab = page.getByRole('tab', {
-    name: 'System & Organization',
+    name: 'Organization & SAP System',
     exact: true
   })
   await tab.click()
@@ -26,7 +26,7 @@ test('shared navigation and dropdown geometry retain keyboard access', async ({
   await tab.focus()
   await page.keyboard.press('ArrowDown')
   await expect(
-    page.getByRole('tab', { name: 'Data Source & Import', exact: true })
+    page.getByRole('tab', { name: 'Appearance & Branding', exact: true })
   ).toBeFocused()
   await tab.click()
   const select = page.getByRole('combobox', {
@@ -189,7 +189,7 @@ test('CSV detection previews without loading and preserves intentional manual ov
       .getByRole('button', { name: 'Open settings', exact: true })
       .click()
     await page
-      .getByRole('tab', { name: 'Data Source & Import', exact: true })
+      .getByRole('tab', { name: 'Data Sources', exact: true })
       .click()
     await expect(role).toBeEnabled()
     await expect(role).toHaveValue('Role')
@@ -222,11 +222,11 @@ test('CSV detection previews without loading and preserves intentional manual ov
       .getByRole('button', { name: 'Open settings', exact: true })
       .click()
     await page
-      .getByRole('tab', { name: 'Data Source & Import', exact: true })
+      .getByRole('tab', { name: 'Data Sources', exact: true })
       .click()
     await page.getByLabel('CSV file location', { exact: true }).fill('')
     await page
-      .getByRole('tab', { name: 'System & Organization', exact: true })
+      .getByRole('tab', { name: 'Organization & SAP System', exact: true })
       .click()
     await page
       .getByLabel('Organization name', { exact: true })
@@ -337,8 +337,11 @@ test('theme preview screenshot changes and cancel restores the original pixels',
   expect(comparison.sameSize).toBeTruthy()
   expect(comparison.changedRatio).toBe(0)
   await page
-    .getByRole('tab', { name: 'Application & Diagnostics', exact: true })
+    .getByRole('tab', { name: 'Health & Diagnostics', exact: true })
     .click()
+  await page.getByText('Source locations and storage details',{exact:true}).click()
+  for (const name of ['Role Catalogue CSV','User Access CSV']) await page.getByRole('region',{name,exact:true}).getByText('Technical source details',{exact:true}).click()
+  await page.getByText('Employee Directory technical details',{exact:true}).click()
   for (const name of [
     'Application status',
     'Data & storage',

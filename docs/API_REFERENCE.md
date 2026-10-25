@@ -132,7 +132,33 @@ unrestricted WebView2 downloads. See [User access](ACCESS_INVESTIGATION.md#user-
 
 The existing role-list and user-detail endpoints additionally accept repeated
 `tcodes` parameters, for example `?tcodes=MIGO&tcodes=ME21N`. Values are trimmed,
-uppercased and deduplicated; matching uses OR before assignment pagination. Other
-filter categories still apply with AND. At most 21 values (20 chips plus one draft)
+uppercased and deduplicated. User-detail matching uses OR before assignment pagination. The catalogue defaults to AND across the full role, with `transaction_mode=or` available explicitly. Other filter categories still apply with AND. At most 21 values (20 chips plus one draft)
 of 128 characters each are accepted; larger inputs return 422. Legacy `tcode`
 behavior is preserved. API dates remain ISO; Norwegian formatting is UI-only.
+
+### Optional Employee Directory
+
+All `/api/employees` routes use existing local session/origin protection:
+
+- `GET /api/employees/status`: feature/configuration/availability/health, aggregate
+  matching and manager counts, plus private filename metadata for the local UI.
+- `POST /api/employees/preview`: `{path, revision}` validates the fixed directory
+  schema and returns a SHA-256 digest, counts and at most five preview records.
+- `POST /api/employees/import`: `{path, revision, digest}` rereads and confirms
+  the exact previewed bytes, then atomically publishes the source preference and
+  memory snapshot. Changed input or stale settings returns 409.
+- `POST /api/employees/clear`: `{path, revision}` clears directory configuration
+  and memory after UI confirmation; the source file is never deleted.
+- `GET /api/employees?search=&offset=0&limit=25`: bounded employee search, available
+  only while the feature is enabled. Returns the dataset generation digest.
+- `GET /api/employees/record/{id}?generation=...`: one-level employee/manager
+  details; stale generations return 409 instead of reusing an old row index.
+- `GET /api/employees/match/{username}`: exact SAP email enrichment; missing,
+  duplicate, unmatched and unavailable states never modify SAP user responses.
+
+Redacted `/api/diagnostics/export` includes directory aggregate status only.
+See [Employee Directory contracts](EMPLOYEE_DIRECTORY.md) for matching and privacy.
+
+### Catalogue areas and assignment dates
+
+Repeated `function_keys` combine with OR in `/api/roles`. Role text search matches only role name and description. User-detail/release endpoints share inclusive `valid_from_min/max`, `valid_to_min/max` and `open_ended` parameters before pagination. See [filter and navigation contracts](INVESTIGATION_FILTERS.md#api-additions).

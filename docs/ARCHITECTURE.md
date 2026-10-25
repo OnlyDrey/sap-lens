@@ -22,7 +22,7 @@ Initial CSV loading is asynchronous and does not block API/window startup. A dae
 
 ## Cache and bundle improvements
 
-The streaming standard-library CSV reader replaces pandas/dataframes and intermediary row-dictionary copies. Pandas/numpy are no longer runtime dependencies. Each complete cache generation contains details, precomputed summaries/counts, module labels and a reverse T-code index. Readers retain one snapshot per request, so a refresh cannot mix generations or leave the T-code index stale. File-location persistence happens only after CSV validation and before publication. Failures retain the previous data/settings.
+The standard-library CSV reader replaces pandas/dataframes. Validated canonical observations are retained within bounded source generations so user assignments can be remapped against a refreshed catalogue without reopening a failed user source. Pandas/numpy are no longer runtime dependencies. Each complete cache generation contains details, precomputed summaries/counts, module labels and a reverse T-code index. Readers retain one snapshot per request, so a refresh cannot mix generations or leave the T-code index stale. File-location persistence happens only after CSV validation and before publication. Failures retain the previous data/settings.
 
 Comparison work is bounded to two to five roles. Prefix T-code search still scans index keys; memory still scales with the complete role graph, including overlap assignments. CSV input/row/identifier and field limits bound parsing work, but the complete graph still consumes memory. See CSV_IMPORT.md for exact semantics.
 
@@ -51,3 +51,20 @@ Production has one entry point: `backend/desktop.py`, packaged by `scripts/build
 ## User access investigation
 
 The atomic cache also contains a separately parsed user export, a reusable literal-prefix catalogue matcher and reverse assignment evidence. User Access and Release Roles consume this generation without a third CSV or external connection. Classification rules and domain configuration are retired. See [access investigation](ACCESS_INVESTIGATION.md) for the schema, migration boundary, status semantics and strict PR/PO parser.
+
+## Optional identity enrichment
+
+`employee_directory.py` owns bounded, immutable-in-use directory snapshots, exact email matching and non-recursive manager resolution. `routers/employees.py` exposes session-protected preview, digest/revision-checked replacement, search and enrichment. The existing settings schema adds disabled-by-default feature state and a local source path; existing SAP snapshots and import presets remain independent. Directory record links carry a generation digest. Slow startup filesystem reads do not hold the publication lock, and clear/import invalidates in-flight reads. See [Employee Directory](EMPLOYEE_DIRECTORY.md) for data and health contracts.
+
+## CSV lifecycle and private refresh evidence
+
+`csv_lifecycle.py` stages immutable canonical observations and commits their references, bounded history metadata and feature/source settings in one atomic configuration write. It publishes one coherent cache generation after independent source results are prepared. `employee_preview.py` filters raw preview rows off the event loop and renders only the selected page; replacement summaries and identity coverage are cached against immutable dataset identities. History listings read compact metadata, not full record reports. See [CSV data lifecycle](CSV_DATA_LIFECYCLE.md) for modes, recovery, identities and consistency guarantees.
+
+## Headless server deployment
+
+`backend/server.py` hosts the same FastAPI factory and production frontend without
+WebView2. Hosting policy is centralized in `backend/deployment.py`; server data
+uses a separate directory and a process-held lease. Browser uploads stage inputs
+for the existing CSV validation/confirmation lifecycle. Desktop startup and its
+release pipeline remain independent. See [deployment modes and operations](DEPLOYMENT.md)
+and [access-boundary assumptions](DEPLOYMENT_SECURITY.md).
