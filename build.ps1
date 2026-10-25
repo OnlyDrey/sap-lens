@@ -1,3 +1,4 @@
+#requires -Version 5.1
 # Cross-platform deployment builds; canonical packaging stays under scripts/.
 [CmdletBinding()]
 param(

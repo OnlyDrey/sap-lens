@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+import builtins
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location('linux_lifecycle', ROOT/'scripts/install-linux-server.py')
@@ -13,6 +14,19 @@ ops = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ops)
 
 
+class LinuxInstallerImportTests(unittest.TestCase):
+    def test_test_discovery_does_not_require_unix_grp_module(self):
+        original = builtins.__import__
+        def without_grp(name, *args, **kwargs):
+            if name == 'grp': raise ModuleNotFoundError('grp is unavailable on Windows')
+            return original(name, *args, **kwargs)
+        fresh = importlib.util.module_from_spec(spec)
+        with patch('builtins.__import__', side_effect=without_grp):
+            spec.loader.exec_module(fresh)
+        self.assertTrue(callable(fresh.main))
+
+
+@unittest.skipUnless(sys.platform == 'linux', 'Linux lifecycle /proc and filesystem contracts')
 class LinuxLifecycleTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
@@ -59,3 +73,21 @@ class LinuxLifecycleTests(unittest.TestCase):
         with patch.object(ops, 'validate_bundle', return_value={'identity': {'version':'0.1.0-beta.1'}}), patch.object(ops, 'installed', return_value={'version':'0.1.0'}):
             with self.assertRaises(ValueError): ops.install(args, self.root/'unit', '# marker')
         self.assertFalse(args.prefix.exists())
+
+    def test_stop_and_preserving_uninstall_allow_invalid_configuration(self):
+        for action in ('stop', 'uninstall'):
+            with self.subTest(action=action):
+                prefix, _, _ = self.release()
+                data = self.root/'data'; data.mkdir(exist_ok=True)
+                record = data/'retained-record.txt'; record.write_text('synthetic')
+                config = self.root/'configuration/server.env'; config.parent.mkdir(exist_ok=True)
+                config.write_text('INVALID CONFIGURATION')
+                argv = ['installer', action, '--user', '--prefix', str(prefix), '--data', str(data), '--config', str(config)]
+                with patch.object(sys, 'argv', argv), patch.object(ops, 'stop') as stop, patch.object(ops, 'configuration', side_effect=AssertionError('Stop must not parse runtime configuration')):
+                    ops.main()
+                stop.assert_called_once()
+                self.assertEqual(config.read_text(), 'INVALID CONFIGURATION')
+                self.assertEqual(record.read_text(), 'synthetic')
+                if action == 'stop':
+                    import shutil
+                    shutil.rmtree(prefix)

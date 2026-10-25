@@ -110,3 +110,20 @@ older binaries; use a compatible application version and backup.
 - Later queued modernization and privacy-safe example datasets have not started.
 
 No GitHub Actions, tags, releases or pushes were performed for this phase.
+
+## Follow-up guards — 25 October 2026
+
+The resumed implementation defers the Unix-only `grp` import until actual Linux
+system installation, so Windows backend test discovery can import the Linux
+lifecycle regression module. Linux `/proc` lifecycle cases are explicitly
+platform-scoped; a portable regression simulates an unavailable `grp` module.
+Stopping and data-preserving uninstall no longer require valid runtime
+configuration. Start/restart/readiness and destructive purge still validate it.
+The deployment builder also holds the legacy Windows `local-build.lock` handle
+while it owns shared build environments; actual Windows file-sharing acceptance
+remains pending. The PowerShell facade explicitly requires version 5.1 or newer.
+
+Targeted maintenance, Linux lifecycle, local deployment and packaging regressions:
+**33 passed**. PowerShell parsing/static checks and whitespace checks passed.
+These are narrow prerequisite fixes, not completion of the pending installer,
+Docker lifecycle, native Windows or systemd acceptance work.

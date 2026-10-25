@@ -1,6 +1,5 @@
 """Linux immutable-release installation and lifecycle. Mutable data is separate."""
 import argparse
-import grp
 import http.client
 import importlib.util
 import json
@@ -213,6 +212,7 @@ def install(args, unit, marker):
         command(python, '-m', 'pip', 'check')
         command(python, release / 'scripts/run-installed-server.py', '--env', args.config, '--check')
     if not args.user:
+        import grp
         command('chown', 'saplens:saplens', args.data)
         if new_config: os.chown(args.config, -1, grp.getgrnam('saplens').gr_gid)
         if new_parent: os.chown(args.config.parent, -1, grp.getgrnam('saplens').gr_gid)
@@ -282,7 +282,9 @@ def main():
         install(args, unit, marker); return
     current = installed(args.prefix)
     if current is None: raise maintenance.MaintenanceError('No recognized installation found.')
-    settings = configuration(args.config, args.data)
+    # Stopping and preserving an installation must remain possible when its
+    # administrator configuration is broken. Destructive purge still validates it.
+    settings = configuration(args.config, args.data) if args.action in ('start', 'restart', 'status') or args.purge_data else None
     if args.action == 'status':
         pid = user_pid(args.prefix, args.config) if args.user else int(subprocess.check_output(['systemctl', 'show', '--property=MainPID', '--value', 'sap-lens'], text=True))
         healthy = False
