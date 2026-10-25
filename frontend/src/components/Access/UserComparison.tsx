@@ -1,3 +1,5 @@
+import { FilterPanel } from '@/components/Shared/InvestigationPatterns'
+import { SearchInput } from '@/components/Shared/Controls'
 import { AssignmentStatus } from '@/components/Shared/InvestigationNavigation'
 import { FilterChip } from '@/components/Shared/FilterChip'
 import { Button, IconButton } from '@/components/Shared/Button'
@@ -527,7 +529,7 @@ export function UserComparison({
         apply={apply}
         clear={clear}
       />
-      <div className="comparison-filter-bar">
+      <FilterPanel label="Comparison filters" className="comparison-filter-bar">
         <Filter label="Assignment validity">
           <Select
             aria-label="Assignment validity"
@@ -580,7 +582,7 @@ export function UserComparison({
               : 'Search comparison transactions'
           }
         >
-          <input
+          <SearchInput
             className={inputClass}
             value={search}
             maxLength={256}
@@ -595,7 +597,7 @@ export function UserComparison({
             onChange={setArea}
           />
         </Filter>
-      </div>
+      </FilterPanel>
       <QueryState loading={result.isFetching} error={result.error} />
       {(!a || !b) && (
         <p>

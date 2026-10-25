@@ -292,8 +292,8 @@ test('saved filters save load rename update delete and survive page reload', asy
   await bar.getByLabel('Saved filter name').fill('Renamed')
   await bar.getByRole('button', { name: 'Rename', exact: true }).click()
   await expect(
-    bar.getByRole('option', { name: 'Renamed', exact: true }),
-  ).toHaveCount(1)
+    bar.getByRole('combobox', { name: 'Saved filter', exact: true }),
+  ).toHaveValue('Renamed')
   await page.getByLabel('Search users', { exact: true }).fill('Beta')
   await openSaved(page, viewForBar)
   await bar
@@ -303,9 +303,7 @@ test('saved filters save load rename update delete and survive page reload', asy
   await page.reload()
   await openSaved(page, viewForBar)
   await openSaved(page, viewForBar)
-  await bar
-    .getByLabel('Saved filter', { exact: true })
-    .selectOption({ label: 'Renamed' })
+  await choose(page, 'Saved filter', 'Renamed')
   await openSaved(page, viewForBar)
   await bar.getByRole('button', { name: 'Load', exact: true }).click()
   await expect(page.getByLabel('Search users', { exact: true })).toHaveValue(
@@ -342,9 +340,7 @@ test('unsupported saved values warn without overwriting original definition', as
   const viewForBar = 'users'
   const bar = saved(page, 'users')
   await openSaved(page, viewForBar)
-  await bar
-    .getByLabel('Saved filter', { exact: true })
-    .selectOption({ label: 'Old sorting' })
+  await choose(page, 'Saved filter', 'Old sorting')
   await openSaved(page, viewForBar)
   await bar.getByRole('button', { name: 'Load', exact: true }).click()
   await expect(bar).toContainText('unsupported fields or values')
@@ -593,9 +589,7 @@ test('Role Lookup saved filters restore multi-transaction and sorting controls',
     .click()
   await transaction.fill('OTHER')
   await openSaved(page, viewForBar)
-  await bar
-    .getByLabel('Saved filter', { exact: true })
-    .selectOption({ label: 'Catalogue investigation' })
+  await choose(page, 'Saved filter', 'Catalogue investigation')
   await openSaved(page, viewForBar)
   await bar.getByRole('button', { name: 'Load', exact: true }).click()
   await expect(bar).toContainText('Saved filter applied to the current data.')
@@ -633,7 +627,7 @@ test('future saved schema remains unavailable without crashing or replacing stor
   const viewForBar = 'users'
   const bar = saved(page, 'users')
   await openSaved(page, viewForBar)
-  await bar.getByLabel('Saved filter', { exact: true }).selectOption('future')
+  await choose(page,'Saved filter','Future investigation')
   await openSaved(page, viewForBar)
   await bar.getByRole('button', { name: 'Load', exact: true }).click()
   await expect(bar).toContainText('unsupported schema')

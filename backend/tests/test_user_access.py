@@ -462,7 +462,11 @@ class UserAccessTests(unittest.TestCase):
             json={"data_csv_path": str(FIXTURE.resolve())},
         )
         self.assertEqual(preview.status_code, 200)
-        self.assertEqual(preview.json()["samples"], [])
+        samples = preview.json()["samples"]
+        self.assertGreater(len(samples), 0)
+        self.assertLessEqual(len(samples), 20)
+        self.assertEqual(set(samples[0]), {"USERNAME", "ROLE_NAME", "USER_GROUP", "ROLE_VALID_FROM", "ROLE_VALID_TO"})
+        self.assertEqual(before.users.report["samples"], [])
         self.assertIs(cache.get_snapshot(), before)
 
     def test_no_catalogue_does_not_invent_access_and_relationships_remain(self):

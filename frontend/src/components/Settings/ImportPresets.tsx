@@ -1,14 +1,15 @@
+import { SourceFileField, MappingField, ImportPreview } from './ImportControls'
 import { controlClass } from '@/components/Shared/Controls'
 import { BrowserSourceUpload } from './BrowserSourceUpload'
 import { ImportSection } from './ImportSection';
 import { SourceStatus } from "./SourceStatus";
 import { useQuery } from "@tanstack/react-query";
 import { fetchConfiguration } from "@/api/configuration";
-import { Combobox } from "@/components/Shared/Combobox";
+
 import { useEffect, useRef, useState } from "react";
 import type { Configuration, ImportProfile } from "@/api/configuration";
 import { apiRequest, applicationToken } from "@/api/client";
-import { FolderOpen, Plus, Copy, Trash2 } from "lucide-react";
+import { Plus, Copy, Trash2 } from "lucide-react";
 import { SettingsSelect } from "./Controls";
 
 const input = controlClass
@@ -144,6 +145,7 @@ export function UserSourceEditor({
   const currentSignature = useRef(signature);
   currentSignature.current = signature;
   const [report, setReport] = useState<{
+    samples?:Record<string,string>[];
     parsed_rows: number;
     unique_users: number;
     assignments: number;
@@ -231,39 +233,7 @@ export function UserSourceEditor({
     >
       <ImportSection step={1} title="Source file" description="User Access · User–Role Mapping (CSV 2). Independent SAP directory and assignments; blank roles retain directory-only users.">
       <BrowserSourceUpload source="users" onUploaded={path=>onChange({...draft,user_csv_path:path,source_modes:{roles:draft.source_modes?.roles||'dynamic',users:'static',employees:draft.source_modes?.employees||'static'}})}/>
-      <div className="source-file-row">
-      <label className="block text-sm">
-        User CSV file location
-        <input
-          className={input}
-          value={draft.user_csv_path}
-          maxLength={4096}
-          onChange={(e) =>
-            onChange({ ...draft, user_csv_path: e.target.value })
-          }
-        />
-      </label>
-      <button
-        type="button"
-        className={button}
-        title={!native ? "File browsing is available in the Windows app; enter a full path here." : "Choose a User Access CSV"}
-        disabled={!native || busy}
-        onClick={() => {
-          void window.pywebview?.api
-            .choose_csv(applicationToken())
-            .then((path) => {
-              if (path) onChange({ ...draft, user_csv_path: path });
-            })
-            .catch(() =>
-              setError(
-                "The native file picker could not open. Enter an absolute CSV path instead.",
-              ),
-            );
-        }}
-      >
-        <FolderOpen size={16} aria-hidden="true"/> Browse for user CSV…
-      </button>
-      </div>
+      <SourceFileField label="User CSV file location" value={draft.user_csv_path} onChange={value=>onChange({...draft,user_csv_path:value})} native={native} disabled={busy} browseLabel="Browse for user CSV…" onBrowse={()=>{void window.pywebview?.api.choose_csv(applicationToken()).then(path=>{if(path)onChange({...draft,user_csv_path:path})}).catch(()=>setError('The native file picker could not open. Enter an absolute CSV path instead.'))}}/>
 <SourceStatus source="users" savedPath={configuration?.settings.user_csv_path || ""} draftPath={draft.user_csv_path} validated={Boolean(report)}/>
       </ImportSection>
       <ImportSection step={2} title="CSV Import Format" description="Choose a built-in format or create a reusable custom preset.">
@@ -353,13 +323,8 @@ export function UserSourceEditor({
       </button>
       <div className="import-mapping-grid">
         {fields.map((field) => (
-          <label key={field} className="text-sm">
-            {labels[field]}
-            <Combobox label={`User column ${field}`} value={preset.mapping[field] || ''} allowCustom={false}
-              clearLabel="Automatic mapping" placeholder="Automatic mapping" options={[...headers, ...Object.values(preset.mapping)]}
-              onChange={value => { setReport(null); const mapping = { ...preset.mapping }; if (value) mapping[field] = value; else delete mapping[field]; edit({ mapping }) }}/>
-            <small className="text-[var(--muted)]">{field === 'USERNAME' ? 'Required' : 'Optional'} · {preset.mapping[field] ? headers.includes(preset.mapping[field]) ? 'Manual mapping' : 'Mapped column missing' : headers.some(h => h.replace(/[^a-z0-9]/gi, '').toUpperCase() === field.replace(/_/g, '')) ? 'Automatically detected' : 'Not detected'}</small>
-          </label>
+          <MappingField key={field} field={field} label={labels[field]} accessibleLabel={`User column ${field}`} value={preset.mapping[field]||''} columns={headers} required={field==='USERNAME'} disabled={busy} onChange={value=>{setReport(null);const mapping={...preset.mapping};if(value)mapping[field]=value;else delete mapping[field];edit({mapping})}}/>
+
         ))}
       </div>
       </ImportSection>
@@ -372,21 +337,7 @@ export function UserSourceEditor({
       >
         {busy ? "Previewing…" : "Preview user import"}
       </button>
-      {report && (
-        <div role="status" className="text-sm space-y-2">
-          <p>
-            {report.parsed_rows} rows · {report.unique_users} users ·{" "}
-            {report.assignments} assignments · {report.duplicate_rows} identical
-            duplicate rows
-          </p>
-          {report.warnings.map((w) => (
-            <p key={w}>{w}</p>
-          ))}
-          <p>
-            Preview only. Save and load CSV applies both sources atomically.
-          </p>
-        </div>
-      )}
+      {report && <ImportPreview fileName={draft.user_csv_path.split(/[\\/]/).pop()} metrics={[{label:'Parsed rows',value:report.parsed_rows},{label:'SAP users',value:report.unique_users},{label:'Assignments',value:report.assignments},{label:'Identical duplicate rows',value:report.duplicate_rows}]} warnings={report.warnings} samples={report.samples||[]}/>}
       </ImportSection>
     </section>
   );

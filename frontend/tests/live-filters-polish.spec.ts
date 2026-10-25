@@ -161,7 +161,7 @@ test('data status badges retain availability distinction and format timestamps i
     snapshot.sources[0].loaded = state !== 'missing'; snapshot.sources[0].availability = state === 'error' ? 'missing' : 'not_checked'
     await page.getByRole('button', { name: 'Check again', exact: true }).click()
     await expect(source.locator('.source-badge')).toHaveText(state === 'loading' ? 'Loading' : state === 'error' ? 'Last attempt failed' : 'Not loaded')
-    if (state === 'error') { await expect(source).toContainText('Previously loaded data is retained'); await expect(source).toContainText('File missing on last attempt') }
+    if (state === 'error') { await expect(source).toContainText('Previously validated data is retained'); await expect(source).toContainText('File missing on last attempt') }
   }
 })
 for (const theme of ['light', 'dark']) for (const width of [800, 1280]) test(`live filter visual QA ${theme} ${width}`, async ({ page, request }, info) => {

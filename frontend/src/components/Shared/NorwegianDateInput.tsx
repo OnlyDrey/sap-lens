@@ -1,3 +1,4 @@
+import { usePopoverOwners } from './Popover'
 import { createPortal } from 'react-dom'
 import { useEffect, useLayoutEffect, useId, useRef, useState } from 'react'
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
@@ -30,6 +31,7 @@ export function NorwegianDateInput({
   value: string
   onChange: (text: string) => void
 }) {
+  const owners=usePopoverOwners()
   const id = useId()
   const popup = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState({
@@ -166,7 +168,7 @@ export function NorwegianDateInput({
             ref={popup}
             id={id}
             style={{ position: 'fixed', ...position }}
-            className="norwegian-calendar calendar-popover space-y-2"
+            data-popover-owner={owners} className="norwegian-calendar calendar-popover space-y-2"
             role="dialog"
             aria-label={`Calendar for ${label}`}
             onKeyDown={(event) => {

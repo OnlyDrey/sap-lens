@@ -7,7 +7,7 @@ import { UserRound, ShieldCheck, Building2 } from 'lucide-react'
 import type { UserDetail } from '@/api/access'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import { formatDate } from '@/lib/dateFormat'
-import { useEmployeeMatch, ManagerSummary } from './EmployeeEnrichment'
+import { useEmployeeMatch, ManagerSummary, DirectoryMatchDetails } from './EmployeeEnrichment'
 export function UserProfile({ user }: { user: UserDetail }) {
   const match = useEmployeeMatch(user.username),
     employee = match.data?.employee
@@ -132,6 +132,7 @@ export function UserProfile({ user }: { user: UserDetail }) {
           </p>
         )}
       </section>
+      <div className="profile-matching-evidence"><DirectoryMatchDetails match={match.data}/></div>
       {employee?.account_status === 'Disabled' &&
         accountValidity(user.account_status) === 'Valid' &&
         user.lock_status === 'Unlocked' && (

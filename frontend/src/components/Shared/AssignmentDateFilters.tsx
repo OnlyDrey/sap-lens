@@ -1,3 +1,4 @@
+import { Popover } from './Popover'
 import { FilterChip } from './FilterChip'
 import { useId, useState, useRef, useEffect } from 'react'
 import { CalendarDays } from 'lucide-react'
@@ -82,7 +83,7 @@ export function AssignmentDateFilters({
     )
     setIncludeMissing(value.include_missing_end)
     setError('')
-    setOpen(!open)
+
   }
   const apply = () => {
     const next = { ...emptyDates, include_missing_end: includeMissing }
@@ -107,6 +108,7 @@ export function AssignmentDateFilters({
     }
     onChange(next)
     close()
+    return true
   }
   return (
     <div
@@ -114,18 +116,8 @@ export function AssignmentDateFilters({
       role="group"
       aria-label="Assignment date filters"
     >
-      <button
-        ref={trigger}
-        type="button"
-        className="settings-secondary-button"
-        aria-expanded={open}
-        aria-controls={id}
-        onClick={begin}
-      >
-        <CalendarDays size={16} aria-hidden="true" />
-        Assignment date filters{count ? ` (${count} active)` : ''}
-      </button>
-      {open && (
+      <Popover preferredWidth={680} label="Assignment date controls" trigger={<><CalendarDays size={16} aria-hidden="true"/>Assignment date filters{count ? ` (${count} active)` : ''}</>} onOpenChange={isOpen=>{setOpen(isOpen);if(isOpen)begin()}}>
+      {dismiss => <div>
         <div
           id={id}
           className="assignment-date-panel space-y-3"
@@ -134,7 +126,7 @@ export function AssignmentDateFilters({
           onKeyDown={(event) => {
             if (event.key === 'Escape') {
               event.stopPropagation()
-              close()
+              close();dismiss()
             }
           }}
         >
@@ -197,14 +189,14 @@ export function AssignmentDateFilters({
             <button
               type="button"
               className="settings-secondary-button"
-              onClick={apply}
+              onClick={()=>{if(apply())dismiss()}}
             >
               Apply date filters
             </button>
             <ClearFilterButton
               onClick={() => {
-                onChange({ ...emptyDates })
-                close()
+                setDraft({valid_from_min:'',valid_from_max:'',valid_to_min:'',valid_to_max:''})
+                setIncludeMissing(true);setError('')
               }}
             >
               Clear date filters
@@ -212,13 +204,14 @@ export function AssignmentDateFilters({
             <button
               type="button"
               className="settings-secondary-button"
-              onClick={close}
+              onClick={()=>{close();dismiss()}}
             >
               Cancel date changes
             </button>
           </div>
         </div>
-      )}
+      </div>}
+      </Popover>
       {datesActive(value) && (
         <div
           className="transaction-chips mt-2"

@@ -1,3 +1,4 @@
+import { SearchInput } from '@/components/Shared/Controls'
 import { controlClass } from '@/components/Shared/Controls'
 import { ModuleIcon } from '@/components/Modules/ModuleIcon'
 import { StatusPill } from '@/components/Shared/StatusPill'
@@ -5,7 +6,7 @@ import { ColorControl } from './Controls'
 import { isHex } from '@/lib/theme'
 import { catalogIcon, iconLabel } from '@/components/Modules/CatalogIcon'
 import { useState, lazy, Suspense } from 'react'
-import { ChevronDown, Search, RotateCcw } from 'lucide-react'
+import { ChevronDown, RotateCcw } from 'lucide-react'
 import { icons } from '@/components/Modules/ModuleRegistry'
 import type { ModuleOverride, RegistryEntry } from '@/api/configuration'
 
@@ -52,17 +53,8 @@ export function ModuleEditor({
     <div className="space-y-4">
       <label className="block text-sm font-medium">
         Find SAP module or area
-        <div className="relative mt-1">
-          <Search
-            size={17}
-            className="absolute left-3 top-3 text-[var(--muted)]"
-          />
-          <input
-            className={`${control} pl-10`}
-            value={search}
-            onChange={(e) => onSearch(e.target.value)}
-          />
-        </div>
+        <SearchInput value={search} onChange={event=>onSearch(event.target.value)}/>
+
       </label>
       <p className="text-xs text-[var(--muted)]">
         {rows.length} areas · Open an area to customize its appearance. Disabled

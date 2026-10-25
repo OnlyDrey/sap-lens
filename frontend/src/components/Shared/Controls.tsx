@@ -20,14 +20,9 @@ export const Input = forwardRef<
     <input {...props} ref={ref} className={`${controlClass} ${className}`} />
   )
 })
-export function SearchInput(props: InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <span className="ui-search">
-      <Search size={16} aria-hidden="true" />
-      <Input {...props} type="search" />
-    </span>
-  )
-}
+export const SearchInput = forwardRef<HTMLInputElement,InputHTMLAttributes<HTMLInputElement>>(function SearchInput(props,ref) {
+  return <span className="ui-search"><Search size={16} aria-hidden="true"/><Input {...props} ref={ref} type={props.type || "search"}/></span>
+})
 export function FormField({
   label,
   description,

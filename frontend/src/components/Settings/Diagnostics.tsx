@@ -1,14 +1,15 @@
+import { SourceHealthSummary } from './SourceStatus'
+import { StatusCard } from '@/components/Shared/InvestigationPatterns'
 import { RefreshHistory } from '@/components/Shared/RefreshReport'
-import { StatusBadge } from '@/components/Shared/Presentation'
 import { Button } from '@/components/Shared/Button'
 import { DirectoryDiagnostics } from './EmployeeDirectory'
-import { SourceBadge } from '@/components/Shared/SourceBadge'
 import { formatTimestamp } from '@/lib/dateFormat'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Activity, Download, FileText, FolderOpen } from 'lucide-react'
 import { apiRequest, applicationToken } from '@/api/client'
 interface DataSource {
+  last_checked?: string|null
   mode?: string
   snapshot_available?: boolean
   dependency?: string
@@ -132,49 +133,8 @@ export function Diagnostics({
             Check again
           </Button>
         </div>
-        <div className="review-metrics">
-          <div className="compact-health">
-            <span>Source health</span>
-            <strong>
-              {query.isError
-                ? 'Unavailable'
-                : !query.data
-                  ? 'Checking…'
-                  : query.data.sources.some(
-                        (source) => source.enabled !== false && source.error,
-                      )
-                    ? 'Warnings'
-                    : query.data.sources.some(
-                          (source) => source.enabled !== false && source.loaded,
-                        )
-                      ? 'Ready'
-                      : 'Not configured'}
-            </strong>
-          </div>
-          <div className="compact-health">
-            <span>Local service</span>
-            <strong>
-              {query.isError
-                ? 'Unavailable'
-                : query.data?.backend_status || 'Checking…'}
-            </strong>
-          </div>
-          <div className="compact-health">
-            <span>Last successful refresh</span>
-            <strong className="text-sm">
-              {formatTimestamp(
-                query.data?.last_successful_refresh,
-                'No successful refresh yet',
-              )}
-            </strong>
-          </div>
-          <div className="compact-health">
-            <span>Application storage</span>
-            <strong>
-              {query.data?.storage_available ? 'Present' : 'Not created'}
-            </strong>
-          </div>
-        </div>
+        <div className="diagnostic-health-grid"><StatusCard label="Source health" value={query.isError?'Unavailable':!query.data?'Checking…':query.data.sources.some(source=>source.enabled!==false&&source.error)?'Warnings':query.data.sources.some(source=>source.enabled!==false&&source.loaded)?'Ready':'Not configured'} tone={query.isError?'error':query.data?.sources.some(source=>source.enabled!==false&&source.error)?'warning':query.data?.sources.some(source=>source.enabled!==false&&source.loaded)?'success':'neutral'}/><StatusCard label="Local service" value={query.isError?'Unavailable':query.data?.backend_status||'Checking…'} tone={query.isError?'error':query.data?'success':'neutral'}/><StatusCard label="Last successful refresh" value={formatTimestamp(query.data?.last_successful_refresh,'No successful refresh yet')}/><StatusCard label="Application storage" value={query.data?.storage_available?'Available':'Not created'} tone={query.data?.storage_available?'success':'neutral'}/></div>
+        <p className="ui-description">Imports activate validated datasets; Global Refresh checks Dynamic sources. A successful import does not imply a successful Global Refresh. Static sources retain their snapshots.</p>
 
         <details className="settings-advanced">
           <summary>Health details and refresh history</summary>
@@ -215,36 +175,7 @@ export function Diagnostics({
               aria-label={source.name}
             >
               <h3 className="font-semibold">{source.name}</h3>
-              <div className="ui-toolbar">
-                <StatusBadge>{source.mode || 'dynamic'}</StatusBadge>
-                {source.enabled === false ? (
-                  <StatusBadge>Disabled · retained data</StatusBadge>
-                ) : (
-                  <SourceBadge
-                    loading={source.loading}
-                    error={source.error}
-                    loaded={source.loaded}
-                  />
-                )}
-              </div>
-              <p className="text-sm">
-                {source.records.toLocaleString()} records ·{' '}
-                {source.snapshot_available
-                  ? 'Durable snapshot available'
-                  : 'No durable snapshot'}
-              </p>
-              <p className="text-xs text-[var(--muted)]">
-                Last import:{' '}
-                {formatTimestamp(source.last_successful_load, 'Never')}
-              </p>
-              {source.error && source.enabled !== false && (
-                <p className="text-sm text-[var(--warning)]">
-                  Last refresh: {source.error.replace(/_/g, ' ')}.{' '}
-                  {source.loaded
-                    ? 'Previously loaded data is retained.'
-                    : 'No prior valid data is available.'}
-                </p>
-              )}
+              <SourceHealthSummary source={source}/>
               <Button
                 onClick={() =>
                   onSource?.(source.id as 'roles' | 'users' | 'employees')
@@ -266,9 +197,9 @@ export function Diagnostics({
                 </summary>
                 <dl className="information-list">
                   <dt>Configured file</dt>
-                  <dd>{source.configured_path || 'Not configured'}</dd>
+                  <dd>{source.configured_path || (source.configured?'Configured (location redacted)':'Not configured')}</dd>
                   <dt>Loaded source</dt>
-                  <dd>{source.loaded_path || 'No successful load'}</dd>
+                  <dd>{source.loaded_path || (source.loaded?'Validated snapshot (location redacted)':'No successful load')}</dd>
                   <dt>Availability</dt>
                   <dd>{availabilityLabel(source.availability)}</dd>
                   <dt>Assignments</dt>

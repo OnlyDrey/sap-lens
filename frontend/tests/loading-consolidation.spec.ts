@@ -214,8 +214,8 @@ test('Dashboard is the default landing route and configuration links target thei
   expect(new URL(page.url()).hash).toBe('#/dashboard')
   for (const name of [
     'Overview',
-    'User Access',
-    'Data Quality',
+    'Access & risk review',
+    'Data & system health',
     'Configuration',
   ])
     await expect(page.getByRole('region', { name, exact: true })).toBeVisible()

@@ -1,3 +1,5 @@
+import { SourceHealthSummary } from './SourceStatus'
+import { SourceFileField } from './ImportControls'
 import { DirectoryPreview } from './DirectoryPreview'
 import { BrowserSourceUpload } from './BrowserSourceUpload'
 import { ImportSection } from './ImportSection'
@@ -15,7 +17,6 @@ import {
   Settings2,
   BookUser,
   Save,
-  FolderOpen,
   Search,
   Trash2,
   CheckCircle,
@@ -528,12 +529,14 @@ export function EmployeeBrowser() {
 
 export function EmployeeSource({
   revision,
+  mode='static',
   savedPath,
   dirty,
   onImported,
   onFeatureSettings,
 }: {
   revision: number
+  mode?:'static'|'dynamic'
   savedPath: string
   dirty: boolean
   onImported: () => Promise<void>
@@ -598,6 +601,7 @@ export function EmployeeSource({
   }
   return (
     <div className="space-y-4">
+      {status.data&&<SourceHealthSummary source={{id:'employees',mode,enabled:status.data.enabled,loaded:status.data.loaded,loading:busy,error:status.data.error||null,records:status.data.report.records,last_successful_load:status.data.report.imported_at||null,snapshot_available:status.data.persisted}}/>}
       <DirectoryDiagnostics sourceView onFeatureSettings={onFeatureSettings} />
       {status.data?.loaded && !status.data.persisted && (
         <Button
@@ -621,32 +625,13 @@ export function EmployeeSource({
       )}
       <ImportSection
         step={1}
-        title="Select source"
+        title="Source file"
         description="Choose a local Employee Directory CSV. Selection alone does not import or replace records."
       >
+        <p className="ui-description">Employee Directory uses a fixed import format: UTF-8 CSV with semicolon separators and the documented directory headers. No SAP role mapping is inferred.</p>
         <BrowserSourceUpload source="employees" disabled={busy||dirty} onUploaded={value=>{choose(value);setUploaded(true)}}/>
-        <label className="block text-sm">
-          Employee Directory CSV location
-          <input
-            className="ui-control w-full"
-            value={path}
-            onChange={(e) => choose(e.target.value)}
-          />
-        </label>
+        <SourceFileField label="Employee Directory CSV location" value={path} onChange={choose} native={Boolean(window.pywebview?.api)} disabled={busy} browseLabel="Browse employee CSV" onBrowse={()=>void act(async()=>{const selected=await window.pywebview?.api.choose_csv(applicationToken());if(selected)choose(selected)})}/>
         <div className="ui-toolbar">
-          <Button
-            disabled={busy || !window.pywebview?.api}
-            onClick={() =>
-              void act(async () => {
-                const selected =
-                  await window.pywebview?.api.choose_csv(applicationToken())
-                if (selected) choose(selected)
-              })
-            }
-          >
-            <FolderOpen size={16} />
-            Browse employee CSV
-          </Button>
           <Button
             disabled={busy || !savedPath || dirty}
             onClick={() => {

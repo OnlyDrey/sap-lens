@@ -5,14 +5,14 @@ import { About } from './About'
 import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
 import { EmployeeSource, FeatureSettings } from './EmployeeDirectory'
 import { SourceMode } from './SourceMode'
+import { SourceFileField, MappingField, ImportPreview } from './ImportControls'
 import { BrowserSourceUpload } from './BrowserSourceUpload'
 import { RefreshHistory } from '@/components/Shared/RefreshReport'
 import { ImportSection } from './ImportSection'
 import { SourceStatus } from "./SourceStatus"
-import { Combobox } from "@/components/Shared/Combobox"
 import { SettingsSelect } from './Controls'
 import { isHex } from '@/lib/theme'
-import { useEffect, useRef, useState, lazy, Suspense, type ReactNode } from 'react'
+import { useEffect, useRef, useState, lazy, Suspense } from 'react'
 import {
   ArrowLeft,
   Save,
@@ -27,7 +27,6 @@ import {
   Activity,
   CheckCircle,
   X,
-  FolderOpen,
   BookUser,
   Info
 } from 'lucide-react'
@@ -62,7 +61,7 @@ const sections = [
   'About SAP Lens',
   'Component Library'
 ]
-const navigationOrder=[0,3,1,2,5,4,6,7]
+const navigationOrder=[0,3,1,2,5,4,7,6]
 const fieldLabels: Record<string, string> = {
   FUNCTION_KEY: 'SAP module or area',
   AGR_NAME: 'Role name (required)',
@@ -88,14 +87,6 @@ const fields = [
 const inputClass = controlClass
 const buttonClass = 'ui-button ui-button-secondary ui-button-default'
 const Field=FormField
-function Result({ children }: { children: ReactNode }) {
-  return (
-    <div className="border rounded-xl p-3 space-y-2 text-sm overflow-x-auto">
-      {children}
-    </div>
-  )
-}
-
 export function SettingsView({
   open,
   dataSourceRequest = 0,
@@ -701,7 +692,7 @@ export function SettingsView({
                           }
                         />
                       </Field>
-                      <Field label="Footer override (blank uses organization and current year)">
+                      <Field label="Footer text" description="Leave blank to use the organization name and current year.">
                         <input
                           className={inputClass}
                           value={draft.organization.footer}
@@ -732,7 +723,7 @@ export function SettingsView({
 
                       <SourceMode value={draft.source_modes?.[importSource] || (importSource==='employees'?'static':'dynamic')} onChange={value=>setDraft({...draft,source_modes:{roles:'dynamic',users:'dynamic',employees:'static',...draft.source_modes,[importSource]:value}})}/>
                       <div id="source-panel-employees" role="tabpanel" aria-labelledby="source-tab-employees" hidden={importSource !== 'employees'}>
-                        {importSource === 'employees' && <EmployeeSource onFeatureSettings={() => setSection(5)} revision={draft.revision} savedPath={config.data?.settings.employee_csv_path || ''} dirty={JSON.stringify(draft) !== JSON.stringify(config.data?.settings)} onImported={async () => { const result = await config.refetch(); if (result.data) setDraft(structuredClone(result.data.settings)) }}/>}
+                        {importSource === 'employees' && <EmployeeSource mode={config.data?.settings.source_modes?.employees||'static'} onFeatureSettings={() => setSection(5)} revision={draft.revision} savedPath={config.data?.settings.employee_csv_path || ''} dirty={JSON.stringify(draft) !== JSON.stringify(config.data?.settings)} onImported={async () => { const result = await config.refetch(); if (result.data) setDraft(structuredClone(result.data.settings)) }}/>}
                       </div>
                       <div id="source-panel-users" role="tabpanel" aria-labelledby="source-tab-users" hidden={importSource !== 'users'}>
                         <UserSourceEditor draft={draft} onChange={setDraft} native={native} active={importSource === 'users'} />
@@ -740,30 +731,7 @@ export function SettingsView({
                       <div id="source-panel-roles" role="tabpanel" aria-labelledby="source-tab-roles" hidden={importSource !== 'roles'} className="import-source-panel space-y-4">
                       <ImportSection step={1} title="Source file" description="Role catalogue · composite roles, single roles and transaction relationships.">
                       <BrowserSourceUpload source="roles" disabled={busy} onUploaded={path=>setDraft({...draft,data_csv_path:path,source_modes:{roles:'static',users:draft.source_modes?.users||'dynamic',employees:draft.source_modes?.employees||'static'}})}/>
-                      <div className="source-file-row">
-                      <Field label="CSV file location">
-                        <input
-                          ref={csvPathInput}
-                          className={inputClass}
-                          value={draft.data_csv_path}
-                          maxLength={4096}
-                          onChange={(e) => {
-                            setImportResult(null)
-                            setColumns([])
-                            update('data_csv_path', e.target.value)
-                          }}
-                          placeholder="C:/data/synthetic.csv or a permitted network share"
-                        />
-                      </Field>
-                      <button
-                        className={buttonClass}
-                        disabled={!native || busy}
-                        title={!native ? "File browsing is available in the Windows app; enter a full path here." : "Choose a role catalogue CSV"}
-                        onClick={() => void pickCsv()}
-                      >
-                        <FolderOpen size={16} aria-hidden="true"/> Browse for CSV…
-                      </button>
-                      </div>
+                      <SourceFileField label="CSV file location" value={draft.data_csv_path} inputRef={csvPathInput} onChange={value=>{setImportResult(null);setColumns([]);update('data_csv_path',value)}} native={native} disabled={busy} onBrowse={()=>void pickCsv()} browseLabel="Browse for CSV…" placeholder="Absolute local or server-visible CSV path"/>
                       <SourceStatus savedPath={config.data?.settings.data_csv_path || ''} draftPath={draft.data_csv_path} validated={Boolean(importResult)} inspecting={inspecting}/>
                       {config.data?.error && (
                         <p className="text-[var(--warning)] text-sm">
@@ -859,24 +827,8 @@ export function SettingsView({
                       </p>
                       <div className="import-mapping-grid">
                         {fields.map((field) => (
-                          <Field
-                            key={field}
-                            label={`${fieldLabels[field]} · ${field}`}
-                          >
-                            <Combobox disabled={busy || inspecting} label={field === 'AGR_NAME' ? 'AGR_NAME (required)' : field}
-                              value={imports.mapping[field] || ''} options={[...columns, ...Object.values(imports.mapping)]}
-                              placeholder="Automatic mapping" clearLabel="Automatic mapping" allowCustom={false}
-                              onChange={value => { setImportResult(null); const mapping = { ...imports.mapping }; if (value) mapping[field] = value; else delete mapping[field]; editImport({ mapping }) }}/>
-                            <small
-                              id={`mapping-${field}-description`}
-                              className="text-[var(--muted)]"
-                            >
-                              {fieldLabels[field]}:{' '}
-                              {imports.mapping[field]
-                                ? 'Manual mapping'
-                                : columns.some(c => c.toLowerCase().replace(/[^a-z0-9]/g, '') === field.toLowerCase().replace(/[^a-z0-9]/g, '')) ? 'Automatic — detected' : 'Automatic — not detected'}
-                            </small>
-                          </Field>
+                          <MappingField key={field} field={field} label={fieldLabels[field]} accessibleLabel={field==='AGR_NAME'?'AGR_NAME (required)':field} required={field==='AGR_NAME'} value={imports.mapping[field]||''} columns={columns} disabled={busy||inspecting} onChange={value=>{setImportResult(null);const mapping={...imports.mapping};if(value)mapping[field]=value;else delete mapping[field];editImport({mapping})}}/>
+
                         ))}
                       </div>
                       </ImportSection>
@@ -897,49 +849,8 @@ export function SettingsView({
                       >
                         Preview import
                       </button>
-                      {importResult && (
-                        <Result>
-                          <p>
-                            <b>{importResult.file_name}</b> ·{' '}
-                            {importResult.parsed_rows} parsed rows ·{' '}
-                            {importResult.unique_roles} composite roles ·{' '}
-                            {importResult.unique_transactions} unique
-                            transactions ·{' '}
-                            {importResult.transaction_assignments} assignments
-                          </p>
-                          <p className="text-xs">
-                            Assignments count distinct
-                            composite/child/parent/effective-role/T-code tuples.
-                          </p>
-                          {importResult.warnings.map((w) => (
-                            <p key={w} className="text-[var(--warning)]">
-                              {w}
-                            </p>
-                          ))}
-                          <table className="text-xs min-w-full">
-                            <thead>
-                              <tr>
-                                {fields.map((f) => (
-                                  <th key={f} className="p-1 text-left">
-                                    {f}
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {importResult.samples.map((row, i) => (
-                                <tr key={i}>
-                                  {fields.map((f) => (
-                                    <td key={f} className="p-1">
-                                      {row[f]}
-                                    </td>
-                                  ))}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </Result>
-                      )}
+                      {importResult && <ImportPreview fileName={importResult.file_name} metrics={[{label:'Parsed rows',value:importResult.parsed_rows},{label:'Catalogue roles',value:importResult.unique_roles},{label:'Unique transactions',value:importResult.unique_transactions},{label:'Role/T-code mappings',value:importResult.transaction_assignments}]} warnings={importResult.warnings} errors={importResult.errors} samples={importResult.samples}><p className="ui-description">Assignments count distinct composite/child/parent/effective-role/T-code tuples.</p></ImportPreview>}
+
                       </ImportSection>
                       </div>
                     </>

@@ -252,9 +252,10 @@ test("user CSV detection preview and independent custom preset create rename dup
   await user
     .getByRole("button", { name: "Preview user import", exact: true })
     .click();
-  await expect(user).toContainText(
-    "7 users · 13 assignments · 1 identical duplicate rows",
-  );
+  const metrics = user.locator(".preview-metrics");
+  for (const [label, value] of [["SAP users", "7"], ["Assignments", "13"], ["Identical duplicate rows", "1"]]) {
+    await expect(metrics.locator("div").filter({ has: page.getByText(label, {exact:true}) }).locator("dd")).toHaveText(value);
+  }
   const before = (
     await (await request.get("/api/configuration", { headers })).json()
   ).settings;

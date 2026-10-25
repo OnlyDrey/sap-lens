@@ -82,7 +82,7 @@ test('custom column mapping preserves relationships and transactions',async ({pa
     await page.getByRole('option',{name:'Role',exact:true}).click()
     for(const [field,source] of [['CHILD_AGR','Child'],['PARENT_AGR','Parent'],['Effective_Role','Effective'],['TCODE','Transaction']]) { await page.getByRole('combobox',{name:field,exact:true}).click(); await page.getByRole('option',{name:source,exact:true}).click() }
     await page.getByRole('button',{name:'Preview import',exact:true}).click()
-    await expect(page.getByText(/1 composite roles/)).toBeVisible()
+    await expect(page.locator('.preview-metrics > div').filter({has:page.getByText('Catalogue roles',{exact:true})}).locator('dd')).toHaveText('1')
     await page.getByRole('button',{name:'Save and load CSV',exact:true}).click()
     await expect(page.getByRole('region',{name:'SAP Lens settings',exact:true})).toBeHidden()
     const detail=await (await request.get('/api/roles/DEMO_ROOT',{headers})).json()
