@@ -247,6 +247,9 @@ def copy_source(target):
     write(target/'backend/build/build-version.json',identity())
     shutil.copyfile(ROOT/'docs/DEPLOYMENT_LINUX_NATIVE.md',target/'README.md')
     shutil.copyfile(ROOT/'docs/DEPLOYMENT_SECURITY.md',target/'SECURITY.md')
+    for name in ('DEPLOYMENT_LINUX_NATIVE.md','DEPLOYMENT_SECURITY.md','DEPLOYMENT_PACKAGES.md',
+                 'PACKAGING_VALIDATION.md','LOCAL_BUILD_VALIDATION.md','INSTALLATION_LIFECYCLE_VALIDATION.md'):
+        shutil.copyfile(ROOT/'docs'/name,target/name)
 
 
 def native(output):

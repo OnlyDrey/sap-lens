@@ -61,21 +61,27 @@ confirmation and snapshots persist independently of the original client file.
 
 Back up the full stopped data directory and administrator environment/secret files.
 Extract/verify the next archive into a new staging directory and run its installer
-with the **same** prefix/data/config options. It stages a new environment, preserves
+with the **same** prefix/data/config options and the `upgrade` action. It stages a new environment, preserves
 configuration, stops the existing service before switching and starts it again.
-Keep the previous release and backup until acceptance checks succeed. A modified
+A private stopped-state backup is made before activation when existing data is
+present. Keep the previous release and backup until acceptance checks succeed. A modified
 systemd unit is not silently replaced. Rollback requires stopping the service,
 reviewing storage migration compatibility, restoring the prior `current` link (and
 consistent backup if necessary), then restarting; never run two versions against
 one writable store.
 
 ```sh
+sudo python3.12 scripts/install-linux-server.py backup
+sudo python3.12 scripts/install-linux-server.py upgrade
+sudo python3.12 scripts/install-linux-server.py status
 sudo python3.12 scripts/install-linux-server.py uninstall
 ```
 
-Uninstall stops/disables and unregisters the managed service. Binaries, source
-files, secrets, configuration and data are preserved by default. Remove them only
-through a separate retention decision. Use the matching prefix/config/data options
+Uninstall stops/disables and unregisters the managed service and removes its
+recognized application binaries. External source files, secrets, configuration
+and data are preserved by default. Explicit `--purge-data --confirm-purge` also
+removes the recognized data directory and selected environment file; external
+sources, external secrets and backups remain untouched. Use the matching prefix/config/data options
 if defaults were changed.
 
 ## Linux workstation, no systemd or root
@@ -105,3 +111,9 @@ not to downloaded native packages.
 CI's non-root install/start/import/synthetic-upgrade/persistence/uninstall smoke
 test does not certify systemd boot, journald, OS hardening or production permissions.
 Those require a real target host. See [actual validation](PACKAGING_VALIDATION.md).
+
+Local lifecycle commands also support `start`, `stop`, `restart` and `status`
+with `--user` and the same explicit paths. `backup` stops the runtime and leaves
+it stopped until an explicit `start`. See
+[backup and recovery details](INSTALLATION_LIFECYCLE_VALIDATION.md); native systemd
+acceptance remains pending.
