@@ -5,6 +5,8 @@ claims. The scripts/workflow below implement packaging; a downloadable Actions
 artifact exists **only after an approved run succeeds**. No run is started by these
 documents. See [actual validation](PACKAGING_VALIDATION.md).
 
+For builds without Actions use the [local cross-platform build guide](LOCAL_DEPLOYMENT_BUILDS.md).
+
 ## Manual build
 
 Open Actions → **Build Deployment Packages** → Run workflow, select the intended

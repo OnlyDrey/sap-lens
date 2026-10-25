@@ -12,10 +12,11 @@ spec=importlib.util.spec_from_file_location('packages',ROOT/'scripts/deployment-
 pkg=importlib.util.module_from_spec(spec);spec.loader.exec_module(pkg)
 
 
-def main():
-    pkg.require_ci() if os.environ.get('GITHUB_ACTIONS')=='true' else None
+def main(output=None, no_cache=False):
+    pkg.require_inputs()
     info=pkg.identity();tag='sap-lens:'+info['version'].replace('+','-')
-    command=['docker','build','--build-arg','SAP_LENS_BUILD_INFO='+json.dumps(info,separators=(',',':')),'-t',tag,'.']
+    command=['docker','build','--platform','linux/amd64','--build-arg','SAP_LENS_FRONTEND_STAGE=validated_frontend','--build-arg','SAP_LENS_BUILD_INFO='+json.dumps(info,separators=(',',':')),'-t',tag,'.']
+    if no_cache:command[2:2]=['--no-cache']
     # Preserve managed build proxies and optional CA without putting them into image layers.
     for key in ('HTTP_PROXY','HTTPS_PROXY','NO_PROXY'):
         if os.environ.get(key):command[2:2]=['--build-arg',key]
@@ -34,9 +35,15 @@ def main():
         subprocess.run(['docker','save','-o',str(target/'image.tar'),tag],check=True)
         # This is a deployment file for a locally loaded, already-built image.
         (target/'compose.yml').write_text((ROOT/'compose.yml').read_text().replace('    build: .','    image: '+tag),encoding='utf-8')
+        (target/'compose.env.example').write_text('SAP_LENS_PUBLISH_ADDRESS=127.0.0.1\nSAP_LENS_PUBLISH_PORT=18743\nSAP_LENS_PUBLIC_ORIGIN=http://127.0.0.1:18743\nSAP_LENS_ALLOWED_HOSTS=127.0.0.1\nSAP_LENS_AUTH=basic\n')
         shutil.copyfile(ROOT/'docs/DEPLOYMENT_LINUX_DOCKER.md',target/'README.md')
         shutil.copyfile(ROOT/'docs/DEPLOYMENT_SECURITY.md',target/'SECURITY.md')
-        pkg.finish(target,'Linux-Docker-amd64',ROOT/'dist/deployment')
+        pkg.finish(target,'Linux-Docker-amd64',output or ROOT/'dist/deployment')
 
 
-if __name__=='__main__':main()
+if __name__=='__main__':
+    import argparse
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--output',type=Path)
+    parser.add_argument('--no-cache',action='store_true')
+    args=parser.parse_args();main(args.output,args.no_cache)

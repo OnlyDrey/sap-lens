@@ -95,3 +95,6 @@ SAP-Lens-diagnostics*.json
 
 # Verified cross-platform distribution output
 /dist/deployment/
+
+# Versioned local cross-platform outputs (source/build assets remain tracked)
+/dist/[0-9]*/

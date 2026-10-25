@@ -125,14 +125,34 @@ def make_deployment_info(base, channel, sequence, source_sha, run_id, run_number
     return value
 
 
+def make_local_deployment_info(requested, source_sha):
+    """Exact requested SemVer for local packages, explicitly without a CI run/tag."""
+    if not isinstance(requested, str) or len(requested) > 48:
+        raise ValueError("Use MAJOR.MINOR.PATCH[-alpha.N|-beta.N|-rc.N].")
+    match = re.fullmatch(r"(" + BASE_PATTERN + r")(?:-(alpha|beta|rc)\.([1-9][0-9]{0,4}))?", requested)
+    if not match or not isinstance(source_sha, str) or not re.fullmatch('[0-9a-f]{40}', source_sha):
+        raise ValueError("Invalid local deployment version or source SHA.")
+    base, channel, sequence = match[1], match[5] or 'stable', match[6] or ''
+    resolved = deployment_version(base, channel, sequence)
+    return dict(schema=3, version=resolved, base_version=base, mode=channel,
+                file_version=[*base_numbers(base), int(sequence) if sequence else 0],
+                source_sha=source_sha, run_id='', run_number='', attempt=0, tag='')
+
+
 def parse_build_info(value):
     if (
         not isinstance(value, dict)
         or set(value) != FIELDS
         or type(value["schema"]) is not int
-        or value["schema"] not in {1, 2}
+        or value["schema"] not in {1, 2, 3}
     ):
         raise ValueError("Invalid build metadata schema.")
+    if value["schema"] == 3:
+        expected = make_local_deployment_info(value['version'], value['source_sha'])
+        if (value != expected or type(value['attempt']) is not int
+                or any(type(n) is not int for n in value['file_version'])):
+            raise ValueError("Inconsistent local deployment metadata.")
+        return expected
     if value["schema"] == 2:
         sequence = ""
         if value["mode"] != "stable":

@@ -160,7 +160,7 @@ class DeploymentVersionTests(unittest.TestCase):
         orchestration = (ROOT / 'scripts/package-windows-deployment.ps1').read_text()
         self.assertIn('-Stage Package -ValidatedDeployment', orchestration)
         self.assertIn('if ($ValidatedDeployment)', canonical)
-        self.assertIn('scripts/deployment-package.py require-ci', canonical)
+        self.assertIn('scripts/deployment-package.py require-inputs', canonical)
         self.assertIn('scripts/release-windows.py ensure-local-build', canonical)
         self.assertNotIn('ValidatedDeployment', (ROOT / '.github/workflows/build-windows.yml').read_text())
 

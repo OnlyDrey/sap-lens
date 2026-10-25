@@ -51,7 +51,7 @@ def clean(root=ROOT):
         raise ValueError('Packaging requires a clean checkout. Commit source changes, then Validate again.')
 
 
-def tree_digest(directory):
+def tree_digest(directory, allow_interpreter_links=False):
     if directory.is_symlink() or not directory.is_dir():
         raise ValueError('A required validated input directory is missing or linked.')
     result = hashlib.sha256()
@@ -61,6 +61,15 @@ def tree_digest(directory):
         if '__pycache__' in relative.parts or path.suffix in {'.pyc', '.pyo'}:
             continue
         if path.is_symlink():
+            if allow_interpreter_links and sys.platform == 'linux':
+                interpreter = (relative.as_posix() in {'bin/python', 'bin/python3', 'bin/python3.12'}
+                               and path.resolve() == Path(sys.executable).resolve() and path.is_file())
+                library = relative.as_posix() == 'lib64' and path.resolve() == (directory / 'lib').resolve()
+                if interpreter or library:
+                    result.update(relative.as_posix().encode('utf-8') + b'\0')
+                    result.update(bytes.fromhex(digest(path.resolve())) if interpreter else b'venv-lib-alias')
+                    count += 1
+                    continue
             raise ValueError('Validated inputs must not contain symbolic links.')
         if path.is_file():
             result.update(relative.as_posix().encode('utf-8') + b'\0')
@@ -91,7 +100,7 @@ def tool_versions():
             'node': subprocess.check_output(['node', '--version']).decode('ascii').strip()}
 
 
-def inputs(root=ROOT):
+def inputs(root=ROOT, allow_interpreter_links=False):
     result = hashlib.sha256()
     names = subprocess.check_output(['git', 'ls-files', '-z'], cwd=root).split(b'\0')
     for name in sorted(name for name in names if name):
@@ -102,7 +111,7 @@ def inputs(root=ROOT):
     return {'source': result.hexdigest(),
             'tools': tool_versions(),
             'frontend': tree_digest(root / 'frontend/dist'),
-            'python': tree_digest(root / 'backend/build/python-env')}
+            'python': tree_digest(root / 'backend/build/python-env', allow_interpreter_links)}
 
 
 def receipt_path(root=ROOT):

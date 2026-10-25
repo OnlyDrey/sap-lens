@@ -127,7 +127,7 @@ try {
         if ($ValidatedDeployment) {
             # Deployment dispatches carry an explicit channel identity sealed by
             # same-run shared validation, rather than legacy desktop reservation.
-            & $buildPython scripts/deployment-package.py require-ci
+            & $buildPython scripts/deployment-package.py require-inputs
         } else {
             & $buildPython scripts/release-windows.py ensure-local-build
         }
