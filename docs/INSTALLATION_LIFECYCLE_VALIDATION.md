@@ -145,3 +145,37 @@ PowerShell scripts and three deployment-contract tests passed. The native SCM
 smoke definition was extended to backup, restore and same-version staged upgrade;
 it has **not been executed here**. Windows installer, real service upgrade,
 reboot/recovery/UNC and Docker lifecycle acceptance remain pending.
+
+## Docker offline lifecycle
+
+`deploy/docker/manage.sh` is included as `manage.sh` in offline packages. It uses
+Docker Compose and the packaged Python runtime, with no host Python requirement.
+It supports install/start/stop/restart/status/upgrade/backup/restore/uninstall,
+immutable image selection, private configuration preservation, exact package
+verification and explicit confirmation for managed-volume purge. Normal runtime
+privileges are unchanged. Isolated maintenance helpers use only DAC_OVERRIDE and
+CHOWN, explicit application mounts and no network or Docker socket.
+
+Actual disposable Docker acceptance passed on this Linux engine: offline image
+load and installation, repeat installation, Basic authentication, synthetic CSV
+import, private stopped-state backup, same-version staged upgrade, restart,
+configuration/secret/data preservation, preserving uninstall, empty-volume data
+restore with separately staged configuration, readiness and an isolated confirmed
+purge which preserved the other installation's volume. Two CLI admission tests
+also passed. All test containers and volumes were removed.
+
+The test image was derived from the previously validated `0.1.0-alpha.1` image
+with the current maintenance module. This validates the management integration;
+it is **not** a newly validated current-source production distribution. The image
+fixture initially retained a restrictive source mode on the copied module; its
+test COPY now sets 0644, matching the production Dockerfile's existing runtime
+permission normalization. An earlier helper traversal failure was fixed by
+including DAC_OVERRIDE in the temporary archive ownership helper. No runtime
+permissions or package/privacy checks were relaxed.
+
+Production packaging now runs the lifecycle smoke after the existing image
+smoke, includes the management entry point and proprietary notice, and retains
+third-party notices. Native and Windows service packages also include LICENSE.md;
+the service verifier requires that known file explicitly. Current-source final
+packages, Windows desktop installer work, native SCM/systemd, reboot/recovery and
+UNC acceptance remain pending. No image registry or GitHub publication occurred.

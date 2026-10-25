@@ -131,7 +131,7 @@ if ($Action -in @('Upgrade','Backup','Restore')) {
     $previous = Join-Path $InstallDirectory ('app.previous.'+$suffix)
     Move-Item (Join-Path $InstallDirectory 'app') $previous
     Move-Item $staged (Join-Path $InstallDirectory 'app')
-    foreach ($name in @('manage-server-service.ps1','README.md','LICENSE-WinSW.txt','verification-report.json')) { Copy-Item (Join-Path $newRoot $name) (Join-Path $InstallDirectory $name) -Force }
+    foreach ($name in @('manage-server-service.ps1','README.md','LICENSE-WinSW.txt','LICENSE.md','verification-report.json')) { Copy-Item (Join-Path $newRoot $name) (Join-Path $InstallDirectory $name) -Force }
     try { Invoke-ServiceCommand 'start'; Assert-ServiceReady $values }
     catch {
         if ((Get-Service SAPLens).Status -ne 'Stopped') { Invoke-ServiceCommand 'stop' }

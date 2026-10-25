@@ -67,41 +67,114 @@ Give UID10001 read/traverse permission, then configure paths such as
 `/sources/roles.csv` in Settings. Container paths are not arbitrary Docker host
 paths. Browser uploads require no source mount and become Static after confirmation.
 
-## Lifecycle, backup, restore
+## Managed offline installation and lifecycle
+
+Downloaded packages include `manage.sh`. It requires a local Linux Docker engine,
+Compose v2 and standard Linux tools (`sh`, `sha256sum`, `realpath`); **no host
+Python or Node.js** is needed. Verify the outer archive sidecar before extracting.
+Keep the extracted package separate from the installation/configuration directory.
+Do not use a remote Docker context: bind paths refer to this Docker host.
 
 ```sh
-docker compose restart
-docker compose stop
-docker compose start
-# Upgrade after backing up data; check out the intended source commit first.
-docker load -i /path/to/new-package/image.tar
-# Use the new package Compose file, preserving reviewed administrator configuration.
-docker compose up -d
-# Removes containers/network, preserves named volume and private secret:
-docker compose down
+# From the newly extracted, verified offline package:
+sh manage.sh install /srv/sap-lens
+sh /srv/sap-lens/manage.sh status /srv/sap-lens
+sh /srv/sap-lens/manage.sh stop /srv/sap-lens
+sh /srv/sap-lens/manage.sh start /srv/sap-lens
+sh /srv/sap-lens/manage.sh restart /srv/sap-lens
 ```
 
-For a consistent backup stop the application, then archive the full volume using
-an operator-approved local helper image or Docker's volume backup tooling. Example:
+Choose a directory writable by the operator; creating a protected `/srv` location
+may require an administrator first. Installation creates a private configuration
+root, preserves repeat installations, generates a private access secret and loads
+the offline image. It validates the complete extracted package against its
+manifest and embedded version/source identity, then pins Compose to the immutable
+image ID. It never pushes to or pulls from a registry. The outer SHA-256 check and
+trusted distribution source remain necessary; an unsigned self-contained manifest
+is not proof of publisher authenticity.
+
+Configuration is `compose.env`, with reviewed mounts/settings in `compose.yml`.
+The initial Basic username is `saplens`; the generated password is in
+`local-config/server-access.secret`. It is not printed by routine management.
+The runtime reads this file through the existing secret mount. An installation
+uses a directory-derived Compose project identity and a separate named data
+volume. Default publication remains loopback-only. Configure ports/public origin
+consistently before restarting; follow [security requirements](DEPLOYMENT_SECURITY.md)
+for remote access. Do not copy another installation's management identity files.
+
+Upgrade from a **newly extracted package**, retaining the same installation root:
 
 ```sh
-docker compose stop
-mkdir -m 700 -p backups
-docker run --rm --network none --user 0:0 \
-  -v sap-lens_sap-lens-data:/data:ro -v "$PWD/backups:/backup" \
-  --entrypoint tar sap-lens-sap-lens -czf /backup/sap-lens.tar.gz -C /data .
-docker compose start
+sh manage.sh upgrade /srv/sap-lens
 ```
 
-The source-build example uses image `sap-lens-sap-lens`; downloaded packages use
-`sap-lens:<version>`. Substitute the image shown by `docker compose images` in the
-backup command. The backup helper uses root only to read
-volume ownership, no network or Docker socket. Store backups encrypted/offline.
-For restore, stop/remove the application container, restore the archive into the
-volume using `tar -xzf ... -C /data`, retain UID/GID10001 ownership, and start it.
-Do not restore into a running process or combine partial snapshots.
+Upgrade rejects downgrades, verifies the new package and image, stops the current
+container and creates a private backup before changing its selected image.
+Administrator environment, access secret and source mounts are preserved. Success
+requires the new container's actual health check to pass. On failure, the container
+is stopped and the backup retained. Inspect logs and data compatibility before
+restoring; switching image IDs alone does not reverse storage migrations.
 
-Health uses `/health/ready` through loopback. `unhealthy` means check startup/config,
-permissions or loading; missing optional CSVs alone are not an outage. Container
-stop sends SIGTERM, allows 25 seconds, then enforces shutdown. Duplicate data-store
-writers fail rather than silently changing ports.
+```sh
+sh /srv/sap-lens/manage.sh backup /srv/sap-lens
+# Explicit backup leaves the service stopped; restart after review:
+sh /srv/sap-lens/manage.sh start /srv/sap-lens
+```
+
+Backups are owner-only `.tar.gz` files in `/srv/sap-lens-backups`, outside the
+installation. They include durable data and configuration (including the private
+access secret), with checksum/schema verification. Logs and volatile runtime
+state are excluded. External Dynamic CSV mounts are not followed; back them up
+separately where required. Keep archives private and apply organizational backup
+retention/encryption policy.
+
+Maintenance helpers run temporarily as root with only DAC_OVERRIDE and CHOWN to
+read private state and restore ownership. They have no network, Docker socket or
+privileged-container access. The application itself continues to run UID/GID10001,
+with dropped capabilities and read-only root. Helpers mount only the recognized
+application volume, explicit configuration and private backup/recovery locations.
+
+Restore requires an **empty managed volume** and explicit confirmation. To retain
+the old data, create a separate recovery installation without starting it:
+
+```sh
+# Stop the old installation; do not delete its data volume.
+sh /srv/sap-lens/manage.sh stop /srv/sap-lens
+# Run from a compatible verified offline package:
+sh manage.sh install /srv/sap-lens-recovery --no-start
+sh /srv/sap-lens-recovery/manage.sh restore /srv/sap-lens-recovery \
+  /srv/sap-lens-backups/SAP-Lens-example.tar.gz --confirm-restore
+```
+
+Data is restored only into that empty volume. The backed-up configuration is
+staged in a separate private directory printed by the command, rather than
+silently replacing recovery configuration. Review environment/source mounts and
+secret-file ownership; copy only approved configuration/secret changes, **not**
+`image.id`, `version.txt` or `.sap-lens-project` from a different installation.
+The newly generated recovery access secret remains selected until explicitly
+changed. Preserve the old installation and archive, then run `start`, inspect
+`status`/logs and verify imported records before declaring recovery complete.
+Missing source mounts do not justify deleting valid snapshots.
+
+```sh
+# Removes this project's containers/network; preserves data and configuration:
+sh /srv/sap-lens/manage.sh uninstall /srv/sap-lens
+# Explicit destructive option, with confirmation:
+sh /srv/sap-lens/manage.sh uninstall /srv/sap-lens --purge-data --confirm-purge
+```
+
+Purge removes only the named volume with matching Compose ownership labels.
+Configuration, access secrets, backups, imported images and external sources are
+retained for an explicit administrator retention decision. Shared/external volumes
+are not purged by the helper. Never use global Docker pruning for uninstall.
+
+For logs use `docker compose --project-directory /srv/sap-lens \
+--env-file /srv/sap-lens/compose.env -f /srv/sap-lens/compose.yml \
+-p <project-from-.sap-lens-project> logs -f`; ordinary `docker compose` in that
+directory must also use the recorded project identity. Do not publish private logs
+or secrets. Health uses `/health/ready`; missing optional CSVs alone are not a
+service outage.
+
+Source-build users can continue using Compose directly as described above. The
+offline management helper deliberately requires a downloaded package for
+install/upgrade; it does not silently build source or bypass validation receipts.

@@ -26,6 +26,7 @@ def main(output=None, no_cache=False):
     if host:command[2:2]=['--add-host',host]
     subprocess.run(command,cwd=ROOT,check=True)
     subprocess.run([os.sys.executable,str(ROOT/'scripts/test-docker-deployment.py'),'--image',tag],check=True)
+    subprocess.run([os.sys.executable,str(ROOT/'scripts/test-docker-lifecycle.py'),'--image',tag],check=True)
     with tempfile.TemporaryDirectory() as temporary:
         target=Path(temporary)
         frozen=subprocess.check_output(['docker','run','--rm','--network','none','--entrypoint','python',tag,'-c','import importlib.metadata as m; print("\\n".join(sorted(d.metadata["Name"]+"=="+d.version for d in m.distributions())))'],text=True)
@@ -36,6 +37,9 @@ def main(output=None, no_cache=False):
         # This is a deployment file for a locally loaded, already-built image.
         (target/'compose.yml').write_text((ROOT/'compose.yml').read_text().replace('    build: .','    image: '+tag),encoding='utf-8')
         (target/'compose.env.example').write_text('SAP_LENS_PUBLISH_ADDRESS=127.0.0.1\nSAP_LENS_PUBLISH_PORT=18743\nSAP_LENS_PUBLIC_ORIGIN=http://127.0.0.1:18743\nSAP_LENS_ALLOWED_HOSTS=127.0.0.1\nSAP_LENS_AUTH=basic\n')
+        shutil.copyfile(ROOT/'deploy/docker/manage.sh',target/'manage.sh')
+        (target/'manage.sh').chmod(0o755)
+        shutil.copyfile(ROOT/'LICENSE.md',target/'LICENSE.md')
         shutil.copyfile(ROOT/'docs/DEPLOYMENT_LINUX_DOCKER.md',target/'README.md')
         shutil.copyfile(ROOT/'docs/DEPLOYMENT_SECURITY.md',target/'SECURITY.md')
         pkg.finish(target,'Linux-Docker-amd64',output or ROOT/'dist/deployment')

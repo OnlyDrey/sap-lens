@@ -1,5 +1,6 @@
 **
 !Dockerfile
+!LICENSE.md
 !frontend/
 frontend/*
 !frontend/package.json

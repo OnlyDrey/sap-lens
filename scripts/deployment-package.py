@@ -239,7 +239,7 @@ def _extract(members,destination):
 def copy_source(target):
     names=subprocess.check_output(['git','ls-files','-z'],cwd=ROOT).decode().split('\0')
     selected=[n for n in names if (n.startswith('backend/') and n.endswith('.py') and '/tests/' not in n and '/build/' not in n)]
-    selected+=['assets/sap-lens.png','assets/sap-lens.ico','backend/requirements.txt','deploy/server.env.example','deploy/linux/sap-lens.service']
+    selected+=['LICENSE.md','assets/sap-lens.png','assets/sap-lens.ico','backend/requirements.txt','deploy/server.env.example','deploy/linux/sap-lens.service']
     selected+=['scripts/install-linux-server.py','scripts/run-installed-server.py','scripts/deployment-package.py']
     for name in selected:
         path=target/name;path.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/name,path)
