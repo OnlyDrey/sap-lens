@@ -469,3 +469,7 @@ Executed results for this follow-up:
 Native Windows/WebView2 startup, browser/real WebView simultaneous state, native
 clipboard/dialogs, packaged EXE and UNC remain untested here. No Windows build,
 push, workflow dispatch, tag, release or package publication was performed.
+
+Final narrow-screen follow-up: removed the expired-checkbox container at every
+breakpoint, not just desktop. Production build and the light-800/dark-375 shared
+layout regressions passed (2/2); no functional changes or additional full run.

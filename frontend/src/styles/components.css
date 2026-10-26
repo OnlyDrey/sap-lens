@@ -368,3 +368,4 @@ main h1,.settings-content h1 { font-size:var(--font-title); font-weight:600; }
 .comparison-table th:nth-child(1) {width:26%}
 .comparison-table th:nth-child(2) {width:12%}
 .comparison-table th:nth-child(3),.comparison-table th:nth-child(4) {width:31%}
+.directory-expired {padding:0;border:0;background:transparent;min-height:24px}
