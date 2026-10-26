@@ -26,7 +26,9 @@ commits. Run and record the exact commands and results before delivery:
    Windows. Verify output assets, privacy boundaries and SHA-256 manifests.
 
 A TypeScript build alone is insufficient. If a required check fails, investigate,
-fix, rerun affected checks, then rerun the complete required suite. Never report a
+fix and rerun affected checks first. Use the risk-based policy below to determine
+whether another complete run is justified; a failed full run alone does not mandate
+repeating unchanged successful checks. Never report a
 check as passed unless it actually executed successfully. Record commands,
 outcomes, visual review and platform limitations in the delivery report.
 
@@ -114,3 +116,46 @@ These requirements apply to every future Codex task in this repository.
 - The final report must reconcile completed/total counts with the full checklist,
   final statuses, partial/blocked work, executed validation, branch/commit state,
   remaining limitations and recommended next actions.
+
+## Efficient Execution & Risk-Based Validation
+
+Core principle: use the smallest sufficient validation scope during implementation,
+followed by appropriate final regression validation. These rules apply to all tasks.
+
+- **QUICK — implementation:** directly affected tests, relevant component/browser
+  cases, targeted type/lint checks where supported, and necessary smoke tests.
+  Avoid complete backend/browser suites.
+- **STANDARD — completed logical phase:** affected modules and integration tests,
+  type checking, and a production build when compiled assets need verification.
+- **FULL — final implementation freeze:** complete backend and browser suites,
+  production build, required static/security/documentation checks, and representative
+  visual review. Normally run once after the planned scope is complete. High-risk
+  shared infrastructure changes and release preparation may justify broader checks.
+
+Before an expensive command, identify its purpose, affected inputs, equivalent prior
+results, expected runtime and whether a targeted alternative suffices. Reuse results
+only when relevant code, dependencies, configuration and environment are unchanged.
+A failed full suite requires diagnosis and affected-test verification first, not an
+automatic complete restart. Perform a final complete run when the remaining risk
+justifies it. Never silently skip required coverage or weaken assertions.
+
+Batch related edits and independent inspections/checks. Avoid repeated dependency
+installs, builds, unchanged file reads, large log output, documentation rewrites and
+screenshots of unchanged screens. During implementation capture affected screens at
+representative widths/themes; final shared CSS/token/theme changes still require
+both themes and required breakpoints. Investigate unexpected slowness rather than
+repeating runs or imposing arbitrary cutoffs on legitimate tests.
+
+Use the changed-area selection guide in [Testing](docs/development/TESTING.md).
+Consider transitive dependencies and shared components, not filename matching alone;
+when impact is uncertain, broaden validation. Preserve test isolation and meaningful
+coverage. Do not increase browser workers without representative before/after
+benchmarks and proof that backend/storage fixtures cannot race. Do not reuse a test
+server with unknown state, assets or credentials. Review caches, artifact reuse and
+job dependencies before changing CI; preserve required checks and trust boundaries.
+Do not dispatch workflows to measure these changes without authorization.
+
+Report Quick/Standard/Full scope, commands, results, reused evidence and limitations
+accurately. Claim speed improvements only with comparable measurements. Keep visible
+progress concise at meaningful task/validation/commit milestones; do not repeatedly
+print unchanged checklists. Publication and pre-push safety rules remain in force.
