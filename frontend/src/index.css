@@ -330,9 +330,6 @@ button:hover .module-icon:not([data-disabled="true"]) { border-color: currentCol
 .transaction-chip button { display:inline-flex; border-radius:4px; padding:3px; }
 .transaction-chip button:hover { background:var(--hover); color:var(--error); }
 .shared-select select { width:100%; }
-.source-badge-success { background:color-mix(in srgb,var(--success) 12%,var(--surface)); color:var(--success); }
-.source-badge-error { background:color-mix(in srgb,var(--error) 12%,var(--surface)); color:var(--error); }
-.source-badge-info { background:color-mix(in srgb,var(--info) 10%,var(--surface)); color:var(--info); }
 .comparison-selection-bar { max-width:calc(100vw - 24px); width:max-content; justify-content:center; }
 .role-card-details { min-height:34px; padding:6px 10px; font-size:12px; white-space:nowrap; }
 

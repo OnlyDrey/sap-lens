@@ -1,9 +1,10 @@
+import { PageHeader } from '@/components/Shared/Presentation'
+import { LayoutDashboard } from 'lucide-react'
 import { formatTimestamp } from '@/lib/dateFormat'
 import { useQuery } from '@tanstack/react-query'
 import {
   ArrowUpRight,
   ClipboardCheck,
-  BookUser,
   Database,
   UsersRound,
   Network,
@@ -98,7 +99,7 @@ export function Dashboard() {
     return (
       <button
         key={metric.id}
-        className="dashboard-metric"
+        className="dashboard-metric" data-metric={metric.id} data-tone={metric.id==='account_review'&&!!metric.value?'warning':'neutral'}
         aria-label={metric.label}
         title={metric.context}
         onClick={() => open(metric)}
@@ -129,25 +130,14 @@ export function Dashboard() {
     )
   }
   const groups = [
-    ['Overview', ['users', 'roles', 'releases', 'mappings']],
-    ['Access & risk review', ['assigned_users','assignments','account_review','expired','future']],
-    ['Data & system health', ['email_matches','unresolved']],
+    ['SAP Overview', ['users', 'roles', 'releases', 'mappings']],
+    ['Access & Risk', ['assigned_users','assignments','account_review','expired','future']],
+    ['Directory & Data Health', ['email_matches','unresolved']],
   ] as const
   return (
     <section aria-label="Dashboard" className="space-y-5">
-      <header className="dashboard-heading">
-        <div>
-          <h1 className="text-xl font-semibold">Dashboard</h1>
-          <p className="text-sm text-[var(--muted)]">
-            Current validated SAP data and available capabilities.
-          </p>
-        </div>
-        {loading && (
-          <span role="status" className="evidence-badge evidence-info">
-            Updating data…
-          </span>
-        )}
-      </header>
+      <PageHeader title="Dashboard" icon={<LayoutDashboard size={22} aria-hidden="true"/>}>{loading&&<span role="status" className="evidence-badge evidence-info">Updating data…</span>}</PageHeader>
+      <p className="ui-description">Current validated SAP data and available capabilities.</p>
       {query.isLoading && <p role="status">Loading overview…</p>}
       {query.isError && (
         <p role="alert">
@@ -156,11 +146,11 @@ export function Dashboard() {
         </p>
       )}
       {query.data && (
-        <>
+        <div className="dashboard-workspace">
           {groups.map(([name, ids]) => (
             <section key={name} aria-label={name} className="dashboard-section">
               <h2>{name}</h2>
-              <div className={`dashboard-metrics ${name === 'Overview' ? 'dashboard-primary-metrics' : 'dashboard-secondary-metrics'}`}>
+              <div className={`dashboard-metrics ${name === 'SAP Overview' ? 'dashboard-primary-metrics' : 'dashboard-secondary-metrics'}`}>
                 {query.data.metrics
                   .filter((m) => (ids as readonly string[]).includes(m.id))
                   .sort(
@@ -170,7 +160,7 @@ export function Dashboard() {
                   )
                   .map(tile)}
               </div>
-              {name === 'Data & system health' && !!query.data.coverage_total && (
+              {name === 'Directory & Data Health' && !!query.data.coverage_total && query.data.metrics.find(m=>m.id==='email_matches')?.value!=null && (
                 <section
                   className="coverage-summary"
                   aria-label="Directory match percentage"
@@ -199,7 +189,7 @@ export function Dashboard() {
                   </span>
                 </section>
               )}
-              {name === 'Access & risk review' && (
+              {name === 'Access & Risk' && (
                 <p className="text-xs text-[var(--muted)]">
                   Expired/future totals open User Access; select assignment
                   status in a profile. Release Roles opens its currently-valid
@@ -211,10 +201,7 @@ export function Dashboard() {
           ))}
 
           <section aria-label="Configuration" className="dashboard-section">
-            <h2>
-              <Settings2 size={17} aria-hidden="true" />
-              Configuration
-            </h2>
+            <h2><Settings2 size={17} aria-hidden="true"/>Data Sources &amp; Configuration</h2>
             <p className="text-xs text-[var(--muted)]">
               Last successful refresh:{' '}
               {formatTimestamp(query.data.last_successful_refresh)} · Enabled
@@ -229,12 +216,11 @@ export function Dashboard() {
             )}
             <div className="dashboard-sources">
               {query.data.sources
-                ?.filter((source) => source.id !== 'employees')
-                .map((source) => (
+                ?.map((source) => (
                   <button
                     key={source.id}
                     className="dashboard-source"
-                    aria-label={`Configure ${source.name}`}
+                    aria-label={source.id==='employees'?'Employee Directory records':`Configure ${source.name}`}
                     onClick={() =>
                       change({ settings: true, settingsTarget: source.id })
                     }
@@ -243,7 +229,7 @@ export function Dashboard() {
                     <span>
                       <strong>{source.name}</strong>
                       <small>
-                        {source.configured
+                        {source.id==='employees'&&<>{query.data.metrics.find(m=>m.id==='employees')?.value??query.data.metrics.find(m=>m.id==='employees')?.unavailable_reason} · </>}{source.configured
                           ? 'Source configured'
                           : 'Setup required'}{' '}
                         ·{' '}
@@ -258,30 +244,10 @@ export function Dashboard() {
                     <ArrowUpRight size={14} aria-hidden="true" />
                   </button>
                 ))}
-              {query.data.metrics
-                .filter((m) => m.id === 'employees')
-                .map((metric) => (
-                  <button
-                    key={metric.id}
-                    className="dashboard-source"
-                    aria-label={metric.label}
-                    onClick={() => open(metric)}
-                  >
-                    <BookUser size={18} aria-hidden="true" />
-                    <span>
-                      <strong>{metric.label}</strong>
-                      <small>
-                        {metric.value === null
-                          ? metric.unavailable_reason
-                          : `${metric.value.toLocaleString()} imported records`}
-                      </small>
-                    </span>
-                    <ArrowUpRight size={14} aria-hidden="true" />
-                  </button>
-                ))}
+
             </div>
           </section>
-        </>
+        </div>
       )}
     </section>
   )

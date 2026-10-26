@@ -201,7 +201,7 @@ test('comparison metrics filter results, sorting persists and inline evidence pr
     .click()
   await expect(table.locator('tbody>tr')).toHaveCount(2)
   await page.getByLabel('Sort comparison', { exact: true }).selectOption('a')
-  await page.getByLabel('Descending comparison', { exact: true }).check()
+  await page.getByLabel('Descending', { exact: true }).check()
   await expect(table.locator('tbody>tr').first()).toContainText('ZC:SHARED:ENP')
   const evidence = page.getByRole('cell', {
     name: 'User A evidence for ZC:SHARED:ENP',
@@ -218,7 +218,7 @@ test('comparison metrics filter results, sorting persists and inline evidence pr
     'a',
   )
   await expect(
-    page.getByLabel('Descending comparison', { exact: true }),
+    page.getByLabel('Descending', { exact: true }),
   ).toBeChecked()
   await openSaved(page, 'comparison')
   const menu = saved(page, 'comparison')
@@ -231,7 +231,7 @@ test('comparison metrics filter results, sorting persists and inline evidence pr
   await page
     .getByLabel('Sort comparison', { exact: true })
     .selectOption('identifier')
-  await page.getByLabel('Descending comparison', { exact: true }).uncheck()
+  await page.getByLabel('Descending', { exact: true }).uncheck()
   await openSaved(page, 'comparison')
   await expect(menu.getByRole('combobox',{name:'Saved filter',exact:true})).toHaveAttribute('aria-expanded','false')
   await expect(menu.getByRole('button',{name:'Clear filters',exact:true})).toBeVisible()
@@ -241,7 +241,7 @@ test('comparison metrics filter results, sorting persists and inline evidence pr
     'a',
   )
   await expect(
-    page.getByLabel('Descending comparison', { exact: true }),
+    page.getByLabel('Descending', { exact: true }),
   ).toBeChecked()
   await expect(menu).toContainText('Saved filter applied to the current data.')
   await page.keyboard.press('Escape')

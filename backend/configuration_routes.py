@@ -157,7 +157,7 @@ def configuration_router(loader):
         try:
             preview=await daemon_call(build_users,request.data_csv_path,profile,cache.get_snapshot().roles)
             # Bounded response-only evidence. Do not persist personal sample rows in reports/diagnostics.
-            keys=('USERNAME','ROLE_NAME','USER_GROUP','ROLE_VALID_FROM','ROLE_VALID_TO')
+            keys=('USERNAME','ROLE_NAME','USER_GROUP','FIRST_NAME','LAST_NAME','EMAIL','ROLE_VALID_FROM','ROLE_VALID_TO')
             return dict(preview.report,samples=[{key:row.get(key,'') for key in keys} for row in preview.source_records[:20]])
         except AnalysisValidationError as exc: raise HTTPException(400,str(exc)) from None
         except Exception: raise HTTPException(400,'User CSV preview failed. Check USERNAME, mappings, row widths and YYYY-MM-DD/YYYYMMDD dates.') from None

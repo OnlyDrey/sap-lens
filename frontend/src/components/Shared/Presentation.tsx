@@ -25,13 +25,17 @@ export function Card({
 export function PageHeader({
   title,
   children,
+  icon,
+  titleAction,
 }: {
+  icon?: ReactNode
+  titleAction?: ReactNode
   title: string
   children?: ReactNode
 }) {
   return (
     <header className="ui-page-header">
-      <h1>{title}</h1>
+      <div className="ui-page-title">{icon}<h1>{title}</h1>{titleAction}</div>
       {children}
     </header>
   )
@@ -107,4 +111,9 @@ export function DataTable({
       </table>
     </div>
   )
+}
+
+/** Compact full-width facts, not a multi-column dashboard. */
+export function MetadataList({items}:{items:{label:string;value:ReactNode}[]}) {
+ return <dl className="ui-metadata-list">{items.map(item=><div key={item.label}><dt>{item.label}</dt><dd>{item.value}</dd></div>)}</dl>
 }

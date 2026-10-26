@@ -473,9 +473,7 @@ export function UserComparison({
   }
   return (
     <section aria-label="User Comparison" className="space-y-4">
-      <PageHeader title="Compare users">
-        <ArrowLeftRight size={20} aria-hidden="true" />
-      </PageHeader>
+      <PageHeader title="Compare users" icon={<IconButton label="Swap users" variant="ghost" disabled={!a||!b} onClick={()=>{setA(b);setB(a)}}><ArrowLeftRight size={20} aria-hidden="true"/></IconButton>}/>
       <EvidenceDisclosure title="About comparison evidence">
         Role-derived transactions are investigation evidence, not proof of
         effective SAP authorization. Missing dates never establish active
@@ -600,7 +598,7 @@ export function UserComparison({
             onChange={setArea}
           />
         </Filter>
-            <Filter label="Sort comparison">
+            <div className="sort-control"><Filter label="Sort comparison">
               <Select
                 className={inputClass}
                 value={sort}
@@ -624,8 +622,8 @@ export function UserComparison({
                 checked={descending}
                 onChange={(e) => setDescending(e.target.checked)}
               />
-              Descending comparison
-            </label>
+              Descending
+            </label></div>
       <SavedFilters
         view="comparison"
         state={state}
@@ -674,7 +672,7 @@ export function UserComparison({
                 key={label}
                 variant="ghost"
                 aria-pressed={difference === value}
-                className="comparison-metric"
+                className="comparison-metric" data-difference={value}
                 onClick={() =>
                   setDifference(difference === value ? '' : String(value))
                 }
@@ -703,7 +701,7 @@ export function UserComparison({
               not evidence of no access.
             </p>
           )}
-          <Toolbar>
+          <Toolbar className="comparison-results">
             <span>
               {data.total} matching {kind}
             </span>
@@ -753,7 +751,7 @@ export function UserComparison({
                     <small>{row.areas.join(' · ')}</small>
                   </td>
                   <td>
-                    <span className="evidence-difference">{row.difference === 'shared'
+                    <span className="evidence-difference" data-difference={row.difference}>{row.difference === 'shared'
                       ? 'Shared'
                       : row.difference === 'a'
                         ? 'Only User A'

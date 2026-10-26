@@ -182,7 +182,7 @@ test('search, manager navigation, clear confirmation and data preservation', asy
     name: 'Employee search',
     exact: true,
   })
-  await search.getByRole('textbox').fill('Engineering')
+  await search.getByRole('searchbox', { name: 'Search employees by name, email, department, job title, site or manager', exact: true }).fill('Engineering')
   await expect(search).toContainText('1 matching employees')
   await search
     .getByRole('button', { name: 'Demo Employee', exact: true })

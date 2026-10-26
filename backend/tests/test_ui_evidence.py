@@ -45,6 +45,9 @@ class UiEvidenceTests(unittest.TestCase):
         response=f.client.post('/api/user-import/preview',json={'data_csv_path':str(path)},headers=H)
         self.assertEqual(response.status_code,200,response.text)
         self.assertEqual(len(response.json()['samples']),20)
-        self.assertNotIn('EMAIL',response.json()['samples'][0])
+        self.assertEqual(response.json()['samples'][0]['EMAIL'],'private_0@example.test')
+        self.assertEqual(before.users.report.get('samples',[]),[])
         self.assertIs(cache.get_snapshot(),before)
-        self.assertNotIn('DEMO_PRIVATE_PERSON_0',f.client.get('/api/diagnostics/export',headers=H).text)
+        exported=f.client.get('/api/diagnostics/export',headers=H).text
+        self.assertNotIn('DEMO_PRIVATE_PERSON_0',exported)
+        self.assertNotIn('private_0@example.test',exported)

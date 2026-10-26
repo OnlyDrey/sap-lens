@@ -1,3 +1,5 @@
+import { PageHeader } from '@/components/Shared/Presentation'
+import { UsersRound as PageIcon } from 'lucide-react'
 import { useRoles } from '@/hooks/useRoles'
 import { FilterChip } from '@/components/Shared/FilterChip'
 import { Button } from '@/components/Shared/Button'
@@ -139,7 +141,7 @@ export function UserAccess({
     );
   return (
     <section aria-label="User Access" className="space-y-4">
-      {modeButtons}<h1 className="text-xl font-semibold">User Access</h1>
+      {modeButtons}<PageHeader title="User Access" icon={<PageIcon size={22} aria-hidden="true"/>}/>
       <EvidenceNote />
       <SavedFilters showClear={false} view="users" state={{search,group,sort,descending,role,tcodes:directoryTransaction.codes,transactionMode,expired}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(typeof s.group==='string')setGroup(s.group);if(typeof s.sort==='string'&&['username','group','first_name','last_name','email','account_status','relevant_roles'].includes(s.sort))setSort(s.sort);if(typeof s.descending==='boolean')setDescending(s.descending);if(typeof s.role==='string')setRole(s.role);if(Array.isArray(s.tcodes)){directoryTransaction.setInput('');directoryTransaction.setChips(s.tcodes)};if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(typeof s.expired==='boolean')setExpired(s.expired)}} clear={()=>{setSearch('');setGroup('');setSort('username');setDescending(false);setRole('');directoryTransaction.clear();setTransactionMode('and');setExpired(false)}}/>
 
@@ -193,7 +195,7 @@ export function UserAccess({
         <TransactionFilter label="Filter users by transaction" filter={directoryTransaction} mode={transactionMode} onModeChange={setTransactionMode} showClear={false} chipPrefix="Transaction: "/>
 
       </section>
-        <label className="filter-toggle">
+        <label className="filter-toggle directory-expired">
           <input
             type="checkbox"
             checked={expired}

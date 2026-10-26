@@ -284,12 +284,12 @@ test('Dashboard coverage and account-review KPI open supported evidence filters'
   await page.goto('/#session=browser-test-session')
   await expect(
     page
-      .getByRole('region', { name: 'Overview', exact: true })
+      .getByRole('region', { name: 'SAP Overview', exact: true })
       .getByRole('button'),
   ).toHaveCount(4)
   expect(
     await page
-      .getByRole('region', { name: 'Overview', exact: true })
+      .getByRole('region', { name: 'SAP Overview', exact: true })
       .getByRole('button')
       .evaluateAll((items) => items.map((el) => el.getAttribute('aria-label'))),
   ).toEqual([

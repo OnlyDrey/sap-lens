@@ -1,10 +1,11 @@
+import type { ReactNode } from 'react'
 import { Layers } from 'lucide-react'
 import { ModuleIcon } from '@/components/Modules/ModuleIcon'
 import { useModuleDefinitions, useModuleVisual } from '@/components/Modules/ModuleRegistry'
 
 /** Description prefixes are display evidence only, resolved through the existing registry.
  * Explicit source module metadata wins. No role-name parsing or persistent classification. */
-export function RoleMetadata({ code, name, description }: { code?: string | null; name?: string | null; description?: string | null }) {
+export function RoleMetadata({ code, name, description, children }: {children?: ReactNode; code?: string | null; name?: string | null; description?: string | null }) {
   const registry = useModuleDefinitions()
   const text = description?.trim()
   const parts = text?.split(/\s+[-–—]\s+/) || []
@@ -19,6 +20,6 @@ export function RoleMetadata({ code, name, description }: { code?: string | null
   return <div className="role-module-metadata text-current">
     <ModuleIcon moduleId={resolved} Icon={resolved ? undefined : Layers}/>
     {resolved && <span className="evidence-badge evidence-neutral">{resolved}</span>}
-    <span className="role-metadata-title">{caption}</span>
+    {children}<span className="role-metadata-title">{caption}</span>
   </div>
 }

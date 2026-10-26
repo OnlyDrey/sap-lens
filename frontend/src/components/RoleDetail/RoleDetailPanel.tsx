@@ -24,14 +24,12 @@ const SingleRoleRow = memo(function SingleRoleRow({ sr, onTcodeUsers, transactio
           {open ? <ChevronDown size={14} aria-hidden="true"/> : <ChevronRight size={14} aria-hidden="true"/>}
         </button>
         <div className="single-role-heading-main">
-          <RoleMetadata code={sr.function_key} name={sr.module_name} description={sr.child_agr_text}/>
+          <RoleMetadata code={sr.function_key} name={sr.module_name} description={sr.child_agr_text}><span className="single-role-count" aria-label={`${sr.tcodes.length} transactions`}><Zap size={12} aria-hidden="true"/>{sr.tcodes.length}</span></RoleMetadata>
           <RoleIdentifier value={sr.child_agr} />
           {sr.assignment_kind === 'direct' && <span className="single-role-assignment">Direct assignment</span>}
           {sr.assignment_kind === 'effective' && <span className="single-role-assignment">Effective-role assignment</span>}
         </div>
-        <span className="single-role-count" aria-label={`${sr.tcodes.length} transactions`}>
-          <Zap size={12} aria-hidden="true"/>{sr.tcodes.length}
-        </span>
+
       </div>
       {open && <div className="single-role-transactions">
         {Boolean(sr.alternate_descriptions?.length) && <p className="text-xs px-4 py-2">Alternate descriptions: {sr.alternate_descriptions?.slice(0,5).join(' · ')}</p>}
@@ -79,12 +77,12 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, pare
         {/* Header */}
         <div className="role-detail-header flex items-start justify-between gap-3 px-4 py-3 flex-shrink-0"
           style={{ backgroundColor: 'var(--primary)', color:'var(--on-primary)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-          <div className="min-w-0 flex-1">
+          <div className="role-detail-heading-content min-w-0 flex-1">
             <nav aria-label="Breadcrumb" className="mb-2"><Button variant="ghost" size="compact" onClick={onClose}><ArrowLeft size={16} aria-hidden="true"/>Back to {parent === 'User Access' ? 'users' : parent}</Button></nav>
-            <p className="text-base font-black text-current leading-snug break-words">
+            <div className="role-detail-description"><p className="text-base font-black text-current leading-snug break-words">
               {cleanTitle(role?.text ?? null)}
             </p>
-            <RoleMetadata code={role?.function_key} name={role?.module_name}/>
+            <RoleMetadata code={role?.function_key} name={role?.module_name}/></div>
             <div className="role-detail-identifier"><RoleIdentifier value={roleName}/></div>
           </div>
           <button aria-label="Close role details" onClick={onClose}

@@ -1,3 +1,5 @@
+import { PageHeader } from '@/components/Shared/Presentation'
+import { FileCheck2 as PageIcon } from 'lucide-react'
 import { ButtonGroup } from '@/components/Shared/Button'
 import { SavedFilters } from '@/components/Shared/SavedFilters'
 import { useApplicationData } from '@/state/ApplicationData'
@@ -132,7 +134,7 @@ export function ReleaseRoles({
     });
   return (
     <section aria-label="Release Roles" className="space-y-4">
-      <h1 className="text-xl font-semibold">Release Roles</h1>
+      <PageHeader title="Release Roles" icon={<PageIcon size={22} aria-hidden="true"/>}/>
       <p className="text-sm">
         PR/PO release assignments from the User Access CSV. M and ALL are opaque
         naming tokens; no release-authority meaning is assumed.
@@ -340,15 +342,15 @@ function ReleaseMatrix({
                 {compare ? `${group || "Unknown group"} · ` : ""}
                 {kind} · distinct users
               </h2>
-              <div className="access-table">
+              <div className="access-table matrix-scroll" role="region" aria-label={`${kind} release matrix scroll area`} tabIndex={0}>
                 <table
                   className="release-matrix" aria-label={`${compare ? (group || "Unknown group") + " " : ""}${kind} release matrix`}
                 >
                   <thead>
                     <tr>
-                      <th>Release Group / Strategy</th>
+                      <th scope="col">Release Group / Strategy</th>
                       {strategies.map((s) => (
-                        <th key={s}>{s}</th>
+                        <th scope="col" key={s}>{s}</th>
                       ))}
                     </tr>
                   </thead>
@@ -362,7 +364,7 @@ function ReleaseMatrix({
                               c.release_group === r && c.release_strategy === s,
                           );
                           return (
-                            <td key={s}>
+                            <td key={s} data-intensity={!cell?undefined:cell.user_count===0?0:Math.ceil(3*cell.user_count/Math.max(1,...selected.map(item=>item.user_count)))}>
                               {cell ? (
                                 <DetailButton
                                   aria-label={`Investigate ${compare ? (group || "Unknown group") + " " : ""}${kind} ${r} ${s}: ${cell.user_count} users`}
