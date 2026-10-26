@@ -184,3 +184,22 @@ before preserving the previous decision and atomically saving the new annotation
 GET `/api/account-review/history/{username}?offset=0&limit=25` returns bounded earlier
 decisions (maximum page size 100). Authentication and mapping-feature guards apply;
 this is private annotation history, not SAP modification history.
+
+### Filtered assignment CSV downloads
+
+`GET /api/access/exports/users` accepts the same validated directory query filters
+as `/api/access/users` and exports all assignments for all matching users.
+`GET /api/access/exports/releases` accepts the same release/date filters as
+`/api/access/releases`, exporting only matching assignments independently of
+Table/Matrix grouping. Both use the existing feature/session boundary; unavailable
+validated mapping data returns 409. Pagination parameters do not limit exports.
+
+Responses are no-store `text/csv; charset=utf-8` with safe attachment filenames,
+UTF-8 BOM, quote-all semicolon rows and CRLF. Columns are USERNAME, FIRST_NAME,
+LAST_NAME, EMAIL, USER_GROUP, ROLE_NAME, ROLE_VALID_FROM, ROLE_VALID_TO,
+ASSIGNMENT_STATUS, PR_PO, RELEASE_GROUP, RELEASE_STRATEGY, MATCHED_FILTER. Dates are
+DD.MM.YYYY; missing dates remain empty. Formula-like cells receive a leading
+apostrophe in the file only. Snapshot and evaluation day are captured once.
+`X-SAP-Lens-Data-Revision`, `X-SAP-Lens-As-Of` and
+`X-SAP-Lens-Assignment-Count` permit client consistency checks. Normal users/releases
+responses add `data_revision` and `export_assignments`; existing fields are retained.

@@ -412,3 +412,4 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .dashboard-workspace progress::-webkit-progress-bar {background:var(--surface2)}
 .dashboard-workspace progress::-webkit-progress-value {background:var(--progress-fill)}
 .dashboard-workspace progress::-moz-progress-bar {background:var(--progress-fill)}
+.results-toolbar>h2 {margin-right:auto}

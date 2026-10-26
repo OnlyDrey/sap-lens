@@ -1,3 +1,5 @@
+import {ExportCSVButton} from '@/components/Shared/ExportCSVButton'
+import {useAssignmentCSVExport} from '@/hooks/useAssignmentCSVExport'
 import { PageHeader } from '@/components/Shared/Presentation'
 import { UsersRound as PageIcon } from 'lucide-react'
 import { useRoles } from '@/hooks/useRoles'
@@ -112,6 +114,7 @@ export function UserAccess({
     const last = Math.max(0, Math.floor((result.data.total - 1) / limit) * limit);
     if (offset > last) setOffset(last);
   }, [result.data, result.isFetching, offset]);
+  const assignmentExport=useAssignmentCSVExport('users',filters,result.data?.data_revision,result.data?.as_of)
   const previousSelected = useRef(selected);
   useLayoutEffect(() => {
     if (!selected && previousSelected.current) restoreList.current = true;
@@ -226,7 +229,9 @@ export function UserAccess({
       )}
       {result.data && (
         <>
-          <h2 className="text-base font-semibold">User directory <span className="text-sm font-normal text-[var(--muted)]">{result.data.total.toLocaleString()} {result.data.total === 1 ? 'user' : 'users'}</span></h2>
+          <div className="results-toolbar"><h2 className="text-base font-semibold">User directory <span className="text-sm font-normal text-[var(--muted)]">{result.data.total.toLocaleString()} {result.data.total === 1 ? 'user' : 'users'}</span></h2><ExportCSVButton loading={assignmentExport.busy} disabled={dataLoading||result.isFetching||search!==term||directoryTransaction.settling||!result.data.export_assignments} title="Exports every imported assignment for all matching users, across pages. MATCHED_FILTER marks assignments contributing to the active filters; expired and other assignments remain included." onClick={()=>void assignmentExport.download()}/></div>
+          <p className="ui-description">Export scope: all {result.data.export_assignments?.toLocaleString()??'available'} imported assignments for matching users, including expired and other roles. MATCHED_FILTER identifies assignment-level matches.</p>
+          {assignmentExport.message&&<p role={assignmentExport.failed?'alert':'status'}>{assignmentExport.message}</p>}
           <div className="access-table user-directory-table">
             <table>
               <thead>

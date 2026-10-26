@@ -27,6 +27,9 @@ def _save_csv_dialog(owner, token, filename, content, kind):
     if not isinstance(filename, str) or not re.fullmatch(pattern, filename):
         raise ValueError('Invalid CSV export filename.')
     header = ('\ufeff"Timestamp","Source","Change","Identifier","Field","Before","After"\r\n' if kind == 'changes' else '\ufeff"Username","User group",')
+    if kind=='access' and re.fullmatch(r'sap-lens-(user-directory|release-roles)-review-\d{4}-\d{2}-\d{2}\.csv',filename):
+        from csv_exports import ASSIGNMENT_HEADER
+        header=ASSIGNMENT_HEADER
     if not isinstance(content, str) or not content.startswith(header):
         raise ValueError('Invalid CSV export content.')
     if len(content) > 32 * 1024 * 1024:

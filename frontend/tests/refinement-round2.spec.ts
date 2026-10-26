@@ -114,3 +114,67 @@ test('task 30 shared dropdown and calendar follow anchor layout changes',async({
  await choose.evaluate(el=>{const spacer=document.createElement('div');spacer.style.height='70px';el.closest('label')!.before(spacer)})
  await expect.poll(()=>adjacent(choose,page.getByRole('dialog',{name:'Calendar for Demo date',exact:true}))).toBeTruthy();await page.keyboard.press('Escape');await expect(choose).toBeFocused()
 })
+
+async function prepareAssignmentExport(request:APIRequestContext){
+ const pr='ZO:MM:M:PR_REL_ST_SH_N6:ALL',po='ZO:MM:M:PO_REL_ST_PG_P1:ALL'
+ const lines=[[userA,pr,'SYN_GROUP','20000101','99991231'],[userA,pr,'SYN_GROUP','20010101','20020101'],[userA,po,'SYN_PO','20000101','99991231'],[userB,pr,'SYN_GROUP','20000101','99991231']].map(([user,role,group,start,end])=>`${user},${role},${group},Ålpha,Synthetic,${user===userA?'alpha':'beta'}@example.test,20000101,99991231,0,${start},${end}\n`).join('')
+ writeFileSync(users,readFileSync(users,'utf8')+lines);expect((await request.post('/api/refresh',{headers})).ok()).toBeTruthy()
+}
+async function downloadAssignments(page:Page){
+ const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Export CSV',exact:true}).click();const file=await pending;const location=(await file.path())!
+ const bytes=readFileSync(location);expect(bytes.subarray(0,3).equals(Buffer.from([0xef,0xbb,0xbf]))).toBeTruthy()
+ const {execFileSync}=await import('node:child_process')
+ const rows=JSON.parse(execFileSync('python',['-c',"import csv,json,sys; print(json.dumps(list(csv.DictReader(open(sys.argv[1],encoding='utf-8-sig',newline=''),delimiter=';'))))",location],{encoding:'utf8'})) as Record<string,string>[]
+ return {rows,text:bytes.toString('utf8'),filename:file.suggestedFilename()}
+}
+test('task 31 directory exports all assignments for filtered users with explicit matches',async({page,request})=>{
+ await prepareAssignmentExport(request);await page.goto('/#session=browser-test-session');await nav(page,'User Access')
+ await page.getByLabel('Search users',{exact:true}).fill(userA)
+ const group=page.getByRole('combobox',{name:'SAP User Group',exact:true});await group.click();await group.fill('SYN_GROUP');await page.getByRole('option',{name:'SYN_GROUP',exact:true}).click()
+ const role=page.getByRole('combobox',{name:'Filter users by role',exact:true});await role.click();await role.fill('ZC:SYN:B');await page.getByRole('option').filter({hasText:'ZC:SYN:B'}).first().click()
+ await page.getByRole('textbox',{name:'Filter users by transaction',exact:true}).fill('MIGO')
+ await expect(page.getByRole('button',{name:'Export CSV',exact:true})).toBeEnabled();const file=await downloadAssignments(page)
+ expect(file.rows).toHaveLength(7);expect(new Set(file.rows.map(row=>row.USERNAME))).toEqual(new Set([userA]));expect(file.rows.filter(row=>row.MATCHED_FILTER==='Yes')).toHaveLength(1)
+ expect(file.rows.find(row=>row.ROLE_NAME==='ZC:SYN:B'&&row.ASSIGNMENT_STATUS==='Expired')?.MATCHED_FILTER).toBe('No')
+ expect(file.rows.find(row=>row.ROLE_NAME.includes('PO_REL'))?.MATCHED_FILTER).toBe('No')
+ await page.getByLabel('Show expired assignments',{exact:true}).check();const expired=await downloadAssignments(page);expect(expired.rows).toHaveLength(7);expect(expired.rows.filter(row=>row.MATCHED_FILTER==='Yes')).toHaveLength(2)
+ await page.getByLabel('Search users',{exact:true}).fill('NO_SYNTHETIC_MATCH');await expect(page.getByRole('button',{name:'Export CSV',exact:true})).toBeDisabled()
+})
+test('task 31 release Table and Matrix export identical filtered intervals',async({page,request})=>{
+ await prepareAssignmentExport(request);await page.goto('/#session=browser-test-session');await nav(page,'Release Roles')
+ const pr=page.getByRole('combobox',{name:'PR/PO',exact:true});await pr.click();await pr.fill('PR');await page.getByRole('option',{name:'PR',exact:true}).click()
+ await page.getByLabel('Release assignment status',{exact:true}).selectOption('all')
+ await expect(page.getByRole('button',{name:'Export CSV',exact:true})).toBeEnabled();const table=await downloadAssignments(page);expect(table.rows).toHaveLength(3)
+ expect(table.rows.every(row=>row.PR_PO==='PR'&&row.RELEASE_GROUP==='SH'&&row.RELEASE_STRATEGY==='N6'&&row.MATCHED_FILTER==='Yes')).toBeTruthy()
+ await page.getByRole('button',{name:'Matrix',exact:true}).click();const matrix=await downloadAssignments(page);expect(matrix.text).toBe(table.text)
+ await pr.click();await pr.fill('PO');await page.getByRole('option',{name:'PO',exact:true}).click();const po=await downloadAssignments(page);expect(po.rows).toHaveLength(1);expect(po.rows[0].PR_PO).toBe('PO')
+})
+test('task 31 export includes users beyond visible pagination',async({page,request})=>{
+ writeFileSync(users,readFileSync(users,'utf8')+Array.from({length:125},(_,i)=>`PAGE_${String(i).padStart(3,'0')},ZC:SYN:B,SYN_PAGE,Synthetic,Page,,20000101,99991231,0,20000101,99991231\n`).join(''));await request.post('/api/refresh',{headers})
+ await page.goto('/#session=browser-test-session');await nav(page,'User Access');await page.getByLabel('Search users',{exact:true}).fill('PAGE_');await expect(page.locator('.user-directory-table tbody tr')).toHaveCount(50)
+ const file=await downloadAssignments(page);expect(file.rows).toHaveLength(125);expect(new Set(file.rows.map(row=>row.USERNAME)).size).toBe(125)
+})
+test('task 31 desktop save uses existing capability and semicolon contract',async({page,request})=>{
+ await prepareAssignmentExport(request);await page.addInitScript(()=>{(window as any).assignmentExports=[];(window as any).pywebview={api:{save_user_access_csv:async(token:string,filename:string,content:string)=>{(window as any).assignmentExports.push({token,filename,content});return true}}}})
+ await page.goto('/#session=browser-test-session');await nav(page,'User Access');await page.getByRole('button',{name:'Export CSV',exact:true}).click();await expect.poll(()=>page.evaluate(()=>(window as any).assignmentExports.length)).toBe(1)
+ await nav(page,'Release Roles');await page.getByRole('button',{name:'Export CSV',exact:true}).click();await expect.poll(()=>page.evaluate(()=>(window as any).assignmentExports.length)).toBe(2)
+ const calls=await page.evaluate(()=>(window as any).assignmentExports);expect(calls.every((item:any)=>item.token==='browser-test-session'&&item.content.startsWith('\ufeff"USERNAME";"FIRST_NAME";'))).toBeTruthy();expect(calls[0].filename).toContain('user-directory');expect(calls[1].filename).toContain('release-roles')
+})
+
+test('task 31 stale export metadata is rejected before a download',async({page})=>{
+ let downloads=0;page.on('download',()=>downloads++)
+ await page.route('**/api/access/exports/users?**',async route=>{const response=await route.fetch();await route.fulfill({response,headers:{...response.headers(),'x-sap-lens-data-revision':'synthetic-stale'}})})
+ await page.goto('/#session=browser-test-session');await nav(page,'User Access');await page.getByRole('button',{name:'Export CSV',exact:true}).click();await expect(page.getByRole('alert')).toContainText('Source data changed');expect(downloads).toBe(0)
+})
+test('task 31 filter changes cancel an in-flight export',async({page})=>{
+ let release!:()=>void,arrived!:()=>void;const gate=new Promise<void>(resolve=>release=resolve),requested=new Promise<void>(resolve=>arrived=resolve);let downloads=0
+ page.on('download',()=>downloads++);await page.route('**/api/access/exports/users?**',async route=>{const response=await route.fetch();arrived();await gate;await route.fulfill({response})})
+ await page.goto('/#session=browser-test-session');await nav(page,'User Access');await page.getByRole('button',{name:'Export CSV',exact:true}).click();await requested
+ await page.getByLabel('Search users',{exact:true}).fill('NO_SYNTHETIC_RESULT');await expect(page.locator('.user-directory-table tbody tr')).toHaveCount(0);release()
+ await expect(page.getByRole('button',{name:'Export CSV',exact:true})).not.toHaveAttribute('aria-busy','true');expect(downloads).toBe(0)
+})
+for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`task 31 export toolbars ${theme} ${width}`,async({page,request},info)=>{
+ await prepareAssignmentExport(request);const config=await settings(request);config.theme=theme;await request.post('/api/configuration',{headers,data:config});await page.setViewportSize({width,height:1000});await page.goto('/#session=browser-test-session');await nav(page,'User Access')
+ const action=page.getByRole('button',{name:'Export CSV',exact:true});await expect(action).toBeEnabled();await page.locator('.results-toolbar:visible').screenshot({path:info.outputPath('directory-export-toolbar.png')});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
+ await nav(page,'Release Roles');await expect(action).toBeEnabled();await page.locator('.results-toolbar:visible').screenshot({path:info.outputPath('release-export-toolbar.png')});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
+})

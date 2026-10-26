@@ -79,6 +79,8 @@ export interface Cell {
   user_count: number;
 }
 export interface Page<T> {
+  data_revision?:string;
+  export_assignments?:number;
   items: T[];
   total: number;
   offset: number;

@@ -531,3 +531,65 @@ space is available, viewport resizing/scroll, Escape/focus, advanced Apply and
 Clear/Cancel semantics at 375/800/1280/1600 in both themes; shared dropdown/calendar
 layout-shift checks and the existing combobox keyboard regression also passed.
 Native Windows/WebView2 remains pending. No push or workflow dispatch.
+
+## Task 31 — filtered assignment CSV exports
+
+User Directory and Release Roles now share the canonical ExportCSVButton and a
+snapshot/day-guarded download hook. Backend selection predicates are shared with
+the existing list APIs. Directory exports include every assignment for all
+matching users across pages, with MATCHED_FILTER identifying contributing
+assignment evidence. Release exports use the exact matching assignment set in
+Table and Matrix. Exact assigned roles and separate validity intervals survive.
+UTF-8 BOM, semicolons, quoted CRLF rows, DD.MM.YYYY dates and formula-safe output
+are shared. Sources remain unchanged. Existing assignment-name import validation
+still rejects catalogue wildcard patterns as assigned roles; concrete wildcard
+matching evidence remains intact and is never replaced with a catalogue pattern.
+
+Targeted results: seven export backend tests, 20 desktop bridge-contract tests,
+43 User Access and 17 investigation-filter backend tests passed. Six functional
+browser export tests passed (filter combinations, Table/Matrix, pagination, native
+bridge mocks, generation mismatch and cancellation); eight theme/width toolbar
+checks passed after scoping their screenshot locator to the visible route.
+Toolbar screenshots at 375/800/1280/1600 in both themes were captured; representative
+narrow/light and wide/dark images were reviewed. Type checking, production build
+and 73-document link validation passed. No native Windows claim.
+
+## Task completion checklist
+
+The following tasks have passed their relevant local validation. Native Windows
+acceptance is separate, particularly for task 14 and native export/dialog behavior.
+Final combined regression results are recorded below when available.
+
+| Task | Scope | Local status |
+|---|---|---|
+| 1 | Saved Filters popover | Validated |
+| 2 | Single Roles hover | Validated |
+| 3 | Exact role identifiers | Validated |
+| 4 | Source-backed SAP area classification | Validated |
+| 5 | Role hover and transaction counts | Validated |
+| 6 | Compare Roles layout | Validated |
+| 7 | User Directory filters | Validated |
+| 8 | Account Review layout | Validated |
+| 9 | Compare Users filters | Validated |
+| 10 | Comparison status colors | Validated |
+| 11 | Assignment evidence presentation | Validated |
+| 12 | Comparison summary metrics | Validated |
+| 13 | Release Matrix layout | Validated |
+| 14 | Owned desktop backend/browser connectivity | Validated on Linux; Windows pending |
+| 15 | User Details AND/OR transaction matching | Validated |
+| 16 | Compact pre-table assignment summary | Validated |
+| 17 | Directory matching modal | Validated |
+| 18 | Directory matching status consistency | Validated |
+| 19 | Shared CSV source status | Validated |
+| 20 | Interactive feature status pills | Validated |
+| 21 | Technical source details modal | Validated |
+| 22 | Evidence-backed dashboard investigations | Validated |
+| 23 | Dashboard interaction/coverage consistency | Validated |
+| 24 | Account Review modal, persistence and history | Validated |
+| 25 | Dashboard section icons | Validated |
+| 26 | Responsive dashboard columns | Validated |
+| 27 | CSV changes table and record details | Validated |
+| 28 | Review findings and source evidence | Validated |
+| 29 | Change/error/close action icons | Validated |
+| 30 | First-open anchored popovers | Validated |
+| 31 | Filtered assignment CSV exports | Validated |

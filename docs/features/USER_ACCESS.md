@@ -63,3 +63,27 @@ Directory match status opens a modal with actual method, candidates and source
 inspection. Ambiguous/missing/unavailable evidence never becomes a confirmed
 identity. The SAP Identity, Account Status and Organization profile groups remain
 independent of assignment filters.
+
+## Directory assignment CSV export
+
+**Export CSV** beside the result count exports every imported assignment for every
+user matching the current directory filters, across all pages. User search, SAP
+User Group, role search, selected transactions, AND/OR mode and assignment-validity
+settings select the users using the same logic as the directory. The export then
+includes their other assignments and expired/future intervals too. `MATCHED_FILTER`
+is Yes only for assignment evidence contributing to the active selection; No
+does not imply invalid or unauthorized access. AND transaction matching retains
+the directory's existing aggregate role-evidence semantics.
+
+Columns include SAP identity, exact assigned role, assignment dates/status and
+release metadata where applicable. Distinct validity intervals are retained. The
+file is UTF-8 with BOM, semicolon-separated, quote-escaped and protected against
+spreadsheet formulas. Dates use DD.MM.YYYY. No source values are modified.
+Catalogue wildcard patterns are never substituted for concrete assigned role
+names; existing import validation of assignment names remains unchanged.
+
+The button is disabled for zero assignments or unsettled filters. An in-flight
+export is cancelled if filters change; source-generation/day mismatches require
+a refresh. Exports remain local and user initiated, using the existing desktop
+save dialog or browser download. Each export is bounded to 32 MiB; narrow filters
+if this limit is reached.

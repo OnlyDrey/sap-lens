@@ -176,3 +176,15 @@ used for placement. First-open stale coordinates were reproducible when asynchro
 employee enrichment increased the profile height after the first measurement.
 Observing only the popup size missed that movement; reopening happened to remeasure.
 Popup coordinates are viewport-clamped and initial focus does not scroll the page.
+
+### Assignment export actions
+
+`Shared/ExportCSVButton.tsx` wraps the canonical outline Button and Lucide Download
+icon. User Directory and Release Roles use it beside their result counts; the
+Component Library renders an isolated disabled preview.
+`hooks/useAssignmentCSVExport.ts` shares authenticated streaming downloads, strict
+UTF-8 decoding, a 32 MiB limit, generation/day guards and filter-change cancellation.
+It delegates filtering to the existing backend selection functions, never a
+second frontend interpretation. The existing native `save_user_access_csv` bridge
+accepts the exact new semicolon header only for its two assignment-export filename
+prefixes; capability, size and destination protections remain intact.

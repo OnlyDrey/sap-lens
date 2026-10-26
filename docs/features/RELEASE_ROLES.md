@@ -41,3 +41,20 @@ tabular counts and sticky headers inside a contained keyboard-focusable scroll
 region. Restrained background intensity is relative to counts on the displayed
 matrix, not an authorization or risk score. Empty/paginated cells retain their
 existing evidence meaning. Group comparison remains in a stable secondary toolbar.
+
+## Assignment CSV export
+
+**Export CSV** beside the result count and Table/Matrix controls exports one row
+per matching user–release-role assignment across every page. PR/PO, release group,
+strategy, SAP User Group, username, role, assignment status and all assignment-date
+bounds use the same predicate as the displayed results. Table and Matrix export
+the same assignment set; matrix grouping does not change export scope.
+
+The shared [assignment CSV format](USER_ACCESS.md#directory-assignment-csv-export)
+includes exact role names, SAP identity, validity/status, PR_PO, RELEASE_GROUP,
+RELEASE_STRATEGY and MATCHED_FILTER (Yes for every exported matching release row).
+Separate validity intervals remain separate rows. UTF-8 BOM, semicolons, Norwegian
+dates and spreadsheet-formula protection support Excel without changing stored
+data. Zero-result exports are disabled. Source-generation, date, cancellation
+and 32 MiB guards match User Directory exports. This exports assignment evidence,
+not confirmed effective release authorization.
