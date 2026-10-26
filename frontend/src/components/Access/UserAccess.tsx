@@ -56,6 +56,8 @@ export function UserAccess({
   onRelease: (role: string) => void;
 }) {
   const {view:comparisonView,change:changeComparison}=useViewHistory();
+  const assignmentBand=comparisonView.assignmentBand||'';
+  const setAssignmentBand=(value:string)=>changeComparison({assignmentBand:value},true);
   const comparisonContext=comparisonView.userComparison;
   const setComparisonContext=(state:ComparisonContext)=>changeComparison({userComparison:state},true);
   const [compareInitial,setCompareInitial]=useState('');
@@ -89,12 +91,12 @@ export function UserAccess({
   }, [search]);
   useEffect(() => {
     setOffset(0);
-  }, [term, group, sort, descending, role, directoryTransaction.deferredKey, transactionMode, expired]);
-  const filters = { search: term, group, sort, descending, role, tcodes: directoryTransaction.deferredCodes, transaction_mode: transactionMode, show_expired: expired };
+  }, [term, group, sort, descending, role, directoryTransaction.deferredKey, transactionMode, expired, assignmentBand]);
+  const filters = { assignment_band:assignmentBand, search: term, group, sort, descending, role, tcodes: directoryTransaction.deferredCodes, transaction_mode: transactionMode, show_expired: expired };
   const navigation = useRecordNavigation('users', filters, selected, setSelected);
   const result = useQuery({
     queryKey: [
-      "access-users",
+      "access-users", assignmentBand,
       term,
       group,
       sort,
@@ -146,7 +148,7 @@ export function UserAccess({
     <section aria-label="User Access" className="space-y-4">
       {modeButtons}<PageHeader title="User Access" icon={<PageIcon size={22} aria-hidden="true"/>}/>
       <EvidenceNote />
-      <SavedFilters showClear={false} view="users" state={{search,group,sort,descending,role,tcodes:directoryTransaction.codes,transactionMode,expired}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(typeof s.group==='string')setGroup(s.group);if(typeof s.sort==='string'&&['username','group','first_name','last_name','email','account_status','relevant_roles'].includes(s.sort))setSort(s.sort);if(typeof s.descending==='boolean')setDescending(s.descending);if(typeof s.role==='string')setRole(s.role);if(Array.isArray(s.tcodes)){directoryTransaction.setInput('');directoryTransaction.setChips(s.tcodes)};if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(typeof s.expired==='boolean')setExpired(s.expired)}} clear={()=>{setSearch('');setGroup('');setSort('username');setDescending(false);setRole('');directoryTransaction.clear();setTransactionMode('and');setExpired(false)}}/>
+      <SavedFilters showClear={false} view="users" state={{assignmentBand,search,group,sort,descending,role,tcodes:directoryTransaction.codes,transactionMode,expired}} apply={s=>{setAssignmentBand(typeof s.assignmentBand==='string'?s.assignmentBand:'');if(typeof s.search==='string')setSearch(s.search);if(typeof s.group==='string')setGroup(s.group);if(typeof s.sort==='string'&&['username','group','first_name','last_name','email','account_status','relevant_roles'].includes(s.sort))setSort(s.sort);if(typeof s.descending==='boolean')setDescending(s.descending);if(typeof s.role==='string')setRole(s.role);if(Array.isArray(s.tcodes)){directoryTransaction.setInput('');directoryTransaction.setChips(s.tcodes)};if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(typeof s.expired==='boolean')setExpired(s.expired)}} clear={()=>{setAssignmentBand('');setSearch('');setGroup('');setSort('username');setDescending(false);setRole('');directoryTransaction.clear();setTransactionMode('and');setExpired(false)}}/>
 
       <div className="investigation-filters user-filters"><fieldset><legend>User directory</legend><div className="directory-filter-grid">
         <Filter label="Search users">
@@ -206,9 +208,10 @@ export function UserAccess({
           />
           Show expired assignments
         </label>
-        <ClearFilterButton className="directory-clear" disabled={!search && !group && sort==='username' && !descending && !expired && !role && !directoryTransaction.codes.length} onClick={()=>{setSearch('');setTerm('');setGroup('');setSort('username');setDescending(false);setExpired(false);clearEvidence()}}>Clear filters</ClearFilterButton>
+        <ClearFilterButton className="directory-clear" disabled={!assignmentBand && !search && !group && sort==='username' && !descending && !expired && !role && !directoryTransaction.codes.length} onClick={()=>{setAssignmentBand('');setSearch('');setTerm('');setGroup('');setSort('username');setDescending(false);setExpired(false);clearEvidence()}}>Clear filters</ClearFilterButton>
       </div></fieldset></div>
-      {(role || group || search || expired) && <div className="active-filter-row" aria-label="Active user filters">
+      {(assignmentBand || role || group || search || expired) && <div className="active-filter-row" aria-label="Active user filters">
+        {assignmentBand&&<FilterChip removeLabel="Remove assignment count filter" onRemove={()=>setAssignmentBand('')}>{assignmentBand} currently valid roles</FilterChip>}
         {expired && <FilterChip removeLabel="Remove expired assignment filter" onRemove={()=>setExpired(false)}>Include Expired Assignments</FilterChip>}
         {role && <FilterChip removeLabel="Remove role filter" onRemove={()=>setRole('')}>Role: {role}</FilterChip>}
         {group && <FilterChip removeLabel="Remove user group filter" onRemove={()=>setGroup('')}>User Group: {group}</FilterChip>}
@@ -441,7 +444,7 @@ function UserDetails({
               <thead>
                 <tr>
                   <th>Exact assigned role</th>
-                  {scope === 'release' ? <><th>Type</th><th>Release group</th><th>Release strategy</th></> : <th>Catalogue match</th>}
+                  {scope === 'release' ? <><th>Type</th><th>Release group</th><th>Release strategy</th></> : <th>Role description</th>}
                   <th>Valid from</th><th>Valid to</th>
                   <th>Assignment status</th>
                   <th>
@@ -494,19 +497,16 @@ function AssignmentRow({
   return (
     <tr>
       <td>
-        <RoleIdentifier value={a.role_name} />{a.role_description&&<p className="ui-description">{a.role_description}</p>}
+        <RoleIdentifier value={a.role_name} />
       </td>
-      {releaseView ? <><td>{a.release?.document_type || 'Unparsed'}</td><td>{a.release?.release_group || '—'}</td><td>{a.release?.release_strategy || '—'}</td></> : <td>
-          <div className="catalogue-match">
-            {!a.catalogue_roles.length && <EvidenceBadge value="unmapped"/>}
-            {a.catalogue_roles.map((name) => <RoleIdentifier key={name} value={name}/>)}
-          </div></td>}
+      {releaseView ? <><td>{a.release?.document_type || 'Unparsed'}</td><td>{a.release?.release_group || '—'}</td><td>{a.release?.release_strategy || '—'}</td></> : <td className="assignment-description">{a.role_description||'Description unavailable'}</td>}
       <td className="assignment-date">{formatDate(a.valid_from)}</td><td className="assignment-date">{formatDate(a.valid_to)}</td>
 
       <td>
         <AssignmentStatus value={a.status}/>
       </td>
       <td>
+        {!releaseView&&<details className="assignment-mapping-evidence"><summary>Catalogue matching evidence</summary><EvidenceBadge value={a.match_status}/>{a.catalogue_roles.map(name=><RoleIdentifier key={name} value={name}/>)}</details>}
         {!!a.transaction_roles?.length&&<details className="assignment-mapping-evidence"><summary>Transaction mapping evidence</summary>{a.transaction_roles.map(name=><p key={name}>Via <RoleIdentifier value={name}/></p>)}</details>}
         {a.scope === "release" ? (
           <Button className="settings-secondary-button" onClick={() => onRelease(a.role_name)}>View role details<ArrowRight size={15} aria-hidden="true"/></Button>

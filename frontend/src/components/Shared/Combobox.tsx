@@ -1,3 +1,4 @@
+import {textMatches} from '@/lib/searchMatching'
 import { observeAnchorLayout } from '@/lib/observeAnchorLayout'
 import { usePopoverOwners } from './Popover'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
@@ -14,7 +15,7 @@ export function Combobox({ value, options, onChange, label, placeholder = 'All',
   const anchor = useRef<HTMLDivElement>(null), popup = useRef<HTMLDivElement>(null), input = useRef<HTMLInputElement>(null)
   const [open, setOpen] = useState(false), [query, setQuery] = useState<string | null>(null), [index, setIndex] = useState(0)
   const [position, setPosition] = useState({ left: 0, top: 0, width: 0, maxHeight: 240 })
-  const choices = ['', ...new Set(options.filter(Boolean))].filter(option => !query || serverFiltered || (option ? optionLabel(option) : clearLabel).toLocaleLowerCase().includes(query.toLocaleLowerCase()))
+  const choices = ['', ...new Set(options.filter(Boolean))].filter(option => !query || serverFiltered || (textMatches(option,query)||textMatches(option ? optionLabel(option) : clearLabel,query)))
   const close = () => { setOpen(false); setQuery(null) }
   const choose = (option: string) => { onChange(option); close(); input.current?.focus() }
   const [positioned,setPositioned]=useState(false)

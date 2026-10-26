@@ -1,4 +1,5 @@
 """Two-user role-derived coverage. Never infers effective SAP authorization."""
+from search_matching import search_fields
 from datetime import date
 from threading import RLock
 from typing import Literal
@@ -88,8 +89,8 @@ def comparison(user_a: str = Query(..., min_length=1, max_length=512), user_b: s
     rows = list(result[kind].values())
     summaries = {name: {d: sum(r['difference']==d for r in result[name].values()) for d in ('shared','a','b')} for name in ('roles','transactions')}
     areas = sorted({a for r in result['roles'].values() for a in r['areas']})
-    term = search.strip().casefold()
-    rows = [r for r in rows if (not difference or r['difference']==difference) and (not area or area in r['areas']) and (not term or term in (r['identifier']+' '+r.get('description','')).casefold())]
+    term = search.strip()
+    rows = [r for r in rows if (not difference or r['difference']==difference) and (not area or area in r['areas']) and (not term or search_fields(term,r['identifier'],r.get('description','')))]
     rows.sort(key=lambda r:(len(r[sort]) if sort in {'a','b'} else r[sort], r['identifier']), reverse=descending)
     bounded=[{**r, 'a':r['a'][:25], 'b':r['b'][:25], 'a_total':len(r['a']), 'b_total':len(r['b'])} for r in rows[offset:offset+limit]]
     provenance = {side: transaction_evidence(result, sorted({name for row in bounded for name in row[side]}), side) for side in ('a','b')} if kind == 'transactions' else {}

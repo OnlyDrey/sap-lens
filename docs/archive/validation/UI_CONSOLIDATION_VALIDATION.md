@@ -823,3 +823,75 @@ the pre-automatic-import state, not a complete regression of task 29.
 
 Native Windows tray/WebView2/EXE, startup/sign-out, SCM and UNC acceptance remain
 pending. No native platform validation, release, tag or workflow dispatch is claimed.
+
+## Search, dashboard and compact Settings refinement — 26.10.2026
+
+Completed checklist for this iteration:
+
+1. [x] Inspect current components/search paths and preserve the clean `work` base.
+2. [x] Refine Directory match spacing, lightweight back navigation and assignment
+   descriptions; retain catalogue matching evidence in the Details column.
+3. [x] Standardize native select defaults and explicit labels, remove navigation
+   baseline borders, and align the sidebar close control/identifier in a grid.
+4. [x] Share literal SAP-style wildcard search across applicable frontend/backend
+   text filters and transaction-pattern sets; preserve exact internal joins.
+5. [x] Move matrix focus to the whole cell, improve source/directory spacing,
+   collapse detailed diagnostics and align icon-based pagination controls.
+6. [x] Use responsive appearance/logo columns and searchable module tiles with
+   All/Enabled/Disabled filtering and the existing draft-based editing dialog.
+7. [x] Refine three dashboard rows, compact review/role metrics and provide a
+   separate assignment-distribution panel with removable, saved/exportable drilldowns.
+8. [x] Update canonical feature/component documentation and real Component Library
+   guidance; validate affected workflows, keyboard behavior and responsive layouts.
+9. [x] Review the diff and create local commits; no push, release or dispatch.
+
+The wildcard helpers match literal chunks without compiling user regular
+expressions. Explicit `*` patterns are anchored; plain contains searches and exact
+selected transaction codes retain their established semantics. AND/OR combines
+pattern groups, not every transaction produced by expansion. The directory/export
+paths share their existing canonical selection function. A single current-role-count
+helper supplies dashboard bins and the corresponding directory filter.
+
+Validation evidence (prepared Linux/Python 3.12/Node 24/Chromium):
+
+- Production build including TypeScript compilation passed. The existing large-chunk
+  warning remains non-blocking; no dependency or packaging changes were introduced.
+- New backend search contracts: six passed, including literal metacharacters,
+  prefix/suffix/multiple stars, empty/long input, AND/OR, count bands, pagination,
+  saved definitions and CSV MATCHED_FILTER preservation. Existing investigation
+  filter suite: 17 passed.
+- One complete backend run executed 462 tests in 18.971 seconds: 459 passed, one
+  startup regression failed and two PowerShell tests were skipped because the
+  portable binary was not on PATH. The regression was corrected in local commit
+  e29fdb1; the failing startup test and all 11 automatic-import tests then passed.
+  Both PowerShell tests subsequently passed with the available portable binary and
+  writable XDG directories. Its initial launch failure was a read-only home cache,
+  not a PowerShell/script defect. The complete backend suite was not repeated.
+- 21 distinct relevant browser cases passed across affected runs/rechecks. The final
+  grouped run passed 14 cases in 20.4 seconds; eight cover both themes at
+  375/800/1280/1600, including module grid columns, profile descriptions, sidebar
+  right-inset alignment, source-aware navigation and appearance layout. Other
+  passing cases cover module drafts, diagnostics, keyboard matrix dialogs and
+  filter/mapping controls. The final settled wildcard UI case passed in 2.8 seconds.
+  An obsolete matrix assertion was updated to require the full cell's 2px focus
+  outline and no duplicate button outline. A module selector label defect was fixed
+  with the shared FormField; interrupted/failed intermediate runs are not passes.
+- The final review-progress track and light sidebar contrast changes passed focused
+  light-375/dark-1600 checks. A separate client-side catalogue filter was found during
+  review and migrated to the shared matcher; aria-busy now exposes debounce/fetch
+  settling so the regression cannot pass on transient old results.
+- Captured responsive artifacts are retained outside Git under
+  `/workspace/sap-lens-dev/refinement-search-visual`,
+  `/workspace/sap-lens-dev/refinement-dashboard-visual` and
+  `/workspace/sap-lens-dev/refinement-search-final`. Representative mobile/desktop
+  light/dark appearance, sidebar and dashboard screenshots were visually reviewed.
+- Documentation: 73 Markdown files, zero link failures. Lucide catalog: 1,447 icons
+  verified with existing identifiers retained. Diff whitespace checks passed.
+  Privacy/integrity/workflow contracts passed in the backend run. New fixtures use
+  synthetic identities and reserved-domain email; screenshots/private CSVs remain
+  untracked. README branding and accepted historical assets were not changed.
+
+This is risk-based validation, not a claim that the complete browser suite passed
+on the final commit. FULL browser regression was not rerun within the execution
+budget. Native Windows/WebView2, tray, EXE, service/systemd and UNC acceptance remain
+unexecuted; browser and portable PowerShell checks do not substitute for them.

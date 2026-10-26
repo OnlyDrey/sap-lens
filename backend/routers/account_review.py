@@ -1,4 +1,5 @@
 """Bounded session-protected account review and spreadsheet-safe local export."""
+from search_matching import search_fields
 from datetime import date, datetime, timezone
 from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -47,8 +48,8 @@ def accounts(search: str = Query('', max_length=256), finding: str = Query('', m
                    requiring_review=sum(r['needs_review'] for r in items), unlicensed=sum(r['unlicensed'] for r in items),
                    reviewed=sum(bool(r['decision']) and r['review_state'] != 'Needs review' and not r['stale'] for r in items))
     if not state.users.report: summary = {key: None for key in summary}
-    term = search.strip().casefold()
-    items = [r for r in items if (not term or term in ' '.join([r['username'], r['name'], *r['groups']]).casefold())
+    term = search.strip()
+    items = [r for r in items if (not term or search_fields(term,r['username'],r['name'],*r['groups']))
              and (not finding or finding == 'any' and r['needs_review'] or finding == 'stale' and r['stale'] or finding == 'matched' and r['match_status'] == 'matched' or finding=='reviewed' and bool(r['decision']) and r['review_state']!='Needs review' and not r['stale'] or finding=='pending' and (not r['decision'] or r['review_state']=='Needs review' or r['stale']) or finding in r['findings'])
              and (not license_group or r['unlicensed'] == (license_group == 'classified'))
              and (not review_state or r['review_state'] == review_state)]

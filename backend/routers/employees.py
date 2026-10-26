@@ -1,4 +1,5 @@
 """Session-protected directory APIs; optional failures never change SAP source data."""
+from search_matching import text_matches
 from collections import Counter
 from typing import Literal
 import threading
@@ -218,9 +219,9 @@ def match_user(username: str):
 def employees(search: str = Query('', max_length=256), offset: int = Query(0, ge=0), limit: int = Query(25, ge=1, le=100)):
     directory = available()
     if directory is None: return dict(items=[], total=0, offset=offset, limit=limit)
-    term = search.strip().casefold()
+    term = search.strip()
     fields = ['Name', 'Mail', 'Department', 'Title', 'Site', 'ManagerName', 'ManagerMail']
-    records = [r for r in directory.rows if not term or any(term in r[key].casefold() for key in fields)]
+    records = [r for r in directory.rows if not term or any(text_matches(r[key],term) for key in fields)]
     records.sort(key=lambda r: (r['Name'].casefold(), r['Mail'].casefold(), int(r['id'])))
     return dict(items=[directory.view(r) for r in records[offset:offset + limit]], total=len(records), offset=offset, limit=limit, generation=directory.digest)
 

@@ -1,6 +1,8 @@
+import {Select} from '@/components/Shared/Select'
+import {textMatches} from '@/lib/searchMatching'
 import {Dialog} from '@/components/Shared/Dialog'
 import {Button} from '@/components/Shared/Button'
-import { SearchInput } from '@/components/Shared/Controls'
+import { FormField, SearchInput } from '@/components/Shared/Controls'
 import { controlClass } from '@/components/Shared/Controls'
 import { ModuleIcon } from '@/components/Modules/ModuleIcon'
 import { StatusPill } from '@/components/Shared/StatusPill'
@@ -50,11 +52,8 @@ export function ModuleEditor({
   const [reset,setReset]=useState(false)
   const [initial,setInitial]=useState('')
   const cancel=()=>{if(JSON.stringify(local)!==initial && !window.confirm('Discard module changes?'))return;setExpanded(null)}
-  const rows = modules.filter((m) =>
-    `${m.id} ${m.name} ${m.aliases.join(' ')}`
-      .toLowerCase()
-      .includes(search.toLowerCase())
-  )
+  const [availability,setAvailability]=useState('all')
+  const rows = modules.filter(m=>(search.includes('*')?[m.id,m.name,...m.aliases].some(value=>textMatches(value,search)):textMatches(`${m.id} ${m.name} ${m.aliases.join(' ')}`,search))&&(availability==='all'||(overrides[m.id]?.enabled??m.enabled??true)===(availability==='enabled')))
   return (
     <div className="space-y-4">
       <label className="block text-sm font-medium">
@@ -62,11 +61,12 @@ export function ModuleEditor({
         <SearchInput value={search} onChange={event=>onSearch(event.target.value)}/>
 
       </label>
+      <FormField label="Module availability"><Select className={control} value={availability} onChange={event=>setAvailability(event.target.value)}><option value="all">All</option><option value="enabled">Enabled</option><option value="disabled">Disabled</option></Select></FormField>
       <p className="text-xs text-[var(--muted)]">
         {rows.length} areas · Open an area to customize its appearance. Disabled
         areas remain in your dataset.
       </p>
-      <div className="divide-y divide-[var(--border)]">
+      <div className="module-tile-grid">
         {rows.map((m) => {
           const override = expanded===m.id?local:overrides[m.id] || { enabled: true }
           const iconKey = (override.icon || m.default_icon || m.icon) as keyof typeof icons
@@ -103,9 +103,9 @@ export function ModuleEditor({
                     {m.parent ? ` · Parent: ${m.parent}` : ''}
                   </span>
                 </span>
-                <StatusPill
-                  enabled={savedOverrides[m.id]?.enabled ?? m.enabled ?? true}
-                />
+                <span title={(savedOverrides[m.id]?.enabled??m.enabled??true)===(overrides[m.id]?.enabled??m.enabled??true)?'Saved setting':'Pending setting change'}><StatusPill
+                  enabled={overrides[m.id]?.enabled ?? m.enabled ?? true}
+                /></span>
                 <ChevronDown
                   size={16}
                   className={expanded === m.id ? 'rotate-180' : ''}

@@ -1,4 +1,5 @@
 """Bounded employee preview: filter raw rows, render only the requested page."""
+from search_matching import search_fields
 from collections import OrderedDict
 from threading import Lock
 from csv_lifecycle import diff_records
@@ -31,10 +32,10 @@ def preview_page(directory, previous, snapshot, settings, request):
                     ('duplicate_identifier',any(row[field] and len(directory.indexes[field].get(row[field].strip().casefold(),[]))>1 for field in ['DistinguishedName','SamAccountName'])),
                     ('missing_manager',manager in {'missing','unresolved'}),('ambiguous_manager',manager=='ambiguous')] if applies]
         return match, warnings
-    term = request.search.strip().casefold()
+    term = request.search.strip()
     rows = []
     for row in directory.rows:
-        if term and term not in ' '.join(row[field] for field in ['Name','Mail','Department','ManagerName']).casefold(): continue
+        if term and not search_fields(term,*(row[field] for field in ['Name','Mail','Department','ManagerName'])): continue
         if request.filter:
             match, warnings = quality(row)
             if request.filter not in warnings and request.filter != match: continue

@@ -1,3 +1,4 @@
+import {textMatches} from '@/lib/searchMatching'
 import { TransactionCount } from '@/components/Shared/TransactionCount'
 import { Button } from '@/components/Shared/Button'
 import { useApplicationData } from '@/state/ApplicationData'
@@ -39,7 +40,7 @@ const SingleRoleRow = memo(function SingleRoleRow({ sr, onTcodeUsers, transactio
           : <div className="transaction-table-scroll" role="region" aria-label={`Transactions for ${sr.child_agr}`} tabIndex={0}>
             <table>
               <thead><tr><th scope="col">T-Code</th><th scope="col">Description</th><th scope="col" className="transaction-action">Action</th></tr></thead>
-              <tbody>{sr.tcodes.map((tc: TCode) => <tr key={tc.tcode} data-transaction-match={searching && transaction.includes(tc.tcode.trim().toUpperCase())}>
+              <tbody>{sr.tcodes.map((tc: TCode) => <tr key={tc.tcode} data-transaction-match={searching && transaction.some(pattern=>pattern.includes('*')?textMatches(tc.tcode,pattern):tc.tcode.trim().toUpperCase()===pattern)}>
                 <td className="transaction-code">{tc.tcode}</td>
                 <td className="transaction-description">{tc.ttext ?? <span className="italic text-[var(--muted)]">No description</span>}</td>
                 <td className="transaction-action">{onTcodeUsers && <button type="button" className="settings-secondary-button transaction-investigate"
@@ -60,7 +61,7 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, pare
   const transactionFilter = useTransactionFilter(roleName)
   const transaction = useMemo(() => transactionFilter.deferredCodes, [transactionFilter.deferredKey])
   const searching = transaction.length > 0
-  const matchingRoles = useMemo(() => new Set(role?.single_roles.filter(sr => sr.tcodes.some(tc => transaction.includes(tc.tcode.trim().toUpperCase()))).map(sr => sr.child_agr)), [role, transaction])
+  const matchingRoles = useMemo(() => new Set(role?.single_roles.filter(sr => sr.tcodes.some(tc => transaction.some(pattern=>pattern.includes('*')?textMatches(tc.tcode,pattern):tc.tcode.trim().toUpperCase()===pattern))).map(sr => sr.child_agr)), [role, transaction])
   const missingMappings = role?.single_roles.filter(sr => !sr.tcodes.length).length || 0
   const onKey = useCallback((e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }, [onClose])
   useEffect(() => { document.addEventListener('keydown', onKey); return () => document.removeEventListener('keydown', onKey) }, [onKey])
@@ -79,7 +80,7 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, pare
         <div className="role-detail-header flex items-start justify-between gap-3 px-4 py-3 flex-shrink-0"
           style={{ backgroundColor: 'var(--primary)', color:'var(--on-primary)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
           <div className="role-detail-heading-content min-w-0 flex-1">
-            <nav aria-label="Breadcrumb" className="mb-2"><Button variant="ghost" size="compact" onClick={onClose}><ArrowLeft size={16} aria-hidden="true"/>Back to {parent === 'User Access' ? 'users' : parent}</Button></nav>
+            <nav aria-label="Breadcrumb" className="mb-2"><Button variant="ghost" size="compact" className="detail-back-action" onClick={onClose}><ArrowLeft size={16} aria-hidden="true"/>Back to {parent === 'User Access' ? 'users' : parent}</Button></nav>
             <div className="role-detail-description"><p className="text-base font-black text-current leading-snug break-words">
               {cleanTitle(role?.text ?? null)}
             </p>

@@ -40,7 +40,7 @@ def listing():
 @router.post('')
 def save(request:Saved):
     allowed={
-      'users':{'search','group','sort','descending','role','tcodes','transactionMode','expired'},
+      'users':{'search','group','sort','descending','role','tcodes','transactionMode','expired','assignmentBand'},
       'roles':{'search','activeModules','transactionMode','tcodes','sortBy'},
       'release':{'group','kind','releaseGroup','strategy','username','role','status','sort','descending','valid_from_min','valid_from_max','valid_to_min','valid_to_max','include_missing_end'},
       'review':{'search','finding','license','state','sort','descending'},

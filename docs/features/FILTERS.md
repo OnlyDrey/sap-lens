@@ -7,10 +7,11 @@ is introduced.
 
 ## Role Catalogue
 
-The transaction input is the only catalogue control that adds exact transaction
+The transaction input is the catalogue control that adds transaction
 filters. Typing filters live; Enter commits a normalized uppercase chip. Duplicate
 chips are prevented, individual chips remain removable, and empty-input Backspace
-removes the last chip. Matching is exact, case-insensitive and whitespace-trimmed.
+removes the last chip. Ordinary selected codes match exactly, case-insensitively and whitespace-trimmed.
+Explicit `*` patterns match complete code fields as described below.
 
 The default operator is **AND**: every selected transaction must exist in the
 role's aggregate transaction mappings, even across different single roles/CSV
@@ -249,3 +250,25 @@ The authenticated existing user-detail and role-list APIs now accept repeated
 values of at most 128 characters each. User assignment filtering happens before
 pagination, preserving distinct intervals and groups. No new export/upload API,
 direct SAP connection or remote data service is introduced.
+
+## Literal SAP wildcard search
+
+Applicable user, role, description, employee, comparison and release text searches
+accept `*` for zero or more characters. Patterns are case-insensitive and anchored
+to a complete field: `ME*` starts with ME, `*23N` ends with 23N, `*ME*` contains ME,
+and `ME*23*` requires ME before 23. Multiple stars are supported. Other regex or
+shell metacharacters are literal; `?`, brackets and dots do not become operators.
+Plain text retains contains search; selected transaction codes remain exact unless
+an explicit star is present. Empty searches leave the dataset unrestricted.
+
+Transaction AND/OR combines each selected pattern's matching role set. Expanding
+`ME*` does not require every individual matching transaction in AND mode. Evidence
+and exports use those same sets. A role-derived T-code remains mapping evidence,
+not proof of effective SAP authorization. Internal role joins and identity/email
+matching do not use this search matcher.
+
+Saved Filters store the original search/pattern values and re-evaluate current
+validated data. Sorting, pagination, individual removal and Clear filters remain
+available. Dashboard assignment-count drilldowns add a removable count-band filter
+(`0`, `1–5`, `6–20`, `21+`); it uses the same distinct currently-valid business/release
+role calculation as the dashboard and is included in saved filters and exports.

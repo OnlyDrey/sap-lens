@@ -186,7 +186,7 @@ export function ComponentLibrary() {
         <h2>Navigation &amp; content</h2>
         <p className="ui-description">
           Major destinations, related pages and content switching have distinct
-          semantics. Tabs use arrows/Home/End.
+          semantics. Tabs use arrows/Home/End and an underline indicator without a baseline border. Native selects use the shared control dimensions and explicit labels; platform menus remain native.
         </p>
         <div
           style={{

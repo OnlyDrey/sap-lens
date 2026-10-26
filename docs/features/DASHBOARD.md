@@ -152,3 +152,13 @@ times are not inferred. All calculations use validated local snapshots; no histo
 license consumption or effective authorization is inferred.
 
 Role Distribution and Data Sources & Configuration share a two-column lower row on wide screens and stack at 800px or below. Source summaries reuse canonical diagnostic state (mode, loaded status, records and actual import freshness). Row navigation highlights the whole target for hover/focus; each source row remains one configuration action.
+
+## Compact analytical row
+
+Role Distribution, Data Sources & Configuration and Assignment Distribution are
+separate responsive panels. Assignment bands count distinct currently valid
+business/release roles, excluding expired, future and unknown intervals. Selecting
+a band opens its filtered User Directory population; the removable chip, Saved
+Filters and assignment CSV export retain that scope. High role counts are
+informational, not security findings. Review completion uses the existing imported
+SAP account population; outdated decisions remain pending.

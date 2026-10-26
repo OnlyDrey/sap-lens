@@ -11,7 +11,7 @@ import {
   UsersRound,
   Settings2,
   BookUser,
-  Save,
+  Save, ArrowLeft, ArrowRight,
 } from 'lucide-react'
 import { apiRequest } from '@/api/client'
 import { fetchConfiguration, type Configuration } from '@/api/configuration'
@@ -91,6 +91,8 @@ export function DirectoryDiagnostics({
           {data.error}
         </p>
       )}
+      {sourceView&&<><p className="ui-description">{data.report.records??0} imported records · {data.coverage_total?`${data.coverage.matched??0} / ${data.coverage_total} SAP identities matched · ${(((data.coverage.matched??0)/data.coverage_total)*100).toFixed(1)}%`:data.coverage_reason||'SAP matching not evaluated'}</p>{!!(data.report.missing_emails||data.report.duplicate_emails)&&<p className="ui-description"><StatusBadge tone="warning">Data quality warnings</StatusBadge> {data.report.missing_emails||0} missing emails · {data.report.duplicate_emails||0} duplicate email keys. View diagnostics for details.</p>}</>}
+      <details open={!sourceView}><summary>View diagnostics</summary>
       {sourceView ? (
         <>
           <div className="directory-quality-grid">
@@ -196,6 +198,7 @@ export function DirectoryDiagnostics({
           Review Employee Directory source
         </button>
       )}
+      </details>
     </section>
   )
 }
@@ -465,27 +468,29 @@ export function EmployeeBrowser() {
             </table>
           </div>
           {!query.data.total && <p>No employees match this search.</p>}
-          <div className="flex gap-3 items-center">
+          <div className="employee-pagination flex flex-wrap gap-3 items-center">
             <button
               className="settings-secondary-button"
+              aria-label="Previous employees"
               disabled={!offset}
               onClick={() => {
                 setOffset(Math.max(0, offset - 25))
                 setSelected(null)
               }}
             >
-              Previous employees
+              <ArrowLeft size={16} aria-hidden="true"/> Previous
             </button>
             <span>{query.data.total} matching employees</span>
             <button
               className="settings-secondary-button"
+              aria-label="Next employees"
               disabled={offset + 25 >= query.data.total}
               onClick={() => {
                 setOffset(offset + 25)
                 setSelected(null)
               }}
             >
-              Next employees
+              Next <ArrowRight size={16} aria-hidden="true"/>
             </button>
           </div>
         </>

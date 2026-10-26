@@ -15,7 +15,7 @@ export function DetailNavigation({ parent, current, onBack, index = -1, total = 
   useEffect(() => { focus.current?.focus({ preventScroll: true }) }, [current])
   return <div className="detail-navigation">
     {showBreadcrumb&&<nav aria-label="Breadcrumb" className="flex items-center gap-2 min-w-0 text-sm">
-      <Button onClick={onBack}><ArrowLeft size={16} aria-hidden="true"/>Back to {parent === 'User Access' ? 'users' : parent}</Button>
+      <Button variant="ghost" size="compact" className="detail-back-action" onClick={onBack}><ArrowLeft size={16} aria-hidden="true"/>Back to {parent === 'User Access' ? 'users' : parent}</Button>
       <ChevronRight size={16} aria-hidden="true" className="shrink-0"/>
       <span ref={focus} tabIndex={-1} aria-current="page" className="truncate" title={current}>{current}</span>
     </nav>}

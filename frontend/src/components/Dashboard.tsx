@@ -1,3 +1,4 @@
+import {useModules} from '@/hooks/useModules'
 import {SourceHealthSummary,useSourceEvidence} from '@/components/Settings/SourceStatus'
 import { PageHeader, SectionHeader } from '@/components/Shared/Presentation'
 import { LayoutDashboard, ShieldAlert, HeartPulse, BarChart3, SlidersHorizontal } from 'lucide-react'
@@ -130,9 +131,10 @@ export function Dashboard() {
       </button>
     )
   }
+  const modules=useModules()
   const groups = [
     ['SAP Overview', ['users', 'roles', 'releases', 'mappings']],
-    ['Access & Risk', ['assignments','account_review','ad_disabled_open','expired','future','assigned_users']],
+    ['Access & Risk', ['account_review','ad_disabled_open','expired','future','assignments','assigned_users']],
     ['Directory & Data Health', ['email_matches','unresolved']],
     ['Review Progress',['reviewed','pending','outdated']],
   ] as const
@@ -162,19 +164,16 @@ export function Dashboard() {
                   )
                   .map(tile)}
               </div>
-              {name==='Review Progress'&&query.data.review_population!=null&&query.data.metrics.find(m=>m.id==='reviewed')?.value!=null&&<div className="coverage-summary"><strong>{query.data.review_population ? (((query.data.metrics.find(m=>m.id==='reviewed')?.value||0)/query.data.review_population)*100).toFixed(1):'0.0'}% reviewed</strong><progress aria-label="Account review completion" max={query.data.review_population||1} value={query.data.metrics.find(m=>m.id==='reviewed')?.value||0}/><span>Population: all {query.data.review_population} currently imported SAP accounts. Outdated reviews remain pending.</span></div>}
+              {name==='Review Progress'&&query.data.review_population!=null&&query.data.metrics.find(m=>m.id==='reviewed')?.value!=null&&<div className="coverage-summary"><strong>{query.data.review_population ? (((query.data.metrics.find(m=>m.id==='reviewed')?.value||0)/query.data.review_population)*100).toFixed(1):'0.0'}% reviewed</strong><progress aria-label="Account review completion" max={query.data.review_population||1} value={query.data.metrics.find(m=>m.id==='reviewed')?.value||0}/><small>All {query.data.review_population} imported SAP accounts; outdated reviews remain pending.</small></div>}
               {name === 'Access & Risk' && (
                 <p className="text-xs text-[var(--muted)]">
-                  Expired/future totals open User Access; select assignment
-                  status in a profile. Release Roles opens its currently-valid
-                  view. Counts describe source evidence, not effective SAP
-                  authorization.
+                  Counts describe source evidence, not effective SAP authorization.
                 </p>
               )}
             </section>
           ))}
 
-          <div className="dashboard-bottom-row"><section aria-label="Role Distribution" className="dashboard-section dashboard-distribution"><SectionHeader title="Role Distribution" icon={<BarChart3 size={18}/>}/><p className="ui-description">Distinct catalogue roles by canonical SAP area. Single-role relationships and release assignments are separate evidence.</p>{query.data.role_distribution==null?<p>Role catalogue unavailable.</p>:Object.entries(query.data.role_distribution).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([area,count])=><button key={area} className="dashboard-distribution-link" aria-label={`Investigate ${area} catalogue roles`} onClick={()=>{const metric=query.data.metrics.find(m=>m.id==='roles');if(metric)open(metric,area)}}><span>{area}</span><progress aria-label={`${area} catalogue roles`} max={Math.max(1,...Object.values(query.data.role_distribution||{}))} value={count}/><strong>{count}</strong><ArrowUpRight size={14}/></button>)}{query.data.assignment_distribution&&<><h3>Users by currently valid assigned role count</h3><p className="ui-description">Distinct business/release roles per SAP user; historical and unknown intervals are excluded. High counts are not security findings.</p><div className="dashboard-assignment-distribution">{['0','1–5','6–20','21+'].map(bin=><div key={bin}><strong>{query.data.assignment_distribution?.[bin]||0}</strong><span>{bin} roles</span></div>)}</div></>}</section>
+          <div className="dashboard-bottom-row"><section aria-label="Role Distribution" className="dashboard-section dashboard-distribution"><SectionHeader title="Role Distribution" icon={<BarChart3 size={18}/>}/><p className="ui-description">Distinct catalogue roles by canonical SAP area. Single-role relationships and release assignments are separate evidence.</p>{query.data.role_distribution==null?<p>Role catalogue unavailable.</p>:Object.entries(query.data.role_distribution).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([area,count])=><button key={area} className="dashboard-distribution-link" title={modules.data?.find(module=>module.function_key===area)?.module_name||area} aria-label={`Investigate ${area} catalogue roles`} onClick={()=>{const metric=query.data.metrics.find(m=>m.id==='roles');if(metric)open(metric,area)}}><span>{area}</span><progress aria-label={`${area} catalogue roles`} max={Math.max(1,...Object.values(query.data.role_distribution||{}))} value={count}/><strong>{count}</strong><ArrowUpRight size={14}/></button>)}</section>
           <section aria-label="Configuration" className="dashboard-section">
             <SectionHeader title="Data Sources & Configuration" icon={<SlidersHorizontal size={18}/>}/>
             <p className="text-xs text-[var(--muted)]">
@@ -212,6 +211,7 @@ export function Dashboard() {
                 ))}
 
             </div>
+          </section><section aria-label="Assignment Distribution" className="dashboard-section dashboard-distribution"><SectionHeader title="Assignment Distribution" icon={<UsersRound size={18}/>}/><p className="ui-description">Distinct currently valid assigned roles. Historical and unknown intervals are excluded. High counts are not security findings.</p>{query.data.assignment_distribution?['0','1–5','6–20','21+'].map(bin=><button key={bin} className="dashboard-distribution-stat" aria-label={`Investigate users with ${bin} currently valid roles`} onClick={()=>change({page:'users',accessMode:'directory',user:'',userContext:{},assignmentBand:bin,settings:false,detailRole:null})}><span>{bin} roles</span><progress aria-label={`${bin} roles user count`} max={Math.max(1,...Object.values(query.data.assignment_distribution||{}))} value={query.data.assignment_distribution?.[bin]||0}/><strong>{query.data.assignment_distribution?.[bin]||0}</strong></button>):<p>User–Role Mapping unavailable.</p>}
           </section></div>
         </div>
       )}

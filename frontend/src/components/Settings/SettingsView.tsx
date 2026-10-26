@@ -871,13 +871,13 @@ export function SettingsView({
                     </div>
                   }
                   {
-                    <div className={section === 3 ? 'space-y-5' : 'hidden'}>
-                      <ThemeEditor
+                    <div className={section === 3 ? 'appearance-columns' : 'hidden'}>
+                      <div><ThemeEditor
                         key={`${open}-${config.data?.settings.revision}`}
                         draft={draft}
                         onChange={(patch) => setDraft({ ...draft, ...patch })}
                       />
-                      <h2 className="settings-subheading">Header logo</h2>
+                      </div><div className="space-y-3"><h2 className="settings-subheading">Header logo</h2>
                       <p className="text-sm">
                         Currently active:{' '}
                         {config.data?.settings.logo_id
@@ -978,6 +978,7 @@ export function SettingsView({
                         will not break it.
                       </p>
                       </div></div>
+                      </div>
                     </div>
                   }
                   {section === 6 && <About/>}
