@@ -895,3 +895,95 @@ This is risk-based validation, not a claim that the complete browser suite passe
 on the final commit. FULL browser regression was not rerun within the execution
 budget. Native Windows/WebView2, tray, EXE, service/systemd and UNC acceptance remain
 unexecuted; browser and portable PowerShell checks do not substitute for them.
+
+## Final stabilization and delivery validation — 26 October 2026
+
+This section supersedes the incomplete full-regression status above for source
+commits `e29fdb1`, `48f1a74` and stabilization commit `00bac30`. It does not
+supersede native-platform acceptance limitations.
+
+### Corrections and complete regression results
+
+- Restored the dashboard's `normalize_role` import, which its distinct release-role
+  metric still requires. The initial full backend run exposed two errors.
+- Restored successful durable-directory recovery feedback and invalidation of
+  diagnostics, Data Health and Dashboard queries.
+- Applied shared wildcard matching to the Release Roles free-text availability
+  hint. Matching rows no longer coexist with a misleading unavailable-selection
+  warning. Exact group/type/strategy selections retain exact semantics. Added API
+  and browser regressions.
+- Corrected relocated matching-evidence identifier spacing and human-readable
+  matching labels. Updated obsolete browser expectations for descriptions,
+  evidence disclosures, underline navigation and compact review metrics without
+  removing evidence, copy, focus or navigation assertions.
+- Final full backend command, using Python 3.12 and portable PowerShell on PATH:
+  `python -W error::DeprecationWarning -m unittest discover -s backend/tests -v`.
+  **464 tests passed in 21.398 seconds; no skips.** This includes repository
+  integrity/privacy, persistence, workflow contracts, server and packaging tests.
+- Final full browser command from `frontend`, with the prepared Python environment
+  on PATH and `PLAYWRIGHT_EXECUTABLE_PATH=/usr/bin/chromium`:
+  `npm run test:browser -- --output=/workspace/sap-lens-dev/delivery-current-browser-verified-artifacts --reporter=line`.
+  **319 tests passed together in 9.1 minutes, with one worker and no retries or
+  skips.** The successful run completed after the final application changes.
+- Earlier completed browser regression: 305 passed and 13 failed; targeted
+  corrections/rechecks preceded the final successful full run. Two earlier full
+  attempts were interrupted during diagnosis and are not counted as passes.
+
+### Build, static, documentation and dependency checks
+
+- `npm ci`, `npm run check:types` and `npm run build` passed. The existing Vite
+  chunk-size warning above 500 kB remains non-blocking; dependencies are unchanged.
+- `python -m compileall -q backend scripts` and `python -m pip check` passed.
+- `python scripts/check-docs.py`: **73 Markdown files, zero failures**.
+- `python scripts/check-workflows.py` and `actionlint` passed.
+- `pwsh -NoProfile -File scripts/check-powershell.ps1` passed all 12 script
+  syntax/static guards and service-helper mocks; these are not SCM acceptance.
+- `node scripts/sync-lucide-catalog.mjs --check`: **1,447 icons verified**.
+  `node scripts/frontend-licenses.mjs` passed. Component Library interactions and
+  shared-component consistency are covered by the complete browser suite.
+- Python audits of canonical development/build requirements, the installed
+  validation environment and the built Docker image found **no known
+  vulnerabilities**. Production-only and complete npm audits reported **zero
+  vulnerabilities**, including development dependencies. The image audit's
+  `--no-deps` advisory concerns reproducible audit input, not a reported CVE.
+- `git diff --check` passed. README logo links and documentation navigation passed
+  the link checker; no `CHANGELOG.md` was introduced.
+
+### Deployment and visual evidence
+
+- Built the canonical Dockerfile locally from clean source `00bac30`, reusing the
+  validated production frontend. No image was published. The managed environment
+  required writable Buildx cache configuration; application configuration and
+  packaging verification were not weakened.
+- `scripts/test-docker-deployment.py` passed frontend/API serving, authentication,
+  health/version, browser-upload import, non-root execution and restart/container
+  recreation persistence checks.
+- `scripts/test-docker-lifecycle.py` passed offline install/reinstall,
+  authentication/import, backup, same-version upgrade, restart, preserving
+  uninstall, empty-volume restore and isolated confirmed purge. A local image
+  alias using the manager's required `sap-lens:<tag>` naming resolved the initial
+  validation-harness naming mismatch; the manager validator was preserved.
+- Reviewed eight fresh screenshots from the successful full browser run: both
+  light and dark themes at **375, 800, 1280 and 1600 px**. Representative frames
+  cover sidebar/profile evidence, directory tables, Dashboard, module tiles and
+  appearance controls. No blocking alignment, overflow or contrast issue was
+  found. Automated coverage also exercises date portals, dialogs, matrices,
+  keyboard focus and responsive controls.
+- Logs and screenshots remain outside Git under
+  `/workspace/sap-lens-dev/delivery-current-*`; the reviewed contact sheet is
+  `/workspace/sap-lens-dev/delivery-current-visual-contact.png`. These are local
+  validation artifacts, not published downloads.
+
+### Privacy review and remaining acceptance
+
+Reviewed outgoing additions against the live remote baseline `c557c4a`: no new
+credentials, private keys, private employee data or company-identifiable assets
+were found. Test identities use synthetic/reserved-domain data; no CSV or binary
+assets were added. Accepted historical branding finding P-01 is unchanged.
+
+Native Windows EXE/WebView2, tray, SCM/reboot/recovery, UNC and real systemd
+acceptance remain **unexecuted**. The available systemd environment is offline.
+Linux unit/browser checks, portable PowerShell and Docker lifecycle checks do not
+substitute for these tests. No native deployment artifact, CI success or
+production-readiness claim is made. All runnable regression checks above passed;
+the branch is ready for review and subsequent manual target-platform acceptance.
