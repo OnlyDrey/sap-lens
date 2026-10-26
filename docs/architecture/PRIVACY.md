@@ -10,7 +10,7 @@ The protected README product branding remains unchanged. The Windows icon and de
 
 The repository cleanup rechecked 205 reachable text blobs for bounded credential/private-key signatures with no candidates, and confirmed two unique historical nonproduct image blobs. This does not supersede owner review of historical naming conventions, forks, clones or earlier asset exposure. No history was rewritten and no discovered private values are printed in the cleanup report.
 
-User exports may contain personal data. Desktop reads them locally; server-mode browser uploads send them only to the operator’s configured SAP Lens instance for validation and import. They are not sent to a third-party cloud service or bundled into distributions. User previews are bounded and omit email fields; diagnostic exports remain redacted. Routine logs never include user identifiers or contact details. Private settings backups may retain inactive legacy configuration; handle them as confidential.
+User exports may contain personal data. Desktop reads them locally; server-mode browser uploads send them only to the operator’s configured SAP Lens instance for validation and import. They are not sent to a third-party cloud service or bundled into distributions. Authenticated User Access previews contain at most 20 response-only identity/assignment samples, including email when supplied, for local preview search. Samples are not persisted in import reports or included in diagnostic exports; those remain redacted. Routine logs never include user identifiers or contact details. Private settings backups may retain inactive legacy configuration; handle them as confidential.
 
 
 ## Outgoing delivery review — 25 October 2026

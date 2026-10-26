@@ -66,3 +66,11 @@ an inset fill, not a focus effect. Popovers remain portal-positioned with opaque
 surfaces and visible borders. Navigation uses a shared strip implementation while
 preserving distinct link and tab semantics. Secondary navigation has a subtle
 underline hover state rather than a large background treatment.
+
+Page titles use the shared icon-led header. Saved Filter Save/Clear actions share
+an equal-width two-column row. Source metadata uses full-width facts rather than
+nested two-column cards. Comparison's B-only category has a theme-specific
+`--comparison-b` token; shared and A-only reuse success/information. Single-role
+zebra backgrounds cover the whole contiguous row with outer-list rounding only;
+hover reverses the two surface tokens. Identifiers remain exact and copyable,
+wrapping or stacking without page overflow. Focus remains a visible outline.

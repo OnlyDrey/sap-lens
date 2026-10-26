@@ -22,3 +22,8 @@ No cloud synchronization, result caching, credentials or SAP data uploads are in
 Search saved names in the popover. Save/Clear share a compact row; Clear resets
 applied filters without deleting a definition. Escape closes the popover and
 returns focus to its trigger; outside click dismisses without stealing focus.
+
+Save as new and Clear filters occupy equal halves of their shared action row,
+excluding its gap. Selector/name fields stay aligned and the popover remains
+viewport-bounded. Clear is non-destructive; disabled save and compatibility guards
+remain unchanged.

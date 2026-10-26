@@ -110,3 +110,19 @@ it does not erase the distinction between available data and the last attempt.
 so programmatic popover focus does not open a second overlay over Load/Save.
 Click, typing and Arrow keys still open the list; Escape closes the list before
 its parent popover and restores the expected focus.
+
+## Shared page and investigation refinements
+
+`PageHeader` accepts an optional leading `icon` and adjacent `titleAction`, keeping
+route titles, utility actions and labels in one responsive heading pattern.
+`MetadataList` accepts `{label, value}` items and renders full-width semantic
+key/value rows, stacking on narrow screens. SourceHealthSummary uses it without
+substituting import timestamps for source-check evidence.
+
+`SearchInput` accepts an optional `onClear`; callers retain search state and scope.
+ImportPreview filters only the bounded validated response rows, reports visible
+versus preview counts separately from full CSV totals, and never mutates imports.
+The authenticated User Access preview includes at most 20 identity/assignment
+samples; these response-only samples remain absent from persistent reports and
+sanitized diagnostics. RoleMetadata accepts a leading evidence slot for the
+single-role transaction count without changing source classification.

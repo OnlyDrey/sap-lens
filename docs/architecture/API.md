@@ -162,3 +162,12 @@ See [Employee Directory contracts](../data/EMPLOYEE_DIRECTORY.md) for matching a
 ### Catalogue areas and assignment dates
 
 Repeated `function_keys` combine with OR in `/api/roles`. Role text search matches only role name and description. User-detail/release endpoints share inclusive `valid_from_min/max`, `valid_to_min/max` and `open_ended` parameters before pagination. See [filter and navigation contracts](../features/FILTERS.md#api-additions).
+
+### Authenticated user import preview samples
+
+`POST /api/user-import/preview` validates without publication. Its bounded sample
+response contains at most 20 rows of USERNAME, ROLE_NAME, USER_GROUP, FIRST_NAME,
+LAST_NAME, EMAIL, ROLE_VALID_FROM and ROLE_VALID_TO. This enables local preview
+search; the full CSV is not transferred to the DOM. Personal samples remain absent
+from stored user reports and diagnostic exports. Existing session/origin, size,
+row and validation guards still apply.

@@ -3,6 +3,95 @@
 > Historical evidence: applies to the source/phase recorded below, not later
 > commits. Use the [current documentation index](../../README.md) for instructions.
 
+
+## Comprehensive UI/UX refinement — 26 October 2026
+
+Baseline `2ba408908a7c090edd623daaa610c10023fe7b9b` and all prior commits are
+preserved. Validated implementation commit:
+`3661971ddaa9957808da5acb05fbfca251ea74d2` (commands executed on its working-tree
+contents before commit). Implementation/test patch SHA-256:
+`6d456f06624de17758975da4c6afcc62cd6c5067b199193b9d6ca32d5cc5cc4d`.
+No new dependencies, deployment workflow changes, tags, releases or remote pushes.
+
+### Requested areas and shared ownership
+
+| Area | Delivered behavior |
+| --- | --- |
+| Dashboard | Four primary overview metrics; compact Access & Risk rows; integrated directory coverage; all three sources in secondary configuration. Existing counts/navigation retained. |
+| Saved Filters | Shared equal-width Save as new/Clear action row, aligned fields, existing persistence/compatibility/focus behavior. |
+| Single Roles | Contiguous full-row zebra surfaces, outer rounding only, reversible hover and transaction count beside module metadata. |
+| Role header | Grouped descriptive information, responsive right-aligned exact identifier and existing compact back action. |
+| Long identifiers | Shared wrap-safe identifiers; responsive descriptive/technical columns and small-window stacking; exact copying retained. |
+| User Directory | Shared icon header; coherent primary grid, expired option beneath role and direction beneath sorting; individual chips and existing predicates retained. |
+| Account Review | Equal-density grouped metrics; coherent search/decision/sort controls; bounded right-aligned clear; export moved beside result count. |
+| Compare Users | Accessible swap beside title, grouped direction, consistent shared/A/B semantic colors, right-aligned export and unchanged direct interval/provenance evidence. |
+| Role Lookup | Restored shared visible title/icon without changing catalogue searches or area filtering. |
+| Release Roles | Shared header, stacked sort/direction, existing date controls inside the filter panel and Table/Matrix controls retained. |
+| Matrix | Content-sized columns, prominent/sticky headers, bounded relative count intensity, keyboard scrolling/drilldown; no risk classification. |
+| CSV previews | Shared local case-insensitive sample search and clear; full validation totals remain separate. Employee search uses the same SearchInput. |
+| Source Health | Canonical StatusBadge variants and MetadataList's four full-width facts. Import, availability, snapshot, source check and error/warning remain distinct. |
+
+PageHeader, SearchInput, RoleMetadata, StatusBadge/SourceBadge, FilterPanel,
+ResultsToolbar, SavedFilters and ImportPreview are extended/reused. MetadataList
+is the small new semantic display primitive. Real controls appear in the isolated
+Component Library. Canonical CSS replaces superseded Single Roles/source badge
+rules; no separate design system or speculative domain model is introduced.
+
+### Final validation
+
+| Executed command/check | Result |
+| --- | --- |
+| `.venv/bin/python -m unittest discover -s backend/tests -v` with portable PowerShell on PATH | **408 passed, 18.826 s**, no skips |
+| `PATH=/workspace/sap-lens/.venv/bin:$PATH PLAYWRIGHT_EXECUTABLE_PATH=/usr/bin/chromium npm --prefix frontend run test:browser` | **248 passed together, 8.0 min**, one worker, no retries |
+| `npm --prefix frontend ci --no-audit --no-fund` | Passed with locked dependencies |
+| `npm --prefix frontend run check:types`, `npm --prefix frontend run build` | Passed; existing >500 kB chunk warning retained |
+| `.venv/bin/python -m pip check` | Passed |
+| Isolated `python -m pip_audit --path .venv/lib/python3.12/site-packages` | No known vulnerabilities in the installed Linux environment; writable workspace cache used |
+| `npm --prefix frontend audit --omit=dev` | Zero production vulnerabilities |
+| Full `npm --prefix frontend audit` | Three existing moderate development-chain advisories; no suppression or forced updates |
+| `python scripts/check-docs.py` | 73 Markdown files, zero broken relative links/images/anchors; external URLs not fetched |
+| `python scripts/check-workflows.py`, actionlint | Passed |
+| `pwsh -NoProfile -File scripts/check-powershell.ps1` | Parser/static/service-helper tests passed; no SCM operations |
+| `node scripts/sync-lucide-catalog.mjs --check` | 1,447 icons verified |
+| Documentation and repository-privacy targeted regressions; Git whitespace checks | Passed |
+
+Thirteen new browser cases cover eight theme/width combinations, direct long-role
+and multi-interval/wildcard comparison with swap, bounded identity preview search,
+small matrix keyboard drilldown, zebra/hover behavior and a synthetic 199-cell
+matrix with high counts, empty cells and scrolling in both themes. Existing tests
+were retained. Label/role selectors were migrated for SAP Overview, Descending
+and the employee searchbox without dropping their assertions.
+
+Earlier targeted failures exposed search-clear hit testing and superseded grid
+styles; these were fixed. Screenshot review exposed a source-badge cascade and
+stretched clear button, corrected through canonical components/styles. Interrupted
+runs are not counted as passes. A preceding complete run had 247 passes and one
+legacy textbox selector failure; that selector's full behavior passed targeted
+recheck, followed by the final integrated **248-test pass** above.
+
+### Visual review and privacy boundaries
+
+Synthetic light/dark screenshots were captured at 375, 800, 1280 and 1600 pixels.
+Representative Dashboard, directory/review, comparison, Role Details, matrix and
+source-health/library images were reviewed. Sixty new screenshots supplement the
+existing scenarios; full-suite PNGs are kept outside Git. Capture returns the
+window to its origin so sticky navigation is not misleadingly stitched mid-page.
+Large evidence tables/matrices intentionally scroll inside their named regions.
+
+Preview search is deliberately bounded: catalogue samples at five rows and user
+samples at 20, not arbitrary full-export browser loading. To investigate all
+records, confirm import and use the relevant investigation page. User preview
+names/emails are authenticated response-only evidence, never stored samples in
+reports or diagnostic exports; regression tests assert the boundary. Import modes,
+schemas, snapshots, matching, account decisions and SAP evidence calculations are
+unchanged. No real employee/company data, credentials, private artifacts or new
+branding were added; accepted historical P-01 remains unresolved and unchanged.
+
+Native Windows/WebView2, packaged EXE, real systemd/reboot/recovery/UNC and physical
+mobile/Safari/Firefox acceptance were not executed. Linux Chromium responsive
+screenshots and mocked native exports do not establish those results. No Windows
+build, GitHub Actions dispatch or release publication was performed.
+
 ## Final integrated validation and conditional delivery — 25.10.2026
 
 Validated test/source checkpoint: `8e11ae7577e893379ddb8effa4ba4ca5d06dd527`.

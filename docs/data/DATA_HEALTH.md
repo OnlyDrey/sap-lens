@@ -21,3 +21,10 @@ Select a nonzero finding to inspect paginated exact identifiers and open an exis
 Aggregate catalogue/assignment calculations are cached for one publication/date; refresh invalidates them. A failed replacement preserves previous data and coverage. Browser queries participate in application-scoped refresh invalidation. No result datasets are persisted by Data Health. Routine metrics contain no personal emails or source paths; authenticated drilldown contains the necessary local identifiers.
 
 Role and user sources now restore durable canonical snapshots rather than relying only on startup CSV availability. Source mode, latest import and live-source access remain separate from snapshot availability. Recent operation reports are available under Data Sources and Diagnostics. See [CSV data lifecycle](IMPORT_AND_REFRESH.md).
+
+Source health uses shared mode/availability badges and four full-width metadata
+rows: Records, Last import/dataset activation, Snapshot and Last validated source
+check. Dynamic is informational; Static/Disabled are neutral. Loaded is a green
+success state independent of a warning about the most recent failed source read.
+Absent source-check evidence stays Not checked, rather than borrowing an import
+timestamp. Existing technical details and recovery actions remain available.

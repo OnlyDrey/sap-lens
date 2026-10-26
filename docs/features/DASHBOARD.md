@@ -116,3 +116,13 @@ configuration actions still open Data Sources directly. Release role KPI include
 all imported validity states and opens the ordinary currently-valid view, explained
 by its context; lifecycle totals do not silently apply account-validity filters to
 assignment evidence. See [Account Review](ACCOUNT_REVIEW.md).
+
+## Overview and investigation workspace
+
+The icon-led shared header introduces SAP Overview's four primary metrics. Access
+& Risk uses compact investigation rows rather than another equal-sized card grid;
+Directory & Data Health keeps identity counts and the coverage progress together.
+Data Sources & Configuration includes all three independent sources with their
+feature/availability state and actual last successful refresh. Counts and KPI
+navigation retain their existing backend definitions. Lifecycle totals are
+informational evidence, not automatically a security-risk finding.

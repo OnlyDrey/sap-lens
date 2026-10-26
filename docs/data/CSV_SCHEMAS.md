@@ -98,3 +98,13 @@ wildcards are rejected; catalogue patterns never become actual assignments.
 Resolved transactions retain catalogue child/effective/direct relationships.
 Mapping coverage is not proof of effective authorization. See [User Access](../features/USER_ACCESS.md)
 and [Release Roles](../features/RELEASE_ROLES.md) for scope and strict PR/PO parsing.
+
+## Searching validated previews
+
+Catalogue and user import previews share a case-insensitive local search across
+the supplied validated sample fields. Catalogue samples are capped at five rows;
+User Access samples at 20. User samples include username, role, group, first/last
+name, email and assignment dates. Search does not request or render the full export.
+The interface reports matching preview rows separately from the unchanged complete
+validation/import totals. No sample is made active by searching. Employee Directory
+retains its existing authenticated paginated full-preview search.

@@ -35,3 +35,9 @@ future and unknown evidence. Missing dates do not establish active access;
 31.12.9999 remains an explicit date obeying bounds. Table/Matrix, sorting and
 filters retain context through role/user drilldowns. Use [Saved Filters](SAVED_FILTERS.md)
 for repeat investigations. Parsed names do not establish release authority or effective SAP authorization.
+
+The matrix uses compact content-sized columns, prominent group/strategy headers,
+tabular counts and sticky headers inside a contained keyboard-focusable scroll
+region. Restrained background intensity is relative to counts on the displayed
+matrix, not an authorization or risk score. Empty/paginated cells retain their
+existing evidence meaning. Group comparison remains in a stable secondary toolbar.

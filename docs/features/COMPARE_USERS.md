@@ -18,3 +18,9 @@ User/role navigation uses existing history; Back returns to the preserved compar
 See [Saved Filters](SAVED_FILTERS.md), [Data Health](../data/DATA_HEALTH.md) and [Access Insights assessment](../proposals/ACCESS_INSIGHTS.md).
 
 The table has four columns: Role / Transaction, Difference, User A Evidence and User B Evidence. Exact assigned roles, copy actions, validity intervals, assignment status, source groups and catalogue matching patterns are visible directly, without an evidence accordion. Transaction rows retain the explanatory roles and their assignment intervals; they remain role-derived mappings. Each evidence page is bounded to 25 records, with explicit pagination for further intervals or explanatory roles. No evidence is discarded; additional pages retain generation/date checks. Sort order is preserved in history, saved filters and the selected CSV export.
+
+The header places the accessible Swap users action beside the title. Sorting and
+Descending share a control group; Export comparison CSV stays at the right of the
+results toolbar. Shared/A-only/B-only indicators use consistent green/blue/purple
+semantic tokens with explicit text. Colors express comparison categories, not risk.
+Inline assignments, multiple intervals, wildcard provenance and paging remain intact.
