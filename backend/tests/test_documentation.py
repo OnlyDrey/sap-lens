@@ -38,3 +38,31 @@ class DocumentationTests(unittest.TestCase):
             self.assertEqual(rules.check(list(target.glob('*.md')),target),[])
             self.assertIn('(SECURITY.md)',(target/'README.md').read_text())
             self.assertIn('developer reference (repository documentation)',(target/'README.md').read_text())
+
+    def test_current_operating_guides_are_self_contained_when_packaged(self):
+        package_spec=importlib.util.spec_from_file_location('operating_documentation_packaging',ROOT/'scripts/deployment-package.py')
+        packages=importlib.util.module_from_spec(package_spec);package_spec.loader.exec_module(packages)
+        for guide in ('WINDOWS_DESKTOP','WINDOWS_SERVICE','LINUX_DOCKER','LINUX_NATIVE'):
+            with self.subTest(guide=guide), tempfile.TemporaryDirectory() as temporary:
+                target=Path(temporary)
+                packages.package_document(ROOT/'docs/deployment/SECURITY.md',target/'SECURITY.md')
+                packages.package_document(ROOT/f'docs/deployment/{guide}.md',target/'README.md')
+                self.assertEqual(rules.check(list(target.glob('*.md')),target),[])
+                if guide!='WINDOWS_DESKTOP':
+                    self.assertIn('(SECURITY.md)',(target/'README.md').read_text())
+
+    def test_native_bundle_documentation_members_survive_source_migration(self):
+        from unittest.mock import patch
+        package_spec=importlib.util.spec_from_file_location('native_documentation_packaging',ROOT/'scripts/deployment-package.py')
+        packages=importlib.util.module_from_spec(package_spec);package_spec.loader.exec_module(packages)
+        with tempfile.TemporaryDirectory() as temporary:
+            target=Path(temporary)
+            # Backend CI runs before the frontend build: only documentation is under test.
+            with patch.object(packages,'identity',return_value={'version':'0.1.0','source_commit':'synthetic'}), patch.object(packages.shutil,'copytree'):
+                packages.copy_source(target)
+            self.assertEqual({p.name for p in target.glob('*.md')},{
+                'LICENSE.md','README.md','SECURITY.md','DEPLOYMENT_LINUX_NATIVE.md',
+                'DEPLOYMENT_SECURITY.md','DEPLOYMENT_PACKAGES.md','PACKAGING_VALIDATION.md',
+                'LOCAL_BUILD_VALIDATION.md','INSTALLATION_LIFECYCLE_VALIDATION.md'})
+            self.assertEqual(rules.check(list(target.glob('*.md')),target),[])
+            self.assertIn('# Linux native/systemd',(target/'README.md').read_text())

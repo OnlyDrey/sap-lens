@@ -26,8 +26,8 @@ try {
     Copy-Item scripts/manage-server-service.ps1 $output
     Copy-Item deploy/windows/LICENSE-WinSW.txt $output
     Copy-Item LICENSE.md $output
-    Copy-Item docs/DEPLOYMENT_WINDOWS_SERVER.md (Join-Path $output 'README.md')
-    Invoke-Checked { & $python scripts/deployment-package.py readme --document docs/DEPLOYMENT_WINDOWS_SERVER.md --directory $output }
+    Copy-Item docs/deployment/WINDOWS_SERVICE.md (Join-Path $output 'README.md')
+    Invoke-Checked { & $python scripts/deployment-package.py readme --document docs/deployment/WINDOWS_SERVICE.md --directory $output }
     Invoke-Checked { & $python scripts/verify-server-bundle.py $output }
     Write-Host "Verified headless server bundle: $output. Signing is disabled. Install/start and stop tests on the target Windows Server are still required."
 } finally { Pop-Location }

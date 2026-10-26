@@ -80,7 +80,7 @@ def render(steps, records, env):
         rows.append(f'| {safe(stage)} | {safe(state)} | {elapsed} | {tests} |')
     rows += ['', 'Durations measure commands; checkout, setup, cache actions and runner cleanup are additional.',
              'Skipped/missing mandatory checks are never counted as passed. See job logs for warnings.',
-             'Known upstream artifact DEP0005 and existing development advisories: docs/DEPRECATIONS.md.']
+             'Known upstream artifact DEP0005 and existing development advisories: docs/development/DEPENDENCY_MAINTENANCE.md.']
     starts = [record['started_at'] for record in records if isinstance(record.get('started_at'), (int, float))]
     if starts:
         rows += [f'Elapsed since first measured command: {max(0, time.time() - min(starts)):.2f} s (initial setup excluded).']

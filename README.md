@@ -10,130 +10,58 @@
     <br />
     <a href="docs/README.md">Documentation</a>
     ·
-    <a href="docs/DEPLOYMENT.md">Installation &amp; deployment</a>
+    <a href="docs/getting-started/QUICK_START.md">Quick Start</a>
     ·
-    <a href="docs/DEPLOYMENT_PACKAGES.md">Build packages</a>
+    <a href="docs/deployment/README.md">Build &amp; Deployment</a>
+    ·
+    <a href="docs/features/README.md">Features</a>
+    ·
+    <a href="docs/development/README.md">Development</a>
     ·
     <a href="https://github.com/OnlyDrey/sap-lens/releases">GitHub Releases</a>
   </p>
 </p>
 
-
-
 ---
 
 SAP Lens is a local-first SAP investigation and access-review application. Browse
-roles and transaction mappings, investigate user assignments and release roles,
-compare users, enrich identities with an optional Employee Directory, and record
-Account Review decisions. Role-derived transaction coverage is evidence for
-investigation, not proof of effective SAP authorization or license consumption.
-No direct SAP connection or third-party data-upload service is required.
+roles and transaction mappings, investigate user/release assignments, compare
+users, enrich identities with optional Employee Directory data, and record Account
+Review decisions. Role-derived transaction coverage is investigation evidence,
+not proof of effective authorization or license consumption. No direct SAP connection
+or third-party data-upload service is required.
 
-<a id="1"></a>
 ## Get started
 
-Choose the deployment appropriate for your environment:
+Choose [Quick Start](docs/getting-started/QUICK_START.md), then a deployment:
 
-| Target | Interface | Installation guide |
+| Target | Interface | Primary guide |
 | --- | --- | --- |
-| Windows Desktop x64 | Native WebView2 window; portable EXE or installer | [Windows Desktop](docs/INSTALLATION_WINDOWS_DESKTOP.md) |
-| Windows Server Service x64 | Hosted browser application; WinSW/SCM | [Windows Server](docs/DEPLOYMENT_WINDOWS_SERVER.md) |
-| Linux Docker amd64 | Hosted browser application; offline image and Compose | [Docker](docs/DEPLOYMENT_LINUX_DOCKER.md) |
-| Linux Native/systemd x64 | Python 3.12 server; systemd or manual browser client | [Linux Native](docs/DEPLOYMENT_LINUX_NATIVE.md) |
+| Windows Desktop x64 | EXE / WebView2; portable or per-user installer | [Desktop](docs/deployment/WINDOWS_DESKTOP.md) |
+| Windows Server Service x64 | Headless WinSW/SCM, browser | [Service](docs/deployment/WINDOWS_SERVICE.md) |
+| Linux Docker amd64 | Offline image / Compose, browser | [Docker](docs/deployment/LINUX_DOCKER.md) |
+| Linux Native/systemd x64 | Python 3.12, systemd or manual browser process | [Native](docs/deployment/LINUX_NATIVE.md) |
 
-All modes share the backend, frontend, CSV lifecycle and business logic. There is
-no separate Linux desktop executable. Hosted clients use a modern browser; remote
-access requires an explicit authenticated HTTPS boundary. See [deployment and
-security](docs/DEPLOYMENT.md) before exposing real data.
+All targets share the application and CSV lifecycle. Linux client support is
+browser-based; no standalone Linux GUI is supplied. Server deployments default to
+loopback and require an explicit [security boundary](docs/deployment/SECURITY.md)
+for remote access. Packaging support does not establish native production acceptance;
+see the [validation matrix](docs/deployment/README.md#validation-status).
 
-Packaging definitions are implemented; that does not certify every native target.
-Docker and Linux user-mode integration have been exercised locally. Current
-Windows installer/service, real systemd, reboot/recovery and UNC acceptance remain
-pending. See [current lifecycle validation](docs/INSTALLATION_LIFECYCLE_VALIDATION.md)
-and [build validation](docs/LOCAL_BUILD_VALIDATION.md). Artifacts exist only after a
-successful build; no future release or download is implied by these guides.
+## Find your guide
 
-<a id="2"></a>
-## Data sources and settings
+- [Build packages](docs/deployment/BUILD.md): Actions selections, versions, local commands, prerequisites and outputs.
+- [Features](docs/features/README.md): investigation, comparisons, review and Saved Filters.
+- [Data & CSV](docs/data/README.md): three independent sources, formats, replacement and persistence.
+- [Configuration](docs/getting-started/CONFIGURATION.md): settings, storage and recovery.
+- [Development & Testing](docs/development/README.md): source-mode execution without an EXE and validation.
+- [Architecture](docs/architecture/README.md): runtime, API, security and shared components.
+- [Synthetic examples](examples/README.md): safe linked test datasets, never automatically imported.
+- [Privacy](docs/architecture/PRIVACY.md): unresolved accepted historical branding and repository boundaries.
 
-Configure Role Catalogue, User–Role Mapping and optional Employee Directory under
-Settings → Data Sources. Column mappings/import presets are source-specific.
-Static imports retain snapshots; Dynamic sources refresh configured server-side
-paths. Replacement is complete and validated before publication; failures retain
-the previous valid dataset. Missing optional CSVs do not prevent core use.
-
-SAP areas come from recognized CSV module evidence. The former configurable
-classification UI is removed; legacy settings are preserved inactive. Module
-colors/icons and existing import mappings remain supported.
-
-- [CSV schemas and import](docs/CSV_IMPORT.md)
-- [CSV lifecycle and persistence](docs/CSV_DATA_LIFECYCLE.md)
-- [User/release investigation](docs/ACCESS_INVESTIGATION.md)
-- [Settings and storage](docs/CONFIGURATION.md)
-- [Synthetic examples](examples/README.md)
-
-<a id="3"></a>
-## Build packages
-
-Use the manual [Build Deployment Packages workflow](.github/workflows/build-deployments.yml)
-for one target or All. Build-only is the default; publication requires a separate
-explicit choice and successful verification of every selected target. The legacy
-[Build Windows Application workflow](.github/workflows/build-windows.yml) retains
-its existing portable-desktop release behavior. Neither starts on ordinary pushes.
-GitHub Releases holds release notes/history; Actions artifacts have finite retention.
-
-Local cross-platform entry points use the same canonical packaging scripts:
-
-```sh
-./build.sh --platform docker --version 0.1.0-beta.1
-./build.sh --platform linux-native --version 0.1.0
-```
-
-```powershell
-.\build.ps1 -Platform desktop -Version 0.1.0-beta.1
-.\scripts\build-local.ps1 -Mode Quick
-```
-
-Read [local deployment builds](docs/LOCAL_DEPLOYMENT_BUILDS.md) for prerequisites,
-native/remote builder requirements, caches, outputs and validation. Read the
-[local Windows guide](docs/LOCAL_WINDOWS_BUILD.md) for Quick/Validate/Build/Package,
-execution-policy and prerequisite troubleshooting. Local builds never create tags,
-releases or remote commits. Builds remain unsigned.
-
-<a id="4"></a>
-## Development
-
-Use Python 3.12 x64 and Node 24 LTS (recommended) or Node 25, with the locked npm
-dependencies. From the repository root in Windows PowerShell:
-
-```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r backend/requirements-dev.txt
-npm --prefix frontend ci
-$env:SAP_LENS_CONFIG_DIR = Join-Path (Get-Location).Path 'local-config\development'
-npm --prefix frontend run dev
-```
-
-Open `http://127.0.0.1:18743`; Vite proxies the backend on `18744`. Ctrl+C stops
-both development processes. An EXE, production build and WebView2 are unnecessary
-for browser development. See [development](docs/DEVELOPMENT.md) for Linux commands,
-source-mode Windows desktop startup and regression tests.
-
-<a id="5"></a>
-## Security and maintenance
-
-Desktop binds only to loopback and uses a fresh session capability. Server mode
-uses separate storage, validates hosts/origins and requires explicit access
-protection for non-local exposure. No automatic telemetry or cloud data service is
-introduced. Browser uploads go to the operator's SAP Lens server, not a third-party
-service. Private CSVs, snapshots, settings and branding stay outside Git/artifacts.
-
-- [Security boundaries](docs/DEPLOYMENT_SECURITY.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Privacy and unresolved historical branding](docs/PRIVACY.md)
-- [CI responsibilities and temporary skipping](docs/CI_ARCHITECTURE.md)
-- [Documentation index](docs/README.md)
+[GitHub Releases](https://github.com/OnlyDrey/sap-lens/releases) holds release notes
+and history. Actions artifacts are available only after successful approved builds
+and have finite retention. Local builds never publish releases, tags or commits.
 
 ## Licensing
 

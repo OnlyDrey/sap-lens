@@ -18,8 +18,8 @@ Under Settings → Data Sources, select and validate each corresponding CSV, ins
 its preview and explicitly confirm import. Enable User–Role Mapping and Employee
 Directory under Features. Static mode retains validated snapshots independently of
 the original file; Dynamic mode refreshes the configured server-visible path.
-See [CSV lifecycle](../docs/CSV_DATA_LIFECYCLE.md) and
-[Employee Directory](../docs/EMPLOYEE_DIRECTORY.md) for the actual import controls.
+See [CSV lifecycle](../docs/data/IMPORT_AND_REFRESH.md) and
+[Employee Directory](../docs/data/EMPLOYEE_DIRECTORY.md) for the actual import controls.
 
 1. Compare `SYN_U001` and `SYN_U002`. They share two business roles, have different
    additional roles, and User 1 has two distinct validity intervals for role 001.
@@ -43,8 +43,8 @@ and case-normalized equal-specificity ambiguity are intentional.
 ## Schemas and regeneration
 
 Headers follow the current built-in schemas exactly; optional fields may be blank.
-See [access schema](../docs/ACCESS_INVESTIGATION.md) and
-[directory schema](../docs/EMPLOYEE_DIRECTORY.md). Regenerate deterministically
+See [access schema](../docs/data/CSV_SCHEMAS.md) and
+[directory schema](../docs/data/EMPLOYEE_DIRECTORY.md). Regenerate deterministically
 from the repository root with `python scripts/generate-examples.py`. The generator
 never reads local configuration or source exports. Automated regression tests
 import all three sources through the real APIs and verify snapshot restoration in

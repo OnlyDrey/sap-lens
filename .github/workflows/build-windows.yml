@@ -212,7 +212,7 @@ jobs:
     permissions:
       contents: write
       actions: read
-    # Referencing an Environment does not configure approval rules; see docs/RELEASES.md.
+    # Referencing an Environment does not configure approval rules; see docs/deployment/RELEASES.md.
     environment:
       name: ${{ inputs.release_mode == 'stable' && 'sap-lens-stable' || 'sap-lens-beta' }}
     steps:

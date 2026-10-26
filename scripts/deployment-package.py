@@ -245,7 +245,9 @@ def package_document(document, destination):
         label,link=match.groups()
         if re.match(r'^[a-zA-Z][\w+.-]*:',link) or link.startswith('#'): return match[0]
         target,separator,fragment=link.partition('#')
-        if target=='DEPLOYMENT_SECURITY.md' and (destination.parent/'SECURITY.md').exists():return f'[{label}](SECURITY.md'+('#'+fragment if separator else '')+')'
+        if Path(target).name in ('DEPLOYMENT_SECURITY.md','SECURITY.md') and (destination.parent/'SECURITY.md').exists():return f'[{label}](SECURITY.md'+('#'+fragment if separator else '')+')'
+        # A repository directory index is not the platform README in a bundle.
+        if Path(target).name=='README.md': return label+' (repository documentation)'
         candidate=(destination.parent/target).resolve()
         if candidate.is_relative_to(destination.parent.resolve()) and candidate.is_file(): return match[0]
         return label+' (repository documentation)'
@@ -262,14 +264,19 @@ def copy_source(target):
         path=target/name;path.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/name,path)
     shutil.copytree(ROOT/'frontend/dist',target/'frontend/dist')
     write(target/'backend/build/build-version.json',identity())
-    shutil.copyfile(ROOT/'docs/DEPLOYMENT_LINUX_NATIVE.md',target/'README.md')
-    shutil.copyfile(ROOT/'docs/DEPLOYMENT_SECURITY.md',target/'SECURITY.md')
-    for name in ('DEPLOYMENT_LINUX_NATIVE.md','DEPLOYMENT_SECURITY.md','DEPLOYMENT_PACKAGES.md',
-                 'PACKAGING_VALIDATION.md','LOCAL_BUILD_VALIDATION.md','INSTALLATION_LIFECYCLE_VALIDATION.md'):
-        shutil.copyfile(ROOT/'docs'/name,target/name)
-    for path in list(target.glob('*.md')):
-        source=ROOT/'docs'/('DEPLOYMENT_LINUX_NATIVE.md' if path.name=='README.md' else 'DEPLOYMENT_SECURITY.md' if path.name=='SECURITY.md' else path.name)
-        if source.exists():package_document(source,path)
+    # Keep published bundle member names stable while repository guides move.
+    documents = {
+        'README.md': 'deployment/LINUX_NATIVE.md',
+        'SECURITY.md': 'deployment/SECURITY.md',
+        'DEPLOYMENT_LINUX_NATIVE.md': 'deployment/LINUX_NATIVE.md',
+        'DEPLOYMENT_SECURITY.md': 'deployment/SECURITY.md',
+        'DEPLOYMENT_PACKAGES.md': 'deployment/BUILD.md',
+        'PACKAGING_VALIDATION.md': 'archive/validation/PACKAGING_VALIDATION.md',
+        'LOCAL_BUILD_VALIDATION.md': 'archive/validation/LOCAL_BUILD_VALIDATION.md',
+        'INSTALLATION_LIFECYCLE_VALIDATION.md': 'archive/validation/INSTALLATION_LIFECYCLE_VALIDATION.md',
+    }
+    for name, source in documents.items():
+        package_document(ROOT/'docs'/source, target/name)
 
 
 def native(output):

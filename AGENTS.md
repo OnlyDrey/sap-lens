@@ -58,10 +58,10 @@ following `npm ci`; regenerate with the same script without `--check` when neede
 - Reuse frontend Shared components, semantic tokens and isolated Component Library
   previews. Navigation links, content tabs, filters and actions have distinct
   semantics; preserve keyboard focus and source evidence.
-- Start at [documentation index](docs/README.md), [deployment](docs/DEPLOYMENT.md),
-  [local builds](docs/LOCAL_DEPLOYMENT_BUILDS.md),
-  [design system](docs/DESIGN_SYSTEM.md) and
-  [component APIs](docs/COMPONENT_LIBRARY.md). Update the canonical guide and index
+- Start at [documentation index](docs/README.md), [deployment](docs/deployment/README.md),
+  [local builds](docs/deployment/BUILD.md),
+  [design system](docs/architecture/DESIGN_SYSTEM.md) and
+  [component APIs](docs/architecture/COMPONENTS.md). Update the canonical guide and index
   when behavior/commands change, rather than copying procedures into new reports.
 - README LOGO navigation links may be maintained when requested, retaining the
   product image/title/description and existing header structure. Do not substitute

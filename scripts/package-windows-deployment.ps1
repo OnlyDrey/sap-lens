@@ -26,8 +26,8 @@ if ($Target -eq 'Desktop') {
     New-Item -ItemType Directory $bundle | Out-Null
     Copy-Item backend/dist/SAP-Lens.exe,backend/dist/SAP-Lens.exe.sha256 $bundle
     Copy-Item LICENSE.md $bundle
-    Copy-Item docs/INSTALLATION_WINDOWS_DESKTOP.md (Join-Path $bundle 'README.md')
-    Checked { & $python scripts/deployment-package.py readme --document docs/INSTALLATION_WINDOWS_DESKTOP.md --directory $bundle }
+    Copy-Item docs/deployment/WINDOWS_DESKTOP.md (Join-Path $bundle 'README.md')
+    Checked { & $python scripts/deployment-package.py readme --document docs/deployment/WINDOWS_DESKTOP.md --directory $bundle }
     & ./scripts/build-desktop-installer.ps1 -OutputDirectory $bundle
     $installer=Join-Path $bundle ("SAP-Lens-Windows-Desktop-x64-$($info.version)-Setup.exe")
     & ./scripts/test-desktop-installer.ps1 -Installer $installer -Report (Join-Path $bundle 'installer-verification.json')
