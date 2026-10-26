@@ -593,3 +593,62 @@ Final combined regression results are recorded below when available.
 | 29 | Change/error/close action icons | Validated |
 | 30 | First-open anchored popovers | Validated |
 | 31 | Filtered assignment CSV exports | Validated |
+
+## Combined final validation — tasks 1–31
+
+Implementation frozen after `5eb967c`; `5d2f291` migrates one legacy diagnostics
+assertion to the shared source modal while preserving snapshot-recovery checks.
+No application changes were made during the final browser rerun.
+
+Executed from the repository root unless noted:
+
+- `npm_config_cache=/workspace/.cache/npm npm ci --no-audit --no-fund` in frontend:
+  passed. The first attempt with the sandbox's default unwritable npm cache failed;
+  the repository-independent writable cache resolved that environment issue.
+- `npm run check:types` and `npm run build` in frontend: passed. Vite reports
+  a non-blocking 521.74 kB main-chunk size warning; no bundling rewrite was added.
+- `PATH=<portable-pwsh>:$PATH python -m unittest discover -s backend/tests -v`:
+  **427 passed**, no skips, 23.684 seconds. Includes repository/privacy contracts,
+  persistence/migration, review history, refresh lifecycle, server security, Windows
+  helper mocks/static checks and exact export contracts. This is not native Windows.
+- `python -m pip check`: passed; no broken requirements.
+- Isolated `python -m pip_audit -r backend/requirements-desktop.txt
+  -r backend/requirements-dev.txt --cache-dir /workspace/.cache/pip-audit`:
+  no known vulnerabilities found.
+- `npm audit --omit=dev`: zero vulnerabilities. Full `npm audit`: three moderate
+  development advisories through Tailwind/PostCSS selector parsing
+  (GHSA-rj75-hqrm-r3gf). No dependency updates or suppressions in this refinement.
+- `python scripts/check-docs.py`: 73 Markdown files, zero broken local links.
+- `python scripts/check-workflows.py`, independent actionlint,
+  `pwsh -NoProfile -File scripts/check-powershell.ps1`,
+  `node scripts/sync-lucide-catalog.mjs --check` and `git diff --check`: passed.
+  PowerShell used writable XDG directories; SCM operations were not performed.
+
+The first combined `npm run test:browser` with Chromium and one worker completed
+with 286 passed and one failure in 8.9 minutes: an old assertion expected inline
+Employee Directory technical details after those details moved to the shared
+modal. The corrected test opens the actual modal, checks diagnostics, closes with
+Escape and retains all durable-snapshot/reload assertions; targeted rerun passed
+(1/1). The final all-tests-together rerun passed **287/287 in 8.6 minutes**, with one
+worker, no retries and no skipped tests. Its log is
+`/workspace/sap-lens-dev/final-browser-confirmed.log`. All new task 30/31 tests
+passed in both combined runs; no application change was needed after the freeze.
+
+Visual evidence: screenshots captured in both themes at 375/800/1280/1600; reviewed
+representative comparison evidence, dashboard grids, source/review modals, first-open
+date controls and export toolbars. The first-open regressions also assert anchor
+geometry after delayed profile enrichment, scroll and resize rather than relying
+on screenshots alone. Evidence is outside Git under
+`/workspace/sap-lens-dev/{connectivity-visual,round2-visual,task31-visual,final-visual}`.
+Run logs are `/workspace/sap-lens-dev/final-*.log`.
+
+Privacy/diff review: new fixtures use synthetic identities and reserved example.test
+emails. No CSV, screenshot/binary artifact, credential signature or CHANGELOG was
+added in this refinement range. Repository integrity/privacy tests passed. Accepted
+historical branding was neither expanded nor rewritten. This is scoped repository
+review, not a claim that historical privacy findings have been resolved.
+
+No push, workflow dispatch, release, tag, Windows build or native Windows/WebView2/UNC
+acceptance was performed. Manual Windows testing must cover owned-backend browser
+handoff and localhost alias, WebView/browser coexistence, clipboard/dialogs, both
+new CSV native saves and shutdown, plus packaging and UNC on an appropriate host.
