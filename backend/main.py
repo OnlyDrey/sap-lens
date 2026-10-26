@@ -31,7 +31,7 @@ class DataSettings(BaseModel):
 
 
 def create_app(origin: str | None = None, session_token: str | None = None,
-               instance_id: str | None = None, server=None, browser_access: bool = False) -> FastAPI:
+               instance_id: str | None = None, server=None, browser_access: bool = False, desktop_preferences=None) -> FastAPI:
     from deployment import server_mode, ServerSettings
     if server is None and server_mode():
         server = ServerSettings.from_env()
@@ -118,7 +118,7 @@ def create_app(origin: str | None = None, session_token: str | None = None,
         )
         return response
 
-    app.include_router(configuration_router(loader))
+    app.include_router(configuration_router(loader, desktop_preferences=desktop_preferences))
     app.include_router(roles.router)
     app.include_router(access.router)
     app.include_router(employees.router)

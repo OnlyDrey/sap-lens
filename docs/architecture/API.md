@@ -205,3 +205,11 @@ apostrophe in the file only. Snapshot and evaluation day are captured once.
 responses add `data_revision` and `export_assignments`; existing fields are retained.
 
 `GET /api/access/releases?matrix_complete=true` returns every filtered matrix cell independently of role-table pagination. The legacy bounded matrix_offset API remains compatible for existing consumers. The UI uses complete mode with independently scrollable PR/PO matrices; incomplete responses retain a dash rather than falsely establishing zero users. Assignment filtering, distinct counts, drill-down and export scope are unchanged.
+
+Native Windows Desktop additionally exposes capability-guarded `desktop_runtime`
+and `desktop_frontend_ready` bridge methods. They provide platform/tray availability
+and deliver pending Settings navigation after the React listener mounts. They are
+not public HTTP APIs or a way to modify hosted Windows Service/Linux lifecycle.
+Desktop preferences use the existing authenticated, revision-checked configuration
+endpoint; native registry/icon changes roll back when publication fails. Plain
+browser clients do not gain native dialogs or Windows startup operations.

@@ -1,3 +1,4 @@
+import {DesktopOptions} from './DesktopOptions'
 import { FormField, controlClass } from '@/components/Shared/Controls'
 import { ContentTabList } from '@/components/Shared/Navigation'
 import { DataHealth } from './DataHealth'
@@ -981,7 +982,7 @@ export function SettingsView({
                   }
                   {section === 6 && <About/>}
                   {section === 7 && <Suspense fallback={<p role="status">Loading component previews…</p>}><ComponentLibrary/></Suspense>}
-                  {section === 5 && <FeatureSettings draft={draft} onChange={setDraft} onConfigure={source => { setSection(1); setImportSource(source) }}/>}
+                  {section === 5 && <><FeatureSettings draft={draft} onChange={setDraft} onConfigure={source => { setSection(1); setImportSource(source) }}/><DesktopOptions draft={draft} onChange={setDraft}/></>}
                   {section === 4 && (
                     <>
                       <Diagnostics onSource={source=>{setSection(1);setImportSource(source)}} native={native} onEmployeeFeatures={() => setSection(5)} onEmployeeSettings={() => { setSection(1); setImportSource('employees') }}/>

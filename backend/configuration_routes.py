@@ -1,4 +1,6 @@
 """Application configuration, branding and staged analysis previews."""
+from contextlib import nullcontext
+import asyncio
 import base64
 from pathlib import Path
 from fastapi import APIRouter, HTTPException
@@ -43,10 +45,12 @@ class ThemeSelection(StrictModel):
     theme: str
 
 
-def configuration_router(loader):
+def configuration_router(loader, desktop_preferences=None):
     router = APIRouter(prefix='/api',tags=['Configuration'])
 
-    async def apply(config, expected):
+    desktop_apply_lock = asyncio.Lock()
+
+    async def perform_apply(config, expected):
         try:
             current = get_settings()
             validate_configuration(config,current)
@@ -61,28 +65,37 @@ def configuration_router(loader):
                 raise HTTPException(400, 'Preview and confirm Employee Directory replacements in Data Sources.')
             if config.revision != current.revision or expected != current.revision:
                 raise HTTPException(409,'Settings changed. Reload before applying your edits.')
-            analysis_fields = ['data_csv_path','import_profiles','active_import','user_csv_path','user_import_profiles','active_user_import','module_overrides','source_modes']
-            changed = any(getattr(config,k) != getattr(current,k) for k in analysis_fields)
-            # Profile versions increase automatically on content changes.
-            for field in ['import_profiles','user_import_profiles']:
-                old = {p.id:p for p in getattr(current,field)}
-                for p in getattr(config,field):
-                    if p.id in old and p.model_dump(exclude={'version'}) != old[p.id].model_dump(exclude={'version'}):
-                        p.version = max(p.version,old[p.id].version+1)
-            if changed and (config.data_csv_path or config.user_csv_path):
-                await loader.load(configuration=config)
-            else:
-                if changed and not (config.data_csv_path or config.user_csv_path): loader.cancel()
-                save_configuration(config,expected)
-                if changed: cache.clear_cache()
-                if not (config.data_csv_path or config.user_csv_path): loader.error = 'Choose a SAP role catalogue or user access CSV in Settings.'
-            if not config.employee_csv_path and not config.employee_snapshot_id:
-                from employee_directory import store
-                store.clear()
-            return read_config()
+            with desktop_preferences(current.desktop,config.desktop) if desktop_preferences else nullcontext():
+                analysis_fields = ['data_csv_path','import_profiles','active_import','user_csv_path','user_import_profiles','active_user_import','module_overrides','source_modes']
+                changed = any(getattr(config,k) != getattr(current,k) for k in analysis_fields)
+                # Profile versions increase automatically on content changes.
+                for field in ['import_profiles','user_import_profiles']:
+                    old = {p.id:p for p in getattr(current,field)}
+                    for p in getattr(config,field):
+                        if p.id in old and p.model_dump(exclude={'version'}) != old[p.id].model_dump(exclude={'version'}):
+                            p.version = max(p.version,old[p.id].version+1)
+                if changed and (config.data_csv_path or config.user_csv_path):
+                    await loader.load(configuration=config)
+                else:
+                    if changed and not (config.data_csv_path or config.user_csv_path): loader.cancel()
+                    save_configuration(config,expected)
+                    if changed: cache.clear_cache()
+                    if not (config.data_csv_path or config.user_csv_path): loader.error = 'Choose a SAP role catalogue or user access CSV in Settings.'
+                if not config.employee_csv_path and not config.employee_snapshot_id:
+                    from employee_directory import store
+                    store.clear()
+                return read_config()
         except HTTPException: raise
         except (OSError,ValueError):
             raise HTTPException(400,'Configuration could not be applied. Validate profiles, file access, logo and current revision; previous settings remain intact.')
+
+    async def apply(config, expected):
+        if desktop_preferences:
+            # Native settings transactions may span asynchronous CSV validation.
+            # A thread RLock alone cannot serialize coroutines on the API loop.
+            async with desktop_apply_lock:
+                return await perform_apply(config, expected)
+        return await perform_apply(config, expected)
 
     @router.get('/diagnostics')
     def diagnostics():
@@ -128,6 +141,7 @@ def configuration_router(loader):
     async def import_config(package: PortableConfig):
         try: candidate = read_portable(package,get_settings().data_csv_path,get_settings().user_csv_path)
         except (OSError,ValueError): raise HTTPException(400,'Invalid configuration package or logo; nothing was applied.')
+        candidate.desktop = get_settings().desktop.model_copy(deep=True)
         candidate.employee_csv_path = get_settings().employee_csv_path
         candidate.employee_snapshot_id = get_settings().employee_snapshot_id
         candidate.data_lifecycle = get_settings().data_lifecycle.model_copy(deep=True)

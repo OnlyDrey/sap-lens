@@ -157,7 +157,20 @@ class DataLifecycle(StrictModel):
         return values
 
 
+class DesktopPreferences(StrictModel):
+    close_to_tray: bool = False
+    run_at_signin: bool = False
+    start_minimized: bool = False
+
+    @model_validator(mode='after')
+    def usable_background_mode(self):
+        if self.start_minimized and not self.close_to_tray:
+            raise ValueError('Start minimized requires tray mode.')
+        return self
+
+
 class AppConfig(StrictModel):
+    desktop: DesktopPreferences = Field(default_factory=DesktopPreferences)
     source_modes: SourceModes = Field(default_factory=SourceModes)
     data_lifecycle: DataLifecycle = Field(default_factory=DataLifecycle)
     unlicensed_user_groups: list[str] = Field(default_factory=lambda: ['UNLICENSED'], max_length=100)

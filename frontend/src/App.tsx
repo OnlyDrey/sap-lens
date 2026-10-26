@@ -1,6 +1,7 @@
+import {applicationToken} from '@/api/client'
 import { MainNavigation, MainNavigationItem } from '@/components/Shared/Navigation'
 import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
-import { useState, useCallback, useRef, useLayoutEffect } from 'react'
+import { useState, useCallback, useRef, useLayoutEffect, useEffect } from 'react'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import { RoleList } from '@/components/RoleList/RoleList'
 import { RoleDetailPanel } from '@/components/RoleDetail/RoleDetailPanel'
@@ -18,6 +19,13 @@ export function App() {
   const [kpiNavigation] = useHistoryValue('kpiNavigation')
   const [catalogueArea] = useHistoryValue('catalogueArea')
   const { change } = useViewHistory()
+  useEffect(()=>{
+    const open=()=>{if(window.pywebview?.api.desktop_runtime)change({settings:true})}
+    const ready=()=>{void window.pywebview?.api.desktop_frontend_ready?.(applicationToken()).catch(()=>{})}
+    window.addEventListener('sap-lens-open-settings',open);window.addEventListener('pywebviewready',ready)
+    window.__sapLensSettingsReady=true;ready()
+    return()=>{window.__sapLensSettingsReady=false;window.removeEventListener('sap-lens-open-settings',open);window.removeEventListener('pywebviewready',ready)}
+  },[change])
   const [visited, setVisited] = useState(() => new Set([page]))
   const scrollPositions = useRef<Record<string, number>>({})
   const navigate = (next: 'dashboard'|'roles'|'users'|'releases') => { scrollPositions.current[page] = window.scrollY; setVisited(previous => new Set([...previous, next])); change({page:next, detailRole:null}) }

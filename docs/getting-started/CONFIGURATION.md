@@ -109,3 +109,10 @@ Settings → APPLICATION → Component Library contains interactive previews of 
 ## CSV modes and retained refresh evidence
 
 Each source can be Static (manual replacement) or Dynamic (Global Refresh rereads its configured path). Role/user sources default to Dynamic; Employee Directory defaults to Static. Validated observations now have durable local snapshots, separate from original CSV availability. See [CSV data lifecycle](../data/IMPORT_AND_REFRESH.md) for replacement semantics, recovery, feature dependencies, preview and private change/error reports.
+
+Windows Desktop background preferences are under **Settings → Features → Windows
+Desktop**, visible only through the native Windows capability. The local `desktop`
+object contains `close_to_tray`, `run_at_signin` and `start_minimized`, all defaulting
+to false. Start minimized requires tray mode. Ordinary Apply/Cancel and revision
+checks apply; portable packages do not activate another machine's sign-in startup.
+See [tray operation](../deployment/WINDOWS_DESKTOP.md#optional-system-tray-operation).

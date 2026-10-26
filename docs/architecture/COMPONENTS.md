@@ -190,3 +190,10 @@ accepts the exact new semicolon header only for its two assignment-export filena
 prefixes; capability, size and destination protections remain intact.
 
 Component Library uses eight category tabs (actions, navigation, forms, filters, feedback, dialogs, data display and SAP controls); All components is an explicit expanded QA view. Previews use real shared controls and isolated in-memory state. ModuleEditor uses the shared Dialog with a local draft and explicit parent-draft Apply. SourceDetailsDialog groups status, storage and diagnostics, with complete copyable paths. SourceHealthSummary supports a compact dashboard variant from the same diagnostic evidence. Anchored portals stay hidden until measured; event-driven anchor observation continues tracking subsequent layout changes.
+
+`Settings/DesktopOptions.tsx` reuses Toggle/Checkbox and the parent settings draft.
+It renders only after a Windows native capability response; hosted/Linux/browser
+clients do not expose Windows options. No new reusable control or demo-only analogue
+was introduced. Sign-in startup is disabled for source-mode activation; an existing
+preference can still be switched off. Tray Settings navigation queues until App's
+native-readiness handshake and preserves the current route/history underneath.

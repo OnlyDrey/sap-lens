@@ -17,6 +17,7 @@ class PortableConfig(StrictModel):
 def export_configuration(config: AppConfig, include_private: bool = False):
     defaults = AppConfig()
     exported = config.model_copy(deep=True) if include_private else defaults.model_copy(update={'theme':config.theme, 'theme_colors':config.theme_colors.model_copy(deep=True)})
+    exported.desktop = defaults.desktop.model_copy(deep=True)
     exported.data_csv_path = ''
     exported.user_csv_path = ''
     exported.employee_csv_path = ''

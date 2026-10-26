@@ -691,3 +691,30 @@ are outside Git under `/workspace/sap-lens-dev/refinement-27-visual`; logs use
 found an obsolete import; it was removed and the production build passed.
 
 No native Windows, packaged EXE, real systemd or UNC acceptance is claimed.
+
+### Optional Windows tray — implementation checkpoint
+
+Task 27 is implemented and locally validated; task 26 retains the final combined
+pass. No dependency or service-hosting change was introduced. Windows-only ctypes
+adapter/policy uses the existing backend/socket, per-session instance mutex and
+storage lease. Tray initialization/icon loss falls back to normal window closing;
+explicit Exit uses normal graceful cleanup. Per-user sign-in registration changes
+only the owned HKCU value, with quoted executable paths and native/config rollback.
+Desktop apply requests are serialized across asynchronous CSV validation; the
+concurrency regression verifies stale requests cannot interleave native effects.
+Portable import preserves workstation preferences and exports do not activate them.
+
+Targeted results: 18 tray policy/persistence/concurrency tests, 20 existing desktop
+contracts, 14 configuration tests and the final 18-test UI suite passed. Two native
+settings browser tests use mock capability responses; they are not Windows tests.
+Screenshots cover native-options presentation through that mock in both themes at
+375/800/1280/1600. The initial readiness test exposed an event arriving before App
+mount; pending intent and a capability-guarded handshake replace that race without
+a timer or navigation reset. Session shutdown bypasses hide-on-close veto via the
+pinned existing WinForms host; actual Windows behavior remains untested.
+
+Native acceptance still includes notification icon creation, double-click/menu,
+Explorer restart, real WebView2 close/hide/restore, browser access while hidden,
+sign-in startup, sign-out/shutdown, backend failure and explicit resource cleanup.
+Startup cleanup before portable removal is documented. No Windows packaging,
+remote workflow, push, tag or release was performed.
