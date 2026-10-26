@@ -74,3 +74,43 @@ following `npm ci`; regenerate with the same script without `--check` when neede
 - Native Windows installer/SCM/WebView2, real systemd, reboot/recovery and UNC
   acceptance must be reported separately from Linux unit/browser/static checks.
   Preserve the mandatory validation and explicit pre-push approval rules above.
+
+## Task Planning, Progress Tracking & Reporting
+
+These requirements apply to every future Codex task in this repository.
+
+- Before implementation, read the complete request and review pending work. Publish
+  a complete sequentially numbered checklist with dependencies, execution order and
+  a clear completion criterion per task. Preserve earlier requirements; explain
+  scope changes instead of silently removing, skipping or redefining tasks.
+- Use `[ ]` Pending, `[~]` In progress, `[x]` Completed and `[!]` Blocked. Maintain
+  the full checklist in the working plan. Preserve it across interruptions or
+  context compaction using available planning mechanisms or temporary notes;
+  avoid unnecessary permanent tracking files in the repository.
+- Report progress visibly before implementation, when starting/completing a task,
+  when blocked, before/after major validation stages, before commits and at final
+  delivery. At meaningful checkpoints summarize completed, active, pending and
+  blocked work; do not repeatedly print an unchanged full checklist.
+- Use this concise format, adjusting counts and content to actual evidence:
+
+  **Progress: 12/28 tasks completed (43%)**
+
+  **Current task:** #13 — Improve Release Roles filter alignment
+
+  **Next task:** #14 — Redesign Release Roles matrices
+
+  **Blocked:** None
+
+  **Validation:** Not started
+
+- Count only fully completed tasks. Implementation alone is not completion when
+  validation is required. Never invent results; distinguish implementation,
+  automated validation and native/manual acceptance. Report dependency blockers
+  promptly and reopen completed items if new evidence requires rework.
+- Continue authorized independent work without requesting approval after each
+  task. Keep updates concise and meaningful, without repetitive status messages
+  when nothing has changed. Existing scope, safety and publication limits remain
+  in force.
+- The final report must reconcile completed/total counts with the full checklist,
+  final statuses, partial/blocked work, executed validation, branch/commit state,
+  remaining limitations and recommended next actions.
