@@ -47,3 +47,19 @@ Use [Compare Users](COMPARE_USERS.md), [Account Review](ACCOUNT_REVIEW.md) and
 [Saved Filters](SAVED_FILTERS.md) for related investigations. Disabling mapping
 preserves imports/settings but blocks assignment-dependent results and exports;
 Role Lookup remains independently usable.
+
+## Compact assignment investigation
+
+User Details defaults to **Match all (AND)** for selected transaction codes within
+each assigned role's aggregate catalogue mappings. Choose **Match any (OR)**
+explicitly to broaden that role filter. Zero selected codes leaves assignments
+unchanged; one code has identical AND/OR results. Status, role view and date bounds
+compose with this filter; export uses exactly the same matching mode and all pages.
+The result summary reports matching assignment records. Unresolved mappings remain
+a compact warning; explaining source roles belong to each row's Transaction
+mapping evidence disclosure. Export scope is available on the export button.
+
+Directory match status opens a modal with actual method, candidates and source
+inspection. Ambiguous/missing/unavailable evidence never becomes a confirmed
+identity. The SAP Identity, Account Status and Organization profile groups remain
+independent of assignment filters.

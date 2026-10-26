@@ -196,6 +196,7 @@ def user_detail(
     status: Status = "",
     tcode: str = Query("", max_length=128),
     tcodes: list[str] = Query(default=[], max_length=21),
+    transaction_mode: Literal["and", "or"] = "and",
     scope: Literal["business", "release", "other", "all", ""] = "",
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
@@ -216,7 +217,7 @@ def user_detail(
     unmapped = sum(a["match_status"] not in {"exact", "wildcard"} or not a["tcodes"] for a in entries)
     wanted_codes = normalized_tcodes([tcode] + tcodes if tcode else tcodes)
     if wanted_codes:
-        matched_names = matching_role_names(state.tcode_index, wanted_codes, 'or')
+        matched_names = matching_role_names(state.tcode_index, wanted_codes, transaction_mode)
         entries = [a for a in entries if a["match_status"] in {"exact", "wildcard"} and matched_names.intersection(a["catalogue_roles"])]
     rows = sorted(
         entries,

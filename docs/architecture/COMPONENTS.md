@@ -145,3 +145,23 @@ an explicit spacing token. User Directory and Account Review use five primary
 filter columns at desktop widths; smaller widths retain the existing reflow.
 Release PR/PO matrices size to their contents, sharing a row where possible and
 stacking at tablet widths, with independent scroll regions.
+
+## Modal investigation and source status
+
+The existing Dialog owns portal placement, focus isolation/restoration, Escape and
+bounded body scrolling; textarea controls participate in its focus loop. Title
+changes refocus the modal when switching between the change list and record details.
+DirectoryMatchDetails, source technical details, ReviewFindings and ChangeRecordDetails
+reuse that owner instead of large inline editors. Their private evidence remains in
+authenticated application responses; it is not copied into diagnostics exports.
+
+SourceHealthSummary is canonical for all three sources, including Employee Directory;
+SourceStatusSummary reads the shared diagnostics query to keep persisted mode, loaded
+state, activation, snapshot and validation evidence aligned. Source configuration
+navigation is separate from the technical details modal.
+
+Toggle renders an interactive StatusPill directly. The pill describes the draft
+Enabled/Disabled preference; pending feedback persists until Apply succeeds. Data
+availability and operational status describe saved server evidence separately.
+SectionHeader and the real ReviewFindings/ChangeRecordDetails previews are included
+in Component Library with isolated synthetic data and no production mutations.

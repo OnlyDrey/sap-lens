@@ -5,7 +5,7 @@ import {
   CircleAlert,
   History,
   Download,
-  Info,
+  Info, FileDiff, X,
 } from 'lucide-react'
 import { apiRequest, applicationToken } from '@/api/client'
 import { formatTimestamp } from '@/lib/dateFormat'
@@ -46,7 +46,7 @@ export interface RefreshSummary {
   skipped: number
   sources: SourceResult[]
 }
-interface Change {
+export interface Change {
   source: string
   source_name: string
   type: string
@@ -65,7 +65,7 @@ interface ReportPage {
   offset: number
   limit: number
 }
-const label = (value: string) => value.replace(/_/g, ' ')
+const label = (value: string) => value.replace(/_/g,' ').toLowerCase().replace(/^./,c=>c.toUpperCase()).replace(/\b(sap|ad|csv|pr|po)\b/g,c=>c.toUpperCase())
 
 export function RefreshReportDialog({
   report,
@@ -77,6 +77,7 @@ export function RefreshReportDialog({
   onClose: () => void
 }) {
   const { change: changeView } = useViewHistory()
+  const [selectedChange,setSelectedChange]=useState<Change|null>(null)
   const [source, setSource] = useState(''),
     [kind, setKind] = useState(''),
     [search, setSearch] = useState(''),
@@ -166,9 +167,10 @@ export function RefreshReportDialog({
   }
   return (
     <Dialog
-      title={mode === 'changes' ? 'CSV data changes' : 'Refresh errors'}
-      onClose={onClose}
+      title={selectedChange?'Change details':mode === 'changes' ? 'CSV data changes' : 'Refresh errors'}
+      onClose={selectedChange?()=>setSelectedChange(null):onClose}
     >
+      {selectedChange?<><Button onClick={()=>setSelectedChange(null)}>Back to changes</Button><ChangeRecordDetails change={selectedChange}/></>:<>
       <p className="text-sm text-[var(--muted)]">
         {formatTimestamp(data?.timestamp || report.timestamp)} · Private local
         evidence
@@ -177,7 +179,7 @@ export function RefreshReportDialog({
       {query.isLoading && <p role="status">Loading refresh evidence…</p>}
       <div className="refresh-source-summary">
         {sources.map((result) => (
-          <section key={result.source} className="ui-card">
+          <section key={result.source} className="ui-card" data-changed={!!((result.added||0)+(result.removed||0)+(result.modified||0))} data-failed={result.status==='failed'}>
             <strong>{result.name}</strong>{' '}
             <StatusBadge
               tone={
@@ -287,61 +289,17 @@ export function RefreshReportDialog({
           <DataTable caption="CSV record changes">
             <thead>
               <tr>
-                <th>Source / record</th>
+                <th>Source</th><th>Record</th>
                 <th>Change</th>
-                <th>Evidence</th>
+                <th>Details</th>
               </tr>
             </thead>
             <tbody>
               {data?.items.map((change, index) => (
                 <tr key={index}>
-                  <td>
-                    <span className="text-xs">{change.source_name}</span>
-                    <RoleIdentifier
-                      value={change.identifier}
-                      label="record identifier"
-                    />
-                  </td>
-                  <td>
-                    <StatusBadge>{change.type}</StatusBadge>
-                  </td>
-                  <td>
-                    <details>
-                      <summary>
-                        {change.type === 'modified'
-                          ? `${change.fields.length} changed fields`
-                          : 'View record'}
-                      </summary>
-                      <dl className="change-fields">
-                        {(change.fields.length
-                          ? change.fields
-                          : Object.entries(
-                              change.after || change.before || {},
-                            ).map(([field, value]) => ({
-                              field,
-                              before: change.type === 'removed' ? value : '',
-                              after: change.type === 'added' ? value : '',
-                            }))
-                        ).map((field) => (
-                          <div key={field.field}>
-                            <dt>{label(field.field)}</dt>
-                            <dd>
-                              {change.type !== 'added' && (
-                                <span>
-                                  <b>Before:</b> {field.before || 'Empty'}
-                                </span>
-                              )}
-                              {change.type !== 'removed' && (
-                                <span>
-                                  <b>After:</b> {field.after || 'Empty'}
-                                </span>
-                              )}
-                            </dd>
-                          </div>
-                        ))}
-                      </dl>
-                    </details>
-                  </td>
+                  <td>{change.source_name}</td><td><strong className="change-record-name">{recordName(change)}</strong><RoleIdentifier value={change.identifier} label="record identifier"/></td>
+                  <td><StatusBadge tone={change.type==='added'?'success':change.type==='removed'?'warning':'info'}>{label(change.type)}</StatusBadge></td>
+                  <td><Button onClick={()=>setSelectedChange(change)} aria-label={`View details for ${recordName(change)}`}><FileDiff size={16} aria-hidden="true"/>View details</Button>{change.type==='modified'&&<small>{change.fields.length} changed fields</small>}</td>
                 </tr>
               ))}
             </tbody>
@@ -362,6 +320,7 @@ export function RefreshReportDialog({
           until this window is closed.
         </p>
       )}
+      </>}
     </Dialog>
   )
 }
@@ -403,12 +362,12 @@ export function RefreshBanner({
           </div>
           <div className="ui-toolbar">
             {failed ? (
-              <Button onClick={() => setViewer('errors')}>View Errors</Button>
+              <Button onClick={() => setViewer('errors')}><CircleAlert size={16} aria-hidden="true"/>View Errors</Button>
             ) : changed && report.id ? (
-              <Button onClick={() => setViewer('changes')}>View Changes</Button>
+              <Button onClick={() => setViewer('changes')}><FileDiff size={16} aria-hidden="true"/>View Changes</Button>
             ) : null}
             <Button onClick={onDismiss} aria-label="Dismiss refresh report">
-              Close
+              <X size={16} aria-hidden="true"/>Close
             </Button>
           </div>
         </div>
@@ -472,7 +431,7 @@ export function RefreshHistory() {
                 setSelected({ ...report, sources: [], mode: 'errors' })
               }
             >
-              View Errors
+              <CircleAlert size={16} aria-hidden="true"/>View Errors
             </Button>
           ) : report.updated > 0 ? (
             <Button
@@ -480,7 +439,7 @@ export function RefreshHistory() {
                 setSelected({ ...report, sources: [], mode: 'changes' })
               }
             >
-              View Changes
+              <FileDiff size={16} aria-hidden="true"/>View Changes
             </Button>
           ) : null}
         </div>
@@ -494,4 +453,15 @@ export function RefreshHistory() {
       )}
     </section>
   )
+}
+
+
+function recordName(change:Change) {
+ const values=change.after||change.before||{}
+ return values.Name||[values.FIRST_NAME,values.LAST_NAME].filter(Boolean).join(' ')||values.TEXT||values.USERNAME||values.AGR_NAME||'Source record'
+}
+/** Uses only the before/after fields actually retained in the bounded report. */
+export function ChangeRecordDetails({change}:{change:Change}) {
+ const fields=change.fields.length?change.fields:Object.entries(change.after||change.before||{}).map(([field,value])=>({field,before:change.type==='removed'?value:'',after:change.type==='added'?value:''}))
+ return <section aria-label="Change record evidence" className="space-y-3"><h3>{recordName(change)}</h3><p>{change.source_name} · <StatusBadge>{label(change.type)}</StatusBadge></p><RoleIdentifier value={change.identifier} label="record identifier"/><dl className="change-fields">{fields.map(field=><div key={field.field}><dt title={field.field}>{label(field.field)}</dt><dd>{change.type!=='added'&&<span><b>Before:</b> {field.before||'Empty'}</span>}{change.type!=='removed'&&<span><b>After:</b> {field.after||'Empty'}</span>}</dd></div>)}</dl>{!fields.length&&<p>No field values were retained for this record. No historical values are inferred.</p>}</section>
 }

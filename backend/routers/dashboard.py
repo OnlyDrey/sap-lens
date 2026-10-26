@@ -44,12 +44,29 @@ def overview():
             review_rows = cached_rows(state, available(state), decisions(), settings.unlicensed_user_groups, date.today())
         except HTTPException:
             add('account_review', 'Accounts requiring review', None, 'review', 'Open Account Review for recovery.', 'Review annotations unavailable; other source metrics remain available.')
+            for key,label in [('reviewed','Reviewed accounts'),('pending','Pending reviews'),('outdated','Outdated reviews')]: add(key,label,None,'review','Open Account Review for recovery.','Review annotations unavailable.')
         else:
             add('account_review', 'Accounts requiring review', sum(r['needs_review'] for r in review_rows), 'review', 'Review supported account evidence and stale annotations, not effective authorization or license savings.')
+            reviewed=sum(bool(r['decision']) and r['review_state']!='Needs review' and not r['stale'] for r in review_rows)
+            for key,label,value in [('reviewed','Reviewed accounts',reviewed),('pending','Pending reviews',len(review_rows)-reviewed),('outdated','Outdated reviews',sum(r['stale'] for r in review_rows))]:
+                add(key,label,value,'review','All currently imported SAP accounts form the review population; outdated reviews are included in pending.')
+            add('ad_disabled_open','AD disabled / SAP valid and unlocked',sum('ad_disabled_open' in r['findings'] for r in review_rows) if directory['loaded'] and enabled else None,'review','Reliably matched AD and SAP account evidence.',directory['coverage_reason'])
     else:
         add('account_review', 'Accounts requiring review', None, 'review', 'Open Account Review.', reason)
-    return dict(metrics=metrics,last_successful_refresh=settings.data_lifecycle.last_successful_refresh,
+        for key,label in [('reviewed','Reviewed accounts'),('pending','Pending reviews'),('outdated','Outdated reviews')]: add(key,label,None,'review','Open Account Review.',reason)
+    role_distribution=Counter((r.function_key or 'UNCLASSIFIED') for r in state.summaries) if catalogue else None
+    assignment_distribution=Counter() if mapping else None
+    if mapping:
+        for user in state.users.users.values():
+            count=len({normalize_role(a['role_name']) for a in user['assignments'] if a['scope'] in {'business','release'} and interval_status(sap_date(a['valid_from']),sap_date(a['valid_to']))=='active'})
+            assignment_distribution['0' if count==0 else '1–5' if count<=5 else '6–20' if count<=20 else '21+']+=1
+    paths={'roles':settings.data_csv_path,'users':settings.user_csv_path,'employees':settings.employee_csv_path}
+    def freshness(key):
+        reference=settings.data_lifecycle.sources.get(key)
+        return dict(last_import=reference.imported_at if reference and reference.path==paths[key] else directory['report'].get('imported_at') if key=='employees' else None,
+                    last_checked=reference.checked_at if reference and reference.path==paths[key] else None)
+    return dict(metrics=metrics,review_population=len(state.users.users) if mapping else None,role_distribution=dict(role_distribution) if role_distribution is not None else None,assignment_distribution=dict(assignment_distribution) if assignment_distribution is not None else None,last_successful_refresh=settings.data_lifecycle.last_successful_refresh,
                 source_warning='A source needs attention. Review Health & Diagnostics.' if directory['error'] else None,coverage_total=directory['coverage_total'],
-                sources=[dict(id='roles',name='Role Catalogue',enabled=True,configured=bool(settings.data_csv_path),available=catalogue),
-                         dict(id='users',name='User–Role Mapping',enabled=settings.features.user_role_mapping,configured=bool(settings.user_csv_path),available=bool(state.users.report)),
-                         dict(id='employees',name='Employee Directory',enabled=enabled,configured=directory['configured'],available=directory['loaded'])],as_of=directory['report'].get('imported_at'),notice='Current local snapshots only; no historical trends or effective-authorization claims.')
+                sources=[dict(id='roles',name='Role Catalogue',enabled=True,configured=bool(settings.data_csv_path),available=catalogue,**freshness('roles')),
+                         dict(id='users',name='User–Role Mapping',enabled=settings.features.user_role_mapping,configured=bool(settings.user_csv_path),available=bool(state.users.report),**freshness('users')),
+                         dict(id='employees',name='Employee Directory',enabled=enabled,configured=directory['configured'],available=directory['loaded'],**freshness('employees'))],as_of=directory['report'].get('imported_at'),notice='Current local snapshots only; no historical trends or effective-authorization claims.')

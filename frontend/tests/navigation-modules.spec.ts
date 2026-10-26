@@ -1,3 +1,4 @@
+import {inspectTechnicalSources} from './source-details-fixture'
 import { test, expect } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -25,8 +26,7 @@ test('data-source actions override every previous section while normal opening k
   await page.reload()
   await page.getByRole('tab', { name: 'Health & Diagnostics', exact: true }).click()
   await page.getByText('Source locations and storage details',{exact:true}).click()
-  for (const name of ['Role Catalogue CSV','User Access CSV']) await page.getByRole('region',{name,exact:true}).getByText('Technical source details',{exact:true}).click()
-  await page.getByText('Employee Directory technical details',{exact:true}).click()
+  await inspectTechnicalSources(page)
   await page.getByRole('button', { name: 'Back to SAP Lens', exact: true }).click()
   await page.getByRole('button', { name: 'Review data source', exact: true }).click()
   await expect(page.getByLabel('CSV file location', { exact: true })).toBeFocused()

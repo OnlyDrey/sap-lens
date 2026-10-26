@@ -473,3 +473,42 @@ push, workflow dispatch, tag, release or package publication was performed.
 Final narrow-screen follow-up: removed the expired-checkbox container at every
 breakpoint, not just desktop. Production build and the light-800/dark-375 shared
 layout regressions passed (2/2); no functional changes or additional full run.
+
+## Refinement Round 2 — tasks 15–29
+
+Continued from locally preserved `17d48ec`, `be5a3ae` and `c2dd2b5`; no push.
+
+- 15–16: explicit User Details AND/OR mode, shared backend role-set filtering and
+  matching export scope; compact assignment count/warnings, with provenance in rows.
+- 17–18: directory matching modal and consistent status labels, preserving actual
+  candidate evidence and source navigation.
+- 19–21: canonical three-source status summary, interactive feature pill with pending
+  preference versus persisted operational status, shared technical-source modal.
+- 22–23,25–26: evidence-backed dashboard distributions/review population/freshness,
+  single coverage indicator, shared icons, subtle interactions and three/two/one grids.
+- 24,28: review modal presents findings before the decision; protected drafts, current
+  evidence checks, backward-compatible annotation history, order-independent new
+  fingerprints and removed/reappearing-account handling. Review storage failure
+  cannot erase annotations or block independent CSV loading.
+- 27,29: four-column change table, readable records and exact copyable identifiers,
+  actual retained before/after details in the shared modal, consistent action icons.
+
+Targeted validation before beginning task 30:
+
+- User Access backend: 43 passed; filter backend: 17 passed; Account Review backend:
+  23 passed (history, format-1 migration, restart, ordering, changed identity/assignment/
+  AD evidence, disappearance/reappearance, corrupt storage and permission failures).
+- CSV lifecycle backend: 22 passed. Lifecycle browser: 10 passed, including native-save
+  bridge mocks, complete replacement, failed refresh retention and both themes at
+  375/800/1280. New Round 2 browser suite: 14 passed, with source/review/matching
+  modals and dashboard geometry at 375/800/1280/1600 in both themes.
+- Relevant existing browser groups: 43 passed; four legacy OR visual cases were then
+  updated to explicitly choose OR under the new AND default and all four passed.
+  Obsolete inline-details/coverage selectors were migrated to the actual modals and
+  single coverage control, retaining evidence, date, export and focus assertions.
+- TypeScript/production build, whitespace and 73-document link checks passed.
+  Representative screenshots were inspected and retained outside Git in
+  `/workspace/sap-lens-dev/round2-visual/`. Native Windows/WebView2 remains untested.
+
+Tasks 30–31 remain separate follow-ups; final combined regression/audits follow those
+implementations. No comprehensive browser suite was repeated for each UI edit.

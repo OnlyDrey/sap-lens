@@ -345,6 +345,8 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
                 store.import_error = directory_result['message']
             elif directory_result['status'] in {'updated','unchanged'}:
                 store.error = store.import_error = None
+        from account_review import record_missing_users
+        record_missing_users(state)
         for identity in old_reports:
             if identity not in settings.data_lifecycle.history:
                 try: private_path('reports', identity).unlink(missing_ok=True)

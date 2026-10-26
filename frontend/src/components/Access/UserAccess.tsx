@@ -311,6 +311,7 @@ function UserDetails({
   const [assignmentDates, setAssignmentDates] = useState({ ...emptyDates });
   const dateKey = JSON.stringify(assignmentDates);
   const transaction = useTransactionFilter(username);
+  const [transactionMode,setTransactionMode]=useState<'and'|'or'>('and');
   const transactionCodes = transaction.deferredCodes;
   const exportGeneration = useRef(0);
   const [scope, setScope] = useState("all"),
@@ -319,14 +320,15 @@ function UserDetails({
     [accountOffset, setAccountOffset] = useState(0),
     [nameOffset, setNameOffset] = useState(0),
     [emailOffset, setEmailOffset] = useState(0);
-  useEffect(() => { setOffset(0) }, [scope, status, username, transaction.key, dateKey]);
-  useEffect(() => { exportGeneration.current++; setExportMessage(''); return () => { exportGeneration.current++ } }, [username, scope, status, transaction.key, dateKey]);
+  useEffect(() => { setOffset(0) }, [scope, status, username, transaction.key, transactionMode, dateKey]);
+  useEffect(() => { exportGeneration.current++; setExportMessage(''); return () => { exportGeneration.current++ } }, [username, scope, status, transaction.key, transactionMode, dateKey]);
 
-  useEffect(() => { setAssignmentDates({ ...emptyDates }); setAccountOffset(0); setNameOffset(0); setEmailOffset(0) }, [username]);
+  useEffect(() => { setAssignmentDates({ ...emptyDates }); setTransactionMode('and'); setAccountOffset(0); setNameOffset(0); setEmailOffset(0) }, [username]);
   const result = useQuery({
     queryKey: [
       "access-user",
       transactionCodes,
+      transactionMode,
       assignmentDates,
       username,
       scope,
@@ -342,6 +344,7 @@ function UserDetails({
         scope,
         ...dateParams(assignmentDates),
         tcodes: transactionCodes,
+        transaction_mode: transactionMode,
         status: status === "all" ? "" : status,
         show_expired: status === "all",
         offset,
@@ -412,24 +415,20 @@ function UserDetails({
               </Select>
             </Filter>
           <AssignmentDateFilters value={assignmentDates} onChange={setAssignmentDates}/>
-          {(datesActive(assignmentDates) || transaction.codes.length > 0 || status) && <ClearFilterButton onClick={() => { setAssignmentDates({ ...emptyDates }); transaction.clear(); setStatus('') }}>Clear all assignment filters</ClearFilterButton>}
+          {(datesActive(assignmentDates) || transaction.codes.length > 0 || status) && <ClearFilterButton onClick={() => { setAssignmentDates({ ...emptyDates }); transaction.clear(); setTransactionMode('and'); setStatus('') }}>Clear all assignment filters</ClearFilterButton>}
 
-            <TransactionFilter label="Find roles by transaction" filter={transaction}/>
-            <Button type="button" className="settings-secondary-button user-export-button" disabled={exporting || result.isFetching || transaction.settling || !user.total} onClick={async () => {
+            <TransactionFilter label="Find roles by transaction" filter={transaction} mode={transactionMode} onModeChange={setTransactionMode}/>
+            <Button type="button" className="settings-secondary-button user-export-button" title="Exports every assignment matching the selected role view, validity, date bounds and transaction matching mode." disabled={exporting || result.isFetching || transaction.settling || !user.total} onClick={async () => {
               const generation = exportGeneration.current;
               setExporting(true); setExportMessage('Preparing CSV…');
-              try { const saved = await exportAssignments(user, scope, status, () => generation === exportGeneration.current, transactionCodes, dateParams(assignmentDates));
+              try { const saved = await exportAssignments(user, scope, status, () => generation === exportGeneration.current, transactionCodes, dateParams(assignmentDates), transactionMode);
                 if (generation === exportGeneration.current) setExportMessage(saved ? 'CSV exported.' : 'Export cancelled.');
               } catch (error) { if (generation === exportGeneration.current) setExportMessage(error instanceof Error ? error.message : 'CSV export failed.'); }
               finally { setExporting(false); }
             }}><Download size={15} aria-hidden="true"/>{exporting ? 'Exporting…' : 'Export CSV'}</Button>
           </form>
-          {transactionCodes.length > 0 && <section aria-label="Transaction search evidence"><p>Transactions {transactionCodes.join(' OR ')} · selected user, role view and assignment-status filter. Role-derived evidence is not proof of effective SAP authorization.</p>
-            {!user.mapping_available && <p>Transaction mappings unavailable: no role catalogue is loaded.</p>}
-            {Boolean(user.unmapped_assignments) && <p>{user.unmapped_assignments} assignments have unavailable or unresolved catalogue mappings; transaction coverage may be incomplete.</p>}
-            {user.items.map(a => <div key={a.id} className="text-sm"><strong>{transactionCodes.join(' OR ')}</strong> · {a.role_name}{a.role_description && ` · ${a.role_description}`}{Boolean(a.transaction_roles?.length) && <span> · Via {a.transaction_roles?.join(', ')}</span>}</div>)}
-          </section>}
-          <p className="text-xs text-[var(--muted)]">Exports all assignments matching this role view, assignment status, assignment date bounds and live transaction filters.</p>
+          <div className="assignment-results-summary"><strong>{user.total.toLocaleString()} matching assignments</strong><span className="ui-description">Validity evaluated on {formatDate(user.as_of)}.</span></div>
+          {transactionCodes.length > 0 && (!user.mapping_available || Boolean(user.unmapped_assignments)) && <details className="compact-evidence-warning"><summary>Catalogue coverage may be incomplete</summary><p>{user.mapping_available ? `${user.unmapped_assignments} assignment records have unresolved or unavailable catalogue mappings.` : 'No role catalogue is loaded.'} Transaction coverage is role-derived evidence, not effective SAP authorization.</p></details>}
           <p role="status">{exportMessage}</p>
           <div className="access-table user-assignment-table" role="region" aria-label="User role assignments" tabIndex={0}>
             <table>
@@ -489,7 +488,7 @@ function AssignmentRow({
   return (
     <tr>
       <td>
-        <RoleIdentifier value={a.role_name} />
+        <RoleIdentifier value={a.role_name} />{a.role_description&&<p className="ui-description">{a.role_description}</p>}
       </td>
       {releaseView ? <><td>{a.release?.document_type || 'Unparsed'}</td><td>{a.release?.release_group || '—'}</td><td>{a.release?.release_strategy || '—'}</td></> : <td>
           <div className="catalogue-match">
@@ -502,6 +501,7 @@ function AssignmentRow({
         <AssignmentStatus value={a.status}/>
       </td>
       <td>
+        {!!a.transaction_roles?.length&&<details className="assignment-mapping-evidence"><summary>Transaction mapping evidence</summary>{a.transaction_roles.map(name=><p key={name}>Via <RoleIdentifier value={name}/></p>)}</details>}
         {a.scope === "release" ? (
           <Button className="settings-secondary-button" onClick={() => onRelease(a.role_name)}>View role details<ArrowRight size={15} aria-hidden="true"/></Button>
         ) : a.match_status === "exact" || a.match_status === "wildcard" ? (

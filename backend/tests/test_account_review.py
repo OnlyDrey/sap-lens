@@ -218,3 +218,72 @@ class AccountReviewTests(unittest.TestCase):
         dashboard=self.client.get('/api/dashboard',headers=H).json()
         metric=next(m for m in dashboard['metrics'] if m['id']=='account_review')
         self.assertEqual(metric['value'],result['summary']['requiring_review'])
+
+    def test_review_history_is_durable_bounded_and_preserves_previous_decisions(self):
+        row=self.get('?search=DEMO_OPEN')['items'][0];self.assertEqual(self.decision(row).status_code,200)
+        first=self.get('?search=DEMO_OPEN')['items'][0]['decision']
+        self.assertEqual(self.decision(row).status_code,200)
+        history=self.client.get('/api/account-review/history/DEMO_OPEN?limit=1',headers=H).json()
+        self.assertEqual(history['total'],1);self.assertEqual(history['items'][0]['timestamp'],first['timestamp'])
+        self.assertEqual(json.loads((config.config_dir()/'account-review.json').read_text())['format'],2)
+        config.get_settings.cache_clear();cache.load_cache()
+        self.assertEqual(self.client.get('/api/account-review/history/DEMO_OPEN',headers=H).json()['total'],1)
+        self.assertFalse(self.get('?search=DEMO_OPEN')['items'][0]['stale'])
+
+    def test_reordering_unchanged_records_keeps_review_current_but_reappearing_user_requires_review(self):
+        row=self.get('?search=DEMO_OPEN')['items'][0];self.assertEqual(self.decision(row).status_code,200)
+        lines=self.csv.read_text().splitlines();self.csv.write_text('\n'.join([lines[0],*reversed(lines[1:])])+'\n');cache.load_cache()
+        self.assertFalse(self.get('?search=DEMO_OPEN')['items'][0]['stale'])
+        self.csv.write_text('\n'.join(line for line in lines if not line.startswith('DEMO_OPEN,'))+'\n');cache.load_cache()
+        self.assertEqual(self.get('?search=DEMO_OPEN')['total'],0)
+        self.assertTrue(next(iter(review.decisions().values()))['absent_since'])
+        self.csv.write_text('\n'.join(lines)+'\n');cache.load_cache()
+        returned=self.get('?search=DEMO_OPEN')['items'][0];self.assertTrue(returned['stale'])
+        self.assertEqual(self.decision(returned).status_code,200)
+        self.assertFalse(self.get('?search=DEMO_OPEN')['items'][0]['stale'])
+        self.assertEqual(self.client.get('/api/account-review/history/DEMO_OPEN',headers=H).json()['total'],1)
+
+    def test_review_progress_population_and_role_distribution_use_observed_records(self):
+        row=self.get('?search=DEMO_NORMAL')['items'][0];self.decision(row)
+        self.assertEqual(self.get('?finding=reviewed')['total'],1)
+        self.assertEqual(self.get('?finding=pending')['total'],5)
+        data=self.client.get('/api/dashboard',headers=H).json()
+        self.assertEqual(data['review_population'],6)
+        self.assertEqual(sum(data['assignment_distribution'].values()),6)
+        self.assertIsNone(data['role_distribution'])
+
+    def test_format_one_review_is_preserved_and_migrates_only_on_explicit_save(self):
+        row=self.get('?search=DEMO_OPEN')['items'][0]
+        user=cache.get_snapshot().users.users['DEMO_OPEN'];directory=store.get(config.get_settings().employee_csv_path)
+        matched=review.match_sap_identity(directory,user,review.sap_email_owners(cache.get_snapshot().users.users.values()))
+        legacy=review.digest([user,matched['employee'],matched['status'],config.get_settings().unlicensed_user_groups,row['sap_validity'],row['findings']])
+        decision=dict(state='Investigating',reviewer='Legacy synthetic reviewer',rationale='Existing local annotation',evidence_version=legacy,timestamp='2026-01-01T12:00:00+00:00')
+        path=config.config_dir()/'account-review.json';path.parent.mkdir(parents=True,exist_ok=True);path.write_text(json.dumps({'format':1,'decisions':{review.digest('DEMO_OPEN'):decision}}))
+        current=self.get('?search=DEMO_OPEN')['items'][0];self.assertFalse(current['stale']);self.assertEqual(current['decision']['reviewer'],decision['reviewer'])
+        self.assertEqual(json.loads(path.read_text())['format'],1)
+        self.assertEqual(self.decision(current).status_code,200)
+        migrated=json.loads(path.read_text());self.assertEqual(migrated['format'],2)
+        saved=migrated['decisions'][review.digest('DEMO_OPEN')]
+        self.assertEqual(saved['history'],[decision]);self.assertEqual(saved['evidence_schema'],2)
+
+    def test_material_assignment_and_ad_state_changes_reassess_saved_review(self):
+        row=self.get('?search=DEMO_OPEN')['items'][0];self.decision(row)
+        with self.csv.open(newline='') as stream:
+            reader=csv.DictReader(stream);fields=reader.fieldnames;records=list(reader)
+        for record in records:
+            if record['USERNAME']=='DEMO_OPEN': record['ROLE_NAME']='ZC:SYN:NEW_ASSIGNMENT'
+        with self.csv.open('w',newline='') as stream:
+            writer=csv.DictWriter(stream,fieldnames=fields);writer.writeheader();writer.writerows(records)
+        cache.load_cache();changed=self.get('?search=DEMO_OPEN')['items'][0];self.assertTrue(changed['stale']);self.decision(changed)
+        self.directory.write_text(self.directory.read_text().replace('false','true'))
+        store.clear();cache.load_cache();changed=self.get('?search=DEMO_OPEN')['items'][0]
+        self.assertTrue(changed['stale']);self.assertEqual(changed['ad_status'],'Enabled');self.assertNotIn('ad_disabled_open',changed['findings'])
+
+    def test_review_presence_permission_failure_does_not_block_independent_source_usage(self):
+        row=self.get()['items'][0];self.decision(row);raw=(config.config_dir()/'account-review.json').read_bytes()
+        with patch('account_review.config_dir',side_effect=OSError('synthetic inaccessible storage')):
+            review.record_missing_users(cache.get_snapshot())
+            result=self.client.get('/api/account-review',headers=H)
+            self.assertEqual(result.status_code,409);self.assertNotIn('inaccessible storage',result.text)
+            self.assertEqual(self.client.get('/api/roles',headers=H).status_code,200)
+        self.assertEqual((config.config_dir()/'account-review.json').read_bytes(),raw)

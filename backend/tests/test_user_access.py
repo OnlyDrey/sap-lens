@@ -177,7 +177,7 @@ class UserAccessTests(unittest.TestCase):
         self.assertEqual(found["items"], [])
 
     def test_multi_transaction_filters_use_exact_or_before_assignment_pagination(self):
-        combined = self.get("users/DEMO_ALFA?scope=all&tcodes=%20me23n%20&tcodes=fb03&tcodes=ME23N")
+        combined = self.get("users/DEMO_ALFA?scope=all&tcodes=%20me23n%20&tcodes=fb03&tcodes=ME23N&transaction_mode=or")
         first = self.get("users/DEMO_ALFA?scope=all&tcode=ME23N")
         second = self.get("users/DEMO_ALFA?scope=all&tcode=FB03")
         self.assertEqual({a["id"] for a in combined["items"]}, {a["id"] for a in first["items"] + second["items"]})

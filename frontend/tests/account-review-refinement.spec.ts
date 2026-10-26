@@ -184,7 +184,7 @@ test('review findings, license filter, local decision persistence and spreadshee
       exact: true,
     })
     .click()
-  await expect(page.getByLabel('Reviewer', { exact: true })).toBeFocused()
+  await expect(page.getByRole('dialog',{name:/^Review account ·/})).toBeFocused()
   await page.getByLabel('Reviewer', { exact: true }).fill('Synthetic Reviewer')
   await page
     .getByLabel('Decision', { exact: true })
@@ -299,8 +299,8 @@ test('Dashboard coverage and account-review KPI open supported evidence filters'
     'Role/T-code mappings',
   ])
   await expect(
-    page.getByRole('region', {
-      name: 'Directory match percentage',
+    page.getByRole('button', {
+      name: 'Matched SAP identities',
       exact: true,
     }),
   ).toContainText('75.0%')
@@ -497,8 +497,8 @@ for (const theme of ['light', 'dark'])
         })
       }
       await expect(
-        page.getByRole('region', {
-          name: 'Directory match percentage',
+        page.getByRole('button', {
+          name: 'Matched SAP identities',
           exact: true,
         }),
       ).toBeVisible()
@@ -665,8 +665,8 @@ for(const theme of ['light','dark']) test(`directory conflict evidence identifie
   await page.setViewportSize({width:800,height:1000})
   await page.goto('/#session=browser-test-session');await nav(page,'User Access')
   await page.getByRole('button',{name:'DEMO_OPEN',exact:true}).click()
-  const details=page.locator('.matching-details')
-  await details.locator('summary').click()
+  await page.getByRole('button',{name:'Directory matching details · Ambiguous',exact:true}).click()
+  const details=page.getByRole('dialog',{name:'Directory matching details',exact:true})
   await expect(details).toContainText('No candidate is selected')
   await expect(details).toContainText('User Access CSV')
   await expect(details).toContainText('directory.csv')

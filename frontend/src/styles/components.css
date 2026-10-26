@@ -369,3 +369,46 @@ main h1,.settings-content h1 { font-size:var(--font-title); font-weight:600; }
 .comparison-table th:nth-child(2) {width:12%}
 .comparison-table th:nth-child(3),.comparison-table th:nth-child(4) {width:31%}
 .directory-expired {padding:0;border:0;background:transparent;min-height:24px}
+
+/* Round 2: shared status, modal evidence and investigation summaries. */
+button.status-pill {border:0;cursor:pointer;min-height:32px;padding:var(--space-1) var(--space-2);font:inherit;font-size:var(--font-label);align-self:center}
+button.status-pill:hover:not(:disabled) {filter:brightness(.96)}
+button.status-pill:focus-visible {outline:2px solid var(--focus);outline-offset:3px}
+button.status-pill:disabled {opacity:.55;cursor:not-allowed}
+.assignment-results-summary {display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-3);margin:var(--space-3) 0}
+.compact-evidence-warning {font-size:var(--font-label);color:var(--warning);margin:var(--space-2) 0}
+.ui-section-header {display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);margin-bottom:var(--space-3)}
+.ui-section-header h2 {display:flex;align-items:center;gap:var(--space-2);font-size:var(--font-section)}
+.ui-section-header h2>svg {color:var(--muted);flex:none}
+.dashboard-workspace {grid-template-columns:repeat(3,minmax(0,1fr))}
+.dashboard-workspace>.dashboard-distribution {grid-column:1/-1}
+.dashboard-workspace .dashboard-metric:hover {background:transparent}
+.dashboard-workspace .dashboard-primary-metrics .dashboard-metric:hover {background:color-mix(in srgb,var(--accent2) 4%,var(--surface2))}
+.dashboard-metric:hover>svg:last-of-type,.dashboard-distribution-link:hover>svg {color:var(--accent2)}
+.dashboard-secondary-metrics .dashboard-metric>small,.dashboard-secondary-metrics .dashboard-metric>progress {grid-column:1/-1}
+.dashboard-secondary-metrics .dashboard-metric>progress {width:100%;height:8px}
+.dashboard-distribution-link {display:grid;grid-template-columns:100px minmax(0,1fr) 60px 18px;align-items:center;gap:var(--space-3);width:100%;padding:var(--space-2) 0;text-align:left;font-size:var(--font-body);border-bottom:1px solid var(--border)}
+.dashboard-distribution-link progress {width:100%;height:10px}
+.dashboard-distribution h3 {margin-top:var(--space-4);font-size:var(--font-body);font-weight:600}
+.dashboard-assignment-distribution {display:flex;flex-wrap:wrap;gap:var(--space-4);margin-top:var(--space-3)}
+.dashboard-assignment-distribution>div {display:flex;gap:var(--space-2);align-items:center;background:var(--surface2);border-radius:var(--radius-control);padding:var(--space-2) var(--space-3)}
+.dashboard-source-freshness {flex-basis:100%;font-size:var(--font-meta);text-align:left;color:var(--muted)}
+.review-findings article {padding:var(--space-2) 0;border-bottom:1px solid var(--border)}
+.review-findings h4 {font-weight:600;margin-bottom:var(--space-2)}
+@media(max-width:1199px){.dashboard-workspace{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.dashboard-workspace{grid-template-columns:minmax(0,1fr)}.dashboard-workspace>.dashboard-section{grid-column:1/-1}.dashboard-distribution-link{grid-template-columns:60px minmax(0,1fr) 40px 18px}}
+.refresh-source-summary>.ui-card[data-changed=false] {background:var(--surface);border-color:var(--border)}
+.refresh-source-summary>.ui-card[data-changed=true] {border-color:var(--success);background:color-mix(in srgb,var(--success) 4%,var(--surface))}
+.refresh-source-summary>.ui-card[data-failed=true] {border-color:var(--error)}
+.change-record-name {display:block;font-size:var(--font-body);margin-bottom:var(--space-2);overflow-wrap:anywhere}
+.ui-dialog table td small {display:block;margin-top:var(--space-1);color:var(--muted)}
+.dashboard-distribution-link progress {accent-color:var(--accent2)}
+.dashboard-metric>progress {accent-color:var(--success)}
+.coverage-summary>progress {accent-color:var(--info);width:100%}
+.dashboard-workspace>.dashboard-middle-section {grid-column:auto}
+.dashboard-workspace progress {appearance:none;border:0;border-radius:var(--radius-badge);overflow:hidden;background:var(--surface2);--progress-fill:var(--accent2)}
+.dashboard-workspace .dashboard-metric>progress {--progress-fill:var(--success)}
+.dashboard-workspace .coverage-summary>progress {--progress-fill:var(--info)}
+.dashboard-workspace progress::-webkit-progress-bar {background:var(--surface2)}
+.dashboard-workspace progress::-webkit-progress-value {background:var(--progress-fill)}
+.dashboard-workspace progress::-moz-progress-bar {background:var(--progress-fill)}

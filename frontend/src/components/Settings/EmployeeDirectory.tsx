@@ -1,4 +1,4 @@
-import { SourceHealthSummary } from './SourceStatus'
+import { SourceStatusSummary } from './SourceStatus'
 import { SourceFileField } from './ImportControls'
 import { DirectoryPreview } from './DirectoryPreview'
 import { BrowserSourceUpload } from './BrowserSourceUpload'
@@ -22,7 +22,7 @@ import {
   Upload,
 } from 'lucide-react'
 import { apiRequest, applicationToken } from '@/api/client'
-import type { Configuration } from '@/api/configuration'
+import { fetchConfiguration, type Configuration } from '@/api/configuration'
 import { formatTimestamp } from '@/lib/dateFormat'
 
 interface Report {
@@ -225,6 +225,7 @@ export function FeatureSettings({
       setGroupText((draft.unlicensed_user_groups || ['UNLICENSED']).join(', ')),
     [draft.revision],
   )
+  const saved=useQuery({queryKey:['configuration'],queryFn:fetchConfiguration})
   const directory = useQuery({
     queryKey: ['employee-status'],
     queryFn: () => apiRequest<DirectoryStatus>('/api/employees/status'),
@@ -250,6 +251,8 @@ export function FeatureSettings({
         ] as const
       ).map(([key, name, Icon, description, available]) => {
         const enabled = draft.features?.[key] ?? key === 'user_role_mapping'
+        const savedEnabled=saved.data?.settings.features?.[key]??key==='user_role_mapping'
+        const operational=key==='employee_directory'?directory.data?.operational_status==='ready':!!directory.data?.user_mapping_available
         return (
           <section
             key={key}
@@ -272,11 +275,12 @@ export function FeatureSettings({
                       : 'No imported data available.'}
               </p>
               <StatusBadge
-                tone={!enabled ? 'neutral' : available ? 'success' : 'warning'}
+                tone={operational?'success':!savedEnabled?'neutral':'warning'}
               >
-                {!enabled ? 'Disabled' : available ? 'Ready' : 'Data required'}
+                {!directory.data?'Checking operational status…':operational?'Operational':!savedEnabled?'Disabled in saved settings':!available?'Data required':'Identity enrichment unavailable'}
               </StatusBadge>
             </div>
+            {saved.data&&enabled!==(saved.data.settings.features?.[key]??key==='user_role_mapping')&&<p role="status" className="ui-description">Pending change — choose Apply settings to save.</p>}
             <Toggle
               label={`${name} feature`}
               checked={enabled}
@@ -516,7 +520,6 @@ export function EmployeeBrowser() {
 
 export function EmployeeSource({
   revision,
-  mode='static',
   savedPath,
   dirty,
   onImported,
@@ -784,7 +787,7 @@ export function EmployeeSource({
           {error} Previous valid data is retained.
         </p>
       )}
-      {status.data&&<SourceHealthSummary source={{id:'employees',mode,enabled:status.data.enabled,loaded:status.data.loaded,loading:busy,error:status.data.error||null,records:status.data.report.records,last_successful_load:status.data.report.imported_at||null,snapshot_available:status.data.persisted}}/>}
+      <SourceStatusSummary source="employees"/>
       <DirectoryDiagnostics sourceView onFeatureSettings={onFeatureSettings} />
       <EmployeeBrowser />
     </div>

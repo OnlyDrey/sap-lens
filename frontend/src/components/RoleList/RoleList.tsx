@@ -22,6 +22,7 @@ import { apiRequest } from '@/api/client'
 const fetchExactRoles = (codes: string[], mode: 'and' | 'or') => apiRequest<RoleSummary[]>(`/api/roles?${new URLSearchParams([...codes.map(code => ['tcodes', code]), ['transaction_mode', mode]])}`)
 
 interface Props {
+  initialArea?:string
   selectedRoles: string[]
   onSelectRole: (n: string) => void
   onViewDetail: (n: string) => void
@@ -143,6 +144,7 @@ function Skeleton() {
 }
 
 export function RoleList({
+  initialArea,
   selectedRoles,
   onSelectRole,
   onViewDetail,
@@ -153,7 +155,7 @@ export function RoleList({
   const [page,setPage] = useState(0)
   const transaction = useTransactionFilter()
   const [search, setSearch] = useState('')
-  const [activeModules, setActiveModules] = useState<string[]>([])
+  const [activeModules, setActiveModules] = useState<string[]>(initialArea?[initialArea]:[])
   const [transactionMode, setTransactionMode] = useState<'and' | 'or'>('and')
   const [sortBy, setSortBy] = useState<SortKey>('name-asc')
   const [sortOpen, setSortOpen] = useState(false)

@@ -87,14 +87,6 @@ export function Toggle({
   disabled?: boolean
 }) {
   return (
-    <Button
-      role="switch"
-      aria-label={label}
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-    >
-      <StatusPill enabled={checked} />
-    </Button>
+    <StatusPill enabled={checked} label={label} disabled={disabled} onToggle={()=>onChange(!checked)}/>
   )
 }

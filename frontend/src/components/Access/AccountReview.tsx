@@ -1,4 +1,6 @@
-import { PageHeader } from '@/components/Shared/Presentation'
+import { Dialog } from '@/components/Shared/Dialog'
+import { ReviewFindings, type ReviewEvidence } from '@/components/Shared/ReviewFindings'
+import { PageHeader, MetadataList } from '@/components/Shared/Presentation'
 import { ClipboardCheck as PageIcon } from 'lucide-react'
 import { StatusCard, FilterPanel, ResultsToolbar } from '@/components/Shared/InvestigationPatterns'
 import { SearchInput } from '@/components/Shared/Controls'
@@ -39,6 +41,8 @@ interface Row {
   stale: boolean
   review_state: string
   needs_review: boolean
+  evidence?:ReviewEvidence
+  history_count?:number
 }
 interface Results {
   items: Row[]
@@ -67,13 +71,12 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
     [busy, setBusy] = useState(false),
     [editing, setEditing] = useState<Row | null>(null),
     [actionError, setActionError] = useState(false)
-  const editor = useRef<HTMLElement>(null),
-    returnUser = useRef(''),
+  const returnUser = useRef(''),
     wasEditing = useRef(false)
   useEffect(() => {
     if (editing) {
       wasEditing.current = true
-      editor.current?.querySelector<HTMLInputElement>('input')?.focus()
+
     }
   }, [editing])
   const [reviewer, setReviewer] = useState(''),
@@ -111,6 +114,15 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
       ),
   })
   const data = result.data
+  const [historyOffset,setHistoryOffset]=useState(0)
+  useEffect(()=>setHistoryOffset(0),[editing?.username])
+  const history=useQuery({queryKey:['review-history',editing?.username,historyOffset],queryFn:()=>apiRequest<{items:Decision[];total:number}>(`/api/account-review/history/${encodeURIComponent(editing!.username)}?offset=${historyOffset}`),enabled:!!editing})
+  const closeEditor=()=>{
+    if(busy)return
+    const dirty=editing&&(reviewer!==(editing.decision?.reviewer||'')||rationale!==(editing.decision?.rationale||'')||decision!==editing.review_state)
+    if(dirty&&!window.confirm('Discard unsaved review changes?'))return
+    setEditing(null)
+  }
   useEffect(() => {
     if (editing || busy || result.isFetching || !wasEditing.current) return
     wasEditing.current = false
@@ -266,7 +278,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
           )}
         </>
       )}
-      <SavedFilters showClear={false} view="review" state={{search,finding:finding||'',license,state,sort,descending}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(typeof s.finding==='string'&&['','any','stale','matched',...Object.keys(data?.finding_labels||{})].includes(s.finding))setFinding(s.finding);if(['','classified','exclude'].includes(String(s.license)))setLicense(String(s.license));if(['',...(data?.review_states||[])].includes(String(s.state)))setState(String(s.state));if(['username','name','sap_validity','lock_status','ad_status','review_state'].includes(String(s.sort)))setSort(String(s.sort));if(typeof s.descending==='boolean')setDescending(s.descending)}} clear={()=>{setSearch('');setFinding('');setLicense('');setState('');setSort('username');setDescending(false)}}/>
+      <SavedFilters showClear={false} view="review" state={{search,finding:finding||'',license,state,sort,descending}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(typeof s.finding==='string'&&['','any','stale','matched','reviewed','pending',...Object.keys(data?.finding_labels||{})].includes(s.finding))setFinding(s.finding);if(['','classified','exclude'].includes(String(s.license)))setLicense(String(s.license));if(['',...(data?.review_states||[])].includes(String(s.state)))setState(String(s.state));if(['username','name','sap_validity','lock_status','ad_status','review_state'].includes(String(s.sort)))setSort(String(s.sort));if(typeof s.descending==='boolean')setDescending(s.descending)}} clear={()=>{setSearch('');setFinding('');setLicense('');setState('');setSort('username');setDescending(false)}}/>
       <FilterPanel label="Review filters" className="review-filters">
         <Filter label="Search account reviews">
           <SearchInput
@@ -284,7 +296,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
           >
             <option value="">All accounts</option>
             <option value="any">Accounts requiring review</option>
-            <option value="matched">Reliably matched identities</option>
+            <option value="matched">Reliably matched identities</option><option value="reviewed">Reviewed accounts</option><option value="pending">Pending reviews</option>
             {Object.entries(data?.finding_labels || {}).map(([key, label]) => (
               <option key={key} value={key}>
                 {label}
@@ -494,12 +506,14 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
         </>
       )}
       {editing && (
-        <section
-          ref={editor}
+        <Dialog title={`Review account · ${editing.username}`} onClose={closeEditor}><section
           className="settings-card space-y-3"
           aria-label={`Review decision for ${editing.username}`}
         >
-          <h2>Review {editing.username}</h2>
+          <h2>Review {editing.username}</h2><p>{editing.name||'Name unavailable'} · {editing.groups.join(', ')||'Group unavailable'}</p>
+          <ReviewFindings row={editing} labels={data?.finding_labels||{}} onInvestigate={()=>{if(reviewer!==(editing.decision?.reviewer||'')||rationale!==(editing.decision?.rationale||'')||decision!==editing.review_state){if(!window.confirm('Discard unsaved review changes and investigate this user?'))return}setEditing(null);onUser(editing.username)}}/>
+          {editing.decision&&<MetadataList items={[{label:'Previous decision',value:editing.decision.state},{label:'Previous reviewer',value:editing.decision.reviewer},{label:'Reviewed at',value:formatTimestamp(editing.decision.timestamp)},{label:'Previous rationale',value:editing.decision.rationale}]}/>}
+          {actionError&&feedback&&<p role="alert">{feedback}</p>}
           <Filter label="Reviewer">
             <input
               className={inputClass}
@@ -552,7 +566,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
                 )
                 await qc.invalidateQueries({
                   predicate: (q) =>
-                    ['account-review', 'dashboard'].includes(
+                    ['account-review', 'review-history', 'dashboard'].includes(
                       String(q.queryKey[0]),
                     ),
                 })
@@ -567,11 +581,12 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
           <Button
             className="settings-secondary-button"
             disabled={busy}
-            onClick={() => setEditing(null)}
+            onClick={closeEditor}
           >
             Cancel review changes
           </Button></div>
-        </section>
+          <section aria-label="Review history"><h3>Previous decisions</h3>{history.isError&&<p role="alert">Review history could not be loaded. Existing annotations are retained.</p>}{history.isLoading&&<p role="status">Loading review history…</p>}{history.data&&!history.data.total&&<p>No previous decisions recorded.</p>}{history.data?.items.map((event,index)=><article key={`${event.timestamp}-${index}`}><strong>{event.state}</strong><p>{event.reviewer} · {formatTimestamp(event.timestamp)}</p><p>{event.rationale}</p></article>)}<Pagination label="Review history pages" offset={historyOffset} total={history.data?.total||0} limit={25} onChange={setHistoryOffset}/></section>
+        </section></Dialog>
       )}
     </section>
   )

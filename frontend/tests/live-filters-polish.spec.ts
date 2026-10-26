@@ -1,3 +1,4 @@
+import {inspectTechnicalSources} from './source-details-fixture'
 import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -39,6 +40,7 @@ test('live multi-code user filtering, chips, duplicate prevention, Backspace and
   await input.fill('MIGO'); await input.press('Enter')
   await expect(filter.getByRole('button', { name: 'Remove transaction MIGO' })).toHaveCount(1)
   await input.fill('va03')
+  await filter.getByRole('button',{name:'OR',exact:true}).click()
   await expect(detail.getByRole('row')).toHaveCount(3)
   const pending = page.waitForEvent('download')
   await detail.getByRole('button', { name: 'Export CSV', exact: true }).click()
@@ -150,8 +152,7 @@ test('data status badges retain availability distinction and format timestamps i
   await page.getByRole('button', { name: 'Open settings' }).click()
   await page.getByRole('tab', { name: 'Health & Diagnostics', exact: true }).click()
   await page.getByText('Source locations and storage details',{exact:true}).click()
-  for (const name of ['Role Catalogue CSV','User Access CSV']) await page.getByRole('region',{name,exact:true}).getByText('Technical source details',{exact:true}).click()
-  await page.getByText('Employee Directory technical details',{exact:true}).click()
+  await inspectTechnicalSources(page)
   const source = page.getByRole('region', { name: snapshot.sources[0].name, exact: true })
   await expect(source.locator('.source-badge-success')).toHaveText('Loaded')
   await expect(source).toContainText('current access not checked')
@@ -173,6 +174,7 @@ for (const theme of ['light', 'dark']) for (const width of [800, 1280]) test(`li
   const padding = await select.evaluate(element => parseFloat(getComputedStyle(element).paddingRight))
   expect(padding).toBeGreaterThanOrEqual(40)
   await filter.getByRole('textbox').fill('MIGO'); await filter.getByRole('textbox').press('Enter'); await filter.getByRole('textbox').fill('VA03')
+  await filter.getByRole('button',{name:'OR',exact:true}).click()
   await expect(detail.getByRole('row')).toHaveCount(3)
   await expect(detail).toContainText('01.01.2020'); await expect(detail).toContainText('31.12.9999')
   await page.screenshot({ path: info.outputPath('user-live-filters.png'), fullPage: true })
@@ -205,8 +207,7 @@ for (const theme of ['light', 'dark']) for (const width of [800, 1280]) test(`li
   await page.getByRole('button', { name: 'Open settings' }).click()
   await page.getByRole('tab', { name: 'Health & Diagnostics', exact: true }).click()
   await page.getByText('Source locations and storage details',{exact:true}).click()
-  for (const name of ['Role Catalogue CSV','User Access CSV']) await page.getByRole('region',{name,exact:true}).getByText('Technical source details',{exact:true}).click()
-  await page.getByText('Employee Directory technical details',{exact:true}).click()
+  await inspectTechnicalSources(page)
   const storage = page.getByRole('region', { name: 'Role Catalogue CSV', exact: true })
   await storage.scrollIntoViewIfNeeded()
   await expect(storage.locator('.source-badge-success')).toHaveText('Loaded')

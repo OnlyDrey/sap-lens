@@ -161,6 +161,8 @@ def load_cache(path: str | None = None, before_commit: Callable[[],None] | None 
         if before_commit: before_commit()
         _cache = state
         logger.info('Loaded %d composite roles', len(state.roles))
+    from account_review import record_missing_users
+    record_missing_users(state)
 
 
 def cancel_publication(event):

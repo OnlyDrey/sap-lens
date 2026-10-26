@@ -171,3 +171,16 @@ LAST_NAME, EMAIL, ROLE_VALID_FROM and ROLE_VALID_TO. This enables local preview
 search; the full CSV is not transferred to the DOM. Personal samples remain absent
 from stored user reports and diagnostic exports. Existing session/origin, size,
 row and validation guards still apply.
+
+### Review annotations and assignment transaction matching
+
+GET `/api/access/users/{username}` accepts `transaction_mode=and|or` (default `and`)
+for `tcodes`; it reuses canonical aggregate role mapping sets before pagination.
+User Details export supplies the same mode alongside date/status/scope filters.
+
+GET `/api/account-review` supports `finding=reviewed|pending` in addition to existing
+findings. POST `/api/account-review/decision/{username}` validates current evidence
+before preserving the previous decision and atomically saving the new annotation.
+GET `/api/account-review/history/{username}?offset=0&limit=25` returns bounded earlier
+decisions (maximum page size 100). Authentication and mapping-feature guards apply;
+this is private annotation history, not SAP modification history.
