@@ -291,7 +291,7 @@ def run() -> int:
                 if closing.is_set(): return
                 from main import create_app, frontend_dir
                 if not frontend_dir.is_dir(): raise RuntimeError('Frontend resources are missing.')
-                app = create_app(origin=origin, session_token=token, instance_id=identity)
+                app = create_app(origin=origin, session_token=token, instance_id=identity, browser_access=True)
                 from config import get_settings
                 window.evaluate_js(palette_script(get_settings()))
                 with startup_lock:

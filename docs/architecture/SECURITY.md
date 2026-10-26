@@ -4,8 +4,12 @@
 
 Desktop reserves an owned loopback socket and uses a fresh per-launch capability
 for API reads/writes and native bridge operations. Host/origin checks target its
-selected origin. The capability arrives in a fragment, is removed from the URL
-and retained in private session storage; runtime diagnostics do not contain it.
+selected port and explicit loopback origins. WebView2 receives the capability in a
+fragment, removed into session storage. Plain desktop browser root navigation can
+receive it through a non-cacheable CSP-nonced handoff, restricted by Fetch Metadata,
+exact Host/port and loopback peer. Cross-site/frame/resource requests cannot bootstrap
+a session; API capability and Origin checks remain mandatory. Runtime diagnostics
+do not contain it. See [desktop connectivity](DESKTOP.md).
 WebView2 shutdown owns backend shutdown; unrelated listeners are never killed.
 
 Headless server uses the same FastAPI factory without WebView2. The supported

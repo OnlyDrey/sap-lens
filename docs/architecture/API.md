@@ -13,7 +13,7 @@ Desktop: the owned `http://127.0.0.1:<selected-port>` origin, preferring `18743`
 | POST | `/api/compare` | Compare two to five distinct roles |
 | POST | `/api/refresh` | Reload the configured CSV |
 
-Desktop API reads and writes require `X-SAP-Lens: <per-launch-capability>`; the capability is managed by the native window and never written to logs, settings or runtime diagnostics. Source development requires `X-SAP-Lens: 1` for POST. OPTIONS preflight is validated against the exact allowed origin, not a wildcard. Hosts other than localhost/loopback are rejected; desktop binds exclusively to `127.0.0.1`. `/health` and static assets do not reveal the capability or source-file contents.
+Desktop API reads and writes require `X-SAP-Lens: <per-launch-capability>`; the capability is managed by the native window and never written to logs, settings or runtime diagnostics. Source development requires `X-SAP-Lens: 1` for POST. OPTIONS preflight is validated against the exact allowed origin, not a wildcard. Hosts other than localhost/loopback are rejected; desktop binds exclusively to `127.0.0.1`. `/health` and bundled assets do not reveal the capability or source-file contents. The desktop-only root document has a narrow navigation bootstrap exception: exact loopback Host/port and peer, top-level non-cross-site Fetch Metadata, non-cacheable HTML and a fresh CSP nonce. It hands the capability into origin session storage; API endpoints remain guarded. See [Desktop connectivity](DESKTOP.md).
 
 Settings request:
 
@@ -60,7 +60,7 @@ GET `/api/diagnostics` exposes guarded local UI details, including source/applic
 
 Schema-2 configuration now includes independent `theme_colors.light` and `theme_colors.dark` palettes (primary, accent, background, surface, text) and up to 20 named custom presets. HEX colors and 4.5:1 primary-text contrast against both backgrounds are validated. Old schema-2 files backfill defaults without rewriting the file on read. Empty organization names are supported for product-branding fallback.
 
-Native additions `close_application`, `open_logs` and `export_diagnostics` require the launch capability; log opening uses only the fixed owned log path. The trusted startup document is kept in memory, carries no CSV data, loads no remote resources and permits only its authored inline startup logic. The HTTP application's strict script policy is unchanged.
+Native additions `close_application`, `open_logs` and `export_diagnostics` require the launch capability; log opening uses only the fixed owned log path. The trusted startup document is kept in memory, carries no CSV data, loads no remote resources and permits only its authored inline startup logic. The HTTP application allows bundled scripts, plus only the per-response nonce for its guarded desktop browser handoff; arbitrary inline scripts remain blocked.
 
 
 ## Global user/release record navigation
