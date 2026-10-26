@@ -718,3 +718,52 @@ Explorer restart, real WebView2 close/hide/restore, browser access while hidden,
 sign-in startup, sign-out/shutdown, backend failure and explicit resource cleanup.
 Startup cleanup before portable removal is documented. No Windows packaging,
 remote workflow, push, tag or release was performed.
+
+### Combined UI/tray phase verification (tasks 1–28)
+
+Tasks 1–28 are implemented and locally validated. Additional task 29 (automatic
+CSV activation on selection) is a subsequent user-requested refinement; it was
+not implemented during this phase and supersedes the normal-flow confirmation
+requirement only when its own implementation/validation is complete.
+
+Final results:
+
+- Complete browser run: **305/305 passed together**, one worker, no retries,
+  9.2 minutes (`refinement-final-browser-complete.log`).
+- Complete backend run: **446/446 passed**, no skips, 25.536 seconds
+  (`refinement-final-backend-confirmed.log`), including 19 tray/controller/
+  persistence/concurrency cases and the existing desktop/server/security contracts.
+- Clean `npm ci`, explicit TypeScript check and production build passed. The latest
+  build includes all source changes; its 526.18 kB main chunk produces a non-blocking
+  Vite size warning. No dependency or bundling rewrite was introduced.
+- Python `pip check` and isolated `pip_audit` on desktop/dev requirements passed;
+  latest npm production and development audits returned zero vulnerabilities.
+- Documentation: 73 Markdown files, zero broken local links; workflow contracts,
+  independent actionlint, PowerShell syntax/service-helper mocks, Lucide catalog
+  (1,447 icons) and whitespace checks passed. No actual SCM operations occurred.
+
+Regression corrections are retained transparently. The first complete attempt was
+stopped early (70 passed, six failures, one interrupted, 228 not run): calendar
+focus ran while its measured panel was hidden, and dashboard tests retained old
+source text/search-order assumptions. Selected-day focus now waits for measured
+visibility; all eight affected checks passed. A subsequent run passed 303 with
+two 800px filter-density failures (152px versus the existing <150px assertion).
+Using the existing smaller gap token corrected density; all four targeted cases
+passed. The final complete run above passed every test. Assertions were retained,
+not weakened. A red/green lifecycle regression also verifies Exit during icon
+initialization stops a late-created tray icon instead of retaining it.
+
+Captured/reviewed representative light/dark screenshots at 375/800/1280/1600,
+including dashboard columns, long role cards/details, modules, source/review
+modals, colors/logo controls and isolated capability-mocked native-options panels.
+Artifacts remain outside Git at `/workspace/sap-lens-dev/refinement-27-visual`;
+complete logs are `/workspace/sap-lens-dev/refinement-*.log`. Cropping the native
+options region avoids falsely treating an offscreen Settings heading as control
+coverage. Capability mocks are not Windows/WebView2 tests.
+
+Native Windows tray/EXE/WebView2, Explorer restart, real sign-in/sign-out, clipboard,
+Save/file dialogs, port-conflict acceptance and UNC remain pending on Windows.
+No Windows build, real systemd acceptance, push, tag, release or remote workflow
+was performed. Existing history and accepted historical branding are preserved;
+new tests use synthetic identities/paths and no employee datasets or binaries
+were committed. Task 29 continues from these preserved local commits.
