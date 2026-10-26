@@ -205,6 +205,7 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
     directory = previous_directory
     results = []
     changed = False
+    sap_cleared = False
     stamp = now()
     successful = []
     checked_files = []
@@ -311,12 +312,14 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
         if not settings.data_csv_path and (state.loaded_sources.get('roles') or 'roles' in settings.data_lifecycle.sources):
             state = cache._CacheState(users=state.users, loaded_sources={k:v for k,v in state.loaded_sources.items() if k != 'roles'})
             settings.data_lifecycle.sources.pop('roles', None)
+            sap_cleared = True
             changed = True
         if not settings.user_csv_path and (state.loaded_sources.get('users') or 'users' in settings.data_lifecycle.sources):
             from user_access import UserState
             state.users = UserState()
             state.loaded_sources.pop('users', None)
             settings.data_lifecycle.sources.pop('users', None)
+            sap_cleared = True
             changed = True
     announce('Updating dependent views')
     # Always rebuild user-derived indexes against the final catalogue. Replacing
@@ -361,7 +364,7 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
             if changed or not cache.get_snapshot().directory_bound or not cache.get_snapshot().last_loaded and state.last_loaded:
                 # Directory enrichment has its own durable import metadata; it must
                 # not change the independent SAP dataset generation.
-                sap_changed=any(row['source'] in {'roles','users'} and row['status']=='updated' for row in results)
+                sap_changed=sap_cleared or any(row['source'] in {'roles','users'} and row['status']=='updated' for row in results)
                 state.last_loaded = datetime.fromisoformat(stamp) if changed and sap_changed else state.last_loaded
                 cache._cache = state
             if directory is not None:
