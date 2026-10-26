@@ -306,8 +306,8 @@ def release_options(
                  "username": a["username"], "role": a["role_name"]}[field]
         if value: values.add(value)
     matches = sorted((v for v in values if text_matches(v,search)), key=lambda v: (v.casefold(), v))
-    # Username/role retain existing substring semantics for manually typed filters.
-    available = not selected or (any(selected.casefold() in v.casefold() for v in values)
+    # Username/role use the same literal search as their assignment filters.
+    available = not selected or (any(text_matches(v,selected) for v in values)
                                 if field in {"username", "role"} else selected in values)
     return dict(items=matches[:limit], total=len(matches), has_more=len(matches) > limit,
                 selected_available=available)

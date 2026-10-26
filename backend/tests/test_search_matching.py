@@ -50,3 +50,15 @@ class SearchAPIContractTests(unittest.TestCase):
   saved=self.client.post('/api/saved-filters',headers=fixtures.H,json={'name':'Synthetic wildcard investigation','view':'users','filters':{'search':'DEMO_O*','tcodes':['ME*','MI*'],'assignmentBand':'1–5'}})
   self.assertEqual(saved.status_code,200,saved.text)
   self.assertEqual(saved.json()['filters']['tcodes'],['ME*','MI*'])
+
+ def test_release_pattern_availability_agrees_with_matching_assignments(self):
+  for field,pattern in [('username','DEMO_O*'),('role','ZO:MM:*')]:
+   with self.subTest(field=field):
+    response=self.client.get('/api/access/release-options',headers=fixtures.H,params={'field':field,'search':pattern,'selected':pattern})
+    self.assertEqual(response.status_code,200)
+    self.assertGreater(response.json()['total'],0)
+    self.assertTrue(response.json()['selected_available'])
+  missing=self.client.get('/api/access/release-options',headers=fixtures.H,params={'field':'username','selected':'SYNTHETIC_MISSING*'}).json()
+  self.assertFalse(missing['selected_available'])
+  exact_group=self.client.get('/api/access/release-options',headers=fixtures.H,params={'field':'group','selected':'G*'}).json()
+  self.assertFalse(exact_group['selected_available'])

@@ -33,7 +33,7 @@ export function DetailNavigation({ parent, current, onBack, index = -1, total = 
 export function EvidenceBadge({ value }: { value: string }) {
   const tone = value === 'active' ? 'success' : value === 'expired' ? 'error' : value === 'future' ? 'info' : value === 'Locked' ? 'warning' : 'neutral'
   const Icon = value === 'active' ? CircleCheck : value === 'expired' ? CircleX : value === 'future' ? Clock : value === 'unknown' ? CircleHelp : null
-  return <StatusBadge tone={tone}>{Icon && <Icon size={13} aria-hidden="true"/>}{value === 'active' ? 'Currently valid' : value === 'unmapped' ? 'Unmapped' : value}</StatusBadge>
+  return <StatusBadge tone={tone}>{Icon && <Icon size={13} aria-hidden="true"/>}{value === 'active' ? 'Currently valid' : value === 'unmapped' ? 'Unmapped' : value === 'exact' ? 'Exact' : value === 'wildcard' ? 'Wildcard' : value === 'ambiguous' ? 'Ambiguous' : value}</StatusBadge>
 }
 
 export function LockStatus({value}:{value?:string|null}) {return <AccountStatus value={value||'Unknown'} kind="lock"/>}

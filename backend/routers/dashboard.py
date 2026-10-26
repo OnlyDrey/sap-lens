@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 from datetime import date
 import cache
 from config import get_settings
+from role_matching import normalize_role
 from user_access import interval_status, sap_date, current_role_count
 from .employees import directory_status
 

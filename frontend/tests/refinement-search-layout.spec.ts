@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test'
 import {textMatches} from '../src/lib/searchMatching'
-import {mkdtempSync,writeFileSync,rmSync} from 'node:fs'
+import {mkdtempSync,writeFileSync,appendFileSync,rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 const headers={'X-SAP-Lens':'browser-test-session'}
@@ -58,4 +58,17 @@ test('wildcard role and transaction searches compose with user search and clear 
  await expect(page.getByRole('button',{name:'SYN_FI',exact:true})).toHaveCount(0)
  await page.getByRole('button',{name:'Clear filters',exact:true}).click()
  await expect(page.getByRole('button',{name:'SYN_FI',exact:true})).toBeVisible()
+})
+
+test('Release Roles wildcard availability agrees with the matching result',async({page,request})=>{
+ const settings=(await(await request.get('/api/configuration',{headers})).json()).settings
+ appendFileSync(settings.user_csv_path,'SYN_BUY,ZO:MM:M:PR_REL_ST_G1_N1:ALL,synthetic@example.test,20000101,99991231\n')
+ expect((await request.post('/api/data-sources/users/select',{headers,data:{path:settings.user_csv_path,revision:settings.revision,mode:'dynamic'}})).ok()).toBeTruthy()
+ await page.goto('/#session=browser-test-session')
+ await page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('button',{name:'Release Roles',exact:true}).click()
+ const checked=page.waitForResponse(response=>{const url=new URL(response.url());return url.pathname==='/api/access/release-options'&&url.searchParams.get('field')==='username'&&url.searchParams.get('selected')==='SYN_B*'})
+ await page.getByRole('combobox',{name:'Release username',exact:true}).fill('SYN_B*')
+ expect((await(await checked).json()).selected_available).toBe(true)
+ await expect(page.getByRole('button',{name:'Copy role identifier ZO:MM:M:PR_REL_ST_G1_N1:ALL',exact:true})).toBeVisible()
+ await expect(page.getByText('No available value matches this filter in the current context. Clear it or select All.',{exact:true})).toHaveCount(0)
 })

@@ -81,6 +81,7 @@ test('release matrix preserves distinct counts with compact keyboard-accessible 
 
 test('validated user preview searches response-only identity fields without changing totals or active data',async({page,request})=>{
  await page.goto('/#session=browser-test-session');await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:'Data Sources',exact:true}).click();await page.getByRole('tab',{name:'User Access',exact:true}).click()
+ await page.getByText('Advanced import format and column mapping',{exact:true}).click()
  const source=page.getByRole('region',{name:'User access CSV configuration',exact:true});await source.getByRole('button',{name:'Preview user import',exact:true}).click()
  const preview=source.getByRole('region',{name:'Import preview',exact:true});await expect(preview.getByRole('row')).toHaveCount(8)
  await preview.getByRole('searchbox',{name:'Search validated preview'}).fill('BETA@EXAMPLE.TEST');await expect(preview.getByRole('row')).toHaveCount(3);await expect(preview.getByRole('searchbox',{name:'Search validated preview'})).toBeFocused();await expect(preview).toContainText('2 of 7 validated preview rows');await expect(preview.locator('.preview-metrics')).toContainText('7')
