@@ -298,6 +298,9 @@ class DesktopBackground:
                     'Exit SAP Lens': self.exit,
                 })
                 tray.start()
+                if self.exiting:
+                    tray.stop()
+                    raise ValueError('SAP Lens is exiting.')
             except Exception:
                 self.last_error = 'Windows notification area unavailable; normal window closing is retained.'
                 raise ValueError(self.last_error) from None

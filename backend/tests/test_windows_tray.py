@@ -66,6 +66,15 @@ class TrayPolicyTests(unittest.TestCase):
         self.assertTrue(self.controller.on_closing());self.controller.check_tray();self.window.show.assert_called_once();self.assertIsNone(self.controller.tray)
         self.assertIn('normal closing',self.controller.last_error)
 
+    def test_exit_during_icon_initialization_cannot_leave_a_late_background_icon(self):
+        owner=self.controller;created=[]
+        class ClosingTray(FakeTray):
+            def start(self):
+                super().start();created.append(self);owner.shutdown()
+        owner.tray_factory=ClosingTray
+        with self.assertRaises(ValueError):owner.ensure_tray()
+        self.assertIsNone(owner.tray);self.assertEqual(created[0].stopped,1);self.assertTrue(owner.exiting)
+
     def test_failed_initial_icon_can_never_cancel_close(self):
         def fail(*args):raise RuntimeError('synthetic notification unavailable')
         self.controller.tray_factory=fail;self.preference=DesktopPreferences(close_to_tray=True)
