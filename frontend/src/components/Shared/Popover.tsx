@@ -1,3 +1,4 @@
+import { observeAnchorLayout } from '@/lib/observeAnchorLayout'
 import {
   createContext,
   useContext,
@@ -59,32 +60,26 @@ export function Popover({
         )
       setPosition({
         left: Math.max(8, Math.min(box.left, innerWidth - width - 8)),
-        top:
-          below >= height || below >= above
-            ? box.bottom + 6
-            : Math.max(8, box.top - height - 6),
+        top: Math.max(8,Math.min(
+          below >= height || below >= above ? box.bottom+6 : box.top-height-6,
+          innerHeight-height-8)),
         width,
         maxHeight: height,
       })
     }
     place()
-    const observer=new ResizeObserver(place)
-    if(panel.current)observer.observe(panel.current)
+    const stopObserving=anchor.current?observeAnchorLayout(anchor.current,panel.current,place):()=>{}
     const mutations=new MutationObserver(place)
     if(panel.current)mutations.observe(panel.current,{childList:true,subtree:true,characterData:true})
     const frame = requestAnimationFrame(() =>
-      Array.from(panel.current?.querySelectorAll<HTMLElement>('input:not(:disabled),select:not(:disabled),button:not(:disabled),[tabindex="0"]')||[]).find(element=>element.getClientRects().length)?.focus(),
+      Array.from(panel.current?.querySelectorAll<HTMLElement>('input:not(:disabled),select:not(:disabled),button:not(:disabled),[tabindex="0"]')||[]).find(element=>element.getClientRects().length)?.focus({preventScroll:true}),
     )
     panel.current?.addEventListener('toggle',place,true)
-    window.addEventListener('resize', place)
-    window.addEventListener('scroll', place, true)
     return () => {
-      observer.disconnect()
+      stopObserving()
       mutations.disconnect()
       cancelAnimationFrame(frame)
       panel.current?.removeEventListener('toggle',place,true)
-      window.removeEventListener('resize', place)
-      window.removeEventListener('scroll', place, true)
     }
   }, [open,preferredWidth])
   useEffect(() => {

@@ -512,3 +512,22 @@ Targeted validation before beginning task 30:
 
 Tasks 30–31 remain separate follow-ups; final combined regression/audits follow those
 implementations. No comprehensive browser suite was repeated for each UI edit.
+
+## Task 30 — first-open assignment date positioning
+
+Reproduced before the fix by holding a real directory-match response, opening the
+date filter once, then releasing the response. Profile growth moved the button
+without scroll/resize or popup-size changes, leaving stale portal coordinates.
+The regression failed after that response while its initial placement passed.
+
+Shared event-driven anchor-layout observation now covers surrounding content and
+ancestor sizes/styles in Popover, Combobox and NorwegianDateInput. Placement is
+viewport-clamped; initial popup focus avoids unsolicited page scrolling. No timer,
+positioning delay, remount workaround or dependency was introduced.
+
+Production build/type checking passed. Ten targeted browser tests passed: first
+and subsequent opens, delayed real profile enrichment, no profile overlap when
+space is available, viewport resizing/scroll, Escape/focus, advanced Apply and
+Clear/Cancel semantics at 375/800/1280/1600 in both themes; shared dropdown/calendar
+layout-shift checks and the existing combobox keyboard regression also passed.
+Native Windows/WebView2 remains pending. No push or workflow dispatch.

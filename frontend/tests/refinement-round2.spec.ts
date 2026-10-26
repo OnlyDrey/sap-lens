@@ -82,3 +82,35 @@ for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(
  await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:'Health & Diagnostics',exact:true}).click();await page.getByRole('region',{name:'Role Catalogue CSV',exact:true}).getByRole('button',{name:'Technical source details',exact:true}).click();await page.getByRole('dialog',{name:'Role Catalogue CSV technical details',exact:true}).screenshot({path:info.outputPath('source-details.png')});await page.keyboard.press('Escape');await page.getByRole('tab',{name:'Features',exact:true}).click();await page.screenshot({path:info.outputPath('feature-pills.png')});await page.getByRole('button',{name:'Back to SAP Lens',exact:true}).click()
  await nav(page,'User Access');const back=page.getByRole('button',{name:'Back to users',exact:true});if(await back.count())await back.click();await mode(page,'Account Review');const row=page.getByRole('row').filter({has:page.getByRole('button',{name:userA,exact:true})});await row.getByRole('button',{name:'Needs review',exact:true}).click();const modal=page.getByRole('dialog',{name:`Review account · ${userA}`,exact:true});const box=(await modal.boundingBox())!;expect(box.width).toBeLessThanOrEqual(width-16);expect(box.y).toBeGreaterThanOrEqual(7);expect(box.y+box.height).toBeLessThanOrEqual(993);await page.screenshot({path:info.outputPath('review-dialog.png')})
 })
+
+for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`task 30 first-open date position ${theme} ${width}`,async({page,request},info)=>{
+ const config=await settings(request);config.theme=theme;await request.post('/api/configuration',{headers,data:config})
+ let releaseMatch!:()=>void;const gate=new Promise<void>(resolve=>{releaseMatch=resolve})
+ await page.route('**/api/employees/match/**',async route=>{const response=await route.fetch();await gate;await route.fulfill({response})})
+ await page.setViewportSize({width,height:2200});await page.goto('/#session=browser-test-session');const detail=await openUser(page)
+ const trigger=detail.getByRole('button',{name:'Assignment date filters',exact:true}),panel=page.getByRole('dialog',{name:'Assignment date controls',exact:true})
+ await trigger.click();await expect(panel).toBeVisible()
+ const anchored=async()=>{const a=(await trigger.boundingBox())!,p=(await panel.boundingBox())!,profile=(await detail.getByRole('region',{name:'User profile',exact:true}).boundingBox())!;return {gap:p.y-a.y-a.height,belowProfile:p.y>=profile.y+profile.height,inside:p.x>=7&&p.x+p.width<=width-7&&p.y>=7&&p.y+p.height<=2200-7}}
+ await expect.poll(async()=>{const box=await anchored();return box.gap>=4&&box.gap<=9&&box.belowProfile&&box.inside}).toBeTruthy()
+ // Reproduce the first-open race: real matching data expands the profile after
+ // the portal's initial measurement, without a window scroll/resize event.
+ releaseMatch();await expect(detail.getByRole('region',{name:'Organization',exact:true})).toContainText('Analyst')
+ await expect.poll(async()=>{const box=await anchored();return box.gap>=4&&box.gap<=9&&box.belowProfile&&box.inside}).toBeTruthy()
+ await panel.screenshot({path:info.outputPath('first-open-date-controls.png')})
+ await page.setViewportSize({width,height:1200});await trigger.scrollIntoViewIfNeeded();const inResizedViewport=async()=>{const a=(await trigger.boundingBox())!,p=(await panel.boundingBox())!;return Math.min(Math.abs(p.y-a.y-a.height),Math.abs(a.y-p.y-p.height))<10&&p.y>=7&&p.y+p.height<=1193&&p.x>=7&&p.x+p.width<=width-7};await expect.poll(inResizedViewport).toBeTruthy();await page.evaluate(()=>window.scrollBy(0,32));await expect.poll(inResizedViewport).toBeTruthy();await page.setViewportSize({width,height:2200})
+ await page.keyboard.press('Escape');await expect(trigger).toBeFocused();await trigger.click();await expect.poll(async()=>{const box=await anchored();return box.gap>=4&&box.gap<=9&&box.belowProfile&&box.inside}).toBeTruthy()
+ await panel.getByText('Advanced interval filtering',{exact:true}).click();await panel.getByLabel('Start date from',{exact:true}).fill('01.01.2000');await panel.getByRole('button',{name:'Apply date filters',exact:true}).click();await expect(panel).toBeHidden()
+ const active=detail.getByRole('button',{name:'Assignment date filters (1 active)',exact:true});await active.click();await panel.getByRole('button',{name:'Clear date filters',exact:true}).click();await panel.getByRole('button',{name:'Cancel date changes',exact:true}).click();await expect(active).toBeVisible()
+})
+
+test('task 30 shared dropdown and calendar follow anchor layout changes',async({page})=>{
+ await page.goto('/#session=browser-test-session');await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:'Component Library',exact:true}).click()
+ const combo=page.getByRole('combobox',{name:'Demo searchable role',exact:true});await combo.scrollIntoViewIfNeeded();await combo.click()
+ await combo.evaluate(el=>{const spacer=document.createElement('div');spacer.id='synthetic-layout-shift';spacer.style.height='70px';el.closest('.ui-field')!.before(spacer)})
+ const adjacent=async(anchor:any,panel:any)=>{const a=(await anchor.boundingBox())!,p=(await panel.boundingBox())!;return Math.min(Math.abs(p.y-a.y-a.height),Math.abs(a.y-p.y-p.height))<10}
+ await expect.poll(()=>adjacent(combo,page.locator('.combobox-popup'))).toBeTruthy();await page.keyboard.press('Escape');await expect(combo).toBeFocused()
+ await page.evaluate(()=>document.getElementById('synthetic-layout-shift')?.remove())
+ const choose=page.getByRole('button',{name:'Choose Demo date',exact:true});await choose.scrollIntoViewIfNeeded();await choose.click()
+ await choose.evaluate(el=>{const spacer=document.createElement('div');spacer.style.height='70px';el.closest('label')!.before(spacer)})
+ await expect.poll(()=>adjacent(choose,page.getByRole('dialog',{name:'Calendar for Demo date',exact:true}))).toBeTruthy();await page.keyboard.press('Escape');await expect(choose).toBeFocused()
+})

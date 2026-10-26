@@ -1,3 +1,4 @@
+import { observeAnchorLayout } from '@/lib/observeAnchorLayout'
 import { usePopoverOwners } from './Popover'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -21,12 +22,12 @@ export function Combobox({ value, options, onChange, label, placeholder = 'All',
     const place = () => {
       const box = anchor.current?.getBoundingClientRect(); if (!box) return
       const below = window.innerHeight - box.bottom - 12, above = box.top - 12
-      const height = Math.min(280, Math.max(80, below >= 180 || below >= above ? below : above))
-      setPosition({ left: Math.max(8, Math.min(box.left, window.innerWidth - box.width - 8)), width: Math.min(box.width, window.innerWidth - 16),
-        top: below >= 180 || below >= above ? box.bottom + 4 : Math.max(8, box.top - height - 4), maxHeight: height })
+      const natural=Math.min(280,(popup.current?.scrollHeight||278)+2),down=below>=natural||below>=above
+      const height=Math.min(natural,Math.max(0,down?below:above),Math.max(0,innerHeight-16))
+      setPosition({ left: Math.max(8, Math.min(box.left, window.innerWidth - Math.min(box.width,innerWidth-16) - 8)), width: Math.min(box.width, window.innerWidth - 16),
+        top: Math.max(8,Math.min(down?box.bottom+4:box.top-height-4,innerHeight-height-8)), maxHeight: height })
     }
-    place(); window.addEventListener('resize', place); window.addEventListener('scroll', place, true)
-    return () => { window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true) }
+    place();return anchor.current?observeAnchorLayout(anchor.current,popup.current,place):undefined
   }, [open])
   useEffect(() => {
     if (!open) return

@@ -165,3 +165,14 @@ Enabled/Disabled preference; pending feedback persists until Apply succeeds. Dat
 availability and operational status describe saved server evidence separately.
 SectionHeader and the real ReviewFindings/ChangeRecordDetails previews are included
 in Component Library with isolated synthetic data and no production mutations.
+
+## Anchored layout lifecycle
+
+`lib/observeAnchorLayout.ts` keeps Popover, Combobox and NorwegianDateInput portals
+attached while open. It observes real anchor/ancestor size, surrounding content
+and ancestor positioning-style changes, plus captured scroll and window resize.
+Cleanup disconnects every observer/listener. No delay, remount or frame polling is
+used for placement. First-open stale coordinates were reproducible when asynchronous
+employee enrichment increased the profile height after the first measurement.
+Observing only the popup size missed that movement; reopening happened to remeasure.
+Popup coordinates are viewport-clamped and initial focus does not scroll the page.
