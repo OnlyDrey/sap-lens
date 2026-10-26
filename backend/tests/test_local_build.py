@@ -163,7 +163,10 @@ class LocalToolingTests(unittest.TestCase):
             with patch.object(ci.urllib.request, 'urlopen', return_value=io.BytesIO(b'corrupt download')):
                 with self.assertRaisesRegex(RuntimeError, 'checksum mismatch'):
                     ci.lint()
-            self.assertEqual(execute.call_count, 2)
+            commands=[call.args[0] for call in execute.call_args_list]
+            self.assertEqual(commands.count([str(tool)]),2)
+            self.assertEqual(sum(str(command[-1]).endswith('check-docs.py') for command in commands),3)
+            self.assertEqual(len(commands),5)
 
     @unittest.skipUnless(shutil.which('pwsh') and os.name != 'nt', 'Requires PowerShell on Linux')
     def test_powershell_rejects_non_windows_and_invalid_arguments(self):

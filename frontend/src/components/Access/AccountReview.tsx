@@ -1,3 +1,5 @@
+import { PageHeader } from '@/components/Shared/Presentation'
+import { ClipboardCheck as PageIcon } from 'lucide-react'
 import { StatusCard, FilterPanel, ResultsToolbar } from '@/components/Shared/InvestigationPatterns'
 import { SearchInput } from '@/components/Shared/Controls'
 import { Button } from '@/components/Shared/Button'
@@ -5,7 +7,7 @@ import { SavedFilters } from '@/components/Shared/SavedFilters'
 import { useApplicationData } from '@/state/ApplicationData'
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Download, ClipboardCheck, Save } from 'lucide-react'
+import { Download, Save } from 'lucide-react'
 import { apiRequest, applicationToken } from '@/api/client'
 import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
 import { AccountStatus } from '@/components/Shared/AccountStatus'
@@ -243,10 +245,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
     })
   return (
     <section aria-label="Account Review" className="space-y-4">
-      <h1 className="text-xl font-semibold">
-        <ClipboardCheck size={20} className="inline mr-2" />
-        Account Review
-      </h1>
+      <PageHeader title="Account Review" icon={<PageIcon size={22} aria-hidden="true"/>}/>
       <p className="text-sm text-[var(--muted)]">
         Investigation evidence only. No SAP accounts are modified. Configured
         unlicensed groups do not prove license entitlement or savings.
@@ -319,10 +318,8 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
             ))}
           </Select>
         </Filter>
-      </FilterPanel>
-      <ResultsToolbar>
-        <strong>{data?.total.toLocaleString() ?? '…'} accounts</strong>
-        <Filter label="Sort account reviews">
+
+        <div className="sort-control"><Filter label="Sort account reviews">
           <Select
             className={inputClass}
             aria-label="Sort account reviews"
@@ -338,7 +335,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
               'review_state',
             ].map((s) => (
               <option key={s} value={s}>
-                {s.replace(/_/g, ' ')}
+                {{username:'Username',name:'Name',sap_validity:'SAP Validity',lock_status:'Lock Status',ad_status:'AD Status',review_state:'Review State'}[s]}
               </option>
             ))}
           </Select>
@@ -350,7 +347,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
             onChange={(e) => setDescending(e.target.checked)}
           />
           Descending
-        </label>
+        </label></div>
         <ClearFilterButton
           onClick={() => {
             setOffset(0)
@@ -365,15 +362,16 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
         >
           Clear filters
         </ClearFilterButton>
-        <Button
+
+      </FilterPanel>
+      <ResultsToolbar><strong>{data?.total.toLocaleString() ?? '…'} accounts</strong>        <Button
           className="settings-secondary-button"
           disabled={busy || !data?.loaded}
           onClick={() => void exportCSV()}
         >
           <Download size={16} />
           Export review CSV
-        </Button>
-      </ResultsToolbar>
+        </Button></ResultsToolbar>
       <QueryState
         loading={result.isLoading || (dataLoading && !data?.loaded)}
         error={result.error}
@@ -441,7 +439,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
                     <td>
                       <AccountStatus kind="ad" value={row.ad_status} />
                     </td>
-                    <td>{row.match_status.replace(/_/g, ' ')}</td>
+                    <td>{({matched:'Matched',duplicate_email:'Duplicate Email',missing_email:'Missing Email',ambiguous:'Ambiguous Match',unmatched:'Unmatched',disabled:'Disabled',unavailable:'Unavailable'} as Record<string,string>)[row.match_status] || row.match_status.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</td>
                     <td>
                       {row.findings.map((f) => (
                         <p key={f}>{data.finding_labels[f]}</p>

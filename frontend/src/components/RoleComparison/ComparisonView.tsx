@@ -321,7 +321,7 @@ function InsightBar({
 
   return (
     <div
-      className="grid grid-cols-2 sm:grid-cols-4 gap-0 rounded-2xl overflow-hidden shadow-sm"
+      className="grid grid-cols-2 sm:grid-cols-4 gap-0 rounded-2xl overflow-hidden "
       style={{ backgroundColor:'var(--surface)', border:'1px solid var(--border)' }}
     >
       {[
@@ -453,7 +453,7 @@ function SRMatrix({
       </p>
 
       <div
-        className="overflow-x-auto rounded-2xl shadow-sm"
+        className="overflow-x-auto rounded-2xl "
         style={{ border:'1px solid var(--border)' }}
       >
         <table className="overlap-matrix text-sm border-collapse w-full" aria-label="Single role overlap">
@@ -591,7 +591,7 @@ function SRMatrix({
 function ExclusiveColumn({ role }: { role: ComparisonRole }) {
   return (
     <div
-      className="comparison-column min-w-0 rounded-2xl overflow-hidden shadow-sm flex flex-col"
+      className="comparison-column min-w-0 rounded-2xl overflow-hidden  flex flex-col"
       style={{
         border:'1px solid var(--border)',
         backgroundColor:'var(--surface)'
@@ -778,7 +778,7 @@ export function ComparisonView({ roleNames, onBack }: Props) {
             </div>
 
             <div
-              className="rounded-2xl overflow-hidden shadow-sm"
+              className="rounded-2xl overflow-hidden "
               style={{ border:'1px solid var(--border)' }}
             >
               {data.shared_single_roles.length === 0

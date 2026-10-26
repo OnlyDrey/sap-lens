@@ -108,7 +108,7 @@ def render(records, package, jobs, env, now=None):
         ('Workflow elapsed at report', seconds(elapsed) + (' (from run start; post-job cleanup pending)' if env.get('WORKFLOW_STARTED_AT') else ' (from job start; excludes queue and pending post-job cleanup)')),
         ('Packaging duration', seconds(next(value for name, value, _ in rows if name == 'Packaging'))),
         ('Smoke-test duration', seconds(next(value for name, value, _ in rows if name == 'Smoke tests'))),
-        ('Warnings', 'See stage logs; known upstream/development caveats are tracked in docs/DEPRECATIONS.md'),
+        ('Warnings', 'See stage logs; known upstream/development caveats are tracked in docs/development/DEPENDENCY_MAINTENANCE.md'),
     ]
     output = ['# SAP Lens — Windows Build Report', '', '| Item | Value |', '|---|---|']
     output += [f'| {name} | {safe(value)} |' for name, value in fields]

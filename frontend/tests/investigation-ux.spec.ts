@@ -137,7 +137,7 @@ for (const theme of ['dark', 'light']) for (const width of [1280, 800]) {
     const activeBackground = await sourceTab.evaluate(element => getComputedStyle(element).backgroundColor)
     const activeUnderline=await sourceTab.evaluate(element=>getComputedStyle(element).borderBottomColor)
     await sourceTab.hover()
-    await expect(sourceTab).not.toHaveCSS('background-color',activeBackground)
+    await expect(sourceTab).toHaveCSS('background-color',activeBackground)
     await expect(sourceTab).toHaveCSS('border-bottom-color',activeUnderline)
     await expect(sourceTab).toHaveCSS('border-bottom-width','3px')
     await page.mouse.move(0,0)

@@ -30,9 +30,11 @@ class MaintenanceError(ValueError):
 
 
 def version_key(value):
-    match = re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-(alpha|beta|rc|dev)[.-]([0-9]+|local))?(?:\+local\.[0-9a-f]{12})?', value)
+    match = re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-(alpha|beta|rc|dev)[.-]([0-9]+|local)(?:\.([1-9][0-9]*))?)?(?:\+local\.[0-9a-f]{12})?', value)
     if not match: raise MaintenanceError('Unsupported installed version; review upgrade compatibility explicitly.')
-    return (*map(int, match.group(1, 2, 3)), {'dev': -1, 'alpha': 0, 'beta': 1, 'rc': 2, None: 3}[match[4]], 0 if match[5] in (None, 'local') else int(match[5]))
+    if match[6] and (match[4] != 'dev' or match[5] == 'local'):
+        raise MaintenanceError('Only legacy CI development builds have an attempt suffix.')
+    return (*map(int, match.group(1, 2, 3)), {'dev': -1, 'alpha': 0, 'beta': 1, 'rc': 2, None: 3}[match[4]], 0 if match[5] in (None, 'local') else int(match[5]), int(match[6] or 1))
 
 
 def ensure_upgrade(installed, target):
@@ -207,36 +209,77 @@ def restore(archive, data, mode, target_version, config=None, confirm=False):
     destinations = [data, *([config] if config else [])]
     if config and (data.is_relative_to(config) or config.is_relative_to(data)): raise MaintenanceError('Restore destinations must be separate.')
     for destination in destinations:
-        if destination.exists() and any(destination.iterdir()): raise MaintenanceError('Restore only into empty directories. Existing state is preserved; stop the application and review a directory switch explicitly.')
+        if destination.exists() and any(path != data / '.sap-lens-instance.lock' for path in destination.iterdir()): raise MaintenanceError('Restore only into empty directories. Existing state is preserved; stop the application and review a directory switch explicitly.')
     for destination in destinations: destination.mkdir(parents=True, exist_ok=True, mode=0o700)
     created = []
-    try:
-        with tarfile.open(archive, 'r:gz') as source:
-            for name in manifest['files']:
-                parts = safe_member(name).parts
-                root = data if parts[0] == 'data' else config
-                path = root.joinpath(*parts[1:]); path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-                with path.open('xb') as output:
-                    private_file(path)
-                    with source.extractfile(name) as incoming: shutil.copyfileobj(incoming, output)
-                created.append(path)
-        owned(data, mode)
-    except Exception:
-        # Only freshly created output files are removed; original stores were never touched.
-        for path in reversed(created): path.unlink(missing_ok=True)
-        raise
+    with empty_store_lock(data, mode):
+        try:
+            with tarfile.open(archive, 'r:gz') as source:
+                for name, expected in manifest['files'].items():
+                    if name in ('data/runtime.json', 'data/.sap-lens-instance.lock'): raise MaintenanceError('Volatile runtime state cannot be restored.')
+                    parts = safe_member(name).parts
+                    root = data if parts[0] == 'data' else config
+                    path = root.joinpath(*parts[1:]); path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+                    with path.open('xb') as output:
+                        created.append(path)
+                        private_file(path)
+                        with source.extractfile(name) as incoming: shutil.copyfileobj(incoming, output)
+                    if digest(path) != expected: raise MaintenanceError('Restored member changed after backup verification.')
+            owned(data, mode)
+        except Exception:
+            # Cleanup stays inside the runtime lease. Original stores were never
+            # touched, and a new process cannot consume partially restored data.
+            for path in reversed(created): path.unlink(missing_ok=True)
+            raise
+
     return dict(restored=True, files=len(created), mode=mode, application_version=manifest['application_version'])
+
+
+@contextmanager
+def empty_store_lock(data, mode):
+    if (data / '.sap-lens-instance.lock').is_symlink(): raise MaintenanceError('Storage lock may not be a link.')
+    from storage_lease import StorageLease
+    instance = None
+    lease = None
+    try:
+        if mode == 'desktop' and os.name == 'nt':
+            from instance import WindowsInstance
+            instance = WindowsInstance()
+            if not instance.acquire(): raise MaintenanceError('Close SAP Lens before restore.')
+        # Hold the actual runtime lease without creating a marker which would
+        # conflict with the verified backup's deployment marker.
+        lease = StorageLease(data, mode, initialize=False).acquire()
+        yield
+    finally:
+        if lease: lease.close()
+        if instance: instance.close()
+
+
+def purge(data, mode, confirm=False):
+    if not confirm: raise MaintenanceError('Data removal requires explicit --confirm-purge. Back up first.')
+    data = directory(data)
+    with stopped(data, mode):
+        paths = list(data.rglob('*'))
+        if any(path.is_symlink() or not (path.is_file() or path.is_dir()) for path in paths):
+            raise MaintenanceError('Unrecognized links or file types; no private data was removed.')
+        files = [path for path in paths if path.is_file() and path != data / '.sap-lens-instance.lock']
+        for path in files: path.unlink()
+        for path in sorted((path for path in paths if path.is_dir()), key=lambda path: len(path.parts), reverse=True): path.rmdir()
+    # Retain the nonprivate lock stub/root: never remove files after releasing
+    # the lease, when another process could have legitimately started afresh.
+    return dict(purged=True, files=len(files), directory_retained=True)
 
 
 def cli(arguments=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['backup', 'verify', 'restore', 'version-check'])
+    parser.add_argument('action', choices=['backup', 'verify', 'restore', 'version-check', 'purge'])
     parser.add_argument('--data', type=Path); parser.add_argument('--config-dir', type=Path)
     parser.add_argument('--output', type=Path); parser.add_argument('--archive', type=Path)
     parser.add_argument('--mode', choices=['desktop', 'server'], default='server')
     parser.add_argument('--application-version'); parser.add_argument('--target-version')
     parser.add_argument('--config-destination', type=Path)
     parser.add_argument('--allow-legacy', action='store_true'); parser.add_argument('--confirm-restore', action='store_true')
+    parser.add_argument('--confirm-purge', action='store_true')
     parser.add_argument('--report', type=Path)
     args = parser.parse_args(arguments)
     from version import VERSION
@@ -244,6 +287,9 @@ def cli(arguments=None):
         if args.action == 'backup':
             if args.data is None or args.output is None: raise MaintenanceError('Backup needs --data and --output.')
             result = backup(args.data, args.output, args.mode, args.application_version or VERSION, args.config_dir, args.allow_legacy)
+        elif args.action == 'purge':
+            if args.data is None: raise MaintenanceError('Data removal needs --data.')
+            result = purge(args.data, args.mode, args.confirm_purge)
         elif args.action == 'version-check':
             ensure_upgrade(args.application_version, args.target_version); result = dict(compatible=True)
         elif args.action == 'verify': result = verify(args.archive, args.mode, args.target_version or VERSION); result = dict(verified=True, files=len(result['files']))

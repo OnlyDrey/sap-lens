@@ -310,6 +310,9 @@ test('saved filters portal handles keyboard, outside dismissal and neutral clear
     await panel.evaluate((el) => el.parentElement === document.body),
   ).toBeTruthy()
   await expect(panel.getByLabel('Saved filter', { exact: true })).toBeFocused()
+  await expect(panel.getByLabel('Saved filter', { exact: true })).toHaveAttribute('aria-expanded','false')
+  await page.keyboard.press('ArrowDown')
+  await expect(panel.getByLabel('Saved filter', { exact: true })).toHaveAttribute('aria-expanded','true')
   await page.keyboard.press('Escape')
   await expect(panel).toBeVisible()
   await expect(panel.getByLabel('Saved filter', { exact: true })).toBeFocused()

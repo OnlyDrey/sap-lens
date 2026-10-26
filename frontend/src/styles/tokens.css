@@ -36,7 +36,10 @@
  --copy-hit-size:2rem;
  --control-height:2.625rem; --control-compact:2.125rem; --icon-size:1rem; --toolbar-gap:.75rem;
  --shadow-color:#182c5333;
- --elevation:0 8px 28px var(--shadow-color);
+ --elevation:none;
 }
 
 [data-theme="dark"] { --shadow-color:#00000080; }
+
+:root { --comparison-b: #7756b8; }
+[data-theme="dark"] { --comparison-b: #c7a8f5; }

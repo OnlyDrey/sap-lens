@@ -38,11 +38,7 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
             ? '1.5px solid color-mix(in srgb, var(--accent) 40%, transparent)'
             : '1px solid var(--border)',
         padding: isSelected ? '15px' : '16px',
-        boxShadow: isSelected
-          ? '0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent)'
-          : hasTcodeMatch
-            ? '0 0 0 3px color-mix(in srgb, var(--accent) 8%, transparent)'
-            : '0 1px 3px rgba(0,0,0,0.06)',
+
       }}>
       <div className="flex flex-col gap-2.5 flex-1">
 
@@ -57,7 +53,7 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
           <button data-np
             onClick={e => { e.stopPropagation(); onSelect(role.agr_name) }}
             aria-label={isSelected ? 'Remove from comparison' : 'Add to comparison'}
-            className={cn('w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all focus:outline-none hover:scale-110 active:scale-95')}
+            className={cn('w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--focus)] hover:scale-110 active:scale-95')}
             style={isSelected
               ? { backgroundColor:'var(--accent)', color:'var(--on-accent)', border:'none' }
               : { backgroundColor:'var(--surface2)', color:'var(--muted)', border:'1.5px solid var(--border)' }}>

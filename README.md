@@ -8,111 +8,60 @@
     <b>SAP S/4HANA</b> · Role analysis and comparison tool for Company's internal SAP authorisation landscape.
     <br />
     <br />
-    <a href="#1">Get started</a>
+    <a href="docs/README.md">Documentation</a>
     ·
-    <a href="docs/LOCAL_WINDOWS_BUILD.md">Local Windows build</a>
+    <a href="docs/getting-started/QUICK_START.md">Quick Start</a>
     ·
-    <a href="docs/CSV_IMPORT.md">CSV import</a>
+    <a href="docs/deployment/README.md">Build &amp; Deployment</a>
     ·
-    <a href="docs/CONFIGURATION.md">Settings</a>
+    <a href="docs/features/README.md">Features</a>
     ·
-    <a href="#4">Development</a>
+    <a href="docs/development/README.md">Development</a>
     ·
-    <a href="#5">Security & architecture</a>
+    <a href="https://github.com/OnlyDrey/sap-lens/releases">GitHub Releases</a>
   </p>
 </p>
 
-
 ---
 
-SAP Lens browses and compares SAP roles from local CSV exports. No SAP connection or cloud account is required. Organization settings and naming rules stay in per-user storage.
+SAP Lens is a local-first SAP investigation and access-review application. Browse
+roles and transaction mappings, investigate user/release assignments, compare
+users, enrich identities with optional Employee Directory data, and record Account
+Review decisions. Role-derived transaction coverage is investigation evidence,
+not proof of effective authorization or license consumption. No direct SAP connection
+or third-party data-upload service is required.
 
-<a id="1"></a>
 ## Get started
 
-Download **SAP-Lens-Windows-x64** from a successful **Build Windows application** GitHub Actions run. Extract and open **SAP-Lens.exe** on Windows 10/11 x64 with Microsoft Edge WebView2 Runtime installed. No Python, Node.js or terminal is needed. Closing the app stops its owned backend; a second launch activates the existing window.
+Choose [Quick Start](docs/getting-started/QUICK_START.md), then a deployment:
 
-In **Settings**, enter your organization/system details, then use **Data Source & Import** to choose a CSV. Detect columns, map fields and preview before applying. Try [synthetic examples](examples/README.md) first. This is a native desktop wrapper, not an offline PWA. Builds are unsigned; consult your organization's distribution policies.
+| Target | Interface | Primary guide |
+| --- | --- | --- |
+| Windows Desktop x64 | EXE / WebView2; portable or per-user installer | [Desktop](docs/deployment/WINDOWS_DESKTOP.md) |
+| Windows Server Service x64 | Headless WinSW/SCM, browser | [Service](docs/deployment/WINDOWS_SERVICE.md) |
+| Linux Docker amd64 | Offline image / Compose, browser | [Docker](docs/deployment/LINUX_DOCKER.md) |
+| Linux Native/systemd x64 | Python 3.12, systemd or manual browser process | [Native](docs/deployment/LINUX_NATIVE.md) |
 
-<a id="2"></a>
-## File settings
+All targets share the application and CSV lifecycle. Linux client support is
+browser-based; no standalone Linux GUI is supplied. Server deployments default to
+loopback and require an explicit [security boundary](docs/deployment/SECURITY.md)
+for remote access. Packaging support does not establish native production acceptance;
+see the [validation matrix](docs/deployment/README.md#validation-status).
 
-Settings includes organization, import profiles, SAP module appearance, classification, branding and diagnostics. Defaults are **Example Inc.**, **SAP S/4HANA**, **DEMO**, client **100**, and **Example System**. Use absolute local paths or authorized Windows UNC shares. A failed import retains the previous settings/data; cancel a stalled load to choose another file.
+## Find your guide
 
-Nine canonical fields are supported: `FUNCTION_KEY`, `AGR_NAME`, `TEXT`, `CHILD_AGR`, `CHILD_AGR_TEXT`, `PARENT_AGR`, `Effective_Role`, `TCODE`, `TTEXT`. Only `AGR_NAME` is required. Existing seven-column exports remain supported. Mapping, encoding, delimiter and classification previews are read-only.
+- [Build packages](docs/deployment/BUILD.md): Actions selections, versions, local commands, prerequisites and outputs.
+- [Features](docs/features/README.md): investigation, comparisons, review and Saved Filters.
+- [Data & CSV](docs/data/README.md): three independent sources, formats, replacement and persistence.
+- [Configuration](docs/getting-started/CONFIGURATION.md): settings, storage and recovery.
+- [Development & Testing](docs/development/README.md): source-mode execution without an EXE and validation.
+- [Architecture](docs/architecture/README.md): runtime, API, security and shared components.
+- [Synthetic examples](examples/README.md): safe linked test datasets, never automatically imported.
+- [Privacy](docs/architecture/PRIVACY.md): unresolved accepted historical branding and repository boundaries.
 
-- [Full-window settings, startup and theme colors](docs/UX_AND_THEMES.md)
-- [Configuration, backups and portable exports](docs/CONFIGURATION.md)
-- [CSV mappings and relationship semantics](docs/CSV_IMPORT.md)
-- [Legacy, Generic and Custom classification](docs/CLASSIFICATION.md)
-- [Central SAP area registry](docs/MODULES.md)
-
-<a id="3"></a>
-## Build EXE
-
-Start the [Windows workflow](.github/workflows/build-windows.yml) manually through **Actions → Build Windows application → Run workflow** and select the desired branch. It does not run automatically on commits, tags or pull requests. It tests, audits, packages a console-free EXE and smoke-tests its lifecycle. Download its artifact and SHA-256 checksum; artifacts expire after 14 days. The separate [Fast Validation workflow](.github/workflows/validate.yml) runs backend/repository checks and frontend type checks on pushes and pull requests. Full Validation adds browser tests, production frontend compilation and security audits for pull requests targeting main. See [CI architecture and temporary skipping](docs/CI_ARCHITECTURE.md) for details.
-
-For local Windows builds without Actions credits, follow the [step-by-step local build guide](docs/LOCAL_WINDOWS_BUILD.md). It includes prerequisites, execution-policy troubleshooting, all four modes, output locations and checksum checks. From the repository root, run:
-
-```powershell
-.\scripts\build-local.ps1 -Mode Quick
-.\scripts\build-local.ps1 -Mode Build -Version 0.1.0
-```
-
-Quick checks development inputs; Build creates the verified EXE and ZIP under `dist/local/`. See the guide for Validate, Package and beta-version commands. User settings, CSVs, logos and logs are excluded from the distribution.
-
-<a id="4"></a>
-## Development
-
-Run directly from source without building an EXE. Use Python 3.12 x64 and Node 24
-LTS (recommended) or 25 with npm 10/11. See the [development guide](docs/DEVELOPMENT.md)
-for prerequisites, execution-policy troubleshooting, isolated settings and the
-native Windows source-mode alternative.
-
-From the repository root in **Windows PowerShell**:
-
-```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r backend/requirements-dev.txt
-npm --prefix frontend ci
-$env:SAP_LENS_CONFIG_DIR = Join-Path (Get-Location).Path 'local-config\development'
-npm --prefix frontend run dev
-```
-
-This example uses separate, Git-ignored development settings.
-Open **http://127.0.0.1:18743** in your browser. Keep that terminal open;
-**Ctrl+C** stops both development services. Vite serves the frontend at `18743`
-and proxies the backend at `18744`. No frontend production build, EXE, PyInstaller
-or WebView2 is needed for browser development.
-
-For the actual Windows app window without an EXE, install the desktop requirements,
-compile the frontend and launch the source entry point. Run these from the
-repository root in a terminal with `.venv` activated, after stopping `npm run dev`:
-
-```powershell
-python -m pip install -r backend/requirements-desktop.txt
-npm --prefix frontend run build
-python backend/desktop.py
-```
-
-This uses WebView2 and the managed loopback backend, with automatic port fallback.
-See the guide for the console-free `pythonw.exe` alternative and test commands.
-`build-local.ps1 -Mode Quick` and `-Mode Validate` perform checks; they do not launch
-the application. [EXE packaging](docs/LOCAL_WINDOWS_BUILD.md) is a separate workflow.
-
-<a id="5"></a>
-## Security & architecture
-
-The desktop API binds only to `127.0.0.1`, prefers port `18743`, allows the selected origin and requires a fresh launch capability. Desktop mode is a local single-user application. A nonstandard port is not authentication. Headless Windows/Linux hosting uses a separate server mode, persistent storage and an explicit access boundary; see the [deployment guide](docs/DEPLOYMENT.md).
-
-- [Downloadable deployment packages and Build All](docs/DEPLOYMENT_PACKAGES.md)
-- [Architecture and performance](docs/ARCHITECTURE.md)
-- [API reference](docs/API_REFERENCE.md)
-- [Security review](docs/SECURITY_REVIEW.md)
-- [Privacy and historical exposure](docs/PRIVACY.md)
-- [Repository cleanup inventory and maintenance decisions](docs/REPOSITORY_CLEANUP.md)
-- [Validation results and outstanding Windows checks](docs/VALIDATION.md)
+[GitHub Releases](https://github.com/OnlyDrey/sap-lens/releases) holds release notes
+and history. Actions artifacts are available only after successful approved builds
+and have finite retention. Local builds never publish releases, tags or commits.
 
 ## Licensing
 

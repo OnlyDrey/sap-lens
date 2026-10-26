@@ -40,3 +40,37 @@ push. Do not start a remote Windows build without explicit authorization.
 
 After changing Lucide or its catalog, run `node scripts/sync-lucide-catalog.mjs --check`
 following `npm ci`; regenerate with the same script without `--check` when needed.
+
+## Architecture and documentation map
+
+- Work on the existing development branch; preserve approved history and private
+  data. Do not publish, push or dispatch workflows beyond explicit session authority.
+- Shared business logic lives under `backend/`; `backend/desktop.py` owns the
+  Windows WebView2 lifecycle and `backend/server.py` the headless single-worker
+  runtime. Centralize hosting policy in `backend/deployment.py`. Do not duplicate
+  CSV import, role matching, transaction evidence or account interpretation per OS.
+- Server mode must use separate mutable storage, enforce its authentication and
+  host/origin boundary, and keep browser uploads local to the configured server.
+  Optional disabled/missing sources are not permission to erase valid snapshots.
+- `build.sh`/`build.ps1` delegate local orchestration; canonical packaging remains
+  in `scripts/`. Keep legacy desktop release behavior separate from deployment
+  publication. No automatic tags/releases/registry pushes from local builds.
+- Reuse frontend Shared components, semantic tokens and isolated Component Library
+  previews. Navigation links, content tabs, filters and actions have distinct
+  semantics; preserve keyboard focus and source evidence.
+- Start at [documentation index](docs/README.md), [deployment](docs/deployment/README.md),
+  [local builds](docs/deployment/BUILD.md),
+  [design system](docs/architecture/DESIGN_SYSTEM.md) and
+  [component APIs](docs/architecture/COMPONENTS.md). Update the canonical guide and index
+  when behavior/commands change, rather than copying procedures into new reports.
+- README LOGO navigation links may be maintained when requested, retaining the
+  product image/title/description and existing header structure. Do not substitute
+  organization branding. Keep licensing and third-party notices intact.
+- Run `python scripts/check-docs.py` for relative documentation/image/anchor links.
+  GitHub Releases is the release-history mechanism; do not introduce CHANGELOG.md.
+- Use synthetic/reserved-domain data only. Never auto-import examples into real
+  settings, include examples/private data in packages, or infer effective SAP
+  authorization/license entitlement from role/T-code mappings.
+- Native Windows installer/SCM/WebView2, real systemd, reboot/recovery and UNC
+  acceptance must be reported separately from Linux unit/browser/static checks.
+  Preserve the mandatory validation and explicit pre-push approval rules above.

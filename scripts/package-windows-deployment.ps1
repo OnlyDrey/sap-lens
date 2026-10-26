@@ -20,21 +20,20 @@ if ($Target -eq 'Desktop') {
     & ./scripts/build-windows.ps1 -Stage Package -ValidatedDeployment
     & ./scripts/build-windows.ps1 -Stage Verify
     & ./scripts/build-windows.ps1 -Stage Smoke
-    # Desktop exact-file ZIP roundtrip is also checked by the canonical verifier.
+    # Keep the canonical portable EXE/verification, then wrap it with an installer.
     $info=Get-Content backend/build/build-version.json -Raw | ConvertFrom-Json
-    $output=$OutputDirectory
-    New-Item -ItemType Directory -Force $output | Out-Null
-    $zip=Join-Path $output "SAP-Lens-Windows-Desktop-x64-$($info.version).zip"
-    Compress-Archive -Path backend/dist/SAP-Lens.exe,backend/dist/SAP-Lens.exe.sha256 -DestinationPath $zip
-    $hash=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
-    "$hash  $([IO.Path]::GetFileName($zip))" | Set-Content "$zip.sha256" -Encoding ascii
-    $roundtrip=Join-Path $root ('backend/build/deployment-desktop-'+[guid]::NewGuid().ToString('N'))
-    $download=Join-Path $roundtrip 'incoming'
-    $verified=Join-Path $roundtrip 'verified'
-    New-Item -ItemType Directory -Force $download | Out-Null
-    Copy-Item $zip $download
-    Checked { & $python scripts/verify-artifact-zip.py --download $download --destination $verified --expected-digest $hash }
-    Checked { & $python scripts/verify-windows-package.py --distribution $verified }
+    $bundle=Join-Path $root ('backend/build/deployment-desktop-'+[guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory $bundle | Out-Null
+    Copy-Item backend/dist/SAP-Lens.exe,backend/dist/SAP-Lens.exe.sha256 $bundle
+    Copy-Item LICENSE.md $bundle
+    Copy-Item docs/deployment/WINDOWS_DESKTOP.md (Join-Path $bundle 'README.md')
+    Checked { & $python scripts/deployment-package.py readme --document docs/deployment/WINDOWS_DESKTOP.md --directory $bundle }
+    & ./scripts/build-desktop-installer.ps1 -OutputDirectory $bundle
+    $installer=Join-Path $bundle ("SAP-Lens-Windows-Desktop-x64-$($info.version)-Setup.exe")
+    & ./scripts/test-desktop-installer.ps1 -Installer $installer -Report (Join-Path $bundle 'installer-verification.json')
+    Checked { & $python scripts/deployment-package.py finish --directory $bundle --platform Windows-Desktop-x64 --output $OutputDirectory }
+    Checked { & $python scripts/verify-desktop-distribution.py --directory $bundle }
+
 } else {
     $wrapper=Join-Path $root 'backend/build/WinSW-x64.exe'
     Invoke-WebRequest 'https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW-x64.exe' -OutFile $wrapper

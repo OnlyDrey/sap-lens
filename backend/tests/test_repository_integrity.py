@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 class RepositoryIntegrityTests(unittest.TestCase):
     def test_markdown_relative_links_resolve(self):
-        documents = [ROOT / 'README.md', ROOT / 'AGENTS.md', *(ROOT / 'docs').glob('*.md'), *(ROOT / 'examples').glob('*.md')]
+        documents = [ROOT / 'README.md', ROOT / 'AGENTS.md', *(ROOT / 'docs').rglob('*.md'), *(ROOT / 'examples').glob('*.md')]
         for document in documents:
             for target in re.findall(r'\]\(([^)]+)\)', document.read_text(encoding='utf-8')):
                 target = target.strip().strip('<>')

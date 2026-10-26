@@ -357,3 +357,20 @@ test('theme preview screenshot changes and cancel restores the original pixels',
     page.getByText('Configuration schema', { exact: true })
   ).toBeVisible()
 })
+
+test('diagnostics format backend state without changing API evidence', async ({page,request}) => {
+  const response=await request.get('/api/diagnostics',{headers})
+  expect(response.ok()).toBeTruthy()
+  const snapshot=await response.json()
+  let backend_status='running'
+  await page.route('**/api/diagnostics',route=>route.fulfill({contentType:'application/json; charset=utf-8',body:JSON.stringify({...snapshot,backend_status})}))
+  await page.goto('/#session=browser-test-session')
+  await page.getByRole('button',{name:'Open settings',exact:true}).click()
+  await page.getByRole('tab',{name:'Health & Diagnostics',exact:true}).click()
+  const card=page.locator('.compact-health').filter({has:page.locator('.status-card-label').filter({hasText:/^Local service$/})})
+  await expect(card).toContainText('Running')
+  backend_status='loading'
+  await page.getByRole('button',{name:'Check again',exact:true}).click()
+  await expect(card).toContainText('Loading')
+  await expect(card).toHaveAttribute('data-tone','info')
+})

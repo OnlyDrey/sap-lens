@@ -337,17 +337,24 @@ def main():
     if os.environ.get('GITHUB_ACTIONS') == 'true': parser.error('Local orchestration cannot impersonate CI. Use the approved deployment workflow.')
     if args.clean and args.reuse_validation: parser.error('--clean and --reuse-validation are mutually exclusive.')
     lock = None
+    legacy_lock = None
     try:
         # Cross-platform exclusive ownership without a global machine setting.
         directory = ROOT / 'backend/build'; directory.mkdir(parents=True, exist_ok=True)
         lock = directory / 'deployment-builder.lock'
         descriptor = os.open(lock, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         os.close(descriptor)
+        if sys.platform == 'win32':
+            # The legacy PowerShell builder opens this same file with FileShare.None.
+            # Holding an open handle prevents either entry point from changing the
+            # shared environments while the other owns them.
+            legacy_lock = (directory / 'local-build.lock').open('a+b')
         return Builder(args).execute()
     except (ValueError, OSError, subprocess.CalledProcessError) as error:
         print('Local deployment build stopped: ' + (str(error) if isinstance(error, ValueError) else type(error).__name__) + '. Check prerequisites, lock ownership and build.log.', file=sys.stderr)
         return 1
     finally:
+        if legacy_lock: legacy_lock.close()
         if lock and 'descriptor' in locals(): lock.unlink(missing_ok=True)
 
 

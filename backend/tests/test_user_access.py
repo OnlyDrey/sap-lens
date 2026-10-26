@@ -465,7 +465,7 @@ class UserAccessTests(unittest.TestCase):
         samples = preview.json()["samples"]
         self.assertGreater(len(samples), 0)
         self.assertLessEqual(len(samples), 20)
-        self.assertEqual(set(samples[0]), {"USERNAME", "ROLE_NAME", "USER_GROUP", "ROLE_VALID_FROM", "ROLE_VALID_TO"})
+        self.assertEqual(set(samples[0]), {"USERNAME", "ROLE_NAME", "USER_GROUP", "FIRST_NAME", "LAST_NAME", "EMAIL", "ROLE_VALID_FROM", "ROLE_VALID_TO"})
         self.assertEqual(before.users.report["samples"], [])
         self.assertIs(cache.get_snapshot(), before)
 

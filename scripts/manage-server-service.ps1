@@ -1,7 +1,7 @@
 <# Windows SCM hosting using the pinned, externally supplied official WinSW wrapper. #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory=$true)][ValidateSet('Install','Uninstall','Start','Stop','Restart','Status')][string]$Action,
+    [Parameter(Mandatory=$true)][ValidateSet('Install','Uninstall','Start','Stop','Restart','Status','Upgrade','Backup','Restore')][string]$Action,
     [string]$InstallDirectory = "$env:ProgramFiles\SAP Lens Server",
     [string]$DataDirectory = "$env:ProgramData\SAP Lens Server",
     [string]$SourceDirectory = "$env:ProgramData\SAP Lens Server\sources",
@@ -12,10 +12,20 @@ param(
     [string]$AllowedHosts = '127.0.0.1',
     [ValidateSet('local','basic','proxy')][string]$Authentication = 'local',
     [string]$SecretFile = '',
-    [string]$TrustedProxies = ''
+    [string]$TrustedProxies = '',
+    [string]$NewBundleDirectory = '',
+    [string]$BackupDirectory = "$env:ProgramData\SAP Lens Server Backups",
+    [string]$Archive = '',
+    [string]$RestoreDataDirectory = '',
+    [string]$RestoreConfigurationDirectory = '',
+    [switch]$ConfirmRestore,
+    [switch]$PurgeData,
+    [switch]$ConfirmPurge
 )
 $ErrorActionPreference = 'Stop'
 if ($env:OS -ne 'Windows_NT') { throw 'Service management requires Windows.' }
+if (-not [IO.Path]::IsPathRooted($InstallDirectory)) { throw 'Use an absolute installation directory.' }
+$InstallDirectory = [IO.Path]::GetFullPath($InstallDirectory).TrimEnd('\')
 $wrapper = Join-Path $InstallDirectory 'SAPLensService.exe'
 function Assert-Wrapper {
     $expected = '05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da'
@@ -24,6 +34,7 @@ function Assert-Wrapper {
     }
 }
 Assert-Wrapper
+if ($PurgeData -and ($Action -ne 'Uninstall' -or -not $ConfirmPurge)) { throw 'Private-data removal requires Uninstall -PurgeData -ConfirmPurge.' }
 if ($Action -eq 'Status') { & $wrapper status; exit $LASTEXITCODE }
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 if (-not ([Security.Principal.WindowsPrincipal]$identity).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'Open an elevated PowerShell for SCM management.' }
@@ -31,6 +42,113 @@ function Invoke-ServiceCommand([string]$Command) {
     & $wrapper $Command
     if ($LASTEXITCODE -ne 0) { throw "Windows service $Command failed. Inspect the service logs and Event Viewer." }
 }
+function Read-ServiceConfiguration {
+    $settings = New-Object System.Xml.XmlReaderSettings
+    $settings.DtdProcessing = [System.Xml.DtdProcessing]::Prohibit
+    $settings.XmlResolver = $null
+    $reader = [System.Xml.XmlReader]::Create((Join-Path $InstallDirectory 'SAPLensService.xml'),$settings)
+    try { $document = New-Object System.Xml.XmlDocument; $document.XmlResolver = $null; $document.Load($reader) } finally { $reader.Dispose() }
+    $values = @{}
+    foreach ($entry in $document.service.env) { $values[[string]$entry.name] = [string]$entry.value }
+    if ($values.SAP_LENS_DEPLOYMENT_MODE -ne 'server' -or -not [IO.Path]::IsPathRooted($values.SAP_LENS_DATA_DIR)) { throw 'Unrecognized installed service configuration.' }
+    $registered = Get-CimInstance Win32_Service -Filter "Name='SAPLens'"
+    if (-not $registered -or $registered.PathName -notmatch ('^\s*"?' + [regex]::Escape($wrapper) + '"?(?:\s|$)')) { throw 'The registered service belongs to another installation. No service was changed.' }
+    return $values
+}
+function Assert-NewBundle([string]$Directory) {
+    $report = Get-Content (Join-Path $Directory 'verification-report.json') -Raw | ConvertFrom-Json
+    if ($report.verification -ne 'passed' -or $report.signing -ne 'disabled' -or $report.format -ne 'onedir-console-service') { throw 'Use a verified unsigned headless service package.' }
+    $expected = @('verification-report.json') + @($report.files.PSObject.Properties.Name)
+    $actual = @(Get-ChildItem $Directory -Recurse -Force | Where-Object { -not $_.PSIsContainer } | ForEach-Object { $_.FullName.Substring($Directory.TrimEnd('\').Length+1).Replace('\','/') })
+    if (@(Compare-Object $expected $actual).Count -or @(Get-ChildItem $Directory -Recurse -Force | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint }).Count) { throw 'Unexpected files or links in replacement bundle.' }
+    foreach ($file in $report.files.PSObject.Properties) {
+        if ($file.Name -match '(^/|\\|:|(^|/)\.\.(/|$))' -or $file.Value -notmatch '^[a-f0-9]{64}$') { throw 'Invalid replacement manifest.' }
+        if ((Get-FileHash (Join-Path $Directory $file.Name) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $file.Value) { throw 'Replacement package checksum mismatch.' }
+    }
+    if ((Get-FileHash (Join-Path $Directory 'SAPLensService.exe') -Algorithm SHA256).Hash.ToLowerInvariant() -ne '05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da') { throw 'Replacement WinSW is not the pinned wrapper.' }
+    return $report
+}
+function Invoke-PrivateBackup([string]$Executable,[string]$Version,[string]$Data) {
+    if (-not [IO.Path]::IsPathRooted($BackupDirectory)) { throw 'Use an absolute dedicated backup directory.' }
+    $BackupDirectory = [IO.Path]::GetFullPath($BackupDirectory).TrimEnd('\')
+    $Data = [IO.Path]::GetFullPath($Data).TrimEnd('\')
+    if (-not [IO.Path]::IsPathRooted($BackupDirectory) -or $BackupDirectory.StartsWith($Data.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase) -or $BackupDirectory.TrimEnd('\') -eq $Data.TrimEnd('\') -or $BackupDirectory.StartsWith($InstallDirectory.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase) -or $BackupDirectory.TrimEnd('\') -eq $InstallDirectory.TrimEnd('\')) { throw 'Choose a dedicated absolute backup directory outside application data and binaries.' }
+    New-Item -ItemType Directory -Force $BackupDirectory | Out-Null
+    $staging = Join-Path $BackupDirectory ('configuration-'+[guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory $staging | Out-Null
+    try {
+        & icacls.exe $staging /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Cannot restrict private configuration backup permissions.' }
+        Copy-Item (Join-Path $InstallDirectory 'SAPLensService.xml') $staging
+        $destination = Join-Path $BackupDirectory ('SAP-Lens-Service-'+[guid]::NewGuid().ToString('N')+'.tar.gz')
+        & $Executable --maintenance backup --data $Data --config-dir $staging --output $destination --mode server --application-version $Version
+        if ($LASTEXITCODE -ne 0) { throw 'Private backup failed; service remains stopped. No application replacement was attempted.' }
+        Write-Host 'Private backup created. External source/secret files are not followed; preserve them separately.'
+    } finally { Remove-Item $staging -Recurse -Force }
+}
+function Assert-ServiceReady($Values) {
+    $deadline = (Get-Date).AddSeconds(45)
+    $origin = [Uri]$Values.SAP_LENS_PUBLIC_ORIGIN
+    $localHost = if ($Values.SAP_LENS_HOST -eq '::') { '[::1]' } elseif ($Values.SAP_LENS_HOST.Contains(':')) { '['+$Values.SAP_LENS_HOST+']' } elseif ($Values.SAP_LENS_HOST -eq '0.0.0.0') { '127.0.0.1' } else { $Values.SAP_LENS_HOST }
+    while ((Get-Date) -lt $deadline) {
+        $registered = Get-CimInstance Win32_Service -Filter "Name='SAPLens'"
+        foreach ($connection in @(Get-NetTCPConnection -State Listen -LocalPort ([int]$Values.SAP_LENS_PORT) -ErrorAction SilentlyContinue)) {
+            $owner = [int]$connection.OwningProcess
+            for ($depth=0; $depth -lt 16 -and $owner -gt 0; $depth++) {
+                if ($registered.State -eq 'Running' -and $owner -eq [int]$registered.ProcessId) {
+                    try { if ((Invoke-RestMethod ("http://"+$localHost+":"+$Values.SAP_LENS_PORT+"/health/ready") -Headers @{Host=$origin.Authority} -TimeoutSec 2).status -eq 'ready') { return } } catch { }
+                    break
+                }
+                $process = Get-CimInstance Win32_Process -Filter ("ProcessId="+$owner) -ErrorAction SilentlyContinue
+                if (-not $process) { break }; $owner = [int]$process.ParentProcessId
+            }
+        }
+        Start-Sleep -Milliseconds 250
+    }
+    throw 'The registered service did not own a ready listener. Inspect SCM and private logs.'
+}
+if ($Action -in @('Upgrade','Backup','Restore')) {
+    $values = Read-ServiceConfiguration
+    $current = Get-Content (Join-Path $InstallDirectory 'verification-report.json') -Raw | ConvertFrom-Json
+    $executable = Join-Path $InstallDirectory 'app\SAP-Lens.exe'
+    if ($Action -eq 'Upgrade') {
+        if (-not $NewBundleDirectory) { throw 'Upgrade requires -NewBundleDirectory from a freshly extracted, verified package.' }
+        $newRoot = (Resolve-Path $NewBundleDirectory).Path.TrimEnd('\')
+        if ($newRoot -eq $InstallDirectory.TrimEnd('\') -or $newRoot.StartsWith($InstallDirectory.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Extract the replacement outside the installed application.' }
+        $replacement = Assert-NewBundle $newRoot
+        $newExecutable = Join-Path $newRoot 'app\SAP-Lens.exe'
+        & $newExecutable --maintenance version-check --application-version $current.identity.version --target-version $replacement.identity.version
+        if ($LASTEXITCODE -ne 0) { throw 'Version compatibility check failed. No installed files were changed.' }
+    }
+    if ((Get-Service SAPLens).Status -ne 'Stopped') { Invoke-ServiceCommand 'stop' }
+    if ($Action -eq 'Backup') { Invoke-PrivateBackup $executable $current.identity.version $values.SAP_LENS_DATA_DIR; return }
+    if ($Action -eq 'Restore') {
+        if (-not $Archive -or -not $RestoreDataDirectory -or -not $RestoreConfigurationDirectory -or -not $ConfirmRestore) { throw 'Restore needs -Archive, empty -RestoreDataDirectory and -RestoreConfigurationDirectory, and -ConfirmRestore.' }
+        & $executable --maintenance restore --archive $Archive --data $RestoreDataDirectory --config-destination $RestoreConfigurationDirectory --mode server --target-version $current.identity.version --confirm-restore
+        if ($LASTEXITCODE -ne 0) { throw 'Restore failed safely. Existing installed data/configuration were not overwritten.' }
+        Write-Host 'Restored to empty destinations. Review paths and service ACLs before explicitly activating restored configuration. Service remains stopped.'
+        return
+    }
+    Invoke-PrivateBackup $newExecutable $current.identity.version $values.SAP_LENS_DATA_DIR
+    $suffix = [guid]::NewGuid().ToString('N')
+    $staged = Join-Path $InstallDirectory ('app.pending.'+$suffix)
+    Copy-Item (Join-Path $newRoot 'app') $staged -Recurse
+    foreach ($file in $replacement.files.PSObject.Properties | Where-Object { $_.Name.StartsWith('app/') }) {
+        if ((Get-FileHash (Join-Path $staged $file.Name.Substring(4)) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $file.Value) { throw 'Staged application hash mismatch. Existing application remains selected.' }
+    }
+    $previous = Join-Path $InstallDirectory ('app.previous.'+$suffix)
+    Move-Item (Join-Path $InstallDirectory 'app') $previous
+    Move-Item $staged (Join-Path $InstallDirectory 'app')
+    foreach ($name in @('manage-server-service.ps1','README.md','LICENSE-WinSW.txt','LICENSE.md','verification-report.json')) { Copy-Item (Join-Path $newRoot $name) (Join-Path $InstallDirectory $name) -Force }
+    try { Invoke-ServiceCommand 'start'; Assert-ServiceReady $values }
+    catch {
+        if ((Get-Service SAPLens).Status -ne 'Stopped') { Invoke-ServiceCommand 'stop' }
+        throw 'Upgrade health failed. Service stopped; previous binaries, administrator XML and private backup retained. Review compatible data recovery before switching binaries back.'
+    }
+    Write-Host 'Upgrade ready. Administrator XML, data and service identity preserved; previous binaries and private backup retained.'
+    return
+}
+if ($Action -in @('Start','Stop','Restart','Uninstall')) { $installedValues = Read-ServiceConfiguration }
 if ($Action -eq 'Install') {
     if (Get-Service SAPLens -ErrorAction SilentlyContinue) { throw 'SAPLens already exists. Stop and upgrade it rather than overwriting its configuration.' }
     $report = Get-Content (Join-Path $InstallDirectory 'verification-report.json') -Raw | ConvertFrom-Json
@@ -112,6 +230,11 @@ if ($Action -eq 'Install') {
     $service = Get-Service SAPLens -ErrorAction SilentlyContinue
     if ($service -and $service.Status -ne 'Stopped') { Invoke-ServiceCommand 'stop' }
     if ($service) { $service.Dispose() }
+    if ($PurgeData) {
+        & (Join-Path $InstallDirectory 'app\SAP-Lens.exe') --maintenance purge --data $installedValues.SAP_LENS_DATA_DIR --mode server --confirm-purge
+        if ($LASTEXITCODE -ne 0) { throw 'Private-data removal failed; service remains stopped. Review ownership and locks before retrying.' }
+    }
     Invoke-ServiceCommand 'uninstall'
-    Write-Host 'Service removed. Application data, logs, source files and bundle are preserved.'
+    if ($PurgeData) { Write-Host 'Service and confirmed private data removed. Nonprivate lock stub, backups, external sources/secrets, XML and application bundle retained for an administrator retention decision.' }
+    else { Write-Host 'Service removed. Application data, logs, source files and bundle are preserved.' }
 } else { Invoke-ServiceCommand $Action.ToLowerInvariant() }

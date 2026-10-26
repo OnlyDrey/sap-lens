@@ -106,6 +106,10 @@ class MaintenanceTests(unittest.TestCase):
             ops.ensure_upgrade(previous,target)
             with self.assertRaises(ValueError):ops.ensure_upgrade(target,previous)
         self.assertEqual(ops.version_key('0.1.0-beta-4'),ops.version_key('0.1.0-beta.4'))
+        ops.ensure_upgrade('0.1.0-dev.123', '0.1.0-dev.123.2')
+        ops.ensure_upgrade('0.1.0-dev.123.2', '0.1.0-beta.1')
+        with self.assertRaises(ValueError): ops.ensure_upgrade('0.1.0-dev.123.2', '0.1.0-dev.123')
+        with self.assertRaises(ValueError): ops.version_key('0.1.0-beta.1.2')
 
     def test_backup_cli_reports_no_records_or_credentials(self):
         report=self.root/'report.json'
@@ -113,3 +117,39 @@ class MaintenanceTests(unittest.TestCase):
         self.assertEqual(result,1);value=json.loads(report.read_text())
         self.assertEqual(set(value),{'status','action','category','message','recovery'})
         self.assertNotIn('synthetic-only',report.read_text())
+
+    def test_restore_holds_runtime_lease_before_copying_records(self):
+        self.create();target=self.root/'restore-locked';configuration=self.root/'restore-config'
+        original=ops.tarfile.open;seen=[]
+        def inspect(*args,**kwargs):
+            if target.exists():
+                with self.assertRaises(RuntimeError): StorageLease(target,'server',initialize=False).acquire()
+                seen.append(True)
+            return original(*args,**kwargs)
+        with patch.object(ops.tarfile,'open',side_effect=inspect):
+            ops.restore(self.archive,target,'server','0.1.0',configuration,True)
+        self.assertTrue(seen)
+        lease=StorageLease(target,'server').acquire();lease.close()
+
+    def test_restore_rechecks_copied_hashes_if_archive_changes_after_verification(self):
+        self.create();manifest=ops.verify(self.archive,'server','0.1.0')
+        with tarfile.open(self.archive) as source:
+            payload=[(item.name,source.extractfile(item).read(),tarfile.REGTYPE) for item in source.getmembers()]
+        bad=self.altered([(name,b'changed after verification' if name=='data/settings.json' else content,kind) for name,content,kind in payload])
+        target=self.root/'restored-tampered'
+        with patch.object(ops,'verify',return_value=manifest),self.assertRaises(ops.MaintenanceError):
+            ops.restore(bad,target,'server','0.1.0',self.root/'restored-config',True)
+        self.assertFalse((target/'settings.json').exists())
+
+    def test_confirmed_purge_requires_stopped_owned_store_and_preserves_external_backups(self):
+        self.create();before=(self.data/'settings.json').read_bytes()
+        with self.assertRaises(ops.MaintenanceError):ops.purge(self.data,'server')
+        lease=StorageLease(self.data,'server').acquire()
+        try:
+            with self.assertRaises(RuntimeError):ops.purge(self.data,'server',True)
+        finally:lease.close()
+        self.assertEqual((self.data/'settings.json').read_bytes(),before)
+        (self.data/'nested').mkdir();(self.data/'nested/private.txt').write_text('synthetic')
+        result=ops.purge(self.data,'server',True)
+        self.assertTrue(result['purged']);self.assertTrue(self.archive.exists())
+        self.assertEqual({p.name for p in self.data.iterdir()},{'.sap-lens-instance.lock'})

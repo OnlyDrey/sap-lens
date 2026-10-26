@@ -47,6 +47,8 @@ interface Snapshot {
 const availabilityLabel = (value: string) =>
   (
     ({
+      running: 'Running',
+      loading: 'Loading',
       available_at_last_load:
         'Available at last successful load; current access not checked',
       not_checked: 'Not checked',
@@ -133,7 +135,7 @@ export function Diagnostics({
             Check again
           </Button>
         </div>
-        <div className="diagnostic-health-grid"><StatusCard label="Source health" value={query.isError?'Unavailable':!query.data?'Checking…':query.data.sources.some(source=>source.enabled!==false&&source.error)?'Warnings':query.data.sources.some(source=>source.enabled!==false&&source.loaded)?'Ready':'Not configured'} tone={query.isError?'error':query.data?.sources.some(source=>source.enabled!==false&&source.error)?'warning':query.data?.sources.some(source=>source.enabled!==false&&source.loaded)?'success':'neutral'}/><StatusCard label="Local service" value={query.isError?'Unavailable':query.data?.backend_status||'Checking…'} tone={query.isError?'error':query.data?'success':'neutral'}/><StatusCard label="Last successful refresh" value={formatTimestamp(query.data?.last_successful_refresh,'No successful refresh yet')}/><StatusCard label="Application storage" value={query.data?.storage_available?'Available':'Not created'} tone={query.data?.storage_available?'success':'neutral'}/></div>
+        <div className="diagnostic-health-grid"><StatusCard label="Source health" value={query.isError?'Unavailable':!query.data?'Checking…':query.data.sources.some(source=>source.enabled!==false&&source.error)?'Warnings':query.data.sources.some(source=>source.enabled!==false&&source.loaded)?'Ready':'Not configured'} tone={query.isError?'error':query.data?.sources.some(source=>source.enabled!==false&&source.error)?'warning':query.data?.sources.some(source=>source.enabled!==false&&source.loaded)?'success':'neutral'}/><StatusCard label="Local service" value={query.isError?'Unavailable':query.data?.backend_status?availabilityLabel(query.data.backend_status):'Checking…'} tone={query.isError?'error':query.data?.backend_status==='loading'?'info':query.data?'success':'neutral'}/><StatusCard label="Last successful refresh" value={formatTimestamp(query.data?.last_successful_refresh,'No successful refresh yet')}/><StatusCard label="Application storage" value={query.data?.storage_available?'Available':'Not created'} tone={query.data?.storage_available?'success':'neutral'}/></div>
         <p className="ui-description">Imports activate validated datasets; Global Refresh checks Dynamic sources. A successful import does not imply a successful Global Refresh. Static sources retain their snapshots.</p>
 
         <details className="settings-advanced">

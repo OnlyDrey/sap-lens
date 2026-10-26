@@ -185,7 +185,7 @@ def publish(api, info, assets):
         draft = api.request('POST', '/releases', dict(tag_name=tag,
             target_commitish=info['source_sha'], name='SAP Lens ' + info['version'],
             body=marker + '\n\nValidated deployment packages. See the attached manifest for source identity and SHA-256 digests.',
-            draft=True, prerelease=prerelease))
+            draft=True, prerelease=prerelease, generate_release_notes=True))
         release_id = draft['id']
         if draft.get('draft') is not True:
             raise DeliveryError('Expected an unpublished draft release.')

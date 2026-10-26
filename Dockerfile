@@ -31,6 +31,7 @@ RUN --mount=type=secret,id=build_ca \
 RUN groupadd --gid 10001 saplens && useradd --uid 10001 --gid saplens --no-create-home saplens \
     && mkdir /data /sources && chown saplens:saplens /data
 COPY backend/*.py ./backend/
+COPY LICENSE.md ./LICENSE.md
 COPY backend/routers/ ./backend/routers/
 COPY assets/ ./assets/
 COPY --from=selected_frontend /build/frontend/dist ./frontend/dist/

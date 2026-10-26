@@ -46,7 +46,10 @@ test('description metadata uses registry prefixes, preserves meaningful unknown 
   await expect(entry.locator('.role-metadata-title')).toHaveText('Master Data · Materials Display & Reporting')
   await expect(entry.locator('.single-role-description')).toHaveCount(0)
   const meta = (await entry.locator('.role-module-metadata').boundingBox())!, code = (await entry.locator('.role-identifier').boundingBox())!
-  expect(meta.y + meta.height).toBeLessThanOrEqual(code.y)
+  expect(meta.x + meta.width).toBeLessThanOrEqual(code.x + 1)
+  expect(meta.y + meta.height / 2).toBeCloseTo(code.y + code.height / 2, 0)
+  const heading = (await entry.locator('.single-role-heading').boundingBox())!
+  expect(code.x + code.width).toBeLessThanOrEqual(heading.x + heading.width)
   await expect(dialog.locator('.role-metadata-title').filter({ hasText: 'ZZZ - Source description' })).toBeVisible()
   await expect(dialog.locator('.role-metadata-title').filter({ hasText: 'Unclassified' })).toHaveCount(1)
   const response = await request.get(`/api/roles/${encodeURIComponent(pattern)}`, { headers })

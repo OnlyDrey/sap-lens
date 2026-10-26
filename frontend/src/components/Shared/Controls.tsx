@@ -10,7 +10,7 @@ import {
   type InputHTMLAttributes,
   type ReactNode,
 } from 'react'
-import { Search } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 export const controlClass = 'ui-control'
 export const Input = forwardRef<
   HTMLInputElement,
@@ -20,8 +20,8 @@ export const Input = forwardRef<
     <input {...props} ref={ref} className={`${controlClass} ${className}`} />
   )
 })
-export const SearchInput = forwardRef<HTMLInputElement,InputHTMLAttributes<HTMLInputElement>>(function SearchInput(props,ref) {
-  return <span className="ui-search"><Search size={16} aria-hidden="true"/><Input {...props} ref={ref} type={props.type || "search"}/></span>
+export const SearchInput = forwardRef<HTMLInputElement,InputHTMLAttributes<HTMLInputElement> & {onClear?:()=>void}>(function SearchInput({onClear,...props},ref) {
+ return <span className="ui-search" data-clearable={!!onClear}><Search size={16} aria-hidden="true"/><Input {...props} ref={ref} type={props.type || 'search'}/>{onClear&&!!props.value&&<Button variant="ghost" size="icon" aria-label={`Clear ${props['aria-label'] || 'search'}`} onClick={event=>{const input=event.currentTarget.previousElementSibling;onClear();if(input instanceof HTMLInputElement)input.focus()}}><X size={14} aria-hidden="true"/></Button>}</span>
 })
 export function FormField({
   label,

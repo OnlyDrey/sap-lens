@@ -86,15 +86,14 @@ test('editable user T-codes use AND across assignments, OR, unique chips and sco
     .getByRole('combobox', { name: 'Sort users', exact: true })
     .selectOption('email')
   const summary = page.getByRole('region', {
-    name: 'Active evidence filter',
+    name: 'User transaction filter',
     exact: true,
   })
   await expect(summary).toContainText('Transaction: MIGO')
   await expect(summary).toContainText('Transaction: ME21N')
-  await summary
-    .getByRole('button', { name: 'Clear filter', exact: true })
-    .click()
-  await expect(summary).toHaveCount(0)
+  await summary.getByRole('button', {name:'Remove transaction MIGO',exact:true}).click()
+  await summary.getByRole('button', {name:'Remove transaction ME21N',exact:true}).click()
+  await expect(summary.locator('.transaction-chip')).toHaveCount(0)
   await expect(input).toHaveValue('')
   await expect(search).toHaveValue('TWO')
   await expect(
@@ -122,7 +121,7 @@ test('incoming transaction evidence seeds the same editable controls and survive
     .getByRole('button', { name: 'Investigate users with MIGO', exact: true })
     .click()
   const summary = page.getByRole('region', {
-    name: 'Active evidence filter',
+    name: 'User transaction filter',
     exact: true,
   })
   await expect(summary).toContainText('Transaction: MIGO')
