@@ -8,10 +8,12 @@ export function Dialog({
   title,
   children,
   onClose,
+  footer,
 }: {
   title: string
   children: ReactNode
   onClose: () => void
+  footer?: ReactNode
 }) {
   const id = useId(),
     dialog = useRef<HTMLDivElement>(null),
@@ -35,7 +37,7 @@ export function Dialog({
       if (event.key !== 'Tab') return
       const controls = [
         ...(dialog.current?.querySelectorAll<HTMLElement>(
-          'button:not(:disabled),input:not(:disabled),select:not(:disabled),a[href],[tabindex="0"]',
+          'button:not(:disabled),input:not(:disabled),textarea:not(:disabled),select:not(:disabled),a[href],[tabindex="0"]',
         ) || []),
       ].filter((el) => el.getClientRects().length > 0)
       if (!controls.length) {
@@ -72,6 +74,7 @@ export function Dialog({
       if (previous?.isConnected) previous.focus()
     }
   }, [])
+  useEffect(()=>{dialog.current?.focus()},[title])
   return createPortal(
     <div className="ui-dialog-backdrop">
       <div
@@ -90,7 +93,7 @@ export function Dialog({
         </header>
         <div className="ui-dialog-content">{children}</div>
         <footer>
-          <Button onClick={onClose}>Close</Button>
+          {footer ?? <Button onClick={onClose}><X size={16} aria-hidden="true"/>Close</Button>}
         </footer>
       </div>
     </div>,

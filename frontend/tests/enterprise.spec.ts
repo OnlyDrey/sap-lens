@@ -1,3 +1,4 @@
+import {inspectTechnicalSources} from './source-details-fixture'
 import { test, expect } from '@playwright/test'
 import { mkdtempSync, unlinkSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -43,8 +44,7 @@ test('system identity, private logo storage, persisted theme and portable backup
     if(!(await page.getByRole('region',{name:'SAP Lens settings',exact:true}).isVisible()))await page.getByRole('button',{name:'Open settings'}).click()
     await page.getByRole('tab',{name:'Health & Diagnostics'}).click()
   await page.getByText('Source locations and storage details',{exact:true}).click()
-  for (const name of ['Role Catalogue CSV','User Access CSV']) await page.getByRole('region',{name,exact:true}).getByText('Technical source details',{exact:true}).click()
-  await page.getByText('Employee Directory technical details',{exact:true}).click()
+  await inspectTechnicalSources(page)
     await page.getByLabel('Include private organization details, profiles and branding in export').check()
     const downloadPromise=page.waitForEvent('download')
     await page.getByRole('button',{name:'Export saved configuration'}).click()
@@ -58,8 +58,7 @@ test('system identity, private logo storage, persisted theme and portable backup
     await expect(page.getByLabel('Organization name',{exact:true})).toHaveValue('Example Inc.')
     await page.getByRole('tab',{name:'Health & Diagnostics'}).click()
   await page.getByText('Source locations and storage details',{exact:true}).click()
-  for (const name of ['Role Catalogue CSV','User Access CSV']) await page.getByRole('region',{name,exact:true}).getByText('Technical source details',{exact:true}).click()
-  await page.getByText('Employee Directory technical details',{exact:true}).click()
+  await inspectTechnicalSources(page)
     await page.getByLabel('Import configuration package').setInputFiles({name:'synthetic.sap-lens.json',mimeType:'application/json',buffer:Buffer.from(contents)})
     await page.getByRole('tab',{name:'Organization & SAP System'}).click()
     await expect(page.getByLabel('Organization name',{exact:true})).toHaveValue('Example Test Organization')

@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -31,7 +31,7 @@ class DataSettings(BaseModel):
 
 
 def create_app(origin: str | None = None, session_token: str | None = None,
-               instance_id: str | None = None, server=None) -> FastAPI:
+               instance_id: str | None = None, server=None, browser_access: bool = False) -> FastAPI:
     from deployment import server_mode, ServerSettings
     if server is None and server_mode():
         server = ServerSettings.from_env()
@@ -39,6 +39,12 @@ def create_app(origin: str | None = None, session_token: str | None = None,
     allowed_origins = [server.origin] if server else [origin] if origin else get_settings().cors_origins
     if not server and any(not _is_loopback_origin(value) for value in allowed_origins):
         raise ValueError('Only explicit HTTP loopback origins are supported.')
+    if browser_access:
+        if server or not origin or not session_token or not _is_loopback_origin(origin):
+            raise ValueError('Browser handoff requires an owned desktop loopback session.')
+        port = urlsplit(origin).port or 80
+        allowed_origins = [f'http://127.0.0.1:{port}', f'http://localhost:{port}']
+    desktop_hosts = {urlsplit(value).netloc for value in allowed_origins} if browser_access else set()
     request_header = session_token or '1'
 
     @asynccontextmanager
@@ -72,6 +78,9 @@ def create_app(origin: str | None = None, session_token: str | None = None,
     @app.middleware('http')
     async def local_browser_boundary(request: Request, call_next):
         request_origin = request.headers.get('origin')
+        if browser_access and (request.headers.get('host','').lower() not in desktop_hosts
+                               or not request.client or request.client.host not in {'127.0.0.1','::1'}):
+            return JSONResponse({'detail':'Desktop access requires its exact loopback listener.'},status_code=403)
         if server and request.url.path not in {'/health/live','/health/ready'}:
             if not server.authorized(request):
                 return JSONResponse({'detail':'Server access is not authorized.'},status_code=401,
@@ -100,8 +109,10 @@ def create_app(origin: str | None = None, session_token: str | None = None,
         response.headers['X-Frame-Options'] = 'DENY'
         if request.url.path.startswith(('/api/', '/health')):
             response.headers['Cache-Control'] = 'no-store'
+        nonce = getattr(request.state,'desktop_nonce',None)
+        script_policy = "'self'" + (f" 'nonce-{nonce}'" if nonce else '')
         response.headers['Content-Security-Policy'] = (
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+            f"default-src 'self'; script-src {script_policy}; style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data:; font-src 'self'; connect-src 'self'; "
             "frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
         )
@@ -175,6 +186,24 @@ def create_app(origin: str | None = None, session_token: str | None = None,
         return read_settings()
 
     if frontend_dir.exists():
+        if browser_access:
+            @app.get('/', include_in_schema=False)
+            def desktop_document(request: Request):
+                # Only user navigation may bootstrap a browser. Never expose the
+                # capability through a cross-site fetch, script, frame or API.
+                if not (request.headers.get('sec-fetch-mode') == 'navigate'
+                        and request.headers.get('sec-fetch-dest') == 'document'
+                        and request.headers.get('sec-fetch-site') in {'none','same-origin','same-site'}
+                        and (not request.headers.get('origin') or request.headers['origin'] in allowed_origins)):
+                    return FileResponse(frontend_dir/'index.html',headers={'Cache-Control':'no-store'})
+                import secrets, json
+                nonce = secrets.token_urlsafe(24)
+                request.state.desktop_nonce = nonce
+                capability = json.dumps(session_token).replace('<',r'\u003c')
+                handoff = f"try{{sessionStorage.setItem('sap-lens-session',{capability})}}catch(e){{history.replaceState(null,'',location.pathname+location.search+'#session='+encodeURIComponent({capability}))}}"
+                html = (frontend_dir/'index.html').read_text(encoding='utf-8')
+                html = html.replace('<head>',f'<head><script nonce="{nonce}">{handoff}</script>',1)
+                return HTMLResponse(html,headers={'Cache-Control':'no-store'})
         app.mount('/', StaticFiles(directory=str(frontend_dir), html=True), name='frontend')
     return app
 

@@ -41,7 +41,7 @@ Primary actions use the derived accessible action foreground. Secondary/outline 
 
 Date entry remains `NorwegianDateInput`, with Norwegian labels, Monday-first floating calendar, keyboard navigation and DD.MM.YYYY entry. ISO date-only comparison and SAP maximum-date semantics remain unchanged.
 
-`DataTable` provides a focusable overflow region, caption and shared table styling; specialized existing tables retain their domain JSX and inherit the same header, spacing, hover and row-divider rules. Long identifiers wrap and remain copyable. Horizontal scrolling is confined to the table region, never required for the whole page.
+`DataTable` provides a focusable overflow region, caption and shared table styling; specialized existing tables retain their domain JSX and inherit the same header, spacing, hover and row-divider rules. Role identifiers remain single-line, copyable and horizontally scrollable within their own control. Horizontal scrolling is confined to the table region, never required for the whole page.
 
 `StatusBadge` owns generic tone presentation. `AccountStatus`, `AssignmentStatus`, `StatusPill` and `SourceBadge` keep their domain-specific labels and rules. Lock indicators preserve their established neutral unlocked/unknown and red locked appearance. AD status is not SAP validity. Loading, empty, notification and evidence-disclosure components use semantic text and icons.
 
@@ -49,7 +49,7 @@ Date entry remains `NorwegianDateInput`, with Norwegian labels, Monday-first flo
 
 Desktop navbar utilities are compact icons on one row where space permits. At narrower widths, primary navigation gets its own row with visible destination labels. Utility accessible names remain available to touch assistive technology. User panels become one column; comparison filters go from five to three/two/one; compact summary counts wrap without becoming large KPI cards. Existing settings-sidebar behavior and source/table breakpoints are retained.
 
-Prefer shared responsive classes before adding another page-specific breakpoint. Validate labels, chevrons, focus rings, floating panels and table scrolling at 375, 800 and 1280 px in both themes.
+Prefer shared responsive classes before adding another page-specific breakpoint. Validate labels, chevrons, focus rings, floating panels and table scrolling at 375, 800, 1280 and 1600 px in both themes.
 
 See [Component Library](COMPONENTS.md), [Navigation patterns](NAVIGATION.md) and [validation report](../archive/validation/UI_CONSOLIDATION_VALIDATION.md).
 
@@ -69,8 +69,10 @@ underline hover state rather than a large background treatment.
 
 Page titles use the shared icon-led header. Saved Filter Save/Clear actions share
 an equal-width two-column row. Source metadata uses full-width facts rather than
-nested two-column cards. Comparison's B-only category has a theme-specific
-`--comparison-b` token; shared and A-only reuse success/information. Single-role
+nested two-column cards. Comparison's B-only category uses `--comparison-b`, an alias of the theme's
+error/red color; shared and A-only reuse success/information. Category colors do
+not imply a security finding. Single-role
 zebra backgrounds cover the whole contiguous row with outer-list rounding only;
-hover reverses the two surface tokens. Identifiers remain exact and copyable,
-wrapping or stacking without page overflow. Focus remains a visible outline.
+hover leaves those surfaces unchanged. Identifiers remain exact, single-line and
+copyable, with contained horizontal scrolling instead of arbitrary wrapping. Focus
+remains a visible outline.

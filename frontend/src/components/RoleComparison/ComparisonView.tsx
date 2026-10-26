@@ -1,10 +1,11 @@
+import { TransactionCount } from '@/components/Shared/TransactionCount'
 import { ModuleIcon } from '@/components/Modules/ModuleIcon'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft, Loader2, AlertTriangle, RefreshCw, GitCompare, Share2,
   Lock, X, TrendingDown, TrendingUp, Layers, ChevronDown, ChevronRight,
-  Code2, Zap
+  Code2
 } from 'lucide-react'
 import { useComparison } from '@/hooks/useComparison'
 import { useRoleDetail } from '@/hooks/useRoleDetail'
@@ -96,7 +97,7 @@ function SRRow({ sr, parentRoleName }: { sr: SingleRoleInfo; parentRoleName: str
   return (
     <div style={{ borderBottom:'1px solid var(--border)' }}>
       <div
-        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:opacity-90 focus:outline-none transition-colors"
+        className="role-comparison-row"
         style={{
           backgroundColor: open
             ? 'color-mix(in srgb, var(--accent2) 8%, var(--surface))'
@@ -118,15 +119,7 @@ function SRRow({ sr, parentRoleName }: { sr: SingleRoleInfo; parentRoleName: str
           )}
         </div>
 
-        <div
-          className="flex items-center gap-1 px-2.5 py-1 rounded-lg flex-shrink-0"
-          style={{ backgroundColor:'color-mix(in srgb, var(--accent) 12%, transparent)' }}
-        >
-          <Zap className="w-3 h-3" style={{ color:'var(--accent2)' }} />
-          <span className="text-xs font-black tabular-nums" style={{ color:'var(--accent2)' }}>
-            {sr.tcode_count}
-          </span>
-        </div>
+        <TransactionCount count={sr.tcode_count}/>
       </div>
 
       {open && (
@@ -482,7 +475,7 @@ function SRMatrix({
                       {cleanDesc(r.text) || r.agr_name}
                     </span>
 
-                    <RoleIdentifier value={r.agr_name} />
+                    <RoleIdentifier value={r.agr_name} moduleId={r.function_key}/>
 
                     <span className="text-xs" style={{ color:'var(--muted)' }}>
                       {r.single_role_count} single {r.single_role_count === 1 ? 'role' : 'roles'}
@@ -616,9 +609,9 @@ function ExclusiveColumn({ role }: { role: ComparisonRole }) {
           </div>
         </div>
 
-        <RoleIdentifier value={role.agr_name} />
+        <RoleIdentifier value={role.agr_name} moduleId={role.function_key}/>
 
-        <div className="flex items-center gap-2">
+        <div className="role-comparison-exclusive">
           <span
             className="text-xs font-black px-2 py-0.5 rounded-lg text-current"
             style={{ backgroundColor:'var(--accent2)', color:'var(--on-accent2)' }}

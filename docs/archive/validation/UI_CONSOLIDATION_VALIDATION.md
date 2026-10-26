@@ -404,3 +404,251 @@ The consolidation changes the frontend component/layout/state/style files and th
 - `frontend/src/styles/components.css`
 - `frontend/src/styles/tokens.css`
 - `frontend/tests/design-system.spec.ts`
+
+## Compact evidence and desktop/browser connectivity — 26 October 2026
+
+Baseline: clean `work` at `be7be626d9247255f3ec6049a8b1372e2321bb32`.
+This follow-up preserves the preceding implementation and changes no dependencies,
+CSV schemas, assignment calculations, matching rules or deployment workflows.
+
+| Request | Implemented change |
+|---|---|
+| 1 | Shared Popover remeasures dynamic contents, constrains only to available viewport; Saved Filter actions have a token-sized gap |
+| 2 | Single-role zebra surfaces remain invariant on hover; toggle/copy retain independent interaction and focus |
+| 3 | Canonical role identifiers stay single-line, complete and copyable, with contained keyboard/horizontal scrolling |
+| 4 | RoleMetadata uses backend classification only; description prefixes cannot invent an area; BC parent and unclassified child evidence remain distinct |
+| 5 | TransactionCount consolidates existing lightning/count presentation across catalogue cards, single roles, comparison and the real Component Library |
+| 6 | Compare Roles identifiers retain canonical area colors; exclusive counters have explicit spacing; calculations unchanged |
+| 7 | Desktop User Directory has five primary columns, plain expired checkbox below role and Descending below sorting; Clear stays bottom-right |
+| 8 | Account Review uses five filter columns and three readable metric groups; existing counts/actions preserved |
+| 9 | Compare Users Saved Filters sits above the filter panel; the panel has its own shared Clear action |
+| 10 | Shared / A-only / B-only consistently use green / blue / red theme tokens and explicit labels |
+| 11 | Evidence shows exact identifier, interactive assignment status and source group; status popover exposes exact dates/status, with Unknown distinct from 31.12.9999 |
+| 12 | Comparison summary counters size to content and wrap |
+| 13 | PR/PO matrices are content-sized, side-by-side when space allows, stacked at tablet width, independently scrollable |
+| 14 | Owned desktop listener supports plain 127.0.0.1 and localhost browser roots through a guarded per-launch capability handoff; no second backend |
+
+### Connectivity evidence and trust boundary
+
+The failure was capability delivery, not a missing frontend server: WebView2 alone
+received the launch fragment, and the localhost alias was absent from allowed
+origins. The desktop now opts into an exact selected-port/loopback-peer root
+handoff. Only a top-level non-cross-site document navigation receives non-cacheable
+HTML with a fresh CSP nonce; cross-site/frame/resource requests do not obtain the
+capability. API reads/writes still require it. Server hosting behavior is unchanged.
+
+Executed real Chromium against the actual ManagedBackend HTTP runtime on Linux:
+both plain roots loaded/reloaded, authenticated APIs returned 200, unguarded APIs
+returned 403, and a synthetic configuration update through one origin was visible
+through the other. The owned runtime shut down cleanly. This did not initialize
+Windows/WebView2 and is not native desktop acceptance. Existing desktop lifecycle
+tests exercise real HTTP/readiness/port-conflict/shutdown behavior with GUI/Windows
+boundaries mocked. Retry connection already performs a real configuration refetch.
+
+### Validation procedure and limits
+
+Logs are outside Git at `/workspace/sap-lens-dev/connectivity-*.log`; synthetic
+screenshots are under the ignored `frontend/test-results/` and a retained external
+`/workspace/sap-lens-dev/connectivity-visual/` directory. Use current canonical
+[desktop](../../architecture/DESKTOP.md), [role](../../features/ROLE_LOOKUP.md),
+[comparison](../../features/COMPARE_USERS.md) and
+[component](../../architecture/COMPONENTS.md) documentation for behavior.
+
+Executed results for this follow-up:
+
+- `npm_config_cache=/workspace/.cache/npm npm --prefix frontend ci --no-audit --no-fund`: passed; lockfile unchanged. The first attempt used an unwritable default npm cache; retrying with a workspace cache succeeded.
+- `npm --prefix frontend run check:types` and `npm --prefix frontend run build`: passed. Existing large-chunk build advisory remains.
+- `.venv/bin/python -m unittest discover -s backend/tests -v`: 412 run, 410 passed and two PowerShell availability skips. With the prepared portable PowerShell on PATH and writable XDG directories, the complete `test_local_build.py` group reran: 17 passed, including both skipped checks.
+- Focused browser changes: six final targeted regressions passed. The first full run found two obsolete four-column expectations (248 passed); these were updated to the required five-column contract. Screenshot review additionally bounded comparison columns so long identifiers cannot displace evidence.
+- Final frozen implementation: `PATH=/workspace/sap-lens/.venv/bin:$PATH PLAYWRIGHT_EXECUTABLE_PATH=/usr/bin/chromium npm --prefix frontend run test:browser`: **250 passed together**, 8.3 minutes, one worker, no retries.
+- `python -m pip check`, installed-environment `pip_audit` and `npm audit --omit=dev`: passed, no production vulnerabilities found. Full npm audit reports three moderate development advisories in the existing Tailwind/PostCSS chain; no dependency upgrades or suppressions were introduced.
+- `python scripts/check-docs.py`: 73 Markdown files, zero failures. `python scripts/check-workflows.py`, actionlint, PowerShell syntax/static/service-helper checks, Lucide catalogue check (1447 icons), and `git diff --check`: passed.
+- Captured light/dark layouts at 375/800/1280/1600 pixels; inspected representative directory/review/filter popovers, comparison evidence, role details and matrices. Geometry assertions cover action spacing, contained overflow, keyboard focus, single-line identifiers and PR/PO placement. Screenshots are review artifacts, not pixel-golden comparisons.
+- New content review found only synthetic/reserved-domain fixtures, generic documentation and code; no new private assets, credentials, company identifiers or source exports. Accepted historical branding remains unchanged.
+
+Native Windows/WebView2 startup, browser/real WebView simultaneous state, native
+clipboard/dialogs, packaged EXE and UNC remain untested here. No Windows build,
+push, workflow dispatch, tag, release or package publication was performed.
+
+Final narrow-screen follow-up: removed the expired-checkbox container at every
+breakpoint, not just desktop. Production build and the light-800/dark-375 shared
+layout regressions passed (2/2); no functional changes or additional full run.
+
+## Refinement Round 2 — tasks 15–29
+
+Continued from locally preserved `17d48ec`, `be5a3ae` and `c2dd2b5`; no push.
+
+- 15–16: explicit User Details AND/OR mode, shared backend role-set filtering and
+  matching export scope; compact assignment count/warnings, with provenance in rows.
+- 17–18: directory matching modal and consistent status labels, preserving actual
+  candidate evidence and source navigation.
+- 19–21: canonical three-source status summary, interactive feature pill with pending
+  preference versus persisted operational status, shared technical-source modal.
+- 22–23,25–26: evidence-backed dashboard distributions/review population/freshness,
+  single coverage indicator, shared icons, subtle interactions and three/two/one grids.
+- 24,28: review modal presents findings before the decision; protected drafts, current
+  evidence checks, backward-compatible annotation history, order-independent new
+  fingerprints and removed/reappearing-account handling. Review storage failure
+  cannot erase annotations or block independent CSV loading.
+- 27,29: four-column change table, readable records and exact copyable identifiers,
+  actual retained before/after details in the shared modal, consistent action icons.
+
+Targeted validation before beginning task 30:
+
+- User Access backend: 43 passed; filter backend: 17 passed; Account Review backend:
+  23 passed (history, format-1 migration, restart, ordering, changed identity/assignment/
+  AD evidence, disappearance/reappearance, corrupt storage and permission failures).
+- CSV lifecycle backend: 22 passed. Lifecycle browser: 10 passed, including native-save
+  bridge mocks, complete replacement, failed refresh retention and both themes at
+  375/800/1280. New Round 2 browser suite: 14 passed, with source/review/matching
+  modals and dashboard geometry at 375/800/1280/1600 in both themes.
+- Relevant existing browser groups: 43 passed; four legacy OR visual cases were then
+  updated to explicitly choose OR under the new AND default and all four passed.
+  Obsolete inline-details/coverage selectors were migrated to the actual modals and
+  single coverage control, retaining evidence, date, export and focus assertions.
+- TypeScript/production build, whitespace and 73-document link checks passed.
+  Representative screenshots were inspected and retained outside Git in
+  `/workspace/sap-lens-dev/round2-visual/`. Native Windows/WebView2 remains untested.
+
+Tasks 30–31 remain separate follow-ups; final combined regression/audits follow those
+implementations. No comprehensive browser suite was repeated for each UI edit.
+
+## Task 30 — first-open assignment date positioning
+
+Reproduced before the fix by holding a real directory-match response, opening the
+date filter once, then releasing the response. Profile growth moved the button
+without scroll/resize or popup-size changes, leaving stale portal coordinates.
+The regression failed after that response while its initial placement passed.
+
+Shared event-driven anchor-layout observation now covers surrounding content and
+ancestor sizes/styles in Popover, Combobox and NorwegianDateInput. Placement is
+viewport-clamped; initial popup focus avoids unsolicited page scrolling. No timer,
+positioning delay, remount workaround or dependency was introduced.
+
+Production build/type checking passed. Ten targeted browser tests passed: first
+and subsequent opens, delayed real profile enrichment, no profile overlap when
+space is available, viewport resizing/scroll, Escape/focus, advanced Apply and
+Clear/Cancel semantics at 375/800/1280/1600 in both themes; shared dropdown/calendar
+layout-shift checks and the existing combobox keyboard regression also passed.
+Native Windows/WebView2 remains pending. No push or workflow dispatch.
+
+## Task 31 — filtered assignment CSV exports
+
+User Directory and Release Roles now share the canonical ExportCSVButton and a
+snapshot/day-guarded download hook. Backend selection predicates are shared with
+the existing list APIs. Directory exports include every assignment for all
+matching users across pages, with MATCHED_FILTER identifying contributing
+assignment evidence. Release exports use the exact matching assignment set in
+Table and Matrix. Exact assigned roles and separate validity intervals survive.
+UTF-8 BOM, semicolons, quoted CRLF rows, DD.MM.YYYY dates and formula-safe output
+are shared. Sources remain unchanged. Existing assignment-name import validation
+still rejects catalogue wildcard patterns as assigned roles; concrete wildcard
+matching evidence remains intact and is never replaced with a catalogue pattern.
+
+Targeted results: seven export backend tests, 20 desktop bridge-contract tests,
+43 User Access and 17 investigation-filter backend tests passed. Six functional
+browser export tests passed (filter combinations, Table/Matrix, pagination, native
+bridge mocks, generation mismatch and cancellation); eight theme/width toolbar
+checks passed after scoping their screenshot locator to the visible route.
+Toolbar screenshots at 375/800/1280/1600 in both themes were captured; representative
+narrow/light and wide/dark images were reviewed. Type checking, production build
+and 73-document link validation passed. No native Windows claim.
+
+## Task completion checklist
+
+The following tasks have passed their relevant local validation. Native Windows
+acceptance is separate, particularly for task 14 and native export/dialog behavior.
+Final combined regression results are recorded below when available.
+
+| Task | Scope | Local status |
+|---|---|---|
+| 1 | Saved Filters popover | Validated |
+| 2 | Single Roles hover | Validated |
+| 3 | Exact role identifiers | Validated |
+| 4 | Source-backed SAP area classification | Validated |
+| 5 | Role hover and transaction counts | Validated |
+| 6 | Compare Roles layout | Validated |
+| 7 | User Directory filters | Validated |
+| 8 | Account Review layout | Validated |
+| 9 | Compare Users filters | Validated |
+| 10 | Comparison status colors | Validated |
+| 11 | Assignment evidence presentation | Validated |
+| 12 | Comparison summary metrics | Validated |
+| 13 | Release Matrix layout | Validated |
+| 14 | Owned desktop backend/browser connectivity | Validated on Linux; Windows pending |
+| 15 | User Details AND/OR transaction matching | Validated |
+| 16 | Compact pre-table assignment summary | Validated |
+| 17 | Directory matching modal | Validated |
+| 18 | Directory matching status consistency | Validated |
+| 19 | Shared CSV source status | Validated |
+| 20 | Interactive feature status pills | Validated |
+| 21 | Technical source details modal | Validated |
+| 22 | Evidence-backed dashboard investigations | Validated |
+| 23 | Dashboard interaction/coverage consistency | Validated |
+| 24 | Account Review modal, persistence and history | Validated |
+| 25 | Dashboard section icons | Validated |
+| 26 | Responsive dashboard columns | Validated |
+| 27 | CSV changes table and record details | Validated |
+| 28 | Review findings and source evidence | Validated |
+| 29 | Change/error/close action icons | Validated |
+| 30 | First-open anchored popovers | Validated |
+| 31 | Filtered assignment CSV exports | Validated |
+
+## Combined final validation — tasks 1–31
+
+Implementation frozen after `5eb967c`; `5d2f291` migrates one legacy diagnostics
+assertion to the shared source modal while preserving snapshot-recovery checks.
+No application changes were made during the final browser rerun.
+
+Executed from the repository root unless noted:
+
+- `npm_config_cache=/workspace/.cache/npm npm ci --no-audit --no-fund` in frontend:
+  passed. The first attempt with the sandbox's default unwritable npm cache failed;
+  the repository-independent writable cache resolved that environment issue.
+- `npm run check:types` and `npm run build` in frontend: passed. Vite reports
+  a non-blocking 521.74 kB main-chunk size warning; no bundling rewrite was added.
+- `PATH=<portable-pwsh>:$PATH python -m unittest discover -s backend/tests -v`:
+  **427 passed**, no skips, 23.684 seconds. Includes repository/privacy contracts,
+  persistence/migration, review history, refresh lifecycle, server security, Windows
+  helper mocks/static checks and exact export contracts. This is not native Windows.
+- `python -m pip check`: passed; no broken requirements.
+- Isolated `python -m pip_audit -r backend/requirements-desktop.txt
+  -r backend/requirements-dev.txt --cache-dir /workspace/.cache/pip-audit`:
+  no known vulnerabilities found.
+- `npm audit --omit=dev`: zero vulnerabilities. Full `npm audit`: three moderate
+  development advisories through Tailwind/PostCSS selector parsing
+  (GHSA-rj75-hqrm-r3gf). No dependency updates or suppressions in this refinement.
+- `python scripts/check-docs.py`: 73 Markdown files, zero broken local links.
+- `python scripts/check-workflows.py`, independent actionlint,
+  `pwsh -NoProfile -File scripts/check-powershell.ps1`,
+  `node scripts/sync-lucide-catalog.mjs --check` and `git diff --check`: passed.
+  PowerShell used writable XDG directories; SCM operations were not performed.
+
+The first combined `npm run test:browser` with Chromium and one worker completed
+with 286 passed and one failure in 8.9 minutes: an old assertion expected inline
+Employee Directory technical details after those details moved to the shared
+modal. The corrected test opens the actual modal, checks diagnostics, closes with
+Escape and retains all durable-snapshot/reload assertions; targeted rerun passed
+(1/1). The final all-tests-together rerun passed **287/287 in 8.6 minutes**, with one
+worker, no retries and no skipped tests. Its log is
+`/workspace/sap-lens-dev/final-browser-confirmed.log`. All new task 30/31 tests
+passed in both combined runs; no application change was needed after the freeze.
+
+Visual evidence: screenshots captured in both themes at 375/800/1280/1600; reviewed
+representative comparison evidence, dashboard grids, source/review modals, first-open
+date controls and export toolbars. The first-open regressions also assert anchor
+geometry after delayed profile enrichment, scroll and resize rather than relying
+on screenshots alone. Evidence is outside Git under
+`/workspace/sap-lens-dev/{connectivity-visual,round2-visual,task31-visual,final-visual}`.
+Run logs are `/workspace/sap-lens-dev/final-*.log`.
+
+Privacy/diff review: new fixtures use synthetic identities and reserved example.test
+emails. No CSV, screenshot/binary artifact, credential signature or CHANGELOG was
+added in this refinement range. Repository integrity/privacy tests passed. Accepted
+historical branding was neither expanded nor rewritten. This is scoped repository
+review, not a claim that historical privacy findings have been resolved.
+
+No push, workflow dispatch, release, tag, Windows build or native Windows/WebView2/UNC
+acceptance was performed. Manual Windows testing must cover owned-backend browser
+handoff and localhost alias, WebView/browser coexistence, clipboard/dialogs, both
+new CSV native saves and shutdown, plus packaging and UNC on an appropriate host.

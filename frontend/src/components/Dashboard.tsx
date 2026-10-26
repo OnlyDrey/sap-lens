@@ -1,5 +1,5 @@
-import { PageHeader } from '@/components/Shared/Presentation'
-import { LayoutDashboard } from 'lucide-react'
+import { PageHeader, SectionHeader } from '@/components/Shared/Presentation'
+import { LayoutDashboard, ShieldAlert, HeartPulse, BarChart3, SlidersHorizontal } from 'lucide-react'
 import { formatTimestamp } from '@/lib/dateFormat'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -11,7 +11,6 @@ import {
   FileCheck2,
   CalendarDays,
   MailCheck,
-  Settings2,
 } from 'lucide-react'
 import { apiRequest } from '@/api/client'
 import { useViewHistory } from '@/hooks/useViewHistory'
@@ -31,6 +30,8 @@ interface Source {
   enabled: boolean
   configured: boolean
   available: boolean
+  last_import?:string|null
+  last_checked?:string|null
 }
 export function Dashboard() {
   const { view, change } = useViewHistory(),
@@ -41,13 +42,16 @@ export function Dashboard() {
       apiRequest<{
         metrics: Metric[]
         sources?: Source[]
+        role_distribution?:Record<string,number>|null
+        assignment_distribution?:Record<string,number>|null
+        review_population?:number|null
         coverage_total?: number
         last_successful_refresh?: string | null
         source_warning?: string | null
         notice: string
       }>('/api/dashboard'),
   })
-  const open = (metric: Metric) =>
+  const open = (metric: Metric, area='') =>
     metric.destination === 'review'
       ? change({
           page: 'users',
@@ -56,7 +60,7 @@ export function Dashboard() {
           kpiNavigation:{...view.kpiNavigation,users:(view.kpiNavigation?.users||0)+1},
           user: '',
           reviewFinding:
-            metric.id === 'unresolved'
+            metric.id==='outdated'?'stale':metric.id==='reviewed'?'reviewed':metric.id==='pending'?'pending':metric.id==='ad_disabled_open'?'ad_disabled_open':metric.id === 'unresolved'
               ? 'directory_match'
               : metric.id === 'email_matches'
                 ? 'matched'
@@ -77,7 +81,7 @@ export function Dashboard() {
               ? { user: '', userContext: {}, accessMode: 'directory' as const }
               : {}),
             ...(metric.destination === 'releases' ? { release: null } : {}),
-            ...(metric.destination === 'roles' ? { comparison: false } : {}),
+            ...(metric.destination === 'roles' ? { comparison: false, catalogueArea:area } : {}),
             detailRole: null,
             settings: false,
           })
@@ -112,27 +116,23 @@ export function Dashboard() {
               !metric.unavailable_reason?.toLowerCase().includes('disabled')
               ? 'Loading…'
               : 'Unavailable'
-            : metric.value.toLocaleString()}
+            : metric.id==='email_matches'&&query.data?.coverage_total?`${metric.value.toLocaleString()} / ${query.data.coverage_total.toLocaleString()}`:metric.value.toLocaleString()}
         </strong>
         <ArrowUpRight size={14} aria-hidden="true" />
         {metric.value === null && <small>{metric.unavailable_reason}</small>}
         <span className="sr-only">{metric.context}</span>
 
 
-        {metric.id === 'email_matches' &&
-          metric.value !== null &&
-          !!query.data?.coverage_total && (
-            <small>
-              of {query.data.coverage_total.toLocaleString()} SAP identities
-            </small>
-          )}
+        {metric.id==='email_matches'&&metric.value!==null&&!!query.data?.coverage_total&&<><small>{((metric.value/query.data.coverage_total)*100).toFixed(1)}% matched</small><progress aria-label="SAP identity match coverage" max={query.data.coverage_total} value={metric.value}/></>}
+
       </button>
     )
   }
   const groups = [
     ['SAP Overview', ['users', 'roles', 'releases', 'mappings']],
-    ['Access & Risk', ['assigned_users','assignments','account_review','expired','future']],
+    ['Access & Risk', ['assignments','account_review','ad_disabled_open','expired','future','assigned_users']],
     ['Directory & Data Health', ['email_matches','unresolved']],
+    ['Review Progress',['reviewed','pending','outdated']],
   ] as const
   return (
     <section aria-label="Dashboard" className="space-y-5">
@@ -148,8 +148,8 @@ export function Dashboard() {
       {query.data && (
         <div className="dashboard-workspace">
           {groups.map(([name, ids]) => (
-            <section key={name} aria-label={name} className="dashboard-section">
-              <h2>{name}</h2>
+            <section key={name} aria-label={name} className={`dashboard-section ${name==='SAP Overview'?'':'dashboard-middle-section'}`}>
+              <SectionHeader title={name} icon={name==='SAP Overview'?<Database size={18}/>:name==='Access & Risk'?<ShieldAlert size={18}/>:name==='Review Progress'?<ClipboardCheck size={18}/>:<HeartPulse size={18}/>}/>
               <div className={`dashboard-metrics ${name === 'SAP Overview' ? 'dashboard-primary-metrics' : 'dashboard-secondary-metrics'}`}>
                 {query.data.metrics
                   .filter((m) => (ids as readonly string[]).includes(m.id))
@@ -160,35 +160,7 @@ export function Dashboard() {
                   )
                   .map(tile)}
               </div>
-              {name === 'Directory & Data Health' && !!query.data.coverage_total && query.data.metrics.find(m=>m.id==='email_matches')?.value!=null && (
-                <section
-                  className="coverage-summary"
-                  aria-label="Directory match percentage"
-                >
-                  <strong>
-                    {(
-                      ((query.data.metrics.find((m) => m.id === 'email_matches')
-                        ?.value || 0) /
-                        query.data.coverage_total) *
-                      100
-                    ).toFixed(1)}
-                    % matched
-                  </strong>
-                  <progress
-                    aria-label="SAP identity match coverage"
-                    max={query.data.coverage_total}
-                    value={
-                      query.data.metrics.find((m) => m.id === 'email_matches')
-                        ?.value || 0
-                    }
-                  />
-                  <span>
-                    {query.data.metrics.find((m) => m.id === 'email_matches')
-                      ?.value || 0}{' '}
-                    of {query.data.coverage_total} SAP identities
-                  </span>
-                </section>
-              )}
+              {name==='Review Progress'&&query.data.review_population!=null&&query.data.metrics.find(m=>m.id==='reviewed')?.value!=null&&<div className="coverage-summary"><strong>{query.data.review_population ? (((query.data.metrics.find(m=>m.id==='reviewed')?.value||0)/query.data.review_population)*100).toFixed(1):'0.0'}% reviewed</strong><progress aria-label="Account review completion" max={query.data.review_population||1} value={query.data.metrics.find(m=>m.id==='reviewed')?.value||0}/><span>Population: all {query.data.review_population} currently imported SAP accounts. Outdated reviews remain pending.</span></div>}
               {name === 'Access & Risk' && (
                 <p className="text-xs text-[var(--muted)]">
                   Expired/future totals open User Access; select assignment
@@ -200,8 +172,9 @@ export function Dashboard() {
             </section>
           ))}
 
+          <section aria-label="Role Distribution" className="dashboard-section dashboard-distribution"><SectionHeader title="Role Distribution" icon={<BarChart3 size={18}/>}/><p className="ui-description">Distinct catalogue roles by canonical SAP area. Single-role relationships and release assignments are separate evidence.</p>{query.data.role_distribution==null?<p>Role catalogue unavailable.</p>:Object.entries(query.data.role_distribution).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([area,count])=><button key={area} className="dashboard-distribution-link" aria-label={`Investigate ${area} catalogue roles`} onClick={()=>{const metric=query.data.metrics.find(m=>m.id==='roles');if(metric)open(metric,area)}}><span>{area}</span><progress aria-label={`${area} catalogue roles`} max={Math.max(1,...Object.values(query.data.role_distribution||{}))} value={count}/><strong>{count}</strong><ArrowUpRight size={14}/></button>)}{query.data.assignment_distribution&&<><h3>Users by currently valid assigned role count</h3><p className="ui-description">Distinct business/release roles per SAP user; historical and unknown intervals are excluded. High counts are not security findings.</p><div className="dashboard-assignment-distribution">{['0','1–5','6–20','21+'].map(bin=><div key={bin}><strong>{query.data.assignment_distribution?.[bin]||0}</strong><span>{bin} roles</span></div>)}</div></>}</section>
           <section aria-label="Configuration" className="dashboard-section">
-            <h2><Settings2 size={17} aria-hidden="true"/>Data Sources &amp; Configuration</h2>
+            <SectionHeader title="Data Sources & Configuration" icon={<SlidersHorizontal size={18}/>}/>
             <p className="text-xs text-[var(--muted)]">
               Last successful refresh:{' '}
               {formatTimestamp(query.data.last_successful_refresh)} · Enabled
@@ -240,6 +213,7 @@ export function Dashboard() {
                             : 'No data available'}
                       </small>
                     </span>
+                    <span className="dashboard-source-freshness">Last import: {formatTimestamp(source.last_import)}<br/>Last validated check: {formatTimestamp(source.last_checked)}</span>
                     <StatusPill enabled={source.enabled} />
                     <ArrowUpRight size={14} aria-hidden="true" />
                   </button>

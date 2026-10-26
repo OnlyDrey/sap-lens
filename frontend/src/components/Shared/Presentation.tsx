@@ -117,3 +117,7 @@ export function DataTable({
 export function MetadataList({items}:{items:{label:string;value:ReactNode}[]}) {
  return <dl className="ui-metadata-list">{items.map(item=><div key={item.label}><dt>{item.label}</dt><dd>{item.value}</dd></div>)}</dl>
 }
+
+export function SectionHeader({title,icon,children}:{title:string;icon?:ReactNode;children?:ReactNode}) {
+ return <header className="ui-section-header"><h2>{icon}{title}</h2>{children}</header>
+}

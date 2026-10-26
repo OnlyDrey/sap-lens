@@ -41,5 +41,4 @@
 
 [data-theme="dark"] { --shadow-color:#00000080; }
 
-:root { --comparison-b: #7756b8; }
-[data-theme="dark"] { --comparison-b: #c7a8f5; }
+:root { --comparison-b:var(--error); }

@@ -126,3 +126,27 @@ Data Sources & Configuration includes all three independent sources with their
 feature/availability state and actual last successful refresh. Counts and KPI
 navigation retain their existing backend definitions. Lifecycle totals are
 informational evidence, not automatically a security-risk finding.
+
+## Investigation distributions and freshness
+
+The middle workspace is three columns on wide desktop, two on tablet and stacked
+on mobile: Access & Risk, Directory & Data Health, and Review Progress. Section
+headings share the icon-led SectionHeader. One coverage indicator displays matched
+count/eligible count, percentage and progress; it is not repeated in adjacent cards.
+
+Review progress uses all currently imported SAP accounts, not just accounts with
+findings. Pending includes outdated reviews; decisions never suppress underlying
+findings. Reviewed, pending, outdated and AD-disabled/open-account links open the
+corresponding Account Review filters. Unavailable annotations are not zero-filled.
+
+Role Distribution counts each catalogue role once using its canonical SAP area;
+click a bar to investigate that area in Role Lookup. It does not combine single-role
+relationships or release assignments into those counts. Assignment distribution
+counts users by distinct **currently valid** business/release roles (0, 1–5, 6–20,
+21+); it is descriptive, not a security score. The separate Users with assignments
+metric still includes imported intervals of every validity state.
+
+Source cards distinguish last import/activation, last validated source check and the
+last successful global refresh. Missing timestamps remain unavailable. File modification
+times are not inferred. All calculations use validated local snapshots; no history,
+license consumption or effective authorization is inferred.

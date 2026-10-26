@@ -258,8 +258,8 @@ def assignment_view(entry):
     )
 
 
-def relevant(entry, status="", show_expired=False):
+def relevant(entry, status="", show_expired=False, today=None):
     current = interval_status(
-        sap_date(entry["valid_from"]), sap_date(entry["valid_to"])
+        sap_date(entry["valid_from"]), sap_date(entry["valid_to"]), today
     )
     return current == status if status else show_expired or current != "expired"

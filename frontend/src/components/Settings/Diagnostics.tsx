@@ -1,4 +1,4 @@
-import { SourceHealthSummary } from './SourceStatus'
+import { SourceHealthSummary, SourceDetailsDialog } from './SourceStatus'
 import { StatusCard } from '@/components/Shared/InvestigationPatterns'
 import { RefreshHistory } from '@/components/Shared/RefreshReport'
 import { Button } from '@/components/Shared/Button'
@@ -78,6 +78,7 @@ export function Diagnostics({
     queryFn: () => apiRequest<Snapshot>('/api/diagnostics'),
     refetchInterval: 5000,
   })
+  const [detail,setDetail]=useState<DataSource|null>(null)
   const [feedback, setFeedback] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -191,42 +192,12 @@ export function Diagnostics({
                     : 'Role Catalogue'}{' '}
                 source
               </Button>
-              <details className="settings-advanced">
-                <summary>
-                  {source.id === 'employees'
-                    ? 'Employee Directory technical details'
-                    : 'Technical source details'}
-                </summary>
-                <dl className="information-list">
-                  <dt>Configured file</dt>
-                  <dd>{source.configured_path || (source.configured?'Configured (location redacted)':'Not configured')}</dd>
-                  <dt>Loaded source</dt>
-                  <dd>{source.loaded_path || (source.loaded?'Validated snapshot (location redacted)':'No successful load')}</dd>
-                  <dt>Availability</dt>
-                  <dd>{availabilityLabel(source.availability)}</dd>
-                  <dt>Assignments</dt>
-                  <dd>{source.assignments}</dd>
-                  {source.error && (
-                    <>
-                      <dt>Last attempt</dt>
-                      <dd>
-                        {source.attempted_path || 'Unknown location'} ·{' '}
-                        {source.error.replace(/_/g, ' ')}
-                      </dd>
-                    </>
-                  )}
-                </dl>
-                {source.id === 'employees' && (
-                  <DirectoryDiagnostics
-                    onConfigure={onEmployeeSettings}
-                    onFeatureSettings={onEmployeeFeatures}
-                  />
-                )}
-              </details>
+              <Button onClick={()=>setDetail(source)}><FileText size={16} aria-hidden="true"/>Technical source details</Button>
             </section>
           ))}
         </div>
       </section>
+      {detail&&<SourceDetailsDialog source={detail} onClose={()=>setDetail(null)}>{detail.id==='employees'&&<DirectoryDiagnostics onConfigure={()=>{setDetail(null);onEmployeeSettings?.()}} onFeatureSettings={()=>{setDetail(null);onEmployeeFeatures?.()}}/>}</SourceDetailsDialog>}
       <RefreshHistory />
       <section className="settings-card space-y-3">
         <h2 className="settings-subheading">Data & storage</h2>

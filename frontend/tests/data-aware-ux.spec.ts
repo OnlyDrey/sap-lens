@@ -1,3 +1,4 @@
+import {inspectTechnicalSources} from './source-details-fixture'
 import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -123,8 +124,7 @@ for (const theme of ['dark','light']) for (const width of [1280,800]) test(`data
   await page.getByRole('button',{name:'Open settings',exact:true}).click()
   await page.getByRole('tab',{name:'Health & Diagnostics',exact:true}).click()
   await page.getByText('Source locations and storage details',{exact:true}).click()
-  for (const name of ['Role Catalogue CSV','User Access CSV']) await page.getByRole('region',{name,exact:true}).getByText('Technical source details',{exact:true}).click()
-  await page.getByText('Employee Directory technical details',{exact:true}).click()
+  await inspectTechnicalSources(page)
   const storage = page.getByRole('heading',{name:'Data & storage',exact:true})
   await expect(storage).toBeVisible()
   await expect(page.getByRole('region',{name:'User Access CSV',exact:true}).locator('dl > div').filter({has:page.getByText('Records',{exact:true})}).locator('dd')).toHaveText('7')

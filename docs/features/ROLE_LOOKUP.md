@@ -19,29 +19,23 @@ transaction count horizontally when space permits, stacking at narrow widths.
 The source description is no longer repeated underneath the identifier. Expansion,
 transaction counts and direct/effective-assignment provenance remain available.
 
-`RoleMetadata` is shared with composite headers. It uses the existing SAP module
-registry, aliases, icon mapping and saved visual overrides. Explicit single-role
-module metadata takes precedence. Otherwise, a leading, delimited module token in
-the imported **description** can supply a display label only when it resolves
-unambiguously through that registry. No role identifier fragments are parsed.
+`RoleMetadata` is shared with composite headers. It uses the canonical module
+code supplied by the backend and the existing registry, icons and visual overrides.
+A translated description never supplies or overrides classification. A role with
+canonical BC evidence therefore retains the BC badge in both listing and details,
+regardless of its description. Identifiers are not parsed to invent classifications.
 
-Examples:
+The current catalogue supplies a canonical composite role area through FUNCTION_KEY.
+Single-role relationships have no independent area field in this source schema;
+those remain Unclassified rather than inheriting a possibly incorrect area from
+the parent or description. Full source descriptions remain visible, including any
+literal prefix. Update the source evidence rather than guessing from a screenshot.
 
-| Imported description | Header badge | Header title |
-|---|---|---|
-| `CA - Master Data - Materials Display & Reporting` | CA | Master Data · Materials Display & Reporting |
-| `CA - Master Data - Batch Display` | CA | Master Data · Batch Display |
-| `SD - Master Data - InfoRecord` | SD | Master Data · InfoRecord |
-| Meaningful text without a recognized prefix | None; neutral icon | Full source description |
-| No description and no module metadata | None; neutral icon | Unclassified |
-
-Whitespace-delimited hyphens, en dashes and em dashes are supported. Unknown or
-ambiguous prefixes remain literal source text. A conflicting description prefix
-does not override explicit module metadata. This is presentation of source text,
-not another classification engine: backend module IDs, module filters, catalogue
-matching and transaction relationships are unchanged. A child can therefore retain
-a backend Unclassified ID while its header displays a recognized description
-prefix. This distinction is explained in the existing provenance disclosure.
+Role identifiers stay on one monospace line, with complete title/copy values and
+contained horizontal scrolling (including Arrow Left/Right while focused). Shared
+transaction badges use the same lightning icon, token colors and count tooltip.
+Zebra backgrounds do not change when hovering the row; the expansion toggle alone
+provides hover feedback. Expansion and keyboard focus remain independent of copy.
 
 ## Role Details: Find transaction code
 

@@ -16,6 +16,7 @@ export function App() {
   const { isDark, toggle } = useTheme()
   const [page] = useHistoryValue('page')
   const [kpiNavigation] = useHistoryValue('kpiNavigation')
+  const [catalogueArea] = useHistoryValue('catalogueArea')
   const { change } = useViewHistory()
   const [visited, setVisited] = useState(() => new Set([page]))
   const scrollPositions = useRef<Record<string, number>>({})
@@ -68,6 +69,7 @@ export function App() {
       {showComparison
         ? <ComparisonView roleNames={selectedRoles} onBack={() => setShowComparison(false)} />
         : <RoleList key={`${dataGeneration}:${kpiNavigation?.roles || 0}`}
+            initialArea={catalogueArea}
             onFilteredRoles={setCatalogueOrder}
             selectedRoles={selectedRoles}
             onSelectRole={handleSelectRole}

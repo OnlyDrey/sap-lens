@@ -61,6 +61,8 @@ def diagnostics_snapshot(loader=None, private=False):
                           error=attempt.get('error') if directory['enabled'] else None,
                           loading=bool(loader and loader.loading and settings.employee_csv_path),
                           dependency=directory['operational_status'])
+    reference=settings.data_lifecycle.sources.get('employees')
+    employee_source['last_checked']=reference.checked_at if reference and reference.path==settings.employee_csv_path else None
     if private:
         employee_source.update(configured_path=settings.employee_csv_path, loaded_path=store_path(directory, settings), attempted_path=attempt.get('path',''))
     sources.append(employee_source)

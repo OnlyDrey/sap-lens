@@ -17,10 +17,12 @@ User/role navigation uses existing history; Back returns to the preserved compar
 
 See [Saved Filters](SAVED_FILTERS.md), [Data Health](../data/DATA_HEALTH.md) and [Access Insights assessment](../proposals/ACCESS_INSIGHTS.md).
 
-The table has four columns: Role / Transaction, Difference, User A Evidence and User B Evidence. Exact assigned roles, copy actions, validity intervals, assignment status, source groups and catalogue matching patterns are visible directly, without an evidence accordion. Transaction rows retain the explanatory roles and their assignment intervals; they remain role-derived mappings. Each evidence page is bounded to 25 records, with explicit pagination for further intervals or explanatory roles. No evidence is discarded; additional pages retain generation/date checks. Sort order is preserved in history, saved filters and the selected CSV export.
+The table has four columns: Role / Transaction, Difference, User A Evidence and User B Evidence. Exact assigned roles and copy actions occupy one horizontally scrollable line. A keyboard-accessible assignment-status button opens exact Norwegian-formatted start/end dates and the evaluated status; Escape closes it and restores focus. The third line identifies the SAP User Group. Missing bounds are shown as Unknown, distinct from 31.12.9999. Wildcard text is omitted from the compact cell; the source matching model, unambiguous catalogue navigation and export provenance remain unchanged. Transaction rows retain the explanatory roles and their assignment intervals; they remain role-derived mappings. Each evidence page is bounded to 25 records, with explicit pagination for further intervals or explanatory roles. No evidence is discarded; additional pages retain generation/date checks. Sort order is preserved in history, saved filters and the selected CSV export.
 
 The header places the accessible Swap users action beside the title. Sorting and
 Descending share a control group; Export comparison CSV stays at the right of the
-results toolbar. Shared/A-only/B-only indicators use consistent green/blue/purple
+results toolbar. Shared/A-only/B-only indicators use consistent green/blue/red
 semantic tokens with explicit text. Colors express comparison categories, not risk.
 Inline assignments, multiple intervals, wildcard provenance and paging remain intact.
+
+Saved Filters sits above the comparison filter panel. The panel owns its single Clear filters action. Summary counters size to their content and wrap as space requires.

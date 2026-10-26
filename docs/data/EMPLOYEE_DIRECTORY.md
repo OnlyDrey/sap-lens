@@ -167,3 +167,19 @@ For legacy path-only imports, validated in-memory records can be committed throu
 the original import timestamp and validates the current settings revision/digest.
 See [Settings and persistence recovery](../getting-started/CONFIGURATION.md) and
 [Account Review](../features/ACCOUNT_REVIEW.md) for current behavior and privacy boundaries.
+
+## Shared status and technical evidence
+
+All sources use the same mode, loaded-state, record count, import/activation,
+snapshot and last-validated-check summary. Employee Directory reads this from the
+shared diagnostics query rather than substituting a draft mode or import time for
+a current check. A missing check timestamp stays unavailable; a static snapshot can
+remain loaded when the original CSV is absent. Technical paths, matching and quality
+diagnostics are available through a separate source-details modal. Source configuration
+navigation remains a separate action.
+
+Features uses an interactive Enabled/Disabled preference pill. A pending edit is
+not saved until Apply settings succeeds. Imported data availability and current
+operational/dependency status describe persisted server state independently of that
+draft. Directory matching in SAP User Details opens its own compact evidence modal;
+no identity matching rule or source replacement semantics are changed.

@@ -126,3 +126,65 @@ The authenticated User Access preview includes at most 20 identity/assignment
 samples; these response-only samples remain absent from persistent reports and
 sanitized diagnostics. RoleMetadata accepts a leading evidence slot for the
 single-role transaction count without changing source classification.
+
+## Compact role evidence
+
+`Shared/RoleIdentifier.tsx` is the canonical exact role identifier and copy action.
+It stays on one line, with contained horizontal scrolling and Arrow Left/Right
+support when focused; the title and accessible name retain the complete value.
+Optional `moduleId` colors use canonical backend module evidence.
+`Shared/RoleMetadata.tsx` never classifies from a description prefix: unknown single
+roles stay unclassified when the source has no independent module evidence.
+`Shared/TransactionCount.tsx` renders the same compact count badge in catalogue,
+single-role, comparison and Component Library views. Single-role zebra backgrounds
+remain invariant on hover; only the expand/collapse action has hover feedback.
+
+Saved Filters uses the shared Popover, which measures dynamic content and applies
+viewport-constrained scrolling only when needed. Adjacent Save/Clear actions use
+an explicit spacing token. User Directory and Account Review use five primary
+filter columns at desktop widths; smaller widths retain the existing reflow.
+Release PR/PO matrices size to their contents, sharing a row where possible and
+stacking at tablet widths, with independent scroll regions.
+
+## Modal investigation and source status
+
+The existing Dialog owns portal placement, focus isolation/restoration, Escape and
+bounded body scrolling; textarea controls participate in its focus loop. Title
+changes refocus the modal when switching between the change list and record details.
+DirectoryMatchDetails, source technical details, ReviewFindings and ChangeRecordDetails
+reuse that owner instead of large inline editors. Their private evidence remains in
+authenticated application responses; it is not copied into diagnostics exports.
+
+SourceHealthSummary is canonical for all three sources, including Employee Directory;
+SourceStatusSummary reads the shared diagnostics query to keep persisted mode, loaded
+state, activation, snapshot and validation evidence aligned. Source configuration
+navigation is separate from the technical details modal.
+
+Toggle renders an interactive StatusPill directly. The pill describes the draft
+Enabled/Disabled preference; pending feedback persists until Apply succeeds. Data
+availability and operational status describe saved server evidence separately.
+SectionHeader and the real ReviewFindings/ChangeRecordDetails previews are included
+in Component Library with isolated synthetic data and no production mutations.
+
+## Anchored layout lifecycle
+
+`lib/observeAnchorLayout.ts` keeps Popover, Combobox and NorwegianDateInput portals
+attached while open. It observes real anchor/ancestor size, surrounding content
+and ancestor positioning-style changes, plus captured scroll and window resize.
+Cleanup disconnects every observer/listener. No delay, remount or frame polling is
+used for placement. First-open stale coordinates were reproducible when asynchronous
+employee enrichment increased the profile height after the first measurement.
+Observing only the popup size missed that movement; reopening happened to remeasure.
+Popup coordinates are viewport-clamped and initial focus does not scroll the page.
+
+### Assignment export actions
+
+`Shared/ExportCSVButton.tsx` wraps the canonical outline Button and Lucide Download
+icon. User Directory and Release Roles use it beside their result counts; the
+Component Library renders an isolated disabled preview.
+`hooks/useAssignmentCSVExport.ts` shares authenticated streaming downloads, strict
+UTF-8 decoding, a 32 MiB limit, generation/day guards and filter-change cancellation.
+It delegates filtering to the existing backend selection functions, never a
+second frontend interpretation. The existing native `save_user_access_csv` bridge
+accepts the exact new semicolon header only for its two assignment-export filename
+prefixes; capability, size and destination protections remain intact.

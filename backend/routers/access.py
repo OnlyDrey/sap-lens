@@ -1,6 +1,7 @@
 """Authenticated local investigation APIs. Dates describe assignments, not effective authorization."""
 
 from collections import defaultdict
+from csv_exports import assignment_response
 from datetime import date
 from typing import Literal
 from fastapi import APIRouter, HTTPException, Query, Depends
@@ -48,7 +49,7 @@ def record_navigation(items, anchor, key, normalize):
     )
 
 
-def source_info(state):
+def source_info(state, today=None):
     return dict(
         loaded=bool(state.users.report),
         catalogue_loaded=bool(state.roles),
@@ -57,7 +58,8 @@ def source_info(state):
             for key, value in state.users.report.items()
             if key not in {"samples", "file_name"}
         },
-        as_of=date.today().isoformat(),
+        as_of=(today or date.today()).isoformat(),
+        data_revision=state.last_loaded.isoformat() if state.last_loaded else "empty",
     )
 
 
@@ -109,9 +111,7 @@ def user_summary(user, entries):
     )
 
 
-@router.get("/users")
-def users(
-    anchor: str = Query("", max_length=512),
+def directory_filters(
     search: str = Query("", max_length=256),
     group: str = Query("", max_length=512),
     role: str = Query("", max_length=512),
@@ -130,10 +130,11 @@ def users(
         "relevant_roles",
     ] = "username",
     descending: bool = False,
-    offset: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
 ):
-    snapshot = cache.get_snapshot()
+    return dict(search=search,group=group,role=role,tcode=tcode,tcodes=tcodes,transaction_mode=transaction_mode,status=status,show_expired=show_expired,sort=sort,descending=descending)
+
+
+def directory_selection(snapshot, *, search,group,role,tcode,tcodes,transaction_mode,status,show_expired,sort,descending,today=None):
     state = snapshot.users
     wanted_codes = normalized_tcodes([tcode] + tcodes if tcode else tcodes)
     candidates = matching_entries(state, role)
@@ -141,7 +142,7 @@ def users(
     for a in candidates:
         if (
             a["scope"] != "other"
-            and relevant(a, status, show_expired)
+            and relevant(a, status, show_expired, today)
             and (not group or group == a["user_group"])
         ):
             evidence[a["user_key"]].append(a)
@@ -178,14 +179,28 @@ def users(
         ),
         reverse=descending,
     )
-    if anchor:
-        return dict(**page(result, offset, limit), navigation=record_navigation(result, anchor, "username", normalize_username))
-    return dict(
-        **page(result, offset, limit),
-        **source_info(snapshot),
-        groups=state.groups,
-        groups_total=state.group_count
-    )
+    return result,evidence
+
+
+@router.get('/users')
+def users(filters:dict=Depends(directory_filters),anchor:str=Query('',max_length=512),offset:int=Query(0,ge=0),limit:int=Query(50,ge=1,le=100)):
+    snapshot=cache.get_snapshot();today=date.today()
+    result,evidence=directory_selection(snapshot,**filters,today=today)
+    if anchor:return dict(**page(result,offset,limit),navigation=record_navigation(result,anchor,'username',normalize_username))
+    return dict(**page(result,offset,limit),**source_info(snapshot,today),groups=snapshot.users.groups,groups_total=snapshot.users.group_count,
+                export_assignments=sum(len(snapshot.users.users[u['user_key']]['assignments']) for u in result))
+
+
+@router.get('/exports/users')
+def export_users(filters:dict=Depends(directory_filters)):
+    snapshot=cache.get_snapshot();today=date.today()
+    if not snapshot.users.report:raise HTTPException(409,'No validated User Access dataset is loaded.')
+    result,evidence=directory_selection(snapshot,**filters,today=today)
+    identities={u['user_key']:u for u in result}
+    matching={key:{a['id'] for a in values} for key,values in evidence.items()}
+    count=sum(len(snapshot.users.users[key]['assignments']) for key in identities)
+    entries=((a,a['id'] in matching.get(key,())) for key in identities for a in snapshot.users.users[key]['assignments'])
+    return assignment_response(snapshot,entries,identities,count,'user-directory',today)
 
 
 @router.get("/users/{username:path}")
@@ -196,6 +211,7 @@ def user_detail(
     status: Status = "",
     tcode: str = Query("", max_length=128),
     tcodes: list[str] = Query(default=[], max_length=21),
+    transaction_mode: Literal["and", "or"] = "and",
     scope: Literal["business", "release", "other", "all", ""] = "",
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
@@ -216,7 +232,7 @@ def user_detail(
     unmapped = sum(a["match_status"] not in {"exact", "wildcard"} or not a["tcodes"] for a in entries)
     wanted_codes = normalized_tcodes([tcode] + tcodes if tcode else tcodes)
     if wanted_codes:
-        matched_names = matching_role_names(state.tcode_index, wanted_codes, 'or')
+        matched_names = matching_role_names(state.tcode_index, wanted_codes, transaction_mode)
         entries = [a for a in entries if a["match_status"] in {"exact", "wildcard"} and matched_names.intersection(a["catalogue_roles"])]
     rows = sorted(
         entries,
@@ -299,10 +315,7 @@ def release_options(
                 selected_available=available)
 
 
-@router.get("/releases")
-def releases(
-    dates: dict = Depends(assignment_dates),
-    anchor: str = Query("", max_length=512),
+def release_filters(dates:dict=Depends(assignment_dates),
     group: str = Query("", max_length=512),
     document_type: Literal["", "PR", "PO", "Unparsed"] = "",
     release_group: str = Query("", max_length=100),
@@ -310,8 +323,6 @@ def releases(
     username: str = Query("", max_length=512),
     role: str = Query("", max_length=512),
     status: Literal["active", "expired", "future", "unknown", "all"] = "active",
-    matrix_offset: int = Query(0, ge=0),
-    group_by_user_group: bool = False,
     sort: Literal[
         "role_name",
         "document_type",
@@ -320,14 +331,12 @@ def releases(
         "assigned_users",
     ] = "role_name",
     descending: bool = False,
-    offset: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
 ):
-    snapshot = cache.get_snapshot()
-    state = snapshot.users
-    buckets = defaultdict(list)
-    cells = defaultdict(dict)
-    for a in state.assignments:
+    return dict(dates=dates,group=group,document_type=document_type,release_group=release_group,strategy=strategy,username=username,role=role,status=status,sort=sort,descending=descending)
+
+
+def filtered_release_assignments(snapshot, *, dates,group,document_type,release_group,strategy,username,role,status,sort,descending,today=None):
+    for a in snapshot.users.assignments:
         if a["scope"] != "release" or not within_dates(a, dates):
             continue
         r = a["release"]
@@ -343,8 +352,32 @@ def releases(
             continue
         if role and role.casefold() not in a["role_name"].casefold():
             continue
-        if not relevant(a, "" if status == "all" else status, True):
+        if not relevant(a, "" if status == "all" else status, True, today):
             continue
+        yield a
+
+
+@router.get('/exports/releases')
+def export_releases(filters:dict=Depends(release_filters)):
+    snapshot=cache.get_snapshot();today=date.today()
+    if not snapshot.users.report:raise HTTPException(409,'No validated User Access dataset is loaded.')
+    entries=list(filtered_release_assignments(snapshot,**filters,today=today))
+    # Same assignment set in Table/Matrix; grouping never alters export scope.
+    entries.sort(key=lambda a:(normalize_role(a['role_name']),a['user_key'],a['valid_from'] or '',a['valid_to'] or '',a['id']),reverse=filters['descending'])
+    identities={key:user_summary(snapshot.users.users[key],[]) for key in {a['user_key'] for a in entries}}
+    return assignment_response(snapshot,((a,True) for a in entries),identities,len(entries),'release-roles',today)
+
+
+@router.get('/releases')
+def releases(filters:dict=Depends(release_filters),anchor:str=Query('',max_length=512),matrix_offset:int=Query(0,ge=0),group_by_user_group:bool=False,offset:int=Query(0,ge=0),limit:int=Query(50,ge=1,le=100)):
+    snapshot = cache.get_snapshot()
+    state = snapshot.users
+    today=date.today()
+    sort,descending=filters["sort"],filters["descending"]
+    buckets = defaultdict(list)
+    cells = defaultdict(dict)
+    for a in filtered_release_assignments(snapshot,**filters,today=today):
+        r=a['release']
         buckets[normalize_role(a["role_name"])].append(a)
         if r["parsed"]:
             key = (
@@ -407,7 +440,8 @@ def releases(
         matrix=matrix[matrix_offset : matrix_offset + 200],
         matrix_total=len(matrix),
         matrix_offset=matrix_offset,
-        **source_info(snapshot),
+        **source_info(snapshot,today),
+        export_assignments=sum(len(values) for values in buckets.values()),
         groups=state.groups,
         groups_total=state.group_count
     )

@@ -1,3 +1,5 @@
+import {ExportCSVButton} from '@/components/Shared/ExportCSVButton'
+import {useAssignmentCSVExport} from '@/hooks/useAssignmentCSVExport'
 import { PageHeader } from '@/components/Shared/Presentation'
 import { FileCheck2 as PageIcon } from 'lucide-react'
 import { ButtonGroup } from '@/components/Shared/Button'
@@ -108,6 +110,8 @@ export function ReleaseRoles({
     if (offset > last) setOffset(last);
     if (matrixOffset > lastMatrix) setMatrixOffset(lastMatrix);
   }, [result.data, result.isFetching, offset, matrixOffset]);
+  const {group_by_user_group:_grouping,...exportFilters}=filters
+  const assignmentExport=useAssignmentCSVExport('releases',exportFilters,result.data?.data_revision,result.data?.as_of)
   if (drill)
     return (
       <ReleaseDetail
@@ -210,10 +214,13 @@ export function ReleaseRoles({
         <h2>Release assignments <span>{result.data?.total.toLocaleString() ?? '…'} {result.data?.total === 1 ? 'role' : 'roles'}</span></h2>
 
 
+        <ExportCSVButton loading={assignmentExport.busy} disabled={dataLoading||result.isFetching||!result.data?.export_assignments||username!==query.username||role!==query.role} title="Exports every release assignment matching these filters and date bounds, across pages. Table and Matrix use the same assignment set." onClick={()=>void assignmentExport.download()}/>
         <ButtonGroup label="Release results view" value={matrix?'matrix':'table'} onChange={value=>setMatrix(value==='matrix')} options={[{value:'table',label:'Table',icon:<List size={16} aria-hidden="true"/>},{value:'matrix',label:'Matrix',icon:<Grid3X3 size={16} aria-hidden="true"/>}]}/>
 
 
       </div>
+      <p className="ui-description">Export scope: {result.data?.export_assignments?.toLocaleString()??'…'} matching user–release-role assignments across all pages; identical in Table and Matrix.</p>
+      {assignmentExport.message&&<p role={assignmentExport.failed?'alert':'status'}>{assignmentExport.message}</p>}
       <div className="release-secondary-toolbar">
         {matrix && (
           <label className="filter-toggle">
@@ -324,7 +331,7 @@ function ReleaseMatrix({
     );
   const groups = [...new Set(cells.map((c) => (compare ? c.user_group : "")))];
   return (
-    <div className="space-y-4">
+    <div className="release-matrices">
       {groups.map((group) =>
         ["PR", "PO"].map((kind) => {
           const selected = cells.filter(

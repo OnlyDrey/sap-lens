@@ -13,7 +13,7 @@ Desktop: the owned `http://127.0.0.1:<selected-port>` origin, preferring `18743`
 | POST | `/api/compare` | Compare two to five distinct roles |
 | POST | `/api/refresh` | Reload the configured CSV |
 
-Desktop API reads and writes require `X-SAP-Lens: <per-launch-capability>`; the capability is managed by the native window and never written to logs, settings or runtime diagnostics. Source development requires `X-SAP-Lens: 1` for POST. OPTIONS preflight is validated against the exact allowed origin, not a wildcard. Hosts other than localhost/loopback are rejected; desktop binds exclusively to `127.0.0.1`. `/health` and static assets do not reveal the capability or source-file contents.
+Desktop API reads and writes require `X-SAP-Lens: <per-launch-capability>`; the capability is managed by the native window and never written to logs, settings or runtime diagnostics. Source development requires `X-SAP-Lens: 1` for POST. OPTIONS preflight is validated against the exact allowed origin, not a wildcard. Hosts other than localhost/loopback are rejected; desktop binds exclusively to `127.0.0.1`. `/health` and bundled assets do not reveal the capability or source-file contents. The desktop-only root document has a narrow navigation bootstrap exception: exact loopback Host/port and peer, top-level non-cross-site Fetch Metadata, non-cacheable HTML and a fresh CSP nonce. It hands the capability into origin session storage; API endpoints remain guarded. See [Desktop connectivity](DESKTOP.md).
 
 Settings request:
 
@@ -60,7 +60,7 @@ GET `/api/diagnostics` exposes guarded local UI details, including source/applic
 
 Schema-2 configuration now includes independent `theme_colors.light` and `theme_colors.dark` palettes (primary, accent, background, surface, text) and up to 20 named custom presets. HEX colors and 4.5:1 primary-text contrast against both backgrounds are validated. Old schema-2 files backfill defaults without rewriting the file on read. Empty organization names are supported for product-branding fallback.
 
-Native additions `close_application`, `open_logs` and `export_diagnostics` require the launch capability; log opening uses only the fixed owned log path. The trusted startup document is kept in memory, carries no CSV data, loads no remote resources and permits only its authored inline startup logic. The HTTP application's strict script policy is unchanged.
+Native additions `close_application`, `open_logs` and `export_diagnostics` require the launch capability; log opening uses only the fixed owned log path. The trusted startup document is kept in memory, carries no CSV data, loads no remote resources and permits only its authored inline startup logic. The HTTP application allows bundled scripts, plus only the per-response nonce for its guarded desktop browser handoff; arbitrary inline scripts remain blocked.
 
 
 ## Global user/release record navigation
@@ -171,3 +171,35 @@ LAST_NAME, EMAIL, ROLE_VALID_FROM and ROLE_VALID_TO. This enables local preview
 search; the full CSV is not transferred to the DOM. Personal samples remain absent
 from stored user reports and diagnostic exports. Existing session/origin, size,
 row and validation guards still apply.
+
+### Review annotations and assignment transaction matching
+
+GET `/api/access/users/{username}` accepts `transaction_mode=and|or` (default `and`)
+for `tcodes`; it reuses canonical aggregate role mapping sets before pagination.
+User Details export supplies the same mode alongside date/status/scope filters.
+
+GET `/api/account-review` supports `finding=reviewed|pending` in addition to existing
+findings. POST `/api/account-review/decision/{username}` validates current evidence
+before preserving the previous decision and atomically saving the new annotation.
+GET `/api/account-review/history/{username}?offset=0&limit=25` returns bounded earlier
+decisions (maximum page size 100). Authentication and mapping-feature guards apply;
+this is private annotation history, not SAP modification history.
+
+### Filtered assignment CSV downloads
+
+`GET /api/access/exports/users` accepts the same validated directory query filters
+as `/api/access/users` and exports all assignments for all matching users.
+`GET /api/access/exports/releases` accepts the same release/date filters as
+`/api/access/releases`, exporting only matching assignments independently of
+Table/Matrix grouping. Both use the existing feature/session boundary; unavailable
+validated mapping data returns 409. Pagination parameters do not limit exports.
+
+Responses are no-store `text/csv; charset=utf-8` with safe attachment filenames,
+UTF-8 BOM, quote-all semicolon rows and CRLF. Columns are USERNAME, FIRST_NAME,
+LAST_NAME, EMAIL, USER_GROUP, ROLE_NAME, ROLE_VALID_FROM, ROLE_VALID_TO,
+ASSIGNMENT_STATUS, PR_PO, RELEASE_GROUP, RELEASE_STRATEGY, MATCHED_FILTER. Dates are
+DD.MM.YYYY; missing dates remain empty. Formula-like cells receive a leading
+apostrophe in the file only. Snapshot and evaluation day are captured once.
+`X-SAP-Lens-Data-Revision`, `X-SAP-Lens-As-Of` and
+`X-SAP-Lens-Assignment-Count` permit client consistency checks. Normal users/releases
+responses add `data_revision` and `export_assignments`; existing fields are retained.

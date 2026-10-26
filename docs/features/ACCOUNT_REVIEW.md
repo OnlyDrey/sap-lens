@@ -74,7 +74,8 @@ Reliable licensing/contract data would be needed for future financial analysis.
 
 ## Local review annotations
 
-For an account, select its decision button and enter a reviewer, rationale and
+For an account, select its decision button to open Review account. Inspect its
+current findings and supporting SAP/AD evidence before entering a reviewer, rationale and
 one of **Needs review**, **Investigating**, **Approved for deactivation**, or **No
 action required**. This saves immediately through the explicit review action;
 Settings' Apply button is unrelated. The reviewer is self-declared local metadata,
@@ -131,3 +132,32 @@ first filter row; sorting and Descending stay together below. Clear filters is
 right-aligned without stretching vertically. Export review CSV sits outside the
 filter panel beside the result count; its complete filtered export semantics are
 unchanged.
+
+## Review history and source refresh
+
+The modal shows current findings before the decision form, previous decision and
+timestamp, and bounded pages of actual earlier decisions. Save is explicit; Cancel,
+Escape and Close protect edited drafts. Findings remain after a decision until
+source evidence changes; no SAP/AD records are modified.
+
+Annotation storage format 2 reads existing format-1 files without rewriting them.
+An explicit save retains the previous decision as a historical event and writes
+atomically. No missing historical events are invented. Back up private application
+storage before downgrading: older application versions may not read format 2.
+Files are capped at 20 MiB, with at most 1000 retained events per account; a full or
+unreadable store rejects replacement and preserves previous annotations.
+
+New evidence fingerprints exclude CSV row order/IDs and unrelated directory fields.
+Material identity, assignments, account validity/lock, AD status, matching and group
+classification changes reassess currency. Legacy fingerprints remain supported for
+unchanged evidence until the annotation is explicitly saved with the new schema.
+A valid replacement that removes an account marks its retained annotation absent;
+a reappearing username requires review even if its fields look unchanged. Missing
+or disabled sources are not treated as confirmed account removals. Removed accounts
+are not shown as active; their annotations/history remain in private storage.
+Failure to update presence metadata is logged without private values and does not
+erase annotations or block independent source loading.
+
+Reviewed and pending filters use the full current SAP account population. Reviewed
+means a non-stale decision other than Needs review; pending is its complement and
+includes outdated decisions. This differs from the source-finding population.

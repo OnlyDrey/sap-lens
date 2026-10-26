@@ -194,3 +194,11 @@ class InvestigationFilterTests(unittest.TestCase):
         cache.load_cache()
         metrics={m['id']:m for m in self.get('dashboard')['metrics']}
         self.assertEqual(metrics['releases']['value'],3)
+
+    def test_user_detail_and_or_share_role_set_semantics_and_date_scope(self):
+        base='access/users/DEMO_ONE?scope=all&show_expired=true&tcodes=MIGO&tcodes=ME21N'
+        self.assertEqual([a['role_name'] for a in self.get(base)['items']],['ZC:MM:A'])
+        self.assertEqual({a['role_name'] for a in self.get(base+'&transaction_mode=or')['items']},{'ZC:MM:A','ZC:FI:B'})
+        self.assertEqual(self.get(base+'&transaction_mode=or&status=active')['total'],1)
+        self.assertEqual(self.get(base+'&transaction_mode=and&valid_from_min=2024-01-01')['total'],0)
+        self.assertEqual(self.client.get('/api/'+base+'&transaction_mode=unsupported',headers=H).status_code,422)

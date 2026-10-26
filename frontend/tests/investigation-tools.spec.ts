@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Locator, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -34,6 +34,13 @@ async function choose(page: Page, label: string, query: string) {
   await box.click()
   await box.fill(query)
   await page.getByRole('option').filter({ hasText: query }).first().click()
+}
+async function expectIntervals(page:Page,scope:Locator,expected:string[]){
+ const values:string[]=[]
+ for(const button of await scope.getByRole('button',{name:/^(Active assignment|Expired assignment|Future assignment|Unknown validity)$/}).all()){
+  await button.click();const popup=page.getByRole('dialog',{name:/^Assignment validity for/});const facts=await popup.locator('dd').allTextContents();values.push(`${facts[0]} → ${facts[1]}`);await page.keyboard.press('Escape')
+ }
+ for(const interval of expected)expect(values).toContain(interval)
 }
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
@@ -97,8 +104,7 @@ test('comparison entry from details retains User A and original comparison on Ba
       .getByText('1', { exact: true }),
   ).toBeVisible()
   const table = page.getByRole('table', { name: 'User comparison evidence' })
-  await expect(table).toContainText('01.01.2000 → 31.12.9999')
-  await expect(table).toContainText('01.01.2001 → 31.12.9999')
+  await expectIntervals(page,table,['01.01.2000 → 31.12.9999','01.01.2001 → 31.12.9999'])
   await page.getByRole('button', { name: 'Open User B', exact: true }).click()
   await expect(
     page.getByRole('heading', { name: 'User details', exact: true }),
@@ -210,8 +216,7 @@ test('comparison metrics filter results, sorting persists and inline evidence pr
   await expect(evidence).toBeVisible()
   await expect(table.getByRole('columnheader')).toHaveText(['Role / Transaction','Difference','User A Evidence','User B Evidence'])
   await expect(table.locator('details')).toHaveCount(0)
-  await expect(evidence).toContainText('01.01.2000 → 31.12.9999')
-  await expect(evidence).toContainText('01.01.2001 → 31.12.9999')
+  await expectIntervals(page,evidence,['01.01.2000 → 31.12.9999','01.01.2001 → 31.12.9999'])
   await page.getByRole('button', { name: 'Open User A', exact: true }).click()
   await page.goBack()
   await expect(page.getByLabel('Sort comparison', { exact: true })).toHaveValue(
@@ -235,7 +240,7 @@ test('comparison metrics filter results, sorting persists and inline evidence pr
   await openSaved(page, 'comparison')
   await expect(menu.getByRole('combobox',{name:'Saved filter',exact:true})).toHaveAttribute('aria-expanded','false')
   await expect(menu.getByRole('button',{name:'Clear filters',exact:true})).toBeVisible()
-  await expect(page.getByRole('button',{name:'Clear filters',exact:true})).toHaveCount(1)
+  await expect(page.getByRole('region',{name:'Comparison filters',exact:true}).getByRole('button',{name:'Clear filters',exact:true})).toHaveCount(1)
   await menu.getByRole('button', { name: 'Load', exact: true }).click()
   await expect(page.getByLabel('Sort comparison', { exact: true })).toHaveValue(
     'a',

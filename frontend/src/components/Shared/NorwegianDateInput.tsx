@@ -1,3 +1,4 @@
+import { observeAnchorLayout } from '@/lib/observeAnchorLayout'
 import { usePopoverOwners } from './Popover'
 import { createPortal } from 'react-dom'
 import { useEffect, useLayoutEffect, useId, useRef, useState } from 'react'
@@ -69,18 +70,13 @@ export function NorwegianDateInput({
         height = Math.min(natural, Math.max(80, down ? below : above))
       setPosition({
         left: Math.max(8, Math.min(box.right - width, innerWidth - width - 8)),
-        top: down ? box.bottom + 4 : Math.max(8, box.top - height - 4),
+        top: Math.max(8,Math.min(down?box.bottom+4:box.top-height-4,innerHeight-height-8)),
         width,
         maxHeight: height,
       })
     }
     place()
-    window.addEventListener('resize', place)
-    window.addEventListener('scroll', place, true)
-    return () => {
-      window.removeEventListener('resize', place)
-      window.removeEventListener('scroll', place, true)
-    }
+    return button.current?observeAnchorLayout(button.current,popup.current,place):undefined
   }, [open, year, month])
   useEffect(() => {
     if (!open) return

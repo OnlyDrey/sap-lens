@@ -330,6 +330,18 @@ class DesktopTests(unittest.TestCase):
         finally:
             bridge._picker_lock.release()
 
+    def test_assignment_exports_reuse_only_the_exact_authenticated_native_contract(self):
+        from csv_exports import ASSIGNMENT_HEADER
+        bridge=desktop.NativeDialogs('synthetic-capability');bridge._window=self.window
+        content=ASSIGNMENT_HEADER+'"SYN";"Åse";"Example";"";"G";"ZC:SYN:EN*";"";"";"Unknown";"";"";"";"No"\r\n'
+        target=self.root/'Synthetic assignment export.csv';self.window.create_file_dialog.return_value=[str(target)]
+        for kind in ['user-directory','release-roles']:
+            name=f'sap-lens-{kind}-review-2026-10-26.csv'
+            with self.assertRaises(ValueError):bridge.save_user_access_csv('wrong',name,content)
+            with self.assertRaises(ValueError):bridge.save_user_access_csv('synthetic-capability',name,'\ufeff"Username","User group",')
+            self.assertTrue(bridge.save_user_access_csv('synthetic-capability',name,content));self.assertEqual(target.read_bytes(),content.encode('utf-8'))
+        with self.assertRaises(ValueError):bridge.save_user_access_csv('synthetic-capability','sap-lens-unrelated-review-2026-10-26.csv',content)
+
     def test_change_report_save_reuses_guarded_dialog_with_its_own_csv_contract(self):
         bridge=desktop.NativeDialogs('synthetic-capability');bridge._window=self.window
         filename='sap-lens-refresh-changes-report-2026-10-23.csv'
