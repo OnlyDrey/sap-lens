@@ -456,15 +456,14 @@ test('source snapshot recovery persists records after removal and reload with co
   await page
     .getByRole('tab', { name: 'Health & Diagnostics', exact: true })
     .click()
-  await expect(
-    page.getByText('Employee Directory technical details', { exact: true }),
-  ).toBeVisible()
-  await expect(
-    page.getByRole('region', {
-      name: 'Employee Directory diagnostics',
-      exact: true,
-    }),
-  ).toBeHidden()
+  const directorySource = page.getByRole('region', { name: 'Employee Directory CSV', exact: true })
+  await directorySource.getByRole('button', { name: 'Technical source details', exact: true }).click()
+  const sourceDetails = page.getByRole('dialog', { name: 'Employee Directory CSV technical details', exact: true })
+  await expect(sourceDetails).toBeVisible()
+  await expect(sourceDetails.getByText('Configured file', { exact: true })).toBeVisible()
+  await expect(sourceDetails.getByRole('region', { name: 'Employee Directory diagnostics', exact: true })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(sourceDetails).toHaveCount(0)
   await page.getByRole('tab', { name: 'About SAP Lens', exact: true }).click()
   await expect(
     page.getByRole('region', { name: 'About SAP Lens', exact: true }),
