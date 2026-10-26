@@ -6,6 +6,11 @@
 
 ## Comprehensive UI/UX refinement — 26 October 2026
 
+Delivery preflight on 26 October 2026 confirmed clean `work` at `aaccce2` and
+unchanged remote `work` at `e8e33d2`. The documentation restructuring and both UI
+refinement commits are intentional descendants. The approved delivery retains the
+standing `[skip ci]` instruction; no manual workflow or release is dispatched.
+
 Baseline `2ba408908a7c090edd623daaa610c10023fe7b9b` and all prior commits are
 preserved. Validated implementation commit:
 `3661971ddaa9957808da5acb05fbfca251ea74d2` (commands executed on its working-tree
