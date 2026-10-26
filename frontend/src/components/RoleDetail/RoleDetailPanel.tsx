@@ -1,3 +1,4 @@
+import { TransactionCount } from '@/components/Shared/TransactionCount'
 import { Button } from '@/components/Shared/Button'
 import { useApplicationData } from '@/state/ApplicationData'
 import { DetailNavigation } from "@/components/Shared/InvestigationNavigation"
@@ -24,7 +25,7 @@ const SingleRoleRow = memo(function SingleRoleRow({ sr, onTcodeUsers, transactio
           {open ? <ChevronDown size={14} aria-hidden="true"/> : <ChevronRight size={14} aria-hidden="true"/>}
         </button>
         <div className="single-role-heading-main">
-          <RoleMetadata code={sr.function_key} name={sr.module_name} description={sr.child_agr_text}><span className="single-role-count" aria-label={`${sr.tcodes.length} transactions`}><Zap size={12} aria-hidden="true"/>{sr.tcodes.length}</span></RoleMetadata>
+          <RoleMetadata code={sr.function_key} name={sr.module_name} description={sr.child_agr_text}><TransactionCount count={sr.tcodes.length}/></RoleMetadata>
           <RoleIdentifier value={sr.child_agr} />
           {sr.assignment_kind === 'direct' && <span className="single-role-assignment">Direct assignment</span>}
           {sr.assignment_kind === 'effective' && <span className="single-role-assignment">Effective-role assignment</span>}

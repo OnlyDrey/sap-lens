@@ -1,7 +1,9 @@
+import { useModuleVisual } from '@/components/Modules/ModuleRegistry'
 import { useEffect, useRef, useState, type ButtonHTMLAttributes } from 'react'
 import { Check, Copy, ArrowUpRight } from 'lucide-react'
 
 interface RoleIdentifierProps {
+  moduleId?: string | null
   value: string
   label?: string
   onOpen?: () => void
@@ -9,18 +11,21 @@ interface RoleIdentifierProps {
   openButtonProps?: ButtonHTMLAttributes<HTMLButtonElement> & { 'data-user'?: string }
 }
 
-export function RoleIdentifier({ value, label = 'role identifier', onOpen, openLabel, openButtonProps }: RoleIdentifierProps) {
+export function RoleIdentifier({ moduleId, value, label = 'role identifier', onOpen, openLabel, openButtonProps }: RoleIdentifierProps) {
+  const visual=useModuleVisual(moduleId)
   const [message, setMessage] = useState('')
   const timer = useRef<ReturnType<typeof setTimeout>>()
   useEffect(() => () => clearTimeout(timer.current), [])
   return (
     <span
       className="role-identifier"
+      style={moduleId?{borderColor:visual.color}:undefined}
       data-np
       data-copied={message === 'Copied'}
       onClick={(e) => e.stopPropagation()}
+      onKeyDown={event=>{if((event.key==='ArrowRight'||event.key==='ArrowLeft')&&(event.target instanceof HTMLElement)&&(event.target.tagName==='CODE'||event.target.closest('.role-identifier-link'))){event.currentTarget.querySelector('code')?.scrollBy({left:event.key==='ArrowRight'?60:-60});event.preventDefault()}}}
     >
-      {onOpen ? <button {...openButtonProps} type="button" className="role-identifier-link" aria-label={openLabel || `Open ${value}`} onClick={onOpen}><code>{value}</code><ArrowUpRight size={14} aria-hidden="true" className="shrink-0"/></button> : <code>{value}</code>}
+      {onOpen ? <button {...openButtonProps} type="button" className="role-identifier-link" aria-label={openLabel || `Open ${value}`} onClick={onOpen}><code title={value}>{value}</code><ArrowUpRight size={14} aria-hidden="true" className="shrink-0"/></button> : <code tabIndex={0} aria-label={`Full ${label}: ${value}`} title={value}>{value}</code>}
       <button
         type="button"
         aria-label={`Copy ${label} ${value}`}

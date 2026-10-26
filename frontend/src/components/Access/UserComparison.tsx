@@ -1,3 +1,5 @@
+import { Popover } from '@/components/Shared/Popover'
+import { ClearFilterButton } from '@/components/Shared/ClearFilterButton'
 import { FilterPanel } from '@/components/Shared/InvestigationPatterns'
 import { SearchInput } from '@/components/Shared/Controls'
 import { AssignmentStatus } from '@/components/Shared/InvestigationNavigation'
@@ -27,7 +29,8 @@ import { Select } from '@/components/Shared/Select'
 import { AccountStatus } from '@/components/Shared/AccountStatus'
 import { SavedFilters } from '@/components/Shared/SavedFilters'
 import { csvField } from '@/lib/accessExport'
-import { Filter, inputClass, Pagination, QueryState, dates } from './Shared'
+import { formatDate } from '@/lib/dateFormat'
+import { Filter, inputClass, Pagination, QueryState } from './Shared'
 interface Row {
   identifier: string
   difference: string
@@ -163,21 +166,10 @@ function EvidenceCell({
               </div>
             ) : (
               <div key={i} className="comparison-evidence-item">
-                <RoleIdentifier value={e.role_name} />
-                <p>{dates(e.valid_from, e.valid_to)}</p>
-                <p>
-                  <AssignmentStatus value={e.status} /> ·{' '}
-                  SAP User Group: {e.user_group || 'Unknown'} · {e.match_status === 'wildcard' ? 'Wildcard match' : e.match_status === 'exact' ? 'Exact match' : e.match_status === 'ambiguous' ? 'Ambiguous match' : 'Unmapped'}
-                </p>
-                {e.catalogue_roles.map((r) => (
-                  <button
-                    key={r}
-                    className="text-link ml-2"
-                    onClick={() => onRole(r)}
-                  >
-                    {r}
-                  </button>
-                ))}
+                <RoleIdentifier value={e.role_name} onOpen={e.catalogue_roles.length===1&&['exact','wildcard'].includes(e.match_status)?()=>onRole(e.catalogue_roles[0]):undefined} openLabel={`Open catalogue details for ${e.role_name}`}/>
+                <div className="assignment-status-control"><Popover label={`Assignment validity for ${e.role_name}`} trigger={<AssignmentStatus value={e.status}/>}><dl className="ui-metadata-list"><div><dt>Valid from</dt><dd>{formatDate(e.valid_from)}</dd></div><div><dt>Valid to</dt><dd>{formatDate(e.valid_to)}</dd></div><div><dt>Evaluated assignment status</dt><dd><AssignmentStatus value={e.status}/></dd></div></dl></Popover></div>
+                <p className="ui-description">SAP User Group: {e.user_group || 'Unknown'}</p>
+
               </div>
             ),
           )}
@@ -530,6 +522,12 @@ export function UserComparison({
           )
         })}
       </div>
+      <SavedFilters
+        showClear={false} view="comparison"
+        state={state}
+        apply={apply}
+        clear={clear}
+      />
       <FilterPanel label="Comparison filters" className="comparison-filter-bar">
         <Filter label="Assignment validity">
           <Select
@@ -624,12 +622,7 @@ export function UserComparison({
               />
               Descending
             </label></div>
-      <SavedFilters
-        view="comparison"
-        state={state}
-        apply={apply}
-        clear={clear}
-      />
+      <ClearFilterButton className="comparison-clear" onClick={clear}>Clear filters</ClearFilterButton>
       </FilterPanel>
       <QueryState loading={result.isFetching} error={result.error} />
       {(!a || !b) && (

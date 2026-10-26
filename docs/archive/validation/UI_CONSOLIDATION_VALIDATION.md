@@ -404,3 +404,68 @@ The consolidation changes the frontend component/layout/state/style files and th
 - `frontend/src/styles/components.css`
 - `frontend/src/styles/tokens.css`
 - `frontend/tests/design-system.spec.ts`
+
+## Compact evidence and desktop/browser connectivity — 26 October 2026
+
+Baseline: clean `work` at `be7be626d9247255f3ec6049a8b1372e2321bb32`.
+This follow-up preserves the preceding implementation and changes no dependencies,
+CSV schemas, assignment calculations, matching rules or deployment workflows.
+
+| Request | Implemented change |
+|---|---|
+| 1 | Shared Popover remeasures dynamic contents, constrains only to available viewport; Saved Filter actions have a token-sized gap |
+| 2 | Single-role zebra surfaces remain invariant on hover; toggle/copy retain independent interaction and focus |
+| 3 | Canonical role identifiers stay single-line, complete and copyable, with contained keyboard/horizontal scrolling |
+| 4 | RoleMetadata uses backend classification only; description prefixes cannot invent an area; BC parent and unclassified child evidence remain distinct |
+| 5 | TransactionCount consolidates existing lightning/count presentation across catalogue cards, single roles, comparison and the real Component Library |
+| 6 | Compare Roles identifiers retain canonical area colors; exclusive counters have explicit spacing; calculations unchanged |
+| 7 | Desktop User Directory has five primary columns, plain expired checkbox below role and Descending below sorting; Clear stays bottom-right |
+| 8 | Account Review uses five filter columns and three readable metric groups; existing counts/actions preserved |
+| 9 | Compare Users Saved Filters sits above the filter panel; the panel has its own shared Clear action |
+| 10 | Shared / A-only / B-only consistently use green / blue / red theme tokens and explicit labels |
+| 11 | Evidence shows exact identifier, interactive assignment status and source group; status popover exposes exact dates/status, with Unknown distinct from 31.12.9999 |
+| 12 | Comparison summary counters size to content and wrap |
+| 13 | PR/PO matrices are content-sized, side-by-side when space allows, stacked at tablet width, independently scrollable |
+| 14 | Owned desktop listener supports plain 127.0.0.1 and localhost browser roots through a guarded per-launch capability handoff; no second backend |
+
+### Connectivity evidence and trust boundary
+
+The failure was capability delivery, not a missing frontend server: WebView2 alone
+received the launch fragment, and the localhost alias was absent from allowed
+origins. The desktop now opts into an exact selected-port/loopback-peer root
+handoff. Only a top-level non-cross-site document navigation receives non-cacheable
+HTML with a fresh CSP nonce; cross-site/frame/resource requests do not obtain the
+capability. API reads/writes still require it. Server hosting behavior is unchanged.
+
+Executed real Chromium against the actual ManagedBackend HTTP runtime on Linux:
+both plain roots loaded/reloaded, authenticated APIs returned 200, unguarded APIs
+returned 403, and a synthetic configuration update through one origin was visible
+through the other. The owned runtime shut down cleanly. This did not initialize
+Windows/WebView2 and is not native desktop acceptance. Existing desktop lifecycle
+tests exercise real HTTP/readiness/port-conflict/shutdown behavior with GUI/Windows
+boundaries mocked. Retry connection already performs a real configuration refetch.
+
+### Validation procedure and limits
+
+Logs are outside Git at `/workspace/sap-lens-dev/connectivity-*.log`; synthetic
+screenshots are under the ignored `frontend/test-results/` and a retained external
+`/workspace/sap-lens-dev/connectivity-visual/` directory. Use current canonical
+[desktop](../../architecture/DESKTOP.md), [role](../../features/ROLE_LOOKUP.md),
+[comparison](../../features/COMPARE_USERS.md) and
+[component](../../architecture/COMPONENTS.md) documentation for behavior.
+
+Executed results for this follow-up:
+
+- `npm_config_cache=/workspace/.cache/npm npm --prefix frontend ci --no-audit --no-fund`: passed; lockfile unchanged. The first attempt used an unwritable default npm cache; retrying with a workspace cache succeeded.
+- `npm --prefix frontend run check:types` and `npm --prefix frontend run build`: passed. Existing large-chunk build advisory remains.
+- `.venv/bin/python -m unittest discover -s backend/tests -v`: 412 run, 410 passed and two PowerShell availability skips. With the prepared portable PowerShell on PATH and writable XDG directories, the complete `test_local_build.py` group reran: 17 passed, including both skipped checks.
+- Focused browser changes: six final targeted regressions passed. The first full run found two obsolete four-column expectations (248 passed); these were updated to the required five-column contract. Screenshot review additionally bounded comparison columns so long identifiers cannot displace evidence.
+- Final frozen implementation: `PATH=/workspace/sap-lens/.venv/bin:$PATH PLAYWRIGHT_EXECUTABLE_PATH=/usr/bin/chromium npm --prefix frontend run test:browser`: **250 passed together**, 8.3 minutes, one worker, no retries.
+- `python -m pip check`, installed-environment `pip_audit` and `npm audit --omit=dev`: passed, no production vulnerabilities found. Full npm audit reports three moderate development advisories in the existing Tailwind/PostCSS chain; no dependency upgrades or suppressions were introduced.
+- `python scripts/check-docs.py`: 73 Markdown files, zero failures. `python scripts/check-workflows.py`, actionlint, PowerShell syntax/static/service-helper checks, Lucide catalogue check (1447 icons), and `git diff --check`: passed.
+- Captured light/dark layouts at 375/800/1280/1600 pixels; inspected representative directory/review/filter popovers, comparison evidence, role details and matrices. Geometry assertions cover action spacing, contained overflow, keyboard focus, single-line identifiers and PR/PO placement. Screenshots are review artifacts, not pixel-golden comparisons.
+- New content review found only synthetic/reserved-domain fixtures, generic documentation and code; no new private assets, credentials, company identifiers or source exports. Accepted historical branding remains unchanged.
+
+Native Windows/WebView2 startup, browser/real WebView simultaneous state, native
+clipboard/dialogs, packaged EXE and UNC remain untested here. No Windows build,
+push, workflow dispatch, tag, release or package publication was performed.

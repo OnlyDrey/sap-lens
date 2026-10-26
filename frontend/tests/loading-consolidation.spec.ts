@@ -264,7 +264,7 @@ for (const theme of ['light', 'dark'] as const)
       const cols = await filter.evaluate(
         (el) => getComputedStyle(el).gridTemplateColumns.split(' ').length,
       )
-      expect(cols).toBe(width >= 1100 ? 4 : width >= 640 ? 2 : 1)
+      expect(cols).toBe(width >= 1200 ? 5 : width >= 1100 ? 4 : width >= 640 ? 2 : 1)
       await page.evaluate(() => window.scrollTo(0, 0))
       await page.screenshot({
         path: info.outputPath('user-filters.png'),

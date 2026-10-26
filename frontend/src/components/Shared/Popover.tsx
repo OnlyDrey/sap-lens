@@ -53,7 +53,7 @@ export function Popover({
         below = innerHeight - box.bottom - 12,
         above = box.top - 12,
         height = Math.min(
-          panel.current?.scrollHeight || 400,
+          (panel.current?.scrollHeight || 400) + 2,
           Math.max(below, above),
           innerHeight - 24,
         )
@@ -68,6 +68,10 @@ export function Popover({
       })
     }
     place()
+    const observer=new ResizeObserver(place)
+    if(panel.current)observer.observe(panel.current)
+    const mutations=new MutationObserver(place)
+    if(panel.current)mutations.observe(panel.current,{childList:true,subtree:true,characterData:true})
     const frame = requestAnimationFrame(() =>
       Array.from(panel.current?.querySelectorAll<HTMLElement>('input:not(:disabled),select:not(:disabled),button:not(:disabled),[tabindex="0"]')||[]).find(element=>element.getClientRects().length)?.focus(),
     )
@@ -75,6 +79,8 @@ export function Popover({
     window.addEventListener('resize', place)
     window.addEventListener('scroll', place, true)
     return () => {
+      observer.disconnect()
+      mutations.disconnect()
       cancelAnimationFrame(frame)
       panel.current?.removeEventListener('toggle',place,true)
       window.removeEventListener('resize', place)

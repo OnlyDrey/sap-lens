@@ -40,7 +40,8 @@ for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(
  const popup=page.getByRole('dialog',{name:'users saved filters',exact:true})
  const save=popup.getByRole('button',{name:'Save as new',exact:true}),clear=popup.getByRole('button',{name:'Clear filters',exact:true})
  const sa=(await save.boundingBox())!,cl=(await clear.boundingBox())!
- expect(Math.abs(sa.width-cl.width)).toBeLessThan(1);expect(Math.abs(sa.y-cl.y)).toBeLessThan(1)
+ expect(Math.abs(sa.width-cl.width)).toBeLessThan(1);expect(Math.abs(sa.y-cl.y)).toBeLessThan(1);expect(cl.x-(sa.x+sa.width)).toBeGreaterThanOrEqual(7)
+ expect(await popup.evaluate(el=>el.scrollHeight<=el.clientHeight+1)).toBeTruthy()
  await page.keyboard.press('Escape');await expect(region.getByRole('button',{name:/Saved filters/})).toBeFocused()
 
  await capture(page,info,'user-directory.png')
@@ -61,7 +62,7 @@ test('inline long-role comparison preserves all validity evidence and swap ident
  await choose(page,'User A','SYN_A');await choose(page,'User B','SYN_B');await page.getByLabel('Assignment validity',{exact:true}).selectOption('all')
  const table=page.getByRole('table',{name:'User comparison evidence',exact:true})
  const row=table.getByRole('row').filter({has:page.getByRole('cell').filter({hasText:actual})}).first()
- await expect(table).toContainText(actual);await expect(table).toContainText('Wildcard')
+ await expect(table).toContainText(actual);await expect(table.getByText('Wildcard match',{exact:true})).toHaveCount(0)
  for(const text of ['Active assignment','Expired assignment','Future assignment','Unknown validity'])await expect(table.getByText(text,{exact:true}).first()).toBeVisible()
  await expect(table.getByRole('button',{name:`Copy role identifier ${actual}`,exact:true})).toHaveCount(6)
  await expect(row).toBeVisible();await expect(page.getByRole('button',{name:'Swap users',exact:true})).toBeVisible();await page.getByRole('button',{name:'Swap users',exact:true}).click()
@@ -87,14 +88,14 @@ test('validated user preview searches response-only identity fields without chan
  const diagnostics=await(await request.get('/api/diagnostics/export',{headers})).text();expect(diagnostics).not.toContain('beta@example.test')
 })
 
-test('single-role zebra surfaces reverse on hover without inner rounding',async({page})=>{
+test('single-role zebra surfaces remain unchanged on hover without inner rounding',async({page})=>{
  await page.goto('/#session=browser-test-session');await nav(page,'Role Lookup');await page.getByRole('button',{name:'View details for Synthetic purchasing investigation',exact:true}).click()
  const entries=page.getByRole('dialog',{name:`Role details: ${pattern}`,exact:true}).locator('.single-role-entry')
  const primary=await entries.nth(0).evaluate(el=>getComputedStyle(el).backgroundColor),secondary=await entries.nth(1).evaluate(el=>getComputedStyle(el).backgroundColor)
  expect(primary).not.toBe(secondary);await expect(entries.nth(0)).toHaveCSS('border-radius','0px');await expect(entries.nth(1)).toHaveCSS('border-radius','0px')
- await entries.nth(0).hover();await expect(entries.nth(0)).toHaveCSS('background-color',secondary)
- await entries.nth(1).hover();await expect(entries.nth(1)).toHaveCSS('background-color',primary)
- await expect(entries.nth(0).locator('.role-module-metadata .single-role-count')).toHaveText('1')
+ await entries.nth(0).hover();await expect(entries.nth(0)).toHaveCSS('background-color',primary)
+ await entries.nth(1).hover();await expect(entries.nth(1)).toHaveCSS('background-color',secondary)
+ await expect(entries.nth(0).locator('.role-module-metadata .transaction-count')).toHaveText('1')
 })
 test('large matrix contains scrolling, empty cells and high counts in both themes',async({page,request},info)=>{
  const cells=Array.from({length:200},(_,i)=>({document_type:'PR',user_group:'SYN_GROUP',release_group:`G${Math.floor(i/20)}`,release_strategy:String(i%20).padStart(2,'0'),user_count:i===0?99999:i+1})).filter((_,i)=>i!==1)
@@ -107,4 +108,28 @@ test('large matrix contains scrolling, empty cells and high counts in both theme
   expect(await matrix.evaluate(el=>el.scrollWidth>el.clientWidth)).toBeTruthy();await matrix.focus();await page.keyboard.press('ArrowRight');await expect.poll(()=>matrix.evaluate(el=>el.scrollLeft)).toBeGreaterThan(0)
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();await capture(page,info,`large-matrix-${theme}.png`)
  }
+})
+
+test('compact evidence retains exact dates, horizontal identifiers and keyboard popover focus',async({page},info)=>{
+ await page.setViewportSize({width:1280,height:1000});await page.goto('/#session=browser-test-session');await nav(page,'User Access');await mode(page,'Compare users')
+ await choose(page,'User A','SYN_A');await choose(page,'User B','SYN_B');await page.getByLabel('Assignment validity',{exact:true}).selectOption('all')
+ const panel=page.getByRole('region',{name:'Comparison filters',exact:true})
+ await expect(panel.getByRole('button',{name:'Clear filters',exact:true})).toBeVisible()
+ const table=page.getByRole('table',{name:'User comparison evidence',exact:true});expect((await table.getByRole('columnheader').first().boundingBox())!.width).toBeLessThan(400)
+ expect(await panel.getByRole('button',{name:/Saved filters/}).count()).toBe(0)
+ const evidence=page.locator('.comparison-evidence-item').filter({has:page.getByRole('button',{name:'Active assignment',exact:true})}).first()
+ const code=evidence.locator('.role-identifier code').first();await expect(code).toHaveCSS('white-space','nowrap');expect(await code.evaluate(el=>el.scrollWidth>el.clientWidth)).toBeTruthy()
+ await evidence.locator('.role-identifier-link').focus();await page.keyboard.press('ArrowRight');await expect.poll(()=>code.evaluate(el=>el.scrollLeft)).toBeGreaterThan(0)
+ const active=evidence.getByRole('button',{name:'Active assignment',exact:true});await active.click()
+ const popup=page.getByRole('dialog',{name:`Assignment validity for ${actual}`,exact:true})
+ await expect(popup).toContainText('01.01.2000');await expect(popup).toContainText('31.12.9999');await popup.screenshot({path:info.outputPath('assignment-popover.png')});await page.keyboard.press('Escape');await expect(active).toBeFocused()
+ const unknown=page.getByRole('button',{name:'Unknown validity',exact:true}).first();await unknown.click();await expect(popup.locator('dd').nth(0)).toHaveText('Unknown');await expect(popup.locator('dd').nth(1)).toHaveText('Unknown');await page.keyboard.press('Escape')
+})
+test('PR and PO matrices share a content-sized row and stack at tablet width',async({page})=>{
+ const matrix=['PR','PO'].map(document_type=>({document_type,user_group:'SYN_GROUP',release_group:'SH',release_strategy:'N6',user_count:2}))
+ await page.route(url=>url.pathname==='/api/access/releases',route=>route.fulfill({json:{items:[],total:0,offset:0,limit:50,loaded:true,groups:['SYN_GROUP'],matrix_total:2,matrix_offset:0,matrix}}))
+ await page.setViewportSize({width:1600,height:1000});await page.goto('/#session=browser-test-session');await nav(page,'Release Roles');await page.getByRole('button',{name:'Matrix',exact:true}).click()
+ const pr=page.getByRole('table',{name:'PR release matrix',exact:true}),po=page.getByRole('table',{name:'PO release matrix',exact:true})
+ const a=(await pr.boundingBox())!,b=(await po.boundingBox())!;expect(Math.abs(a.y-b.y)).toBeLessThan(2);expect(b.x).toBeGreaterThan(a.x+a.width)
+ await page.setViewportSize({width:800,height:1000});expect((await po.boundingBox())!.y).toBeGreaterThan((await pr.boundingBox())!.y+a.height)
 })

@@ -126,3 +126,22 @@ The authenticated User Access preview includes at most 20 identity/assignment
 samples; these response-only samples remain absent from persistent reports and
 sanitized diagnostics. RoleMetadata accepts a leading evidence slot for the
 single-role transaction count without changing source classification.
+
+## Compact role evidence
+
+`Shared/RoleIdentifier.tsx` is the canonical exact role identifier and copy action.
+It stays on one line, with contained horizontal scrolling and Arrow Left/Right
+support when focused; the title and accessible name retain the complete value.
+Optional `moduleId` colors use canonical backend module evidence.
+`Shared/RoleMetadata.tsx` never classifies from a description prefix: unknown single
+roles stay unclassified when the source has no independent module evidence.
+`Shared/TransactionCount.tsx` renders the same compact count badge in catalogue,
+single-role, comparison and Component Library views. Single-role zebra backgrounds
+remain invariant on hover; only the expand/collapse action has hover feedback.
+
+Saved Filters uses the shared Popover, which measures dynamic content and applies
+viewport-constrained scrolling only when needed. Adjacent Save/Clear actions use
+an explicit spacing token. User Directory and Account Review use five primary
+filter columns at desktop widths; smaller widths retain the existing reflow.
+Release PR/PO matrices size to their contents, sharing a row where possible and
+stacking at tablet widths, with independent scroll regions.

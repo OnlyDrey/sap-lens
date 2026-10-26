@@ -1,6 +1,7 @@
+import { TransactionCount } from '@/components/Shared/TransactionCount'
 import { ModuleIcon } from '@/components/Modules/ModuleIcon'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
-import { Plus, Check, ArrowRight, Zap, Layers } from 'lucide-react'
+import { Plus, Check, ArrowRight, Layers } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { RoleSummary } from '@/api/types'
 
@@ -109,13 +110,7 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
           )}
           {hasSR && <span style={{ color:'var(--border)', userSelect:'none' }}>|</span>}
 
-          <div className="flex items-center gap-1">
-            <Zap className="w-3 h-3 flex-shrink-0" style={{ color:'var(--accent2)' }} />
-            <span className="text-xs font-bold tabular-nums" style={{ color:'var(--text2)' }}>
-              {role.tcode_count.toLocaleString()}
-            </span>
-            <span className="text-xs" style={{ color:'var(--muted)' }}>Transactions</span>
-          </div>
+          <TransactionCount count={role.tcode_count}/>
 
           <button data-np
             onClick={e => { e.stopPropagation(); onClick(role.agr_name) }}

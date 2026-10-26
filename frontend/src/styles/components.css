@@ -261,12 +261,9 @@ main h1,.settings-content h1 { font-size:var(--font-title); font-weight:600; }
 .single-role-list {container-type:inline-size}
 .single-role-list .single-role-entry {border-radius:0;padding:0;background:var(--surface)}
 .single-role-list>div:nth-child(even) .single-role-entry,.single-role-list>.single-role-entry:nth-child(even) {background:var(--surface2)}
-.single-role-list .single-role-entry:hover {background:var(--surface2)}
-.single-role-list>div:nth-child(even) .single-role-entry:hover,.single-role-list>.single-role-entry:nth-child(even):hover {background:var(--surface)}
 .single-role-list .single-role-heading {grid-template-columns:auto minmax(0,1fr);padding:var(--space-3);background:transparent}
 .role-module-metadata {min-width:0}
 .role-metadata-title {min-width:0;overflow-wrap:anywhere;flex:1 1 150px}
-.single-role-count {flex:none;white-space:nowrap}
 .single-role-heading-main {display:grid;align-items:center;gap:var(--space-2);grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 .role-detail-heading-content {display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--space-2);align-items:start}
 .role-detail-heading-content nav {grid-column:1/-1}
@@ -325,3 +322,49 @@ main h1,.settings-content h1 { font-size:var(--font-title); font-weight:600; }
 @media(max-width:1099px){.review-metric-groups{grid-template-columns:minmax(0,1fr)}}
 
 .role-detail-description {display:flex;flex-direction:column;gap:var(--space-2);min-width:0}
+
+/* Shared identifiers stay complete on one line, with explicit contained scrolling. */
+.role-identifier {display:inline-flex;flex-wrap:nowrap;width:max-content;max-width:min(100%,28rem);padding:2px 4px;gap:var(--space-1);vertical-align:middle}
+.role-identifier code {white-space:nowrap;overflow-wrap:normal;overflow-x:auto;min-width:0;max-width:100%;scrollbar-width:thin}
+.role-identifier code:focus-visible {outline:2px solid var(--focus);outline-offset:1px}
+.role-identifier-link {min-width:0;max-width:100%}
+.role-identifier-link code {flex:1}
+.saved-filter-actions {gap:var(--space-2)}
+.saved-filter-panel {min-width:0;overflow:visible}
+.single-role-list .single-role-entry:hover {background:var(--surface)}
+.single-role-list>div:nth-child(even) .single-role-entry:hover,.single-role-list>.single-role-entry:nth-child(even):hover {background:var(--surface2)}
+.transaction-count {display:inline-flex;align-items:center;gap:var(--space-1);padding:2px 6px;border-radius:var(--radius-badge);font-size:var(--font-meta);font-weight:600;color:var(--accent2);background:color-mix(in srgb,var(--accent2) 10%,var(--surface));white-space:nowrap;font-variant-numeric:tabular-nums;flex:none}
+.role-comparison-row {display:flex;align-items:center;gap:var(--space-3);padding:var(--space-2) var(--space-3);background:var(--surface)}
+.role-comparison-exclusive {display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3);margin-top:var(--space-2)}
+.comparison-filter-bar>.comparison-clear {grid-column:-2/-1;justify-self:end;align-self:end}
+.comparison-metrics {display:flex;flex-wrap:wrap;gap:var(--space-2)}
+.comparison-metrics>.comparison-metric {flex:0 1 auto;min-width:145px;max-width:100%;padding:var(--space-3)}
+.assignment-status-control {margin:var(--space-2) 0}
+.assignment-status-control>.ui-button {padding:0;border:0;min-height:28px;background:transparent}
+.assignment-status-control>.ui-button:hover {background:var(--hover)}
+.comparison-evidence-item>p {margin-top:var(--space-1)}
+.release-matrices {display:flex;align-items:start;flex-wrap:wrap;gap:var(--space-4);min-width:0}
+.release-matrices>div {flex:0 1 auto;min-width:0;max-width:100%}
+.release-matrices>p {flex-basis:100%}
+@media(min-width:1200px){
+ .directory-filter-grid,.review-filters {grid-template-columns:repeat(5,minmax(0,1fr))}
+ .directory-filter-grid>.ui-field:nth-child(1){grid-column:1;grid-row:1}
+ .directory-filter-grid>.ui-field:nth-child(2){grid-column:2;grid-row:1}
+ .directory-filter-grid>.ui-field:nth-child(3){grid-column:3;grid-row:1}
+ .directory-transaction{grid-column:4;grid-row:1/span 2}
+ .directory-sort>.ui-field{grid-column:5;grid-row:1}
+ .directory-sort>.filter-toggle{grid-column:5;grid-row:2}
+ .directory-expired{grid-column:3;grid-row:2;padding:0;border:0;background:transparent;min-height:24px}
+ .directory-clear{grid-column:5;grid-row:3}
+}
+.review-metric-groups {grid-template-columns:repeat(3,minmax(0,1fr))}
+.review-metric-groups>section .review-metrics {display:flex;flex-direction:column}
+.review-metrics .compact-health {display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center}
+.review-metrics .compact-health>button {grid-column:1/-1;justify-self:start}
+@media(max-width:1099px){.review-metric-groups{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:800px){.release-matrices{flex-direction:column;align-items:stretch}}
+/* Bound intrinsic nowrap widths so long evidence cannot displace other columns. */
+.comparison-table {table-layout:fixed;min-width:1100px}
+.comparison-table th:nth-child(1) {width:26%}
+.comparison-table th:nth-child(2) {width:12%}
+.comparison-table th:nth-child(3),.comparison-table th:nth-child(4) {width:31%}

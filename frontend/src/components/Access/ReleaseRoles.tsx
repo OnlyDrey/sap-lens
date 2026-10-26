@@ -324,7 +324,7 @@ function ReleaseMatrix({
     );
   const groups = [...new Set(cells.map((c) => (compare ? c.user_group : "")))];
   return (
-    <div className="space-y-4">
+    <div className="release-matrices">
       {groups.map((group) =>
         ["PR", "PO"].map((kind) => {
           const selected = cells.filter(
