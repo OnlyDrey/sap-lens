@@ -112,7 +112,7 @@ def configuration_router(loader, desktop_preferences=None):
     def read_config():
         state = cache.get_snapshot()
         return {'settings':get_settings().model_dump(), 'notice':configuration_notice(),
-                'loading':loader.loading, 'error':loader.error, 'analysis':state.analysis,
+                'loading':loader.loading, 'progress':loader.progress, 'error':loader.error, 'analysis':state.analysis,
                 'data_revision':state.last_loaded.isoformat() if state.last_loaded else 'empty'}
 
     @router.post('/configuration')

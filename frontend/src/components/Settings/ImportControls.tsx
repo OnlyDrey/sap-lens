@@ -6,10 +6,10 @@ import { Combobox } from '@/components/Shared/Combobox'
 import { DataTable, StatusBadge } from '@/components/Shared/Presentation'
 
 /** Shared presentation only: selection and activation remain owned by each importer. */
-export function SourceFileField({ label, value, onChange, onBrowse, browseLabel, disabled=false, native=false, inputRef, placeholder }: {
- label:string;value:string;onChange:(value:string)=>void;onBrowse:()=>void;browseLabel:string;disabled?:boolean;native?:boolean;inputRef?:Ref<HTMLInputElement>;placeholder?:string
+export function SourceFileField({ label, value, onChange, onBrowse, browseLabel, disabled=false, native=false, inputRef, placeholder, onCommit }: {
+ label:string;value:string;onChange:(value:string)=>void;onBrowse:()=>void;browseLabel:string;disabled?:boolean;native?:boolean;inputRef?:Ref<HTMLInputElement>;placeholder?:string;onCommit?:(force:boolean)=>void
 }) {
- return <div className="source-file-row"><FormField label={label}><Input ref={inputRef} disabled={disabled} title={value} value={value} maxLength={4096} placeholder={placeholder} onChange={event=>onChange(event.target.value)}/></FormField><Button disabled={disabled||!native} title={native?browseLabel:'Native browsing is available in the desktop app. In server mode, upload a CSV or enter a permitted server path.'} onClick={onBrowse}><FolderOpen size={16} aria-hidden="true"/>{browseLabel}</Button></div>
+ return <div className="source-file-row"><FormField label={label}><Input ref={inputRef} disabled={disabled} title={value} value={value} maxLength={4096} placeholder={placeholder} onBlur={()=>onCommit?.(false)} onKeyDown={event=>{if(onCommit&&event.key==='Enter'){event.preventDefault();onCommit(true)}}} onChange={event=>onChange(event.target.value)}/></FormField><Button disabled={disabled||!native} title={native?browseLabel:'Native browsing is available in the desktop app. In server mode, upload a CSV or enter a permitted server path.'} onClick={onBrowse}><FolderOpen size={16} aria-hidden="true"/>{browseLabel}</Button></div>
 }
 export function MappingField({field,label,value,columns,onChange,disabled=false,accessibleLabel,required=false}: {
  field:string;label:string;value:string;columns:string[];onChange:(value:string)=>void;disabled?:boolean;accessibleLabel?:string;required?:boolean

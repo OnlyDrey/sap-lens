@@ -24,6 +24,7 @@ class DataLoader:
         self._result=None
         self._workers=[]
         self.last_report=None
+        self.progress=None
 
     def cancel(self):
         if self._cancel:
@@ -35,7 +36,7 @@ class DataLoader:
         self._result=None
         self._cancel=None
 
-    async def load(self,path: str | None=None,persist: bool=False,configuration=None,commit=None,operation=None):
+    async def load(self,path: str | None=None,persist: bool=False,configuration=None,commit=None,operation=None,force=()):
         if self.loading: raise HTTPException(409,'A CSV is already loading. Wait or cancel it before trying another file.')
         self._workers=[worker for worker in self._workers if worker.is_alive()]
         if len(self._workers)>=2:
@@ -46,8 +47,9 @@ class DataLoader:
             settings = settings.model_copy(deep=True)
             settings.data_csv_path = path
         operation = operation or ('import' if persist or configuration is not None else 'startup')
-        attempted_paths = {'roles': path if path is not None else settings.data_csv_path, 'users': settings.user_csv_path}
+        attempted_paths = {'roles': path if path is not None else settings.data_csv_path, 'users': settings.user_csv_path, 'employees': settings.employee_csv_path}
         self.loading=True
+        self.progress={'stage':'Reading file','source':force[0] if len(force)==1 else None}
         self._generation+=1
         generation=self._generation
         loop=asyncio.get_running_loop()
@@ -63,6 +65,7 @@ class DataLoader:
             if generation != self._generation or result.done(): return
             self.loading=False
             self._result=None;self._cancel=None
+            self.progress={'stage':'Failed' if error else 'Completed','source':force[0] if len(force)==1 else None}
             if error:
                 from datetime import datetime, timezone
                 self.last_failed_load = datetime.now(timezone.utc).isoformat()
@@ -80,6 +83,10 @@ class DataLoader:
                 self.error = 'CSV data could not be loaded. Review Data Sources.' if failures and not cache.get_snapshot().last_loaded else None
                 result.set_result(report)
 
+        def progress(stage, source=None):
+            if generation==self._generation and not cancelled.is_set():
+                self.progress={'stage':stage,'source':source}
+
         def read():
             error=None
             source=None
@@ -88,7 +95,7 @@ class DataLoader:
             try:
                 from csv_lifecycle import load
                 report = load(settings, operation=operation, before_commit=before_commit,
-                              strict=operation == 'import', force=('roles',) if path is not None else ())
+                              strict=operation == 'import', force=tuple(force) + (('roles',) if path is not None else ()), progress=progress)
             except LoadCancelled: return
             except Exception as exc:
                 source = getattr(exc, 'sap_lens_source', None)

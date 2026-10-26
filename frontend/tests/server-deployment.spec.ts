@@ -30,7 +30,7 @@ test.afterAll(async()=>{
   if(root)rmSync(root,{recursive:true,force:true})
 })
 for(const theme of ['light','dark'])for(const width of [375,800,1280]){
-  test(`headless browser upload, confirmation and download ${theme} ${width}`,async({browser},testInfo)=>{
+  test(`headless browser automatic upload and download ${theme} ${width}`,async({browser},testInfo)=>{
     const context=await browser.newContext({httpCredentials:{username:'saplens',password},viewport:{width,height:900}})
     const page=await context.newPage()
     try{
@@ -42,11 +42,11 @@ for(const theme of ['light','dark'])for(const width of [375,800,1280]){
       await page.getByRole('tab',{name:'Data Sources',exact:true}).click()
       const upload=page.getByLabel('Upload Role Catalogue CSV', {exact:true})
       await upload.setInputFiles({name:'Catalogue ø.csv',mimeType:'text/csv',buffer:Buffer.from('FUNCTION_KEY,AGR_NAME,TEXT,TCODE\nMM,ZC:DEMO,Synthetic catalogue,MIGO\n')})
-      await expect(page.getByRole('status').filter({hasText:'Catalogue ø.csv uploaded.'})).toBeVisible()
-      // Staging does not replace the active dataset. Existing confirmation APIs remain authoritative.
+      await expect(page.getByRole('status').filter({hasText:'Catalogue ø.csv selected.'})).toBeVisible()
+      // Browser selection activates the validated private Static snapshot immediately.
       const source=page.getByRole('region',{name:'Role Catalogue browser upload'})
       await expect(source).toBeVisible()
-      await expect(page.getByText('This source will use Static mode.',{exact:false})).toBeVisible()
+      await expect(page.getByRole('combobox',{name:'CSV source mode',exact:true})).toHaveValue('static')
       await source.scrollIntoViewIfNeeded()
       await page.screenshot({path:testInfo.outputPath(`server-${theme}-${width}.png`)})
       expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
@@ -56,8 +56,7 @@ for(const theme of ['light','dark'])for(const width of [375,800,1280]){
       const selected=inputs.find(value=>value.includes('/uploads/')||value.includes('\\uploads\\'))
       expect(selected).toBeTruthy()
       expect((await context.request.post(origin+'/api/import/preview',{headers:{'X-SAP-Lens':'1'},data:{data_csv_path:selected}})).ok()).toBeTruthy()
-      active.data_csv_path=selected;active.source_modes.roles='static'
-      expect((await context.request.post(origin+'/api/configuration',{headers:{'X-SAP-Lens':'1'},data:active})).ok()).toBeTruthy()
+      expect(active.data_csv_path).toBe(selected);expect(active.source_modes.roles).toBe('static')
       expect((await(await context.request.get(origin+'/api/roles')).json()).some((role:any)=>role.agr_name==='ZC:DEMO')).toBeTruthy()
       const diagnostic=await context.request.get(origin+'/api/diagnostics/export')
       expect(diagnostic.ok()).toBeTruthy();expect(await diagnostic.text()).not.toContain(root)

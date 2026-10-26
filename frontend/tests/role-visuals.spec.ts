@@ -1,3 +1,4 @@
+import {activateCSV} from './source-activation-fixture'
 import { test, expect, type Locator } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -271,12 +272,8 @@ test('clipboard denial is announced and leaves exact identifier selectable', asy
     })
   )
   await page.goto('/#session=browser-test-session')
-  await page
-    .getByLabel('CSV file location', { exact: true })
-    .fill(path.resolve('tests/fixtures/synthetic.csv'))
-  await page
-    .getByRole('button', { name: 'Save and load CSV', exact: true })
-    .click()
+  await activateCSV(page,'roles',path.resolve('tests/fixtures/synthetic.csv'))
+  await page.getByRole('button',{name:'Back to SAP Lens',exact:true}).click()
   await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Role Lookup',exact:true}).click()
   const card = page.getByRole('article').first()
   const copy = card.getByRole('button', { name: /^Copy role identifier/ })

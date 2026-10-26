@@ -24,11 +24,11 @@ guide explains startup, storage, logs and lifecycle commands. See
 Open Settings → Data Sources. Role Catalogue supplies roles/transactions;
 User–Role Mapping supplies users/assignments. Employee Directory is optional
 identity enrichment. Follow [import and refresh](../data/IMPORT_AND_REFRESH.md),
-validate/preview and explicitly confirm replacement. Start with
+select a file to validate and import automatically; invalid or empty files retain previous data. Start with
 [synthetic examples](../../examples/README.md) when exploring; never commit real exports.
 
 Enable optional capabilities under Settings → Features and Apply settings.
-Selecting or validating a file is not confirmation of import. A missing optional
+Selection alone is not success: wait for Completed and the committed record count. A missing optional
 source does not prevent the application from starting.
 
 ## 4. Investigate

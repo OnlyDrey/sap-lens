@@ -213,3 +213,24 @@ not public HTTP APIs or a way to modify hosted Windows Service/Linux lifecycle.
 Desktop preferences use the existing authenticated, revision-checked configuration
 endpoint; native registry/icon changes roll back when publication fails. Plain
 browser clients do not gain native dialogs or Windows startup operations.
+
+### Automatic source selection
+
+Normal Data Sources file selection uses authenticated
+`POST /api/data-sources/{roles|users|employees}/select` with `path`, current Settings
+`revision`, `mode` (`static`/`dynamic`) and an optional source import `profile`.
+It uses the canonical loader, validates the complete non-empty candidate, checks
+source stability and atomically persists snapshot/configuration references before
+returning `settings`, `refresh`, `source` and committed source `records`.
+Concurrent loads/stale revisions are rejected; unsuccessful validation preserves
+previous data. Selecting a source never automatically enables its optional feature.
+
+`GET /api/data-sources/{source}/preview?offset=0&limit=20` returns a bounded page
+from the active validated snapshot. Employee quality inspection uses
+`POST /api/data-sources/employees/inspect` with the existing preview request shape;
+its path is ignored and it reads the current snapshot, optionally checking digest.
+These operations do not require the original CSV to remain available. Existing
+Employee Directory preview/digest/import endpoints remain compatible for callers
+using that explicit protocol. They are not required by normal file selection.
+Configuration responses expose operational `progress.stage`/`source`; browser
+success feedback waits for commit and dependent view synchronization.

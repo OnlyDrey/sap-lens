@@ -1,3 +1,4 @@
+import {activateCSV} from './source-activation-fixture'
 import {inspectTechnicalSources} from './source-details-fixture'
 import { test, expect } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
@@ -153,7 +154,7 @@ test('unavailable lazy icon assets keep the application usable and preserve save
   expect(saved.settings.module_overrides.FI.icon).toBe('Camera')
 })
 
-test('CSV detection previews without loading and preserves intentional manual overrides and warns on missing columns', async ({
+test('automatic selection and optional mapping preview preserve manual overrides and warn on missing columns', async ({
   page,
   request
 }) => {
@@ -164,18 +165,19 @@ test('CSV detection previews without loading and preserves intentional manual ov
   writeFileSync(second, 'Alternate,TCODE\nDEMO_OTHER,DEMO_T\n')
   try {
     await page.goto('/#session=browser-test-session')
-    await page.getByLabel('CSV file location', { exact: true }).fill(first)
+    await activateCSV(page,'roles',first)
+    await page.getByText('Advanced import format and column mapping',{exact:true}).click()
     await expect(page.locator('.preview-metrics > div').filter({has:page.getByText('Catalogue roles',{exact:true})}).locator('dd')).toHaveText('1')
-    expect((await (await request.get('/health')).json()).cached_roles).toBe(0)
+    expect((await (await request.get('/health')).json()).cached_roles).toBe(1)
     const role = page.getByLabel('AGR_NAME (required)', { exact: true })
     await role.click()
     await page.getByRole('option', { name: 'Role', exact: true }).click()
     await page
       .getByRole('button', { name: 'Preview import', exact: true })
       .click()
-    await page
-      .getByRole('button', { name: 'Save and load CSV', exact: true })
-      .click()
+    await page.getByRole('button',{name:'Refresh source',exact:true}).click()
+    await expect(page.getByRole('status').filter({hasText:'Completed ·'})).toBeVisible()
+    await page.getByRole('button',{name:'Back to SAP Lens',exact:true}).click()
     await expect(workspace(page)).toBeHidden()
     expect(
       (await request.get('/api/roles/DEMO_MANUAL', { headers })).ok()
@@ -200,8 +202,7 @@ test('CSV detection previews without loading and preserves intentional manual ov
     expect(
       (await request.get('/api/roles/DEMO_MANUAL', { headers })).ok()
     ).toBeTruthy()
-    page.once('dialog', (d) => d.accept())
-    await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await page.getByRole('button', { name: 'Back to SAP Lens', exact: true }).click()
     await expect(workspace(page)).toBeHidden()
     const saved = await (
       await request.get('/api/configuration', { headers })

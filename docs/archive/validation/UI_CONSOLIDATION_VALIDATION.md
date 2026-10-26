@@ -767,3 +767,59 @@ No Windows build, real systemd acceptance, push, tag, release or remote workflow
 was performed. Existing history and accepted historical branding are preserved;
 new tests use synthetic identities/paths and no employee datasets or binaries
 were committed. Task 29 continues from these preserved local commits.
+
+## Automatic CSV import and efficient delivery — 26.10.2026
+
+Task 29 is complete under the user's explicitly approved STANDARD-validation
+acceptance. All three source selectors now validate and activate non-empty CSVs
+without a separate Import/Confirm action. The canonical loader stages immutable
+snapshots and replacement reports, checks file stability and settings revision,
+rejects concurrent loads, and preserves validated data on failure. Browser uploads
+activate Static snapshots; Global Refresh retains Dynamic/Static semantics.
+
+Settings preserves unrelated drafts, optional feature preferences, employee search,
+quality-filtered snapshot preview and legacy durable-snapshot recovery. Directory-only
+updates preserve the SAP generation and independent investigation filters while
+refreshing dependent enrichment views. Advanced format/mapping inspection remains
+optional. Source selection does not run merely because Settings opens.
+
+STANDARD results for the final implementation:
+
+- 34 selected browser cases covered successfully: 28 passed in the affected-module
+  run (1.6 minutes); six headless upload cases initially failed an obsolete text
+  assertion, then all six passed in 10.4 seconds after asserting the actual Static
+  source-mode value instead. These are combined targeted results, not a single
+  complete-suite result. Coverage includes all three imports, same-file replacement,
+  empty/invalid preservation, drafts, diagnostics, directory navigation, mappings,
+  browser upload/download and responsive checks in both themes at 375/800/1280.
+- 11 automatic-import backend tests passed (0.590 seconds), including overlapping
+  requests, durable restart, missing originals, source changes during staging and
+  failed storage/network reads. Existing lifecycle regressions: 22 passed (0.977
+  seconds). Repository privacy and integrity: three tests each passed.
+- Production build, including TypeScript compilation, passed; Vite compilation
+  completed in 1.73 seconds. Existing large-chunk warning remains non-blocking.
+  Dependency inputs are unchanged; successful prior audit results were reused.
+- Documentation link validation: 73 Markdown files, zero failures. Diff whitespace
+  check passed. No private CSVs, screenshots, credentials or build artifacts are
+  included in the commit. Accepted historical branding is unchanged.
+- Six headless source screenshots were captured in both themes at 375/800/1280;
+  representative light-375 and dark-1280 captures were visually reviewed. Screenshots
+  remain Git-ignored. Prior unchanged-screen visual evidence is retained above.
+
+The efficiency policy is committed separately as `ae0e9d9`. AGENTS.md and the
+Testing guide now define QUICK/STANDARD/FULL, changed-area selection, input-aware
+reuse and execution-budget checks. Review retained the single Playwright worker
+because test-server configuration is mutable/shared. Existing npm/pip caches and
+attested deployment-asset reuse were already present; no CI trigger, permission,
+dependency or worker changes were needed. Baseline 305-browser/446-backend timings
+above are historical; no percentage speedup is claimed.
+
+Progress: 30/30 planned tasks complete under their recorded validation scope,
+including tasks 1–28 above, task 29 automatic import and task 30 execution policy.
+The user authorized pushing this completed work after STANDARD validation and
+explicitly deferred FULL regression until after the first successful push. No new
+FULL suite was run for this delivery. The previous 305/446 complete results describe
+the pre-automatic-import state, not a complete regression of task 29.
+
+Native Windows tray/WebView2/EXE, startup/sign-out, SCM and UNC acceptance remain
+pending. No native platform validation, release, tag or workflow dispatch is claimed.

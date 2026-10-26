@@ -118,11 +118,12 @@ for (const theme of ['dark', 'light']) for (const width of [1280, 800]) {
     await page.getByRole('button', { name: 'Open settings', exact: true }).click()
     await page.getByRole('tab', { name: 'Data Sources', exact: true }).click()
     await expect(page.getByLabel('CSV file location', { exact: true })).toBeVisible()
+    await page.getByText('Advanced import format and column mapping',{exact:true}).click()
     await expect(page.locator('.preview-metrics > div').filter({has:page.getByText('Catalogue roles',{exact:true})}).locator('dd')).toHaveText('2')
     await shot('source-role-catalogue')
     const rolePanel = page.getByRole('tabpanel', { name: 'Role Catalogue', exact: true })
-    await expect(rolePanel.locator('.import-section')).toHaveCount(4)
-    for (const title of ['CSV Import Format', 'Column mapping', 'Validation & preview']) {
+    await expect(rolePanel.locator('.import-section')).toHaveCount(3)
+    for (const title of ['CSV Import Format', 'Column mapping', 'Optional preview']) {
       await rolePanel.getByRole('region', { name: title, exact: true }).scrollIntoViewIfNeeded()
       await shot(`source-role-${title.replace(/[^a-z]/gi, '-').toLowerCase()}`)
     }
@@ -146,7 +147,7 @@ for (const theme of ['dark', 'light']) for (const width of [1280, 800]) {
     for(const [label,count] of [['SAP users','7'],['Assignments','13']]) await expect(page.locator('.preview-metrics > div').filter({has:page.getByText(label,{exact:true})}).locator('dd')).toHaveText(count)
     await shot('source-user-access')
     const userPanel = page.getByRole('tabpanel', { name: 'User Access', exact: true })
-    await expect(userPanel.locator('.import-section')).toHaveCount(4)
+    await expect(userPanel.locator('.import-section')).toHaveCount(3)
     for (const title of ['CSV Import Format', 'Column mapping', 'Validation & preview']) {
       await userPanel.getByRole('region', { name: title, exact: true }).scrollIntoViewIfNeeded()
       await shot(`source-user-${title.replace(/[^a-z]/gi, '-').toLowerCase()}`)
@@ -168,6 +169,7 @@ test('import source tabs preserve independent drafts, automatic scans and long U
   await page.getByRole('tab', { name: 'Data Sources', exact: true }).click()
   const rolePath = await page.getByLabel('CSV file location', { exact: true }).inputValue()
   await page.getByRole('tab', { name: 'User Access', exact: true }).click()
+  await page.getByText('Advanced import format and column mapping',{exact:true}).click()
   await page.getByLabel('User CSV file location', { exact: true }).fill(longPath)
   for (const label of ['Parsed rows','SAP users']) await expect(page.locator('.preview-metrics > div').filter({has:page.getByText(label,{exact:true})}).locator('dd')).toHaveText('1')
   expect(detections).toBeGreaterThan(0)
@@ -188,6 +190,7 @@ test('mapping popup scrolls selected long options into view and reopens by mouse
   await page.getByRole('button', { name: 'Open settings', exact: true }).click()
   await page.getByRole('tab', { name: 'Data Sources', exact: true }).click()
   await page.getByRole('tab', { name: 'User Access', exact: true }).click()
+  await page.getByText('Advanced import format and column mapping',{exact:true}).click()
   const combo = page.getByRole('combobox', { name: 'User column USER_TYPE', exact: true })
   await combo.scrollIntoViewIfNeeded()
   await combo.fill('COLUMN_019')

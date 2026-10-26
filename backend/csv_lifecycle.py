@@ -191,7 +191,7 @@ def restore(settings):
     return state
 
 
-def load(settings=None, operation='refresh', before_commit=None, strict=False, force=()):
+def load(settings=None, operation='refresh', before_commit=None, strict=False, force=(), progress=None):
     settings = (settings or get_settings()).model_copy(deep=True)
     expected = settings.revision
     settings.revision = expected + 1
@@ -207,6 +207,12 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
     changed = False
     stamp = now()
     successful = []
+    checked_files = []
+    def announce(stage, source=None):
+        if progress: progress(stage,source)
+    def signature(path):
+        stat=Path(path).stat()
+        return (stat.st_dev,stat.st_ino,stat.st_size,stat.st_mtime_ns)
     forced = set(force)
     if operation == 'startup' and settings.features.employee_directory and settings.employee_csv_path and not settings.employee_snapshot_id:
         # One-time recovery of legacy path-only installations. Once confirmed,
@@ -240,6 +246,8 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
             continue
         try:
             phase = 'read'
+            announce('Reading file',source)
+            initial_signature=signature(path)
             if source == 'roles':
                 candidate = cache._build_catalog(path, settings)
                 before, after = old.source_records, candidate.source_records
@@ -251,10 +259,18 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
                 from employee_directory import parse_directory
                 candidate = parse_directory(path)
                 before, after = previous_directory.rows if previous_directory else [], candidate.rows
+            announce('Validating',source)
+            if not after:
+                from analysis_errors import AnalysisValidationError
+                raise AnalysisValidationError('The CSV contains no usable records. Previous data is retained; use Clear source data to remove it intentionally.')
+            if signature(path)!=initial_signature:
+                raise ValueError('The CSV changed during validation. Select it again after the export finishes.')
+            checked_files.append((source,path,initial_signature))
             delta = diff_records(source, before, after)
             has_changes = bool(delta['added'] or delta['removed'] or delta['modified'])
             result.update(status='updated' if has_changes else 'unchanged', records=len(after), **delta)
             phase = 'stage'
+            announce('Importing',source)
             if source != 'employees':
                 existing = settings.data_lifecycle.sources.get(source)
                 if has_changes or source in forced or not existing or existing.path != path:
@@ -263,7 +279,7 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
                     settings.data_lifecycle.sources[source] = SourceSnapshot(snapshot=identity, path=path, imported_at=stamp, checked_at=stamp)
                 else:
                     existing.checked_at = stamp
-            elif has_changes or not settings.employee_snapshot_id:
+            elif has_changes or source in forced or not settings.employee_snapshot_id:
                 candidate.imported_at = stamp
                 settings.employee_snapshot_id = persist_directory(candidate)
             # A source becomes a publication candidate only after all of its
@@ -302,6 +318,7 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
             state.loaded_sources.pop('users', None)
             settings.data_lifecycle.sources.pop('users', None)
             changed = True
+    announce('Updating dependent views')
     # Always rebuild user-derived indexes against the final catalogue. Replacing
     # either dataset can remove mappings, wildcard matches and transaction links.
     if state.users.source_records:
@@ -328,13 +345,24 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
         settings.data_lifecycle.history_metadata = {
             key:value for key,value in settings.data_lifecycle.history_metadata.items() if key in settings.data_lifecycle.history}
         settings.data_lifecycle.history_metadata[report_id] = RefreshMetadata(**metadata)
+        # Slow network stats remain outside the publication lock. Snapshot records
+        # are immutable; a changed original can never turn into a mixed generation.
+        for checked_source,checked_path,expected_signature in checked_files:
+            if signature(checked_path)!=expected_signature:
+                from analysis_errors import AnalysisValidationError
+                error=AnalysisValidationError('The CSV changed before activation. Previous data is retained; select it again after the export finishes.')
+                error.sap_lens_source=checked_source
+                raise error
         with cache._load_lock, store.lock:
             if before_commit: before_commit()
             # CAS covers settings edits, competing imports and concurrent loaders.
             save_configuration(settings, expected)
             state = cache.with_directory(state, directory, settings.employee_csv_path, settings.employee_snapshot_id)
             if changed or not cache.get_snapshot().directory_bound or not cache.get_snapshot().last_loaded and state.last_loaded:
-                state.last_loaded = datetime.fromisoformat(stamp) if changed else state.last_loaded
+                # Directory enrichment has its own durable import metadata; it must
+                # not change the independent SAP dataset generation.
+                sap_changed=any(row['source'] in {'roles','users'} and row['status']=='updated' for row in results)
+                state.last_loaded = datetime.fromisoformat(stamp) if changed and sap_changed else state.last_loaded
                 cache._cache = state
             if directory is not None:
                 store.generation += 1

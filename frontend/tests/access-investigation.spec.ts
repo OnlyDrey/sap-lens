@@ -220,6 +220,7 @@ test("user CSV detection preview and independent custom preset create rename dup
     .getByRole("tab", { name: "Data Sources", exact: true })
     .click();
   await page.getByRole("tab", { name: "User Access", exact: true }).click();
+  await page.getByText("Advanced import format and column mapping",{exact:true}).click();
   const user = page.getByRole("region", {
     name: "User access CSV configuration",
     exact: true,
@@ -260,7 +261,7 @@ test("user CSV detection preview and independent custom preset create rename dup
     await (await request.get("/api/configuration", { headers })).json()
   ).settings;
   await page
-    .getByRole("button", { name: "Save and load CSV", exact: true })
+    .getByRole("button", { name: "Apply settings", exact: true })
     .click();
   await expect(
     page.getByRole("region", { name: "SAP Lens settings", exact: true }),
