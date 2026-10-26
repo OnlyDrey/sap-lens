@@ -389,7 +389,7 @@ button:hover .module-icon:not([data-disabled="true"]) { border-color: currentCol
 .notification-content > div { min-width:0; overflow-wrap:anywhere; }
 .notification-close { padding:.25rem; flex:none; border-radius:.375rem; }
 .notification-close:hover { background:var(--hover); }
-@media(max-width:800px) { .catalogue-search-controls { grid-template-columns:minmax(0,1fr); } .catalogue-search-controls .catalogue-role-search { grid-column:1; grid-row:2; } .catalogue-search-controls .transaction-input-label { grid-column:1; grid-row:1; } .catalogue-search-controls .transaction-chips { grid-row:3; } }
+@media(max-width:800px) { .catalogue-search-controls { grid-template-columns:minmax(0,1fr); gap:var(--space-2); } .catalogue-search-controls .catalogue-role-search { grid-column:1; grid-row:2; } .catalogue-search-controls .transaction-input-label { grid-column:1; grid-row:1; } .catalogue-search-controls .transaction-chips { grid-row:3; } }
 
 @media(min-width:640px) { .notification-content { padding-inline:1.5rem; } }
 .active-evidence-filter > .transaction-filter { flex:1 1 20rem; min-width:0; }

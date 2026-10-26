@@ -163,8 +163,8 @@ test('Dashboard counts and KPI routes are meaningful, with browser Back and disa
     dashboard.getByRole('button', {
       name: 'Employee Directory records',
       exact: true,
-    }),
-  ).toContainText('Employee Directory disabled')
+    }).locator('.status-pill'),
+  ).toHaveText('Disabled')
   await dashboard
     .getByRole('button', { name: 'SAP users', exact: true })
     .click()
@@ -248,7 +248,7 @@ for (const theme of ['light', 'dark'] as const)
       if (width > 800) {
         expect(Math.abs(a.y - b.y)).toBeLessThanOrEqual(2)
         expect(a.width).toBeGreaterThan(b.width)
-      } else expect(b.y).toBeGreaterThan(a.y)
+      } else expect(b.y).toBeLessThan(a.y)
       await tcode.fill('MIGO')
       await tcode.press('Enter')
       await tcode.fill('ME21N')

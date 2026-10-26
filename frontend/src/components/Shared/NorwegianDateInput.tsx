@@ -42,22 +42,22 @@ export function NorwegianDateInput({
     maxHeight: 360,
   })
   const [open, setOpen] = useState(false)
+  const [positioned,setPositioned]=useState(false)
   const selected = parseNorwegianDate(value)
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear()),
     [month, setMonth] = useState(today.getMonth())
   const button = useRef<HTMLButtonElement>(null),
     grid = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (open)
+  useLayoutEffect(() => {
+    if (open && positioned)
       (
         grid.current?.querySelector<HTMLButtonElement>(
           '[aria-pressed="true"]',
         ) ||
         grid.current?.querySelector<HTMLButtonElement>('button[data-day="1"]')
-      )?.focus()
-  }, [open])
-  const [positioned,setPositioned]=useState(false)
+      )?.focus({preventScroll:true})
+  }, [open,positioned])
   useLayoutEffect(() => {
     if (!open) {setPositioned(false);return}
     const place = () => {
