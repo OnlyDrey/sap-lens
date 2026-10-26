@@ -1,3 +1,4 @@
+import {SourceHealthSummary,useSourceEvidence} from '@/components/Settings/SourceStatus'
 import { PageHeader, SectionHeader } from '@/components/Shared/Presentation'
 import { LayoutDashboard, ShieldAlert, HeartPulse, BarChart3, SlidersHorizontal } from 'lucide-react'
 import { formatTimestamp } from '@/lib/dateFormat'
@@ -36,6 +37,7 @@ interface Source {
 export function Dashboard() {
   const { view, change } = useViewHistory(),
     { loading } = useApplicationData()
+  const sourceEvidence=useSourceEvidence('roles')
   const query = useQuery({
     queryKey: ['dashboard'],
     queryFn: () =>
@@ -172,7 +174,7 @@ export function Dashboard() {
             </section>
           ))}
 
-          <section aria-label="Role Distribution" className="dashboard-section dashboard-distribution"><SectionHeader title="Role Distribution" icon={<BarChart3 size={18}/>}/><p className="ui-description">Distinct catalogue roles by canonical SAP area. Single-role relationships and release assignments are separate evidence.</p>{query.data.role_distribution==null?<p>Role catalogue unavailable.</p>:Object.entries(query.data.role_distribution).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([area,count])=><button key={area} className="dashboard-distribution-link" aria-label={`Investigate ${area} catalogue roles`} onClick={()=>{const metric=query.data.metrics.find(m=>m.id==='roles');if(metric)open(metric,area)}}><span>{area}</span><progress aria-label={`${area} catalogue roles`} max={Math.max(1,...Object.values(query.data.role_distribution||{}))} value={count}/><strong>{count}</strong><ArrowUpRight size={14}/></button>)}{query.data.assignment_distribution&&<><h3>Users by currently valid assigned role count</h3><p className="ui-description">Distinct business/release roles per SAP user; historical and unknown intervals are excluded. High counts are not security findings.</p><div className="dashboard-assignment-distribution">{['0','1–5','6–20','21+'].map(bin=><div key={bin}><strong>{query.data.assignment_distribution?.[bin]||0}</strong><span>{bin} roles</span></div>)}</div></>}</section>
+          <div className="dashboard-bottom-row"><section aria-label="Role Distribution" className="dashboard-section dashboard-distribution"><SectionHeader title="Role Distribution" icon={<BarChart3 size={18}/>}/><p className="ui-description">Distinct catalogue roles by canonical SAP area. Single-role relationships and release assignments are separate evidence.</p>{query.data.role_distribution==null?<p>Role catalogue unavailable.</p>:Object.entries(query.data.role_distribution).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([area,count])=><button key={area} className="dashboard-distribution-link" aria-label={`Investigate ${area} catalogue roles`} onClick={()=>{const metric=query.data.metrics.find(m=>m.id==='roles');if(metric)open(metric,area)}}><span>{area}</span><progress aria-label={`${area} catalogue roles`} max={Math.max(1,...Object.values(query.data.role_distribution||{}))} value={count}/><strong>{count}</strong><ArrowUpRight size={14}/></button>)}{query.data.assignment_distribution&&<><h3>Users by currently valid assigned role count</h3><p className="ui-description">Distinct business/release roles per SAP user; historical and unknown intervals are excluded. High counts are not security findings.</p><div className="dashboard-assignment-distribution">{['0','1–5','6–20','21+'].map(bin=><div key={bin}><strong>{query.data.assignment_distribution?.[bin]||0}</strong><span>{bin} roles</span></div>)}</div></>}</section>
           <section aria-label="Configuration" className="dashboard-section">
             <SectionHeader title="Data Sources & Configuration" icon={<SlidersHorizontal size={18}/>}/>
             <p className="text-xs text-[var(--muted)]">
@@ -201,26 +203,16 @@ export function Dashboard() {
                     <Database size={18} aria-hidden="true" />
                     <span>
                       <strong>{source.name}</strong>
-                      <small>
-                        {source.id==='employees'&&<>{query.data.metrics.find(m=>m.id==='employees')?.value??query.data.metrics.find(m=>m.id==='employees')?.unavailable_reason} · </>}{source.configured
-                          ? 'Source configured'
-                          : 'Setup required'}{' '}
-                        ·{' '}
-                        {source.available
-                          ? 'Data available'
-                          : loading
-                            ? 'Loading…'
-                            : 'No data available'}
-                      </small>
+
                     </span>
-                    <span className="dashboard-source-freshness">Last import: {formatTimestamp(source.last_import)}<br/>Last validated check: {formatTimestamp(source.last_checked)}</span>
+                    {sourceEvidence.data?.sources.find(item=>item.id===source.id)&&<SourceHealthSummary compact includeSnapshot={false} source={sourceEvidence.data.sources.find(item=>item.id===source.id)!}/>}
                     <StatusPill enabled={source.enabled} />
                     <ArrowUpRight size={14} aria-hidden="true" />
                   </button>
                 ))}
 
             </div>
-          </section>
+          </section></div>
         </div>
       )}
     </section>

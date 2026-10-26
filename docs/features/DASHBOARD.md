@@ -150,3 +150,5 @@ Source cards distinguish last import/activation, last validated source check and
 last successful global refresh. Missing timestamps remain unavailable. File modification
 times are not inferred. All calculations use validated local snapshots; no history,
 license consumption or effective authorization is inferred.
+
+Role Distribution and Data Sources & Configuration share a two-column lower row on wide screens and stack at 800px or below. Source summaries reuse canonical diagnostic state (mode, loaded status, records and actual import freshness). Row navigation highlights the whole target for hover/focus; each source row remains one configuration action.

@@ -369,7 +369,7 @@ def export_releases(filters:dict=Depends(release_filters)):
 
 
 @router.get('/releases')
-def releases(filters:dict=Depends(release_filters),anchor:str=Query('',max_length=512),matrix_offset:int=Query(0,ge=0),group_by_user_group:bool=False,offset:int=Query(0,ge=0),limit:int=Query(50,ge=1,le=100)):
+def releases(filters:dict=Depends(release_filters),anchor:str=Query('',max_length=512),matrix_offset:int=Query(0,ge=0),group_by_user_group:bool=False,matrix_complete:bool=False,offset:int=Query(0,ge=0),limit:int=Query(50,ge=1,le=100)):
     snapshot = cache.get_snapshot()
     state = snapshot.users
     today=date.today()
@@ -437,7 +437,7 @@ def releases(filters:dict=Depends(release_filters),anchor:str=Query('',max_lengt
     ]
     return dict(
         **page(rows, offset, limit),
-        matrix=matrix[matrix_offset : matrix_offset + 200],
+        matrix=matrix if matrix_complete else matrix[matrix_offset : matrix_offset + 200],
         matrix_total=len(matrix),
         matrix_offset=matrix_offset,
         **source_info(snapshot,today),

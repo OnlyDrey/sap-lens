@@ -30,18 +30,14 @@ export function Popover({
 }) {
   const inheritedOwners=usePopoverOwners()
   const [open, setOpen] = useState(false),
-    [position, setPosition] = useState({
-      top: 0,
-      left: 8,
-      width: 360,
-      maxHeight: 400,
-    }),
+    [position, setPosition] = useState<{top:number;left:number;width:number;maxHeight:number}|null>(null),
     id = useId(),
     anchor = useRef<HTMLButtonElement>(null),
     panel = useRef<HTMLDivElement>(null)
   const owned=(target:EventTarget|null)=>target instanceof Element&&!!target.closest(`[data-popover-owner~="${id}"]`)
   const close = (restore = true) => {
     setOpen(false)
+    setPosition(null)
     onOpenChange?.(false)
     if (restore) anchor.current?.focus()
   }
@@ -130,7 +126,7 @@ export function Popover({
             aria-modal="false"
             aria-label={label}
             className="ui-popover"
-            style={{ position: 'fixed', ...position }}
+            style={{ position: 'fixed', width:Math.min(preferredWidth,innerWidth-16), visibility:position?'visible':'hidden', ...position }}
             onBlur={(e) => {
               if (
                 e.relatedTarget &&

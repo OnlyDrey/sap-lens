@@ -114,6 +114,8 @@ function memoryStorage(): FilterStorage {
   }
 }
 export function ComponentLibrary() {
+  const [category,setCategory]=useState('buttons')
+  const categories=[['buttons','Buttons & Actions'],['navigation','Navigation & Tabs'],['forms','Forms & Inputs'],['filters','Filters & Search'],['status','Status & Feedback'],['dialogs','Dialogs & Popovers'],['data','Tables & Data Display'],['sap','SAP-Specific Components'],['all','All components']]
   const [text, setText] = useState(''),
     [dialogOpen, setDialogOpen] = useState(false),
     [select, setSelect] = useState('all'),
@@ -141,7 +143,8 @@ export function ComponentLibrary() {
         identities and isolated memory only; controls do not modify application
         settings, imported data or saved investigations.
       </p>
-      <Card>
+      <ContentTabs label="Component categories" value={category} onChange={setCategory} items={categories.map(([value,label])=>({value,label}))}>
+      {(category==='all'||category==='buttons')&&<Card>
         <h2>Buttons &amp; actions</h2>
         <p className="ui-description">
           Operations use buttons. Primary for the main operation; destructive
@@ -178,8 +181,8 @@ export function ComponentLibrary() {
           </Button>
         </Toolbar>
         {feedback && <p role="status">{feedback}</p>}
-      </Card>
-      <Card>
+      </Card>}
+      {(category==='all'||category==='navigation')&&<Card>
         <h2>Navigation &amp; content</h2>
         <p className="ui-description">
           Major destinations, related pages and content switching have distinct
@@ -228,11 +231,11 @@ export function ComponentLibrary() {
         >
           <p className="text-sm">Selected content: {tab}</p>
         </ContentTabs>
-      </Card>
-      <Card><PageHeader title="Page header preview" icon={<LayoutDashboard size={22} aria-hidden="true"/>}/><MetadataList items={[{label:'Records',value:'2'},{label:'Last validated source check',value:'Not checked · Static source'}]}/><TransactionCount count={12}/><ExportCSVButton disabled title="Isolated preview; no records are exported."/><h2>Import and source controls</h2><p className="ui-description">Real import components with isolated synthetic state. Browse selects a demo string; no files, settings or datasets are changed.</p><SourceFileField label="Demo source file" value={demoPath} onChange={setDemoPath} native onBrowse={()=>setDemoPath('C:/synthetic/replacement.csv')} browseLabel="Browse demo source"/><div className="demo-grid"><MappingField field="AGR_NAME" label="Demo role name" required value={demoMapping} columns={['AGR_NAME','ROLE_NAME']} onChange={setDemoMapping}/><SourceHealthSummary source={{id:'roles',mode:'static',loaded:true,loading:false,error:null,records:2,last_successful_load:'2026-01-01T12:00:00Z',snapshot_available:true}}/></div><ImportPreview fileName="synthetic.csv" metrics={[{label:'Records',value:2}]} samples={[{AGR_NAME:'ZC:DEMO',TCODE:'MIGO'},{AGR_NAME:'ZC:EXAMPLE',TCODE:'ME23N'}]} warnings={['Example warning: an optional description was not supplied.']}/></Card>
-      <Card><SectionHeader title="Investigation evidence" icon={<Info size={18}/>}/><ReviewFindings row={{sap_validity:'Valid',lock_status:'Unlocked',ad_status:'Unknown',match_status:'missing_email',findings:['directory_match'],stale:false}} labels={{directory_match:'Missing directory match'}}/><ChangeRecordDetails change={{source:'employees',source_name:'Synthetic directory',type:'modified',identifier:'SYNTHETIC_RECORD',fields:[{field:'Title',before:'Example analyst',after:'Example reviewer'}],before:{Name:'Synthetic Example'},after:{Name:'Synthetic Example'}}}/></Card>
-      <Card><h2>Operational status and filtering</h2><div className="demo-grid"><StatusCard label="Demo service" value="Running" tone="success"/><StatusCard label="Demo source" value="Needs attention" tone="warning"/></div><FilterPanel label="Demo filters"><p className="ui-description">Apply commits only demo date state; Cancel leaves it unchanged. Calendar and filter popovers do not reflow their parent.</p><AssignmentDateFilters value={demoDates} onChange={setDemoDates}/></FilterPanel><ResultsToolbar><span>2 demo results</span><Button onClick={()=>setDemoDates({...emptyDates})}>Clear demo filters</Button></ResultsToolbar></Card>
-      <Card>
+      </Card>}
+      {(category==='all'||category==='sap')&&<Card><PageHeader title="Page header preview" icon={<LayoutDashboard size={22} aria-hidden="true"/>}/><MetadataList items={[{label:'Records',value:'2'},{label:'Last validated source check',value:'Not checked · Static source'}]}/><TransactionCount count={12}/><ExportCSVButton disabled title="Isolated preview; no records are exported."/><h2>Import and source controls</h2><p className="ui-description">Real import components with isolated synthetic state. Browse selects a demo string; no files, settings or datasets are changed.</p><SourceFileField label="Demo source file" value={demoPath} onChange={setDemoPath} native onBrowse={()=>setDemoPath('C:/synthetic/replacement.csv')} browseLabel="Browse demo source"/><div className="demo-grid"><MappingField field="AGR_NAME" label="Demo role name" required value={demoMapping} columns={['AGR_NAME','ROLE_NAME']} onChange={setDemoMapping}/><SourceHealthSummary source={{id:'roles',mode:'static',loaded:true,loading:false,error:null,records:2,last_successful_load:'2026-01-01T12:00:00Z',snapshot_available:true}}/></div><ImportPreview fileName="synthetic.csv" metrics={[{label:'Records',value:2}]} samples={[{AGR_NAME:'ZC:DEMO',TCODE:'MIGO'},{AGR_NAME:'ZC:EXAMPLE',TCODE:'ME23N'}]} warnings={['Example warning: an optional description was not supplied.']}/></Card>}
+      {(category==='all'||category==='data')&&<Card><SectionHeader title="Investigation evidence" icon={<Info size={18}/>}/><ReviewFindings row={{sap_validity:'Valid',lock_status:'Unlocked',ad_status:'Unknown',match_status:'missing_email',findings:['directory_match'],stale:false}} labels={{directory_match:'Missing directory match'}}/><ChangeRecordDetails change={{source:'employees',source_name:'Synthetic directory',type:'modified',identifier:'SYNTHETIC_RECORD',fields:[{field:'Title',before:'Example analyst',after:'Example reviewer'}],before:{Name:'Synthetic Example'},after:{Name:'Synthetic Example'}}}/></Card>}
+      {(category==='all'||category==='status')&&<Card><h2>Operational status and filtering</h2><div className="demo-grid"><StatusCard label="Demo service" value="Running" tone="success"/><StatusCard label="Demo source" value="Needs attention" tone="warning"/></div><FilterPanel label="Demo filters"><p className="ui-description">Apply commits only demo date state; Cancel leaves it unchanged. Calendar and filter popovers do not reflow their parent.</p><AssignmentDateFilters value={demoDates} onChange={setDemoDates}/></FilterPanel><ResultsToolbar><span>2 demo results</span><Button onClick={()=>setDemoDates({...emptyDates})}>Clear demo filters</Button></ResultsToolbar></Card>}
+      {(category==='all'||category==='forms')&&<Card>
         <h2>Form controls</h2>
         <p className="ui-description">
           Shared labels, control height, chevrons and visible focus. Invalid
@@ -298,8 +301,8 @@ export function ComponentLibrary() {
           </Button>
           <Input aria-label="Disabled demo input" disabled value="Disabled" />
         </Toolbar>
-      </Card>
-      <Card>
+      </Card>}
+      {(category==='all'||category==='filters')&&<Card>
         <h2>Filters &amp; multi-value selection</h2>
         <ButtonGroup
           label="Demo display mode"
@@ -331,6 +334,8 @@ export function ComponentLibrary() {
         >
           Clear demo filters
         </ClearFilterButton>
+      </Card>}
+      {(category==='all'||category==='dialogs')&&<Card><h2>Dialogs &amp; popovers</h2>
         <Popover
           label="Demo popover"
           trigger={
@@ -362,8 +367,8 @@ export function ComponentLibrary() {
             <Input aria-label="Demo dialog input" />
           </Dialog>
         )}
-      </Card>
-      <Card>
+      </Card>}
+      {(category==='all'||category==='status')&&<Card>
         <h2>Status &amp; feedback</h2>
         <Toolbar>
           {(['success', 'warning', 'error', 'info', 'neutral'] as const).map(
@@ -379,8 +384,8 @@ export function ComponentLibrary() {
         <Notification variant="error">Error demo message</Notification>
         <LoadingState>Loading demo records…</LoadingState>
         <EmptyState>No demo results match.</EmptyState>
-      </Card>
-      <Card>
+      </Card>}
+      {(category==='all'||category==='sap')&&<Card>
         <h2>SAP components &amp; data display</h2>
         <SAPUserSelector
           label="Demo SAP user"
@@ -441,7 +446,8 @@ export function ComponentLibrary() {
           limit={2}
           onChange={setOffset}
         />
-      </Card>
+      </Card>}
+      </ContentTabs>
     </div>
   )
 }

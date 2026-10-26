@@ -50,6 +50,7 @@ export function UserProfile({ user }: { user: UserDetail }) {
             </dd>
           </div>
         </dl>
+        <div className="profile-matching-evidence"><DirectoryMatchDetails match={match.data}/></div>
       </section>
       <section aria-label="Account Status" className="profile-group">
         <h2>
@@ -132,7 +133,7 @@ export function UserProfile({ user }: { user: UserDetail }) {
           </p>
         )}
       </section>
-      <div className="profile-matching-evidence"><DirectoryMatchDetails match={match.data}/></div>
+
       {employee?.account_status === 'Disabled' &&
         accountValidity(user.account_status) === 'Valid' &&
         user.lock_status === 'Unlocked' && (

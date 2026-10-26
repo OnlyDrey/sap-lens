@@ -893,7 +893,7 @@ export function SettingsView({
                         PNG/JPEG/WebP up to 2 MB and 4096 pixels per side; SVG
                         is rejected.
                       </p>
-                      <div className="branding-logo-preview"><img
+                      <div className="branding-logo-grid"><div className="branding-logo-preview"><img
                         alt="Header logo preview"
                         src={
                           draft.logo_id
@@ -909,7 +909,7 @@ export function SettingsView({
                         }}
                       />
                       </div>
-                      {logo.isError && (
+                      <div className="branding-logo-controls">{logo.isError && (
                         <p
                           role="status"
                           className="text-[var(--warning)] text-sm"
@@ -976,6 +976,7 @@ export function SettingsView({
                         Apply settings to activate the logo; moving the original
                         will not break it.
                       </p>
+                      </div></div>
                     </div>
                   }
                   {section === 6 && <About/>}

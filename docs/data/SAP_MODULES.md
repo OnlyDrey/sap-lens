@@ -108,3 +108,5 @@ WM and PA are familiar application shorthand: SAP references also use LE-WM and 
 | BTP | [Integration with SAP Business Technology Platform (BTP)](https://help.sap.com/docs/SAP_IM_StarterEdition/1f920a4c5eb34d21a5eaf5c3e280a24e/ba1b9c69d9ca4970be767d37d395eef4.html?locale=en-US&state=PRODUCTION&version=SHIP_SE) |
 
 No matching descriptive title was established by the bounded first-three-results check for SRM, EHSM, CRM, PY, BC, IS-U. These entries require further product/version-specific verification; unrelated search hits were not treated as proof.
+
+Select a compact module row to open its configuration dialog. Changes remain local to that dialog until **Apply module changes** transfers them into the parent Settings draft. **Cancel module changes** discards only that local edit, with confirmation when dirty. The ordinary **Apply settings** persists the parent draft. Reset removes the override only when applied; icon search and progressive Show more retain the full catalogue.

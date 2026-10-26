@@ -55,3 +55,5 @@ These changes subsequently passed automated Windows GUI startup/lifecycle and pa
 See [Settings refinement and validation](../archive/implementation/SETTINGS_REFINEMENT.md) for shared controls,
 automatic CSV inspection, the lazy Lucide catalog, save/cancel behavior and platform
 validation limits.
+
+Appearance starts with the draft-synchronized live preview, followed by theme/preset controls and compact swatch/hex/reset fields. Logo preview and selection controls use responsive columns. These layout changes do not persist previews or bypass Apply/Cancel.

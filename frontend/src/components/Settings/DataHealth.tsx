@@ -1,9 +1,9 @@
+import {SourceHealthSummary,useSourceEvidence} from './SourceStatus'
 import { Button } from '@/components/Shared/Button'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Activity, ChevronRight } from 'lucide-react'
 import { apiRequest } from '@/api/client'
-import { formatTimestamp } from '@/lib/dateFormat'
 import { Pagination, QueryState } from '@/components/Access/Shared'
 import { useViewHistory } from '@/hooks/useViewHistory'
 interface Health {
@@ -63,6 +63,7 @@ export function DataHealth({
         `/api/data-health?${new URLSearchParams({ finding, offset: String(offset) })}`,
       ),
   })
+  const sourceEvidence=useSourceEvidence('roles')
   const data = result.data
   return (
     <details className="settings-advanced">
@@ -77,26 +78,7 @@ export function DataHealth({
             {data.sources.map((s) => (
               <article className="compact-health" key={s.id}>
                 <h3 className="font-semibold">{s.name}</h3>
-                <span
-                  className={`evidence-badge evidence-${!s.enabled ? 'neutral' : s.available ? 'success' : 'warning'}`}
-                >
-                  {!s.enabled
-                    ? 'Disabled'
-                    : s.available
-                      ? 'Validated data available'
-                      : 'Not loaded'}
-                </span>
-                <p>
-                  {s.configured
-                    ? 'Source configured'
-                    : 'No CSV path configured'}{' '}
-                  · {s.records ?? '—'} records
-                </p>
-                <p>{s.snapshot}</p>
-                <p>
-                  Last successful publication:{' '}
-                  {formatTimestamp(s.last_successful)}
-                </p>
+                {sourceEvidence.data?.sources.find(source=>source.id===s.id)?<SourceHealthSummary compact source={sourceEvidence.data.sources.find(source=>source.id===s.id)!}/>:<p>{s.available?'Validated data available':'Not loaded'} · {s.records??'—'} records · {s.snapshot}</p>}
                 <Button
                   className="settings-secondary-button"
                   onClick={() =>

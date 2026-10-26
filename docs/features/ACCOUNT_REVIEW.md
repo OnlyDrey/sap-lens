@@ -161,3 +161,5 @@ erase annotations or block independent source loading.
 Reviewed and pending filters use the full current SAP account population. Reviewed
 means a non-stale decision other than Needs review; pending is its complement and
 includes outdated decisions. This differs from the source-finding population.
+
+No automated findings describes the supported checks, not review completion or compliance. Needs review retains its stored decision value and is explained as Pending manual review. The account-status cell presents actual source account validity intervals on two date lines (DD.MM.YYYY), preserving multiple observations and the link to further source evidence.

@@ -380,7 +380,7 @@ test("a partial matrix never presents off-page cells as zero users", async ({
     matrix.getByRole("cell", { name: "0", exact: true }),
   ).toHaveCount(0);
   await expect(
-    page.getByText(/A dash means no cell is shown on this page/),
+    page.getByText(/A dash means no supplied cell/),
   ).toBeVisible();
 });
 

@@ -17,13 +17,15 @@ export function Combobox({ value, options, onChange, label, placeholder = 'All',
   const choices = ['', ...new Set(options.filter(Boolean))].filter(option => !query || serverFiltered || (option ? optionLabel(option) : clearLabel).toLocaleLowerCase().includes(query.toLocaleLowerCase()))
   const close = () => { setOpen(false); setQuery(null) }
   const choose = (option: string) => { onChange(option); close(); input.current?.focus() }
+  const [positioned,setPositioned]=useState(false)
   useLayoutEffect(() => {
-    if (!open) return
+    if (!open) {setPositioned(false);return}
     const place = () => {
       const box = anchor.current?.getBoundingClientRect(); if (!box) return
       const below = window.innerHeight - box.bottom - 12, above = box.top - 12
       const natural=Math.min(280,(popup.current?.scrollHeight||278)+2),down=below>=natural||below>=above
       const height=Math.min(natural,Math.max(0,down?below:above),Math.max(0,innerHeight-16))
+      setPositioned(true)
       setPosition({ left: Math.max(8, Math.min(box.left, window.innerWidth - Math.min(box.width,innerWidth-16) - 8)), width: Math.min(box.width, window.innerWidth - 16),
         top: Math.max(8,Math.min(down?box.bottom+4:box.top-height-4,innerHeight-height-8)), maxHeight: height })
     }
@@ -61,7 +63,7 @@ export function Combobox({ value, options, onChange, label, placeholder = 'All',
     <button type="button" disabled={disabled} aria-label={`${open ? 'Close' : 'Open'} ${label} options`} tabIndex={-1}
       onMouseDown={event => event.preventDefault()} onClick={() => { if (open) close(); else { input.current?.focus(); setOpen(true) } }}>
       {open ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}</button>
-    {open && createPortal(<div ref={popup} data-popover-owner={owners} className="combobox-popup" style={{ position: 'fixed', ...position }} onMouseDown={event => event.preventDefault()}>
+    {open && createPortal(<div ref={popup} data-popover-owner={owners} className="combobox-popup" style={{ position: 'fixed', ...position, visibility:positioned?'visible':'hidden' }} onMouseDown={event => event.preventDefault()}>
       <div id={listId} role="listbox" aria-label={`${label} options`}>
         {choices.map((option, i) => <div key={option} id={`${uid}-option-${i}`} role="option" aria-selected={option === value}
           className={`combobox-option ${i === index ? 'highlighted' : ''}`} onMouseMove={() => setIndex(i)} onClick={() => choose(option)}>

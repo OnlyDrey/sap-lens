@@ -578,6 +578,9 @@ class UserAccessTests(unittest.TestCase):
         self.assertEqual(first["matrix_total"], 201)
         self.assertEqual(len(first["matrix"]), 200)
         self.assertEqual(len(last["matrix"]), 1)
+        complete=self.get("releases?matrix_complete=true")
+        self.assertEqual(len(complete["matrix"]),201)
+        self.assertEqual(complete["matrix"],first["matrix"]+last["matrix"])
         path.write_text(
             "USERNAME,USER_GROUP,USER_VALID_FROM,USER_VALID_TO\n"
             + "".join(f"DEMO_ONE,GROUP_{i},20000101,99991231\n" for i in range(51))

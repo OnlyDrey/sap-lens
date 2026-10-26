@@ -1,3 +1,5 @@
+import {Dialog} from '@/components/Shared/Dialog'
+import {Button} from '@/components/Shared/Button'
 import { SearchInput } from '@/components/Shared/Controls'
 import { controlClass } from '@/components/Shared/Controls'
 import { ModuleIcon } from '@/components/Modules/ModuleIcon'
@@ -44,6 +46,10 @@ export function ModuleEditor({
   onSearch: (value: string) => void
 }) {
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [local,setLocal]=useState<ModuleOverride>({enabled:true})
+  const [reset,setReset]=useState(false)
+  const [initial,setInitial]=useState('')
+  const cancel=()=>{if(JSON.stringify(local)!==initial && !window.confirm('Discard module changes?'))return;setExpanded(null)}
   const rows = modules.filter((m) =>
     `${m.id} ${m.name} ${m.aliases.join(' ')}`
       .toLowerCase()
@@ -62,7 +68,7 @@ export function ModuleEditor({
       </p>
       <div className="divide-y divide-[var(--border)]">
         {rows.map((m) => {
-          const override = overrides[m.id] || { enabled: true }
+          const override = expanded===m.id?local:overrides[m.id] || { enabled: true }
           const iconKey = (override.icon || m.default_icon || m.icon) as keyof typeof icons
           const Icon = icons[iconKey] || catalogIcon(iconKey)
           const defaultColor = m.default_color || m.color
@@ -70,14 +76,14 @@ export function ModuleEditor({
           const rawColor = override.color ?? defaultColor
           const color = isHex(rawColor) ? rawColor : defaultColor
           const edit = (patch: Partial<ModuleOverride>) =>
-            onChange({ ...overrides, [m.id]: { ...override, ...patch } })
+            (setReset(false),setLocal({ ...override, ...patch }))
           return (
             <div key={m.id}>
               <button
                 className="module-list-row"
                 aria-label={`Edit ${m.id} — ${override.display_name || defaultName}`}
                 aria-expanded={expanded === m.id}
-                onClick={() => setExpanded(expanded === m.id ? null : m.id)}
+                onClick={() => {const value={...(overrides[m.id]||{enabled:m.enabled??true})};setLocal(value);setInitial(JSON.stringify(value));setReset(false);setExpanded(m.id)}}
               >
                 <ModuleIcon
                   Icon={Icon}
@@ -106,12 +112,12 @@ export function ModuleEditor({
                 />
               </button>
               {expanded === m.id && (
-                <div
-                  className="module-editor space-y-5"
+                <Dialog title={`Configure ${m.id} — ${defaultName}`} onClose={cancel} footer={<><Button onClick={cancel}>Cancel module changes</Button><Button variant="primary" disabled={!isHex(rawColor)} onClick={()=>{const next={...overrides};if(reset)delete next[m.id];else next[m.id]=local;onChange(next);setExpanded(null)}}>Apply module changes</Button></>}><p className="ui-description">Updates the Settings draft. Apply settings to persist; Cancel settings discards the parent draft.</p><div
+                  className="module-editor space-y-4"
                   aria-label={`${m.id} appearance editor`}
                 >
                   <div className="flex items-center gap-2 text-sm">
-                    Preview <StatusPill enabled={override.enabled} />
+                    <ModuleIcon Icon={Icon} color={color} size="large" disabled={!override.enabled}/> Preview <StatusPill enabled={override.enabled} />
                   </div>
                   <div className="grid md:grid-cols-2 gap-4">
                     <label className="text-sm font-medium">
@@ -166,14 +172,12 @@ export function ModuleEditor({
                   <button
                     className="text-sm text-[var(--accent2)] flex gap-2 items-center py-2"
                     onClick={() => {
-                      const next = { ...overrides }
-                      delete next[m.id]
-                      onChange(next)
+                      setLocal({enabled:true});setReset(true)
                     }}
                   >
                     <RotateCcw size={15} /> Reset {m.id} to default
                   </button>
-                </div>
+                </div></Dialog>
               )}
             </div>
           )

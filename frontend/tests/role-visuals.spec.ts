@@ -167,13 +167,14 @@ test('module status separates saved state from unsaved preview and persists only
   await editor
     .getByLabel('Show FI in module filters', { exact: true })
     .uncheck()
-  await expect(row.locator('.status-pill')).toHaveText('Enabled')
+  await expect(page.locator('.module-list-row').filter({hasText:'Financial Accounting'}).locator('.status-pill')).toHaveText('Enabled')
   await expect(editor.locator('.status-pill')).toHaveText('Disabled')
   expect(
     (await (await request.get('/api/configuration', { headers })).json())
       .settings.module_overrides.FI?.enabled ?? true
   ).toBe(true)
   page.once('dialog', (dialog) => dialog.accept())
+  await page.getByRole('button', { name: 'Cancel module changes', exact: true }).click()
   await page.getByRole('button', { name: 'Cancel', exact: true }).click()
   await page.getByRole('button', { name: 'Open settings' }).click()
   await page.getByRole('tab', { name: 'SAP Modules', exact: true }).click()
@@ -184,6 +185,7 @@ test('module status separates saved state from unsaved preview and persists only
   await editor
     .getByLabel('Show FI in module filters', { exact: true })
     .uncheck()
+  await page.getByRole('button',{name:'Apply module changes',exact:true}).click()
   await page
     .getByRole('button', { name: 'Apply settings', exact: true })
     .click()
@@ -224,7 +226,7 @@ for (const theme of ['light', 'dark'] as const) {
     const hex = page.getByLabel('FI hexadecimal color', { exact: true })
     for (const color of ['#ffffff', '#000000', '#111827', 'invalid', '']) {
       await hex.fill(color)
-      const ratio = await row.locator('[data-module-icon]').evaluate((el) => {
+      const ratio = await page.locator('.module-editor [data-module-icon]').evaluate((el) => {
         const style = getComputedStyle(el)
         const luminance = (color: string) => {
           const values = color
@@ -244,7 +246,7 @@ for (const theme of ['light', 'dark'] as const) {
         return (values[0] + 0.05) / (values[1] + 0.05)
       })
       expect(ratio).toBeGreaterThanOrEqual(3)
-      await expect(row.locator('[data-module-icon]')).toHaveCSS('width', '40px')
+      await expect(page.locator('.module-editor [data-module-icon]')).toHaveCSS('width', '40px')
     }
     await page
       .getByRole('button', { name: 'Reset FI hexadecimal color', exact: true })

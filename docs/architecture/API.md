@@ -203,3 +203,5 @@ apostrophe in the file only. Snapshot and evaluation day are captured once.
 `X-SAP-Lens-Data-Revision`, `X-SAP-Lens-As-Of` and
 `X-SAP-Lens-Assignment-Count` permit client consistency checks. Normal users/releases
 responses add `data_revision` and `export_assignments`; existing fields are retained.
+
+`GET /api/access/releases?matrix_complete=true` returns every filtered matrix cell independently of role-table pagination. The legacy bounded matrix_offset API remains compatible for existing consumers. The UI uses complete mode with independently scrollable PR/PO matrices; incomplete responses retain a dash rather than falsely establishing zero users. Assignment filtering, distinct counts, drill-down and export scope are unchanged.

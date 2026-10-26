@@ -188,3 +188,5 @@ It delegates filtering to the existing backend selection functions, never a
 second frontend interpretation. The existing native `save_user_access_csv` bridge
 accepts the exact new semicolon header only for its two assignment-export filename
 prefixes; capability, size and destination protections remain intact.
+
+Component Library uses eight category tabs (actions, navigation, forms, filters, feedback, dialogs, data display and SAP controls); All components is an explicit expanded QA view. Previews use real shared controls and isolated in-memory state. ModuleEditor uses the shared Dialog with a local draft and explicit parent-draft Apply. SourceDetailsDialog groups status, storage and diagnostics, with complete copyable paths. SourceHealthSummary supports a compact dashboard variant from the same diagnostic evidence. Anchored portals stay hidden until measured; event-driven anchor observation continues tracking subsequent layout changes.

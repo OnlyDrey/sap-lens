@@ -652,3 +652,42 @@ No push, workflow dispatch, release, tag, Windows build or native Windows/WebVie
 acceptance was performed. Manual Windows testing must cover owned-backend browser
 handoff and localhost alias, WebView/browser coexistence, clipboard/dialogs, both
 new CSV native saves and shutdown, plus packaging and UNC on an appropriate host.
+
+## Comprehensive UI refinement follow-up — local phase checkpoint
+
+This is a separate 28-item iteration after the earlier 31-task delivery. Tasks
+1–25 have passed their local feature checks; task 28 (permanent progress reporting)
+is committed as `713f278`. Task 26 retains combined final regression/reporting;
+task 27 (Windows tray) follows this UI phase. No push authority in this iteration.
+
+Implemented: compact dashboard lower columns/source summaries; full-row navigation
+feedback; bounded role cards and compact shared actions; T-code-first visual/tab
+order; right-aligned details identifier; shared modal backdrop; independently sized
+exclusive panels; symmetric Jaccard summaries with explicitly directional matrix
+containment; summary-owned comparison differences; profile matching placement;
+two-line source account intervals and manual-review wording; hidden-until-measured
+portals; consistent date/filter placement; complete scrollable release matrices;
+preview-first appearance and bounded hex fields; logo columns; grouped/copyable
+source details; shared source state in Data Health; local-draft module modals;
+obvious feature switches; categorized isolated real previews; calmer motion tokens.
+Underlying SAP evidence sets, imports, review decisions and export scope remain intact.
+
+Executed validation: production build/type checking passed. The 78-test related
+browser group initially passed 74, with four test failures: nested tabpanel naming,
+comparison-only clearing, section-dependent counter names and a newly added
+exclusive-panel check. The first three test paths were migrated without dropping
+assertions; the fourth exposed empty-state padding, which was reduced. Focused
+rechecks passed (18/18 and the affected comparison/navigation paths). The new UI
+freeze suite passed 15/15; an additional release-field alignment/Data Health check
+passed (1/1). Source/backend regressions passed: User Access 43, date filters 17,
+assignment exports 7. Documentation checks passed: 73 files, six documentation
+unit tests, whitespace and 1,447-icon catalog verification.
+
+Screenshots captured at 375/800/1280/1600 in both themes; reviewed dashboard columns,
+long role cards/details, module dialog, preview/color controls and logo layout.
+Review caught clipped hex text; field width now includes text and padding. Artifacts
+are outside Git under `/workspace/sap-lens-dev/refinement-27-visual`; logs use
+`/workspace/sap-lens-dev/refinement-*.log`. The initial build after Data Health reuse
+found an obsolete import; it was removed and the production build passed.
+
+No native Windows, packaged EXE, real systemd or UNC acceptance is claimed.

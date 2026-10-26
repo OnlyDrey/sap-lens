@@ -98,10 +98,10 @@ export function ReleaseRoles({
       sort,
       descending,
       offset,
-      matrixOffset,
+      matrixOffset, matrix,
     ],
     queryFn: () =>
-      accessQuery<ReleasePage>("releases", { ...filters, offset, matrix_offset: matrixOffset }),
+      accessQuery<ReleasePage>("releases", { ...filters, offset, matrix_offset: matrixOffset, matrix_complete:matrix }),
   });
   useEffect(() => {
     if (!result.data || result.isFetching) return;
@@ -244,15 +244,9 @@ export function ReleaseRoles({
               cells={result.data.matrix}
               onCell={drillCell}
               compare={compareGroups}
-              partial={result.data.matrix_total > result.data.matrix.length}
+              partial={result.data.matrix_total>result.data.matrix.length}
             />
-            <Pagination
-              offset={matrixOffset}
-              limit={200}
-              total={result.data.matrix_total}
-              onChange={setMatrixOffset}
-              label="Release matrix pages"
-            />
+
           </>
         ) : (
           <>
@@ -339,6 +333,8 @@ function ReleaseMatrix({
               (!compare || c.user_group === group) && c.document_type === kind,
           );
           if (!selected.length) return null;
+          const lookup=new Map(selected.map(cell=>[`${cell.release_group}|||${cell.release_strategy}`,cell]))
+          const maximum=Math.max(1,...selected.map(cell=>cell.user_count))
           const strategies = [
               ...new Set(selected.map((c) => c.release_strategy)),
             ].sort(),
@@ -355,7 +351,7 @@ function ReleaseMatrix({
                 >
                   <thead>
                     <tr>
-                      <th scope="col">Release Group / Strategy</th>
+                      <th scope="col">Release Group</th>
                       {strategies.map((s) => (
                         <th scope="col" key={s}>{s}</th>
                       ))}
@@ -366,12 +362,9 @@ function ReleaseMatrix({
                       <tr key={r}>
                         <th scope="row">{r}</th>
                         {strategies.map((s) => {
-                          const cell = selected.find(
-                            (c) =>
-                              c.release_group === r && c.release_strategy === s,
-                          );
+                          const cell = lookup.get(`${r}|||${s}`);
                           return (
-                            <td key={s} data-intensity={!cell?undefined:cell.user_count===0?0:Math.ceil(3*cell.user_count/Math.max(1,...selected.map(item=>item.user_count)))}>
+                            <td key={s} data-intensity={!cell?undefined:cell.user_count===0?0:Math.ceil(3*cell.user_count/maximum)}>
                               {cell ? (
                                 <DetailButton
                                   aria-label={`Investigate ${compare ? (group || "Unknown group") + " " : ""}${kind} ${r} ${s}: ${cell.user_count} users`}
@@ -398,7 +391,7 @@ function ReleaseMatrix({
       )}
       <p className="text-xs text-[var(--muted)]">
         {partial &&
-          "This matrix is paginated. A dash means no cell is shown on this page, not a zero user count. "}
+          "Matrix data is incomplete. A dash means no supplied cell, not a zero user count. "}
         A user is counted once per cell. Group comparisons use the group on each
         source assignment; counts across groups are not additive. Unparsed roles
         are excluded from the matrix only.

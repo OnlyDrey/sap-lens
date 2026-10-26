@@ -110,6 +110,7 @@ test('registry customization preserves custom mappings, CSV modules and transact
     await page.getByLabel('FI display name',{exact:true}).fill('Synthetic accounting')
     await page.getByRole('group',{name:'FI icon choices'}).getByRole('button',{name:'Layers',exact:true}).click()
     await page.getByLabel('FI hexadecimal color visual selection',{exact:true}).fill('#123456')
+    await page.getByRole('button',{name:'Apply module changes',exact:true}).click()
     await page.getByRole('button',{name:'Apply settings',exact:true}).click()
     await expect(page.getByRole('region',{name:'SAP Lens settings',exact:true})).toBeHidden()
     await expect(page.getByRole('article',{name:'DEMO_ROOT',exact:true})).toContainText('Synthetic accounting')

@@ -419,10 +419,11 @@ function UserDetails({
                 ))}
               </Select>
             </Filter>
-          <AssignmentDateFilters value={assignmentDates} onChange={setAssignmentDates}/>
+
           {(datesActive(assignmentDates) || transaction.codes.length > 0 || status) && <ClearFilterButton onClick={() => { setAssignmentDates({ ...emptyDates }); transaction.clear(); setTransactionMode('and'); setStatus('') }}>Clear all assignment filters</ClearFilterButton>}
 
             <TransactionFilter label="Find roles by transaction" filter={transaction} mode={transactionMode} onModeChange={setTransactionMode}/>
+          <AssignmentDateFilters value={assignmentDates} onChange={setAssignmentDates}/>
             <Button type="button" className="settings-secondary-button user-export-button" title="Exports every assignment matching the selected role view, validity, date bounds and transaction matching mode." disabled={exporting || result.isFetching || transaction.settling || !user.total} onClick={async () => {
               const generation = exportGeneration.current;
               setExporting(true); setExportMessage('Preparing CSV…');

@@ -39,8 +39,8 @@ for repeat investigations. Parsed names do not establish release authority or ef
 The matrix uses compact content-sized columns, prominent group/strategy headers,
 tabular counts and sticky headers inside a contained keyboard-focusable scroll
 region. Restrained background intensity is relative to counts on the displayed
-matrix, not an authorization or risk score. Empty/paginated cells retain their
-existing evidence meaning. Group comparison remains in a stable secondary toolbar.
+matrix, not an authorization or risk score. Complete matrices use contained scrolling without pagination. If a response is
+incomplete, a dash represents missing supplied evidence rather than zero users. Group comparison remains in a stable secondary toolbar.
 
 ## Assignment CSV export
 

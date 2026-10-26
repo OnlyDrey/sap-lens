@@ -84,20 +84,21 @@ test('complete icon search, module color validation and persisted icon selection
   await expect(hex).toHaveValue('')
   await expect(hex).toHaveAttribute('aria-invalid', 'true')
   await expect(
-    page.getByRole('button', { name: 'Apply settings', exact: true })
+    page.getByRole('button', { name: 'Apply module changes', exact: true })
   ).toBeDisabled()
   await hex.fill('invalid')
   await expect(hex).toHaveAttribute('aria-invalid', 'true')
   await expect(
-    page.getByRole('button', { name: 'Apply settings', exact: true })
+    page.getByRole('button', { name: 'Apply module changes', exact: true })
   ).toBeDisabled()
   await page
     .getByRole('button', { name: 'Reset FI hexadecimal color', exact: true })
     .click()
   await expect(hex).toHaveValue('#6f8fc5')
   await page
-    .getByRole('button', { name: 'Apply settings', exact: true })
+    .getByRole('button', { name: 'Apply module changes', exact: true })
     .click()
+  await page.getByRole('button',{name:'Apply settings',exact:true}).click()
   await expect(workspace(page)).toBeHidden()
   const config = await (
     await request.get('/api/configuration', { headers })
@@ -112,14 +113,7 @@ test('complete icon search, module color validation and persisted icon selection
     })
     .click()
   await expect(page.getByText('Selected icon: Camera')).toBeVisible()
-  await expect(
-    page
-      .getByRole('button', {
-        name: 'Edit FI — Financial Accounting',
-        exact: true
-      })
-      .locator('svg.lucide-camera')
-  ).toBeVisible()
+  await expect(page.getByRole('dialog',{name:/Configure FI —/}).locator('svg.lucide-camera').first()).toBeVisible()
 })
 
 test('unavailable lazy icon assets keep the application usable and preserve saved icons', async ({
@@ -151,7 +145,7 @@ test('unavailable lazy icon assets keep the application usable and preserve save
       .getByRole('alert')
       .filter({ hasText: 'Icon catalog could not be loaded' })
   ).toBeVisible()
-  await expect(workspace(page)).toBeVisible()
+  await expect(page.getByRole('dialog',{name:/Configure FI —/})).toBeVisible()
   expect(errors).toEqual([])
   const saved = await (
     await request.get('/api/configuration', { headers })

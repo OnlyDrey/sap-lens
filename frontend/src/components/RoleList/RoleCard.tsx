@@ -1,3 +1,4 @@
+import { Button } from '@/components/Shared/Button'
 import { TransactionCount } from '@/components/Shared/TransactionCount'
 import { ModuleIcon } from '@/components/Modules/ModuleIcon'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
@@ -30,7 +31,7 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
     <article
       onClick={handleCardClick}
       aria-label={`${title || role.agr_name}${isSelected ? ', selected' : ''}`}
-      className={cn('rounded-2xl cursor-pointer transition-all duration-150 flex flex-col')}
+      className={cn('role-card rounded-2xl cursor-pointer transition-all duration-150 flex flex-col')}
       style={{
         backgroundColor: 'var(--surface)',
         border: isSelected
@@ -112,13 +113,13 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
 
           <TransactionCount count={role.tcode_count}/>
 
-          <button data-np
+          <Button data-np variant="outline" size="compact"
             onClick={e => { e.stopPropagation(); onClick(role.agr_name) }}
             aria-label={`View details for ${title || role.agr_name}`}
-            className="settings-secondary-button role-card-details ml-auto"
+            className="role-card-details ml-auto"
 >
             View details <ArrowRight className="w-3 h-3" />
-          </button>
+          </Button>
         </div>
       </div>
     </article>

@@ -71,7 +71,7 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, pare
 
   return (
     <>
-      <div className="fixed inset-0 z-40" style={{ backgroundColor: 'rgba(0,0,0,0.25)' }} onClick={onClose} />
+      <div className="fixed inset-0 z-40" style={{ backgroundColor: 'var(--dialog-backdrop)' }} onClick={onClose} />
       <aside className="fixed right-0 top-0 h-full z-50 flex flex-col  w-full sm:w-[560px] lg:w-[45vw] max-w-[700px]"
         style={{ backgroundColor: 'var(--surface)' }} role="dialog" aria-modal="true" aria-label={`Role details: ${roleName}`}>
 

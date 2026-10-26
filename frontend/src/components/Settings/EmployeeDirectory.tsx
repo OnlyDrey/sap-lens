@@ -325,7 +325,7 @@ export function FeatureSettings({
             Derived from User–Role Mapping and Employee Directory. Exact email
             matching enriches SAP profiles without overwriting SAP attributes.
           </p>
-          <StatusBadge
+          <div className="feature-operational"><StatusBadge
             tone={
               directory.data?.operational_status === 'ready'
                 ? 'success'
@@ -335,7 +335,7 @@ export function FeatureSettings({
             {directory.data?.operational_status === 'ready'
               ? 'Operational'
               : 'Unavailable'}
-          </StatusBadge>
+          </StatusBadge></div>
           <p className="text-xs">Runtime status uses saved preferences.</p>
           <p className="text-xs">
             {!draft.features?.employee_directory
@@ -619,6 +619,7 @@ export function EmployeeSource({
       >
         <p className="ui-description">Employee Directory uses a fixed import format: UTF-8 CSV with semicolon separators and the documented directory headers. No SAP role mapping is inferred.</p>
         <BrowserSourceUpload source="employees" disabled={busy||dirty} onUploaded={value=>{choose(value);setUploaded(true)}}/>
+        <SourceStatusSummary source="employees"/>
         <SourceFileField label="Employee Directory CSV location" value={path} onChange={choose} native={Boolean(window.pywebview?.api)} disabled={busy} browseLabel="Browse employee CSV" onBrowse={()=>void act(async()=>{const selected=await window.pywebview?.api.choose_csv(applicationToken());if(selected)choose(selected)})}/>
         <div className="ui-toolbar">
           <Button
@@ -787,7 +788,7 @@ export function EmployeeSource({
           {error} Previous valid data is retained.
         </p>
       )}
-      <SourceStatusSummary source="employees"/>
+
       <DirectoryDiagnostics sourceView onFeatureSettings={onFeatureSettings} />
       <EmployeeBrowser />
     </div>

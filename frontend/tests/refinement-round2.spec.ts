@@ -104,7 +104,7 @@ for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(
 })
 
 test('task 30 shared dropdown and calendar follow anchor layout changes',async({page})=>{
- await page.goto('/#session=browser-test-session');await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:'Component Library',exact:true}).click()
+ await page.goto('/#session=browser-test-session');await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:'Component Library',exact:true}).click();await page.getByRole('tab',{name:'All components',exact:true}).click()
  const combo=page.getByRole('combobox',{name:'Demo searchable role',exact:true});await combo.scrollIntoViewIfNeeded();await combo.click()
  await combo.evaluate(el=>{const spacer=document.createElement('div');spacer.id='synthetic-layout-shift';spacer.style.height='70px';el.closest('.ui-field')!.before(spacer)})
  const adjacent=async(anchor:any,panel:any)=>{const a=(await anchor.boundingBox())!,p=(await panel.boundingBox())!;return Math.min(Math.abs(p.y-a.y-a.height),Math.abs(a.y-p.y-p.height))<10}
