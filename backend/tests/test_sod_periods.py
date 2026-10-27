@@ -64,3 +64,26 @@ class SodPeriodTests(unittest.TestCase):
         saved=periods.details(period['id']);path=config.config_dir()/'sod-periods.json';original=path.read_bytes();path.write_bytes(b'invalid')
         with self.assertRaises(Exception):periods.read()
         self.assertEqual(path.read_bytes(),b'invalid');path.write_bytes(original);self.assertEqual(periods.details(period['id'])['checksum'],saved['checksum'])
+
+    def test_reopened_classification_ignores_open_or_later_closed_prior_periods(self):
+        prior=self.create('Prior draft');original=copy.deepcopy(cache._cache.users.users['SYN_A']['assignments'])
+        cache._cache=copy.deepcopy(cache._cache);cache._cache.users.users['SYN_A']['assignments']=original[:1]
+        left=self.create('Before return')
+        cache._cache=copy.deepcopy(cache._cache);cache._cache.users.users['SYN_A']['assignments']=original
+        right=self.create('After return')
+        self.assertEqual(periods.compare(left['id'],right['id'])['summary']['New'],1)
+        self.decide_all(prior)
+        for state in ('In review','Ready for approval','Approved / closed'):
+            periods.transition(prior['id'],state,periods.read().revision,reviews.read().revision,reviewer='Synthetic Reviewer',approver='Synthetic Approver',approval_date=date(2026,10,27),confirm=True)
+        self.assertEqual(periods.compare(left['id'],right['id'])['summary']['New'],1)
+
+    def test_reopened_classification_uses_prior_frozen_observation(self):
+        prior=self.create('Prior closed');self.decide_all(prior)
+        for state in ('In review','Ready for approval','Approved / closed'):
+            periods.transition(prior['id'],state,periods.read().revision,reviews.read().revision,reviewer='Synthetic Reviewer',approver='Synthetic Approver',approval_date=date(2026,10,27),confirm=True)
+        original=copy.deepcopy(cache._cache.users.users['SYN_A']['assignments'])
+        cache._cache=copy.deepcopy(cache._cache);cache._cache.users.users['SYN_A']['assignments']=original[:1]
+        left=self.create('Before return')
+        cache._cache=copy.deepcopy(cache._cache);cache._cache.users.users['SYN_A']['assignments']=original
+        right=self.create('After return')
+        self.assertEqual(periods.compare(left['id'],right['id'])['summary']['Reopened'],1)

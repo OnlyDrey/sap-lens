@@ -180,7 +180,7 @@ def compare(left_id,right_id):
         a={row['finding_id']:row for row in left['analysis']['users']};b={row['finding_id']:row for row in right['analysis']['users']}
         previous=set()
         for period in index.items:
-            if period.created<left_period.created:
+            if period.created<left_period.created and period.state=='Approved / closed' and period.modified<left_period.created:
                 previous.update(row['finding_id'] for row in snapshot(period)['analysis']['users'])
         risk_a={item['risk_id']:item['definition_version'] for item in left['risks']};risk_b={item['risk_id']:item['definition_version'] for item in right['risks']}
         enabled={item['risk_id'] for item in right['risks'] if item['local']['enabled'] and item['source']['supported']}
