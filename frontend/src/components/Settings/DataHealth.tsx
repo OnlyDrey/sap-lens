@@ -51,7 +51,7 @@ interface Health {
 export function DataHealth({
   onSource,
 }: {
-  onSource: (s: 'roles' | 'users' | 'employees') => void
+  onSource: (s: 'roles' | 'users' | 'employees' | 'sod') => void
 }) {
   const [finding, setFinding] = useState(''),
     [offset, setOffset] = useState(0),
@@ -82,7 +82,7 @@ export function DataHealth({
                 <Button
                   className="settings-secondary-button"
                   onClick={() =>
-                    onSource(s.id as 'roles' | 'users' | 'employees')
+                    onSource(s.id as 'roles' | 'users' | 'employees' | 'sod')
                   }
                 >
                   Source details <ChevronRight size={14} />

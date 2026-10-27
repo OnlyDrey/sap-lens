@@ -30,6 +30,7 @@ def diagnostics_snapshot(loader=None, private=False):
     for key, name, path, count, report in [
         ('roles', 'Role Catalogue CSV', settings.data_csv_path, len(state.roles), state.import_report),
         ('users', 'User Access CSV', settings.user_csv_path, len(state.users.users), state.users.report),
+        ('sod', 'SoD Matrix CSV', settings.sod_csv_path, len(state.sod.get('records', [])), state.sod.get('report', {})),
     ]:
         loaded_path = state.loaded_sources.get(key, '')
         attempt = getattr(loader, 'source_attempts', {}).get(key, {}) if loader else {}

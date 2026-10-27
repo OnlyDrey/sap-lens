@@ -68,7 +68,7 @@ export function Diagnostics({
   onEmployeeFeatures,
   onSource,
 }: {
-  onSource?: (source: 'roles' | 'users' | 'employees') => void
+  onSource?: (source: 'roles' | 'users' | 'employees' | 'sod') => void
   native: boolean
   onEmployeeFeatures?: () => void
   onEmployeeSettings?: () => void
@@ -181,7 +181,7 @@ export function Diagnostics({
               <SourceHealthSummary source={source}/>
               <Button
                 onClick={() =>
-                  onSource?.(source.id as 'roles' | 'users' | 'employees')
+                  onSource?.(source.id as 'roles' | 'users' | 'employees' | 'sod')
                 }
               >
                 Review{' '}

@@ -6,6 +6,7 @@ import { DataHealth } from './DataHealth'
 import { About } from './About'
 import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
 import { DirectoryDiagnostics, DirectorySnapshotRecovery, EmployeeBrowser, FeatureSettings } from './EmployeeDirectory'
+import {SodRiskSettings} from './SodRiskSettings'
 import {SourceManager} from './SourceManager'
 import {rebaseSourceDraft,type CSVSource,type SourceActivation} from '@/api/sources'
 import { MappingField, ImportPreview } from './ImportControls'
@@ -29,6 +30,7 @@ import {
   CheckCircle,
   X,
   BookUser,
+  ShieldCheck,
   Info
 } from 'lucide-react'
 import { ModuleEditor } from './ModuleEditor'
@@ -51,7 +53,7 @@ import {
 } from '@/api/configuration'
 
 const ComponentLibrary=lazy(()=>import('./ComponentLibrary').then(module=>({default:module.ComponentLibrary})))
-const sectionIcons = [Building2, Database, Layers, Palette, Activity, BookUser, Info, Layers]
+const sectionIcons = [Building2, Database, Layers, Palette, Activity, BookUser, Info, Layers, ShieldCheck]
 const sections = [
   'Organization & SAP System',
   'Data Sources',
@@ -60,9 +62,10 @@ const sections = [
   'Health & Diagnostics',
   'Features',
   'About SAP Lens',
-  'Component Library'
+  'Component Library',
+  'SoD Risk Configuration'
 ]
-const navigationOrder=[0,3,1,2,5,4,7,6]
+const navigationOrder=[0,3,1,2,8,5,4,7,6]
 const fieldLabels: Record<string, string> = {
   FUNCTION_KEY: 'SAP module or area',
   AGR_NAME: 'Role name (required)',
@@ -105,7 +108,7 @@ export function SettingsView({
 }) {
   const applicationData=useApplicationData()
   const [section, setSection] = useState(0)
-  const [importSource, setImportSource] = useState<'roles' | 'users' | 'employees'>('roles')
+  const [importSource, setImportSource] = useState<CSVSource>('roles')
   const [advancedSource,setAdvancedSource]=useState(false)
   const [candidatePaths,setCandidatePaths]=useState<Partial<Record<CSVSource,string>>>({})
   const scrollPane = useRef<HTMLDivElement>(null)
@@ -118,7 +121,7 @@ export function SettingsView({
   const [error, setError] = useState<string | null>(null)
   const [settingsTarget] = useHistoryValue('settingsTarget')
   const {change: changeSettingsTarget} = useViewHistory()
-  useEffect(()=>{if(open && settingsTarget) {setSection(settingsTarget === 'diagnostics' ? 4 : settingsTarget === 'features' ? 5 : 1); if(['roles','users','employees'].includes(settingsTarget)) setImportSource(settingsTarget as 'roles'|'users'|'employees'); changeSettingsTarget({settingsTarget:undefined},true)}},[open,settingsTarget])
+  useEffect(()=>{if(open && settingsTarget) {setSection(settingsTarget === 'diagnostics' ? 4 : settingsTarget === 'features' ? 5 : 1); if(['roles','users','employees','sod'].includes(settingsTarget)) setImportSource(settingsTarget as CSVSource); changeSettingsTarget({settingsTarget:undefined},true)}},[open,settingsTarget])
   const [message, setMessage] = useState<string | null>(null)
   const [columns, setColumns] = useState<string[]>([])
   const [inspectionMessage, setInspectionMessage] = useState('')
@@ -395,13 +398,13 @@ export function SettingsView({
   ])
 
   const sourceActivated=(result:SourceActivation)=>{
-    setCandidatePaths(previous=>({...previous,[result.source]:result.source==='roles'?result.settings.data_csv_path:result.source==='users'?result.settings.user_csv_path:result.settings.employee_csv_path||''}))
+    setCandidatePaths(previous=>({...previous,[result.source]:result.source==='roles'?result.settings.data_csv_path:result.source==='users'?result.settings.user_csv_path:result.source==='sod'?result.settings.sod_csv_path||'':result.settings.employee_csv_path||''}))
     setDraft(previous=>previous?rebaseSourceDraft(previous,result.settings,result.source):previous)
   }
   const clearSource=async(source:CSVSource)=>{
     const current=await fetchConfiguration()
     if(source==='employees')await apiRequest('/api/employees/clear','POST',{path:current.settings.employee_csv_path||'',revision:current.settings.revision})
-    else await saveConfiguration({...current.settings,[source==='roles'?'data_csv_path':'user_csv_path']:''})
+    else await saveConfiguration({...current.settings,[source==='roles'?'data_csv_path':source==='sod'?'sod_csv_path':'user_csv_path']:''})
     const saved=await fetchConfiguration()
     setCandidatePaths(previous=>({...previous,[source]:''}))
     qc.setQueryData(['configuration'],saved)
@@ -725,15 +728,15 @@ export function SettingsView({
                         <button className="settings-secondary-button" onClick={() => setSection(4)}>View data source diagnostics</button>
 
                       </div>
-                      <ContentTabList label="Import source" value={importSource} onChange={value=>setImportSource(value as 'roles'|'users'|'employees')} idPrefix="source-tab" panelId={value=>`source-panel-${value}`} className="source-navigation" items={([['roles','Role Catalogue',LibraryBig],['users','User Access',UsersRound],['employees','Employee Directory',BookUser]] as const).map(([value,label,Icon])=>({value,label,icon:<Icon size={16} aria-hidden="true"/>}))}/>
+                      <ContentTabList label="Import source" value={importSource} onChange={value=>setImportSource(value as CSVSource)} idPrefix="source-tab" panelId={value=>`source-panel-${value}`} className="source-navigation" items={([['roles','Role Catalogue',LibraryBig],['users','User Access',UsersRound],['employees','Employee Directory',BookUser],['sod','SoD Matrix',ShieldCheck]] as const).map(([value,label,Icon])=>({value,label,icon:<Icon size={16} aria-hidden="true"/>}))}/>
 
                       {config.data?.error&&!applicationData.importPhase&&<p role="alert">{config.data.error}</p>}
                       <div id={`source-panel-${importSource}`} role="tabpanel" aria-labelledby={`source-tab-${importSource}`}>
                         <SourceManager key={importSource} source={importSource} draft={draft} candidatePath={candidatePaths[importSource]} inputRef={csvPathInput}
-                          onMode={mode=>setDraft(previous=>previous?{...previous,source_modes:{roles:'dynamic',users:'dynamic',employees:'static',...previous.source_modes,[importSource]:mode}}:previous)}
+                          onMode={mode=>setDraft(previous=>previous?{...previous,source_modes:{roles:'dynamic',users:'dynamic',employees:'static',sod:'static',...previous.source_modes,[importSource]:mode}}:previous)}
                           onCandidate={path=>setCandidatePaths(previous=>({...previous,[importSource]:path}))} onActivated={sourceActivated} onClear={()=>clearSource(importSource)} onFeatures={()=>setSection(5)}/>
                         {importSource==='employees'&&<><DirectorySnapshotRecovery onPersisted={async()=>{const saved=await fetchConfiguration();qc.setQueryData(['configuration'],saved);setDraft(previous=>previous?rebaseSourceDraft(previous,saved.settings,'employees'):previous);await qc.invalidateQueries({predicate:query=>['diagnostics','data-health','dashboard'].includes(String(query.queryKey[0]))});setMessage('Validated directory records saved locally. The original CSV is no longer required for restart.')}}/><DirectoryDiagnostics sourceView onFeatureSettings={()=>setSection(5)}/><details className="settings-advanced mt-4"><summary>Employee Directory data preview</summary><EmployeeBrowser/></details></>}
-                      {importSource!=='employees'&&<details className="settings-advanced" onToggle={event=>setAdvancedSource(event.currentTarget.open)}>
+                      {(importSource==='roles'||importSource==='users')&&<details className="settings-advanced" onToggle={event=>setAdvancedSource(event.currentTarget.open)}>
                         <summary>Advanced import format and column mapping</summary>
                         <p className="ui-description">Optional inspection and mapping. Selecting a file imports automatically using the selected format. Apply settings to save format-only changes.</p>
                         {advancedSource&&importSource==='users'&&<UserSourceEditor draft={{...draft,user_csv_path:candidatePaths.users??draft.user_csv_path}} onChange={value=>setDraft(previous=>previous?{...value,user_csv_path:previous.user_csv_path}:previous)} active/>}
@@ -969,6 +972,7 @@ export function SettingsView({
                     </div>
                   }
                   {section === 6 && <><About/><DesktopOptions draft={draft} onChange={setDraft}/></>}
+                  {section === 8 && <SodRiskSettings onConfigure={()=>{setSection(1);setImportSource('sod')}}/>}
                   {section === 7 && <Suspense fallback={<p role="status">Loading component previews…</p>}><ComponentLibrary/></Suspense>}
                   {section === 5 && <><FeatureSettings draft={draft} onChange={setDraft} onConfigure={source => { setSection(1); setImportSource(source) }}/></>}
                   {section === 4 && (
@@ -1071,7 +1075,7 @@ export function SettingsView({
             </div>
           </div>
         </div>
-        <div className={section===7?'hidden':'settings-actions'}>
+        <div className={section===7||section===8?'hidden':'settings-actions'}>
           <p role="status" className="text-xs text-[var(--muted)] mr-auto">
             {draft &&
             (['dark', 'light'] as const).some(

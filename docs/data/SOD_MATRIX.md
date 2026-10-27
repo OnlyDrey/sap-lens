@@ -2,9 +2,10 @@
 
 The SoD matrix is an externally supplied CSV. SAP Lens does not query SAP or
 schedule source extraction. The backend supports it as a fourth source through
-the existing validated import, snapshot and refresh lifecycle. The SoD catalogue,
-analysis and review interfaces are being implemented separately; source support
-alone is not a complete SoD investigation workflow.
+the existing validated import, snapshot and refresh lifecycle. Settings → SoD Risk Configuration provides the imported catalogue and local
+business guidance. Analysis and review interfaces are being implemented
+separately; source/catalogue support alone is not a complete investigation
+workflow.
 
 ## Schema and policy
 
@@ -57,3 +58,32 @@ configuration exports exclude source paths, snapshots and source history; full
 private backups remain sensitive and follow the normal deployment backup rules.
 
 See [Import and refresh](IMPORT_AND_REFRESH.md) and [data documentation](README.md).
+
+
+## Local risk configuration
+
+Under Settings → Data Sources → SoD Matrix, select a file to validate and import
+it automatically. Preview inspects the active durable snapshot rather than
+rereading the original. The same shared controls support permitted server paths,
+browser uploads, explicit replacement and intentional clearing.
+
+Settings → SoD Risk Configuration separates imported source values from local
+metadata. Search/filter the catalogue, inspect both activity sides, and edit:
+
+- Enabled preference, display name and business category.
+- English/Norwegian explanation, consequences, mitigating controls and review guidance.
+- Local notes and description-review status.
+
+New risks are enabled by default and need description review. No business
+explanation or control is fabricated from source codes. A source-definition
+change invalidates the description's reviewed status without discarding local
+text. Removed risks remain in historical source versions and retain local edits,
+but are excluded from current analysis. Bulk disabling requires confirmation;
+it does not delete history or approve descriptions.
+
+Metadata uses a separate versioned private store with optimistic revision and
+source-definition guards. Concurrent edits or refreshes require reloading before
+saving. Invalid or unreadable storage is preserved and reported for recovery.
+The store currently supports up to 5,000 annotated risks and 20 MiB; limits fail
+safely without partially applying edits. Private deployment backups include this
+store; portable appearance/configuration packages do not include it.
