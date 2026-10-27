@@ -180,3 +180,35 @@ findings. Lost users, disabled/changed risks or incomplete source coverage produ
 at a past date uses the imported evidence retained in the snapshot; it is not a
 reconstruction of unexported historical SAP access. Private backups must include
 both the period/review indexes and their immutable snapshot files.
+
+## DOCX and PDF reports
+
+SoD → Reports uses one structured model from a selected period snapshot for both
+formats. Choose title, date/version, prepared-by/reviewer/approver details,
+management comments, sections, appendices and an optional closed previous period.
+Preview the structured summary before exporting. Changed evidence invalidates the
+preview. Approved status is allowed only for a closed period; recorded approval
+identities cannot be overridden by report options.
+
+DOCX is editable. PDF uses bundled Unicode fonts and needs no Office installation.
+Both include organization metadata/logo when configured, source and methodology
+versions, potential findings, decisions, controls, actions, signature lines and
+integrity metadata. Names/signature lines are not verified digital signatures;
+use an external signing solution. Import/check timestamps are labelled UTC;
+dates use DD.MM.YYYY and 24-hour time.
+
+The English template is complete. Norwegian headings and locally maintained
+Norwegian business guidance are supported; supporting template prose remains
+English. PDF font coverage includes the tested Nordic characters; unsupported
+symbols fail explicitly instead of producing missing glyphs. Editable DOCX is
+available for such content. Detailed reports are bounded at 20,000 rows, an
+8 MiB structured model and 32 MiB output. Exclude appendices and use complete CSV
+exports when limits are reached. Missing/corrupt frozen logos require backup
+recovery rather than silently changing an approved report's branding.
+
+New runtime dependencies are pinned: python-docx (MIT), ReportLab (BSD), lxml
+(BSD-3-Clause) and charset-normalizer (MIT). Windows packaging includes DOCX
+standard templates, ReportLab's Bitstream Vera fonts/font license and dependency
+license metadata. Docker/native deployments install the same pinned packages and
+resources. Native Word/WebView2/packaged Windows acceptance remains separate from
+structural DOCX, Linux PDF and mocked native-dialog validation.

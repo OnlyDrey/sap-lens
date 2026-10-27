@@ -359,6 +359,27 @@ class DesktopTests(unittest.TestCase):
         self.assertFalse(bridge.save_sod_csv('synthetic-capability',name,content))
         with self.assertRaises(ValueError):bridge.save_sod_csv('synthetic-capability','sap-lens-sod-arbitrary-findings-2026-10-27.csv',content)
 
+    def test_sod_document_save_keeps_fixed_formats_and_capability_boundary(self):
+        import base64
+        from io import BytesIO
+        from zipfile import ZipFile
+        bridge=desktop.NativeDialogs('synthetic-capability');bridge._window=self.window
+        for kind,payload in [('pdf',b'%PDF-1.4\nSynthetic report\n%%EOF')]:
+            name='sap-lens-sod-report-'+'a'*32+'-2026-10-27.'+kind
+            encoded=base64.b64encode(payload).decode();target=self.root/('synthetic.'+kind);self.window.create_file_dialog.return_value=[str(target)]
+            with self.assertRaises(ValueError):bridge.save_sod_document('wrong',name,encoded)
+            with self.assertRaises(ValueError):bridge.save_sod_document('synthetic-capability','../'+name,encoded)
+            with self.assertRaises(ValueError):bridge.save_sod_document('synthetic-capability',name,base64.b64encode(b'invalid').decode())
+            self.assertTrue(bridge.save_sod_document('synthetic-capability',name,encoded));self.assertEqual(target.read_bytes(),payload)
+            self.window.create_file_dialog.return_value=None;self.assertFalse(bridge.save_sod_document('synthetic-capability',name,encoded))
+        stream=BytesIO()
+        with ZipFile(stream,'w') as archive:
+            archive.writestr('[Content_Types].xml','<Types/>');archive.writestr('word/document.xml','<document/>');archive.writestr('_rels/.rels','<Relationships/>')
+        name='sap-lens-sod-report-'+'a'*32+'-2026-10-27.docx';target=self.root/'synthetic.docx';self.window.create_file_dialog.return_value=[str(target)]
+        self.assertTrue(bridge.save_sod_document('synthetic-capability',name,base64.b64encode(stream.getvalue()).decode()))
+        with ZipFile(stream,'a') as archive:archive.writestr('word/vbaProject.bin',b'invalid macro')
+        with self.assertRaises(ValueError):bridge.save_sod_document('synthetic-capability',name,base64.b64encode(stream.getvalue()).decode())
+
     def test_change_report_save_reuses_guarded_dialog_with_its_own_csv_contract(self):
         bridge=desktop.NativeDialogs('synthetic-capability');bridge._window=self.window
         filename='sap-lens-refresh-changes-report-2026-10-23.csv'

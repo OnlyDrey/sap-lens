@@ -2,11 +2,11 @@ import { createContext, useContext, useEffect, useState, type ReactNode, type Se
 
 export type ReleaseDrill = { status?: string; username?: string; role_search?: string; ungrouped?: boolean; role?: string; group?: string; document_type?: string; release_group?: string; strategy?: string }
 export type SodFilterState = Record<string,string|boolean|number|string[]>
-type View = { sodView?:'catalogue'|'users'|'roles'|'reviews'|'periods'; sodFilters?:{users:SodFilterState;roles:SodFilterState}; assignmentBand?:string; catalogueArea?:string; accountReviewFilters?:{search:string;license:string;state:string;sort:string;descending:boolean}; userComparison?:{sort?:string;descending?:boolean;a:string;b:string;validity:string;kind:string;difference:string;search:string;area:string}; accessMode?: 'directory'|'review'|'compare'; reviewFinding?: string; kpiNavigation?: Partial<Record<'roles'|'users'|'releases',number>>; settingsTarget?: 'roles' | 'users' | 'employees' | 'sod' | 'diagnostics' | 'features'; page: 'dashboard' | 'roles' | 'users' | 'releases' | 'sod'; user: string; release: ReleaseDrill | null; detailRole: string | null; comparison: boolean; settings: boolean; releaseContext: string; userContext: { role?: string; tcode?: string } }
+type View = { sodView?:'catalogue'|'users'|'roles'|'reviews'|'periods'|'reports'; sodFilters?:{users:SodFilterState;roles:SodFilterState}; assignmentBand?:string; catalogueArea?:string; accountReviewFilters?:{search:string;license:string;state:string;sort:string;descending:boolean}; userComparison?:{sort?:string;descending?:boolean;a:string;b:string;validity:string;kind:string;difference:string;search:string;area:string}; accessMode?: 'directory'|'review'|'compare'; reviewFinding?: string; kpiNavigation?: Partial<Record<'roles'|'users'|'releases',number>>; settingsTarget?: 'roles' | 'users' | 'employees' | 'sod' | 'diagnostics' | 'features'; page: 'dashboard' | 'roles' | 'users' | 'releases' | 'sod'; user: string; release: ReleaseDrill | null; detailRole: string | null; comparison: boolean; settings: boolean; releaseContext: string; userContext: { role?: string; tcode?: string } }
 const paths = { dashboard: 'dashboard', roles: 'role-lookup', users: 'user-access', releases: 'release-roles', sod:'sod' }
 const defaults: View = { page: 'dashboard', user: '', release: null, detailRole: null, comparison: false, settings: false, releaseContext: '', userContext: {} }
 export function userAccessHref(mode:'directory'|'review'|'compare') {return '#/user-access'+(mode==='directory'?'':mode==='review'?'/account-review':'/compare')}
-export function sodHref(view:'catalogue'|'users'|'roles'|'reviews'|'periods'){return '#/sod'+(view==='catalogue'?'':`/${view}`)}
+export function sodHref(view:'catalogue'|'users'|'roles'|'reviews'|'periods'|'reports'){return '#/sod'+(view==='catalogue'?'':`/${view}`)}
 function viewUrl(view:View) {
  const base=view.page==='sod'?sodHref(view.sodView||'catalogue'):view.page==='users'?userAccessHref(view.accessMode||'directory'):`#/${paths[view.page]}`
  const query=location.hash.startsWith('#/')?location.hash.split('?').slice(1).join('?'):''
@@ -18,7 +18,7 @@ function readView(): View {
  const page=Object.entries(paths).find(([,value])=>value===segments[0])?.[0] as View['page']|undefined
  const base=stored&&['dashboard','roles','users','releases','sod'].includes(stored.page)?{...defaults,...stored}:{...defaults,page:page||'dashboard'}
  if(page)base.page=page
- if(page==='sod')base.sodView=segments[1]==='users'?'users':segments[1]==='roles'?'roles':segments[1]==='reviews'?'reviews':segments[1]==='periods'?'periods':'catalogue'
+ if(page==='sod')base.sodView=segments[1]==='users'?'users':segments[1]==='roles'?'roles':segments[1]==='reviews'?'reviews':segments[1]==='periods'?'periods':segments[1]==='reports'?'reports':'catalogue'
  if(page==='users'&&segments[1])base.accessMode=segments[1]==='account-review'?'review':segments[1]==='compare'?'compare':'directory'
  return base
 }

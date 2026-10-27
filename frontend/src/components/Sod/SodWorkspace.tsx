@@ -1,3 +1,4 @@
+import {SodReports} from './SodReports'
 import {SodPeriods} from './SodPeriods'
 import {SodReviews} from './SodReviews'
 import {useEffect,useRef,useState} from 'react'
@@ -31,7 +32,7 @@ const text=(state:SodFilterState,key:string)=>typeof state[key]==='string'?state
 function parameters(kind:string,state:SodFilterState){const params=new URLSearchParams({kind});for(const [key,value]of Object.entries(state)){if(Array.isArray(value))value.forEach(item=>params.append(key,item));else if(value!==''&&value!==undefined)params.set(key,String(value))}return params}
 export function SodWorkspace(){
  const [selected]=useHistoryValue('sodView'),{change}=useViewHistory(),view=selected||'catalogue'
- return <section className="grid min-w-0 gap-3" aria-label="SoD investigation"><PageHeader title="Segregation of Duties" icon={<ShieldCheck size={24} aria-hidden="true"/>}/><SecondaryNavigation label="SoD views" items={([['catalogue','Risk Catalogue'],['users','User Conflicts'],['roles','Role Conflicts'],['reviews','Access Review'],['periods','Review Periods']] as const).map(([value,label])=>({value,label,href:sodHref(value),active:view===value,onSelect:()=>change({sodView:value})}))}/>{view==='catalogue'?<SodRiskSettings onConfigure={()=>change({settings:true,settingsTarget:'sod'})}/>:view==='reviews'?<SodReviews/>:view==='periods'?<SodPeriods/>:<ConflictView key={view} kind={view}/>}</section>
+ return <section className="grid min-w-0 gap-3" aria-label="SoD investigation"><PageHeader title="Segregation of Duties" icon={<ShieldCheck size={24} aria-hidden="true"/>}/><SecondaryNavigation label="SoD views" items={([['catalogue','Risk Catalogue'],['users','User Conflicts'],['roles','Role Conflicts'],['reviews','Access Review'],['periods','Review Periods'],['reports','Reports']] as const).map(([value,label])=>({value,label,href:sodHref(value),active:view===value,onSelect:()=>change({sodView:value})}))}/>{view==='catalogue'?<SodRiskSettings onConfigure={()=>change({settings:true,settingsTarget:'sod'})}/>:view==='reviews'?<SodReviews/>:view==='periods'?<SodPeriods/>:view==='reports'?<SodReports/>:<ConflictView key={view} kind={view}/>}</section>
 }
 function ConflictView({kind}:{kind:'users'|'roles'}){
  const [historyFilters,setHistoryFilters]=useHistoryValue('sodFilters'),{change}=useViewHistory(),filters={...initial,...historyFilters?.[kind]},[offset,setOffset]=useState(0),[active,setActive]=useState<Finding|null>(null),[roleSearch,setRoleSearch]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[failed,setFailed]=useState(false),[dateText,setDateText]=useState(formatDate(text(filters,'as_of'),'')),[dateError,setDateError]=useState(false)

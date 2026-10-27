@@ -63,6 +63,41 @@ def _save_csv_dialog(owner, token, filename, content, kind):
         owner._picker_lock.release()
 
 
+def _save_document_dialog(owner,token,filename,encoded):
+    """Fixed SoD report formats only; never accepts a server filesystem path."""
+    import base64
+    import re
+    from io import BytesIO
+    from zipfile import ZipFile,BadZipFile
+    if not isinstance(token,str) or not hmac.compare_digest(token.encode(),owner._token.encode()):raise ValueError('Application request is not authorized.')
+    if not isinstance(filename,str) or not re.fullmatch(r'sap-lens-sod-report-[a-f0-9]{32}-\d{4}-\d{2}-\d{2}\.(pdf|docx)',filename):raise ValueError('Invalid report filename.')
+    if not isinstance(encoded,str) or len(encoded)>45*1024*1024:raise ValueError('Report exceeds its size limit.')
+    try:payload=base64.b64decode(encoded,validate=True)
+    except (ValueError,TypeError):raise ValueError('Invalid report content.') from None
+    if len(payload)>32*1024*1024:raise ValueError('Report exceeds 32 MiB.')
+    extension=Path(filename).suffix
+    if extension=='.pdf':
+        if not payload.startswith(b'%PDF-') or not payload.rstrip().endswith(b'%%EOF'):raise ValueError('Invalid PDF report.')
+    else:
+        try:
+            with ZipFile(BytesIO(payload)) as archive:
+                entries=archive.infolist();names=set(archive.namelist())
+                if len(entries)>500 or sum(entry.file_size for entry in entries)>64*1024*1024 or not {'[Content_Types].xml','word/document.xml','_rels/.rels'}<=names:raise ValueError()
+                if any(name.startswith('/') or '\\' in name or '..' in name.split('/') or any(part in name.lower() for part in ('vbaproject','embeddings/','customui/')) for name in names):raise ValueError()
+                if b'macroEnabled' in archive.read('[Content_Types].xml') or any(b'TargetMode="External"' in archive.read(name) for name in names if name.endswith('.rels')):raise ValueError()
+        except (ValueError,BadZipFile,KeyError):raise ValueError('Invalid editable DOCX report.') from None
+    if not owner._window or not owner._picker_lock.acquire(blocking=False):return False
+    try:
+        import webview
+        files=owner._window.create_file_dialog(webview.FileDialog.SAVE,save_filename=filename,file_types=(('PDF files (*.pdf)' if extension=='.pdf' else 'Word documents (*.docx)'),))
+        if not files:return False
+        path=Path(files[0])
+        if not path.is_absolute() or path.suffix.lower()!=extension or path.is_symlink():raise ValueError('Choose an absolute matching report destination.')
+        from config import atomic_write
+        atomic_write(path,payload);return True
+    finally:owner._picker_lock.release()
+
+
 class AppLogFilter(logging.Filter):
     def filter(self, record):
         # Third-party exceptions can contain WebView URLs or filesystem details.
@@ -191,6 +226,9 @@ class NativeDialogs:
 
     def save_user_access_csv(self, token: str, filename: str, content: str):
         return _save_csv_dialog(self, token, filename, content, 'access')
+
+    def save_sod_document(self, token, filename, content_base64):
+        return _save_document_dialog(self, token, filename, content_base64)
 
     def save_sod_csv(self, token: str, filename: str, content: str):
         return _save_csv_dialog(self, token, filename, content, 'sod')

@@ -144,6 +144,8 @@ try {
             '--add-data', ($icon + ';assets'), '--paths', 'backend',
             '--add-data', ($buildIdentity + ';.'),
             '--add-data', ($frontendDist + ';frontend/dist'), '--specpath', 'backend',
+            '--collect-data', 'docx', '--collect-data', 'reportlab',
+            '--copy-metadata', 'python-docx', '--copy-metadata', 'reportlab', '--copy-metadata', 'lxml', '--copy-metadata', 'charset-normalizer',
             '--distpath', 'backend/dist', '--workpath', 'backend/build', 'backend/desktop.py'
         )
         Measure-Task 'PyInstaller packaging (clean)' {

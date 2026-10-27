@@ -19,7 +19,7 @@ try {
     if (Test-Path $output) { throw 'Output already exists. Use a new empty output directory/version after reviewing the previous build.' }
     Invoke-Checked { & $python scripts/write-windows-metadata.py }
     # Console bootloader is required for WinSW Ctrl+C shutdown. No WebView2 runtime hooks.
-    Invoke-Checked { & $python -m PyInstaller --noconfirm --clean --onedir --console --noupx --name SAP-Lens --distpath "$output/app" --workpath backend/build/server --specpath backend/build/server --paths backend --icon assets/sap-lens.ico --version-file backend/build/version-info.txt --add-data 'frontend/dist;frontend/dist' --add-data 'assets/sap-lens.ico;assets' --add-data 'assets/sap-lens.png;assets' --add-data 'backend/build/build-version.json;.' --exclude-module webview --exclude-module pythonnet --exclude-module clr backend/server.py }
+    Invoke-Checked { & $python -m PyInstaller --noconfirm --clean --onedir --console --noupx --name SAP-Lens --distpath "$output/app" --workpath backend/build/server --specpath backend/build/server --paths backend --icon assets/sap-lens.ico --version-file backend/build/version-info.txt --add-data 'frontend/dist;frontend/dist' --add-data 'assets/sap-lens.ico;assets' --add-data 'assets/sap-lens.png;assets' --add-data 'backend/build/build-version.json;.' --collect-data docx --collect-data reportlab --copy-metadata python-docx --copy-metadata reportlab --copy-metadata lxml --copy-metadata charset-normalizer --exclude-module webview --exclude-module pythonnet --exclude-module clr backend/server.py }
     Move-Item "$output/app/SAP-Lens/*" "$output/app/"
     Remove-Item "$output/app/SAP-Lens"
     Copy-Item $WinSW "$output/SAPLensService.exe"
