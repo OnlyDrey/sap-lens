@@ -31,7 +31,7 @@ SAP module colors remain independent of general theme colors. Do not substitute 
 
 Canonical `Button` supports primary, secondary, outline, ghost and destructive variants; default, compact and icon sizes; loading and disabled states. Loading disables the operation and exposes `aria-busy`. Every icon-only action uses `IconButton` with a required accessible label. Tooltips also work on keyboard focus and dismiss on Escape; they are supplemental labels, not the only accessible name.
 
-Primary actions use the derived accessible action foreground. Secondary/outline are routine operations, ghost reduces chrome, and destructive is reserved for deletion. Clearing filters is neutral. Hover uses theme tokens; active action feedback is a small press translation; selection uses explicit underline/pressed state rather than relying solely on color. Focus-visible is a two-pixel ring with spacing. Reduced-motion preferences remain honored.
+Primary actions use the derived accessible action foreground. Secondary/outline are routine operations, ghost reduces chrome, and destructive is reserved for deletion. Clearing filters is neutral. Hover uses theme tokens; active action feedback is a small press translation; selection uses explicit bottom-border/pressed state rather than relying solely on color. Focus-visible is a two-pixel ring with spacing. Reduced-motion preferences remain honored.
 
 `settings-secondary-button`, `settings-control` and `settings-icon-button` are compatibility aliases in the canonical stylesheet, not independent designs. Remaining Settings actions use the shared default size; compact buttons explicitly override that default. Do not copy long utility strings into new screens.
 
@@ -65,7 +65,7 @@ Blurred elevation and colored glow are removed in both themes; autofill masking 
 an inset fill, not a focus effect. Popovers remain portal-positioned with opaque
 surfaces and visible borders. Navigation uses a shared strip implementation while
 preserving distinct link and tab semantics. Secondary navigation has a subtle
-underline hover state rather than a large background treatment.
+bottom-border hover state rather than a large background treatment.
 
 Page titles use the shared icon-led header. Saved Filter Save/Clear actions share
 an equal-width two-column row. Source metadata uses full-width facts rather than
@@ -77,4 +77,27 @@ hover leaves those surfaces unchanged. Identifiers remain exact, single-line and
 copyable, with contained horizontal scrolling instead of arbitrary wrapping. Focus
 remains a visible outline.
 
-Dialogs share --dialog-backdrop with stronger theme-aware dimming and no blur. Spinners share --spinner-duration (1.4 seconds); reduced-motion mode removes their rotation without delaying operations. Hover-only navigation borders are replaced with a full-target outline; intentional active-tab underlines and structural table separators remain.
+Dialogs share --dialog-backdrop with stronger theme-aware dimming and no blur. Spinners share --spinner-duration (1.4 seconds); reduced-motion mode removes their rotation without delaying operations. Navigation reserves bottom-border hover/active indicators; a separate focus-visible outline remains for keyboard users. Structural table separators remain.
+
+## Tailwind-first styling contract
+
+Tailwind 3.4 is the primary choice for new and migrated presentation. The runtime
+pipeline remains configuration → CSS variables → semantic Tailwind utilities →
+shared React components. `canvas`, `surface`, `elevated`, `content`, `secondary`,
+`muted`, `line`, `action`, `hover` and `focus` map to the existing theme variables;
+`rounded-control`, `rounded-card` and `min-h-control` map to shared dimensions.
+These values update with runtime themes and custom branding.
+
+Order utilities as layout, size, spacing, typography, colors, interaction and
+responsive variants. Prefer standard spacing scales. Shared component contracts,
+complex evidence tables, browser-specific rules and measured portal positioning
+remain legitimate CSS. Validated runtime colors and isolated draft theme tokens
+remain legitimate inline styles. Remove migrated selectors rather than stacking
+new overrides on top of them; no new styling dependency is required.
+
+Secondary navigation and content tabs reserve a transparent bottom border, coloring
+it with the primary action color on selection and contrasting text color on hover
+without changing geometry. Focus uses a separate visible
+outline. Technical identifiers always retain a neutral code border; module colors
+belong to module metadata, not identifier status. Comparison selection uses a full
+outline rather than a bottom-only shadow.

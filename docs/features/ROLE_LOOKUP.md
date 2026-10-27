@@ -86,3 +86,19 @@ See [filter semantics](FILTERS.md), [CSV schemas](../data/CSV_SCHEMAS.md) and [S
 Transaction search appears first visually and in keyboard order; role text search follows. Example T-codes are placeholders only. Cards constrain intrinsic identifier width and keep exact identifiers scrollable/copyable beside compact shared actions.
 
 Role Comparison summaries use symmetric Jaccard similarity: shared / (A + B − shared), separately for single roles and mapped transactions. Empty unions display 0%, conveying no observed shared evidence. Matrix percentages remain explicitly directional (percent of the row role); the cell title includes both directions and Jaccard. Subsets can have 100% containment and less than 100% similarity. Most similar/distinct use the same symmetric metric, with deterministic identifier ordering for ties; equally scored pairs have equal similarity, not different risk. Exclusive panels size independently.
+
+## Single-role comparison
+
+Role Comparison keeps the high-level single-role and mapped-transaction similarity
+metrics, with responsive Shared by all and Exclusive per composite tiles (maximum
+three columns). Expand a tile to inspect transaction evidence. Search comparison
+transactions accepts exact codes or explicit SAP `*` patterns and filters both
+component tiles and transaction rows. Original totals remain unchanged; filtered
+shared mappings retain their observed parent catalogue sources. The similarity
+overview retains evidence drilldown without a second detailed overlap section.
+
+Recognized source description prefixes appear as separate area labels; original
+descriptions and canonical classification are unchanged. Unknown prefixes remain
+intact. Role Details uses the same transaction matcher and restores manual
+expansion state when its filter is cleared. Neither role nor transaction overlap
+proves effective SAP authorization.

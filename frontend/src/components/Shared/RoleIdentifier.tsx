@@ -1,4 +1,3 @@
-import { useModuleVisual } from '@/components/Modules/ModuleRegistry'
 import { useEffect, useRef, useState, type ButtonHTMLAttributes } from 'react'
 import { Check, Copy, ArrowUpRight } from 'lucide-react'
 
@@ -11,15 +10,13 @@ interface RoleIdentifierProps {
   openButtonProps?: ButtonHTMLAttributes<HTMLButtonElement> & { 'data-user'?: string }
 }
 
-export function RoleIdentifier({ moduleId, value, label = 'role identifier', onOpen, openLabel, openButtonProps }: RoleIdentifierProps) {
-  const visual=useModuleVisual(moduleId)
+export function RoleIdentifier({ moduleId: _moduleId, value, label = 'role identifier', onOpen, openLabel, openButtonProps }: RoleIdentifierProps) {
   const [message, setMessage] = useState('')
   const timer = useRef<ReturnType<typeof setTimeout>>()
   useEffect(() => () => clearTimeout(timer.current), [])
   return (
     <span
       className="role-identifier"
-      style={moduleId?{borderColor:visual.color}:undefined}
       data-np
       data-copied={message === 'Copied'}
       onClick={(e) => e.stopPropagation()}

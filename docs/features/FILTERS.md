@@ -93,7 +93,7 @@ where needed to preserve attribution. Account and lock evidence remain in User
 Details. Assignment badges explicitly say Active, Future or Expired assignment,
 or Unknown validity; none proves effective SAP authorization.
 
-Release list/table/matrix mode, filters, sort and pagination remain in the owning
+Release list/table/matrix mode, filters and sort remain in the owning
 view while details and user investigations are opened. Changing dates in release
 details updates the same filtered navigation context used by the origin list.
 
@@ -272,3 +272,11 @@ validated data. Sorting, pagination, individual removal and Clear filters remain
 available. Dashboard assignment-count drilldowns add a removable count-band filter
 (`0`, `1–5`, `6–20`, `21+`); it uses the same distinct currently-valid business/release
 role calculation as the dashboard and is included in saved filters and exports.
+
+The Release Roles list renders all matching role summaries without pagination,
+from one validated backend snapshot. Matrix and assignment-detail semantics are
+unchanged; local table scrolling remains available where needed.
+
+Release Roles initially opens in Matrix view, followed by Table in the view
+switcher. Changing filters preserves the selected view in the mounted investigation.
+Both views export the same filtered assignment set.

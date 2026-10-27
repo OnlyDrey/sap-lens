@@ -36,6 +36,7 @@ async function go(page: Page, view = 'Role Lookup') {
     .getByRole('navigation', { name: 'Main navigation' })
     .getByRole('button', { name: view, exact: true })
     .click()
+  if(view==='Release Roles')await page.getByRole('button',{name:'Table',exact:true}).click()
 }
 async function user(page: Page) {
   await go(page, 'User Access')

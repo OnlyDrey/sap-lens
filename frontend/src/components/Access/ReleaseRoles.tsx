@@ -58,7 +58,7 @@ export function ReleaseRoles({
     [status, setStatus] = useState(initialRole ? "all" : "active"),
     [sort, setSort] = useState("role_name"),
     [descending, setDescending] = useState(false);
-  const [matrix, setMatrix] = useState(false),
+  const [matrix, setMatrix] = useState(true),
     [matrixOffset, setMatrixOffset] = useState(0),
     [compareGroups, setCompareGroups] = useState(false),
     [offset, setOffset] = useState(0),
@@ -101,7 +101,7 @@ export function ReleaseRoles({
       matrixOffset, matrix,
     ],
     queryFn: () =>
-      accessQuery<ReleasePage>("releases", { ...filters, offset, matrix_offset: matrixOffset, matrix_complete:matrix }),
+      accessQuery<ReleasePage>("releases", { ...filters, offset, matrix_offset: matrixOffset, matrix_complete:matrix, list_complete:true }),
   });
   useEffect(() => {
     if (!result.data || result.isFetching) return;
@@ -215,7 +215,7 @@ export function ReleaseRoles({
 
 
         <ExportCSVButton loading={assignmentExport.busy} disabled={dataLoading||result.isFetching||!result.data?.export_assignments||username!==query.username||role!==query.role} title="Exports every release assignment matching these filters and date bounds, across pages. Table and Matrix use the same assignment set." onClick={()=>void assignmentExport.download()}/>
-        <ButtonGroup label="Release results view" value={matrix?'matrix':'table'} onChange={value=>setMatrix(value==='matrix')} options={[{value:'table',label:'Table',icon:<List size={16} aria-hidden="true"/>},{value:'matrix',label:'Matrix',icon:<Grid3X3 size={16} aria-hidden="true"/>}]}/>
+        <ButtonGroup label="Release results view" value={matrix?'matrix':'table'} onChange={value=>setMatrix(value==='matrix')} options={[{value:'matrix',label:'Matrix',icon:<Grid3X3 size={16} aria-hidden="true"/>},{value:'table',label:'Table',icon:<List size={16} aria-hidden="true"/>}]}/>
 
 
       </div>
@@ -293,12 +293,7 @@ export function ReleaseRoles({
                 excluded from “Currently valid”.
               </p>
             )}
-            <Pagination
-              offset={offset}
-              total={result.data.total}
-              onChange={setOffset}
-              label="Release role pages"
-            />
+
           </>
         ))}
     </section>

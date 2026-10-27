@@ -3,7 +3,7 @@ import { useId, type ReactNode } from 'react'
 function NavigationStrip({ variant, label, children, className = '' }: {
   variant: 'main' | 'secondary' | 'tabs'; label: string; children: ReactNode; className?: string
 }) {
-  const classes = `ui-navigation ${variant === 'main' ? 'primary-navigation' : variant === 'secondary' ? 'ui-secondary-navigation' : 'ui-content-tabs'} ${className}`
+  const classes = `ui-navigation flex min-w-0 items-stretch gap-2 overflow-x-auto ${variant === 'main' ? '' : 'mb-3'} ${variant === 'main' ? 'primary-navigation' : variant === 'secondary' ? 'ui-secondary-navigation' : 'ui-content-tabs'} ${className}`
   return variant === 'tabs'
     ? <div role="tablist" aria-label={label} className={classes}>{children}</div>
     : <nav aria-label={label} className={classes}>{children}</nav>
@@ -39,6 +39,7 @@ export function SecondaryNavigation({
       {items.map((item) => (
         <a
           key={item.value}
+          className="inline-flex min-h-control items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-sm text-secondary no-underline hover:border-content hover:text-content focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus aria-[current=page]:border-action aria-[current=page]:text-content aria-[current=page]:font-semibold"
           href={item.href}
           aria-current={item.active ? 'page' : undefined}
           onClick={(event) => {
@@ -90,6 +91,7 @@ export function ContentTabList({
           type="button"
           key={item.value}
           id={`${idPrefix}-${item.value}`}
+          className="inline-flex min-h-control items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-sm text-secondary hover:border-content hover:text-content focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus aria-selected:border-action aria-selected:text-content aria-selected:font-semibold"
           role="tab"
           aria-controls={panelId(item.value)}
           aria-selected={value === item.value}
@@ -141,7 +143,7 @@ export function ContentTabs({
   const uid = useId(),
     selected = items.find((item) => item.value === value) || items[0]
   return (
-    <div className="ui-tabs">
+    <div className="ui-tabs min-w-0">
       <ContentTabList
         label={label}
         value={value}
@@ -151,6 +153,7 @@ export function ContentTabs({
         panelId={() => `${uid}-panel`}
       />
       <div
+        className="grid min-w-0 gap-4"
         role="tabpanel"
         id={`${uid}-panel`}
         aria-labelledby={`${uid}-${selected.value}`}

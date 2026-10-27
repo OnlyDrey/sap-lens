@@ -17,7 +17,7 @@ export function Card({
   ...props
 }: HTMLAttributes<HTMLElement>) {
   return (
-    <section {...props} className={`ui-card ${className}`}>
+    <section {...props} className={`ui-card grid gap-3 ${className}`}>
       {children}
     </section>
   )

@@ -77,7 +77,7 @@ export function AppLayout({
         }}
         role="banner"
       >
-        <div className="app-header-row max-w-screen-2xl mx-auto px-4 min-h-20 flex items-center justify-between gap-3">
+        <div className="app-header-row max-w-screen-2xl mx-auto px-4 min-h-[4.5rem] flex items-center justify-between gap-3">
           {/* Brand: logo image + name */}
           <div className="app-brand flex items-center gap-3 shrink-0">
             {/* Logo image â€” fallback to styled "E" if file not found */}

@@ -51,10 +51,10 @@
 /* A single administration workspace; only its content pane scrolls. */
 .settings-workspace { display:flex; flex:1 1 0%; overflow:hidden; width:100%; min-height:0; color:var(--text); background:var(--bg); }
 .settings-sidebar { width:260px; flex-shrink:0; display:flex; flex-direction:column; padding:24px 16px; border-right:1px solid var(--border); background:var(--surface); overflow-y:auto; }
-.settings-nav-item { display:flex; align-items:center; gap:var(--space-3); padding:13px 12px; border-radius:8px; text-align:left; font-size:var(--font-label); font-weight:500; color:var(--text2); }
+.settings-nav-item { border:0; border-bottom:2px solid transparent; display:flex; align-items:center; gap:var(--space-3); padding:13px 12px; border-radius:0; text-align:left; font-size:var(--font-label); font-weight:500; color:var(--text2); }
 .settings-nav-item svg { flex-shrink:0; }
-.settings-nav-item:hover { background:var(--surface2); }
-.settings-nav-item.active { background:color-mix(in srgb, var(--accent2) 12%, var(--surface)); color:var(--text); }
+.settings-nav-item:hover { background:transparent; border-bottom-color:var(--text); }
+.settings-nav-item.active { border-bottom-color:var(--accent2); background:transparent; color:var(--accent2); }
 .settings-main { flex:1; min-width:0; min-height:0; display:flex; flex-direction:column; }
 .settings-scroll { overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; scrollbar-gutter:stable; flex:1 1 0%; min-height:0; }
 .settings-content { width:100%; min-width:0; max-width:1200px; padding:32px 40px; margin:0 auto; }
@@ -87,7 +87,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,su
 .settings-select option { background:var(--surface); color:var(--text); }
 .settings-workspace button:disabled { cursor:not-allowed; opacity:.5; }
 .settings-workspace button { display:inline-flex; align-items:center; gap:var(--space-2); }
-.settings-workspace .settings-nav-item { display:flex; border:0; border-radius:var(--radius-control); }
+.settings-workspace .settings-nav-item { display:flex; }
 .settings-nav-item:not(:focus-visible) { outline:none; }
 .settings-workspace button:focus-visible,.settings-workspace summary:focus-visible { outline:2px solid var(--focus); outline-offset:3px; }
 .settings-card { padding:20px; border-radius:14px; background:var(--surface2); }
@@ -237,10 +237,6 @@ button:hover .module-icon:not([data-disabled="true"]) { border-color: currentCol
 .role-count-button { display:inline-flex; gap:6px; align-items:center; padding:4px 10px; border:1px solid var(--border); background:var(--surface2); border-radius:8px; font-weight:600; white-space:nowrap; }
 .role-count-button:hover { border-color:var(--accent2); }
 .role-count-button span { font-weight:400; color:var(--muted); }
-.comparison-columns { display:grid; align-items:start; grid-auto-flow:column; grid-auto-columns:minmax(290px,1fr); gap:16px; overflow-x:auto; padding-bottom:8px; }
-.overlap-cell { display:flex; flex-direction:column; justify-content:center; gap:6px; min-height:88px; width:100%; padding:12px; border-radius:6px; }
-.overlap-cell:hover {background:var(--hover)}
-.overlap-cell:focus-visible {outline:none}
 .comparison-view section > .flex { flex-wrap:wrap; }
 @media(max-width:900px) { .release-filters { grid-template-columns:minmax(0,1fr); } .user-filters .filter-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:500px) { .release-filters .filter-grid, .user-filters .filter-grid, .release-filters fieldset:last-child .filter-grid { grid-template-columns:minmax(0,1fr); } .import-section-body { padding:12px; } .import-section-heading { padding:12px; } }
@@ -262,7 +258,6 @@ button:hover .module-icon:not([data-disabled="true"]) { border-color: currentCol
 .branding-actions button { display:inline-flex; align-items:center; gap:var(--space-2); min-height:var(--control-height); }
 .branding-actions button:first-child { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
 .branding-actions button:last-child { color:var(--muted); }
-.branding-logo-preview { display:flex; align-items:center; justify-content:center; padding:24px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-card); min-height:120px; }
 .role-identifier > button:not(.role-identifier-link) { width:26px; min-height:28px; flex:0 0 26px; }
 @media(max-width:900px) { .user-information-grid { grid-template-columns:minmax(0,1fr); } }
 

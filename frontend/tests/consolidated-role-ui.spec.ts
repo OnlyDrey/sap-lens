@@ -39,11 +39,11 @@ async function openUser(page: Page) {
   await page.getByRole('button', { name: 'DEMO_REVIEW', exact: true }).click()
   return page.getByRole('region', { name: 'User details', exact: true })
 }
-test('description metadata preserves canonical classification without inferring module prefixes', async ({ page, request }) => {
+test('description area labels remain separate from canonical classification', async ({ page, request }) => {
   const dialog = await openRole(page)
   const entry = dialog.locator('.single-role-entry').filter({ has: page.getByRole('button', { name: 'Expand single role ZD:MATERIAL', exact: true }) })
-  await expect(entry.locator('.role-module-metadata .evidence-badge')).toHaveCount(0)
-  await expect(entry.locator('.role-metadata-title')).toHaveText('CA - Master Data - Materials Display & Reporting')
+  await expect(entry.locator('.role-module-metadata .evidence-badge')).toHaveText('CA')
+  await expect(entry.locator('.role-metadata-title')).toHaveText('Master Data - Materials Display & Reporting')
   await expect(entry.locator('.single-role-description')).toHaveCount(0)
   const meta = (await entry.locator('.role-module-metadata').boundingBox())!, code = (await entry.locator('.role-identifier').boundingBox())!
   expect(meta.x + meta.width).toBeLessThanOrEqual(code.x + 1)
@@ -58,6 +58,7 @@ test('description metadata preserves canonical classification without inferring 
   expect(data.function_key).toBe('BC')
   await expect(dialog.locator('.role-detail-header .evidence-badge').filter({hasText:/^BC$/})).toHaveText('BC')
   expect(data.single_roles.find((s: { child_agr: string }) => s.child_agr === 'ZD:MATERIAL').function_key).toBe('UNCLASSIFIED')
+  expect(data.single_roles.find((s: { child_agr: string }) => s.child_agr === 'ZD:MATERIAL').child_agr_text).toBe('CA - Master Data - Materials Display & Reporting')
 })
 test('sidebar searches collapsed mappings exactly, expands every match and restores expansion after clear', async ({ page }) => {
   const dialog = await openRole(page)
@@ -114,8 +115,8 @@ test('All roles default, match codes only and one toolbar preserve search and CS
   await expect(row.getByRole('button', { name: 'View role details: ZC:BC:EXACT' }).locator('.lucide-arrow-right')).toBeVisible()
   await expect(detail.getByRole('columnheader',{name:'Catalogue match',exact:true})).toHaveCount(0)
   await expect(detail.getByRole('columnheader',{name:'Role description',exact:true})).toBeVisible()
-  await expect(detail.locator('.assignment-mapping-evidence .evidence-badge').filter({hasText:/^Unmapped$/})).toHaveCount(2)
-  await expect(row.locator('.assignment-mapping-evidence .evidence-badge')).toHaveText('Exact')
+  await expect(detail.locator('.assignment-mapping-evidence')).toHaveCount(0)
+  await expect(row.getByRole('button',{name:'View role details: ZC:BC:EXACT',exact:true})).toBeVisible()
   const toolbar = detail.getByRole('form', { name: 'User role toolbar' })
   await expect(toolbar.getByLabel('Assignment status', { exact: true })).toBeVisible()
   await toolbar.getByRole('textbox', { name: 'Find roles by transaction' }).fill('migo')

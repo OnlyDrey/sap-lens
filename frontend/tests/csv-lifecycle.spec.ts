@@ -148,9 +148,9 @@ test('refresh reports full removals, traps dialog focus and retains history afte
   ).toBe(16)
   await source(page)
   await page.getByText('Recent refresh reports', { exact: true }).click()
-  await expect(
-    page.getByRole('region', { name: 'CSV refresh history' }),
-  ).toContainText('2 updated')
+  const historyTable=page.getByRole('table',{name:'Recent CSV refresh reports',exact:true})
+  await expect(historyTable.getByRole('columnheader',{name:'Updated',exact:true})).toBeVisible()
+  await expect(historyTable.locator('tbody tr').first().locator('td').nth(3)).toHaveText('2')
   await page.reload()
   await page.getByRole('tab', { name: 'Data Sources', exact: true }).click()
   await page.getByText('Recent refresh reports', { exact: true }).click()

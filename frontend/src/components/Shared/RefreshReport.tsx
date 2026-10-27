@@ -420,31 +420,12 @@ export function RefreshHistory() {
       {query.data && !query.data.items.length && (
         <p>No saved refresh reports.</p>
       )}
-      {query.data?.items.map((report) => (
-        <div key={report.id} className="ui-toolbar">
-          <span>
-            {formatTimestamp(report.timestamp)} · {label(report.status)} ·{' '}
-            {report.updated || 0} updated · {report.failed || 0} failed
-          </span>
-          {report.failed > 0 ? (
-            <Button
-              onClick={() =>
-                setSelected({ ...report, sources: [], mode: 'errors' })
-              }
-            >
-              <CircleAlert size={16} aria-hidden="true"/>View Errors
-            </Button>
-          ) : report.updated > 0 ? (
-            <Button
-              onClick={() =>
-                setSelected({ ...report, sources: [], mode: 'changes' })
-              }
-            >
-              <FileDiff size={16} aria-hidden="true"/>View Changes
-            </Button>
-          ) : null}
-        </div>
-      ))}
+      {!!query.data?.items.length&&<DataTable caption="Recent CSV refresh reports"><thead><tr>{['Refresh date/time','Source','Result','Updated','Failed','Actions'].map(title=><th key={title}>{title}</th>)}</tr></thead><tbody>{query.data.items.map(report=><tr key={report.id}>
+        <td>{formatTimestamp(report.timestamp)}</td>
+        <td>{report.sources?.map(source=>source.name).join(', ')||'Source detail not retained'}</td>
+        <td><StatusBadge tone={report.status==='failed'?'error':report.status==='partial'?'warning':report.status==='changed'?'success':'neutral'}>{label(report.status)}</StatusBadge></td><td>{report.updated||0}</td><td>{report.failed||0}</td>
+        <td><div className="flex flex-wrap gap-2">{report.id&&report.failed>0&&<Button size="compact" onClick={()=>setSelected({...report,sources:report.sources||[],mode:'errors'})}><CircleAlert size={16} aria-hidden="true"/>View Errors</Button>}{report.id&&report.updated>0&&<Button size="compact" onClick={()=>setSelected({...report,sources:report.sources||[],mode:'changes'})}><FileDiff size={16} aria-hidden="true"/>View Changes</Button>}</div></td>
+      </tr>)}</tbody></DataTable>}
       {selected && (
         <RefreshReportDialog
           report={selected}

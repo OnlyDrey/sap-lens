@@ -1,6 +1,8 @@
+import {Button} from '@/components/Shared/Button'
+import {ChevronLeft,ChevronRight} from 'lucide-react'
 import { controlClass } from '@/components/Shared/Controls'
 import { SettingsSelect, ColorControl } from './Controls'
-import { useState, type CSSProperties } from 'react'
+import { useRef, useState, type CSSProperties } from 'react'
 import { Building2, Layers, Palette, Shield, Save } from 'lucide-react'
 import type { Configuration, ThemePalette } from '@/api/configuration'
 import {
@@ -22,14 +24,23 @@ const labels: Record<keyof ThemePalette, string> = {
 const control = controlClass
 export function ThemeEditor({
   draft,
-  onChange
+  onChange, logoSrc
 }: {
   draft: Configuration
+  logoSrc?: string
   onChange: (patch: Partial<Configuration>) => void
 }) {
   const [editing, setEditing] = useState<'dark' | 'light'>(
     draft.theme === 'light' ? 'light' : 'dark'
   )
+  const colorViewport=useRef<HTMLDivElement>(null)
+  const [colorIndex,setColorIndex]=useState(0)
+  const colorKeys=Object.keys(labels) as (keyof ThemePalette)[]
+  const showColor=(index:number)=>{
+    const next=Math.max(0,Math.min(colorKeys.length-1,index)),viewport=colorViewport.current
+    setColorIndex(next)
+    if(viewport){const slide=viewport.children[next] as HTMLElement;viewport.scrollTo({left:viewport.scrollLeft+slide.getBoundingClientRect().left-viewport.getBoundingClientRect().left,behavior:'auto'})}
+  }
   const [presetName, setPresetName] = useState('')
   const [nameError, setNameError] = useState('')
   const colors = draft.theme_colors || defaultThemeColors
@@ -93,18 +104,19 @@ export function ThemeEditor({
             }}
           >
             <img
-              src="/sap-lens.png"
-              alt=""
-              className="w-9 h-9 object-contain"
+              src={logoSrc || "/sap-lens.png"}
+              alt="Header logo preview"
+              onError={event=>{if(!event.currentTarget.src.endsWith('/sap-lens.png'))event.currentTarget.src='/sap-lens.png'}}
+              className="h-12 w-auto max-w-24 shrink-0 object-contain sm:max-w-40"
             />
-            <div>
-              <b>Example Inc.</b>
-              <p className="text-xs">SAP S/4HANA · DEMO 100</p>
+            <div className="min-w-0">
+              <b className="block break-words text-base font-semibold">{draft.organization.name || 'SAP Lens'}</b>
+              <p className="text-xs">{draft.organization.platform === 'Other / Custom' ? draft.organization.custom_platform : draft.organization.platform} · {draft.organization.system_id} {draft.organization.client}</p><p className="text-xs">{draft.organization.description}</p>
             </div>
           </div>
-          <div className="flex min-h-32">
+          <div className="flex min-h-32 flex-col sm:flex-row">
             <div
-              className="w-32 shrink-0 p-3 text-xs space-y-2"
+              className="flex flex-wrap gap-2 p-3 text-xs sm:block sm:w-32 sm:shrink-0 sm:space-y-2"
               style={{ backgroundColor: palette.surface }}
             >
               <div
@@ -205,18 +217,15 @@ export function ThemeEditor({
           ))}
         </div>
       </div>
-      <div className="grid md:grid-cols-2 gap-3">
-        {(Object.keys(labels) as (keyof ThemePalette)[]).map((key) => (
-          <ColorControl
-            key={key}
-            id={`theme-${key}`}
-            label={labels[key]}
-            value={palette[key]}
-            onChange={(value) => update({ [key]: value })}
-            onReset={() => update({ [key]: defaultThemeColors[editing][key] })}
-          />
-        ))}
-      </div>
+      <section aria-label="Theme color settings" aria-roledescription="carousel" className="min-w-0 rounded-card border border-line p-3">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <p role="status" className="text-sm">{colorIndex+1} / {colorKeys.length} · {labels[colorKeys[colorIndex]]}</p>
+          <div className="flex gap-2"><Button size="compact" aria-label="Previous color property" disabled={colorIndex===0} onClick={()=>showColor(colorIndex-1)}><ChevronLeft size={16}/></Button><Button size="compact" aria-label="Next color property" disabled={colorIndex===colorKeys.length-1} onClick={()=>showColor(colorIndex+1)}><ChevronRight size={16}/></Button></div>
+        </div>
+        <div ref={colorViewport} tabIndex={0} aria-label="Color properties" className="flex min-w-0 snap-x snap-mandatory overflow-x-auto" onScroll={event=>{const el=event.currentTarget;if(el.clientWidth)setColorIndex(Math.max(0,Math.min(colorKeys.length-1,Math.round(el.scrollLeft/el.clientWidth))))}} onKeyDown={event=>{if(event.target!==event.currentTarget)return;const next=event.key==='ArrowRight'?colorIndex+1:event.key==='ArrowLeft'?colorIndex-1:event.key==='Home'?0:event.key==='End'?colorKeys.length-1:null;if(next!==null){event.preventDefault();showColor(next)}}}>
+          {colorKeys.map((key,index)=><div key={key} role="group" aria-roledescription="slide" aria-label={`${index+1} of ${colorKeys.length}: ${labels[key]}`} className="min-w-0 basis-full flex-none snap-start p-1" onFocusCapture={()=>showColor(index)}><ColorControl id={`theme-${key}`} label={labels[key]} value={palette[key]} onChange={value=>update({[key]:value})} onReset={()=>update({[key]:defaultThemeColors[editing][key]})}/></div>)}
+        </div>
+      </section>
       <div aria-live="polite">
         {errors.length ? (
           errors.map((error) => (

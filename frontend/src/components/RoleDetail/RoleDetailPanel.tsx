@@ -1,4 +1,4 @@
-import {textMatches} from '@/lib/searchMatching'
+import {matchingTransactions,transactionMatches} from '@/lib/searchMatching'
 import { TransactionCount } from '@/components/Shared/TransactionCount'
 import { Button } from '@/components/Shared/Button'
 import { useApplicationData } from '@/state/ApplicationData'
@@ -18,6 +18,7 @@ const SingleRoleRow = memo(function SingleRoleRow({ sr, onTcodeUsers, transactio
   const filterKey = JSON.stringify(transaction)
   useEffect(() => { setSearchExpanded(true) }, [filterKey])
   const searching = transaction.length > 0
+  const rows=matchingTransactions(sr.tcodes,transaction)
   const open = searching ? searchExpanded : expanded
   return (
     <div className="single-role-entry">
@@ -26,7 +27,7 @@ const SingleRoleRow = memo(function SingleRoleRow({ sr, onTcodeUsers, transactio
           {open ? <ChevronDown size={14} aria-hidden="true"/> : <ChevronRight size={14} aria-hidden="true"/>}
         </button>
         <div className="single-role-heading-main">
-          <RoleMetadata code={sr.function_key} name={sr.module_name} description={sr.child_agr_text}><TransactionCount count={sr.tcodes.length}/></RoleMetadata>
+          <RoleMetadata code={sr.function_key} name={sr.module_name} description={sr.child_agr_text}><TransactionCount count={sr.tcodes.length}/>{searching&&<span className="text-xs text-muted">{rows.length} matching</span>}</RoleMetadata>
           <RoleIdentifier value={sr.child_agr} />
           {sr.assignment_kind === 'direct' && <span className="single-role-assignment">Direct assignment</span>}
           {sr.assignment_kind === 'effective' && <span className="single-role-assignment">Effective-role assignment</span>}
@@ -40,7 +41,7 @@ const SingleRoleRow = memo(function SingleRoleRow({ sr, onTcodeUsers, transactio
           : <div className="transaction-table-scroll" role="region" aria-label={`Transactions for ${sr.child_agr}`} tabIndex={0}>
             <table>
               <thead><tr><th scope="col">T-Code</th><th scope="col">Description</th><th scope="col" className="transaction-action">Action</th></tr></thead>
-              <tbody>{sr.tcodes.map((tc: TCode) => <tr key={tc.tcode} data-transaction-match={searching && transaction.some(pattern=>pattern.includes('*')?textMatches(tc.tcode,pattern):tc.tcode.trim().toUpperCase()===pattern)}>
+              <tbody>{rows.map((tc: TCode) => <tr key={tc.tcode} data-transaction-match={searching && transactionMatches(tc.tcode,transaction)}>
                 <td className="transaction-code">{tc.tcode}</td>
                 <td className="transaction-description">{tc.ttext ?? <span className="italic text-[var(--muted)]">No description</span>}</td>
                 <td className="transaction-action">{onTcodeUsers && <button type="button" className="settings-secondary-button transaction-investigate"
@@ -61,7 +62,7 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, pare
   const transactionFilter = useTransactionFilter(roleName)
   const transaction = useMemo(() => transactionFilter.deferredCodes, [transactionFilter.deferredKey])
   const searching = transaction.length > 0
-  const matchingRoles = useMemo(() => new Set(role?.single_roles.filter(sr => sr.tcodes.some(tc => transaction.some(pattern=>pattern.includes('*')?textMatches(tc.tcode,pattern):tc.tcode.trim().toUpperCase()===pattern))).map(sr => sr.child_agr)), [role, transaction])
+  const matchingRoles = useMemo(() => new Set(role?.single_roles.filter(sr => sr.tcodes.some(tc => transactionMatches(tc.tcode,transaction))).map(sr => sr.child_agr)), [role, transaction])
   const missingMappings = role?.single_roles.filter(sr => !sr.tcodes.length).length || 0
   const onKey = useCallback((e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }, [onClose])
   useEffect(() => { document.addEventListener('keydown', onKey); return () => document.removeEventListener('keydown', onKey) }, [onKey])

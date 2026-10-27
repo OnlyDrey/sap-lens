@@ -159,3 +159,21 @@ Report Quick/Standard/Full scope, commands, results, reused evidence and limitat
 accurately. Claim speed improvements only with comparable measurements. Keep visible
 progress concise at meaningful task/validation/commit milestones; do not repeatedly
 print unchanged checklists. Publication and pre-push safety rules remain in force.
+
+## Tailwind-first frontend styling
+
+- Use Tailwind utilities for new or migrated layout, spacing, typography, sizing,
+  responsive behavior and routine interaction states. Semantic utilities (`surface`,
+  `elevated`, `content`, `secondary`, `muted`, `line`, `action`, `focus`) resolve to
+  existing runtime theme variables; do not replace the theme/branding pipeline.
+- Order classes by layout, sizing, spacing, typography, colors, then interaction
+  and responsive variants. Reuse canonical components before repeating controls.
+- Keep custom CSS for reusable component contracts, complex table/portal behavior,
+  browser-specific styling and runtime values that utilities cannot express cleanly.
+  Inline styles are appropriate for measured portal coordinates, validated dynamic
+  module colors and scoped draft theme variables, not ordinary fixed spacing.
+- Remove superseded selectors when migrating consumers. Check both themes, keyboard
+  focus and hover geometry; tabs reserve a transparent bottom border in every state.
+  Active indicators use the primary action color; hover contrasts with the current
+  theme. Keep a separate focus-visible outline, avoid persistent rectangular
+  selection rings, and retain neutral code borders.
