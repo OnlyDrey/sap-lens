@@ -57,7 +57,7 @@ test('Back and Forward preserve meaningful views and detail state without reload
 })
 
 test('release facets are data-driven, bounded, retain invalid choices and refresh', async ({ page, request }) => {
-  await page.goto('/#session=browser-test-session'); await navigate(page,'Release Roles')
+  await page.goto('/#session=browser-test-session'); await navigate(page,'Release Roles');await page.getByRole('button',{name:'Table',exact:true}).click()
   const select = async (label:string, value:string) => { await page.getByRole('combobox', {name:label,exact:true}).fill(value); await page.getByRole('option', {name:value,exact:true}).click() }
   await select('PR/PO','PR')
   await select('Release Group','SH')

@@ -161,6 +161,7 @@ test("release table matrix distinct counts, group comparison and user drilldown 
     .getByRole("navigation", { name: "Main navigation" })
     .getByRole("button", { name: "Release Roles", exact: true })
     .click();
+  await page.getByRole("button", {name:"Table",exact:true}).click();
   const release = page.getByRole("region", {
     name: "Release Roles",
     exact: true,

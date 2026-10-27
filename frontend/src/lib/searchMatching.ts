@@ -13,3 +13,13 @@ export function textMatches(value:string,query:string):boolean {
  const last=parts[parts.length-1]
  return text.endsWith(last)&&text.length-last.length>=position
 }
+
+/** Transaction filters use exact codes unless an explicit SAP '*' pattern is supplied. */
+export function transactionMatches(code: string, patterns: readonly string[]): boolean {
+ return patterns.length === 0 || patterns.some(pattern => pattern.includes('*')
+   ? textMatches(code, pattern)
+   : code.trim().toUpperCase() === pattern.trim().toUpperCase())
+}
+export function matchingTransactions<T extends {tcode: string}>(rows: readonly T[], patterns: readonly string[]): T[] {
+ return rows.filter(row => transactionMatches(row.tcode, patterns))
+}

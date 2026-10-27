@@ -1,3 +1,9 @@
+import {useQueries} from '@tanstack/react-query'
+import {fetchRoleDetail} from '@/api/client'
+import {matchingTransactions} from '@/lib/searchMatching'
+import {presentRoleDescription} from '@/lib/rolePresentation'
+import {RoleMetadata} from '@/components/Shared/RoleMetadata'
+import {TransactionFilter,useTransactionFilter} from '@/components/Shared/TransactionFilter'
 import {jaccard} from '@/lib/comparisonMetrics'
 import { TransactionCount } from '@/components/Shared/TransactionCount'
 import { ModuleIcon } from '@/components/Modules/ModuleIcon'
@@ -5,17 +11,16 @@ import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft, Loader2, AlertTriangle, RefreshCw, GitCompare, Share2,
-  Lock, X, TrendingDown, TrendingUp, Layers, ChevronDown, ChevronRight,
+  Lock, X, TrendingDown, TrendingUp, ChevronDown, ChevronRight,
   Code2
 } from 'lucide-react'
 import { useComparison } from '@/hooks/useComparison'
 import { useRoleDetail } from '@/hooks/useRoleDetail'
-import type { TCode, SingleRoleInfo, ComparisonRole, PairwiseOverlap } from '@/api/types'
+import type { TCode, SingleRoleInfo, ComparisonRole, PairwiseOverlap, RoleDetail } from '@/api/types'
 
 interface Props { roleNames: string[]; onBack: () => void }
 
-const cleanDesc = (t:string|null) => t ? t.replace(/^[A-Z]{2,3}\s*-\s*/,'').trim() : ''
-const lbl = (r:ComparisonRole) => cleanDesc(r.text) || r.agr_name
+const lbl = (r:ComparisonRole) => presentRoleDescription(r.text,r.function_key?[r.function_key]:[]).description || r.agr_name
 
 function ModLabel({ r, center }: { r: ComparisonRole; center?: boolean }) {
   const name = r.module_name ?? r.function_key ?? ''
@@ -35,7 +40,8 @@ function ModLabel({ r, center }: { r: ComparisonRole; center?: boolean }) {
   )
 }
 
-function TCodeTable({ rows }: { rows: TCode[] }) {
+type ComparisonTCode=TCode & {sourceRoles?:string[]}
+function TCodeTable({ rows }: { rows: ComparisonTCode[] }) {
   return (
     <table className="w-full text-sm">
       <thead>
@@ -75,6 +81,8 @@ function TCodeTable({ rows }: { rows: TCode[] }) {
                   No description
                 </span>
               )}
+              {tc.alternate_texts?.filter(text=>text!==tc.ttext).map(text=><p key={text} className="text-xs text-muted">Also described as: {text}</p>)}
+              {!!tc.sourceRoles?.length&&<div className="mt-2 flex flex-wrap items-center gap-1 text-xs text-muted">Mapped via catalogue:{tc.sourceRoles.map(name=><RoleIdentifier key={name} value={name}/>)}</div>}
             </td>
           </tr>
         ))}
@@ -83,60 +91,21 @@ function TCodeTable({ rows }: { rows: TCode[] }) {
   )
 }
 
-function SRRow({ sr, parentRoleName }: { sr: SingleRoleInfo; parentRoleName: string }) {
-  const [open, setOpen] = useState(false)
-  const { data: detail, isLoading } = useRoleDetail(open ? parentRoleName : null)
-  const tcodes = detail?.single_roles.find(s => s.child_agr === sr.child_agr)?.tcodes ?? []
-  const mod = sr.function_key
-
-  return (
-    <div style={{ borderBottom:'1px solid var(--border)' }}>
-      <div
-        className="role-comparison-row"
-        style={{
-          backgroundColor: open
-            ? 'color-mix(in srgb, var(--accent2) 8%, var(--surface))'
-            : 'var(--surface)'
-        }}
-      >
-        {mod && mod !== 'UNCLASSIFIED' ? <ModuleIcon moduleId={mod} /> : <Layers size={24} aria-hidden="true" className="shrink-0 text-[var(--accent2)]"/>}
-
-        <button type="button" className="role-expand" aria-label={`Expand single role ${sr.child_agr}`} aria-expanded={open} onClick={() => setOpen(p => !p)}>{open
-          ? <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" style={{ color:'var(--accent2)' }} />
-          : <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" style={{ color:'var(--muted)' }} />}</button>
-
-        <div className="min-w-0 flex-1">
-          {sr.child_agr_text && (
-            <p className="text-sm break-words mt-0.5" style={{ color:'var(--muted)' }}>
-              {sr.child_agr_text}
-            </p>
-          )}
-          <RoleIdentifier value={sr.child_agr} />
-        </div>
-
-        <TransactionCount count={sr.tcode_count}/>
-      </div>
-
-      {open && (
-        <div style={{ borderTop:'1px solid var(--border)', backgroundColor:'var(--surface2)' }}>
-          {isLoading && (
-            <div className="flex items-center gap-2 px-4 py-3">
-              <Loader2 className="w-4 h-4 animate-spin" style={{ color:'var(--accent2)' }}/>
-              <span className="text-xs" style={{ color:'var(--muted)' }}>Loading...</span>
-            </div>
-          )}
-
-          {!isLoading && tcodes.length === 0 && (
-            <p className="px-6 py-3 text-xs italic" style={{ color:'var(--muted)' }}>
-              No transactions
-            </p>
-          )}
-
-          {!isLoading && tcodes.length > 0 && <TCodeTable rows={tcodes} />}
-        </div>
-      )}
-    </div>
-  )
+function SRRow({sr,parentRoleName,patterns=[],spanExpanded=false,mappedRows}:{sr:SingleRoleInfo;parentRoleName:string;patterns?:string[];spanExpanded?:boolean;mappedRows?:ComparisonTCode[]}) {
+ const [expanded,setExpanded]=useState(false),[searchExpanded,setSearchExpanded]=useState(true)
+ const key=JSON.stringify(patterns),searching=patterns.length>0
+ useEffect(()=>setSearchExpanded(true),[key])
+ const open=searching?searchExpanded:expanded
+ const {data:detail,isLoading,isError}=useRoleDetail(open?parentRoleName:null)
+ const rows=mappedRows||detail?.single_roles.find(row=>row.child_agr===sr.child_agr)?.tcodes||[]
+ const visible=matchingTransactions(rows,patterns)
+ return <article aria-label={`Single role ${sr.child_agr}`} data-expanded={open} className={`single-role-tile min-w-0 self-start rounded-card border border-line bg-surface ${spanExpanded&&open?'md:col-span-2 xl:col-span-3':''}`}>
+  <div className="flex min-w-0 items-start gap-2 p-3">
+   <button type="button" className="role-expand" aria-label={`Expand single role ${sr.child_agr}`} aria-expanded={open} onClick={()=>searching?setSearchExpanded(value=>!value):setExpanded(value=>!value)}>{open?<ChevronDown size={16}/>:<ChevronRight size={16}/>}</button>
+   <div className="min-w-0 flex-1 space-y-2"><RoleMetadata code={sr.function_key} name={sr.module_name} description={sr.child_agr_text}/><RoleIdentifier value={sr.child_agr}/><div className="flex items-center gap-2"><TransactionCount count={sr.tcode_count}/>{searching&&<span className="text-xs text-muted">{visible.length} matching transactions</span>}</div></div>
+  </div>
+  {open&&<div role="region" aria-label={`Transactions for ${sr.child_agr}`} tabIndex={0} className="min-w-0 overflow-x-auto border-t border-line">{isLoading?<p role="status" className="p-3 text-sm">Loading transactions…</p>:isError?<p role="alert" className="p-3">Transaction evidence unavailable; close and reopen to retry.</p>:visible.length?<TCodeTable rows={visible}/>:<p className="p-3 text-sm text-muted">{searching?'No matching transactions.':'No transaction mappings supplied.'}</p>}</div>}
+ </article>
 }
 
 function PairModal({
@@ -254,11 +223,12 @@ function PairModal({
 }
 
 function InsightBar({
-  roles, pairwiseSR, pairwiseTC
+  roles, pairwiseSR, pairwiseTC, onPair
 }: {
   roles:ComparisonRole[]
   pairwiseSR:PairwiseOverlap[]
   pairwiseTC:PairwiseOverlap[]
+  onPair:(a:string,b:string)=>void
 }) {
   const ins = useMemo(() => {
     if (!pairwiseSR.length) return null
@@ -344,7 +314,7 @@ function InsightBar({
         </div>
       ))}
 
-      <div className="flex items-start gap-3 p-5" style={{ borderLeft:'1px solid var(--border)' }}>
+      <button type="button" aria-label="Inspect most similar roles" onClick={()=>onPair(ins.most.role_a,ins.most.role_b)} className="flex items-start gap-3 p-5 text-left hover:bg-hover" style={{ borderLeft:'1px solid var(--border)' }}>
         <div
           className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
           style={{ backgroundColor:'var(--surface2)' }}
@@ -363,7 +333,7 @@ function InsightBar({
             {ins.most.shared_count} shared ({ins.most.pct}%)
           </p>
         </div>
-      </div>
+      </button>
 
       <div className="flex items-start gap-3 p-5" style={{ borderLeft:'1px solid var(--border)' }}>
         <div
@@ -389,32 +359,10 @@ function InsightBar({
   )
 }
 
-/** Pair summaries retain the existing comparison API and multi-role semantics. */
-function PairSummary({a,b,pair,onCell}:{a:ComparisonRole;b:ComparisonRole;pair:PairwiseOverlap;onCell:(a:string,b:string,la:string,lb:string)=>void}) {
- const [expanded,setExpanded]=useState(false)
- const {mutate,data,isPending,isError}=useComparison()
- return <section className="min-w-0 rounded-card border border-line bg-surface p-3">
-  <h3 className="text-sm font-semibold">{lbl(a)} · {lbl(b)}</h3>
-  <div className="grid grid-cols-1 gap-3 py-3 sm:grid-cols-3">
-   <button className="rounded-control bg-elevated p-3 text-left hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus" onClick={()=>onCell(a.agr_name,b.agr_name,lbl(a),lbl(b))}><strong className="block text-lg">{pair.shared_count}</strong>Shared single roles</button>
-   <div className="rounded-control bg-elevated p-3"><strong className="block text-lg">{a.single_role_count-pair.shared_count}</strong>Only {lbl(a)}</div>
-   <div className="rounded-control bg-elevated p-3"><strong className="block text-lg">{b.single_role_count-pair.shared_count}</strong>Only {lbl(b)}</div>
-  </div>
-  <details onToggle={event=>{const open=event.currentTarget.open;setExpanded(open);if(open&&!data&&!isPending)mutate([a.agr_name,b.agr_name])}}>
-  <summary className="cursor-pointer text-sm font-semibold">Inspect single roles for {lbl(a)} · {lbl(b)}</summary>
-  {expanded&&isPending&&<p role="status">Loading single-role evidence…</p>}
-  {isError&&<p role="alert">Comparison evidence could not be loaded. <button onClick={()=>mutate([a.agr_name,b.agr_name])}>Retry</button></p>}
-  {data&&<div className="grid min-w-0 gap-3 lg:grid-cols-3">{[{title:'Shared single roles',rows:data.shared_single_roles,parent:a.agr_name},...data.roles.map(role=>({title:`Only ${lbl(role)}`,rows:role.exclusive_single_roles,parent:role.agr_name}))].map(group=><section key={group.title} className="min-w-0"><h3 className="mb-2 text-sm font-semibold">{group.title}</h3>{group.rows.length?group.rows.map(sr=><SRRow key={sr.child_agr} sr={sr} parentRoleName={group.parent}/>):<p className="text-sm text-muted">No matching single roles.</p>}</section>)}</div>}
- </details></section>
-}
-function SingleRoleOverlap({roles,pairwise,onCell}:{roles:ComparisonRole[];pairwise:PairwiseOverlap[];onCell:(a:string,b:string,la:string,lb:string)=>void}) {
- return <section aria-label="Single role overlap" className="grid min-w-0 gap-3"><h2 className="text-base font-semibold">Single role overlap</h2><p className="text-sm text-muted">Inspect shared and exclusive building blocks for each pair. Transaction overlap is separate evidence; neither establishes effective authorization.</p>{pairwise.map(pair=>{const a=roles.find(role=>role.agr_name===pair.role_a),b=roles.find(role=>role.agr_name===pair.role_b);return a&&b?<PairSummary key={`${pair.role_a}|${pair.role_b}`} a={a} b={b} pair={pair} onCell={onCell}/>:null})}</section>
-}
-
-function ExclusiveColumn({ role }: { role: ComparisonRole }) {
+function ExclusiveColumn({role,rows,patterns}:{role:ComparisonRole;rows:SingleRoleInfo[];patterns:string[]}) {
   return (
     <div
-      className="comparison-column min-w-0 rounded-2xl overflow-hidden  flex flex-col"
+      className="comparison-column min-w-0 self-start rounded-card overflow-hidden flex flex-col"
       style={{
         border:'1px solid var(--border)',
         backgroundColor:'var(--surface)'
@@ -456,21 +404,22 @@ function ExclusiveColumn({ role }: { role: ComparisonRole }) {
       </div>
 
       <div className="flex-1">
-        {role.exclusive_single_roles.length === 0
+        {rows.length === 0
           ? (
             <div className="px-4 py-3 text-center">
               <p className="text-xs italic" style={{ color:'var(--muted)' }}>
-                No exclusive single roles
+                No matching exclusive single roles
               </p>
             </div>
           )
           : (
             <div>
-              {role.exclusive_single_roles.map(sr => (
+              {rows.map(sr => (
                 <SRRow
                   key={sr.child_agr}
                   sr={sr}
                   parentRoleName={role.agr_name}
+                  patterns={patterns}
                 />
               ))}
             </div>
@@ -491,12 +440,31 @@ export function ComparisonView({ roleNames, onBack }: Props) {
     mode:'single'|'tcode'
   }|null>(null)
 
+  const filter=useTransactionFilter(roleNames.join('|'))
+  const patterns=filter.deferredCodes,searching=patterns.length>0
+  const details=useQueries({queries:roleNames.map(name=>({queryKey:['role',name],queryFn:()=>fetchRoleDetail(name),enabled:searching,staleTime:5*60*1000}))})
+  const detailByRole=new Map<string,RoleDetail>(details.flatMap((query,index)=>query.data?[[roleNames[index],query.data] as [string,RoleDetail]]:[]))
+  const mappingsLoading=searching&&details.some(query=>query.isPending||query.isFetching)
+  const mappingsFailed=searching&&details.some(query=>query.isError)
+  // Filter shared components against observations from every selected parent,
+  // retaining provenance rather than treating one parent's mapping as complete.
+  const sharedTransactions=(row:SingleRoleInfo):ComparisonTCode[]=>{
+    const codes=new Map<string,ComparisonTCode>()
+    for(const parent of roleNames)for(const tc of detailByRole.get(parent)?.single_roles.find(item=>item.child_agr===row.child_agr)?.tcodes||[]){
+      const key=tc.tcode.toUpperCase(),previous=codes.get(key)
+      if(previous){previous.sourceRoles=[...new Set([...(previous.sourceRoles||[]),parent])];previous.alternate_texts=[...new Set([...(previous.alternate_texts||[]),...(tc.alternate_texts||[]),...(tc.ttext?[tc.ttext]:[])])].filter(text=>text!==previous.ttext)}
+      else codes.set(key,{...tc,sourceRoles:[parent]})
+    }
+    return [...codes.values()]
+  }
+  const selectRows=(rows:SingleRoleInfo[],parent?:string)=>searching?rows.filter(row=>matchingTransactions(parent?detailByRole.get(parent)?.single_roles.find(item=>item.child_agr===row.child_agr)?.tcodes||[]:sharedTransactions(row),patterns).length>0):rows
+
   useEffect(() => {
     if (roleNames.length >= 2) mutate(roleNames)
   }, [roleNames, mutate])
 
   return (
-    <div className="comparison-view flex flex-col gap-8 pb-8">
+    <div role="region" aria-label="Role comparison" aria-busy={isPending||filter.settling||mappingsLoading} className="comparison-view flex min-w-0 flex-col gap-5 pb-8">
       <div className="flex items-center gap-4">
         <button
           onClick={onBack}
@@ -569,15 +537,13 @@ export function ComparisonView({ roleNames, onBack }: Props) {
             roles={data.roles}
             pairwiseSR={data.pairwise_single_overlaps}
             pairwiseTC={data.pairwise_overlaps}
+            onPair={(a,b)=>setPairModal({a,b,la:lbl(data.roles.find(role=>role.agr_name===a)!),lb:lbl(data.roles.find(role=>role.agr_name===b)!),mode:'single'})}
           />
 
-          <SingleRoleOverlap
-            roles={data.roles}
-            pairwise={data.pairwise_single_overlaps}
-            onCell={(a,b,la,lb) => setPairModal({
-              a,b,la,lb,mode:'single'
-            })}
-          />
+          <div className="rounded-card bg-surface p-4"><TransactionFilter label="Search comparison transactions" filter={filter}/><p className="mt-2 text-xs text-muted">Exact transaction codes or SAP * patterns. Original comparison totals are unchanged.</p></div>
+          {mappingsLoading&&<p role="status">Loading transaction mappings…</p>}
+          {mappingsFailed&&<p role="alert">Some role mappings could not be loaded. Clear the filter or retry the role details; incomplete mappings are not proof of absent access.</p>}
+          {searching&&!mappingsLoading&&!mappingsFailed&&data.shared_single_roles.every(row=>!selectRows([row]).length)&&data.roles.every(role=>!selectRows(role.exclusive_single_roles,role.agr_name).length)&&<p role="status">No single roles match this transaction filter.</p>}
 
           <section>
             <div className="flex items-center gap-2 mb-3">
@@ -598,24 +564,23 @@ export function ComparisonView({ roleNames, onBack }: Props) {
             </div>
 
             <div
-              className="rounded-2xl overflow-hidden "
-              style={{ border:'1px solid var(--border)' }}
+              className="grid min-w-0 grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3"
             >
-              {data.shared_single_roles.length === 0
+              {selectRows(data.shared_single_roles).length === 0
                 ? (
                   <div
                     className="px-6 py-8 text-center"
                     style={{ backgroundColor:'var(--surface2)' }}
                   >
                     <p className="text-sm italic" style={{ color:'var(--muted)' }}>
-                      No single roles common to all selected composites
+                      No matching shared single roles
                     </p>
                   </div>
                 )
                 : (
-                  <div>
-                    {data.shared_single_roles.map(sr => <SRRow key={sr.child_agr} sr={sr} parentRoleName={roleNames[0]}/>)}
-                  </div>
+                  <>
+                    {selectRows(data.shared_single_roles).map(sr => <SRRow key={sr.child_agr} sr={sr} parentRoleName={roleNames[0]} patterns={patterns} mappedRows={searching?sharedTransactions(sr):undefined} spanExpanded/>)}
+                  </>
                 )}
             </div>
           </section>
@@ -630,11 +595,14 @@ export function ComparisonView({ roleNames, onBack }: Props) {
               </span>
             </div>
 
-            <div className="comparison-columns">
-              {data.roles.map(r => (
+            {searching&&!mappingsLoading&&data.roles.every(role=>!selectRows(role.exclusive_single_roles,role.agr_name).length)&&<p className="text-sm text-muted">No matching exclusive single roles.</p>}
+            <div className="comparison-columns grid min-w-0 grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {data.roles.filter(role=>!searching||selectRows(role.exclusive_single_roles,role.agr_name).length>0).map(r => (
                 <ExclusiveColumn
                   key={r.agr_name}
                   role={r}
+                  rows={selectRows(r.exclusive_single_roles,r.agr_name)}
+                  patterns={patterns}
                 />
               ))}
             </div>

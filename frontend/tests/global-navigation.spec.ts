@@ -7,7 +7,7 @@ let directory = '', source = '', rows: string[] = []
 const csv = () => 'USERNAME,ROLE_NAME,USER_GROUP,FIRST_NAME,ROLE_VALID_FROM,ROLE_VALID_TO\n' + rows.join('\n') + '\n'
 const user = (n: number) => `DEMO_${String(n).padStart(3, '0')}`
 const role = (n: number) => `ZO:MM:M:PR_REL_ST_G${String(n).padStart(3, '0')}_N6:ALL`
-const destination = (page: Page, name: string) => page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name, exact: true }).click()
+const destination = async(page: Page, name: string) => {await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name, exact: true }).click();if(name==='Release Roles')await page.getByRole('button',{name:'Table',exact:true}).click()}
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
   directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-global-nav-'))

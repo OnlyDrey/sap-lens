@@ -336,7 +336,7 @@ export function ComponentLibrary() {
         </ClearFilterButton>
       </Card>}
       {(category==='all'||category==='dialogs')&&<Card><h2>Dialogs &amp; popovers</h2>
-        <Popover
+        <Toolbar><Popover
           label="Demo popover"
           trigger={
             <>
@@ -354,7 +354,7 @@ export function ComponentLibrary() {
             </>
           )}
         </Popover>
-        <Button onClick={() => setDialogOpen(true)}>Open demo dialog</Button>
+        <Button onClick={() => setDialogOpen(true)}>Open demo dialog</Button></Toolbar>
         {dialogOpen && (
           <Dialog
             title="Isolated component dialog"

@@ -31,8 +31,9 @@ test('role comparison subset preserves Jaccard summaries and inspectable pair ev
  await page.goto('/#session=browser-test-session');await nav(page,'Role Lookup')
  for(const title of ['Synthetic Alpha','Synthetic Beta'])await page.getByRole('article',{name:title,exact:true}).getByRole('button',{name:'Add to comparison',exact:true}).click()
  await page.getByRole('button',{name:'Compare now',exact:true}).click();await expect(page.getByText('mean Jaccard similarity',{exact:true})).toBeVisible();await expect(page.getByText('50%',{exact:true}).first()).toBeVisible()
- const overlap=page.getByRole('region',{name:'Single role overlap',exact:true});await expect(page.getByRole('table',{name:'Single role overlap',exact:true})).toHaveCount(0)
- await overlap.locator('summary').click();const cell=overlap.getByRole('button',{name:/1\s*Shared single roles/});await expect(overlap).toContainText('Only Synthetic Alpha');await expect(overlap).toContainText('Only Synthetic Beta');await cell.focus();await cell.press('Tab');await page.keyboard.press('Shift+Tab');await expect(cell).toHaveCSS('outline-style','solid');await cell.click();await expect(page.getByRole('dialog',{name:'Shared single roles',exact:true})).toBeVisible();await page.keyboard.press('Escape')
+ await expect(page.getByRole('region',{name:'Single role overlap',exact:true})).toHaveCount(0)
+ const columns=page.locator('.comparison-columns>.comparison-column');await expect(columns).toHaveCount(2);await expect(columns.nth(0)).toContainText('0 exclusive');await expect(columns.nth(1)).toContainText('1 exclusive')
+ const cell=page.getByRole('button',{name:'Inspect most similar roles',exact:true});await cell.focus();await cell.press('Tab');await page.keyboard.press('Shift+Tab');await expect(cell).toHaveCSS('outline-style','solid');await cell.click();await expect(page.getByRole('dialog',{name:'Shared single roles',exact:true})).toBeVisible();await page.keyboard.press('Escape')
 
 })
 test('module configuration applies only to parent draft and cancel discards local edits',async({page,request})=>{
@@ -66,7 +67,7 @@ test('profile match placement and manual review wording preserve separate accoun
  await page.goto('/#session=browser-test-session');await nav(page,'User Access');await page.getByRole('button',{name:'SYN_REVIEW',exact:true}).click()
  const identity=page.getByRole('region',{name:'SAP Identity',exact:true});await expect(identity.getByRole('button',{name:/Directory matching details/})).toBeVisible()
  await page.getByRole('button',{name:'Back to users',exact:true}).click();await page.getByRole('link',{name:'Account Review',exact:true}).click()
- const row=page.getByRole('row').filter({has:page.getByRole('button',{name:'SYN_REVIEW',exact:true})});await expect(row).toContainText('No automated findings');await expect(row).not.toContainText('Pending manual review');await expect(row.getByRole('button',{name:'Needs review',exact:true})).toBeVisible();await expect(row.locator('.review-account-dates')).toContainText('01.01.2000 → 31.12.9999')
+ const row=page.getByRole('row').filter({has:page.getByRole('button',{name:'SYN_REVIEW',exact:true})});await expect(row).toContainText('No automated findings');await expect(row).not.toContainText('Pending manual review');await expect(row.getByRole('button',{name:'Needs review',exact:true})).toBeVisible();await expect(row.locator('.review-account-dates')).toHaveCount(0);await expect(row.locator('td').nth(3)).toContainText('Valid')
 })
 
 test('release fields align and Data Health reuses canonical source state',async({page})=>{

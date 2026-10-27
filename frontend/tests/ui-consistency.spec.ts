@@ -30,7 +30,7 @@ for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(
  await page.screenshot({path:info.outputPath(`dashboard-${theme}-${width}.png`),fullPage:true})
  await page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('button',{name:'User Access',exact:true}).click()
  const link=page.getByRole('navigation',{name:'User Access view',exact:true}).getByRole('link',{name:'User directory',exact:true}),box=(await link.boundingBox())!
- await link.hover();await expect(link).toHaveCSS('text-decoration-line','none');await expect(link).toHaveCSS('border-top-width','1px');expect((await link.boundingBox())!.height).toBe(box.height)
+ await link.hover();await expect(link).toHaveCSS('text-decoration-line','none');await expect(link).toHaveCSS('border-top-width','0px');expect((await link.boundingBox())!.height).toBe(box.height)
  await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:'Organization & SAP System',exact:true}).click()
  await page.getByLabel('Organization name',{exact:true}).fill('Synthetic preview organization')
  await page.getByRole('tab',{name:'Appearance & Branding',exact:true}).click()

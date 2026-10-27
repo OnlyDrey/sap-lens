@@ -141,7 +141,7 @@ test('task 31 directory exports all assignments for filtered users with explicit
  await page.getByLabel('Search users',{exact:true}).fill('NO_SYNTHETIC_MATCH');await expect(page.getByRole('button',{name:'Export CSV',exact:true})).toBeDisabled()
 })
 test('task 31 release Table and Matrix export identical filtered intervals',async({page,request})=>{
- await prepareAssignmentExport(request);await page.goto('/#session=browser-test-session');await nav(page,'Release Roles')
+ await prepareAssignmentExport(request);await page.goto('/#session=browser-test-session');await nav(page,'Release Roles');await page.getByRole('button',{name:'Table',exact:true}).click()
  const pr=page.getByRole('combobox',{name:'PR/PO',exact:true});await pr.click();await pr.fill('PR');await page.getByRole('option',{name:'PR',exact:true}).click()
  await page.getByLabel('Release assignment status',{exact:true}).selectOption('all')
  await expect(page.getByRole('button',{name:'Export CSV',exact:true})).toBeEnabled();const table=await downloadAssignments(page);expect(table.rows).toHaveLength(3)

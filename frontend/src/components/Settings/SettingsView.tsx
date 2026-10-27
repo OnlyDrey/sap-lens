@@ -896,6 +896,7 @@ export function SettingsView({
                         is rejected.
                       </p>
                       <div className="branding-logo-grid">
+                      <div className="flex min-h-32 items-center justify-center rounded-card border border-line bg-elevated p-4"><img alt="Selected header logo preview" src={draft.logo_id?logoPreview||logo.data?.data_url||'/sap-lens.png':'/sap-lens.png'} className="max-h-24 max-w-full object-contain" onError={event=>{if(!event.currentTarget.src.endsWith('/sap-lens.png'))event.currentTarget.src='/sap-lens.png'}}/></div>
                       <div className="branding-logo-controls">{logo.isError && (
                         <p
                           role="status"
