@@ -87,3 +87,28 @@ saving. Invalid or unreadable storage is preserved and reported for recovery.
 The store currently supports up to 5,000 annotated risks and 20 MiB; limits fail
 safely without partially applying edits. Private deployment backups include this
 store; portable appearance/configuration packages do not include it.
+
+## Analysis methodology
+
+The deterministic `sod-two-sided-v1` engine requires supporting mappings on both
+activity sides. User evidence follows exact imported assignments through the
+existing exact/unambiguous wildcard catalogue matching, single-role relationships
+and transaction mappings. Matching transaction codes is case-insensitive and exact;
+original matrix and catalogue spellings remain in the evidence.
+
+Active assignments are the default. Expired, future and unknown intervals remain
+separate investigation choices; missing dates never establish active access.
+All-validity analysis does not prove that historical activity sides overlapped.
+SAP account validity, lock state and reliably matched AD state remain separate
+facts and do not silently suppress a potential finding.
+
+Role analysis detects coverage within one catalogue role or an explicitly selected
+combination of up to 25 known roles. It does not enumerate all possible role pairs
+or claim assignment validity for unassigned catalogue mappings. Missing source
+coverage is reported as unavailable, not proof of no access.
+
+Finding identities use subject, risk and policy. Relevant evidence fingerprints
+retain distinct intervals/provenance and ignore row order, unrelated imports and
+refresh timestamps. Unsupported and locally disabled risks are excluded from
+current calculations. Source criticality codes remain literal; the historical
+references did not establish an explicit C/H label mapping.
