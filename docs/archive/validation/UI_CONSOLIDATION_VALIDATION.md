@@ -987,3 +987,106 @@ Linux unit/browser checks, portable PowerShell and Docker lifecycle checks do no
 substitute for these tests. No native deployment artifact, CI success or
 production-readiness claim is made. All runnable regression checks above passed;
 the branch is ready for review and subsequent manual target-platform acceptance.
+
+## Tailwind-first UI refinement — 27 October 2026
+
+Baseline: clean `work` at `d3aaa2f`. Implementation: `8700e30`.
+All preceding commits are preserved. This round changes presentation and the
+explicit complete-list response option for Release Roles; SAP matching,
+authorization interpretation, CSV processing and persisted schemas are unchanged.
+
+### Architecture audit and implementation
+
+The baseline uses React 18, Tailwind 3.4, three global/token/component stylesheets
+and existing shared controls, with no CSS Modules. Tailwind's theme previously
+mapped fonts only. The implementation maps existing runtime variables to semantic
+color, radius and control-height utilities. New/migrated layouts and navigation
+use utilities; shared component contracts, specialized tables, browser-specific
+styling, portal measurement and dynamic palette/module colors remain justified
+CSS or inline-style exceptions. No new dependency or UI framework was added.
+
+- Shared navigation reserves a full transparent border for stable hover/active
+  geometry, without underline selection. Keyboard focus and tab/route semantics
+  remain intact. Removed the conflicting Settings border reset and superseded
+  navigation/matrix/appearance/logo-preview selectors. Copyable role identifiers
+  retain neutral borders, independent of module colors.
+- Dashboard order is SAP Overview, Access & Risk, Directory & Data Health, Review
+  Progress, Role Distribution, Assignment Distribution, then Data Sources &
+  Configuration. Distributions use contiguous rows; Role Distribution initially
+  shows five areas with Show all/less. Zero-role counts remain supported internally
+  but are omitted from the Dashboard. Source cards form the final responsive row.
+- Role Comparison replaces the large matrix with visible shared/A-only/B-only
+  pair summaries and inspectable pair-specific lists. Existing multi-role,
+  all-selection exclusive/shared lists, copy and transaction drilldowns remain.
+  Descriptions precede neutral technical identifiers.
+- User Details removes the redundant catalogue-matching disclosure while retaining
+  View role details and underlying matching/transaction evidence. Account Review
+  removes Pending manual review and shows compact validity intervals. Release
+  Roles renders all filtered summaries from one snapshot, preserving sorting,
+  navigation and exports; detail-table pagination remains unchanged.
+- Appearance & Branding has a full-width, draft-reactive organization/system/logo
+  and palette preview, stacked internally on narrow screens. Employee browsing is
+  expandable. Module tiles use a compact three-line hierarchy. Refresh history
+  uses a shared table with recorded metadata and valid change/error actions.
+  Windows Desktop options move to About, retaining capability checks and the
+  parent draft/Apply/Cancel mechanism.
+- Component Library starts with All components, uses real shared primitives and
+  constrains intrinsic widths with local table scrolling. Its demo state remains
+  isolated from actual application settings and data.
+- Canonical design-system, component, navigation, API, Dashboard, Role Lookup,
+  filter, configuration and Windows Desktop guides are aligned. AGENTS.md now
+  records Tailwind-first conventions without weakening existing instructions.
+
+### Final validation
+
+Prepared Linux environment: Python 3.12.14, Node 24.19.0 and system Chromium.
+Commands run from the repository root unless noted:
+
+| Check | Result |
+| --- | --- |
+| `python -W error::DeprecationWarning -m unittest discover -s backend/tests -v`, prepared virtualenv/portable PowerShell and writable XDG paths | **465 passed**, 25.188 seconds; no skips |
+| `npm --prefix frontend run test:browser -- --output=/workspace/sap-lens-dev/ui-consistency-confirmed --reporter=line`, prepared Python PATH and `PLAYWRIGHT_EXECUTABLE_PATH=/usr/bin/chromium` | **327 passed together**, 9.3 minutes; one worker, no retries/skips |
+| `npm --prefix frontend ci` with writable npm cache | Passed; lockfile/dependencies unchanged |
+| `npm --prefix frontend run check:types` and `npm --prefix frontend run build` | Passed |
+| `python -m pip check`; Python audit of development/build requirements | No broken requirements; no known vulnerabilities |
+| Complete npm audit and `npm audit --omit=dev` | Zero vulnerabilities, including development dependencies |
+| `python scripts/check-docs.py` | 73 Markdown files, zero failures; external URLs were not fetched |
+| `python scripts/check-workflows.py`; `actionlint` | Passed |
+| `python -m compileall -q backend scripts` | Passed |
+| `node scripts/sync-lucide-catalog.mjs --check`; `node scripts/frontend-licenses.mjs` | 1,447 icons verified; license generation passed |
+| `git diff --check`; staged privacy/diff review | Passed; only reserved-domain synthetic test data, no new CSV/binary assets or credential markers |
+
+Targeted checks preceded full regression. The first completed full browser run
+recorded 324 passes and three failures: old combined refresh-history text, a global
+organization-name selector now also matching the live preview, and an obsolete
+zero-border assertion. Assertions were scoped to the new table/header and reserved
+border geometry while preserving retention, reload, export, keyboard and control
+alignment checks. All three corrective tests passed before the final complete
+327-test pass. Earlier interrupted runs are not counted as successful full runs.
+The initial npm installation's read-only home-cache failure was resolved using the
+writable workspace cache; dependency integrity checks were retained.
+
+Visual review covered both themes at 375, 800, 1280 and 1600 px: Dashboard,
+Appearance, Component Library, module tiles and representative role-comparison,
+sidebar and investigation screenshots. Review identified and corrected a cramped
+375px preview by stacking its internal navigation. Responsive, hover-geometry,
+focus, full release-list navigation, comparison evidence, CSV replacement,
+generation tracking and persisted-review scenarios passed automated checks.
+Screenshots/logs remain outside Git under
+`/workspace/sap-lens-dev/ui-consistency-*`; final full-run artifacts are in
+`/workspace/sap-lens-dev/ui-consistency-confirmed`.
+
+### Limits and delivery
+
+The existing Vite chunk-size warning above 500 kB remains non-blocking. Large
+production release lists beyond the synthetic 125-role list and 230-row matrix
+fixtures require manual performance assessment; virtualization was not introduced
+without evidence. Specialized legacy CSS remains intentionally supported.
+
+Native Windows EXE/WebView2, tray, SCM, reboot/recovery, UNC and real systemd
+acceptance remain unexecuted. Chromium and capability mocks do not establish native
+or other-browser acceptance. No new deployment package, CI success or production
+readiness is claimed. Workflows, licensing, dependency versions and historical
+branding finding P-01 are unchanged; no CHANGELOG, tags, releases or manual workflow
+dispatches were introduced. Final documentation commit and authorized push/remote
+SHA verification are recorded in the delivery response.

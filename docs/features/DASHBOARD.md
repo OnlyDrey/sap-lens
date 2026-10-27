@@ -32,8 +32,10 @@ detail history. Backend regressions verify atomic two-source publication.
 
 ## Overview layout
 
-The compact Dashboard groups metrics into **Overview**, **User Access**, **Access Lifecycle**, **Data Quality** and **Configuration**. Source setup buttons open the correct Data Sources
-tab. Smaller icon/value tiles replace the twelve equal, descriptive cards; metrics
+The compact Dashboard presents **SAP Overview**, **Access & Risk**,
+**Directory & Data Health**, **Review Progress**, **Role Distribution**,
+**Assignment Distribution**, then **Data Sources & Configuration**. Source setup
+buttons open the correct Data Sources tab. Smaller icon/value tiles replace the twelve equal, descriptive cards; metrics
 have explanatory accessible text/tooltips and no fabricated historical trends.
 The default Dashboard does not mount Role Lookup or download its catalogue until
 that investigation is visited. Profile/filter layouts use four/two/one-column
@@ -142,8 +144,8 @@ corresponding Account Review filters. Unavailable annotations are not zero-fille
 Role Distribution counts each catalogue role once using its canonical SAP area;
 click a bar to investigate that area in Role Lookup. It does not combine single-role
 relationships or release assignments into those counts. Assignment distribution
-counts users by distinct **currently valid** business/release roles (0, 1–5, 6–20,
-21+); it is descriptive, not a security score. The separate Users with assignments
+counts users by distinct **currently valid** business/release roles (1–5, 6–20,
+21+; zero-role users remain available through User Directory); it is descriptive, not a security score. The separate Users with assignments
 metric still includes imported intervals of every validity state.
 
 Source cards distinguish last import/activation, last validated source check and the
@@ -162,3 +164,6 @@ a band opens its filtered User Directory population; the removable chip, Saved
 Filters and assignment CSV export retain that scope. High role counts are
 informational, not security findings. Review completion uses the existing imported
 SAP account population; outdated decisions remain pending.
+
+Role Distribution initially shows the five largest SAP areas, with Show all/Show
+less controls. Data Sources & Configuration is the final full-width section.

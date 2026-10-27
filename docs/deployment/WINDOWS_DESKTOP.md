@@ -158,7 +158,7 @@ checks are not equivalent to these tests.
 
 ## Optional system tray operation
 
-In the native Windows application, open **Settings → Features → Windows Desktop**.
+In the native Windows application, open **Settings → About SAP Lens → Windows Desktop**.
 Enable **Minimize to System Tray on Close**, then **Apply settings**. Defaults remain
 off: ordinary close still stops the owned backend. When enabled, X hides the window
 only after the backend and notification icon are ready. Double-click the SAP Lens

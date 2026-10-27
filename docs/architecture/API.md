@@ -234,3 +234,9 @@ Employee Directory preview/digest/import endpoints remain compatible for callers
 using that explicit protocol. They are not required by normal file selection.
 Configuration responses expose operational `progress.stage`/`source`; browser
 success feedback waits for commit and dependent view synchronization.
+
+The authenticated Release Roles list accepts `list_complete=true` to return all
+filtered role summaries from one captured snapshot, with offset zero. The default
+remains paged for compatible callers; anchor-based detail traversal retains its
+existing pagination/navigation behavior. This option changes presentation scope,
+not assignment filtering, sorting or CSV export interpretation.
