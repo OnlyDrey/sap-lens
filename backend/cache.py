@@ -22,6 +22,7 @@ class _CacheState:
     directory_bound: bool = False
     directory_snapshot_id: str | None = None
     directory_source_path: str = ''
+    sod: dict = field(default_factory=dict)
     source_records: list = field(default_factory=list)
     roles: dict[str, RoleDetail] = field(default_factory=dict)
     modules: list[ModuleInfo] = field(default_factory=list)
@@ -124,7 +125,7 @@ def _build_catalog(path=None, configuration=None, records=None, report=None):
 def build_cache(path=None, configuration=None):
     settings = configuration or get_settings()
     catalogue_path = path if path is not None else settings.data_csv_path
-    if not catalogue_path and not settings.user_csv_path:
+    if not catalogue_path and not settings.user_csv_path and not settings.sod_csv_path:
         raise ValueError('Choose a role catalogue or user access CSV in Settings.')
     def read_source(kind, operation):
         try: return operation()
@@ -150,7 +151,11 @@ def build_cache(path=None, configuration=None):
                 if previous.loaded_sources.get('users') == settings.user_csv_path:
                     state.users = previous.users
                     state.loaded_sources['users'] = settings.user_csv_path
-    state.last_loaded = datetime.now(timezone.utc)
+    if settings.sod_csv_path:
+        from sod_import import parse_sod
+        state.sod = read_source('sod', lambda: parse_sod(settings.sod_csv_path))
+        state.loaded_sources['sod'] = settings.sod_csv_path
+    state.last_loaded = datetime.now(timezone.utc) if catalogue_path or settings.user_csv_path else None
     return state
 
 

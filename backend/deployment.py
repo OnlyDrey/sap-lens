@@ -112,7 +112,7 @@ def source_path(value):
 def validate_server_sources(settings):
     if not server_mode(): return
     data = Path(os.environ['SAP_LENS_DATA_DIR']).resolve()
-    for source, path in [('roles',settings.data_csv_path),('users',settings.user_csv_path),('employees',settings.employee_csv_path)]:
+    for source, path in [('roles',settings.data_csv_path),('users',settings.user_csv_path),('employees',settings.employee_csv_path),('sod',settings.sod_csv_path)]:
         if path:
             resolved = source_path(path)
             if resolved.is_relative_to(data/'uploads') and getattr(settings.source_modes,source)!='static':

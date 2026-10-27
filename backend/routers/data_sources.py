@@ -33,7 +33,7 @@ def changes(data, source='', kind='', search=''):
 
 
 @router.get('/reports/{identity}')
-def details(identity: str, source: str = Query('', pattern=r'^(roles|users|employees)?$'),
+def details(identity: str, source: str = Query('', pattern=r'^(roles|users|employees|sod)?$'),
             kind: str = Query('', pattern=r'^(added|removed|modified)?$'), search: str = Query('', max_length=256),
             offset: int = Query(0, ge=0), limit: int = Query(25, ge=1, le=100)):
     data = report(identity)
@@ -47,7 +47,7 @@ def details(identity: str, source: str = Query('', pattern=r'^(roles|users|emplo
 
 
 @router.get('/reports/{identity}/export')
-def export(identity: str, source: str = Query('', pattern=r'^(roles|users|employees)?$'),
+def export(identity: str, source: str = Query('', pattern=r'^(roles|users|employees|sod)?$'),
            kind: str = Query('', pattern=r'^(added|removed|modified)?$'), search: str = Query('', max_length=256)):
     data = report(identity)
     def safe(value):
@@ -87,17 +87,17 @@ class SourceSelection(StrictModel):
 
 
 @router.post('/{source}/select')
-async def select_source(source:Literal['roles','users','employees'], body:SourceSelection, request:Request):
+async def select_source(source:Literal['roles','users','employees','sod'], body:SourceSelection, request:Request):
     if not body.path.strip():
         raise HTTPException(400,'Choose a CSV file. Use Clear source data to remove a dataset intentionally.')
     current=get_settings()
     if current.revision!=body.revision:
         raise HTTPException(409,'Settings changed. Reload this source before selecting it again.')
     candidate=current.model_copy(deep=True)
-    setattr(candidate,{'roles':'data_csv_path','users':'user_csv_path','employees':'employee_csv_path'}[source],body.path.strip())
+    setattr(candidate,{'roles':'data_csv_path','users':'user_csv_path','employees':'employee_csv_path','sod':'sod_csv_path'}[source],body.path.strip())
     setattr(candidate.source_modes,source,body.mode)
     if body.profile is not None:
-        if source=='employees':raise HTTPException(400,'Employee Directory uses its fixed documented schema.')
+        if source in {'employees','sod'}:raise HTTPException(400,'This source uses its fixed documented schema.')
         try:
             profile=(ImportProfile if source=='roles' else UserImportProfile).model_validate(body.profile)
             field,active=('import_profiles','active_import') if source=='roles' else ('user_import_profiles','active_user_import')
@@ -123,12 +123,15 @@ async def select_source(source:Literal['roles','users','employees'], body:Source
 
 
 @router.get('/{source}/preview')
-def snapshot_preview(source:Literal['roles','users','employees'],offset:int=Query(0,ge=0),limit:int=Query(20,ge=1,le=100)):
+def snapshot_preview(source:Literal['roles','users','employees','sod'],offset:int=Query(0,ge=0),limit:int=Query(20,ge=1,le=100)):
     import cache
     from employee_directory import HEADERS
     snapshot=cache.get_snapshot()
     if source=='roles':rows=snapshot.source_records;columns=FIELDS;loaded=bool(snapshot.import_report)
     elif source=='users':rows=snapshot.users.source_records;columns=USER_FIELDS;loaded=bool(snapshot.users.report)
+    elif source=='sod':
+        from sod_import import HEADERS
+        rows=snapshot.sod.get('records',[]);columns=HEADERS;loaded=bool(snapshot.sod)
     else:
         directory=snapshot.directory if snapshot.directory_bound else None
         rows=directory.rows if directory else [];columns=HEADERS;loaded=directory is not None

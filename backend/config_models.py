@@ -115,6 +115,7 @@ class SourceModes(StrictModel):
     roles: Literal['static', 'dynamic'] = 'dynamic'
     users: Literal['static', 'dynamic'] = 'dynamic'
     employees: Literal['static', 'dynamic'] = 'static'
+    sod: Literal['static', 'dynamic'] = 'static'
 
 
 class SourceSnapshot(StrictModel):
@@ -128,18 +129,19 @@ class RefreshMetadata(StrictModel):
     timestamp: str = Field(max_length=40)
     operation: Literal['startup', 'import', 'refresh']
     status: Literal['changed', 'unchanged', 'partial', 'failed']
-    checked: int = Field(ge=0, le=3)
-    updated: int = Field(ge=0, le=3)
-    unchanged: int = Field(ge=0, le=3)
-    failed: int = Field(ge=0, le=3)
-    skipped: int = Field(ge=0, le=3)
+    checked: int = Field(ge=0, le=4)
+    updated: int = Field(ge=0, le=4)
+    unchanged: int = Field(ge=0, le=4)
+    failed: int = Field(ge=0, le=4)
+    skipped: int = Field(ge=0, le=4)
 
 
 class DataLifecycle(StrictModel):
+    sod_history: list[SourceSnapshot] = Field(default_factory=list, max_length=1000)
     history_metadata: dict[str, RefreshMetadata] = Field(default_factory=dict, max_length=5)
     last_successful_refresh: str | None = Field(default=None, max_length=40)
     last_failed_refresh: str | None = Field(default=None, max_length=40)
-    sources: dict[Literal['roles', 'users'], SourceSnapshot] = Field(default_factory=dict, max_length=2)
+    sources: dict[Literal['roles', 'users', 'sod'], SourceSnapshot] = Field(default_factory=dict, max_length=3)
     history: list[str] = Field(default_factory=list, max_length=5)
 
     @field_validator('history')
@@ -185,6 +187,7 @@ class AppConfig(StrictModel):
 
     employee_snapshot_id: str | None = Field(default=None, pattern=r'^[a-f0-9]{64}$')
     employee_csv_path: str = Field(default='', max_length=4096)
+    sod_csv_path: str = Field(default='', max_length=4096)
     features: FeatureSettings = Field(default_factory=FeatureSettings)
     schema_version: Literal[3] = 3
     user_csv_path: str = Field(default='', max_length=4096)

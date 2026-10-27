@@ -54,7 +54,7 @@ def create_app(origin: str | None = None, session_token: str | None = None,
                 await loader.load()
 
         task = None
-        if get_settings().data_csv_path or get_settings().user_csv_path or get_settings().employee_csv_path or get_settings().employee_snapshot_id:
+        if get_settings().data_csv_path or get_settings().user_csv_path or get_settings().employee_csv_path or get_settings().employee_snapshot_id or get_settings().sod_csv_path:
             task = asyncio.create_task(initial_load())
         else:
             loader.error = 'Choose a SAP role catalogue or user access CSV in Settings.'
