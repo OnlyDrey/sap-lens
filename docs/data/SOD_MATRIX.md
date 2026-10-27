@@ -140,3 +140,23 @@ Browser downloads and the guarded desktop Save dialog share the server-generated
 CSV contract. The client/native size limit is 32 MiB; narrow filters for larger
 exports. Native Windows Save-dialog behavior still requires acceptance testing;
 Linux mocked bridge tests are not equivalent to native validation.
+
+## Access Review
+
+SoD → Access Review records justified decisions against current active assignment
+evidence. Accepted-with-controls decisions require documented controls; completed
+actions require completion notes. Reviewer names are explicitly self-reported,
+not authenticated identities or verified signatures. SAP source data is never
+modified by a review.
+
+Each save appends an event referencing an immutable, integrity-checked finding
+snapshot. History includes the original rationale, controls, actions and both
+activity sides, even after source changes. Evidence fingerprints distinguish
+outdated decisions from unrelated refresh changes. Snapshot staging and revision/
+generation guards preserve the previous decision if a save fails.
+
+Decision and lifecycle are separate. Missing sources, removed users, disabled
+risks and changed matrix coverage do not establish resolution. A resolved
+potential finding means complete current imported evidence no longer supports it;
+it does not prove a SAP account was disabled or effective access removed.
+Outstanding actions and filtered review records have local CSV exports.

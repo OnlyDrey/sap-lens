@@ -101,3 +101,8 @@ SAP-Lens-diagnostics*.json
 
 # Versioned local cross-platform outputs (source/build assets remain tracked)
 /dist/[0-9]*/
+
+# Private SoD annotations and review indexes
+sod-catalogue.json
+sod-reviews.json
+sod-periods.json

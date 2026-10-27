@@ -25,7 +25,7 @@ def _save_csv_dialog(owner, token, filename, content, kind):
     import re
     pattern = (r'sap-lens-refresh-changes-report-\d{4}-\d{2}-\d{2}\.csv' if kind == 'changes' else r'sap-lens-[A-Za-z0-9_-]{1,100}-[a-z]+-\d{4}-\d{2}-\d{2}\.csv')
     if kind == 'sod':
-        pattern = r'sap-lens-sod-(users|roles)-findings-\d{4}-\d{2}-\d{2}\.csv'
+        pattern = r'sap-lens-sod-((users|roles)-findings|reviews|actions)-\d{4}-\d{2}-\d{2}\.csv'
     if not isinstance(filename, str) or not re.fullmatch(pattern, filename):
         raise ValueError('Invalid CSV export filename.')
     header = ('\ufeff"Timestamp","Source","Change","Identifier","Field","Before","After"\r\n' if kind == 'changes' else '\ufeff"Username","User group",')
@@ -33,8 +33,12 @@ def _save_csv_dialog(owner, token, filename, content, kind):
         from csv_exports import ASSIGNMENT_HEADER
         header=ASSIGNMENT_HEADER
     if kind == 'sod':
-        from routers.sod_analysis import EXPORT_HEADER
-        header = EXPORT_HEADER
+        if filename.startswith(('sap-lens-sod-reviews-', 'sap-lens-sod-actions-')):
+            from routers.sod_reviews import REVIEW_HEADER
+            header = REVIEW_HEADER
+        else:
+            from routers.sod_analysis import EXPORT_HEADER
+            header = EXPORT_HEADER
     if not isinstance(content, str) or not content.startswith(header):
         raise ValueError('Invalid CSV export content.')
     if len(content) > 32 * 1024 * 1024:

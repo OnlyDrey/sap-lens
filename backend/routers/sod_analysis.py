@@ -1,5 +1,6 @@
 """Captured-generation potential SoD investigation and local evidence CSV export."""
 import csv
+from contextlib import contextmanager
 from datetime import date
 import hashlib
 import io
@@ -42,6 +43,29 @@ def analysis_query(kind: Literal['users', 'roles'] = 'users',
                 tcode=tcode, account_status=account_status, sort=sort, descending=descending)
 
 
+def context_key(snapshot, settings, saved, query):
+    references = {name: dict(snapshot=ref.snapshot, imported_at=ref.imported_at, checked_at=ref.checked_at)
+                  for name, ref in settings.data_lifecycle.sources.items()}
+    key = (id(snapshot), saved.revision, query['as_of'], query['validity'], tuple(query['selected_roles']),
+           settings.features.user_role_mapping, settings.features.employee_directory,
+           json.dumps(references, sort_keys=True))
+    return key, references
+
+
+def generation_for(key):
+    return hashlib.sha256(json.dumps(key, default=str, sort_keys=True).encode()).hexdigest()
+
+
+@contextmanager
+def publication_guard(query, expected):
+    """Hold publication stable only while committing a justified annotation."""
+    with store.lock, cache._load_lock:
+        key, _ = context_key(cache.get_snapshot(), get_settings(), store.read(), query)
+        if generation_for(key) != expected:
+            raise HTTPException(409, 'SoD source evidence changed. Reload before saving.')
+        yield
+
+
 def captured(query):
     """Capture locks in catalogue-write order; expensive analysis runs after release."""
     global _cached_key, _cached_snapshot, _cached_value
@@ -50,11 +74,7 @@ def captured(query):
         settings = get_settings()
         saved = store.read()
         metadata = {key: item.metadata.model_dump() for key, item in saved.entries.items()}
-        source_refs = {key: dict(snapshot=ref.snapshot, imported_at=ref.imported_at, checked_at=ref.checked_at)
-                       for key, ref in settings.data_lifecycle.sources.items()}
-        key = (id(snapshot), saved.revision, query['as_of'], query['validity'], tuple(query['selected_roles']),
-               settings.features.user_role_mapping, settings.features.employee_directory,
-               json.dumps(source_refs, sort_keys=True))
+        key, source_refs = context_key(snapshot, settings, saved, query)
     with _cache_lock:
         if key == _cached_key and _cached_snapshot is snapshot:
             return _cached_value
@@ -72,7 +92,7 @@ def captured(query):
             local = metadata.get(finding['risk_id'], {})
             enriched[kind].append({**finding, 'risk': dict(display_name=local.get('display_name', ''),
                 source_text=source['source_text'], business_category=local.get('business_category', ''), risk_type=source['risk_type'])})
-    generation = hashlib.sha256(json.dumps(key, default=str, sort_keys=True).encode()).hexdigest()
+    generation = generation_for(key)
     value = {**result, **enriched, 'generation': generation,
              'sources': {**result['sources'], 'references': source_refs}}
     with _cache_lock:
