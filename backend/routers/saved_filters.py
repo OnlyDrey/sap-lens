@@ -8,7 +8,7 @@ router=APIRouter(prefix='/api/saved-filters',tags=['Saved filters'])
 
 class Saved(StrictModel):
     name:str=Field(min_length=1,max_length=80)
-    view:Literal['users','roles','release','review','comparison']
+    view:Literal['users','roles','release','review','comparison','sod_users','sod_roles']
     filters:dict=Field(max_length=40)
     id:str=Field(default='',max_length=64)
     expected:str=Field(default='',max_length=64)
@@ -45,6 +45,8 @@ def save(request:Saved):
       'release':{'group','kind','releaseGroup','strategy','username','role','status','sort','descending','valid_from_min','valid_from_max','valid_to_min','valid_to_max','include_missing_end'},
       'review':{'search','finding','license','state','sort','descending'},
       'comparison':{'validity','kind','difference','search','area','sort','descending'}}
+    for view in ('sod_users','sod_roles'):
+        allowed[view]={'search','risk','criticality','risk_type','category','username','group','composite_role','single_role','tcode','account_status','sort','descending','validity','as_of','selected_roles'}
     if not request.rename and set(request.filters)-allowed[request.view]: raise HTTPException(422,'Unsupported filter fields; result datasets cannot be saved.')
     return store.save(request.name,request.view,request.filters,request.id,request.expected,request.rename)
 

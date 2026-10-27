@@ -24,12 +24,17 @@ def _save_csv_dialog(owner, token, filename, content, kind):
         raise ValueError('Application request is not authorized.')
     import re
     pattern = (r'sap-lens-refresh-changes-report-\d{4}-\d{2}-\d{2}\.csv' if kind == 'changes' else r'sap-lens-[A-Za-z0-9_-]{1,100}-[a-z]+-\d{4}-\d{2}-\d{2}\.csv')
+    if kind == 'sod':
+        pattern = r'sap-lens-sod-(users|roles)-findings-\d{4}-\d{2}-\d{2}\.csv'
     if not isinstance(filename, str) or not re.fullmatch(pattern, filename):
         raise ValueError('Invalid CSV export filename.')
     header = ('\ufeff"Timestamp","Source","Change","Identifier","Field","Before","After"\r\n' if kind == 'changes' else '\ufeff"Username","User group",')
     if kind=='access' and re.fullmatch(r'sap-lens-(user-directory|release-roles)-review-\d{4}-\d{2}-\d{2}\.csv',filename):
         from csv_exports import ASSIGNMENT_HEADER
         header=ASSIGNMENT_HEADER
+    if kind == 'sod':
+        from routers.sod_analysis import EXPORT_HEADER
+        header = EXPORT_HEADER
     if not isinstance(content, str) or not content.startswith(header):
         raise ValueError('Invalid CSV export content.')
     if len(content) > 32 * 1024 * 1024:
@@ -182,6 +187,9 @@ class NativeDialogs:
 
     def save_user_access_csv(self, token: str, filename: str, content: str):
         return _save_csv_dialog(self, token, filename, content, 'access')
+
+    def save_sod_csv(self, token: str, filename: str, content: str):
+        return _save_csv_dialog(self, token, filename, content, 'sod')
 
     def save_refresh_changes_csv(self, token: str, filename: str, content: str):
         return _save_csv_dialog(self, token, filename, content, 'changes')

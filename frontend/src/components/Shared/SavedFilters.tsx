@@ -129,7 +129,7 @@ export function SavedFilters({
       validity: ['active', 'expired', 'future', 'unknown', 'all'],
       difference: ['', 'shared', 'a', 'b'],
       kind:
-        view === 'comparison' ? ['roles', 'transactions'] : ['', 'PR', 'PO'],
+        view.startsWith('sod_') ? ['users', 'roles'] : view === 'comparison' ? ['roles', 'transactions'] : ['', 'PR', 'PO'],
       status: ['active', 'expired', 'future', 'unknown', 'all'],
       license: ['', 'classified', 'exclude'],
       state: [
@@ -146,8 +146,9 @@ export function SavedFilters({
         'tcodes-asc',
         'singles-desc',
       ],
+      account_status: ['', 'locked', 'unlocked', 'ad_disabled', 'ad_enabled', 'unknown'],
       sort:
-        view === 'users'
+        view.startsWith('sod_') ? ['subject','risk_id','criticality','evidence_count'] : view === 'users'
           ? [
               'username',
               'group',

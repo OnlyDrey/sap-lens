@@ -342,6 +342,23 @@ class DesktopTests(unittest.TestCase):
             self.assertTrue(bridge.save_user_access_csv('synthetic-capability',name,content));self.assertEqual(target.read_bytes(),content.encode('utf-8'))
         with self.assertRaises(ValueError):bridge.save_user_access_csv('synthetic-capability','sap-lens-unrelated-review-2026-10-26.csv',content)
 
+    def test_sod_export_native_contract_keeps_capability_header_and_destination_guards(self):
+        from routers.sod_analysis import EXPORT_HEADER
+        bridge=desktop.NativeDialogs('synthetic-capability');bridge._window=self.window
+        content=EXPORT_HEADER+'"Synthetic evidence"\r\n'
+        target=self.root/'Synthetic SoD export.csv';self.window.create_file_dialog.return_value=[str(target)]
+        for kind in ('users','roles'):
+            name=f'sap-lens-sod-{kind}-findings-2026-10-27.csv'
+            with self.assertRaises(ValueError):bridge.save_sod_csv('wrong',name,content)
+            with self.assertRaises(ValueError):bridge.save_sod_csv('synthetic-capability','../'+name,content)
+            with self.assertRaises(ValueError):bridge.save_sod_csv('synthetic-capability',name,'unrelated header')
+            self.assertTrue(bridge.save_sod_csv('synthetic-capability',name,content))
+            self.assertEqual(target.read_bytes(),content.encode('utf-8'))
+            with self.assertRaises(ValueError):bridge.save_user_access_csv('synthetic-capability',name,content)
+        self.window.create_file_dialog.return_value=None
+        self.assertFalse(bridge.save_sod_csv('synthetic-capability',name,content))
+        with self.assertRaises(ValueError):bridge.save_sod_csv('synthetic-capability','sap-lens-sod-arbitrary-findings-2026-10-27.csv',content)
+
     def test_change_report_save_reuses_guarded_dialog_with_its_own_csv_contract(self):
         bridge=desktop.NativeDialogs('synthetic-capability');bridge._window=self.window
         filename='sap-lens-refresh-changes-report-2026-10-23.csv'

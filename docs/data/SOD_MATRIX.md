@@ -3,9 +3,9 @@
 The SoD matrix is an externally supplied CSV. SAP Lens does not query SAP or
 schedule source extraction. The backend supports it as a fourth source through
 the existing validated import, snapshot and refresh lifecycle. Settings → SoD Risk Configuration provides the imported catalogue and local
-business guidance. Analysis and review interfaces are being implemented
-separately; source/catalogue support alone is not a complete investigation
-workflow.
+business guidance. The SoD area adds user/role evidence investigation. Persistent access review
+and report interfaces are being implemented separately; investigation findings
+are not review decisions or approvals.
 
 ## Schema and policy
 
@@ -112,3 +112,31 @@ retain distinct intervals/provenance and ignore row order, unrelated imports and
 refresh timestamps. Unsupported and locally disabled risks are excluded from
 current calculations. Source criticality codes remain literal; the historical
 references did not establish an explicit C/H label mapping.
+
+
+## Investigation and CSV export
+
+Open SoD → User Conflicts or Role Conflicts. Filters and sorting are independent
+between views and can be stored with the existing Saved Filters menu. User
+investigation defaults to active assignments; the evaluation date uses Norwegian
+manual date entry while internal values remain ISO dates. Role combinations are
+explicit selections, not a global pairwise risk metric.
+
+Inspect both activities to page through every supporting path. Actual assigned
+role identifiers, matched catalogue patterns, single roles and transaction
+provenance are distinct. Existing user/profile and catalogue drawers remain the
+navigation targets. The generation guard rejects evidence requests after the
+underlying analysis context changes.
+
+Export CSV uses the same filters across all result pages and includes every
+supporting path. Files use UTF-8 BOM, semicolons, quoted fields, Norwegian dates
+and spreadsheet-formula protection without changing stored values. Columns cover
+finding identity, subject, risk/type/criticality, activity slot, original
+transaction spellings, actual/catalogue/single roles, assignment dates/status,
+user group, matching status, evidence version, evaluation date/policy and source
+snapshot versions. No filesystem paths are included.
+
+Browser downloads and the guarded desktop Save dialog share the server-generated
+CSV contract. The client/native size limit is 32 MiB; narrow filters for larger
+exports. Native Windows Save-dialog behavior still requires acceptance testing;
+Linux mocked bridge tests are not equivalent to native validation.
