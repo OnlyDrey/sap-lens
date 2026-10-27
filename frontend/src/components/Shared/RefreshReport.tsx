@@ -203,14 +203,14 @@ export function RefreshReportDialog({
                   {result.recovery}
                 </p>
                 <small>Category: {label(result.category || 'unknown')}</small>
-                {['roles', 'users', 'employees'].includes(result.source) && (
+                {['roles', 'users', 'employees','sod'].includes(result.source) && (
                   <Button
                     onClick={() => {
                       onClose()
                       changeView({
                         settings: true,
                         settingsTarget: result.source as
-                          'roles' | 'users' | 'employees',
+                          'roles' | 'users' | 'employees' | 'sod',
                       })
                     }}
                   >

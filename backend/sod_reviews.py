@@ -96,6 +96,8 @@ class AccountRecord(StrictModel):
 
 
 class AccountEvidence(StrictModel):
+    sap_validity: Literal['Valid', 'Invalid', 'Unknown'] = 'Unknown'
+    lock_status: Literal['Locked', 'Unlocked', 'Unknown'] = 'Unknown'
     accounts: list[AccountRecord] = Field(default_factory=list, max_length=10000)
     directory_match: str = Field(max_length=120)
     ad_status: Literal['Enabled', 'Disabled', 'Unknown']

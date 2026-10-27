@@ -355,6 +355,11 @@ class DesktopTests(unittest.TestCase):
             self.assertTrue(bridge.save_sod_csv('synthetic-capability',name,content))
             self.assertEqual(target.read_bytes(),content.encode('utf-8'))
             with self.assertRaises(ValueError):bridge.save_user_access_csv('synthetic-capability',name,content)
+        from routers.sod import CATALOGUE_HEADER
+        catalogue_name='sap-lens-sod-catalogue-2026-10-27.csv'
+        self.assertTrue(bridge.save_sod_csv('synthetic-capability',catalogue_name,CATALOGUE_HEADER))
+        self.assertEqual(target.read_bytes(),CATALOGUE_HEADER.encode('utf-8'))
+        with self.assertRaises(ValueError):bridge.save_sod_csv('synthetic-capability',catalogue_name,content)
         self.window.create_file_dialog.return_value=None
         self.assertFalse(bridge.save_sod_csv('synthetic-capability',name,content))
         with self.assertRaises(ValueError):bridge.save_sod_csv('synthetic-capability','sap-lens-sod-arbitrary-findings-2026-10-27.csv',content)

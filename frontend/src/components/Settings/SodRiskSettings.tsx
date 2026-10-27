@@ -1,7 +1,8 @@
+import {ExportCSVButton} from '@/components/Shared/ExportCSVButton'
 import {useState} from 'react'
 import {useQuery,useQueryClient} from '@tanstack/react-query'
 import {Save,ShieldCheck,Database} from 'lucide-react'
-import {apiRequest} from '@/api/client'
+import {apiRequest,applicationToken} from '@/api/client'
 import {Button} from '@/components/Shared/Button'
 import {FormField,Input,SearchInput,Checkbox} from '@/components/Shared/Controls'
 import {Select} from '@/components/Shared/Select'
@@ -26,8 +27,14 @@ export function SodRiskSettings({onConfigure}:{onConfigure:()=>void}) {
   setBusy(true);setError('');setMessage('')
   try{const result=await apiRequest<{updated:number}>('/api/sod/catalogue/bulk','POST',{expected_revision:query.data.revision,enabled:value,confirm:!value});await refresh();setMessage(`${result.updated} current risk configurations updated.`)}catch(cause){setError(cause instanceof Error?cause.message:'Risk settings could not be saved.')}finally{setBusy(false)}
  }
+ const exportCsv=async()=>{
+  setBusy(true);setError('')
+  try{const response=await fetch(`/api/sod/catalogue/export?${params}`,{headers:{'X-SAP-Lens':applicationToken()},cache:'no-store'});if(!response.ok)throw Error('Catalogue export failed. Reload and retry.');const content=await response.text(),filename=`sap-lens-sod-catalogue-${new Date().toISOString().slice(0,10)}.csv`;
+   if(window.pywebview){if(!window.pywebview.api.save_sod_csv)throw Error('Update the desktop application for catalogue export.');await window.pywebview.api.save_sod_csv(applicationToken(),filename,content)}else{const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+  }catch(cause){setError(cause instanceof Error?cause.message:'Catalogue export failed.')}finally{setBusy(false)}
+ }
  return <section className="grid min-w-0 gap-4" aria-label="SoD Risk Configuration">
-  <Toolbar><ShieldCheck size={20} aria-hidden="true"/><h2>SoD Risk Catalogue</h2><Button onClick={onConfigure}><Database size={16} aria-hidden="true"/>Configure SoD source</Button></Toolbar>
+  <Toolbar><ShieldCheck size={20} aria-hidden="true"/><h2>SoD Risk Catalogue</h2><ExportCSVButton loading={busy} disabled={!query.data?.total||query.isFetching} onClick={()=>void exportCsv()} title="All filtered risks, including bilingual guidance and source transaction mappings."/><Button onClick={onConfigure}><Database size={16} aria-hidden="true"/>Configure SoD source</Button></Toolbar>
   <p className="ui-description">Imported risk definitions remain separate from local business guidance. New supported risks are enabled by default and require description review.</p>
   <EvidenceDisclosure title="About SoD evaluation evidence">The explicit sod-two-sided-v1 policy supports structurally complete source TYPE S definitions. Both activity sides are required. Other types remain visible but are not evaluated. Transaction-derived evidence indicates potential conflicts, not verified effective SAP authorization. The source does not include an ACTIVE field.</EvidenceDisclosure>
   {query.data&&<p className="ui-description">{query.data.source.loaded?`${query.data.source.risks} source risks · ${query.data.source.records} mappings`:'No validated SoD matrix loaded'} · Last import: {formatTimestamp(query.data.source.imported_at)} · Last check: {formatTimestamp(query.data.source.checked_at)}</p>}

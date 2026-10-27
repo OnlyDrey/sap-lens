@@ -212,3 +212,16 @@ standard templates, ReportLab's Bitstream Vera fonts/font license and dependency
 license metadata. Docker/native deployments install the same pinned packages and
 resources. Native Word/WebView2/packaged Windows acceptance remains separate from
 structural DOCX, Linux PDF and mocked native-dialog validation.
+
+## Integrated overview and source refresh
+
+The Risk Catalogue overview reuses current analysis and review counts. Unavailable
+user evidence is labelled unavailable, not zero. Criticality counts retain raw
+source labels; no unverified C/H translation is applied. Source import and check
+timestamps remain separate from the SAP refresh timestamp.
+
+Catalogue **Export CSV** exports all filtered risks across pages, including both
+activity mappings and local English/Norwegian guidance. It uses the same filters,
+UTF-8 BOM, semicolons and spreadsheet-safe cells as the investigation exports.
+A [synthetic matrix](../../examples/sod-matrix.example.csv) is provided for the
+linked example catalogue; its invented pairs are not production risk guidance.

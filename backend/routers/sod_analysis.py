@@ -90,6 +90,13 @@ def captured(query):
         for finding in result[kind]:
             source = definitions[finding['risk_id']]
             local = metadata.get(finding['risk_id'], {})
+            if finding.get('account') is not None:
+                from account_review import validity
+                account = finding['account']
+                locks = {row.get('locked') for row in account['accounts']}
+                finding = {**finding, 'account': {**account,
+                    'sap_validity': validity(account['accounts'], query['as_of']),
+                    'lock_status': 'Locked' if locks == {True} else 'Unlocked' if locks == {False} else 'Unknown'}}
             enriched[kind].append({**finding, 'risk': dict(display_name=local.get('display_name', ''),
                 source_text=source['source_text'], business_category=local.get('business_category', ''), risk_type=source['risk_type'])})
     generation = generation_for(key)
