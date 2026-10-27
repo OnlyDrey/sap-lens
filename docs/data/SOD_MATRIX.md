@@ -160,3 +160,23 @@ risks and changed matrix coverage do not establish resolution. A resolved
 potential finding means complete current imported evidence no longer supports it;
 it does not prove a SAP account was disabled or effective access removed.
 Outstanding actions and filtered review records have local CSV exports.
+
+## Review periods
+
+SoD → Review Periods captures a named date range and explicit evaluation date.
+Each snapshot retains source IDs/timestamps, risk definitions and enablement,
+local guidance, findings, decisions, methodology and organization metadata.
+Period-specific decisions do not overwrite current or other-period decisions.
+
+Move Draft → In review → Ready for approval → Approved / closed. Pending/outdated
+findings block approval preparation. Closure requires explicit confirmation,
+self-reported reviewer/approver and an approval date. Closed snapshots cannot be
+edited or recaptured. Open-period recapture is explicit and retains previous
+snapshot references. Ordinary refresh never changes a period snapshot.
+
+Comparisons distinguish new, changed, unchanged, reopened and resolved potential
+findings. Lost users, disabled/changed risks or incomplete source coverage produce
+“Not observed / coverage changed” rather than automatic resolution. Evaluation
+at a past date uses the imported evidence retained in the snapshot; it is not a
+reconstruction of unexported historical SAP access. Private backups must include
+both the period/review indexes and their immutable snapshot files.
