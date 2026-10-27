@@ -188,3 +188,31 @@ It delegates filtering to the existing backend selection functions, never a
 second frontend interpretation. The existing native `save_user_access_csv` bridge
 accepts the exact new semicolon header only for its two assignment-export filename
 prefixes; capability, size and destination protections remain intact.
+
+Component Library uses eight category tabs (actions, navigation, forms, filters, feedback, dialogs, data display and SAP controls); All components is an explicit expanded QA view. Previews use real shared controls and isolated in-memory state. ModuleEditor uses the shared Dialog with a local draft and explicit parent-draft Apply. SourceDetailsDialog groups status, storage and diagnostics, with complete copyable paths. SourceHealthSummary supports a compact dashboard variant from the same diagnostic evidence. Anchored portals stay hidden until measured; event-driven anchor observation continues tracking subsequent layout changes.
+
+`Settings/DesktopOptions.tsx` reuses Toggle/Checkbox and the parent settings draft.
+It renders only after a Windows native capability response; hosted/Linux/browser
+clients do not expose Windows options. No new reusable control or demo-only analogue
+was introduced. Sign-in startup is disabled for source-mode activation; an existing
+preference can still be switched off. Tray Settings navigation queues until App's
+native-readiness handshake and preserves the current route/history underneath.
+
+### Refined controls and search
+
+`Shared/Select` supplies the default canonical control class; native menus retain
+platform rendering. Use `FormField` for explicit label association. Navigation
+strips use text underline indicators without a baseline border; focus remains an
+outline. `Access/Shared.Pagination` and employee pagination use equal compact
+Previous/Next controls with directional icons.
+
+Module settings use the existing `ModuleEditor` dialog with responsive tiles and
+All/Enabled/Disabled filtering, not a second editor. Appearance/logo controls retain
+the existing managed-file and contrast validation in a responsive two-column layout.
+Employee source diagnostics expose a compact summary and expandable full details.
+The Component Library uses these same navigation/select primitives automatically.
+
+Text search lives in `backend/search_matching.py` and
+`frontend/src/lib/searchMatching.ts`. Both match literal chunks, never execute user
+regular expressions. Transaction pattern expansion lives in the existing
+`transaction_filters.py`; internal identity and assignment joins remain unchanged.

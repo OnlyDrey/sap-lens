@@ -1,3 +1,4 @@
+import {activateCSV} from './source-activation-fixture'
 import {inspectTechnicalSources} from './source-details-fixture'
 import { test, expect } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
@@ -84,20 +85,21 @@ test('complete icon search, module color validation and persisted icon selection
   await expect(hex).toHaveValue('')
   await expect(hex).toHaveAttribute('aria-invalid', 'true')
   await expect(
-    page.getByRole('button', { name: 'Apply settings', exact: true })
+    page.getByRole('button', { name: 'Apply module changes', exact: true })
   ).toBeDisabled()
   await hex.fill('invalid')
   await expect(hex).toHaveAttribute('aria-invalid', 'true')
   await expect(
-    page.getByRole('button', { name: 'Apply settings', exact: true })
+    page.getByRole('button', { name: 'Apply module changes', exact: true })
   ).toBeDisabled()
   await page
     .getByRole('button', { name: 'Reset FI hexadecimal color', exact: true })
     .click()
   await expect(hex).toHaveValue('#6f8fc5')
   await page
-    .getByRole('button', { name: 'Apply settings', exact: true })
+    .getByRole('button', { name: 'Apply module changes', exact: true })
     .click()
+  await page.getByRole('button',{name:'Apply settings',exact:true}).click()
   await expect(workspace(page)).toBeHidden()
   const config = await (
     await request.get('/api/configuration', { headers })
@@ -112,14 +114,7 @@ test('complete icon search, module color validation and persisted icon selection
     })
     .click()
   await expect(page.getByText('Selected icon: Camera')).toBeVisible()
-  await expect(
-    page
-      .getByRole('button', {
-        name: 'Edit FI — Financial Accounting',
-        exact: true
-      })
-      .locator('svg.lucide-camera')
-  ).toBeVisible()
+  await expect(page.getByRole('dialog',{name:/Configure FI —/}).locator('svg.lucide-camera').first()).toBeVisible()
 })
 
 test('unavailable lazy icon assets keep the application usable and preserve saved icons', async ({
@@ -151,7 +146,7 @@ test('unavailable lazy icon assets keep the application usable and preserve save
       .getByRole('alert')
       .filter({ hasText: 'Icon catalog could not be loaded' })
   ).toBeVisible()
-  await expect(workspace(page)).toBeVisible()
+  await expect(page.getByRole('dialog',{name:/Configure FI —/})).toBeVisible()
   expect(errors).toEqual([])
   const saved = await (
     await request.get('/api/configuration', { headers })
@@ -159,7 +154,7 @@ test('unavailable lazy icon assets keep the application usable and preserve save
   expect(saved.settings.module_overrides.FI.icon).toBe('Camera')
 })
 
-test('CSV detection previews without loading and preserves intentional manual overrides and warns on missing columns', async ({
+test('automatic selection and optional mapping preview preserve manual overrides and warn on missing columns', async ({
   page,
   request
 }) => {
@@ -170,18 +165,19 @@ test('CSV detection previews without loading and preserves intentional manual ov
   writeFileSync(second, 'Alternate,TCODE\nDEMO_OTHER,DEMO_T\n')
   try {
     await page.goto('/#session=browser-test-session')
-    await page.getByLabel('CSV file location', { exact: true }).fill(first)
+    await activateCSV(page,'roles',first)
+    await page.getByText('Advanced import format and column mapping',{exact:true}).click()
     await expect(page.locator('.preview-metrics > div').filter({has:page.getByText('Catalogue roles',{exact:true})}).locator('dd')).toHaveText('1')
-    expect((await (await request.get('/health')).json()).cached_roles).toBe(0)
+    expect((await (await request.get('/health')).json()).cached_roles).toBe(1)
     const role = page.getByLabel('AGR_NAME (required)', { exact: true })
     await role.click()
     await page.getByRole('option', { name: 'Role', exact: true }).click()
     await page
       .getByRole('button', { name: 'Preview import', exact: true })
       .click()
-    await page
-      .getByRole('button', { name: 'Save and load CSV', exact: true })
-      .click()
+    await page.getByRole('button',{name:'Refresh source',exact:true}).click()
+    await expect(page.getByRole('status').filter({hasText:'Completed ·'})).toBeVisible()
+    await page.getByRole('button',{name:'Back to SAP Lens',exact:true}).click()
     await expect(workspace(page)).toBeHidden()
     expect(
       (await request.get('/api/roles/DEMO_MANUAL', { headers })).ok()
@@ -206,8 +202,7 @@ test('CSV detection previews without loading and preserves intentional manual ov
     expect(
       (await request.get('/api/roles/DEMO_MANUAL', { headers })).ok()
     ).toBeTruthy()
-    page.once('dialog', (d) => d.accept())
-    await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await page.getByRole('button', { name: 'Back to SAP Lens', exact: true }).click()
     await expect(workspace(page)).toBeHidden()
     const saved = await (
       await request.get('/api/configuration', { headers })

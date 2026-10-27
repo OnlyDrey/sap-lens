@@ -36,6 +36,7 @@ export interface SourceResult {
   previous_preserved?: boolean
 }
 export interface RefreshSummary {
+  operation?:'startup'|'import'|'refresh'
   id?: string | null
   timestamp: string
   status: 'changed' | 'unchanged' | 'partial' | 'failed'
@@ -335,7 +336,7 @@ export function RefreshBanner({
   const [viewer, setViewer] = useState<'changes' | 'errors' | null>(null)
   const failed = report.failed > 0,
     changed = !failed && report.updated > 0
-  const title = failed
+  const title = report.operation==='import'&&!failed ? `CSV import completed · ${report.sources.filter(source=>source.status==='updated'||source.status==='unchanged').reduce((total,source)=>total+(source.records||0),0).toLocaleString()} source records` : failed
     ? report.status === 'partial'
       ? 'Refresh completed with errors'
       : 'Data refresh failed'

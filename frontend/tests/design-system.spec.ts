@@ -8,7 +8,7 @@ async function library(page: Page) {
   await page.getByRole('button', { name: 'Open settings', exact: true }).click()
   await page
     .getByRole('tab', { name: 'Component Library', exact: true })
-    .click()
+    .click();await page.getByRole('tab',{name:'All components',exact:true}).click()
   await expect(
     page.getByRole('heading', { name: 'Component Library', exact: true }),
   ).toBeVisible()
@@ -227,7 +227,7 @@ test('component library previews are isolated, interactive and use canonical com
     preview.getByRole('textbox', { name: 'Demo text', exact: true }),
   ).toHaveAttribute('aria-invalid', 'true')
   await preview.getByRole('tab', { name: /Business demo roles/ }).press('Enter')
-  await expect(preview.getByRole('tabpanel')).toContainText('business')
+  await expect(preview.getByRole('tabpanel',{name:'Business demo roles 1',exact:true})).toContainText('business')
   const popoverTrigger = preview.getByRole('button', {
     name: 'Open demo popover',
     exact: true,

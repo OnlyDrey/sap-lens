@@ -21,10 +21,12 @@ export function DirectoryPreview({
   path,
   digest,
   revision,
+  snapshot=false,
 }: {
   path: string
   digest: string
   revision: number
+  snapshot?:boolean
 }) {
   const [search, setSearch] = useState(''),
     [term, setTerm] = useState(''),
@@ -39,7 +41,7 @@ export function DirectoryPreview({
   useEffect(() => setOffset(0), [term, filter, sort, descending, digest])
   const query = useQuery({
     queryKey: [
-      'directory-preview',
+      'directory-preview', snapshot,
       path,
       digest,
       revision,
@@ -50,9 +52,9 @@ export function DirectoryPreview({
       offset,
     ],
     queryFn: () =>
-      apiRequest<PreviewPage>('/api/employees/preview', 'POST', {
+      apiRequest<PreviewPage>(snapshot?'/api/data-sources/employees/inspect':'/api/employees/preview', 'POST', {
         path,
-        digest,
+        digest:digest||undefined,
         revision,
         search: term,
         filter,

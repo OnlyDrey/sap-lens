@@ -82,3 +82,7 @@ permissions. Review the upstream export separately when evidence is incomplete.
 
 
 See [filter semantics](FILTERS.md), [CSV schemas](../data/CSV_SCHEMAS.md) and [SAP areas](../data/CLASSIFICATION.md).
+
+Transaction search appears first visually and in keyboard order; role text search follows. Example T-codes are placeholders only. Cards constrain intrinsic identifier width and keep exact identifiers scrollable/copyable beside compact shared actions.
+
+Role Comparison summaries use symmetric Jaccard similarity: shared / (A + B − shared), separately for single roles and mapped transactions. Empty unions display 0%, conveying no observed shared evidence. Matrix percentages remain explicitly directional (percent of the row role); the cell title includes both directions and Jaccard. Subsets can have 100% containment and less than 100% similarity. Most similar/distinct use the same symmetric metric, with deterministic identifier ordering for ties; equally scored pairs have equal similarity, not different risk. Exclusive panels size independently.

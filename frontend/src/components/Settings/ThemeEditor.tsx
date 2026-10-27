@@ -67,8 +67,85 @@ export function ThemeEditor({
     setPresetName('')
   }
   return (
-    <div className="space-y-6">
-      <div className="grid md:grid-cols-2 gap-5">
+    <div className="space-y-4">
+      <div>
+        <h2 className="settings-subheading mb-3">Live preview</h2>
+        <p className="text-xs text-[var(--muted)] mb-3">
+          Preview only. Save applies these colors; Cancel discards your edits.
+          Button labels and focus colors adapt for contrast.
+        </p>
+        <div
+          aria-label="Theme live preview"
+          className="rounded-xl overflow-hidden border border-[var(--border)]"
+          style={
+            {
+              ...themeTokens(palette),
+              backgroundColor: palette.background,
+              color: palette.text
+            } as CSSProperties
+          }
+        >
+          <div
+            className="flex gap-3 items-center p-4"
+            style={{
+              backgroundColor: palette.primary,
+              color: onColor(palette.primary)
+            }}
+          >
+            <img
+              src="/sap-lens.png"
+              alt=""
+              className="w-9 h-9 object-contain"
+            />
+            <div>
+              <b>Example Inc.</b>
+              <p className="text-xs">SAP S/4HANA · DEMO 100</p>
+            </div>
+          </div>
+          <div className="flex min-h-32">
+            <div
+              className="w-32 shrink-0 p-3 text-xs space-y-2"
+              style={{ backgroundColor: palette.surface }}
+            >
+              <div
+                className="flex items-center gap-2 p-2 rounded"
+                style={{ backgroundColor: 'var(--hover)' }}
+              >
+                <Layers size={15} /> Roles
+              </div>
+              <div className="flex items-center gap-2 p-2">
+                <Palette size={15} /> Settings
+              </div>
+            </div>
+            <div className="p-4 flex-1 min-w-0">
+              <div
+                className="rounded-xl p-4"
+                style={{ backgroundColor: palette.surface }}
+              >
+                <p className="font-semibold flex gap-2 items-center">
+                  <Building2 size={17} /> Synthetic finance role
+                </p>
+                <p className="text-xs mt-2">DEMO:READ · 12 transactions</p>
+                <button
+                  type="button"
+                  className="mt-4 rounded-lg px-3 py-2 text-xs font-semibold"
+                  style={{
+                    backgroundColor: palette.accent,
+                    color: onColor(palette.accent)
+                  }}
+                >
+                  View role
+                </button>
+              </div>
+              <p className="text-xs mt-3 flex gap-2 items-center">
+                <Shield size={14} /> Data stays on this computer
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-3">
         <label className="text-sm font-medium">
           Theme
           <SettingsSelect
@@ -128,7 +205,7 @@ export function ThemeEditor({
           ))}
         </div>
       </div>
-      <div className="grid md:grid-cols-2 gap-5">
+      <div className="grid md:grid-cols-2 gap-3">
         {(Object.keys(labels) as (keyof ThemePalette)[]).map((key) => (
           <ColorControl
             key={key}
@@ -210,82 +287,6 @@ export function ThemeEditor({
           ))}
         </details>
       )}
-      <div>
-        <h2 className="settings-subheading mb-3">Live preview</h2>
-        <p className="text-xs text-[var(--muted)] mb-3">
-          Preview only. Save applies these colors; Cancel discards your edits.
-          Button labels and focus colors adapt for contrast.
-        </p>
-        <div
-          aria-label="Theme live preview"
-          className="rounded-xl overflow-hidden border border-[var(--border)]"
-          style={
-            {
-              ...themeTokens(palette),
-              backgroundColor: palette.background,
-              color: palette.text
-            } as CSSProperties
-          }
-        >
-          <div
-            className="flex gap-3 items-center p-4"
-            style={{
-              backgroundColor: palette.primary,
-              color: onColor(palette.primary)
-            }}
-          >
-            <img
-              src="/sap-lens.png"
-              alt=""
-              className="w-9 h-9 object-contain"
-            />
-            <div>
-              <b>Example Inc.</b>
-              <p className="text-xs">SAP S/4HANA · DEMO 100</p>
-            </div>
-          </div>
-          <div className="flex min-h-48">
-            <div
-              className="w-32 shrink-0 p-3 text-xs space-y-2"
-              style={{ backgroundColor: palette.surface }}
-            >
-              <div
-                className="flex items-center gap-2 p-2 rounded"
-                style={{ backgroundColor: 'var(--hover)' }}
-              >
-                <Layers size={15} /> Roles
-              </div>
-              <div className="flex items-center gap-2 p-2">
-                <Palette size={15} /> Settings
-              </div>
-            </div>
-            <div className="p-4 flex-1 min-w-0">
-              <div
-                className="rounded-xl p-4"
-                style={{ backgroundColor: palette.surface }}
-              >
-                <p className="font-semibold flex gap-2 items-center">
-                  <Building2 size={17} /> Synthetic finance role
-                </p>
-                <p className="text-xs mt-2">DEMO:READ · 12 transactions</p>
-                <button
-                  type="button"
-                  className="mt-4 rounded-lg px-3 py-2 text-xs font-semibold"
-                  style={{
-                    backgroundColor: palette.accent,
-                    color: onColor(palette.accent)
-                  }}
-                >
-                  View role
-                </button>
-              </div>
-              <p className="text-xs mt-3 flex gap-2 items-center">
-                <Shield size={14} /> Data stays on this computer
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }

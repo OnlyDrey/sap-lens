@@ -244,7 +244,7 @@ test('business and release assignment tabs have dedicated split-date columns wit
     .click()
   let table = detail.getByRole('region', { name: 'User role assignments' })
   await expect(
-    table.getByRole('columnheader', { name: 'Catalogue match', exact: true }),
+    table.getByRole('columnheader', { name: 'Role description', exact: true }),
   ).toBeVisible()
   await expect(
     table.getByRole('columnheader', { name: 'Type', exact: true }),
@@ -264,7 +264,7 @@ test('business and release assignment tabs have dedicated split-date columns wit
       table.getByRole('columnheader', { name, exact: true }),
     ).toBeVisible()
   await expect(
-    table.getByRole('columnheader', { name: 'Catalogue match', exact: true }),
+    table.getByRole('columnheader', { name: 'Role description', exact: true }),
   ).toHaveCount(0)
   await expect(table).not.toContainText('Unmapped')
   await expect(table).toContainText('31.12.9999')

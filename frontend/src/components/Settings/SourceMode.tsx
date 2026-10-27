@@ -4,7 +4,9 @@ import { Select } from '@/components/Shared/Select'
 export function SourceMode({
   value,
   onChange,
+  disabled=false,
 }: {
+  disabled?:boolean
   value: 'static' | 'dynamic'
   onChange: (value: 'static' | 'dynamic') => void
 }) {
@@ -12,6 +14,7 @@ export function SourceMode({
     <div className="source-mode-row">
       <FormField label="CSV source mode">
         <Select
+          disabled={disabled}
           className="ui-control"
           value={value}
           onChange={(e) => onChange(e.target.value as 'static' | 'dynamic')}

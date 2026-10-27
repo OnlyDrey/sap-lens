@@ -220,6 +220,7 @@ test("user CSV detection preview and independent custom preset create rename dup
     .getByRole("tab", { name: "Data Sources", exact: true })
     .click();
   await page.getByRole("tab", { name: "User Access", exact: true }).click();
+  await page.getByText("Advanced import format and column mapping",{exact:true}).click();
   const user = page.getByRole("region", {
     name: "User access CSV configuration",
     exact: true,
@@ -260,7 +261,7 @@ test("user CSV detection preview and independent custom preset create rename dup
     await (await request.get("/api/configuration", { headers })).json()
   ).settings;
   await page
-    .getByRole("button", { name: "Save and load CSV", exact: true })
+    .getByRole("button", { name: "Apply settings", exact: true })
     .click();
   await expect(
     page.getByRole("region", { name: "SAP Lens settings", exact: true }),
@@ -380,7 +381,7 @@ test("a partial matrix never presents off-page cells as zero users", async ({
     matrix.getByRole("cell", { name: "0", exact: true }),
   ).toHaveCount(0);
   await expect(
-    page.getByText(/A dash means no cell is shown on this page/),
+    page.getByText(/A dash means no supplied cell/),
   ).toBeVisible();
 });
 
@@ -415,12 +416,14 @@ for (const theme of ['light', 'dark'] as const) for (const width of [1280, 600])
     await row.getByRole('button', { name: 'DEMO_ALFA', exact: true }).press('Enter')
     const detail = page.getByRole('region', { name: 'User details', exact: true })
     await expect(detail.getByRole('button', { name: 'Copy username DEMO_ALFA', exact: true })).toBeVisible()
-    await expect(detail.getByText('wildcard', { exact: true })).toHaveCount(0)
-    const match = detail.locator('.catalogue-match').filter({ hasText: 'ZC:MM:BUY:EN*' })
-    await expect(match.locator('.evidence-badge')).toHaveCount(0)
-    await expect(match.locator('.role-identifier')).toHaveCSS('margin-bottom', '0px')
-    await expect(match.getByRole('button', { name: 'Copy role identifier ZC:MM:BUY:EN*', exact: true })).toBeVisible()
-    await match.getByRole('button', { name: 'Copy role identifier ZC:MM:BUY:EN*', exact: true }).click()
+    await expect(detail.getByRole('columnheader',{name:'Role description',exact:true})).toBeVisible()
+    await expect(detail.getByRole('columnheader',{name:'Catalogue match',exact:true})).toHaveCount(0)
+    const match=detail.locator('details').filter({has:page.locator('summary',{hasText:'Catalogue matching evidence'})}).filter({hasText:'ZC:MM:BUY:EN*'})
+    await match.locator('summary').click()
+    await expect(match.locator('.evidence-badge')).toHaveText('Wildcard')
+    await expect(match.locator('.role-identifier')).toHaveCSS('margin-bottom','0px')
+    await expect(match.getByRole('button',{name:'Copy role identifier ZC:MM:BUY:EN*',exact:true})).toBeVisible()
+    await match.getByRole('button',{name:'Copy role identifier ZC:MM:BUY:EN*',exact:true}).click()
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('ZC:MM:BUY:EN*')
     await page.evaluate(() => window.scrollTo(0, 0))
     await page.screenshot({ path: info.outputPath('catalogue-matches.png'), fullPage: true })

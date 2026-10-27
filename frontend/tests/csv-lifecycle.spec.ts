@@ -1,3 +1,4 @@
+import {activateCSV} from './source-activation-fixture'
 import {
   test,
   expect,
@@ -210,7 +211,7 @@ test('unchanged and skipped sources are neutral, while partial errors preserve s
   ).toBe('DEMO_A')
 })
 
-test('directory preview is paginated and filters quality warnings before explicit replacement', async ({
+test('snapshot preview is paginated and filters quality warnings after automatic replacement', async ({
   page,
   request,
 }) => {
@@ -222,12 +223,7 @@ test('directory preview is paginated and filters quality warnings before explici
   await expect(
     page.getByRole('combobox', { name: 'CSV source mode', exact: true }),
   ).toHaveValue('static')
-  await expect(
-    page.getByRole('button', { name: 'Import directory', exact: true }),
-  ).toBeDisabled()
-  await page
-    .getByRole('button', { name: 'Validate & preview directory', exact: true })
-    .click()
+  await page.getByRole('button',{name:'Preview data',exact:true}).click()
   const preview = page.getByRole('region', {
     name: 'Directory import preview',
     exact: true,
@@ -245,38 +241,12 @@ test('directory preview is paginated and filters quality warnings before explici
     (await (await request.get('/api/employees/status', { headers })).json())
       .report.records,
   ).toBe(31)
-  const replacement = path.join(root, 'replacement.csv')
-  writeFileSync(replacement, directoryCsv(16))
-  await page
-    .getByRole('textbox', {
-      name: 'Employee Directory CSV location',
-      exact: true,
-    })
-    .fill(replacement)
-  await expect(
-    page.getByRole('button', { name: 'Import directory', exact: true }),
-  ).toBeDisabled()
-  await page
-    .getByRole('button', { name: 'Validate & preview directory', exact: true })
-    .click()
-  await expect(
-    page.getByRole('region', { name: 'Import / Replace', exact: true }),
-  ).toContainText('15 removed')
-  page.once('dialog', (dialog) => dialog.dismiss())
-  await page
-    .getByRole('button', { name: 'Import directory', exact: true })
-    .click()
-  expect(
-    (await (await request.get('/api/employees/status', { headers })).json())
-      .report.records,
-  ).toBe(31)
-  page.once('dialog', (dialog) => dialog.accept())
-  await page
-    .getByRole('button', { name: 'Import directory', exact: true })
-    .click()
-  await expect(
-    page.getByText(/Directory imported: 16 records saved locally/),
-  ).toBeVisible()
+  await page.keyboard.press('Escape')
+  const replacement=path.join(root,'replacement.csv');writeFileSync(replacement,directoryCsv(16))
+  await activateCSV(page,'employees',replacement)
+  expect((await(await request.get('/api/employees/status',{headers})).json()).report.records).toBe(16)
+  await expect(page.getByRole('status').filter({hasText:'Completed · 16 source records'})).toContainText('15 removed')
+
 })
 
 test('change CSV export uses the authenticated native save bridge without browser downloads', async ({
@@ -374,11 +344,11 @@ for (const theme of ['light', 'dark'])
         .click()
       await page
         .getByRole('button', {
-          name: 'Validate & preview directory',
+          name: 'Preview data',
           exact: true,
         })
         .click()
-      await page.screenshot({ path: info.outputPath('directory-import.png') })
+      await page.screenshot({ path: info.outputPath('directory-import.png') });await page.keyboard.press('Escape')
       await page.getByRole('tab', { name: 'Features', exact: true }).click()
       await page.screenshot({ path: info.outputPath('features.png') })
       await page

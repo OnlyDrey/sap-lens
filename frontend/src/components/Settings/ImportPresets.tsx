@@ -1,14 +1,10 @@
-import { SourceFileField, MappingField, ImportPreview } from './ImportControls'
+import { MappingField, ImportPreview } from './ImportControls'
 import { controlClass } from '@/components/Shared/Controls'
-import { BrowserSourceUpload } from './BrowserSourceUpload'
 import { ImportSection } from './ImportSection';
-import { SourceStatus } from "./SourceStatus";
-import { useQuery } from "@tanstack/react-query";
-import { fetchConfiguration } from "@/api/configuration";
 
 import { useEffect, useRef, useState } from "react";
 import type { Configuration, ImportProfile } from "@/api/configuration";
-import { apiRequest, applicationToken } from "@/api/client";
+import { apiRequest } from "@/api/client";
 import { Plus, Copy, Trash2 } from "lucide-react";
 import { SettingsSelect } from "./Controls";
 
@@ -124,15 +120,12 @@ export function PresetActions({
 export function UserSourceEditor({
   draft,
   onChange,
-  native,
   active = true,
 }: {
   draft: Configuration;
   onChange: (value: Configuration) => void;
-  native: boolean;
   active?: boolean;
 }) {
-  const { data: configuration } = useQuery({ queryKey: ['configuration'], queryFn: fetchConfiguration });
   const preset = draft.user_import_profiles.find(
     (p) => p.id === draft.active_user_import,
   )!;
@@ -231,11 +224,6 @@ export function UserSourceEditor({
       aria-label="User access CSV configuration"
       className="import-source-panel space-y-4"
     >
-      <ImportSection step={1} title="Source file" description="User Access · User–Role Mapping (CSV 2). Independent SAP directory and assignments; blank roles retain directory-only users.">
-      <BrowserSourceUpload source="users" onUploaded={path=>onChange({...draft,user_csv_path:path,source_modes:{roles:draft.source_modes?.roles||'dynamic',users:'static',employees:draft.source_modes?.employees||'static'}})}/>
-      <SourceFileField label="User CSV file location" value={draft.user_csv_path} onChange={value=>onChange({...draft,user_csv_path:value})} native={native} disabled={busy} browseLabel="Browse for user CSV…" onBrowse={()=>{void window.pywebview?.api.choose_csv(applicationToken()).then(path=>{if(path)onChange({...draft,user_csv_path:path})}).catch(()=>setError('The native file picker could not open. Enter an absolute CSV path instead.'))}}/>
-<SourceStatus source="users" savedPath={configuration?.settings.user_csv_path || ""} draftPath={draft.user_csv_path} validated={Boolean(report)}/>
-      </ImportSection>
       <ImportSection step={2} title="CSV Import Format" description="Choose a built-in format or create a reusable custom preset.">
       <div className="import-preset-toolbar">
       <label className="block text-sm">

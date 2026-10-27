@@ -4,7 +4,7 @@
 
 Build new screens from existing shared components. Navigation changes location, tabs change associated content, filters constrain evidence, and buttons perform operations. Keep SAP identity/account/directory evidence distinct. Preserve exact technical identifiers, local-only handling and readable light/dark themes.
 
-This consolidates the existing React/TypeScript/Vite/Tailwind application rather than introducing another framework. Color customization, saved theme presets, module classifications, source parsing, review decisions and comparison calculations are unchanged. The integrated reference is **Settings → APPLICATION → Component Library**.
+This consolidates the existing React/TypeScript/Vite/Tailwind application rather than introducing another framework. Color customization, saved theme presets, module classifications, source parsing, review decisions and comparison evidence sets are unchanged. The integrated reference is **Settings → APPLICATION → Component Library**.
 
 ## Token ownership
 
@@ -76,3 +76,5 @@ zebra backgrounds cover the whole contiguous row with outer-list rounding only;
 hover leaves those surfaces unchanged. Identifiers remain exact, single-line and
 copyable, with contained horizontal scrolling instead of arbitrary wrapping. Focus
 remains a visible outline.
+
+Dialogs share --dialog-backdrop with stronger theme-aware dimming and no blur. Spinners share --spinner-duration (1.4 seconds); reduced-motion mode removes their rotation without delaying operations. Hover-only navigation borders are replaced with a full-target outline; intentional active-tab underlines and structural table separators remain.

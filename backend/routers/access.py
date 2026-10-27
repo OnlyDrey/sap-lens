@@ -1,4 +1,5 @@
 """Authenticated local investigation APIs. Dates describe assignments, not effective authorization."""
+from search_matching import text_matches, search_fields
 
 from collections import defaultdict
 from csv_exports import assignment_response
@@ -8,9 +9,9 @@ from fastapi import APIRouter, HTTPException, Query, Depends
 from assignment_filters import assignment_dates, within_dates
 import cache
 from role_matching import normalize_role
-from transaction_filters import normalized_tcodes, matching_role_names
+from transaction_filters import normalized_tcodes, matching_role_names, matching_codes
 from user_access import (
-    assignment_view,
+    assignment_view, current_role_count,
     interval_status,
     relevant,
     sap_date,
@@ -66,7 +67,7 @@ def source_info(state, today=None):
 def matching_entries(state, role="", tcode=""):
     if tcode:
         unique = {}
-        for name in state.tcode_index.get(tcode.strip().upper(), []):
+        for name in {name for code in matching_codes(state.tcode_index,tcode.strip().upper()) for name in state.tcode_index[code]}:
             for a in state.role_index.get(name, []):
                 unique[a["id"]] = a
         return unique.values()
@@ -118,6 +119,7 @@ def directory_filters(
     tcode: str = Query("", max_length=128),
     tcodes: list[str] = Query(default=[], max_length=21),
     transaction_mode: Literal["and", "or"] = "and",
+    assignment_band: Literal["", "0", "1–5", "6–20", "21+"] = "",
     status: Status = "",
     show_expired: bool = False,
     sort: Literal[
@@ -131,10 +133,10 @@ def directory_filters(
     ] = "username",
     descending: bool = False,
 ):
-    return dict(search=search,group=group,role=role,tcode=tcode,tcodes=tcodes,transaction_mode=transaction_mode,status=status,show_expired=show_expired,sort=sort,descending=descending)
+    return dict(assignment_band=assignment_band,search=search,group=group,role=role,tcode=tcode,tcodes=tcodes,transaction_mode=transaction_mode,status=status,show_expired=show_expired,sort=sort,descending=descending)
 
 
-def directory_selection(snapshot, *, search,group,role,tcode,tcodes,transaction_mode,status,show_expired,sort,descending,today=None):
+def directory_selection(snapshot, *, search,group,role,tcode,tcodes,transaction_mode,status,show_expired,sort,descending,today=None,assignment_band=""):
     state = snapshot.users
     wanted_codes = normalized_tcodes([tcode] + tcodes if tcode else tcodes)
     candidates = matching_entries(state, role)
@@ -147,7 +149,7 @@ def directory_selection(snapshot, *, search,group,role,tcode,tcodes,transaction_
         ):
             evidence[a["user_key"]].append(a)
     if wanted_codes and snapshot.roles:
-        code_ids = {code: {a['id'] for name in state.tcode_index.get(code, []) for a in state.role_index.get(name, [])} for code in wanted_codes}
+        code_ids = {code: {a['id'] for actual in matching_codes(state.tcode_index,code) for name in state.tcode_index[actual] for a in state.role_index.get(name, [])} for code in wanted_codes}
         for key, entries in list(evidence.items()):
             matches = {code for code, ids in code_ids.items() if any(a['id'] in ids for a in entries)}
             if (len(matches) != len(wanted_codes) if transaction_mode == 'and' else not matches):
@@ -155,21 +157,17 @@ def directory_selection(snapshot, *, search,group,role,tcode,tcodes,transaction_
             else:
                 evidence[key] = [a for a in entries if any(a['id'] in ids for ids in code_ids.values())]
     result = []
-    term = search.casefold().strip()
+    term = search.strip()
     for key, user in state.users.items():
+        if assignment_band:
+            count=current_role_count(user,today)
+            band='0' if count==0 else '1–5' if count<=5 else '6–20' if count<=20 else '21+'
+            if band!=assignment_band:continue
         if group and group not in user["groups"]:
             continue
         if (role or (wanted_codes and snapshot.roles) or status) and key not in evidence:
             continue
-        text = " ".join(
-            [
-                user["username"],
-                *user["groups"],
-                *user["emails"],
-                *(part for n in user["names"] for part in n),
-            ]
-        )
-        if term and term not in text.casefold():
+        if term and not search_fields(term, user["username"], *user["groups"], *user["emails"], *(" ".join(n) for n in user["names"])):
             continue
         result.append(user_summary(user, evidence[key]))
     result.sort(
@@ -246,7 +244,7 @@ def user_detail(
         item["role_description"] = role.text if role else ""
         item["transaction_roles"] = sorted({sr.child_agr for name in matches
             for sr in (snapshot.roles[name].single_roles if name in snapshot.roles else [])
-            if wanted_codes and any(tc.tcode.upper() in wanted_codes for tc in sr.tcodes)}) if item["match_status"] in {"exact", "wildcard"} else []
+            if wanted_codes and any(tc.tcode.upper() in matching_codes(state.tcode_index,pattern) for tc in sr.tcodes for pattern in wanted_codes)}) if item["match_status"] in {"exact", "wildcard"} else []
     return dict(
         mapping_available=bool(snapshot.roles),
         unmapped_assignments=unmapped,
@@ -307,9 +305,9 @@ def release_options(
                  "release_group": release["release_group"], "strategy": release["release_strategy"],
                  "username": a["username"], "role": a["role_name"]}[field]
         if value: values.add(value)
-    matches = sorted((v for v in values if search.casefold() in v.casefold()), key=lambda v: (v.casefold(), v))
-    # Username/role retain existing substring semantics for manually typed filters.
-    available = not selected or (any(selected.casefold() in v.casefold() for v in values)
+    matches = sorted((v for v in values if text_matches(v,search)), key=lambda v: (v.casefold(), v))
+    # Username/role use the same literal search as their assignment filters.
+    available = not selected or (any(text_matches(v,selected) for v in values)
                                 if field in {"username", "role"} else selected in values)
     return dict(items=matches[:limit], total=len(matches), has_more=len(matches) > limit,
                 selected_available=available)
@@ -348,9 +346,9 @@ def filtered_release_assignments(snapshot, *, dates,group,document_type,release_
             continue
         if strategy and r["release_strategy"] != strategy:
             continue
-        if username and username.casefold() not in a["username"].casefold():
+        if username and not text_matches(a["username"],username):
             continue
-        if role and role.casefold() not in a["role_name"].casefold():
+        if role and not text_matches(a["role_name"],role):
             continue
         if not relevant(a, "" if status == "all" else status, True, today):
             continue
@@ -369,7 +367,7 @@ def export_releases(filters:dict=Depends(release_filters)):
 
 
 @router.get('/releases')
-def releases(filters:dict=Depends(release_filters),anchor:str=Query('',max_length=512),matrix_offset:int=Query(0,ge=0),group_by_user_group:bool=False,offset:int=Query(0,ge=0),limit:int=Query(50,ge=1,le=100)):
+def releases(filters:dict=Depends(release_filters),anchor:str=Query('',max_length=512),matrix_offset:int=Query(0,ge=0),group_by_user_group:bool=False,matrix_complete:bool=False,offset:int=Query(0,ge=0),limit:int=Query(50,ge=1,le=100)):
     snapshot = cache.get_snapshot()
     state = snapshot.users
     today=date.today()
@@ -437,7 +435,7 @@ def releases(filters:dict=Depends(release_filters),anchor:str=Query('',max_lengt
     ]
     return dict(
         **page(rows, offset, limit),
-        matrix=matrix[matrix_offset : matrix_offset + 200],
+        matrix=matrix if matrix_complete else matrix[matrix_offset : matrix_offset + 200],
         matrix_total=len(matrix),
         matrix_offset=matrix_offset,
         **source_info(snapshot,today),
@@ -467,9 +465,9 @@ def release_assignments(
         if a["scope"] != "release" or not within_dates(a, dates):
             continue
         r = a["release"]
-        if username and username.casefold() not in a["username"].casefold():
+        if username and not text_matches(a["username"],username):
             continue
-        if role_search and role_search.casefold() not in a["role_name"].casefold():
+        if role_search and not text_matches(a["role_name"],role_search):
             continue
         if role and normalize_role(a["role_name"]) != normalize_role(role):
             continue

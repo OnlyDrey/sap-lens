@@ -155,3 +155,49 @@ Pending manual acceptance includes actual Windows compiler/setup execution,
 previous-version upgrades, clean-PC/IT-policy behavior, WebView2, Explorer/file
 and Save dialogs, high DPI, restart/recovery and UNC sources. Linux unit/static
 checks are not equivalent to these tests.
+
+## Optional system tray operation
+
+In the native Windows application, open **Settings → Features → Windows Desktop**.
+Enable **Minimize to System Tray on Close**, then **Apply settings**. Defaults remain
+off: ordinary close still stops the owned backend. When enabled, X hides the window
+only after the backend and notification icon are ready. Double-click the SAP Lens
+tray icon, or choose **Open SAP Lens**, to restore the same window/backend.
+
+The tray menu provides Open SAP Lens, Open Web Interface, Refresh Data Sources,
+Settings and Exit SAP Lens. Web Interface opens the actual selected loopback origin
+(including a fallback port), using the existing guarded browser handoff. Refresh
+uses the normal authenticated, validated full-replacement workflow. Status text
+shows startup, readiness, refresh failure or backend unavailability; web/refresh
+actions are unavailable when the backend is down. **Exit SAP Lens** performs normal
+graceful backend/socket/storage-lease cleanup. A hidden instance still owns the
+single-instance mutex: launching the EXE again restores it rather than starting
+another backend. Exit before upgrading or uninstalling.
+
+**Start SAP Lens at Windows sign-in** is optional and supported by the packaged EXE.
+It creates only the current user's `SAPLensDesktop` value under
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`; no administrator or password
+is needed. Paths with spaces/Unicode are quoted. **Start minimized to the system
+tray** requires tray mode. These machine/user preferences use the existing local
+configuration and are not transferred through portable configuration packages.
+Moving a portable EXE requires disabling/applying and re-enabling/applying sign-in
+startup so Windows uses the new path. Disable sign-in startup before removing a
+portable installation. If the EXE is already removed, delete only its registration:
+
+```powershell
+Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'SAPLensDesktop' -ErrorAction SilentlyContinue
+```
+
+This is **not a Windows Service**: it requires a signed-in user and stops at sign-out.
+For unattended hosting, use [Windows Service](WINDOWS_SERVICE.md). Service/Linux
+modes do not initialize a tray or alter Windows startup. Browser-only clients hide
+these native settings. If the notification area cannot initialize or disappears,
+SAP Lens retains/restores the window and normal close behavior rather than leaving
+an inaccessible background process. Organization policy can block sign-in registry
+writes; previous preferences are retained when applying the change fails.
+
+Automated Linux tests cover controller transitions, native-API contracts, settings
+persistence/rollback and browser controls. **Native acceptance is still required**:
+EXE/WebView2 close/hide, double-click and menu restoration, Explorer restart, actual
+browser access while hidden, simultaneous browser/WebView use, explicit Exit,
+shutdown/sign-out, sign-in startup, port conflicts and cleanup during uninstall.

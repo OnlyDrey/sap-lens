@@ -99,12 +99,27 @@ class NativeDialogs:
     def __init__(self, token: str):
         self._token = token
         self._window = None
+        self._desktop = None
         self._picker_lock = threading.Lock()
+
+    def desktop_runtime(self, token: str):
+        if not isinstance(token, str) or not hmac.compare_digest(token.encode(), self._token.encode()):
+            raise ValueError('Application request is not authorized.')
+        return dict(windows=is_windows(), startup_supported=is_windows() and bool(getattr(sys,'frozen',False)),
+                    tray_available=bool(self._desktop and self._desktop.tray and self._desktop.tray.alive),
+                    warning=self._desktop.last_error if self._desktop else None)
+
+    def desktop_frontend_ready(self, token: str):
+        if not isinstance(token, str) or not hmac.compare_digest(token.encode(), self._token.encode()):
+            raise ValueError('Application request is not authorized.')
+        if self._desktop: self._desktop.frontend_loaded()
+        return True
 
     def close_application(self, token: str):
         if not isinstance(token, str) or not hmac.compare_digest(token.encode(), self._token.encode()):
             raise ValueError('Application request is not authorized.')
-        if self._window: self._window.destroy()
+        if self._desktop: self._desktop.exit()
+        elif self._window: self._window.destroy()
 
     def choose_csv(self, token: str):
         if not isinstance(token, str) or not hmac.compare_digest(token.encode(), self._token.encode()):
@@ -240,6 +255,7 @@ def run() -> int:
     runtime_file = None
     identity = None
     storage_lease = None
+    background = None
     startup_lock = threading.Lock()
     closing = threading.Event()
     crashed = threading.Event()
@@ -282,6 +298,21 @@ def run() -> int:
                                        min_size=(900, 650), background_color='#0d0d1a')
         dialogs._window = window
 
+        if is_windows():
+            from windows_tray import DesktopBackground
+            from config import get_settings
+            from urllib.request import Request, build_opener, ProxyHandler
+            def tray_refresh():
+                request = Request(origin+'/api/refresh', data=b'{}', headers={'X-SAP-Lens':token,'Content-Type':'application/json'})
+                with build_opener(ProxyHandler({})).open(request,timeout=60) as response:
+                    result=json.load(response)
+                if any(source.get('status')=='failed' or source.get('error') for source in result.get('refresh',{}).get('sources',[])):
+                    raise RuntimeError('One or more sources could not refresh')
+            background = DesktopBackground(window, resource_path('assets/sap-lens.ico'),
+                lambda:get_settings().desktop, origin, tray_refresh)
+            dialogs._desktop = background
+            window.events.closing += background.on_closing
+
         def watch_backend():
             nonlocal backend, runtime_file
             try:
@@ -292,9 +323,17 @@ def run() -> int:
                     if closing.is_set(): return
                     if time.monotonic() >= deadline: raise RuntimeError('Startup window was not ready.')
                 if closing.is_set(): return
+                if background:
+                    try:
+                        background.attach_native_session_end()
+                        background.loaded()
+                    except Exception:
+                        background.last_error='Windows tray unavailable; normal closing is active.'
+                        background.restore()
+                        logger.warning('Tray unavailable; normal desktop shutdown retained')
                 from main import create_app, frontend_dir
                 if not frontend_dir.is_dir(): raise RuntimeError('Frontend resources are missing.')
-                app = create_app(origin=origin, session_token=token, instance_id=identity, browser_access=True)
+                app = create_app(origin=origin, session_token=token, instance_id=identity, browser_access=True, desktop_preferences=background.preferences_change if background else None)
                 from config import get_settings
                 window.evaluate_js(palette_script(get_settings()))
                 with startup_lock:
@@ -309,6 +348,7 @@ def run() -> int:
                 if health.get('instance_id') != identity:
                     raise RuntimeError('Local instance readiness check failed.')
                 logger.info('Local application service ready')
+                if background: background.ready_backend()
                 with startup_lock:
                     if closing.is_set(): return
                     runtime_file = directory / 'runtime.json'
@@ -321,6 +361,7 @@ def run() -> int:
             except Exception:
                 if closing.is_set(): return
                 crashed.set()
+                if background: background.failed_backend()
                 logger.error('Desktop local service startup unsuccessful')
                 try:
                     window.evaluate_js(state_script('Startup needs attention',
@@ -330,11 +371,13 @@ def run() -> int:
                     window.destroy()
                 return
             while not closing.wait(0.5):
+                if background: background.check_tray()
                 if not backend.worker.is_alive():
                     crashed.set()
                     logger.error('Local service stopped unexpectedly')
+                    if background: background.failed_backend()
                     report_error('The local SAP Lens service stopped. Reopen SAP Lens to continue; your settings are retained.')
-                    window.destroy()
+                    if not background or not background.tray: window.destroy()
                     return
         window.events.closed += closing.set
         webview.settings['ALLOW_DOWNLOADS'] = False
@@ -355,6 +398,8 @@ def run() -> int:
     finally:
         with startup_lock:
             closing.set()
+        if background:
+            background.shutdown()
         if backend:
             backend.close()
         elif listener:

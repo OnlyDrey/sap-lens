@@ -1,3 +1,4 @@
+import {jaccard,containment} from '@/lib/comparisonMetrics'
 import { TransactionCount } from '@/components/Shared/TransactionCount'
 import { ModuleIcon } from '@/components/Modules/ModuleIcon'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
@@ -274,14 +275,9 @@ function InsightBar({
 
       return {
         ...p,
-        pct: Math.round(
-          (p.shared_count / Math.min(
-            ra?.single_role_count ?? 1,
-            rb?.single_role_count ?? 1
-          )) * 100
-        )
+        pct: jaccard(p.shared_count,ra?.single_role_count??0,rb?.single_role_count??0)
       }
-    }).sort((a,b) => b.pct - a.pct)
+    }).sort((a,b) => b.pct - a.pct || a.role_a.localeCompare(b.role_a) || a.role_b.localeCompare(b.role_b))
 
     const wpTC = pairwiseTC.map(p => {
       const ra = roles.find(r => r.agr_name === p.role_a)
@@ -289,12 +285,7 @@ function InsightBar({
 
       return {
         ...p,
-        pct: Math.round(
-          (p.shared_count / Math.min(
-            ra?.tcode_count ?? 1,
-            rb?.tcode_count ?? 1
-          )) * 100
-        )
+        pct: jaccard(p.shared_count,ra?.tcode_count??0,rb?.tcode_count??0)
       }
     })
 
@@ -321,14 +312,14 @@ function InsightBar({
         {
           label:'Single role overlap',
           value:`${ins.avgSR}%`,
-          sub:'structural similarity',
+          sub:'mean Jaccard similarity',
           color:'var(--accent2)',
           Icon:<Share2 className="w-4 h-4"/>
         },
         {
           label:'T-code overlap',
           value:`${ins.avgTC}%`,
-          sub:'access similarity',
+          sub:'mean mapped T-code Jaccard similarity',
           color:'var(--accent2)',
           Icon:<Code2 className="w-4 h-4"/>
         },
@@ -534,7 +525,7 @@ function SRMatrix({
 
                   const count = lookup.get(`${row.agr_name}|||${col.agr_name}`) ?? 0
                   const pct = row.single_role_count > 0
-                    ? Math.round((count / row.single_role_count) * 100)
+                    ? containment(count,row.single_role_count)
                     : 0
 
                   const la = cleanDesc(row.text) || row.agr_name
@@ -550,7 +541,7 @@ function SRMatrix({
                         borderRight:'1px solid var(--border)'
                       }}
                     >
-                      <button className="overlap-cell" aria-label={`${la} and ${lb}: ${count} shared single roles (${pct}%)`} onClick={() => onCell(row.agr_name, col.agr_name, la, lb)}>
+                      <button className="overlap-cell" title={`${pct}% of row role; ${containment(count,col.single_role_count)}% of column role; ${jaccard(count,row.single_role_count,col.single_role_count)}% Jaccard similarity`} aria-label={`${la} and ${lb}: ${count} shared single roles (${pct}% of row role)`} onClick={() => onCell(row.agr_name, col.agr_name, la, lb)}>
                       <p
                         className="font-black text-lg leading-none"
                         style={{ color: count > 0 ? 'var(--text)' : 'var(--muted)' }}
@@ -566,7 +557,7 @@ function SRMatrix({
                             : 'var(--muted)'
                         }}
                       >
-                        {`${pct}%`}
+                        {`${pct}% of row`}
                       </p>
                       </button>
                     </td>
@@ -628,7 +619,7 @@ function ExclusiveColumn({ role }: { role: ComparisonRole }) {
       <div className="flex-1">
         {role.exclusive_single_roles.length === 0
           ? (
-            <div className="px-4 py-8 text-center">
+            <div className="px-4 py-3 text-center">
               <p className="text-xs italic" style={{ color:'var(--muted)' }}>
                 No exclusive single roles
               </p>

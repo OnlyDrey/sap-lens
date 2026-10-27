@@ -1,3 +1,4 @@
+import {textMatches} from '@/lib/searchMatching'
 import { PageHeader } from '@/components/Shared/Presentation'
 import { Search as PageIcon } from 'lucide-react'
 import { SearchInput } from '@/components/Shared/Controls'
@@ -204,8 +205,7 @@ export function RoleList({
       const q = debSearch.trim().toLowerCase()
 
       results = allRolesRaw.filter(x =>
-        (x.text ?? '').toLowerCase().includes(q) ||
-        x.agr_name.toLowerCase().includes(q)
+        textMatches(x.text??'',q) || textMatches(x.agr_name,q)
       )
     } else {
       results = allRolesRaw
@@ -250,7 +250,7 @@ export function RoleList({
   )
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4" role="region" aria-label="Role catalogue investigation" aria-busy={isLoading||search!==debSearch||transaction.settling||exactTransactions.isFetching}>
       <PageHeader title="Role Lookup" icon={<PageIcon size={22} aria-hidden="true"/>}/>
       <SavedFilters showClear={false} view="roles" state={{search,activeModules,transactionMode,tcodes:transaction.codes,sortBy}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(Array.isArray(s.activeModules))setActiveModules(s.activeModules);if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(Array.isArray(s.tcodes)){transaction.setInput('');transaction.setChips(s.tcodes)};if(SORT_OPTIONS.some(o=>o.key===s.sortBy))setSortBy(s.sortBy as SortKey)}} clear={()=>{setSearch('');setActiveModules([]);setTransactionMode('and');transaction.clear();setSortBy('name-asc')}}/>
       <div
@@ -261,7 +261,7 @@ export function RoleList({
         }}
       >
         <TransactionFilter compact label="Filter catalogue by transaction" filter={transaction} mode={transactionMode} onModeChange={setTransactionMode} showClear={false}/>
-        {transaction.codes.length > 0 && <p className="text-xs text-[var(--muted)]">Exact transaction filters match {transactionMode === 'and' ? 'every selected code (AND)' : 'any selected code (OR)'}, combined with text and module filters (AND). Roles without supplied mappings are excluded; source completeness cannot be established.</p>}
+        {transaction.codes.length > 0 && <p className="text-xs text-[var(--muted)]">Transaction code/pattern filters match {transactionMode === 'and' ? 'every selected code (AND)' : 'any selected code (OR)'}, combined with text and module filters (AND). Roles without supplied mappings are excluded; source completeness cannot be established.</p>}
         {exactTransactions.isError && transaction.codes.length > 0 && <p role="alert">Transaction filtering failed. {exactTransactions.error.message}</p>}
         <div className="catalogue-role-search flex gap-2">
           <div className="relative flex-1">

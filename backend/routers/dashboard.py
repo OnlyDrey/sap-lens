@@ -5,7 +5,7 @@ from datetime import date
 import cache
 from config import get_settings
 from role_matching import normalize_role
-from user_access import interval_status, sap_date
+from user_access import interval_status, sap_date, current_role_count
 from .employees import directory_status
 
 router = APIRouter(prefix='/api/dashboard', tags=['Overview'])
@@ -58,7 +58,7 @@ def overview():
     assignment_distribution=Counter() if mapping else None
     if mapping:
         for user in state.users.users.values():
-            count=len({normalize_role(a['role_name']) for a in user['assignments'] if a['scope'] in {'business','release'} and interval_status(sap_date(a['valid_from']),sap_date(a['valid_to']))=='active'})
+            count=current_role_count(user)
             assignment_distribution['0' if count==0 else '1–5' if count<=5 else '6–20' if count<=20 else '21+']+=1
     paths={'roles':settings.data_csv_path,'users':settings.user_csv_path,'employees':settings.employee_csv_path}
     def freshness(key):

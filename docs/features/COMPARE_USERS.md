@@ -26,3 +26,5 @@ semantic tokens with explicit text. Colors express comparison categories, not ri
 Inline assignments, multiple intervals, wildcard provenance and paging remain intact.
 
 Saved Filters sits above the comparison filter panel. The panel owns its single Clear filters action. Summary counters size to their content and wrap as space requires.
+
+Comparison summary buttons own the difference selection; click the selected counter again or remove its chip to clear only that criterion. The redundant Differences dropdown is removed. Sort controls, saved definitions and browser history retain their existing values. No comparison evidence calculations changed.

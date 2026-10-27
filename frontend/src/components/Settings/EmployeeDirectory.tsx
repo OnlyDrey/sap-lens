@@ -1,8 +1,3 @@
-import { SourceStatusSummary } from './SourceStatus'
-import { SourceFileField } from './ImportControls'
-import { DirectoryPreview } from './DirectoryPreview'
-import { BrowserSourceUpload } from './BrowserSourceUpload'
-import { ImportSection } from './ImportSection'
 import { Toggle, SearchInput } from '@/components/Shared/Controls'
 import { Button } from '@/components/Shared/Button'
 import { StatusBadge } from '@/components/Shared/Presentation'
@@ -16,12 +11,9 @@ import {
   UsersRound,
   Settings2,
   BookUser,
-  Save,
-  Trash2,
-  CheckCircle,
-  Upload,
+  Save, ArrowLeft, ArrowRight,
 } from 'lucide-react'
-import { apiRequest, applicationToken } from '@/api/client'
+import { apiRequest } from '@/api/client'
 import { fetchConfiguration, type Configuration } from '@/api/configuration'
 import { formatTimestamp } from '@/lib/dateFormat'
 
@@ -99,6 +91,8 @@ export function DirectoryDiagnostics({
           {data.error}
         </p>
       )}
+      {sourceView&&<><p className="ui-description">{data.report.records??0} imported records · {data.coverage_total?`${data.coverage.matched??0} / ${data.coverage_total} SAP identities matched · ${(((data.coverage.matched??0)/data.coverage_total)*100).toFixed(1)}%`:data.coverage_reason||'SAP matching not evaluated'}</p>{!!(data.report.missing_emails||data.report.duplicate_emails)&&<p className="ui-description"><StatusBadge tone="warning">Data quality warnings</StatusBadge> {data.report.missing_emails||0} missing emails · {data.report.duplicate_emails||0} duplicate email keys. View diagnostics for details.</p>}</>}
+      <details open={!sourceView}><summary>View diagnostics</summary>
       {sourceView ? (
         <>
           <div className="directory-quality-grid">
@@ -204,6 +198,7 @@ export function DirectoryDiagnostics({
           Review Employee Directory source
         </button>
       )}
+      </details>
     </section>
   )
 }
@@ -325,7 +320,7 @@ export function FeatureSettings({
             Derived from User–Role Mapping and Employee Directory. Exact email
             matching enriches SAP profiles without overwriting SAP attributes.
           </p>
-          <StatusBadge
+          <div className="feature-operational"><StatusBadge
             tone={
               directory.data?.operational_status === 'ready'
                 ? 'success'
@@ -335,7 +330,7 @@ export function FeatureSettings({
             {directory.data?.operational_status === 'ready'
               ? 'Operational'
               : 'Unavailable'}
-          </StatusBadge>
+          </StatusBadge></div>
           <p className="text-xs">Runtime status uses saved preferences.</p>
           <p className="text-xs">
             {!draft.features?.employee_directory
@@ -473,27 +468,29 @@ export function EmployeeBrowser() {
             </table>
           </div>
           {!query.data.total && <p>No employees match this search.</p>}
-          <div className="flex gap-3 items-center">
+          <div className="employee-pagination flex flex-wrap gap-3 items-center">
             <button
               className="settings-secondary-button"
+              aria-label="Previous employees"
               disabled={!offset}
               onClick={() => {
                 setOffset(Math.max(0, offset - 25))
                 setSelected(null)
               }}
             >
-              Previous employees
+              <ArrowLeft size={16} aria-hidden="true"/> Previous
             </button>
             <span>{query.data.total} matching employees</span>
             <button
               className="settings-secondary-button"
+              aria-label="Next employees"
               disabled={offset + 25 >= query.data.total}
               onClick={() => {
                 setOffset(offset + 25)
                 setSelected(null)
               }}
             >
-              Next employees
+              Next <ArrowRight size={16} aria-hidden="true"/>
             </button>
           </div>
         </>
@@ -518,278 +515,14 @@ export function EmployeeBrowser() {
   )
 }
 
-export function EmployeeSource({
-  revision,
-  savedPath,
-  dirty,
-  onImported,
-  onFeatureSettings,
-}: {
-  revision: number
-  mode?:'static'|'dynamic'
-  savedPath: string
-  dirty: boolean
-  onImported: () => Promise<void>
-  onFeatureSettings: () => void
-}) {
-  const qc = useQueryClient()
-  const status = useQuery({
-    queryKey: ['employee-status'],
-    queryFn: () => apiRequest<DirectoryStatus>('/api/employees/status'),
-  })
-  const [uploaded,setUploaded]=useState(false)
-  const [path, setPath] = useState(savedPath),
-    [preview, setPreview] = useState<
-      | (Report & {
-          digest: string
-          current_records?: number
-          replacement?: Record<string, number>
-        })
-      | null
-    >(null),
-    [success, setSuccess] = useState(''),
-    [error, setError] = useState(''),
-    [busy, setBusy] = useState(false)
-  useEffect(() => {
-    setPath(savedPath)
-    setPreview(null)
-  }, [savedPath])
-  const act = async (action: () => Promise<void>) => {
-    setBusy(true)
-    setError('')
-    setSuccess('')
-    try {
-      await action()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Directory action failed.')
-    } finally {
-      setBusy(false)
-    }
-  }
-  const refresh = async () => {
-    await qc.invalidateQueries({
-      predicate: (q) =>
-        [
-          'employee-status',
-          'employees',
-          'employee-match',
-          'dashboard',
-          'account-review',
-          'diagnostics',
-          'data-health',
-          'refresh-history',
-        ].includes(String(q.queryKey[0])),
-    })
-    await onImported()
-  }
-  const choose = (value: string) => {
-    setUploaded(false)
-    setPath(value)
-    setPreview(null)
-    setSuccess('')
-    setError('')
-  }
-  return (
-    <div className="space-y-4">
-
-      {status.data?.loaded && !status.data.persisted && (
-        <Button
-          disabled={busy || dirty || !status.data.digest}
-          onClick={() =>
-            void act(async () => {
-              await apiRequest('/api/employees/persist', 'POST', {
-                revision,
-                digest: status.data!.digest,
-              })
-              await refresh()
-              setSuccess(
-                'Validated directory records saved locally. The original CSV is no longer required for restart.',
-              )
-            })
-          }
-        >
-          <Save size={16} />
-          Save durable directory snapshot
-        </Button>
-      )}
-      <ImportSection
-        step={1}
-        title="Source file"
-        description="Choose a local Employee Directory CSV. Selection alone does not import or replace records."
-      >
-        <p className="ui-description">Employee Directory uses a fixed import format: UTF-8 CSV with semicolon separators and the documented directory headers. No SAP role mapping is inferred.</p>
-        <BrowserSourceUpload source="employees" disabled={busy||dirty} onUploaded={value=>{choose(value);setUploaded(true)}}/>
-        <SourceFileField label="Employee Directory CSV location" value={path} onChange={choose} native={Boolean(window.pywebview?.api)} disabled={busy} browseLabel="Browse employee CSV" onBrowse={()=>void act(async()=>{const selected=await window.pywebview?.api.choose_csv(applicationToken());if(selected)choose(selected)})}/>
-        <div className="ui-toolbar">
-          <Button
-            disabled={busy || !savedPath || dirty}
-            onClick={() => {
-              if (
-                window.confirm(
-                  'Remove the loaded Employee Directory and source configuration? The original CSV is not deleted.',
-                )
-              )
-                void act(async () => {
-                  const result = await apiRequest<{ cleanup_warning?: string }>(
-                    '/api/employees/clear',
-                    'POST',
-                    { path: savedPath, revision },
-                  )
-                  setPreview(null)
-                  await refresh()
-                  setSuccess(
-                    result.cleanup_warning ||
-                      'Directory records and source configuration cleared. Original CSV unchanged.',
-                  )
-                })
-            }}
-          >
-            <Trash2 size={16} />
-            Clear directory data
-          </Button>
-        </div>
-        <p className="text-sm" aria-label="Directory selection state">
-          {preview
-            ? 'Validated — review the preview and choose Import directory to save records.'
-            : path && path !== savedPath
-              ? 'CSV selected — not validated or imported.'
-              : savedPath
-                ? 'Previously imported source — validate again before replacement.'
-                : 'No CSV selected. Employee Directory is optional.'}
-        </p>
-      </ImportSection>
-      <ImportSection
-        step={2}
-        title="Validate & Preview"
-        description="Validate the entire file, inspect data quality and review a paginated preview before confirming."
-      >
-        <Button
-          disabled={busy || !path || dirty}
-          onClick={() =>
-            void act(async () => {
-              setPreview(null)
-              setPreview(
-                await apiRequest('/api/employees/preview', 'POST', {
-                  path,
-                  revision,
-                }),
-              )
-            })
-          }
-        >
-          <CheckCircle size={16} />
-          Validate &amp; preview directory
-        </Button>
-        {preview && (
-          <section className="space-y-3" aria-label="Directory import preview">
-            <p>
-              {preview.file_name} · {preview.records} records ·{' '}
-              {preview.validation}
-            </p>
-            <p>
-              {preview.duplicate_emails} duplicate email keys ·{' '}
-              {preview.missing_emails} missing emails. Missing emails are
-              warnings; records are retained. Duplicates are never automatically
-              matched.
-            </p>
-            <DirectoryPreview
-              path={path}
-              digest={preview.digest}
-              revision={revision}
-            />
-          </section>
-        )}
-      </ImportSection>
-      <ImportSection
-        step={3}
-        title="Import / Replace"
-        description="Confirmation activates a complete validated replacement and saves a private local snapshot. No cloud upload."
-      >
-        {preview ? (
-          <>
-            <p>
-              Current:{' '}
-              {preview.current_records ?? status.data?.report.records ?? 0}{' '}
-              records · Incoming: {preview.records} records
-            </p>
-            {preview.replacement && (
-              <p className="text-sm">
-                {preview.replacement.added} added ·{' '}
-                {preview.replacement.removed} removed ·{' '}
-                {preview.replacement.modified} modified ·{' '}
-                {preview.replacement.unchanged} unchanged
-              </p>
-            )}
-            <p className="text-sm">
-              Importing this file will replace the existing Employee Directory
-              dataset. Records missing from the new CSV will be removed from the
-              active dataset.
-            </p>
-          </>
-        ) : (
-          <p className="text-sm text-[var(--muted)]">
-            Validate a CSV to enable import confirmation.
-          </p>
-        )}
-        <Button
-          variant="primary"
-          disabled={busy || dirty || !preview}
-          onClick={() => {
-            if (!preview) return
-            if (
-              (preview.current_records ?? 0) > 0 &&
-              preview.digest !== status.data?.digest &&
-              !window.confirm(
-                'Replace the entire Employee Directory with this validated CSV? Records absent from the new file will be removed.',
-              )
-            )
-              return
-            void act(async () => {
-              const imported = await apiRequest<
-                DirectoryStatus & { cleanup_warning?: string }
-              >('/api/employees/import', 'POST', {
-                path,
-                digest: preview.digest,
-                revision,
-                ...(uploaded?{mode:'static'}:{}),
-              })
-              setPreview(null)
-              await refresh()
-              setSuccess(
-                imported.cleanup_warning ||
-                  `Directory imported: ${imported.report.records} records saved locally. ${imported.enabled ? 'Enrichment is enabled.' : 'Enrichment is disabled; open Feature Settings to enable it.'}`,
-              )
-            })
-          }}
-        >
-          <Upload size={16} />
-          Import directory
-        </Button>
-      </ImportSection>
-      {dirty && (
-        <p role="status">
-          Save or cancel pending settings changes before importing directory
-          data.
-        </p>
-      )}
-      {busy && <p role="status">Reading local directory…</p>}
-      {success && (
-        <p
-          role="status"
-          className="text-[var(--success)] flex gap-2 items-center"
-        >
-          <CheckCircle size={16} />
-          {success}
-        </p>
-      )}
-      {error && (
-        <p role="alert" className="text-[var(--error)]">
-          {error} Previous valid data is retained.
-        </p>
-      )}
-      <SourceStatusSummary source="employees"/>
-      <DirectoryDiagnostics sourceView onFeatureSettings={onFeatureSettings} />
-      <EmployeeBrowser />
-    </div>
-  )
+/** Recovery of existing validated legacy records; this never rereads a CSV. */
+export function DirectorySnapshotRecovery({onPersisted}:{onPersisted:()=>Promise<void>}) {
+  const qc=useQueryClient(),status=useQuery({queryKey:['employee-status'],queryFn:()=>apiRequest<DirectoryStatus>('/api/employees/status')})
+  const [busy,setBusy]=useState(false),[error,setError]=useState('')
+  if(!status.data?.loaded||status.data.persisted||!status.data.digest)return null
+  return <div><Button disabled={busy} onClick={()=>{setBusy(true);setError('');void (async()=>{
+    const current=await fetchConfiguration()
+    await apiRequest('/api/employees/persist','POST',{revision:current.settings.revision,digest:status.data!.digest})
+    await onPersisted();await qc.invalidateQueries({queryKey:['employee-status']})
+  })().catch(cause=>setError(cause instanceof Error?cause.message:'Snapshot recovery failed.')).finally(()=>setBusy(false))}}><Save size={16} aria-hidden="true"/>Save durable directory snapshot</Button>{error&&<p role="alert">{error}</p>}</div>
 }

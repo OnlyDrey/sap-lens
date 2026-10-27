@@ -263,3 +263,10 @@ def relevant(entry, status="", show_expired=False, today=None):
         sap_date(entry["valid_from"]), sap_date(entry["valid_to"]), today
     )
     return current == status if status else show_expired or current != "expired"
+
+
+def current_role_count(user, today=None):
+    """Distinct business/release roles with currently valid assignment evidence."""
+    return len({normalize_role(a['role_name']) for a in user['assignments']
+                if a['scope'] in {'business','release'} and
+                interval_status(sap_date(a['valid_from']),sap_date(a['valid_to']),today)=='active'})

@@ -43,7 +43,7 @@ export function useTransactionFilter(resetKey?: string | null) {
 export function TransactionFilter({
   label,
   filter,
-  placeholder = 'e.g. MIGO',
+  placeholder = 'e.g. MIGO, ME23N, VA03',
   mode,
   onModeChange,
   showClear = true,

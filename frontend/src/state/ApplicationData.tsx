@@ -1,3 +1,4 @@
+import {selectSource,type CSVSource,type SourceSelection,type SourceActivation} from '@/api/sources'
 import {
   createContext,
   useCallback,
@@ -14,11 +15,13 @@ import type { RefreshSummary } from '@/components/Shared/RefreshReport'
 
 const Context = createContext<{
   loading: boolean
+  importPhase:string|null
+  activateSource:(source:CSVSource,selection:SourceSelection)=>Promise<SourceActivation>
   refresh: () => Promise<void>
   lastLoaded: string | null
   report: RefreshSummary | null
   dismissReport: () => void
-}>({ loading: false, refresh: async () => {}, lastLoaded: null, report:null,dismissReport:()=>{} })
+}>({ loading: false, importPhase:null,activateSource:async()=>{throw Error('Application data is not ready.')}, refresh: async () => {}, lastLoaded: null, report:null,dismissReport:()=>{} })
 const isDatasetQuery = (query: { queryKey: readonly unknown[] }) =>
   !['configuration', 'logo', 'application-version', 'application-info'].includes(
     String(query.queryKey[0]),
@@ -31,6 +34,7 @@ export function ApplicationDataProvider({ children }: { children: ReactNode }) {
     [synchronizing, setSynchronizing] = useState(false)
   const running = useRef(false)
   const [report,setReport]=useState<RefreshSummary|null>(null)
+  const [importPhase,setImportPhase]=useState<string|null>(null)
   const configuration = useQuery({
     queryKey: ['configuration'],
     queryFn: fetchConfiguration,
@@ -83,12 +87,29 @@ export function ApplicationDataProvider({ children }: { children: ReactNode }) {
       void qc.invalidateQueries({ queryKey: ['configuration'] })
     }
   }, [qc, synchronize, configuration.data?.loading])
+  const activateSource=useCallback(async(source:CSVSource,selection:SourceSelection)=>{
+    if(running.current||configuration.data?.loading)throw Error('Another CSV operation is running. Wait for it to finish.')
+    running.current=true;setRefreshing(true);setImportPhase('Reading file');setReport(null)
+    try{
+      const result=await selectSource(source,selection)
+      setImportPhase('Updating dependent views')
+      const data=await qc.fetchQuery({queryKey:['configuration'],queryFn:fetchConfiguration,staleTime:0})
+      const revision=data.data_revision??JSON.stringify(data.analysis)
+      // Directory-only publications intentionally retain the SAP generation.
+      if(observed.current===revision)await qc.invalidateQueries({predicate:isDatasetQuery})
+      else await synchronize(revision)
+      setReport(result.refresh);setImportPhase('Completed');return result
+    }catch(error){setImportPhase('Failed');throw error}
+    finally{running.current=false;setRefreshing(false);void qc.invalidateQueries({queryKey:['configuration']})}
+  },[qc,synchronize,configuration.data?.loading])
   return (
     <Context.Provider
       value={{
         loading:
           refreshing || synchronizing || Boolean(configuration.data?.loading),
         refresh,
+        activateSource,
+        importPhase:importPhase&&configuration.data?.loading?(configuration.data.progress?.stage||importPhase):importPhase,
         report,
         dismissReport:()=>setReport(null),
         lastLoaded:

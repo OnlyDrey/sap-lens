@@ -37,8 +37,10 @@
  --control-height:2.625rem; --control-compact:2.125rem; --icon-size:1rem; --toolbar-gap:.75rem;
  --shadow-color:#182c5333;
  --elevation:none;
+ --dialog-backdrop:rgba(15,23,42,.62);
+ --spinner-duration:1.4s;
 }
 
-[data-theme="dark"] { --shadow-color:#00000080; }
+[data-theme="dark"] { --shadow-color:#00000080; --dialog-backdrop:rgba(0,0,0,.72); }
 
 :root { --comparison-b:var(--error); }

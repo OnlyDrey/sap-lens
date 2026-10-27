@@ -561,19 +561,7 @@ export function UserComparison({
             <option value="transactions">Role-derived transactions</option>
           </Select>
         </Filter>
-        <Filter label="Differences">
-          <Select
-            aria-label="Differences"
-            className={inputClass}
-            value={difference}
-            onChange={(e) => setDifference(e.target.value)}
-          >
-            <option value="">All</option>
-            <option value="shared">Shared</option>
-            <option value="a">Only User A</option>
-            <option value="b">Only User B</option>
-          </Select>
-        </Filter>
+
         <Filter
           label={
             kind === 'roles'

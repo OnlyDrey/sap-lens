@@ -17,6 +17,7 @@ import { ClearFilterButton } from '@/components/Shared/ClearFilterButton'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import { Select } from '@/components/Shared/Select'
 import { csvField } from '@/lib/accessExport'
+import { formatDate } from '@/lib/dateFormat'
 import { formatTimestamp } from '@/lib/dateFormat'
 import { Filter, Pagination, QueryState, inputClass } from './Shared'
 interface Decision {
@@ -444,6 +445,8 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
                     <td>{row.groups.join(', ') || 'Unknown'}</td>
                     <td>
                       <AccountStatus value={row.sap_validity} />
+                      {row.evidence?.accounts.map((account,index)=><div className="review-account-dates" key={index}><span>From: {formatDate(account.valid_from)}</span><span>To: {formatDate(account.valid_to)}</span></div>)}
+                      {row.evidence&&row.evidence.account_total>row.evidence.accounts.length&&<small>More source intervals in User Details</small>}
                     </td>
                     <td>
                       <AccountStatus kind="lock" value={row.lock_status} />
@@ -461,7 +464,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
                           Configured unlicensed group
                         </p>
                       )}
-                      {!row.findings.length && <p>No supported finding</p>}
+                      {!row.findings.length && <p>No automated findings</p>}
                     </td>
                     <td>
                       <Button
@@ -478,6 +481,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
                       >
                         {row.review_state}
                       </Button>
+                      {row.review_state==='Needs review'&&<p className="ui-description">Pending manual review</p>}
                       {row.stale && (
                         <p className="text-[var(--warning)]">
                           Evidence changed — review again

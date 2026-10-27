@@ -42,23 +42,24 @@ export function NorwegianDateInput({
     maxHeight: 360,
   })
   const [open, setOpen] = useState(false)
+  const [positioned,setPositioned]=useState(false)
   const selected = parseNorwegianDate(value)
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear()),
     [month, setMonth] = useState(today.getMonth())
   const button = useRef<HTMLButtonElement>(null),
     grid = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (open)
+  useLayoutEffect(() => {
+    if (open && positioned)
       (
         grid.current?.querySelector<HTMLButtonElement>(
           '[aria-pressed="true"]',
         ) ||
         grid.current?.querySelector<HTMLButtonElement>('button[data-day="1"]')
-      )?.focus()
-  }, [open])
+      )?.focus({preventScroll:true})
+  }, [open,positioned])
   useLayoutEffect(() => {
-    if (!open) return
+    if (!open) {setPositioned(false);return}
     const place = () => {
       const box = button.current?.getBoundingClientRect()
       if (!box) return
@@ -68,6 +69,7 @@ export function NorwegianDateInput({
       const natural = Math.min(360, (popup.current?.scrollHeight || 358) + 2)
       const down = below >= natural || below >= above,
         height = Math.min(natural, Math.max(80, down ? below : above))
+      setPositioned(true)
       setPosition({
         left: Math.max(8, Math.min(box.right - width, innerWidth - width - 8)),
         top: Math.max(8,Math.min(down?box.bottom+4:box.top-height-4,innerHeight-height-8)),
@@ -163,7 +165,7 @@ export function NorwegianDateInput({
           <div
             ref={popup}
             id={id}
-            style={{ position: 'fixed', ...position }}
+            style={{ position: 'fixed', ...position, visibility:positioned?'visible':'hidden' }}
             data-popover-owner={owners} className="norwegian-calendar calendar-popover space-y-2"
             role="dialog"
             aria-label={`Calendar for ${label}`}

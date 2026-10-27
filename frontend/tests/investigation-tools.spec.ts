@@ -124,7 +124,7 @@ test('comparison filters roles, validity and derived transactions with inspectab
   await comparison(page)
   await choose(page, 'User A', 'Alpha')
   await choose(page, 'User B', 'b@example.test')
-  await page.getByLabel('Differences', { exact: true }).selectOption('a')
+  await page.getByLabel('Comparison summary',{exact:true}).getByRole('button',{name:/^(Only User A|Mapped transactions only A)/}).click()
   await expect(
     page.getByRole('table', { name: 'User comparison evidence' }),
   ).toContainText('ZC:ONLY_A')
@@ -134,7 +134,7 @@ test('comparison filters roles, validity and derived transactions with inspectab
   const table = page.getByRole('table', { name: 'User comparison evidence' })
   await expect(table).toContainText('ME23N')
   await expect(table).not.toContainText('FB03')
-  await page.getByLabel('Differences', { exact: true }).selectOption('shared')
+  await page.getByLabel('Comparison summary',{exact:true}).getByRole('button',{name:/^Shared/}).click()
   await expect(table).toContainText('FB03')
   await expect(table).toContainText('ZC:ONLY_A')
   await expect(table).toContainText('ZC:SHARED:ENP')
@@ -147,7 +147,7 @@ test('comparison filters roles, validity and derived transactions with inspectab
   await page
     .getByLabel('Comparison section', { exact: true })
     .selectOption('roles')
-  await page.getByLabel('Differences', { exact: true }).selectOption('')
+  await page.getByRole('button',{name:'Clear comparison difference',exact:true}).click()
   await expect(table).toContainText('ZC:UNKNOWN')
 })
 test('user selectors search alternate SAP email observations without guessing identities', async ({
@@ -194,9 +194,7 @@ test('comparison metrics filter results, sorting persists and inline evidence pr
   await choose(page, 'User B', 'DEMO_B')
   const summary = page.getByLabel('Comparison summary', { exact: true })
   await summary.getByRole('button', { name: /Shared roles/ }).click()
-  await expect(page.getByLabel('Differences', { exact: true })).toHaveValue(
-    'shared',
-  )
+  await expect(summary.getByRole('button',{name:/^Shared roles/})).toHaveAttribute('aria-pressed','true')
   const table = page.getByRole('table', {
     name: 'User comparison evidence',
     exact: true,
@@ -269,7 +267,7 @@ test('same user is excluded and no-assignment user has an honest empty state', a
   ).toHaveCount(0)
   await page.keyboard.press('Escape')
   await choose(page, 'User B', 'DEMO_EMPTY')
-  await page.getByLabel('Differences', { exact: true }).selectOption('b')
+  await page.getByLabel('Comparison summary',{exact:true}).getByRole('button',{name:/^(Only User B|Mapped transactions only B)/}).click()
   await expect(
     page.getByText('No matching roles.', { exact: false }),
   ).toBeVisible()
@@ -458,7 +456,7 @@ test('transaction investigation and browser Back retain comparison users and fil
   await page
     .getByLabel('Comparison section', { exact: true })
     .selectOption('transactions')
-  await page.getByLabel('Differences', { exact: true }).selectOption('a')
+  await page.getByLabel('Comparison summary',{exact:true}).getByRole('button',{name:/^(Only User A|Mapped transactions only A)/}).click()
   await page.getByRole('button', { name: 'ME23N', exact: true }).click()
   await expect(
     page.getByRole('heading', { name: 'User Access', exact: true }),
@@ -476,7 +474,7 @@ test('transaction investigation and browser Back retain comparison users and fil
   await expect(
     page.getByRole('combobox', { name: 'User B', exact: true }),
   ).toHaveValue(/DEMO_B/)
-  await expect(page.getByLabel('Differences', { exact: true })).toHaveValue('a')
+  await expect(page.getByLabel('Comparison summary',{exact:true}).getByRole('button',{name:/^(Only User A|Mapped transactions only A)/})).toHaveAttribute('aria-pressed','true')
   await expect(
     page.getByLabel('Comparison section', { exact: true }),
   ).toHaveValue('transactions')

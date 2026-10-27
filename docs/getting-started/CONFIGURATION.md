@@ -15,7 +15,7 @@ module preferences and theme colors retain their existing schema and behavior.
 
 Employee Directory remains a Data Sources subsection, not another top-level page.
 CSV paths never live in Features. The existing Apply/cancel mechanism saves ordinary
-settings. Import directory, durable-snapshot recovery and review decisions are
+settings. Automatic source import, durable-snapshot recovery and review decisions are
 explicit operations with their own confirmation/feedback, not duplicate generic
 Save buttons.
 
@@ -68,17 +68,17 @@ Native logs are still available through the existing controlled desktop action.
 ## “No durable records saved”
 
 A legacy path-only configuration may load and validate records in memory without
-having completed **Import directory**. A path is not a durable dataset. It can work
+having completed a successful source import. A path is not a durable dataset. It can work
 until a restart/share disconnect makes that path unreadable.
 
 Open **Data Sources → Employee Directory**:
 
 1. If validated records are currently available, **Save durable directory snapshot**
    saves them to existing private snapshot storage without rereading the CSV.
-   Save/cancel unrelated draft edits first. It verifies the directory digest and
+   Unrelated draft edits are preserved. It verifies the directory digest and
    current settings revision, then stages the snapshot and atomically saves its ID.
-2. Otherwise choose a readable CSV, validate/preview, then **Import directory**.
-3. Confirm **Records saved locally**. The import timestamp is retained. A successful
+2. Otherwise select a readable CSV and wait for automatic validation/import to complete.
+3. Check **Durable snapshot available**. The import timestamp is retained. A successful
    durable import/restoration no longer needs the original CSV at startup.
 
 Recovery never guesses records from a missing path. Failed writes retain the prior
@@ -109,3 +109,10 @@ Settings → APPLICATION → Component Library contains interactive previews of 
 ## CSV modes and retained refresh evidence
 
 Each source can be Static (manual replacement) or Dynamic (Global Refresh rereads its configured path). Role/user sources default to Dynamic; Employee Directory defaults to Static. Validated observations now have durable local snapshots, separate from original CSV availability. See [CSV data lifecycle](../data/IMPORT_AND_REFRESH.md) for replacement semantics, recovery, feature dependencies, preview and private change/error reports.
+
+Windows Desktop background preferences are under **Settings → Features → Windows
+Desktop**, visible only through the native Windows capability. The local `desktop`
+object contains `close_to_tray`, `run_at_signin` and `start_minimized`, all defaulting
+to false. Start minimized requires tray mode. Ordinary Apply/Cancel and revision
+checks apply; portable packages do not activate another machine's sign-in startup.
+See [tray operation](../deployment/WINDOWS_DESKTOP.md#optional-system-tray-operation).

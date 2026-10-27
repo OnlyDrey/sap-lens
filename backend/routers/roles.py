@@ -1,9 +1,10 @@
 """Roles router -- list, search, filter, T-code search, detail."""
+from search_matching import text_matches
 from typing import Optional, Literal
 from fastapi import APIRouter, HTTPException, Query
 import cache
 from models import RoleSummary, RoleDetail
-from transaction_filters import normalized_tcodes, matching_role_names
+from transaction_filters import normalized_tcodes, matching_role_names, matching_codes
 
 router = APIRouter(prefix="/api/roles", tags=["Roles"])
 
@@ -37,10 +38,10 @@ def list_roles(
     exact_codes = normalized_tcodes(tcodes)
     if exact_codes:
         names = matching_role_names(state.tcode_index, exact_codes, transaction_mode)
-        all_roles = [r.model_copy(update={"matching_tcodes": [code for code in exact_codes if r.agr_name in state.tcode_index.get(code, [])]}) for r in all_roles if r.agr_name in names]
+        all_roles = [r.model_copy(update={"matching_tcodes": sorted({actual for code in exact_codes for actual in matching_codes(state.tcode_index,code) if r.agr_name in state.tcode_index[actual]})}) for r in all_roles if r.agr_name in names]
         if search and search.strip():
             query = search.strip().lower()
-            all_roles = [r for r in all_roles if query in r.agr_name.lower() or query in (r.text or "").lower()]
+            all_roles = [r for r in all_roles if text_matches(r.agr_name, query) or text_matches(r.text, query)]
         return all_roles
 
     # ---- T-code search -------------------------------------------------------
@@ -52,7 +53,7 @@ def list_roles(
         matching_agr: set[str] = set()
 
         for key, agr_names in idx.items():
-            if key == query or key.startswith(query):
+            if (text_matches(key,query) if '*' in query else key.startswith(query)):
                 matching_agr.update(agr_names)
 
         result: list[RoleSummary] = []
@@ -67,7 +68,7 @@ def list_roles(
                 for sr in detail.single_roles:
                     for tc in sr.tcodes:
                         k = tc.tcode.upper()
-                        if tc.tcode not in seen and (k == query or k.startswith(query)):
+                        if tc.tcode not in seen and (text_matches(k,query) if '*' in query else k.startswith(query)):
                             tcodes_found.append(tc.tcode)
                             seen.add(tc.tcode)
             result.append(r.model_copy(update={"matching_tcodes": tcodes_found}))
@@ -79,8 +80,7 @@ def list_roles(
         q = search.strip().lower()
         all_roles = [
             r for r in all_roles
-            if q in (r.text or "").lower()
-            or q in r.agr_name.lower()
+            if text_matches(r.text, q) or text_matches(r.agr_name, q)
         ]
 
     return all_roles

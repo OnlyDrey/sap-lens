@@ -652,3 +652,338 @@ No push, workflow dispatch, release, tag, Windows build or native Windows/WebVie
 acceptance was performed. Manual Windows testing must cover owned-backend browser
 handoff and localhost alias, WebView/browser coexistence, clipboard/dialogs, both
 new CSV native saves and shutdown, plus packaging and UNC on an appropriate host.
+
+## Comprehensive UI refinement follow-up — local phase checkpoint
+
+This is a separate 28-item iteration after the earlier 31-task delivery. Tasks
+1–25 have passed their local feature checks; task 28 (permanent progress reporting)
+is committed as `713f278`. Task 26 retains combined final regression/reporting;
+task 27 (Windows tray) follows this UI phase. No push authority in this iteration.
+
+Implemented: compact dashboard lower columns/source summaries; full-row navigation
+feedback; bounded role cards and compact shared actions; T-code-first visual/tab
+order; right-aligned details identifier; shared modal backdrop; independently sized
+exclusive panels; symmetric Jaccard summaries with explicitly directional matrix
+containment; summary-owned comparison differences; profile matching placement;
+two-line source account intervals and manual-review wording; hidden-until-measured
+portals; consistent date/filter placement; complete scrollable release matrices;
+preview-first appearance and bounded hex fields; logo columns; grouped/copyable
+source details; shared source state in Data Health; local-draft module modals;
+obvious feature switches; categorized isolated real previews; calmer motion tokens.
+Underlying SAP evidence sets, imports, review decisions and export scope remain intact.
+
+Executed validation: production build/type checking passed. The 78-test related
+browser group initially passed 74, with four test failures: nested tabpanel naming,
+comparison-only clearing, section-dependent counter names and a newly added
+exclusive-panel check. The first three test paths were migrated without dropping
+assertions; the fourth exposed empty-state padding, which was reduced. Focused
+rechecks passed (18/18 and the affected comparison/navigation paths). The new UI
+freeze suite passed 15/15; an additional release-field alignment/Data Health check
+passed (1/1). Source/backend regressions passed: User Access 43, date filters 17,
+assignment exports 7. Documentation checks passed: 73 files, six documentation
+unit tests, whitespace and 1,447-icon catalog verification.
+
+Screenshots captured at 375/800/1280/1600 in both themes; reviewed dashboard columns,
+long role cards/details, module dialog, preview/color controls and logo layout.
+Review caught clipped hex text; field width now includes text and padding. Artifacts
+are outside Git under `/workspace/sap-lens-dev/refinement-27-visual`; logs use
+`/workspace/sap-lens-dev/refinement-*.log`. The initial build after Data Health reuse
+found an obsolete import; it was removed and the production build passed.
+
+No native Windows, packaged EXE, real systemd or UNC acceptance is claimed.
+
+### Optional Windows tray — implementation checkpoint
+
+Task 27 is implemented and locally validated; task 26 retains the final combined
+pass. No dependency or service-hosting change was introduced. Windows-only ctypes
+adapter/policy uses the existing backend/socket, per-session instance mutex and
+storage lease. Tray initialization/icon loss falls back to normal window closing;
+explicit Exit uses normal graceful cleanup. Per-user sign-in registration changes
+only the owned HKCU value, with quoted executable paths and native/config rollback.
+Desktop apply requests are serialized across asynchronous CSV validation; the
+concurrency regression verifies stale requests cannot interleave native effects.
+Portable import preserves workstation preferences and exports do not activate them.
+
+Targeted results: 18 tray policy/persistence/concurrency tests, 20 existing desktop
+contracts, 14 configuration tests and the final 18-test UI suite passed. Two native
+settings browser tests use mock capability responses; they are not Windows tests.
+Screenshots cover native-options presentation through that mock in both themes at
+375/800/1280/1600. The initial readiness test exposed an event arriving before App
+mount; pending intent and a capability-guarded handshake replace that race without
+a timer or navigation reset. Session shutdown bypasses hide-on-close veto via the
+pinned existing WinForms host; actual Windows behavior remains untested.
+
+Native acceptance still includes notification icon creation, double-click/menu,
+Explorer restart, real WebView2 close/hide/restore, browser access while hidden,
+sign-in startup, sign-out/shutdown, backend failure and explicit resource cleanup.
+Startup cleanup before portable removal is documented. No Windows packaging,
+remote workflow, push, tag or release was performed.
+
+### Combined UI/tray phase verification (tasks 1–28)
+
+Tasks 1–28 are implemented and locally validated. Additional task 29 (automatic
+CSV activation on selection) is a subsequent user-requested refinement; it was
+not implemented during this phase and supersedes the normal-flow confirmation
+requirement only when its own implementation/validation is complete.
+
+Final results:
+
+- Complete browser run: **305/305 passed together**, one worker, no retries,
+  9.2 minutes (`refinement-final-browser-complete.log`).
+- Complete backend run: **446/446 passed**, no skips, 25.536 seconds
+  (`refinement-final-backend-confirmed.log`), including 19 tray/controller/
+  persistence/concurrency cases and the existing desktop/server/security contracts.
+- Clean `npm ci`, explicit TypeScript check and production build passed. The latest
+  build includes all source changes; its 526.18 kB main chunk produces a non-blocking
+  Vite size warning. No dependency or bundling rewrite was introduced.
+- Python `pip check` and isolated `pip_audit` on desktop/dev requirements passed;
+  latest npm production and development audits returned zero vulnerabilities.
+- Documentation: 73 Markdown files, zero broken local links; workflow contracts,
+  independent actionlint, PowerShell syntax/service-helper mocks, Lucide catalog
+  (1,447 icons) and whitespace checks passed. No actual SCM operations occurred.
+
+Regression corrections are retained transparently. The first complete attempt was
+stopped early (70 passed, six failures, one interrupted, 228 not run): calendar
+focus ran while its measured panel was hidden, and dashboard tests retained old
+source text/search-order assumptions. Selected-day focus now waits for measured
+visibility; all eight affected checks passed. A subsequent run passed 303 with
+two 800px filter-density failures (152px versus the existing <150px assertion).
+Using the existing smaller gap token corrected density; all four targeted cases
+passed. The final complete run above passed every test. Assertions were retained,
+not weakened. A red/green lifecycle regression also verifies Exit during icon
+initialization stops a late-created tray icon instead of retaining it.
+
+Captured/reviewed representative light/dark screenshots at 375/800/1280/1600,
+including dashboard columns, long role cards/details, modules, source/review
+modals, colors/logo controls and isolated capability-mocked native-options panels.
+Artifacts remain outside Git at `/workspace/sap-lens-dev/refinement-27-visual`;
+complete logs are `/workspace/sap-lens-dev/refinement-*.log`. Cropping the native
+options region avoids falsely treating an offscreen Settings heading as control
+coverage. Capability mocks are not Windows/WebView2 tests.
+
+Native Windows tray/EXE/WebView2, Explorer restart, real sign-in/sign-out, clipboard,
+Save/file dialogs, port-conflict acceptance and UNC remain pending on Windows.
+No Windows build, real systemd acceptance, push, tag, release or remote workflow
+was performed. Existing history and accepted historical branding are preserved;
+new tests use synthetic identities/paths and no employee datasets or binaries
+were committed. Task 29 continues from these preserved local commits.
+
+## Automatic CSV import and efficient delivery — 26.10.2026
+
+Task 29 is complete under the user's explicitly approved STANDARD-validation
+acceptance. All three source selectors now validate and activate non-empty CSVs
+without a separate Import/Confirm action. The canonical loader stages immutable
+snapshots and replacement reports, checks file stability and settings revision,
+rejects concurrent loads, and preserves validated data on failure. Browser uploads
+activate Static snapshots; Global Refresh retains Dynamic/Static semantics.
+
+Settings preserves unrelated drafts, optional feature preferences, employee search,
+quality-filtered snapshot preview and legacy durable-snapshot recovery. Directory-only
+updates preserve the SAP generation and independent investigation filters while
+refreshing dependent enrichment views. Advanced format/mapping inspection remains
+optional. Source selection does not run merely because Settings opens.
+
+STANDARD results for the final implementation:
+
+- 34 selected browser cases covered successfully: 28 passed in the affected-module
+  run (1.6 minutes); six headless upload cases initially failed an obsolete text
+  assertion, then all six passed in 10.4 seconds after asserting the actual Static
+  source-mode value instead. These are combined targeted results, not a single
+  complete-suite result. Coverage includes all three imports, same-file replacement,
+  empty/invalid preservation, drafts, diagnostics, directory navigation, mappings,
+  browser upload/download and responsive checks in both themes at 375/800/1280.
+- 11 automatic-import backend tests passed (0.590 seconds), including overlapping
+  requests, durable restart, missing originals, source changes during staging and
+  failed storage/network reads. Existing lifecycle regressions: 22 passed (0.977
+  seconds). Repository privacy and integrity: three tests each passed.
+- Production build, including TypeScript compilation, passed; Vite compilation
+  completed in 1.73 seconds. Existing large-chunk warning remains non-blocking.
+  Dependency inputs are unchanged; successful prior audit results were reused.
+- Documentation link validation: 73 Markdown files, zero failures. Diff whitespace
+  check passed. No private CSVs, screenshots, credentials or build artifacts are
+  included in the commit. Accepted historical branding is unchanged.
+- Six headless source screenshots were captured in both themes at 375/800/1280;
+  representative light-375 and dark-1280 captures were visually reviewed. Screenshots
+  remain Git-ignored. Prior unchanged-screen visual evidence is retained above.
+
+The efficiency policy is committed separately as `ae0e9d9`. AGENTS.md and the
+Testing guide now define QUICK/STANDARD/FULL, changed-area selection, input-aware
+reuse and execution-budget checks. Review retained the single Playwright worker
+because test-server configuration is mutable/shared. Existing npm/pip caches and
+attested deployment-asset reuse were already present; no CI trigger, permission,
+dependency or worker changes were needed. Baseline 305-browser/446-backend timings
+above are historical; no percentage speedup is claimed.
+
+Progress: 30/30 planned tasks complete under their recorded validation scope,
+including tasks 1–28 above, task 29 automatic import and task 30 execution policy.
+The user authorized pushing this completed work after STANDARD validation and
+explicitly deferred FULL regression until after the first successful push. No new
+FULL suite was run for this delivery. The previous 305/446 complete results describe
+the pre-automatic-import state, not a complete regression of task 29.
+
+Native Windows tray/WebView2/EXE, startup/sign-out, SCM and UNC acceptance remain
+pending. No native platform validation, release, tag or workflow dispatch is claimed.
+
+## Search, dashboard and compact Settings refinement — 26.10.2026
+
+Completed checklist for this iteration:
+
+1. [x] Inspect current components/search paths and preserve the clean `work` base.
+2. [x] Refine Directory match spacing, lightweight back navigation and assignment
+   descriptions; retain catalogue matching evidence in the Details column.
+3. [x] Standardize native select defaults and explicit labels, remove navigation
+   baseline borders, and align the sidebar close control/identifier in a grid.
+4. [x] Share literal SAP-style wildcard search across applicable frontend/backend
+   text filters and transaction-pattern sets; preserve exact internal joins.
+5. [x] Move matrix focus to the whole cell, improve source/directory spacing,
+   collapse detailed diagnostics and align icon-based pagination controls.
+6. [x] Use responsive appearance/logo columns and searchable module tiles with
+   All/Enabled/Disabled filtering and the existing draft-based editing dialog.
+7. [x] Refine three dashboard rows, compact review/role metrics and provide a
+   separate assignment-distribution panel with removable, saved/exportable drilldowns.
+8. [x] Update canonical feature/component documentation and real Component Library
+   guidance; validate affected workflows, keyboard behavior and responsive layouts.
+9. [x] Review the diff and create local commits; no push, release or dispatch.
+
+The wildcard helpers match literal chunks without compiling user regular
+expressions. Explicit `*` patterns are anchored; plain contains searches and exact
+selected transaction codes retain their established semantics. AND/OR combines
+pattern groups, not every transaction produced by expansion. The directory/export
+paths share their existing canonical selection function. A single current-role-count
+helper supplies dashboard bins and the corresponding directory filter.
+
+Validation evidence (prepared Linux/Python 3.12/Node 24/Chromium):
+
+- Production build including TypeScript compilation passed. The existing large-chunk
+  warning remains non-blocking; no dependency or packaging changes were introduced.
+- New backend search contracts: six passed, including literal metacharacters,
+  prefix/suffix/multiple stars, empty/long input, AND/OR, count bands, pagination,
+  saved definitions and CSV MATCHED_FILTER preservation. Existing investigation
+  filter suite: 17 passed.
+- One complete backend run executed 462 tests in 18.971 seconds: 459 passed, one
+  startup regression failed and two PowerShell tests were skipped because the
+  portable binary was not on PATH. The regression was corrected in local commit
+  e29fdb1; the failing startup test and all 11 automatic-import tests then passed.
+  Both PowerShell tests subsequently passed with the available portable binary and
+  writable XDG directories. Its initial launch failure was a read-only home cache,
+  not a PowerShell/script defect. The complete backend suite was not repeated.
+- 21 distinct relevant browser cases passed across affected runs/rechecks. The final
+  grouped run passed 14 cases in 20.4 seconds; eight cover both themes at
+  375/800/1280/1600, including module grid columns, profile descriptions, sidebar
+  right-inset alignment, source-aware navigation and appearance layout. Other
+  passing cases cover module drafts, diagnostics, keyboard matrix dialogs and
+  filter/mapping controls. The final settled wildcard UI case passed in 2.8 seconds.
+  An obsolete matrix assertion was updated to require the full cell's 2px focus
+  outline and no duplicate button outline. A module selector label defect was fixed
+  with the shared FormField; interrupted/failed intermediate runs are not passes.
+- The final review-progress track and light sidebar contrast changes passed focused
+  light-375/dark-1600 checks. A separate client-side catalogue filter was found during
+  review and migrated to the shared matcher; aria-busy now exposes debounce/fetch
+  settling so the regression cannot pass on transient old results.
+- Captured responsive artifacts are retained outside Git under
+  `/workspace/sap-lens-dev/refinement-search-visual`,
+  `/workspace/sap-lens-dev/refinement-dashboard-visual` and
+  `/workspace/sap-lens-dev/refinement-search-final`. Representative mobile/desktop
+  light/dark appearance, sidebar and dashboard screenshots were visually reviewed.
+- Documentation: 73 Markdown files, zero link failures. Lucide catalog: 1,447 icons
+  verified with existing identifiers retained. Diff whitespace checks passed.
+  Privacy/integrity/workflow contracts passed in the backend run. New fixtures use
+  synthetic identities and reserved-domain email; screenshots/private CSVs remain
+  untracked. README branding and accepted historical assets were not changed.
+
+This is risk-based validation, not a claim that the complete browser suite passed
+on the final commit. FULL browser regression was not rerun within the execution
+budget. Native Windows/WebView2, tray, EXE, service/systemd and UNC acceptance remain
+unexecuted; browser and portable PowerShell checks do not substitute for them.
+
+## Final stabilization and delivery validation — 26 October 2026
+
+This section supersedes the incomplete full-regression status above for source
+commits `e29fdb1`, `48f1a74` and stabilization commit `00bac30`. It does not
+supersede native-platform acceptance limitations.
+
+### Corrections and complete regression results
+
+- Restored the dashboard's `normalize_role` import, which its distinct release-role
+  metric still requires. The initial full backend run exposed two errors.
+- Restored successful durable-directory recovery feedback and invalidation of
+  diagnostics, Data Health and Dashboard queries.
+- Applied shared wildcard matching to the Release Roles free-text availability
+  hint. Matching rows no longer coexist with a misleading unavailable-selection
+  warning. Exact group/type/strategy selections retain exact semantics. Added API
+  and browser regressions.
+- Corrected relocated matching-evidence identifier spacing and human-readable
+  matching labels. Updated obsolete browser expectations for descriptions,
+  evidence disclosures, underline navigation and compact review metrics without
+  removing evidence, copy, focus or navigation assertions.
+- Final full backend command, using Python 3.12 and portable PowerShell on PATH:
+  `python -W error::DeprecationWarning -m unittest discover -s backend/tests -v`.
+  **464 tests passed in 21.398 seconds; no skips.** This includes repository
+  integrity/privacy, persistence, workflow contracts, server and packaging tests.
+- Final full browser command from `frontend`, with the prepared Python environment
+  on PATH and `PLAYWRIGHT_EXECUTABLE_PATH=/usr/bin/chromium`:
+  `npm run test:browser -- --output=/workspace/sap-lens-dev/delivery-current-browser-verified-artifacts --reporter=line`.
+  **319 tests passed together in 9.1 minutes, with one worker and no retries or
+  skips.** The successful run completed after the final application changes.
+- Earlier completed browser regression: 305 passed and 13 failed; targeted
+  corrections/rechecks preceded the final successful full run. Two earlier full
+  attempts were interrupted during diagnosis and are not counted as passes.
+
+### Build, static, documentation and dependency checks
+
+- `npm ci`, `npm run check:types` and `npm run build` passed. The existing Vite
+  chunk-size warning above 500 kB remains non-blocking; dependencies are unchanged.
+- `python -m compileall -q backend scripts` and `python -m pip check` passed.
+- `python scripts/check-docs.py`: **73 Markdown files, zero failures**.
+- `python scripts/check-workflows.py` and `actionlint` passed.
+- `pwsh -NoProfile -File scripts/check-powershell.ps1` passed all 12 script
+  syntax/static guards and service-helper mocks; these are not SCM acceptance.
+- `node scripts/sync-lucide-catalog.mjs --check`: **1,447 icons verified**.
+  `node scripts/frontend-licenses.mjs` passed. Component Library interactions and
+  shared-component consistency are covered by the complete browser suite.
+- Python audits of canonical development/build requirements, the installed
+  validation environment and the built Docker image found **no known
+  vulnerabilities**. Production-only and complete npm audits reported **zero
+  vulnerabilities**, including development dependencies. The image audit's
+  `--no-deps` advisory concerns reproducible audit input, not a reported CVE.
+- `git diff --check` passed. README logo links and documentation navigation passed
+  the link checker; no `CHANGELOG.md` was introduced.
+
+### Deployment and visual evidence
+
+- Built the canonical Dockerfile locally from clean source `00bac30`, reusing the
+  validated production frontend. No image was published. The managed environment
+  required writable Buildx cache configuration; application configuration and
+  packaging verification were not weakened.
+- `scripts/test-docker-deployment.py` passed frontend/API serving, authentication,
+  health/version, browser-upload import, non-root execution and restart/container
+  recreation persistence checks.
+- `scripts/test-docker-lifecycle.py` passed offline install/reinstall,
+  authentication/import, backup, same-version upgrade, restart, preserving
+  uninstall, empty-volume restore and isolated confirmed purge. A local image
+  alias using the manager's required `sap-lens:<tag>` naming resolved the initial
+  validation-harness naming mismatch; the manager validator was preserved.
+- Reviewed eight fresh screenshots from the successful full browser run: both
+  light and dark themes at **375, 800, 1280 and 1600 px**. Representative frames
+  cover sidebar/profile evidence, directory tables, Dashboard, module tiles and
+  appearance controls. No blocking alignment, overflow or contrast issue was
+  found. Automated coverage also exercises date portals, dialogs, matrices,
+  keyboard focus and responsive controls.
+- Logs and screenshots remain outside Git under
+  `/workspace/sap-lens-dev/delivery-current-*`; the reviewed contact sheet is
+  `/workspace/sap-lens-dev/delivery-current-visual-contact.png`. These are local
+  validation artifacts, not published downloads.
+
+### Privacy review and remaining acceptance
+
+Reviewed outgoing additions against the live remote baseline `c557c4a`: no new
+credentials, private keys, private employee data or company-identifiable assets
+were found. Test identities use synthetic/reserved-domain data; no CSV or binary
+assets were added. Accepted historical branding finding P-01 is unchanged.
+
+Native Windows EXE/WebView2, tray, SCM/reboot/recovery, UNC and real systemd
+acceptance remain **unexecuted**. The available systemd environment is offline.
+Linux unit/browser checks, portable PowerShell and Docker lifecycle checks do not
+substitute for these tests. No native deployment artifact, CI success or
+production-readiness claim is made. All runnable regression checks above passed;
+the branch is ready for review and subsequent manual target-platform acceptance.

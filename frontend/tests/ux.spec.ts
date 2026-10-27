@@ -106,7 +106,7 @@ for (const theme of ['SAP Lens Default', 'Light']) {
    await expect(settings(page)).toBeVisible()
    for (const section of ['Organization & SAP System','Data Sources','SAP Modules','Appearance & Branding','Health & Diagnostics']) {
     await page.getByRole('tab',{name:section,exact:true}).click()
-    const action = page.getByRole('button',{name:section==='Data Sources'?'Save and load CSV':'Apply settings',exact:true})
+    const action = page.getByRole('button',{name:'Apply settings',exact:true})
     await expect(action).toBeInViewport()
     const bounds = await action.boundingBox()
     expect(bounds!.y).toBeGreaterThanOrEqual(0)

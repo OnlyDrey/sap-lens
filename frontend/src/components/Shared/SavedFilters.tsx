@@ -114,6 +114,7 @@ export function SavedFilters({
     })
     const choices: Record<string, string[]> = {
       transactionMode: ['and', 'or'],
+      assignmentBand: ['', '0', '1–5', '6–20', '21+'],
       finding: [
         '',
         'any',

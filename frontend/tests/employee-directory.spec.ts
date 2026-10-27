@@ -1,3 +1,4 @@
+import {activateCSV} from './source-activation-fixture'
 import {
   test,
   expect,
@@ -75,29 +76,15 @@ test.afterEach(async ({ request }) => {
   rmSync(directory, { recursive: true, force: true })
 })
 
-test('directory preview, confirmation, feature persistence, manager drill-down and failed replacement', async ({
+test('automatic directory import, feature persistence, manager drill-down and failed replacement', async ({
   page,
   request,
 }) => {
   await source(page)
   await expect(page.getByRole('button',{name:'Save and load CSV',exact:true})).toHaveCount(0)
   await expect(page.getByRole('button',{name:'Apply settings',exact:true})).toBeDisabled()
-  await page
-    .getByLabel('Employee Directory CSV location', { exact: true })
-    .fill(csv)
-  await page
-    .getByRole('button', { name: 'Validate & preview directory', exact: true })
-    .click()
-  const preview = page.getByRole('region', {
-    name: 'Directory import preview',
-    exact: true,
-  })
-  await expect(preview).toContainText('2 records')
-  expect((await settings(request)).employee_csv_path).toBe('')
-  await page.getByRole('region',{name:'Import / Replace',exact:true})
-    .getByRole('button', { name: 'Import directory' })
-    .click()
-  await expect(preview).toBeHidden()
+  await activateCSV(page,'employees',csv)
+  expect((await settings(request)).employee_csv_path).toBe(csv)
   await page.getByRole('tab', { name: 'Features', exact: true }).click()
   await expect(page.getByRole('switch', {name:'Employee Directory feature',exact:true})).toHaveAttribute(
     'aria-checked',
@@ -131,10 +118,10 @@ test('directory preview, confirmation, feature persistence, manager drill-down a
     .click()
   writeFileSync(csv, 'invalid')
   await page
-    .getByRole('button', { name: 'Validate & preview directory', exact: true })
+    .getByRole('button', { name: 'Refresh source', exact: true })
     .click()
   await expect(page.getByRole('alert')).toContainText(
-    'Previous valid data is retained',
+    'No source data was replaced.',
   )
   expect(
     (await (await request.get('/api/employees', { headers })).json()).total,
@@ -192,10 +179,10 @@ test('search, manager navigation, clear confirmation and data preservation', asy
     search.getByRole('region', { name: 'Employee details', exact: true }),
   ).toContainText('Demo Manager')
   page.once('dialog', (dialog) => dialog.dismiss())
-  await page.getByRole('button', { name: 'Clear directory data' }).click()
+  await page.getByRole('button', { name: 'Clear source data' }).click()
   expect((await settings(request)).employee_csv_path).toBe(csv)
   page.once('dialog', (dialog) => dialog.accept())
-  await page.getByRole('button', { name: 'Clear directory data' }).click()
+  await page.getByRole('button', { name: 'Clear source data' }).click()
   await expect(
     page.getByRole('region', { name: 'Directory import status' }),
   ).toContainText('Not configured')
@@ -325,9 +312,7 @@ test('directory import and clear preserve independent catalogue filters, compari
   await page.getByRole('button', { name: 'Open settings', exact: true }).click()
   await page.getByRole('tab', { name: 'Data Sources', exact: true }).click()
   await page.getByRole('tab', { name: 'Employee Directory', exact: true }).click()
-  await page.getByLabel('Employee Directory CSV location', { exact: true }).fill(csv)
-  await page.getByRole('button', { name: 'Validate & preview directory', exact: true }).click()
-  await page.getByRole('button', { name: 'Import directory', exact: true }).click()
+  await activateCSV(page,'employees',csv)
   await expect(page.getByRole('region', { name: 'Directory import preview' })).toHaveCount(0)
   await page.getByRole('button', { name: 'Back to SAP Lens', exact: true }).click()
   await expect(search).toHaveValue('finance')
@@ -335,7 +320,7 @@ test('directory import and clear preserve independent catalogue filters, compari
   expect((await (await request.get('/api/access/users/DEMO_EMPLOYEE', { headers })).json()).data_revision).toBe(before)
   await page.getByRole('button', { name: 'Open settings', exact: true }).click()
   page.once('dialog', dialog => dialog.accept())
-  await page.getByRole('button', { name: 'Clear directory data', exact: true }).click()
+  await page.getByRole('button', { name: 'Clear source data', exact: true }).click()
   await expect(page.getByLabel('Employee Directory CSV location', { exact: true })).toHaveValue('')
   await page.getByRole('button', { name: 'Back to SAP Lens', exact: true }).click()
   await expect(search).toHaveValue('finance')
@@ -345,16 +330,11 @@ test('directory import and clear preserve independent catalogue filters, compari
 
 test('explicit import, independent feature toggles, retained data and Diagnostics stay synchronized', async ({page,request}) => {
   await source(page)
-  await page.getByLabel('Employee Directory CSV location',{exact:true}).fill(csv)
-  await expect(page.getByLabel('Directory selection state',{exact:true})).toContainText('not validated or imported')
-  await page.getByRole('button',{name:'Validate & preview directory',exact:true}).click()
-  await expect(page.getByLabel('Directory selection state',{exact:true})).toContainText('Validated')
-  await page.getByRole('button',{name:'Import directory',exact:true}).click()
-  await expect(page.getByRole('status').filter({hasText:'Directory imported:'})).toContainText('2 records saved locally')
-  const status=page.getByRole('region',{name:'Directory import status',exact:true})
-  await expect(status).toContainText('Disabled'); await expect(status).toContainText('Records saved locally')
+  await activateCSV(page,'employees',csv)
+  const status=page.getByRole('region',{name:'Employee Directory source management',exact:true})
+  await expect(status).toContainText('Disabled');await expect(status).toContainText('Durable snapshot available')
   const identity=(await settings(request)).employee_snapshot_id
-  await status.getByRole('button',{name:'Enable in Feature Settings',exact:true}).click()
+  await status.getByRole('button',{name:'Open Feature Settings',exact:true}).click()
   await expect(page.getByRole('region',{name:'Employee Directory diagnostics'})).toHaveCount(0)
   await expect(page.getByRole('region',{name:'Employee Directory feature settings'})).not.toContainText('Missing emails')
   await page.getByRole('switch',{name:'Employee Directory feature',exact:true}).click()

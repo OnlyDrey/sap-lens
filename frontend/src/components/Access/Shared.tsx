@@ -31,7 +31,7 @@ export function Pagination({
   return (
     <nav
       aria-label={label}
-      className="flex flex-wrap gap-4 items-center py-4 text-sm"
+      className="assignment-pagination flex flex-wrap gap-4 items-center py-4 text-sm"
     >
       <Button
         size="compact"

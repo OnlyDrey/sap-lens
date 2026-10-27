@@ -1,15 +1,16 @@
+import {useApplicationData} from '@/state/ApplicationData'
+import {DesktopOptions} from './DesktopOptions'
 import { FormField, controlClass } from '@/components/Shared/Controls'
 import { ContentTabList } from '@/components/Shared/Navigation'
 import { DataHealth } from './DataHealth'
 import { About } from './About'
 import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
-import { EmployeeSource, FeatureSettings } from './EmployeeDirectory'
-import { SourceMode } from './SourceMode'
-import { SourceFileField, MappingField, ImportPreview } from './ImportControls'
-import { BrowserSourceUpload } from './BrowserSourceUpload'
+import { DirectoryDiagnostics, DirectorySnapshotRecovery, EmployeeBrowser, FeatureSettings } from './EmployeeDirectory'
+import {SourceManager} from './SourceManager'
+import {rebaseSourceDraft,type CSVSource,type SourceActivation} from '@/api/sources'
+import { MappingField, ImportPreview } from './ImportControls'
 import { RefreshHistory } from '@/components/Shared/RefreshReport'
 import { ImportSection } from './ImportSection'
-import { SourceStatus } from "./SourceStatus"
 import { SettingsSelect } from './Controls'
 import { isHex } from '@/lib/theme'
 import { useEffect, useRef, useState, lazy, Suspense } from 'react'
@@ -102,8 +103,11 @@ export function SettingsView({
   onDataChanged: () => void
   onSaved: () => void
 }) {
+  const applicationData=useApplicationData()
   const [section, setSection] = useState(0)
   const [importSource, setImportSource] = useState<'roles' | 'users' | 'employees'>('roles')
+  const [advancedSource,setAdvancedSource]=useState(false)
+  const [candidatePaths,setCandidatePaths]=useState<Partial<Record<CSVSource,string>>>({})
   const scrollPane = useRef<HTMLDivElement>(null)
   useEffect(() => {
     scrollPane.current?.scrollTo({ top: 0 })
@@ -307,8 +311,9 @@ export function SettingsView({
         p.id === imports.id ? { ...p, ...patch } : p
       )
     )
+  const roleInspectionPath=candidatePaths.roles??draft?.data_csv_path??''
   useEffect(() => {
-    if (!open || section !== 1 || importSource !== 'roles' || !draft?.data_csv_path || !imports) {
+    if (!advancedSource || !open || section !== 1 || importSource !== 'roles' || !roleInspectionPath || !imports) {
       setInspecting(false)
       if (!draft?.data_csv_path) {
         setColumns([])
@@ -320,7 +325,7 @@ export function SettingsView({
       return
     }
     let cancelled = false
-    const path = draft.data_csv_path
+    const path = roleInspectionPath
     const profileId = imports.id
     setInspecting(true)
     const timer = window.setTimeout(async () => {
@@ -334,7 +339,6 @@ export function SettingsView({
         const current = draftRef.current
         if (
           !current ||
-          current.data_csv_path !== path ||
           current.active_import !== profileId
         )
           return
@@ -349,7 +353,7 @@ export function SettingsView({
           mappingNotice +
             (result.issues.length
               ? result.issues.join(' ')
-              : 'Columns detected automatically. Review the preview before saving and loading.')
+              : 'Columns detected automatically. Optional preview does not replace active data.')
         )
         const preview = await previewImport(path, {
           ...currentProfile,
@@ -381,24 +385,30 @@ export function SettingsView({
     open,
     section,
     importSource,
-    draft?.data_csv_path,
+    roleInspectionPath,
     draft?.active_import,
     imports?.delimiter,
     imports?.encoding,
     JSON.stringify(imports?.mapping),
-    inspectionRetry
+    inspectionRetry,
+    advancedSource
   ])
 
-  const pickCsv = () =>
-    run(async () => {
-      const path = await window.pywebview?.api.choose_csv(applicationToken())
-      if (path) {
-        setImportResult(null)
-        setColumns([])
-        update('data_csv_path', path)
-        setInspectionRetry((n) => n + 1)
-      }
-    })
+  const sourceActivated=(result:SourceActivation)=>{
+    setCandidatePaths(previous=>({...previous,[result.source]:result.source==='roles'?result.settings.data_csv_path:result.source==='users'?result.settings.user_csv_path:result.settings.employee_csv_path||''}))
+    setDraft(previous=>previous?rebaseSourceDraft(previous,result.settings,result.source):previous)
+  }
+  const clearSource=async(source:CSVSource)=>{
+    const current=await fetchConfiguration()
+    if(source==='employees')await apiRequest('/api/employees/clear','POST',{path:current.settings.employee_csv_path||'',revision:current.settings.revision})
+    else await saveConfiguration({...current.settings,[source==='roles'?'data_csv_path':'user_csv_path']:''})
+    const saved=await fetchConfiguration()
+    setCandidatePaths(previous=>({...previous,[source]:''}))
+    qc.setQueryData(['configuration'],saved)
+    setDraft(previous=>previous?rebaseSourceDraft(previous,saved.settings,source):previous)
+    await qc.invalidateQueries({predicate:query=>query.queryKey[0]!=='configuration'})
+    if(source!=='employees')onDataChanged()
+  }
   const previewLogo = (path: string) =>
     run(async () => {
       const result = await apiRequest<{ logo_id: string; data_url: string }>(
@@ -713,32 +723,21 @@ export function SettingsView({
                       <details className="settings-advanced"><summary>Recent refresh reports</summary><RefreshHistory/></details>
                       <div className="flex flex-wrap gap-3">
                         <button className="settings-secondary-button" onClick={() => setSection(4)}>View data source diagnostics</button>
-                        {importSource !== 'employees' && <button className="settings-secondary-button" disabled={busy || !(importSource === 'roles' ? draft.data_csv_path : draft.user_csv_path)} onClick={() => {
-                          if (window.confirm('Clear this source and its loaded data when settings are saved? The original CSV will not be deleted.')) {
-                            setDraft({ ...draft, [importSource === 'roles' ? 'data_csv_path' : 'user_csv_path']: '' }); setImportResult(null)
-                          }
-                        }}>Clear {importSource === 'roles' ? 'role catalogue' : 'User Access'} source</button>}
+
                       </div>
                       <ContentTabList label="Import source" value={importSource} onChange={value=>setImportSource(value as 'roles'|'users'|'employees')} idPrefix="source-tab" panelId={value=>`source-panel-${value}`} className="source-navigation" items={([['roles','Role Catalogue',LibraryBig],['users','User Access',UsersRound],['employees','Employee Directory',BookUser]] as const).map(([value,label,Icon])=>({value,label,icon:<Icon size={16} aria-hidden="true"/>}))}/>
 
-                      <SourceMode value={draft.source_modes?.[importSource] || (importSource==='employees'?'static':'dynamic')} onChange={value=>setDraft({...draft,source_modes:{roles:'dynamic',users:'dynamic',employees:'static',...draft.source_modes,[importSource]:value}})}/>
-                      <div id="source-panel-employees" role="tabpanel" aria-labelledby="source-tab-employees" hidden={importSource !== 'employees'}>
-                        {importSource === 'employees' && <EmployeeSource mode={config.data?.settings.source_modes?.employees||'static'} onFeatureSettings={() => setSection(5)} revision={draft.revision} savedPath={config.data?.settings.employee_csv_path || ''} dirty={JSON.stringify(draft) !== JSON.stringify(config.data?.settings)} onImported={async () => { const result = await config.refetch(); if (result.data) setDraft(structuredClone(result.data.settings)) }}/>}
-                      </div>
-                      <div id="source-panel-users" role="tabpanel" aria-labelledby="source-tab-users" hidden={importSource !== 'users'}>
-                        <UserSourceEditor draft={draft} onChange={setDraft} native={native} active={importSource === 'users'} />
-                      </div>
-                      <div id="source-panel-roles" role="tabpanel" aria-labelledby="source-tab-roles" hidden={importSource !== 'roles'} className="import-source-panel space-y-4">
-                      <ImportSection step={1} title="Source file" description="Role catalogue · composite roles, single roles and transaction relationships.">
-                      <BrowserSourceUpload source="roles" disabled={busy} onUploaded={path=>setDraft({...draft,data_csv_path:path,source_modes:{roles:'static',users:draft.source_modes?.users||'dynamic',employees:draft.source_modes?.employees||'static'}})}/>
-                      <SourceFileField label="CSV file location" value={draft.data_csv_path} inputRef={csvPathInput} onChange={value=>{setImportResult(null);setColumns([]);update('data_csv_path',value)}} native={native} disabled={busy} onBrowse={()=>void pickCsv()} browseLabel="Browse for CSV…" placeholder="Absolute local or server-visible CSV path"/>
-                      <SourceStatus savedPath={config.data?.settings.data_csv_path || ''} draftPath={draft.data_csv_path} validated={Boolean(importResult)} inspecting={inspecting}/>
-                      {config.data?.error && (
-                        <p className="text-[var(--warning)] text-sm">
-                          {config.data.error}
-                        </p>
-                      )}
-                      </ImportSection>
+                      {config.data?.error&&!applicationData.importPhase&&<p role="alert">{config.data.error}</p>}
+                      <div id={`source-panel-${importSource}`} role="tabpanel" aria-labelledby={`source-tab-${importSource}`}>
+                        <SourceManager key={importSource} source={importSource} draft={draft} candidatePath={candidatePaths[importSource]} inputRef={csvPathInput}
+                          onMode={mode=>setDraft(previous=>previous?{...previous,source_modes:{roles:'dynamic',users:'dynamic',employees:'static',...previous.source_modes,[importSource]:mode}}:previous)}
+                          onCandidate={path=>setCandidatePaths(previous=>({...previous,[importSource]:path}))} onActivated={sourceActivated} onClear={()=>clearSource(importSource)} onFeatures={()=>setSection(5)}/>
+                        {importSource==='employees'&&<><DirectorySnapshotRecovery onPersisted={async()=>{const saved=await fetchConfiguration();qc.setQueryData(['configuration'],saved);setDraft(previous=>previous?rebaseSourceDraft(previous,saved.settings,'employees'):previous);await qc.invalidateQueries({predicate:query=>['diagnostics','data-health','dashboard'].includes(String(query.queryKey[0]))});setMessage('Validated directory records saved locally. The original CSV is no longer required for restart.')}}/><DirectoryDiagnostics sourceView onFeatureSettings={()=>setSection(5)}/><EmployeeBrowser/></>}
+                      {importSource!=='employees'&&<details className="settings-advanced" onToggle={event=>setAdvancedSource(event.currentTarget.open)}>
+                        <summary>Advanced import format and column mapping</summary>
+                        <p className="ui-description">Optional inspection and mapping. Selecting a file imports automatically using the selected format. Apply settings to save format-only changes.</p>
+                        {advancedSource&&importSource==='users'&&<UserSourceEditor draft={{...draft,user_csv_path:candidatePaths.users??draft.user_csv_path}} onChange={value=>setDraft(previous=>previous?{...value,user_csv_path:previous.user_csv_path}:previous)} active/>}
+                        {advancedSource&&importSource==='roles'&&<div className="import-source-panel space-y-4">
                       <ImportSection step={2} title="CSV Import Format" description="Choose a built-in format or create a reusable custom preset.">
                       <div className="import-preset-toolbar">
                         <Field label="CSV Import Format">
@@ -815,7 +814,7 @@ export function SettingsView({
                       </p>
                       <button
                         className={buttonClass}
-                        disabled={busy || inspecting || !draft.data_csv_path}
+                        disabled={busy || inspecting || !roleInspectionPath}
                         onClick={() => setInspectionRetry((n) => n + 1)}
                       >
                         Detect columns
@@ -832,14 +831,14 @@ export function SettingsView({
                         ))}
                       </div>
                       </ImportSection>
-                      <ImportSection step={4} title="Validation & preview" description="Review the parsed data before applying both sources together.">
+                      <ImportSection step={4} title="Optional preview" description="Inspect parsing without replacing active data. File selection imports automatically.">
                       <button
                         className={buttonClass}
-                        disabled={busy || !draft.data_csv_path}
+                        disabled={busy || !roleInspectionPath}
                         onClick={() =>
                           void run(async () => {
                             const result = await previewImport(
-                              draft.data_csv_path,
+                              roleInspectionPath,
                               imports
                             )
                             setImportResult(result)
@@ -852,6 +851,8 @@ export function SettingsView({
                       {importResult && <ImportPreview fileName={importResult.file_name} metrics={[{label:'Parsed rows',value:importResult.parsed_rows},{label:'Catalogue roles',value:importResult.unique_roles},{label:'Unique transactions',value:importResult.unique_transactions},{label:'Role/T-code mappings',value:importResult.transaction_assignments}]} warnings={importResult.warnings} errors={importResult.errors} samples={importResult.samples}><p className="ui-description">Assignments count distinct composite/child/parent/effective-role/T-code tuples.</p></ImportPreview>}
 
                       </ImportSection>
+                      </div>}
+                      </details>}
                       </div>
                     </>
                   )}
@@ -870,13 +871,13 @@ export function SettingsView({
                     </div>
                   }
                   {
-                    <div className={section === 3 ? 'space-y-5' : 'hidden'}>
-                      <ThemeEditor
+                    <div className={section === 3 ? 'appearance-columns' : 'hidden'}>
+                      <div><ThemeEditor
                         key={`${open}-${config.data?.settings.revision}`}
                         draft={draft}
                         onChange={(patch) => setDraft({ ...draft, ...patch })}
                       />
-                      <h2 className="settings-subheading">Header logo</h2>
+                      </div><div className="space-y-3"><h2 className="settings-subheading">Header logo</h2>
                       <p className="text-sm">
                         Currently active:{' '}
                         {config.data?.settings.logo_id
@@ -893,7 +894,7 @@ export function SettingsView({
                         PNG/JPEG/WebP up to 2 MB and 4096 pixels per side; SVG
                         is rejected.
                       </p>
-                      <div className="branding-logo-preview"><img
+                      <div className="branding-logo-grid"><div className="branding-logo-preview"><img
                         alt="Header logo preview"
                         src={
                           draft.logo_id
@@ -909,7 +910,7 @@ export function SettingsView({
                         }}
                       />
                       </div>
-                      {logo.isError && (
+                      <div className="branding-logo-controls">{logo.isError && (
                         <p
                           role="status"
                           className="text-[var(--warning)] text-sm"
@@ -976,11 +977,13 @@ export function SettingsView({
                         Apply settings to activate the logo; moving the original
                         will not break it.
                       </p>
+                      </div></div>
+                      </div>
                     </div>
                   }
                   {section === 6 && <About/>}
                   {section === 7 && <Suspense fallback={<p role="status">Loading component previews…</p>}><ComponentLibrary/></Suspense>}
-                  {section === 5 && <FeatureSettings draft={draft} onChange={setDraft} onConfigure={source => { setSection(1); setImportSource(source) }}/>}
+                  {section === 5 && <><FeatureSettings draft={draft} onChange={setDraft} onConfigure={source => { setSection(1); setImportSource(source) }}/><DesktopOptions draft={draft} onChange={setDraft}/></>}
                   {section === 4 && (
                     <>
                       <Diagnostics onSource={source=>{setSection(1);setImportSource(source)}} native={native} onEmployeeFeatures={() => setSection(5)} onEmployeeSettings={() => { setSection(1); setImportSource('employees') }}/>
@@ -1108,7 +1111,7 @@ export function SettingsView({
           <button
             className="ui-button ui-button-primary ui-button-default"
             disabled={
-              busy ||
+              busy || applicationData.loading ||
               inspecting ||
               !dirty ||
               !draft ||
@@ -1142,11 +1145,7 @@ export function SettingsView({
             }
           >
             <Save size={16} aria-hidden="true" />
-            {busy
-              ? 'Working…'
-              : section === 1 && importSource !== 'employees'
-                ? 'Save and load CSV'
-                : 'Apply settings'}
+            {busy ? 'Working…' : 'Apply settings'}
           </button>
         </div>
       </div>

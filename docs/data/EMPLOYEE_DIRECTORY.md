@@ -12,22 +12,25 @@ sources. No direct AD connection, cloud upload or credentials are required.
 2. Open **Settings → Data Sources → Employee Directory**. Browse to a CSV or enter
    its absolute path. UNC paths are supported by the underlying Windows filesystem,
    subject to the signed-in user's share permissions.
-3. Select **Validate & preview directory**. Review the filename, record count,
-   duplicate/missing-email counts and the searchable, paginated preview.
-4. Select **Import directory**. This action saves immediately;
-   first save or cancel any pending edits to other settings. Confirmation verifies
-   the preview's SHA-256 and current settings revision. Changed files must be
-   previewed again. Invalid replacements retain the previous valid directory.
-5. Use the employee search in this tab to search name, email, department, job
-   title, site or manager. Results are paginated, with employee and manager details.
-6. Open a SAP user in **User Access**. A unique, exact email match enriches the unified
-   profile without replacing SAP source identity. Use **View SAP user** in **Reports to** to open the manager’s existing SAP User Details, when exactly one SAP username matches `ManagerMail`. Browser Back returns to the employee.
+3. Selection automatically validates and imports the entire file. Wait for Completed
+   and the committed record/change counts. Invalid or empty replacements preserve
+   the previous directory; no confirmation/import button is required.
+4. Use **Preview data** for searchable, paginated snapshot inspection and quality
+   filters, **View changes** for replacement evidence and **Technical source details**
+   for storage information. Source diagnostics and employee search remain below the
+   source controls. Unrelated unsaved Settings edits are preserved.
+5. Open a SAP user in **User Access**. A unique exact email match enriches the
+   unified profile without replacing SAP identity. A uniquely resolved manager opens
+   the existing SAP User Details page; Browser Back returns to the employee.
 
-Use the independent Role Catalogue and User Access tabs for their existing CSV
-formats, presets, mappings, delimiters and encodings. Their preview and save
-behavior is unchanged. Clearing a source requires confirmation and never deletes
-the original file. For these two SAP sources, **Save and load CSV** applies the
-pending clear operation. Directory confirmation/clear applies immediately.
+All three sources use the same automatic-selection workflow. Static snapshots remain
+available without the original CSV; Dynamic sources revalidate on Global Refresh.
+Importing does not enable Employee Directory automatically. Use its direct Feature
+Settings action when imported records are retained but enrichment is disabled.
+Clear source data is an explicit confirmed operation and never deletes the CSV.
+See [Import and refresh](IMPORT_AND_REFRESH.md) for atomic replacement and failure
+recovery. Legacy loaded records without a durable snapshot can still use **Save
+durable directory snapshot**, without rereading a missing original file.
 
 ## Source format
 

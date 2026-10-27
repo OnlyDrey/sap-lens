@@ -1,5 +1,6 @@
 """Bounded exact T-code filters; no role/authorization inference."""
 from fastapi import HTTPException
+from search_matching import text_matches
 
 
 def normalized_tcodes(values):
@@ -13,5 +14,10 @@ def normalized_tcodes(values):
 def matching_role_names(index, codes, mode='and'):
     """Combine aggregate role transaction sets, never individual CSV rows."""
     if not codes: return set()
-    groups = [set(index.get(code, [])) for code in codes]
+    groups = [{role for actual in matching_codes(index,code) for role in index[actual]} for code in codes]
     return set.intersection(*groups) if mode == 'and' else set.union(*groups)
+
+
+def matching_codes(index, query):
+    """Expand explicit user patterns; ordinary selected T-codes stay exact."""
+    return [code for code in index if text_matches(code,query)] if '*' in query else ([query] if query in index else [])

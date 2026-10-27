@@ -2,11 +2,11 @@
 
 ## Sources and compatibility
 
-SAP Lens has three independent local CSV sources: Role Catalogue, User–Role Mapping and Employee Directory. Role catalogue and user assignments default to **Dynamic**, preserving the existing refresh behavior. Employee Directory defaults to **Static**, preserving manual confirmation. Older schema-3 settings receive these additive defaults without losing feature preferences, profiles or paths.
+SAP Lens has three independent local CSV sources: Role Catalogue, User–Role Mapping and Employee Directory. Role catalogue and user assignments default to **Dynamic**, preserving the existing refresh behavior. Employee Directory defaults to **Static**, retaining snapshots until explicit replacement. Older schema-3 settings receive these additive defaults without losing feature preferences, profiles or paths.
 
 Settings → Data Sources offers a source mode selector. Use the existing **Apply settings** action to persist mode changes; no second Save action is needed. Changing a mode does not delete imported records. Existing CSV mappings, delimiter/encoding controls and validation remain authoritative.
 
-- **Static:** explicitly validate and confirm a replacement. Global Refresh skips the CSV and continues using the private snapshot, even if the original file is unavailable.
+- **Static:** selecting a replacement automatically validates and imports it. Global Refresh skips the CSV and continues using the private snapshot, even if the original file is unavailable.
 - **Dynamic:** Global Refresh rereads the entire configured file. A daily export can overwrite that file; SAP Lens does not schedule or monitor exports. A complete valid replacement removes records absent from the incoming file.
 
 Never point two sources at different interpretations of the same file without configuring their respective import formats.
@@ -65,9 +65,31 @@ The older `operational_status` directory API field remains a compatibility descr
 
 ## Employee import and preview
 
-The workflow is **Select source → Validate & Preview → Import / Replace**. Validation never replaces active records. The preview supports search, sorting, pages, missing/duplicate email and manager-quality filters, and SAP matching status. Missing email records remain importable. Replacement shows current/incoming and added/removed/modified/unchanged counts; a populated-directory replacement requires explicit confirmation.
+For all three sources, selecting a file automatically reads, validates, stages and
+activates a complete non-empty dataset. There is no separate normal-flow Validate,
+Confirm or Import action. Native Browse activates the selected server-visible file;
+browser uploads activate a private Static source. Entering a path activates on Enter
+or leaving the field. Selecting the same file again explicitly revalidates it.
 
-Preview state is temporary and bounded (two validated CSV candidates, ten-minute lifetime). Confirmation always rereads and verifies the source digest. A file changed after preview must be validated again. Success/failure feedback and the current feature state remain visible; Feature Settings is directly reachable.
+Settings shows progress, committed record/change counts, source status and links to
+View changes, Preview data and technical details. Preview inspects the current
+validated snapshot without rereading the original CSV. Employee preview retains
+search, sorting, paging and quality filters. Missing emails are warnings, not a
+reason to discard otherwise valid records. Feature preferences are independent:
+importing does not enable a disabled optional feature.
+
+The previous dataset remains active while validation runs. Empty, unreadable,
+malformed or changing files cannot replace it. Settings revision checks, source
+signature checks and a single active load prevent conflicting publication. Source
+files must remain stable until validation completes; select again after an export
+finishes. Explicit Clear source data requires confirmation and never deletes the
+original CSV. Opening Data Sources does not reimport configured files.
+
+Mode/profile-only edits use Apply settings. Completed automatic imports persist
+immediately and are not undone by Cancel settings; unrelated unsaved edits survive
+source activation. Advanced mapping and optional parsing inspection remain available
+for custom formats. The legacy preview/digest/import API contract remains supported
+for existing callers; it is no longer the normal Settings workflow.
 
 ## Platform validation
 

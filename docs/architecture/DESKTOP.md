@@ -192,3 +192,28 @@ history loop. Also verify native CSV/logo dialogs, real permitted UNC reads,
 WebView2 popup positioning and packaged first launch/restart/port-conflict smoke
 tests. Linux Chromium and Python GUI mocks are not native WebView2 validation.
 No Windows artifact or remote workflow was built for this local UI task.
+
+## Windows tray host
+
+`windows_tray.py` isolates the optional native notification-area adapter and desktop
+background policy. It uses standard-library ctypes with explicit pointer-sized
+Win32 signatures, a dedicated hidden message window/thread, the existing product
+ICO, double-click/menu handling and Explorer recreation. No dependency was added.
+The controller does not create servers; it reuses ManagedBackend, WindowsInstance,
+StorageLease, the selected origin and authenticated refresh. Session shutdown is
+allowed through the existing WinForms host's CloseReason event instead of being
+vetoed by ordinary hide-on-close policy. Native behavior remains acceptance-pending.
+
+Config `desktop` defaults all flags off. Its native apply context is isolated to
+Windows Desktop; a coroutine lock serializes desktop settings transactions while
+CSV validation awaits. Registry/icon changes roll back if the revision/save or CSV
+publication fails, including loaders that retain old data without raising. Portable
+configuration exports reset desktop preferences and imports preserve local values.
+No startup entry is silently registered merely by reading an imported preference.
+
+The existing capability-guarded bridge adds runtime status and a frontend-readiness
+handshake. Tray Settings requests remain pending until the React event listener is
+ready; no timeout or page reload loses investigation context. Root/API host, origin,
+CSP, session capability, loopback binding and selected-port rules remain unchanged.
+See the [desktop guide](../deployment/WINDOWS_DESKTOP.md#optional-system-tray-operation)
+for user options, startup cleanup and native acceptance criteria.
