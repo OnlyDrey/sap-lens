@@ -62,3 +62,15 @@ class SearchAPIContractTests(unittest.TestCase):
   self.assertFalse(missing['selected_available'])
   exact_group=self.client.get('/api/access/release-options',headers=fixtures.H,params={'field':'group','selected':'G*'}).json()
   self.assertFalse(exact_group['selected_available'])
+ def test_complete_release_list_retains_filters_and_sort_from_one_snapshot(self):
+  params={'status':'all','sort':'role_name','descending':True,'limit':1}
+  paged=self.client.get('/api/access/releases',headers=fixtures.H,params=params)
+  complete=self.client.get('/api/access/releases',headers=fixtures.H,params={**params,'list_complete':True,'offset':100})
+  self.assertEqual(complete.status_code,200,complete.text)
+  data=complete.json()
+  self.assertEqual(len(data['items']),data['total'])
+  self.assertEqual(data['offset'],0)
+  self.assertEqual(data['items'][:1],paged.json()['items'])
+  filtered=self.client.get('/api/access/releases',headers=fixtures.H,params={**params,'list_complete':True,'role':'NONEXISTENT'}).json()
+  self.assertEqual(filtered['items'],[])
+  self.assertEqual(filtered['total'],0)

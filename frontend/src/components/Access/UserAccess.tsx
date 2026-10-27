@@ -21,7 +21,7 @@ import { exportAssignments } from '@/lib/accessExport';
 import { ArrowRight, Download } from 'lucide-react';
 import { useHistoryValue, useViewHistory, userAccessHref } from '@/hooks/useViewHistory';
 import { useRecordNavigation, type RecordNavigationState } from "@/hooks/useRecordNavigation";
-import { DetailNavigation, EvidenceBadge, LockStatus, AssignmentStatus } from "@/components/Shared/InvestigationNavigation";
+import { DetailNavigation, LockStatus, AssignmentStatus } from "@/components/Shared/InvestigationNavigation";
 import { Combobox } from "@/components/Shared/Combobox";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -506,7 +506,6 @@ function AssignmentRow({
         <AssignmentStatus value={a.status}/>
       </td>
       <td>
-        {!releaseView&&<details className="assignment-mapping-evidence"><summary>Catalogue matching evidence</summary><EvidenceBadge value={a.match_status}/>{a.catalogue_roles.map(name=><RoleIdentifier key={name} value={name}/>)}</details>}
         {!!a.transaction_roles?.length&&<details className="assignment-mapping-evidence"><summary>Transaction mapping evidence</summary>{a.transaction_roles.map(name=><p key={name}>Via <RoleIdentifier value={name}/></p>)}</details>}
         {a.scope === "release" ? (
           <Button className="settings-secondary-button" onClick={() => onRelease(a.role_name)}>View role details<ArrowRight size={15} aria-hidden="true"/></Button>

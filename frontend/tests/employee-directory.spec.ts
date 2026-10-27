@@ -165,6 +165,7 @@ test('search, manager navigation, clear confirmation and data preservation', asy
   await importDirectory(request)
   await enable(request)
   await source(page)
+  await page.getByText('Employee Directory data preview',{exact:true}).click()
   const search = page.getByRole('region', {
     name: 'Employee search',
     exact: true,

@@ -732,7 +732,7 @@ export function SettingsView({
                         <SourceManager key={importSource} source={importSource} draft={draft} candidatePath={candidatePaths[importSource]} inputRef={csvPathInput}
                           onMode={mode=>setDraft(previous=>previous?{...previous,source_modes:{roles:'dynamic',users:'dynamic',employees:'static',...previous.source_modes,[importSource]:mode}}:previous)}
                           onCandidate={path=>setCandidatePaths(previous=>({...previous,[importSource]:path}))} onActivated={sourceActivated} onClear={()=>clearSource(importSource)} onFeatures={()=>setSection(5)}/>
-                        {importSource==='employees'&&<><DirectorySnapshotRecovery onPersisted={async()=>{const saved=await fetchConfiguration();qc.setQueryData(['configuration'],saved);setDraft(previous=>previous?rebaseSourceDraft(previous,saved.settings,'employees'):previous);await qc.invalidateQueries({predicate:query=>['diagnostics','data-health','dashboard'].includes(String(query.queryKey[0]))});setMessage('Validated directory records saved locally. The original CSV is no longer required for restart.')}}/><DirectoryDiagnostics sourceView onFeatureSettings={()=>setSection(5)}/><EmployeeBrowser/></>}
+                        {importSource==='employees'&&<><DirectorySnapshotRecovery onPersisted={async()=>{const saved=await fetchConfiguration();qc.setQueryData(['configuration'],saved);setDraft(previous=>previous?rebaseSourceDraft(previous,saved.settings,'employees'):previous);await qc.invalidateQueries({predicate:query=>['diagnostics','data-health','dashboard'].includes(String(query.queryKey[0]))});setMessage('Validated directory records saved locally. The original CSV is no longer required for restart.')}}/><DirectoryDiagnostics sourceView onFeatureSettings={()=>setSection(5)}/><details className="settings-advanced mt-4"><summary>Employee Directory data preview</summary><EmployeeBrowser/></details></>}
                       {importSource!=='employees'&&<details className="settings-advanced" onToggle={event=>setAdvancedSource(event.currentTarget.open)}>
                         <summary>Advanced import format and column mapping</summary>
                         <p className="ui-description">Optional inspection and mapping. Selecting a file imports automatically using the selected format. Apply settings to save format-only changes.</p>
@@ -871,10 +871,11 @@ export function SettingsView({
                     </div>
                   }
                   {
-                    <div className={section === 3 ? 'appearance-columns' : 'hidden'}>
-                      <div><ThemeEditor
+                    <div className={section === 3 ? 'grid min-w-0 grid-cols-1 gap-5' : 'hidden'}>
+                      <div className="min-w-0"><ThemeEditor
                         key={`${open}-${config.data?.settings.revision}`}
                         draft={draft}
+                        logoSrc={draft.logo_id ? logoPreview || logo.data?.data_url || '/sap-lens.png' : '/sap-lens.png'}
                         onChange={(patch) => setDraft({ ...draft, ...patch })}
                       />
                       </div><div className="space-y-3"><h2 className="settings-subheading">Header logo</h2>
@@ -894,22 +895,7 @@ export function SettingsView({
                         PNG/JPEG/WebP up to 2 MB and 4096 pixels per side; SVG
                         is rejected.
                       </p>
-                      <div className="branding-logo-grid"><div className="branding-logo-preview"><img
-                        alt="Header logo preview"
-                        src={
-                          draft.logo_id
-                            ? logoPreview ||
-                              logo.data?.data_url ||
-                              '/sap-lens.png'
-                            : '/sap-lens.png'
-                        }
-                        className="max-w-48 max-h-24 object-contain"
-                        onError={(e) => {
-                          if (!e.currentTarget.src.endsWith('/sap-lens.png'))
-                            e.currentTarget.src = '/sap-lens.png'
-                        }}
-                      />
-                      </div>
+                      <div className="branding-logo-grid">
                       <div className="branding-logo-controls">{logo.isError && (
                         <p
                           role="status"
@@ -981,9 +967,9 @@ export function SettingsView({
                       </div>
                     </div>
                   }
-                  {section === 6 && <About/>}
+                  {section === 6 && <><About/><DesktopOptions draft={draft} onChange={setDraft}/></>}
                   {section === 7 && <Suspense fallback={<p role="status">Loading component previews…</p>}><ComponentLibrary/></Suspense>}
-                  {section === 5 && <><FeatureSettings draft={draft} onChange={setDraft} onConfigure={source => { setSection(1); setImportSource(source) }}/><DesktopOptions draft={draft} onChange={setDraft}/></>}
+                  {section === 5 && <><FeatureSettings draft={draft} onChange={setDraft} onConfigure={source => { setSection(1); setImportSource(source) }}/></>}
                   {section === 4 && (
                     <>
                       <Diagnostics onSource={source=>{setSection(1);setImportSource(source)}} native={native} onEmployeeFeatures={() => setSection(5)} onEmployeeSettings={() => { setSection(1); setImportSource('employees') }}/>

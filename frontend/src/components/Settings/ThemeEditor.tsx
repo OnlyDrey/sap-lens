@@ -22,9 +22,10 @@ const labels: Record<keyof ThemePalette, string> = {
 const control = controlClass
 export function ThemeEditor({
   draft,
-  onChange
+  onChange, logoSrc
 }: {
   draft: Configuration
+  logoSrc?: string
   onChange: (patch: Partial<Configuration>) => void
 }) {
   const [editing, setEditing] = useState<'dark' | 'light'>(
@@ -93,18 +94,19 @@ export function ThemeEditor({
             }}
           >
             <img
-              src="/sap-lens.png"
-              alt=""
+              src={logoSrc || "/sap-lens.png"}
+              alt="Header logo preview"
+              onError={event=>{if(!event.currentTarget.src.endsWith('/sap-lens.png'))event.currentTarget.src='/sap-lens.png'}}
               className="w-9 h-9 object-contain"
             />
             <div>
-              <b>Example Inc.</b>
-              <p className="text-xs">SAP S/4HANA · DEMO 100</p>
+              <b>{draft.organization.name || 'SAP Lens'}</b>
+              <p className="text-xs">{draft.organization.platform === 'Other / Custom' ? draft.organization.custom_platform : draft.organization.platform} · {draft.organization.system_id} {draft.organization.client}</p><p className="text-xs">{draft.organization.description}</p>
             </div>
           </div>
-          <div className="flex min-h-32">
+          <div className="flex min-h-32 flex-col sm:flex-row">
             <div
-              className="w-32 shrink-0 p-3 text-xs space-y-2"
+              className="flex flex-wrap gap-2 p-3 text-xs sm:block sm:w-32 sm:shrink-0 sm:space-y-2"
               style={{ backgroundColor: palette.surface }}
             >
               <div

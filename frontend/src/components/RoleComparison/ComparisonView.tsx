@@ -1,4 +1,4 @@
-import {jaccard,containment} from '@/lib/comparisonMetrics'
+import {jaccard} from '@/lib/comparisonMetrics'
 import { TransactionCount } from '@/components/Shared/TransactionCount'
 import { ModuleIcon } from '@/components/Modules/ModuleIcon'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
@@ -33,12 +33,6 @@ function ModLabel({ r, center }: { r: ComparisonRole; center?: boolean }) {
       </span>
     </div>
   )
-}
-
-function cellBg(count: number, max: number): string {
-  if (count === 0 || max === 0) return 'transparent'
-  const tint = Math.round(12 + 20 * Math.sqrt(count / max))
-  return `color-mix(in srgb, var(--accent) ${tint}%, var(--surface))`
 }
 
 function TCodeTable({ rows }: { rows: TCode[] }) {
@@ -112,12 +106,12 @@ function SRRow({ sr, parentRoleName }: { sr: SingleRoleInfo; parentRoleName: str
           : <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" style={{ color:'var(--muted)' }} />}</button>
 
         <div className="min-w-0 flex-1">
-          <RoleIdentifier value={sr.child_agr} />
           {sr.child_agr_text && (
             <p className="text-sm break-words mt-0.5" style={{ color:'var(--muted)' }}>
               {sr.child_agr_text}
             </p>
           )}
+          <RoleIdentifier value={sr.child_agr} />
         </div>
 
         <TransactionCount count={sr.tcode_count}/>
@@ -395,181 +389,26 @@ function InsightBar({
   )
 }
 
-function SRMatrix({
-  roles, pairwise, onCell
-}: {
-  roles:ComparisonRole[]
-  pairwise:PairwiseOverlap[]
-  onCell:(a:string,b:string,la:string,lb:string)=>void
-}) {
-  const lookup = new Map<string,number>()
-
-  for (const p of pairwise) {
-    lookup.set(`${p.role_a}|||${p.role_b}`, p.shared_count)
-    lookup.set(`${p.role_b}|||${p.role_a}`, p.shared_count)
-  }
-
-  const max = Math.max(...pairwise.map(p => p.shared_count), 1)
-
-  const TH = {
-    backgroundColor:'var(--surface2)',
-    borderBottom:'1px solid var(--border)',
-    borderRight:'1px solid var(--border)'
-  }
-
-  return (
-    <section>
-      <div className="flex items-center gap-2 mb-1">
-        <Layers className="w-4 h-4" style={{ color:'var(--accent2)' }} />
-        <h2 className="text-base font-black" style={{ color:'var(--text)' }}>
-          Single role overlap
-        </h2>
-        <span
-          className="text-xs px-2 py-0.5 rounded-full font-black text-current"
-          style={{ backgroundColor:'var(--accent2)', color:'var(--on-accent2)' }}
-        >
-          Primary
-        </span>
-      </div>
-
-      <p className="text-xs mb-3" style={{ color:'var(--muted)' }}>
-        Single roles are the building blocks of composite roles. Click any cell to see which ones are shared.
-      </p>
-
-      <div
-        className="overflow-x-auto rounded-2xl "
-        style={{ border:'1px solid var(--border)' }}
-      >
-        <table className="overlap-matrix text-sm border-collapse w-full" aria-label="Single role overlap">
-          <thead>
-            <tr>
-              <th
-                className="p-3 text-left text-xs font-black uppercase tracking-wide min-w-[200px]"
-                style={{ ...TH, color:'var(--muted)' }}
-              >
-                Composite role
-              </th>
-
-              {roles.map(r => (
-                <th
-                  key={r.agr_name}
-                  className="px-3 py-3 min-w-[160px] text-center"
-                  style={TH}
-                >
-                  <div className="flex flex-col items-center gap-1.5">
-                    <ModLabel r={r} center />
-
-                    <span
-                      className="text-sm font-bold leading-tight text-center"
-                      style={{ color:'var(--text)' }}
-                    >
-                      {cleanDesc(r.text) || r.agr_name}
-                    </span>
-
-                    <RoleIdentifier value={r.agr_name} moduleId={r.function_key}/>
-
-                    <span className="text-xs" style={{ color:'var(--muted)' }}>
-                      {r.single_role_count} single {r.single_role_count === 1 ? 'role' : 'roles'}
-                    </span>
-                  </div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-
-          <tbody>
-            {roles.map(row => (
-              <tr key={row.agr_name}>
-                <td
-                  className="px-3 py-3"
-                  style={{
-                    backgroundColor:'var(--surface2)',
-                    borderBottom:'1px solid var(--border)',
-                    borderRight:'1px solid var(--border)'
-                  }}
-                >
-                  <ModLabel r={row} />
-
-                  <p className="text-xs font-bold mt-1.5" style={{ color:'var(--text)' }}>
-                    {cleanDesc(row.text) || row.agr_name}
-                  </p>
-
-                  <RoleIdentifier value={row.agr_name} />
-
-                  <p className="text-xs mt-0.5" style={{ color:'var(--muted)' }}>
-                    {row.single_role_count} single {row.single_role_count === 1 ? 'role' : 'roles'} &middot; {row.tcode_count.toLocaleString()} T
-                  </p>
-                </td>
-
-                {roles.map(col => {
-                  if (row.agr_name === col.agr_name) {
-                    return (
-                      <td
-                        key={col.agr_name}
-                        className="px-3 py-4 text-center"
-                        style={{
-                          backgroundColor:'var(--primary)', color:'var(--on-primary)',
-                          borderBottom:'1px solid var(--border)',
-                          borderRight:'1px solid var(--border)'
-                        }}
-                      >
-                        <p className="font-black text-current text-xl leading-none">
-                          {row.single_role_count}
-                        </p>
-                        <p className="text-xs text-current mt-0.5">
-                          single roles
-                        </p>
-                      </td>
-                    )
-                  }
-
-                  const count = lookup.get(`${row.agr_name}|||${col.agr_name}`) ?? 0
-                  const pct = row.single_role_count > 0
-                    ? containment(count,row.single_role_count)
-                    : 0
-
-                  const la = cleanDesc(row.text) || row.agr_name
-                  const lb = cleanDesc(col.text) || col.agr_name
-
-                  return (
-                    <td
-                      key={col.agr_name}
-                      className="p-0 text-center"
-                      style={{
-                        backgroundColor:cellBg(count, max),
-                        borderBottom:'1px solid var(--border)',
-                        borderRight:'1px solid var(--border)'
-                      }}
-                    >
-                      <button className="overlap-cell" title={`${pct}% of row role; ${containment(count,col.single_role_count)}% of column role; ${jaccard(count,row.single_role_count,col.single_role_count)}% Jaccard similarity`} aria-label={`${la} and ${lb}: ${count} shared single roles (${pct}% of row role)`} onClick={() => onCell(row.agr_name, col.agr_name, la, lb)}>
-                      <p
-                        className="font-black text-lg leading-none"
-                        style={{ color: count > 0 ? 'var(--text)' : 'var(--muted)' }}
-                      >
-                        {count}
-                      </p>
-
-                      <p
-                        className="text-xs mt-0.5 font-semibold"
-                        style={{
-                          color: count > 0
-                            ? 'var(--text)'
-                            : 'var(--muted)'
-                        }}
-                      >
-                        {`${pct}% of row`}
-                      </p>
-                      </button>
-                    </td>
-                  )
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  )
+/** Pair summaries retain the existing comparison API and multi-role semantics. */
+function PairSummary({a,b,pair,onCell}:{a:ComparisonRole;b:ComparisonRole;pair:PairwiseOverlap;onCell:(a:string,b:string,la:string,lb:string)=>void}) {
+ const [expanded,setExpanded]=useState(false)
+ const {mutate,data,isPending,isError}=useComparison()
+ return <section className="min-w-0 rounded-card border border-line bg-surface p-3">
+  <h3 className="text-sm font-semibold">{lbl(a)} · {lbl(b)}</h3>
+  <div className="grid grid-cols-1 gap-3 py-3 sm:grid-cols-3">
+   <button className="rounded-control bg-elevated p-3 text-left hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus" onClick={()=>onCell(a.agr_name,b.agr_name,lbl(a),lbl(b))}><strong className="block text-lg">{pair.shared_count}</strong>Shared single roles</button>
+   <div className="rounded-control bg-elevated p-3"><strong className="block text-lg">{a.single_role_count-pair.shared_count}</strong>Only {lbl(a)}</div>
+   <div className="rounded-control bg-elevated p-3"><strong className="block text-lg">{b.single_role_count-pair.shared_count}</strong>Only {lbl(b)}</div>
+  </div>
+  <details onToggle={event=>{const open=event.currentTarget.open;setExpanded(open);if(open&&!data&&!isPending)mutate([a.agr_name,b.agr_name])}}>
+  <summary className="cursor-pointer text-sm font-semibold">Inspect single roles for {lbl(a)} · {lbl(b)}</summary>
+  {expanded&&isPending&&<p role="status">Loading single-role evidence…</p>}
+  {isError&&<p role="alert">Comparison evidence could not be loaded. <button onClick={()=>mutate([a.agr_name,b.agr_name])}>Retry</button></p>}
+  {data&&<div className="grid min-w-0 gap-3 lg:grid-cols-3">{[{title:'Shared single roles',rows:data.shared_single_roles,parent:a.agr_name},...data.roles.map(role=>({title:`Only ${lbl(role)}`,rows:role.exclusive_single_roles,parent:role.agr_name}))].map(group=><section key={group.title} className="min-w-0"><h3 className="mb-2 text-sm font-semibold">{group.title}</h3>{group.rows.length?group.rows.map(sr=><SRRow key={sr.child_agr} sr={sr} parentRoleName={group.parent}/>):<p className="text-sm text-muted">No matching single roles.</p>}</section>)}</div>}
+ </details></section>
+}
+function SingleRoleOverlap({roles,pairwise,onCell}:{roles:ComparisonRole[];pairwise:PairwiseOverlap[];onCell:(a:string,b:string,la:string,lb:string)=>void}) {
+ return <section aria-label="Single role overlap" className="grid min-w-0 gap-3"><h2 className="text-base font-semibold">Single role overlap</h2><p className="text-sm text-muted">Inspect shared and exclusive building blocks for each pair. Transaction overlap is separate evidence; neither establishes effective authorization.</p>{pairwise.map(pair=>{const a=roles.find(role=>role.agr_name===pair.role_a),b=roles.find(role=>role.agr_name===pair.role_b);return a&&b?<PairSummary key={`${pair.role_a}|${pair.role_b}`} a={a} b={b} pair={pair} onCell={onCell}/>:null})}</section>
 }
 
 function ExclusiveColumn({ role }: { role: ComparisonRole }) {
@@ -677,13 +516,10 @@ export function ComparisonView({ roleNames, onBack }: Props) {
 
       <div className="flex flex-wrap gap-2">
         {roleNames.map(n => (
-          <span
-            key={n}
-            className="font-mono text-xs px-3 py-1.5 rounded-xl font-bold text-current"
-            style={{ backgroundColor:'var(--accent2)', color:'var(--on-accent2)' }}
-          >
-            {n}
-          </span>
+          <div key={n} className="min-w-0 rounded-card border border-line bg-surface p-3">
+            <p className="mb-2 text-sm font-semibold text-content">{data?.roles.find(role=>role.agr_name===n)?.text || 'Description unavailable'}</p>
+            <RoleIdentifier value={n}/>
+          </div>
         ))}
       </div>
 
@@ -735,7 +571,7 @@ export function ComparisonView({ roleNames, onBack }: Props) {
             pairwiseTC={data.pairwise_overlaps}
           />
 
-          <SRMatrix
+          <SingleRoleOverlap
             roles={data.roles}
             pairwise={data.pairwise_single_overlaps}
             onCell={(a,b,la,lb) => setPairModal({

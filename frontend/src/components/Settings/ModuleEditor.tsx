@@ -85,31 +85,14 @@ export function ModuleEditor({
                 aria-expanded={expanded === m.id}
                 onClick={() => {const value={...(overrides[m.id]||{enabled:m.enabled??true})};setLocal(value);setInitial(JSON.stringify(value));setReset(false);setExpanded(m.id)}}
               >
-                <ModuleIcon
-                  Icon={Icon}
-                  color={color}
-                  size="large"
-                  disabled={!override.enabled}
-                />
-                <span className="min-w-0 flex-1 text-left">
-                  <span className="font-semibold text-sm">
-                    {m.id}{' '}
-                    <span className="font-normal text-[var(--text2)] ml-2">
-                      {override.display_name || defaultName}
-                    </span>
+                <span className="flex min-w-0 flex-1 flex-col gap-2 text-left">
+                  <span className="flex w-full items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-2 rounded-control px-2 py-1 text-sm font-semibold" style={{backgroundColor:`color-mix(in srgb, ${color} 12%, var(--surface))`}}><ModuleIcon Icon={Icon} color={color} size="small" disabled={!override.enabled}/>{m.id}</span>
+                    <span title={(savedOverrides[m.id]?.enabled??m.enabled??true)===(overrides[m.id]?.enabled??m.enabled??true)?'Saved setting':'Pending setting change'}><StatusPill enabled={overrides[m.id]?.enabled ?? m.enabled ?? true}/></span>
                   </span>
-                  <span className="block text-xs text-[var(--muted)] mt-1">
-                    {m.category.replace(/-/g, ' ')}
-                    {m.parent ? ` · Parent: ${m.parent}` : ''}
-                  </span>
+                  <span className="text-sm font-medium">{override.display_name || defaultName}</span>
+                  <span className="flex items-center justify-between gap-2 text-xs text-muted"><span>{m.category.replace(/-/g,' ')}{m.parent?` · Parent: ${m.parent}`:''}</span><ChevronDown size={16} className={expanded===m.id?'rotate-180':''}/></span>
                 </span>
-                <span title={(savedOverrides[m.id]?.enabled??m.enabled??true)===(overrides[m.id]?.enabled??m.enabled??true)?'Saved setting':'Pending setting change'}><StatusPill
-                  enabled={overrides[m.id]?.enabled ?? m.enabled ?? true}
-                /></span>
-                <ChevronDown
-                  size={16}
-                  className={expanded === m.id ? 'rotate-180' : ''}
-                />
               </button>
               {expanded === m.id && (
                 <Dialog title={`Configure ${m.id} — ${defaultName}`} onClose={cancel} footer={<><Button onClick={cancel}>Cancel module changes</Button><Button variant="primary" disabled={!isHex(rawColor)} onClick={()=>{const next={...overrides};if(reset)delete next[m.id];else next[m.id]=local;onChange(next);setExpanded(null)}}>Apply module changes</Button></>}><p className="ui-description">Updates the Settings draft. Apply settings to persist; Cancel settings discards the parent draft.</p><div

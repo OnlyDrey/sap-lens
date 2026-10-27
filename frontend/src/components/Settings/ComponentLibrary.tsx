@@ -114,8 +114,8 @@ function memoryStorage(): FilterStorage {
   }
 }
 export function ComponentLibrary() {
-  const [category,setCategory]=useState('buttons')
-  const categories=[['buttons','Buttons & Actions'],['navigation','Navigation & Tabs'],['forms','Forms & Inputs'],['filters','Filters & Search'],['status','Status & Feedback'],['dialogs','Dialogs & Popovers'],['data','Tables & Data Display'],['sap','SAP-Specific Components'],['all','All components']]
+  const [category,setCategory]=useState('all')
+  const categories=[['all','All components'],['buttons','Buttons & Actions'],['navigation','Navigation & Tabs'],['forms','Forms & Inputs'],['filters','Filters & Search'],['status','Status & Feedback'],['dialogs','Dialogs & Popovers'],['data','Tables & Data Display'],['sap','SAP-Specific Components']]
   const [text, setText] = useState(''),
     [dialogOpen, setDialogOpen] = useState(false),
     [select, setSelect] = useState('all'),
@@ -137,7 +137,7 @@ export function ComponentLibrary() {
   useEffect(() => () => clearTimeout(timer.current), [])
   const transactions = useTransactionFilter()
   return (
-    <div className="component-library" aria-label="Component Library previews">
+    <div className="component-library w-full min-w-0 max-w-full" aria-label="Component Library previews">
       <p className="ui-description">
         Interactive reference using the real application components. Synthetic
         identities and isolated memory only; controls do not modify application

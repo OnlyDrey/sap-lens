@@ -23,7 +23,7 @@ test('shared navigation and dropdown geometry retain keyboard access', async ({
   })
   await tab.click()
   expect(await tab.evaluate((el) => getComputedStyle(el).borderWidth)).toBe(
-    '0px'
+    '1px'
   )
   await tab.focus()
   await page.keyboard.press('ArrowDown')

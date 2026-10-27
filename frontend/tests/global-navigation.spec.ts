@@ -89,16 +89,15 @@ for (const descending of [false, true]) test(`user global navigation crosses bou
   expect(lookups.every(url => url.searchParams.get('search') === 'DEMO_' && url.searchParams.get('limit') === '1' && url.searchParams.get('group') === 'GROUP_KEEP' && url.searchParams.get('sort') === 'first_name' && url.searchParams.get('descending') === String(descending))).toBeTruthy()
 })
 
-test('release traversal crosses page 2, preserves descending tie order and returns to the origin page', async ({ page }) => {
+test('complete release list preserves descending tie order and returns focus to the origin', async ({ page }) => {
   await page.goto('/#session=browser-test-session'); await destination(page, 'Release Roles')
   const list = page.getByRole('region', { name: 'Release Roles', exact: true })
   const group = list.getByRole('combobox', { name: 'Release SAP User Group', exact: true })
   await group.fill('GROUP_KEEP'); await group.press('Escape')
   await list.getByRole('combobox', { name: 'Sort release roles', exact: true }).selectOption('assigned_users')
   await list.getByLabel('Descending', { exact: true }).check()
-  const pages = list.getByRole('navigation', { name: 'Release role pages' })
-  await pages.getByRole('button', { name: 'Next', exact: true }).click()
-  await expect(pages).toContainText('51–100 of 125')
+  await expect(list.getByRole('navigation',{name:'Release role pages'})).toHaveCount(0)
+  await expect(list.getByRole('button',{name:'Release role details',exact:true})).toHaveCount(125)
   await list.getByRole('button', { name: 'Release role details', exact: true }).filter({ hasText: role(25) }).click()
   const navigation = page.getByRole('navigation', { name: 'Detail records' })
   await expect(navigation).toContainText('100 of 125')
@@ -106,14 +105,13 @@ test('release traversal crosses page 2, preserves descending tie order and retur
   await expect(navigation).toContainText('101 of 125')
   await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(role(24))
   await page.getByRole('button', { name: 'Back to Release Roles', exact: true }).click()
-  await expect(pages).toContainText('51–100 of 125')
+  await expect(list.getByRole('button',{name:'Release role details',exact:true})).toHaveCount(125)
   await expect(list.getByLabel('Descending', { exact: true })).toBeChecked()
   await expect(list.getByRole('button', { name: 'Release role details', exact: true }).filter({ hasText: role(25) })).toBeFocused()
 })
 
 test('direct user and release investigations locate global position and handle removal after refresh', async ({ page, request }) => {
   await page.goto('/#session=browser-test-session'); await destination(page, 'Release Roles')
-  await page.getByRole('navigation', { name: 'Release role pages' }).getByRole('button', { name: 'Next', exact: true }).click()
   await page.getByRole('button', { name: 'Release role details', exact: true }).filter({ hasText: role(50) }).click()
   await page.getByRole('region', { name: 'Release role details', exact: true }).getByRole('button', { name: `Open user ${user(50)}`, exact: true }).click()
   const navigation = page.getByRole('navigation', { name: 'Detail records' })

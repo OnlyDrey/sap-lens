@@ -23,7 +23,7 @@ test('system identity, private logo storage, persisted theme and portable backup
     await page.getByLabel('SAP client',{exact:true}).fill('200')
     await page.getByRole('button',{name:'Apply settings',exact:true}).click()
     await expect(page.getByRole('region',{name:'SAP Lens settings',exact:true})).toBeHidden()
-    await expect(page.getByText('Example Test Organization',{exact:true})).toBeVisible()
+    await expect(page.getByRole('banner').getByText('Example Test Organization',{exact:true})).toBeVisible()
     await page.getByRole('button',{name:'Open settings'}).click()
     await page.getByRole('tab',{name:'Appearance & Branding'}).click()
     await page.getByRole('combobox',{name:'Theme',exact:true}).selectOption('dark')

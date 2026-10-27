@@ -101,7 +101,7 @@ export function ReleaseRoles({
       matrixOffset, matrix,
     ],
     queryFn: () =>
-      accessQuery<ReleasePage>("releases", { ...filters, offset, matrix_offset: matrixOffset, matrix_complete:matrix }),
+      accessQuery<ReleasePage>("releases", { ...filters, offset, matrix_offset: matrixOffset, matrix_complete:matrix, list_complete:true }),
   });
   useEffect(() => {
     if (!result.data || result.isFetching) return;
@@ -293,12 +293,7 @@ export function ReleaseRoles({
                 excluded from “Currently valid”.
               </p>
             )}
-            <Pagination
-              offset={offset}
-              total={result.data.total}
-              onChange={setOffset}
-              label="Release role pages"
-            />
+
           </>
         ))}
     </section>

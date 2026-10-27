@@ -3,7 +3,7 @@ import { useId, type ReactNode } from 'react'
 function NavigationStrip({ variant, label, children, className = '' }: {
   variant: 'main' | 'secondary' | 'tabs'; label: string; children: ReactNode; className?: string
 }) {
-  const classes = `ui-navigation ${variant === 'main' ? 'primary-navigation' : variant === 'secondary' ? 'ui-secondary-navigation' : 'ui-content-tabs'} ${className}`
+  const classes = `ui-navigation flex min-w-0 items-stretch gap-2 overflow-x-auto mb-3 ${variant === 'main' ? 'primary-navigation' : variant === 'secondary' ? 'ui-secondary-navigation' : 'ui-content-tabs'} ${className}`
   return variant === 'tabs'
     ? <div role="tablist" aria-label={label} className={classes}>{children}</div>
     : <nav aria-label={label} className={classes}>{children}</nav>
@@ -39,6 +39,7 @@ export function SecondaryNavigation({
       {items.map((item) => (
         <a
           key={item.value}
+          className="inline-flex min-h-control items-center gap-2 whitespace-nowrap rounded-control border border-transparent px-3 py-2 text-sm text-secondary no-underline hover:border-content hover:text-content focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus aria-[current=page]:border-content aria-[current=page]:text-content aria-[current=page]:font-semibold"
           href={item.href}
           aria-current={item.active ? 'page' : undefined}
           onClick={(event) => {
@@ -90,6 +91,7 @@ export function ContentTabList({
           type="button"
           key={item.value}
           id={`${idPrefix}-${item.value}`}
+          className="inline-flex min-h-control items-center gap-2 whitespace-nowrap rounded-control border border-transparent px-3 py-2 text-sm text-secondary hover:border-content hover:text-content focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus aria-selected:border-content aria-selected:text-content aria-selected:font-semibold"
           role="tab"
           aria-controls={panelId(item.value)}
           aria-selected={value === item.value}
