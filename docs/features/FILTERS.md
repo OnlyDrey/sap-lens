@@ -276,3 +276,7 @@ role calculation as the dashboard and is included in saved filters and exports.
 The Release Roles list renders all matching role summaries without pagination,
 from one validated backend snapshot. Matrix and assignment-detail semantics are
 unchanged; local table scrolling remains available where needed.
+
+Release Roles initially opens in Matrix view, followed by Table in the view
+switcher. Changing filters preserves the selected view in the mounted investigation.
+Both views export the same filtered assignment set.

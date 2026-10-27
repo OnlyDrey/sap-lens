@@ -89,9 +89,16 @@ Role Comparison summaries use symmetric Jaccard similarity: shared / (A + B − 
 
 ## Single-role comparison
 
-Role Comparison shows shared and A-only/B-only single-role counts per selected
-pair. Expand Inspect single roles to read descriptions above exact, copyable
-identifiers and expand transaction evidence. Shared-count actions retain the
-comparison evidence dialog. Multi-role comparisons remain available; pair-exclusive
-roles are distinct from roles exclusive across the entire selection. Transaction
-overlap remains separate evidence and does not prove effective authorization.
+Role Comparison keeps the high-level single-role and mapped-transaction similarity
+metrics, with responsive Shared by all and Exclusive per composite tiles (maximum
+three columns). Expand a tile to inspect transaction evidence. Search comparison
+transactions accepts exact codes or explicit SAP `*` patterns and filters both
+component tiles and transaction rows. Original totals remain unchanged; filtered
+shared mappings retain their observed parent catalogue sources. The similarity
+overview retains evidence drilldown without a second detailed overlap section.
+
+Recognized source description prefixes appear as separate area labels; original
+descriptions and canonical classification are unchanged. Unknown prefixes remain
+intact. Role Details uses the same transaction matcher and restores manual
+expansion state when its filter is cleared. Neither role nor transaction overlap
+proves effective SAP authorization.

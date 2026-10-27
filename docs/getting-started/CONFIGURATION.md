@@ -116,3 +116,9 @@ object contains `close_to_tray`, `run_at_signin` and `start_minimized`, all defa
 to false. Start minimized requires tray mode. Ordinary Apply/Cancel and revision
 checks apply; portable packages do not activate another machine's sign-in startup.
 See [tray operation](../deployment/WINDOWS_DESKTOP.md#optional-system-tray-operation).
+
+Appearance & Branding previews draft organization/system details and the same draft
+logo in both live and local previews. The five palette properties use a compact
+horizontal carousel: Previous/Next, keyboard focus, or Arrow/Home/End on the
+focused Color properties region. Native picker, hex editing and per-property Reset
+remain available; Apply/Cancel retain their existing persistence behavior.

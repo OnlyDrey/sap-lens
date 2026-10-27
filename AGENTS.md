@@ -173,5 +173,7 @@ print unchanged checklists. Publication and pre-push safety rules remain in forc
   Inline styles are appropriate for measured portal coordinates, validated dynamic
   module colors and scoped draft theme variables, not ordinary fixed spacing.
 - Remove superseded selectors when migrating consumers. Check both themes, keyboard
-  focus and hover geometry; navigation reserves its full border in every state.
-  Do not reintroduce underline/bottom-only active treatments or colored code borders.
+  focus and hover geometry; tabs reserve a transparent bottom border in every state.
+  Active indicators use the primary action color; hover contrasts with the current
+  theme. Keep a separate focus-visible outline, avoid persistent rectangular
+  selection rings, and retain neutral code borders.

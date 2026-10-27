@@ -31,7 +31,7 @@ Paths below are relative to `frontend/src/components/`. The inventory covers reu
 | `Shared/SavedFilters.tsx` | Users, roles, releases, review, comparison; memory-only library | Same versioned persistence/CRUD/compatibility logic, compact Popover. Existing page-level clears remain singular; menu-only clear available when needed |
 | `Shared/Popover.tsx` | Saved-filter menus and library demonstration | Anchored nonmodal portal, viewport bounds, scroll/resize placement, outside/Escape/Back dismissal and focus restoration. Forms remain forms, not falsely labeled ARIA menus |
 | `Shared/Navigation.tsx`: MainNavigation / MainNavigationItem | Application navbar and library | Named landmark, current page, native keyboard operation, visible responsive labels |
-| SecondaryNavigation, same file | User Access and library | Real anchors, full-border active state, native modified-click support, history-backed routes |
+| SecondaryNavigation, same file | User Access and library | Real anchors, bottom-border active state, native modified-click support, history-backed routes |
 | ContentTabs / ContentTabList, same file | User Details, Data Source tabs and library | Single roving-keyboard implementation, tab/panel IDs, arrows/Home/End, optional counts/icons; existing source IDs preserved |
 | `Shared/InvestigationNavigation.tsx`: DetailNavigation / DetailButton | User/role/release investigations | Existing breadcrumb/record position/focus and global filtered navigation. Routine buttons now canonical; domain routing preserved |
 | `Access/Shared.tsx`: Filter / Pagination / QueryState | Access, review, comparison and library | Filter aliases FormField; pagination uses compact Button; shared LoadingState and existing error semantics. Server pagination unchanged |
@@ -202,7 +202,7 @@ native-readiness handshake and preserves the current route/history underneath.
 
 `Shared/Select` supplies the default canonical control class; native menus retain
 platform rendering. Use `FormField` for explicit label association. Navigation
-strips reserve transparent full borders for stable hover and active geometry; focus remains an
+strips reserve transparent bottom borders for stable hover and active geometry; focus remains an
 outline. `Access/Shared.Pagination` and employee pagination use equal compact
 Previous/Next controls with directional icons.
 
@@ -224,10 +224,11 @@ content tabs, using semantic Tailwind utilities. The Component Library starts wi
 All components and contains wide tables locally. `RoleIdentifier` keeps exact text
 and copy behavior with a neutral border independent of SAP area color.
 
-Role Comparison uses expandable pair summaries backed by the existing comparison
-API, with shared and pair-exclusive single-role evidence and transaction drilldown.
-It retains multi-role comparisons and distinguishes transaction overlap from
-single-role overlap. User Details exposes View role details without duplicating
+Role Comparison retains high-level similarity metrics and uses responsive
+shared-by-all and exclusive-per-composite single-role tiles. Expanded shared tiles
+span the available grid width. Exact/wildcard transaction filtering uses the same
+matcher as Role Details and retains original totals and parent mapping provenance.
+The duplicate detailed pair-overlap section is removed. User Details exposes View role details without duplicating
 catalogue-matching disclosures. Release Roles requests the complete filtered list
 from one snapshot; assignment-detail and other table pagination remain unchanged.
 

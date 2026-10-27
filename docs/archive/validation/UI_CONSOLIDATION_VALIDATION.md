@@ -1090,3 +1090,55 @@ readiness is claimed. Workflows, licensing, dependency versions and historical
 branding finding P-01 are unchanged; no CHANGELOG, tags, releases or manual workflow
 dispatches were introduced. Final documentation commit and authorized push/remote
 SHA verification are recorded in the delivery response.
+
+
+## UI stabilization — 2026-10-27
+
+This follow-up restores shared surface spacing and bottom-border navigation,
+filters actual transaction rows using the shared literal-wildcard matcher, and
+separates recognized description prefixes for display without changing source
+values. Role Comparison uses responsive tiles with preserved mapping provenance;
+Account Review retains validity status without repeated dates; Release Roles
+initially opens Matrix. Branding keeps all five editable colors in a keyboard-
+accessible carousel and synchronizes local and header logo previews. Component
+Library and mobile pagination use the corrected shared layout contracts.
+
+### Executed validation and limits
+
+- Complete backend suite: **465 passed**, 26.667 seconds, no skips, using the
+  prepared virtualenv, portable PowerShell and writable XDG directories.
+- `npm ci`, TypeScript checking and production build passed. The existing Vite
+  warning for chunks above 500 kB remains non-blocking.
+- Focused stabilization browser checks: **7 passed**. Corrected compatibility
+  and responsive checks: **14 passed**, 40.8 seconds, including both themes at
+  375, 800, 1280 and 1600 px.
+- The first complete browser run recorded **336 passed and 6 failed**. Failures
+  were obsolete default-Table, ambiguous logo-preview and rectangular-border
+  expectations. Those six cases passed after targeted corrections; assertions
+  for underlying filtering, persistence and accessibility remain intact.
+- The full confirmation run was stopped at the user's explicit instruction not
+  to run full validation: **172 passed, 1 interrupted, 169 not run**. This is not
+  a successful full-suite result. The user authorized targeted checks followed
+  by commit/push; a complete final browser confirmation remains outstanding.
+- Documentation links: 73 Markdown files, zero failures. Workflow contracts,
+  actionlint, Python compile checks, Lucide catalog (1,447 icons) and frontend
+  license generation passed. `pip check` reported no broken requirements;
+  Python and npm dependency audits reported no known vulnerabilities.
+- Visual review covered Dashboard, sidebar wildcard results, comparison,
+  Account Review, populated Release Matrix, branding controls, logos, Component
+  Library and pagination in both themes at the four widths above. Review found
+  and corrected mobile pagination alignment and a screenshot wait that could
+  otherwise capture hidden sidebar rows.
+
+Commands used the existing `frontend` npm scripts, backend unittest discovery,
+`scripts/check-docs.py`, `scripts/check-workflows.py`, and
+`scripts/sync-lucide-catalog.mjs --check`. Logs and screenshots remain outside
+Git under `/workspace/sap-lens-dev/stabilization-*`.
+
+No native Windows/WebView2, packaged EXE, SCM, UNC, real systemd or other-browser
+acceptance was performed. No SoD implementation or original private reference
+material is included in this stabilization delivery. Historical privacy finding
+P-01 is unchanged. No dependency versions, deployment workflows, tags or releases
+were changed. Implementation commit: `e4ba4a3`. The fresh pre-commit focused run passed
+**7/7** in 21.3 seconds. Documentation commit and remote SHA verification are
+reported in the delivery response.

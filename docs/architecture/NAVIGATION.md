@@ -5,7 +5,7 @@
 | Pattern | Purpose | SAP Lens implementation |
 | --- | --- | --- |
 | Main navigation | Major application destinations | Dashboard, Role Lookup, User Access, Release Roles; Settings is a compact utility opening the existing workspace |
-| Secondary navigation | Related pages within a major area | User directory, Account Review, Compare users; real anchor destinations and full-border current-page indicator |
+| Secondary navigation | Related pages within a major area | User directory, Account Review, Compare users; real anchor destinations and bottom-border current-page indicator |
 | Content tabs | Associated content in one investigation | User Details role sections and Settings import sources; roving focus and an associated tabpanel |
 | Actions / filter controls | Perform an operation or constrain results | Canonical buttons, neutral Clear filters, pressed button groups for Table/Matrix and AND/OR |
 
