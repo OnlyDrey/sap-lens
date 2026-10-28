@@ -20,7 +20,7 @@ import { RoleCard } from './RoleCard'
 import type { RoleSummary } from '@/api/types'
 import { apiRequest } from '@/api/client'
 
-const fetchExactRoles = (codes: string[], mode: 'and' | 'or', notCodes: string[]) => apiRequest<RoleSummary[]>(`/api/roles?${new URLSearchParams([...codes.map(code => ['tcodes', code]), ...notCodes.map(code => ['not_tcodes', code]), ['transaction_mode', mode]])}`)
+const fetchExactRoles = (codes: string[], mode: 'and' | 'or', operator: 'has' | 'not') => apiRequest<RoleSummary[]>(`/api/roles?${new URLSearchParams([...codes.map(code => [operator === 'not' ? 'not_tcodes' : 'tcodes', code]), ['transaction_mode', mode]])}`)
 
 interface Props {
   initialArea?:string
@@ -155,8 +155,7 @@ export function RoleList({
   const {loading:dataLoading}=useApplicationData()
   const [page,setPage] = useState(0)
   const transaction = useTransactionFilter()
-  const missing = useTransactionFilter()
-  const transactionFiltered = transaction.deferredCodes.length > 0 || missing.deferredCodes.length > 0
+  const [operator, setOperator] = useState<'has' | 'not'>('has')
   const [search, setSearch] = useState('')
   const [activeModules, setActiveModules] = useState<string[]>(initialArea?[initialArea]:[])
   const [transactionMode, setTransactionMode] = useState<'and' | 'or'>('and')
@@ -176,12 +175,12 @@ export function RoleList({
   } = useRoles()
 
   const exactTransactions = useQuery({
-    queryKey: ['roles', 'exact-transactions', transaction.deferredCodes, transactionMode, missing.deferredCodes],
-    queryFn: () => fetchExactRoles(transaction.deferredCodes, transactionMode, missing.deferredCodes),
-    enabled: transactionFiltered,
+    queryKey: ['roles', 'exact-transactions', transaction.deferredCodes, transactionMode, operator],
+    queryFn: () => fetchExactRoles(transaction.deferredCodes, transactionMode, operator),
+    enabled: transaction.deferredCodes.length > 0,
     staleTime: 120_000,
   })
-  const tcodeLoading = exactTransactions.isFetching || transaction.settling || missing.settling
+  const tcodeLoading = exactTransactions.isFetching || transaction.settling
   const moduleNames = useMemo(
     () => Object.assign(Object.create(null),Object.fromEntries(
       modules.map(m => [m.function_key, m.module_name])
@@ -219,7 +218,7 @@ export function RoleList({
       )
     }
 
-    if (transactionFiltered) {
+    if (transaction.deferredCodes.length) {
       const matches = new Map((exactTransactions.data || []).map(role => [role.agr_name, role]))
       results = results.filter(role => matches.has(role.agr_name)).map(role => ({ ...role, matching_tcodes: matches.get(role.agr_name)?.matching_tcodes }))
     }
@@ -228,16 +227,16 @@ export function RoleList({
     allRolesRaw,
     debSearch,
     activeModules,
-    sortBy, transaction.key, transaction.deferredCodes, missing.deferredCodes, transactionFiltered, exactTransactions.data
+    sortBy, transaction.key, transaction.deferredCodes, exactTransactions.data
   ])
 
-  useEffect(()=>setPage(0),[debSearch,activeModules,sortBy,transaction.key,missing.key,transactionMode])
+  useEffect(()=>setPage(0),[debSearch,activeModules,sortBy,transaction.key,transactionMode,operator])
   const pageCount=Math.max(1,Math.ceil(visible.length/100))
   const currentPage=Math.min(page,pageCount-1)
 
   const isFiltering =
     !!debSearch.trim() ||
-    activeModules.length > 0 || transaction.codes.length > 0 || missing.codes.length > 0 || sortBy !== 'name-asc'
+    activeModules.length > 0 || transaction.codes.length > 0 || operator !== 'has' || sortBy !== 'name-asc'
 
   useEffect(() => { if (!isLoading && !isError) onFilteredRoles?.(visible.map(role => role.agr_name)) }, [visible, onFilteredRoles, isLoading, isError])
 
@@ -252,9 +251,9 @@ export function RoleList({
   )
 
   return (
-    <div className="flex flex-col gap-4" role="region" aria-label="Role catalogue investigation" aria-busy={isLoading||search!==debSearch||transaction.settling||missing.settling||exactTransactions.isFetching}>
+    <div className="flex flex-col gap-4" role="region" aria-label="Role catalogue investigation" aria-busy={isLoading||search!==debSearch||transaction.settling||exactTransactions.isFetching}>
       <PageHeader title="Role Lookup" icon={<PageIcon size={22} aria-hidden="true"/>}/>
-      <SavedFilters showClear={false} view="roles" state={{search,activeModules,transactionMode,tcodes:transaction.codes,notTcodes:missing.codes,sortBy}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(Array.isArray(s.activeModules))setActiveModules(s.activeModules);if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(Array.isArray(s.tcodes)){transaction.setInput('');transaction.setChips(s.tcodes)};missing.setInput('');missing.setChips(Array.isArray(s.notTcodes)?s.notTcodes:[]);if(SORT_OPTIONS.some(o=>o.key===s.sortBy))setSortBy(s.sortBy as SortKey)}} clear={()=>{setSearch('');setActiveModules([]);setTransactionMode('and');transaction.clear();missing.clear();setSortBy('name-asc')}}/>
+      <SavedFilters showClear={false} view="roles" state={{search,activeModules,transactionMode,tcodes:transaction.codes,transactionOperator:operator,sortBy}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(Array.isArray(s.activeModules))setActiveModules(s.activeModules);if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(Array.isArray(s.tcodes)){transaction.setInput('');transaction.setChips(s.tcodes)};if(Array.isArray(s.notTcodes)&&s.notTcodes.length&&!(Array.isArray(s.tcodes)&&s.tcodes.length)){transaction.setInput('');transaction.setChips(s.notTcodes);setOperator('not')}else setOperator(s.transactionOperator==='not'?'not':'has');if(SORT_OPTIONS.some(o=>o.key===s.sortBy))setSortBy(s.sortBy as SortKey)}} clear={()=>{setSearch('');setActiveModules([]);setTransactionMode('and');setOperator('has');transaction.clear();setSortBy('name-asc')}}/>
       <div
         className="catalogue-search-controls rounded-2xl border px-4 py-3 gap-3 "
         style={{
@@ -262,11 +261,11 @@ export function RoleList({
           borderColor:'var(--border)'
         }}
       >
-        <TransactionFilter compact label="Filter catalogue by transaction" filter={transaction} mode={transactionMode} onModeChange={setTransactionMode} showClear={false}/>
-        {transaction.codes.length > 0 && <p className="text-xs text-[var(--muted)]">Transaction code/pattern filters match {transactionMode === 'and' ? 'every selected code (AND)' : 'any selected code (OR)'}, combined with text and module filters (AND). Roles without supplied mappings are excluded; source completeness cannot be established.</p>}
-        <TransactionFilter compact label="Filter catalogue by missing transaction" placeholder="e.g. SE16, SM*" filter={missing} showClear={false}/>
-        {missing.codes.length > 0 && <p className="text-xs text-[var(--muted)]">Does not have: roles that contain at least one other transaction but none of these codes or patterns (* wildcard). Roles without any transactions are excluded. Combined with the other transaction, text and module filters (AND).</p>}
-        {exactTransactions.isError && transactionFiltered && <p role="alert">Transaction filtering failed. {exactTransactions.error.message}</p>}
+        <TransactionFilter compact label="Filter catalogue by transaction" filter={transaction} mode={transactionMode} onModeChange={setTransactionMode} operator={operator} onOperatorChange={setOperator} showClear={false}/>
+        {transaction.codes.length > 0 && (operator === 'has'
+          ? <p className="text-xs text-[var(--muted)]">Transaction code/pattern filters match {transactionMode === 'and' ? 'every selected code (AND)' : 'any selected code (OR)'}, combined with text and module filters (AND). Roles without supplied mappings are excluded; source completeness cannot be established.</p>
+          : <p className="text-xs text-[var(--muted)]">Does not have: roles with at least one transaction mapping and no match for any selected code or pattern, combined with text and module filters (AND). Roles without any mapping are excluded, and a missing mapping is not confirmed absence of access.</p>)}
+        {exactTransactions.isError && transaction.codes.length > 0 && <p role="alert">Transaction filtering failed. {exactTransactions.error.message}</p>}
         <div className="catalogue-role-search flex gap-2">
           <div className="relative flex-1">
             <SearchInput value={search} onChange={event=>setSearch(event.target.value)} placeholder="Search roles by name or description..."/>
@@ -460,7 +459,7 @@ export function RoleList({
             )}
 
             {isFiltering && (
-              <ClearFilterButton onClick={() => { setSearch(''); setActiveModules([]); transaction.clear(); missing.clear(); setTransactionMode('and'); setSortBy('name-asc') }}>Clear all filters</ClearFilterButton>
+              <ClearFilterButton onClick={() => { setSearch(''); setActiveModules([]); transaction.clear(); setTransactionMode('and'); setOperator('has'); setSortBy('name-asc') }}>Clear all filters</ClearFilterButton>
             )}
           </div>
         </div>

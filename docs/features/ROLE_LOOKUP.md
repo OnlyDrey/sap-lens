@@ -6,18 +6,21 @@ Multiple T-codes default to AND, with an explicit OR option. Enter creates a chi
 remove chips individually or Clear all filters. Sorting stays beside the result
 count, below the primary searches.
 
-## Roles without a transaction (reverse search)
+## Transaction match type: Has / Does not have T-code
 
-**Filter catalogue by missing transaction** is the *Does not have T-Code* counterpart of the transaction filter above, with the same
-chips, exact codes and `*` wildcards (for example `SM*`).
+The transaction field has one search input and a compact **Transaction match type** selector above it. **Has T-code** is the default
+and keeps the original behavior (exact codes and `*` wildcards, AND by default with the explicit OR option). **Does not have T-code**
+uses the same input, chips and wildcards:
 
-- A role matches when it contains at least one other transaction and none of the listed codes or patterns. With several entries it
-  means "none of them". Roles that contain no transactions at all are never returned, and a code that does not exist in the catalogue
-  excludes nothing.
-- It combines with the *has* filter (AND, so "has MIGO and does not have ME21N"), the text search and the SAP area pills.
-- Clear all filters resets both lists, and Saved Filters keep the list (`notTcodes`). The API takes repeated `not_tcodes` parameters
-  on `GET /api/roles` (at most 21, 128 characters each).
-- Mappings come from the imported catalogue only: a missing mapping is not proof that SAP authorization is absent.
+- A role matches when it contains at least one other transaction mapping and none of the listed codes or patterns. With several
+  entries it means "none of them", so the AND/OR option is not shown in this mode. Roles without any mapping are never returned, and a
+  code that does not exist in the catalogue excludes nothing. A missing mapping is not confirmed absence of access.
+- Switching the selector keeps the entered codes. The helper text describes only the active mode; the reverse explanation is not shown
+  while Has T-code is active.
+- Both modes combine with the text search, SAP area pills and other filters (AND). **Clear all filters** restores Has T-code.
+- Saved Filters store the codes with `transactionOperator` (`has` or `not`); earlier saves that used `notTcodes` still load as Does not have.
+- The API takes repeated `tcodes` (has) or `not_tcodes` (does not have) parameters on `GET /api/roles`, at most 21 of 128 characters each.
+- User Access and Compare users keep their own transaction filters; the selector is Role Lookup only.
 
 Open a role for its relationships and transactions. Previous/Next spans the full
 filtered/sorted result set and preserves the originating list. The compact back

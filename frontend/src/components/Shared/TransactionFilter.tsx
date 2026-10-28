@@ -49,6 +49,8 @@ export function TransactionFilter({
   showClear = true,
   compact = false,
   chipPrefix = '',
+  operator,
+  onOperatorChange,
 }: {
   label: string
   filter: ReturnType<typeof useTransactionFilter>
@@ -56,6 +58,9 @@ export function TransactionFilter({
   mode?: 'and' | 'or'
   onModeChange?: (value: 'and' | 'or') => void
   chipPrefix?: string
+  /** Optional Has / Does not have selector; surfaces that do not pass it keep their positive-only behavior. */
+  operator?: 'has' | 'not'
+  onOperatorChange?: (value: 'has' | 'not') => void
   compact?: boolean
   showClear?: boolean
 }) {
@@ -68,6 +73,9 @@ export function TransactionFilter({
       aria-label={label}
       aria-busy={filter.settling}
     >
+      {operator && onOperatorChange && (
+        <ButtonGroup label="Transaction match type" value={operator} options={[{ value: 'has', label: 'Has T-code' }, { value: 'not', label: 'Does not have T-code' }]} onChange={(value) => onOperatorChange(value as 'has' | 'not')} />
+      )}
       <label className="transaction-input-label text-sm">
         <span className={compact ? "sr-only" : undefined}>{label}</span>
           <SearchInput
@@ -117,9 +125,9 @@ export function TransactionFilter({
           }}
         />
       )}
-      {(filter.chips.length > 0 || (mode && filter.codes.length > 1)) && (
+      {(filter.chips.length > 0 || (operator !== 'not' && mode && filter.codes.length > 1)) && (
         <div className="transaction-chips" aria-label="Transaction filters">
-          {mode && onModeChange && filter.codes.length > 1 && (
+          {operator !== 'not' && mode && onModeChange && filter.codes.length > 1 && (
             <ButtonGroup label="Transaction matching" value={mode} options={['and','or'].map(value=>({value,label:value.toUpperCase()}))} onChange={value=>onModeChange(value as 'and'|'or')}/>
 
           )}
@@ -127,7 +135,7 @@ export function TransactionFilter({
             <FilterChip key={code} removeLabel={`Remove transaction ${code}`} onRemove={()=>{filter.setChips(filter.chips.filter(item=>item!==code));input.current?.focus()}}>{chipPrefix}{code}</FilterChip>
           ))}
           <span className="text-xs text-[var(--muted)]">
-            {mode === 'and' ? 'Match all (AND)' : 'Match any (OR)'}
+            {operator === 'not' ? 'Does not have any of these' : mode === 'and' ? 'Match all (AND)' : 'Match any (OR)'}
           </span>
         </div>
       )}

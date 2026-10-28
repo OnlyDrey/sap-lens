@@ -83,10 +83,12 @@ class NegativeTcodeTests(unittest.TestCase):
         self.assertEqual(self.client.get('/api/roles?' + too_many, headers=H).status_code, 422)
 
     def test_saved_filters_accept_the_negative_list(self):
-        body = {'name': 'Roles without SE16', 'view': 'roles', 'filters': {'tcodes': ['MIGO'], 'notTcodes': ['SE16', 'SM*'], 'transactionMode': 'and'}}
+        body = {'name': 'Roles without SE16', 'view': 'roles', 'filters': {'tcodes': ['SE16', 'SM*'], 'transactionOperator': 'not', 'transactionMode': 'and'}}
         response = self.client.post('/api/saved-filters', headers=H, json=body)
         self.assertEqual(response.status_code, 200, response.text)
-        self.assertEqual(response.json()['filters']['notTcodes'], ['SE16', 'SM*'])
+        self.assertEqual((response.json()['filters']['transactionOperator'], response.json()['filters']['tcodes']), ('not', ['SE16', 'SM*']))
+        legacy = self.client.post('/api/saved-filters', headers=H, json={**body, 'name': 'Earlier', 'filters': {'notTcodes': ['SE16']}})
+        self.assertEqual(legacy.status_code, 200, legacy.text)
         bad = self.client.post('/api/saved-filters', headers=H, json={**body, 'name': 'Bad', 'filters': {'unknownTcodes': ['X']}})
         self.assertEqual(bad.status_code, 422)
 
