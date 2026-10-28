@@ -122,6 +122,7 @@ def directory_filters(
     assignment_band: Literal["", "0", "1–5", "6–20", "21+"] = "",
     status: Status = "",
     show_expired: bool = False,
+    exclude_transactions: bool = Query(False, description="Reverse the transaction filter across the user's eligible role assignments"),
     sort: Literal[
         "username",
         "group",
@@ -133,10 +134,10 @@ def directory_filters(
     ] = "username",
     descending: bool = False,
 ):
-    return dict(assignment_band=assignment_band,search=search,group=group,role=role,tcode=tcode,tcodes=tcodes,transaction_mode=transaction_mode,status=status,show_expired=show_expired,sort=sort,descending=descending)
+    return dict(assignment_band=assignment_band,search=search,group=group,role=role,tcode=tcode,tcodes=tcodes,transaction_mode=transaction_mode,status=status,show_expired=show_expired,exclude_transactions=exclude_transactions,sort=sort,descending=descending)
 
 
-def directory_selection(snapshot, *, search,group,role,tcode,tcodes,transaction_mode,status,show_expired,sort,descending,today=None,assignment_band=""):
+def directory_selection(snapshot, *, search,group,role,tcode,tcodes,transaction_mode,status,show_expired,sort,descending,today=None,assignment_band="",exclude_transactions=False):
     state = snapshot.users
     wanted_codes = normalized_tcodes([tcode] + tcodes if tcode else tcodes)
     candidates = matching_entries(state, role)
@@ -152,10 +153,17 @@ def directory_selection(snapshot, *, search,group,role,tcode,tcodes,transaction_
         code_ids = {code: {a['id'] for actual in matching_codes(state.tcode_index,code) for name in state.tcode_index[actual] for a in state.role_index.get(name, [])} for code in wanted_codes}
         for key, entries in list(evidence.items()):
             matches = {code for code, ids in code_ids.items() if any(a['id'] in ids for a in entries)}
-            if (len(matches) != len(wanted_codes) if transaction_mode == 'and' else not matches):
+            positive = len(matches) == len(wanted_codes) if transaction_mode == 'and' else bool(matches)
+            if exclude_transactions:
+                # Absence is only concluded from eligible assignments that are all mapped to catalogue roles; unmapped roles may hold any transaction.
+                if positive or not entries or any(a['match_status'] not in {'exact', 'wildcard'} for a in entries):
+                    del evidence[key]
+            elif not positive:
                 del evidence[key]
             else:
                 evidence[key] = [a for a in entries if any(a['id'] in ids for ids in code_ids.values())]
+    elif wanted_codes and exclude_transactions:
+        evidence.clear()  # without a catalogue no transaction evidence exists, so absence cannot be concluded
     result = []
     term = search.strip()
     for key, user in state.users.items():
@@ -165,7 +173,7 @@ def directory_selection(snapshot, *, search,group,role,tcode,tcodes,transaction_
             if band!=assignment_band:continue
         if group and group not in user["groups"]:
             continue
-        if (role or (wanted_codes and snapshot.roles) or status) and key not in evidence:
+        if (role or (wanted_codes and (snapshot.roles or exclude_transactions)) or status) and key not in evidence:
             continue
         if term and not search_fields(term, user["username"], *user["groups"], *user["emails"], *(" ".join(n) for n in user["names"])):
             continue

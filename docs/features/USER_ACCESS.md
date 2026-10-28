@@ -66,6 +66,9 @@ independent of assignment filters.
 
 ## Directory assignment CSV export
 
+The transaction filter has an **Exclude matching transactions** checkbox shared with Role Lookup (see
+[Role Lookup](ROLE_LOOKUP.md#exclude-matching-transactions)); the export follows the same selection.
+
 **Export CSV** beside the result count exports every imported assignment for every
 user matching the current directory filters, across all pages. User search, SAP
 User Group, role search, selected transactions, AND/OR mode and assignment-validity

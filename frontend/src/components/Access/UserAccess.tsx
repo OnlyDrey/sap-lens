@@ -82,9 +82,10 @@ export function UserAccess({
   const roleOptions = useRoles(undefined, roleTerm)
   const directoryTransaction = useTransactionFilter()
   const [transactionMode,setTransactionMode] = useState<'and'|'or'>('and')
+  const [excludeTransactions,setExcludeTransactions] = useState(false)
   useEffect(()=>{ directoryTransaction.setChips(initialTcode ? [initialTcode.trim().toUpperCase()] : []) },[initialTcode])
   useEffect(()=>{ if (!directoryTransaction.codes.length) setTransactionMode('and') },[directoryTransaction.key])
-  const clearEvidence = () => {setRole(''); directoryTransaction.clear(); setTransactionMode('and')}
+  const clearEvidence = () => {setRole(''); directoryTransaction.clear(); setTransactionMode('and'); setExcludeTransactions(false)}
   const [term, setTerm] = useState("");
   useEffect(() => {
     const t = setTimeout(() => setTerm(search), 250);
@@ -92,8 +93,8 @@ export function UserAccess({
   }, [search]);
   useEffect(() => {
     setOffset(0);
-  }, [term, group, sort, descending, role, directoryTransaction.deferredKey, transactionMode, expired, assignmentBand]);
-  const filters = { assignment_band:assignmentBand, search: term, group, sort, descending, role, tcodes: directoryTransaction.deferredCodes, transaction_mode: transactionMode, show_expired: expired };
+  }, [term, group, sort, descending, role, directoryTransaction.deferredKey, transactionMode, excludeTransactions, expired, assignmentBand]);
+  const filters = { assignment_band:assignmentBand, search: term, group, sort, descending, role, tcodes: directoryTransaction.deferredCodes, transaction_mode: transactionMode, exclude_transactions: excludeTransactions, show_expired: expired };
   const navigation = useRecordNavigation('users', filters, selected, setSelected);
   const result = useQuery({
     queryKey: [
@@ -105,6 +106,7 @@ export function UserAccess({
       role,
       directoryTransaction.deferredCodes,
       transactionMode,
+      excludeTransactions,
       offset,
       expired,
     ],
@@ -149,7 +151,7 @@ export function UserAccess({
     <section aria-label="User Access" className="space-y-4">
       {modeButtons}<PageHeader title="User Access" icon={<PageIcon size={22} aria-hidden="true"/>}/>
       <EvidenceNote />
-      <SavedFilters showClear={false} view="users" state={{assignmentBand,search,group,sort,descending,role,tcodes:directoryTransaction.codes,transactionMode,expired}} apply={s=>{setAssignmentBand(typeof s.assignmentBand==='string'?s.assignmentBand:'');if(typeof s.search==='string')setSearch(s.search);if(typeof s.group==='string')setGroup(s.group);if(typeof s.sort==='string'&&['username','group','first_name','last_name','email','account_status','relevant_roles'].includes(s.sort))setSort(s.sort);if(typeof s.descending==='boolean')setDescending(s.descending);if(typeof s.role==='string')setRole(s.role);if(Array.isArray(s.tcodes)){directoryTransaction.setInput('');directoryTransaction.setChips(s.tcodes)};if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(typeof s.expired==='boolean')setExpired(s.expired)}} clear={()=>{setAssignmentBand('');setSearch('');setGroup('');setSort('username');setDescending(false);setRole('');directoryTransaction.clear();setTransactionMode('and');setExpired(false)}}/>
+      <SavedFilters showClear={false} view="users" state={{assignmentBand,search,group,sort,descending,role,tcodes:directoryTransaction.codes,transactionMode,transactionExclude:excludeTransactions,expired}} apply={s=>{setAssignmentBand(typeof s.assignmentBand==='string'?s.assignmentBand:'');if(typeof s.search==='string')setSearch(s.search);if(typeof s.group==='string')setGroup(s.group);if(typeof s.sort==='string'&&['username','group','first_name','last_name','email','account_status','relevant_roles'].includes(s.sort))setSort(s.sort);if(typeof s.descending==='boolean')setDescending(s.descending);if(typeof s.role==='string')setRole(s.role);if(Array.isArray(s.tcodes)){directoryTransaction.setInput('');directoryTransaction.setChips(s.tcodes)};if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);setExcludeTransactions(s.transactionExclude===true);if(typeof s.expired==='boolean')setExpired(s.expired)}} clear={()=>{setAssignmentBand('');setSearch('');setGroup('');setSort('username');setDescending(false);setRole('');directoryTransaction.clear();setTransactionMode('and');setExcludeTransactions(false);setExpired(false)}}/>
 
       <div className="investigation-filters user-filters"><fieldset><legend>User directory</legend><div className="directory-filter-grid">
         <Filter label="Search users">
@@ -198,7 +200,7 @@ export function UserAccess({
         </label>
         </div>
       <section className="directory-transaction" aria-label="User transaction filter">
-        <TransactionFilter label="Filter users by transaction" filter={directoryTransaction} mode={transactionMode} onModeChange={setTransactionMode} showClear={false} chipPrefix="Transaction: "/>
+        <TransactionFilter label="Filter users by transaction" filter={directoryTransaction} mode={transactionMode} onModeChange={setTransactionMode} exclude={excludeTransactions} onExcludeChange={setExcludeTransactions} subject="users" showClear={false} chipPrefix="Transaction: "/>
 
       </section>
         <label className="filter-toggle directory-expired">
@@ -209,7 +211,7 @@ export function UserAccess({
           />
           Show expired assignments
         </label>
-        <ClearFilterButton className="directory-clear" disabled={!assignmentBand && !search && !group && sort==='username' && !descending && !expired && !role && !directoryTransaction.codes.length} onClick={()=>{setAssignmentBand('');setSearch('');setTerm('');setGroup('');setSort('username');setDescending(false);setExpired(false);clearEvidence()}}>Clear filters</ClearFilterButton>
+        <ClearFilterButton className="directory-clear" disabled={!assignmentBand && !search && !group && sort==='username' && !descending && !expired && !role && !excludeTransactions && !directoryTransaction.codes.length} onClick={()=>{setAssignmentBand('');setSearch('');setTerm('');setGroup('');setSort('username');setDescending(false);setExpired(false);clearEvidence()}}>Clear filters</ClearFilterButton>
       </div></fieldset></div>
       {(assignmentBand || role || group || search || expired) && <div className="active-filter-row" aria-label="Active user filters">
         {assignmentBand&&<FilterChip removeLabel="Remove assignment count filter" onRemove={()=>setAssignmentBand('')}>{assignmentBand} currently valid roles</FilterChip>}

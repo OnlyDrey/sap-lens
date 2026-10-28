@@ -1,4 +1,9 @@
-"""Reverse T-code role search: 'Does not have' means at least one other T-code but none of the queried codes or patterns."""
+"""Shared transaction filter semantics for Role Lookup and User Access.
+
+Positive: AND = contains every code, OR = contains any. Exclude matching: AND = does not contain all codes together,
+OR = contains none of them. Roles without mappings and users without confirmed evidence never match the exclusion."""
+import csv
+import io
 import os
 import sys
 import tempfile
@@ -20,76 +25,138 @@ FI,ZC:FI:B,Beta finance,ZS:B,FI - Finance,MIGO,Goods movement
 SD,ZC:SD:C,Gamma sales,ZS:C,SD - Sales,VA03,Display sales
 SD,ZC:SD:E,Empty sales,ZS:E,SD - Sales,,
 '''
+USERS = '''USERNAME,ROLE_NAME,USER_GROUP,ROLE_VALID_FROM,ROLE_VALID_TO
+U1,ZC:MM:A,G1,20200101,99991231
+U2,ZC:FI:B,G1,20200101,99991231
+U3,ZC:SD:C,G2,20200101,99991231
+U4,ZC:MM:D,G2,20200101,99991231
+U4,ZC:SD:C,G2,20200101,99991231
+U5,ZC:XX:MISSING,G2,20200101,99991231
+U6,ZC:MM:A,G2,20000101,20010101
+U7,ZC:MM:D,G2,20200101,99991231
+U7,ZC:XX:MISSING,G2,20200101,99991231
+'''
 
 
-class NegativeTcodeTests(unittest.TestCase):
+class TransactionFilterCase(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(); self.root = Path(self.temp.name)
         self.env = patch.dict(os.environ, {'SAP_LENS_CONFIG_DIR': str(self.root), 'DATA_CSV_PATH': ''})
         self.env.start(); config.get_settings.cache_clear(); cache.clear_cache()
-        roles = self.root / 'roles.csv'; roles.write_text(CATALOGUE)
+        roles, users = self.root / 'roles.csv', self.root / 'users.csv'
+        roles.write_text(CATALOGUE); users.write_text(USERS)
         self.client = TestClient(create_app(session_token='1'), base_url='http://127.0.0.1:18743')
-        settings = config.get_settings().model_dump(); settings.update(data_csv_path=str(roles))
+        settings = config.get_settings().model_dump(); settings.update(data_csv_path=str(roles), user_csv_path=str(users))
         self.client.post('/api/configuration', headers=H, json=settings).raise_for_status()
 
     def tearDown(self):
         cache.clear_cache(); config.get_settings.cache_clear(); self.env.stop(); self.temp.cleanup()
 
-    def names(self, query):
+    def roles(self, query):
         response = self.client.get('/api/roles?' + query, headers=H)
         self.assertEqual(response.status_code, 200, response.text)
-        return {role['agr_name'] for role in response.json()}
+        return {role['agr_name'].split(':')[-1] for role in response.json()}
 
+    def users(self, query):
+        response = self.client.get('/api/access/users?limit=100&' + query, headers=H)
+        self.assertEqual(response.status_code, 200, response.text)
+        return {item['username'] for item in response.json()['items']}
+
+    def export(self, query):
+        response = self.client.get('/api/access/exports/users?' + query, headers=H)
+        self.assertEqual(response.status_code, 200, response.text)
+        return list(csv.DictReader(io.StringIO(response.content.decode('utf-8-sig')), delimiter=';'))
+
+
+class RoleSemanticsTests(TransactionFilterCase):
     def test_fixture_has_a_role_without_any_transaction(self):
-        every = self.names('')
-        self.assertIn('ZC:SD:E', every)
+        self.assertIn('E', self.roles(''))
         self.assertEqual(self.client.get('/api/roles/ZC:SD:E', headers=H).json()['tcode_count'], 0)
 
-    def test_positive_search_is_unchanged(self):
-        self.assertEqual(self.names('tcodes=MIGO'), {'ZC:MM:A', 'ZC:FI:B'})
+    def test_positive_semantics_are_unchanged(self):
+        self.assertEqual(self.roles('tcodes=MIGO'), {'A', 'B'})
+        self.assertEqual(self.roles('tcodes=MIGO&tcodes=ME21N&transaction_mode=and'), {'A'})
+        self.assertEqual(self.roles('tcodes=MIGO&tcodes=ME21N&transaction_mode=or'), {'A', 'B'})
+        self.assertEqual(self.roles('tcodes=ME*&tcodes=VA03&transaction_mode=or'), {'A', 'D', 'C'})
 
-    def test_negative_returns_roles_with_other_transactions_but_not_the_queried_one(self):
-        self.assertEqual(self.names('not_tcodes=MIGO'), {'ZC:MM:D', 'ZC:SD:C'})
-        self.assertNotIn('ZC:SD:E', self.names('not_tcodes=MIGO'))
-        self.assertNotIn('ZC:MM:A', self.names('not_tcodes=MIGO'))
+    def test_exclude_single_code_returns_roles_with_other_mappings_only(self):
+        self.assertEqual(self.roles('tcodes=MIGO&exclude_matching=true'), {'D', 'C'})
+        self.assertEqual(self.roles('tcodes=MIGO&exclude_matching=true&transaction_mode=or'), {'D', 'C'})
 
-    def test_negative_with_several_codes_means_none_of_them(self):
-        self.assertEqual(self.names('not_tcodes=MIGO&not_tcodes=VA03'), {'ZC:MM:D'})
-        self.assertEqual(self.names('not_tcodes=migo&not_tcodes=%20VA03%20'), {'ZC:MM:D'})
+    def test_exclude_and_means_not_all_together_and_or_means_none(self):
+        base = 'tcodes=MIGO&tcodes=ME21N&exclude_matching=true'
+        self.assertEqual(self.roles(base + '&transaction_mode=and'), {'B', 'D', 'C'})
+        self.assertEqual(self.roles(base + '&transaction_mode=or'), {'D', 'C'})
+        every = {'A', 'D', 'B', 'C'}
+        self.assertEqual(self.roles('tcodes=NO_SUCH&exclude_matching=true'), every)
 
-    def test_negative_wildcards_and_unknown_codes(self):
-        self.assertEqual(self.names('not_tcodes=ME*'), {'ZC:FI:B', 'ZC:SD:C'})
-        self.assertEqual(self.names('not_tcodes=*'), set())
-        self.assertEqual(self.names('not_tcodes=NO_SUCH'), {'ZC:MM:A', 'ZC:MM:D', 'ZC:FI:B', 'ZC:SD:C'})
-        self.assertEqual(self.names('not_tcodes=NO_SUCH*'), {'ZC:MM:A', 'ZC:MM:D', 'ZC:FI:B', 'ZC:SD:C'})
+    def test_exclude_wildcards_unknown_codes_and_empty_values(self):
+        self.assertEqual(self.roles('tcodes=ME*&exclude_matching=true&transaction_mode=or'), {'B', 'C'})
+        self.assertEqual(self.roles('tcodes=ME*&tcodes=VA03&exclude_matching=true&transaction_mode=and'), {'A', 'B', 'C', 'D'})
+        self.assertEqual(self.roles('tcodes=*&exclude_matching=true&transaction_mode=or'), set())
+        self.assertEqual(self.roles('tcodes=%20&exclude_matching=true'), self.roles(''))
 
-    def test_empty_values_do_not_activate_the_filter(self):
-        self.assertEqual(self.names('not_tcodes=%20'), self.names(''))
-        self.assertEqual(self.names('not_tcodes='), self.names(''))
+    def test_exclude_combines_with_modules_text_and_leaves_matching_tcodes_empty(self):
+        self.assertEqual(self.roles('tcodes=MIGO&exclude_matching=true&function_key=SD'), {'C'})
+        self.assertEqual(self.roles('tcodes=MIGO&exclude_matching=true&search=delta'), {'D'})
+        self.assertEqual(self.roles('tcodes=MIGO&exclude_matching=true&function_keys=MM&function_keys=SD'), {'D', 'C'})
+        found = self.client.get('/api/roles?tcodes=MIGO&exclude_matching=true', headers=H).json()
+        self.assertTrue(all(role['matching_tcodes'] == [] for role in found))
+        self.assertEqual(self.client.get('/api/roles?exclude_matching=true', headers=H).status_code, 200)
+        self.assertEqual(self.client.get('/api/roles?tcodes=' + 'X' * 129 + '&exclude_matching=true', headers=H).status_code, 422)
 
-    def test_positive_and_negative_combine_and_compose_with_other_filters(self):
-        self.assertEqual(self.names('tcodes=MIGO&not_tcodes=ME21N'), {'ZC:FI:B'})
-        self.assertEqual(self.names('tcodes=ME*&transaction_mode=or&not_tcodes=ME21N'), {'ZC:MM:D'})
-        self.assertEqual(self.names('tcodes=MIGO&not_tcodes=MIGO'), set())
-        self.assertEqual(self.names('not_tcodes=MIGO&function_key=SD'), {'ZC:SD:C'})
-        self.assertEqual(self.names('not_tcodes=MIGO&search=delta'), {'ZC:MM:D'})
-        self.assertEqual(self.names('not_tcodes=MIGO&function_keys=MM&function_keys=SD'), {'ZC:MM:D', 'ZC:SD:C'})
 
-    def test_matching_tcodes_only_describe_the_positive_filter_and_input_is_bounded(self):
-        found = self.client.get('/api/roles?tcodes=MIGO&not_tcodes=ME21N', headers=H).json()
-        self.assertEqual(found[0]['matching_tcodes'], ['MIGO'])
-        self.assertEqual(self.client.get('/api/roles?not_tcodes=' + 'X' * 129, headers=H).status_code, 422)
-        too_many = '&'.join(f'not_tcodes=T{i}' for i in range(22))
-        self.assertEqual(self.client.get('/api/roles?' + too_many, headers=H).status_code, 422)
+class UserAccessSemanticsTests(TransactionFilterCase):
+    def test_positive_users_are_unchanged(self):
+        self.assertEqual(self.users('tcodes=MIGO'), {'U1', 'U2'})
+        self.assertEqual(self.users('tcodes=MIGO&tcodes=ME21N&transaction_mode=and'), {'U1'})
+        self.assertEqual(self.users('tcodes=MIGO&tcodes=VA03&transaction_mode=or'), {'U1', 'U2', 'U3', 'U4'})
 
-    def test_saved_filters_accept_the_negative_list(self):
-        body = {'name': 'Roles without SE16', 'view': 'roles', 'filters': {'tcodes': ['SE16', 'SM*'], 'transactionOperator': 'not', 'transactionMode': 'and'}}
-        response = self.client.post('/api/saved-filters', headers=H, json=body)
-        self.assertEqual(response.status_code, 200, response.text)
-        self.assertEqual((response.json()['filters']['transactionOperator'], response.json()['filters']['tcodes']), ('not', ['SE16', 'SM*']))
-        legacy = self.client.post('/api/saved-filters', headers=H, json={**body, 'name': 'Earlier', 'filters': {'notTcodes': ['SE16']}})
+    def test_exclude_single_code_requires_complete_mapped_eligible_evidence(self):
+        self.assertEqual(self.users('tcodes=MIGO&exclude_transactions=true'), {'U3', 'U4'})
+        # U5 (unmapped role), U7 (one unmapped role) and U6 (no eligible assignment) are never reported as lacking the code.
+        for unknown in ('U5', 'U6', 'U7'):
+            self.assertNotIn(unknown, self.users('tcodes=MIGO&exclude_transactions=true'))
+
+    def test_exclude_and_means_not_all_together_and_or_means_none(self):
+        base = 'tcodes=MIGO&tcodes=ME21N&exclude_transactions=true'
+        self.assertEqual(self.users(base + '&transaction_mode=and'), {'U2', 'U3', 'U4'})
+        self.assertEqual(self.users(base + '&transaction_mode=or'), {'U3', 'U4'})
+
+    def test_exclude_wildcards_and_expired_assignments(self):
+        self.assertEqual(self.users('tcodes=ME*&exclude_transactions=true&transaction_mode=or'), {'U2', 'U3'})
+        self.assertEqual(self.users('tcodes=ME*&tcodes=VA03&exclude_transactions=true&transaction_mode=and'), {'U1', 'U2', 'U3'})
+        # With expired assignments shown, U6's expired mapped role counts as evidence of MIGO, so it still is not "lacking".
+        self.assertEqual(self.users('tcodes=MIGO&exclude_transactions=true&show_expired=true'), {'U3', 'U4'})
+
+    def test_exclude_combines_with_group_role_and_status_filters(self):
+        self.assertEqual(self.users('tcodes=MIGO&exclude_transactions=true&group=G2'), {'U3', 'U4'})
+        self.assertEqual(self.users('tcodes=MIGO&exclude_transactions=true&group=G1'), set())
+        self.assertEqual(self.users('tcodes=MIGO&exclude_transactions=true&role=ZC:SD:C'), {'U3', 'U4'})
+        self.assertEqual(self.users('tcodes=VA03&exclude_transactions=true&search=U1'), {'U1'})
+
+    def test_without_a_role_catalogue_absence_is_never_concluded(self):
+        settings = config.get_settings().model_dump(); settings.update(data_csv_path='')
+        self.client.post('/api/configuration', headers=H, json=settings).raise_for_status()
+        self.assertEqual(self.users('tcodes=MIGO&exclude_transactions=true'), set())
+
+    def test_csv_export_uses_the_same_selection_and_semantics(self):
+        for query in ('tcodes=MIGO&exclude_transactions=true', 'tcodes=MIGO&tcodes=ME21N&exclude_transactions=true&transaction_mode=and',
+                      'tcodes=ME*&exclude_transactions=true&transaction_mode=or', 'tcodes=MIGO'):
+            rows = self.export(query)
+            self.assertEqual({row['USERNAME'] for row in rows}, self.users(query), query)
+        rows = self.export('tcodes=MIGO&exclude_transactions=true')
+        self.assertTrue(rows and all(row['MATCHED_FILTER'] == 'Yes' for row in rows if row['ASSIGNMENT_STATUS'] != 'Expired'))
+        self.assertNotIn('Expired', {row['ASSIGNMENT_STATUS'] for row in rows})
+
+    def test_saved_filters_store_the_exclusion_for_both_views(self):
+        for view, filters in (('roles', {'tcodes': ['MIGO'], 'transactionMode': 'or', 'transactionExclude': True}), ('users', {'tcodes': ['MIGO'], 'transactionMode': 'and', 'transactionExclude': True})):
+            response = self.client.post('/api/saved-filters', headers=H, json={'name': 'Without ' + view, 'view': view, 'filters': filters})
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertIs(response.json()['filters']['transactionExclude'], True)
+        legacy = self.client.post('/api/saved-filters', headers=H, json={'name': 'Earlier', 'view': 'roles', 'filters': {'notTcodes': ['SE16'], 'transactionOperator': 'not'}})
         self.assertEqual(legacy.status_code, 200, legacy.text)
-        bad = self.client.post('/api/saved-filters', headers=H, json={**body, 'name': 'Bad', 'filters': {'unknownTcodes': ['X']}})
+        bad = self.client.post('/api/saved-filters', headers=H, json={'name': 'Bad', 'view': 'users', 'filters': {'unknownTcodes': ['X']}})
         self.assertEqual(bad.status_code, 422)
 
 

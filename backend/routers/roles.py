@@ -4,7 +4,7 @@ from typing import Optional, Literal
 from fastapi import APIRouter, HTTPException, Query
 import cache
 from models import RoleSummary, RoleDetail
-from transaction_filters import normalized_tcodes, matching_role_names, matching_codes
+from transaction_filters import normalized_tcodes, role_names_for, matching_codes
 
 router = APIRouter(prefix="/api/roles", tags=["Roles"])
 
@@ -15,7 +15,7 @@ def list_roles(
     transaction_mode: Literal['and', 'or'] = 'and',
     search: Optional[str] = Query(None, description="Search role name or description"),
     tcodes: list[str] = Query(default=[], max_length=21),
-    not_tcodes: list[str] = Query(default=[], max_length=21, description="Only roles that have some T-code but none of these (patterns with * allowed)"),
+    exclude_matching: bool = Query(False, description="Reverse the transaction filter: AND = not all together, OR = none of them; roles without mappings never match"),
     tcode: Optional[str] = Query(None, description="Find all roles containing this T-code"),
 ) -> list[RoleSummary]:
     """
@@ -37,16 +37,11 @@ def list_roles(
         all_roles = [r for r in all_roles if r.function_key == function_key]
 
     exact_codes = normalized_tcodes(tcodes)
-    excluded_codes = normalized_tcodes(not_tcodes)
-    if exact_codes or excluded_codes:
+    if exact_codes:
         index = state.tcode_index
-        names = matching_role_names(index, exact_codes, transaction_mode) if exact_codes else None
-        if excluded_codes:
-            # "Does not have": the role must hold at least one other T-code, so roles without any T-code are never returned.
-            holding = set().union(*index.values()) if index else set()
-            lacking = holding - matching_role_names(index, excluded_codes, 'or')
-            names = lacking if names is None else names & lacking
-        all_roles = [r.model_copy(update={"matching_tcodes": sorted({actual for code in exact_codes for actual in matching_codes(index,code) if r.agr_name in index[actual]})}) for r in all_roles if r.agr_name in names]
+        names = role_names_for(index, exact_codes, transaction_mode, exclude_matching)
+        shown = (lambda r: []) if exclude_matching else (lambda r: sorted({actual for code in exact_codes for actual in matching_codes(index,code) if r.agr_name in index[actual]}))
+        all_roles = [r.model_copy(update={"matching_tcodes": shown(r)}) for r in all_roles if r.agr_name in names]
         if search and search.strip():
             query = search.strip().lower()
             all_roles = [r for r in all_roles if text_matches(r.agr_name, query) or text_matches(r.text, query)]

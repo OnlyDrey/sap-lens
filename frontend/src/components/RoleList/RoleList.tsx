@@ -20,7 +20,7 @@ import { RoleCard } from './RoleCard'
 import type { RoleSummary } from '@/api/types'
 import { apiRequest } from '@/api/client'
 
-const fetchExactRoles = (codes: string[], mode: 'and' | 'or', operator: 'has' | 'not') => apiRequest<RoleSummary[]>(`/api/roles?${new URLSearchParams([...codes.map(code => [operator === 'not' ? 'not_tcodes' : 'tcodes', code]), ['transaction_mode', mode]])}`)
+const fetchExactRoles = (codes: string[], mode: 'and' | 'or', exclude: boolean) => apiRequest<RoleSummary[]>(`/api/roles?${new URLSearchParams([...codes.map(code => ['tcodes', code]), ['transaction_mode', mode], ...(exclude ? [['exclude_matching', 'true']] : [])])}`)
 
 interface Props {
   initialArea?:string
@@ -155,7 +155,7 @@ export function RoleList({
   const {loading:dataLoading}=useApplicationData()
   const [page,setPage] = useState(0)
   const transaction = useTransactionFilter()
-  const [operator, setOperator] = useState<'has' | 'not'>('has')
+  const [exclude, setExclude] = useState(false)
   const [search, setSearch] = useState('')
   const [activeModules, setActiveModules] = useState<string[]>(initialArea?[initialArea]:[])
   const [transactionMode, setTransactionMode] = useState<'and' | 'or'>('and')
@@ -175,8 +175,8 @@ export function RoleList({
   } = useRoles()
 
   const exactTransactions = useQuery({
-    queryKey: ['roles', 'exact-transactions', transaction.deferredCodes, transactionMode, operator],
-    queryFn: () => fetchExactRoles(transaction.deferredCodes, transactionMode, operator),
+    queryKey: ['roles', 'exact-transactions', transaction.deferredCodes, transactionMode, exclude],
+    queryFn: () => fetchExactRoles(transaction.deferredCodes, transactionMode, exclude),
     enabled: transaction.deferredCodes.length > 0,
     staleTime: 120_000,
   })
@@ -230,13 +230,13 @@ export function RoleList({
     sortBy, transaction.key, transaction.deferredCodes, exactTransactions.data
   ])
 
-  useEffect(()=>setPage(0),[debSearch,activeModules,sortBy,transaction.key,transactionMode,operator])
+  useEffect(()=>setPage(0),[debSearch,activeModules,sortBy,transaction.key,transactionMode,exclude])
   const pageCount=Math.max(1,Math.ceil(visible.length/100))
   const currentPage=Math.min(page,pageCount-1)
 
   const isFiltering =
     !!debSearch.trim() ||
-    activeModules.length > 0 || transaction.codes.length > 0 || operator !== 'has' || sortBy !== 'name-asc'
+    activeModules.length > 0 || transaction.codes.length > 0 || exclude || sortBy !== 'name-asc'
 
   useEffect(() => { if (!isLoading && !isError) onFilteredRoles?.(visible.map(role => role.agr_name)) }, [visible, onFilteredRoles, isLoading, isError])
 
@@ -253,7 +253,7 @@ export function RoleList({
   return (
     <div className="flex flex-col gap-4" role="region" aria-label="Role catalogue investigation" aria-busy={isLoading||search!==debSearch||transaction.settling||exactTransactions.isFetching}>
       <PageHeader title="Role Lookup" icon={<PageIcon size={22} aria-hidden="true"/>}/>
-      <SavedFilters showClear={false} view="roles" state={{search,activeModules,transactionMode,tcodes:transaction.codes,transactionOperator:operator,sortBy}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(Array.isArray(s.activeModules))setActiveModules(s.activeModules);if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(Array.isArray(s.tcodes)){transaction.setInput('');transaction.setChips(s.tcodes)};if(Array.isArray(s.notTcodes)&&s.notTcodes.length&&!(Array.isArray(s.tcodes)&&s.tcodes.length)){transaction.setInput('');transaction.setChips(s.notTcodes);setOperator('not')}else setOperator(s.transactionOperator==='not'?'not':'has');if(SORT_OPTIONS.some(o=>o.key===s.sortBy))setSortBy(s.sortBy as SortKey)}} clear={()=>{setSearch('');setActiveModules([]);setTransactionMode('and');setOperator('has');transaction.clear();setSortBy('name-asc')}}/>
+      <SavedFilters showClear={false} view="roles" state={{search,activeModules,transactionMode,tcodes:transaction.codes,transactionExclude:exclude,sortBy}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(Array.isArray(s.activeModules))setActiveModules(s.activeModules);if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(Array.isArray(s.tcodes)){transaction.setInput('');transaction.setChips(s.tcodes)};if(Array.isArray(s.notTcodes)&&s.notTcodes.length&&!(Array.isArray(s.tcodes)&&s.tcodes.length)){transaction.setInput('');transaction.setChips(s.notTcodes);setTransactionMode('or');setExclude(true)}else{const legacy=s.transactionOperator==='not'&&s.transactionExclude!==true;if(legacy)setTransactionMode('or');setExclude(s.transactionExclude===true||legacy)};if(SORT_OPTIONS.some(o=>o.key===s.sortBy))setSortBy(s.sortBy as SortKey)}} clear={()=>{setSearch('');setActiveModules([]);setTransactionMode('and');setExclude(false);transaction.clear();setSortBy('name-asc')}}/>
       <div
         className="catalogue-search-controls rounded-2xl border px-4 py-3 gap-3 "
         style={{
@@ -261,10 +261,7 @@ export function RoleList({
           borderColor:'var(--border)'
         }}
       >
-        <TransactionFilter compact label="Filter catalogue by transaction" filter={transaction} mode={transactionMode} onModeChange={setTransactionMode} operator={operator} onOperatorChange={setOperator} showClear={false}/>
-        {transaction.codes.length > 0 && (operator === 'has'
-          ? <p className="text-xs text-[var(--muted)]">Transaction code/pattern filters match {transactionMode === 'and' ? 'every selected code (AND)' : 'any selected code (OR)'}, combined with text and module filters (AND). Roles without supplied mappings are excluded; source completeness cannot be established.</p>
-          : <p className="text-xs text-[var(--muted)]">Does not have: roles with at least one transaction mapping and no match for any selected code or pattern, combined with text and module filters (AND). Roles without any mapping are excluded, and a missing mapping is not confirmed absence of access.</p>)}
+        <TransactionFilter compact label="Filter catalogue by transaction" filter={transaction} mode={transactionMode} onModeChange={setTransactionMode} exclude={exclude} onExcludeChange={setExclude} subject="roles" showClear={false}/>
         {exactTransactions.isError && transaction.codes.length > 0 && <p role="alert">Transaction filtering failed. {exactTransactions.error.message}</p>}
         <div className="catalogue-role-search flex gap-2">
           <div className="relative flex-1">
@@ -459,7 +456,7 @@ export function RoleList({
             )}
 
             {isFiltering && (
-              <ClearFilterButton onClick={() => { setSearch(''); setActiveModules([]); transaction.clear(); setTransactionMode('and'); setOperator('has'); setSortBy('name-asc') }}>Clear all filters</ClearFilterButton>
+              <ClearFilterButton onClick={() => { setSearch(''); setActiveModules([]); transaction.clear(); setTransactionMode('and'); setExclude(false); setSortBy('name-asc') }}>Clear all filters</ClearFilterButton>
             )}
           </div>
         </div>

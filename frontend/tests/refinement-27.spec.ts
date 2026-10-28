@@ -22,7 +22,7 @@ test('catalogue search visual order matches keyboard order and cards contain lon
  await page.goto('/#session=browser-test-session');await nav(page,'Role Lookup')
  const tc=page.getByRole('textbox',{name:'Filter catalogue by transaction',exact:true}),name=page.getByPlaceholder('Search roles by name or description...')
  await expect(tc).not.toBeFocused();expect((await tc.boundingBox())!.x).toBeLessThan((await name.boundingBox())!.x)
- await tc.focus();await page.keyboard.press('Tab');await expect(name).toBeFocused()
+ await tc.focus();await page.keyboard.press('Tab');await expect(page.getByRole('checkbox',{name:'Exclude matching transactions'})).toBeFocused();await page.keyboard.press('Tab');await expect(name).toBeFocused()
  for(const card of await page.locator('article.role-card').all()){const box=(await card.boundingBox())!;expect(box.x+box.width).toBeLessThanOrEqual(1280);await expect(card.getByRole('button',{name:/View details/})).toHaveCSS('min-height','34px')}
  await tc.fill('MIGO');await expect(page.locator('article.role-card')).toHaveCount(2)
 })

@@ -6,21 +6,27 @@ Multiple T-codes default to AND, with an explicit OR option. Enter creates a chi
 remove chips individually or Clear all filters. Sorting stays beside the result
 count, below the primary searches.
 
-## Transaction match type: Has / Does not have T-code
+## Exclude matching transactions
 
-The transaction field has one search input and a compact **Transaction match type** selector above it. **Has T-code** is the default
-and keeps the original behavior (exact codes and `*` wildcards, AND by default with the explicit OR option). **Does not have T-code**
-uses the same input, chips and wildcards:
+Role Lookup and User Access share one transaction filter: a single search input, compact removable chips, the AND/OR control for
+several codes and an **Exclude matching transactions** checkbox. Unchecked (the default) is positive matching; checking it reverses the
+filter and keeps the entered codes. **Clear all filters** restores positive matching.
 
-- A role matches when it contains at least one other transaction mapping and none of the listed codes or patterns. With several
-  entries it means "none of them", so the AND/OR option is not shown in this mode. Roles without any mapping are never returned, and a
-  code that does not exist in the catalogue excludes nothing. A missing mapping is not confirmed absence of access.
-- Switching the selector keeps the entered codes. The helper text describes only the active mode; the reverse explanation is not shown
-  while Has T-code is active.
-- Both modes combine with the text search, SAP area pills and other filters (AND). **Clear all filters** restores Has T-code.
-- Saved Filters store the codes with `transactionOperator` (`has` or `not`); earlier saves that used `notTcodes` still load as Does not have.
-- The API takes repeated `tcodes` (has) or `not_tcodes` (does not have) parameters on `GET /api/roles`, at most 21 of 128 characters each.
-- User Access and Compare users keep their own transaction filters; the selector is Role Lookup only.
+| Selected codes A and B | AND | OR |
+| --- | --- | --- |
+| Positive | contains A and B | contains A or B |
+| Exclude matching | does not contain A and B together | contains neither A nor B |
+
+Exact codes and `*` wildcards work in every combination, and the filter combines with the text search, SAP area pills and other filters (AND).
+
+- **Role Lookup**: reverse results are roles that hold at least one transaction mapping, so roles without any mapping never appear
+  (`GET /api/roles?tcodes=...&transaction_mode=and|or&exclude_matching=true`).
+- **User Access**: transactions are evaluated across the user's eligible role assignments (the same user group, role and validity rules
+  as the directory). A user only appears in reverse results when every eligible assignment is mapped to a catalogue role; users with unmapped
+  roles, with no eligible assignment, or without a loaded catalogue are not listed because absence cannot be confirmed
+  (`GET /api/access/users?...&exclude_transactions=true`). Sorting, Saved Filters (`transactionExclude`) and CSV export use the same selection.
+- Earlier saved filters that used `transactionOperator: not` or `notTcodes` still load as an exclusion with OR (none of them).
+- A missing mapping is never proof that SAP authorization is absent.
 
 Open a role for its relationships and transactions. Previous/Next spans the full
 filtered/sorted result set and preserves the originating list. The compact back

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ButtonGroup } from './Button'
 import { FilterChip } from './FilterChip'
-import { SearchInput } from './Controls'
+import { Checkbox, SearchInput } from './Controls'
 import { ClearFilterButton } from './ClearFilterButton'
 
 const normalize = (value: string) => value.trim().toUpperCase()
@@ -40,6 +40,13 @@ export function useTransactionFilter(resetKey?: string | null) {
     },
   }
 }
+/** One short sentence for the reverse filter; positive matching needs no explanation beyond the AND/OR control. */
+function excludeHelp(subject: 'roles' | 'users' | undefined, mode: 'and' | 'or' | undefined) {
+  const users = subject === 'users',
+    unlisted = users ? 'Users with unmapped roles are not listed.' : 'Roles without mappings are not listed.'
+  return `${users ? 'Users' : 'Roles'} ${mode === 'or' ? 'with none of these codes' : 'lacking at least one of these codes'}. ${unlisted}`
+}
+
 export function TransactionFilter({
   label,
   filter,
@@ -49,8 +56,9 @@ export function TransactionFilter({
   showClear = true,
   compact = false,
   chipPrefix = '',
-  operator,
-  onOperatorChange,
+  exclude,
+  onExcludeChange,
+  subject,
 }: {
   label: string
   filter: ReturnType<typeof useTransactionFilter>
@@ -58,9 +66,10 @@ export function TransactionFilter({
   mode?: 'and' | 'or'
   onModeChange?: (value: 'and' | 'or') => void
   chipPrefix?: string
-  /** Optional Has / Does not have selector; surfaces that do not pass it keep their positive-only behavior. */
-  operator?: 'has' | 'not'
-  onOperatorChange?: (value: 'has' | 'not') => void
+  /** Optional "Exclude matching transactions" checkbox, shared by Role Lookup and User Access; other surfaces stay positive-only. */
+  exclude?: boolean
+  onExcludeChange?: (value: boolean) => void
+  subject?: 'roles' | 'users'
   compact?: boolean
   showClear?: boolean
 }) {
@@ -73,9 +82,6 @@ export function TransactionFilter({
       aria-label={label}
       aria-busy={filter.settling}
     >
-      {operator && onOperatorChange && (
-        <ButtonGroup label="Transaction match type" value={operator} options={[{ value: 'has', label: 'Has T-code' }, { value: 'not', label: 'Does not have T-code' }]} onChange={(value) => onOperatorChange(value as 'has' | 'not')} />
-      )}
       <label className="transaction-input-label text-sm">
         <span className={compact ? "sr-only" : undefined}>{label}</span>
           <SearchInput
@@ -125,20 +131,19 @@ export function TransactionFilter({
           }}
         />
       )}
-      {(filter.chips.length > 0 || (operator !== 'not' && mode && filter.codes.length > 1)) && (
+      {(filter.chips.length > 0 || onExcludeChange || (mode && filter.codes.length > 1)) && (
         <div className="transaction-chips" aria-label="Transaction filters">
-          {operator !== 'not' && mode && onModeChange && filter.codes.length > 1 && (
+          {onExcludeChange && <Checkbox checked={!!exclude} onChange={(event) => onExcludeChange(event.target.checked)}>Exclude matching transactions</Checkbox>}
+          {mode && onModeChange && filter.codes.length > 1 && (
             <ButtonGroup label="Transaction matching" value={mode} options={['and','or'].map(value=>({value,label:value.toUpperCase()}))} onChange={value=>onModeChange(value as 'and'|'or')}/>
 
           )}
           {filter.chips.map((code) => (
             <FilterChip key={code} removeLabel={`Remove transaction ${code}`} onRemove={()=>{filter.setChips(filter.chips.filter(item=>item!==code));input.current?.focus()}}>{chipPrefix}{code}</FilterChip>
           ))}
-          <span className="text-xs text-[var(--muted)]">
-            {operator === 'not' ? 'Does not have any of these' : mode === 'and' ? 'Match all (AND)' : 'Match any (OR)'}
-          </span>
         </div>
       )}
+      {exclude && onExcludeChange && filter.codes.length > 0 && <p className="transaction-help text-xs text-[var(--muted)]">{excludeHelp(subject, mode)}</p>}
       {message && <p role="status">{message}</p>}
     </div>
   )

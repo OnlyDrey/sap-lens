@@ -21,3 +21,12 @@ def matching_role_names(index, codes, mode='and'):
 def matching_codes(index, query):
     """Expand explicit user patterns; ordinary selected T-codes stay exact."""
     return [code for code in index if text_matches(code,query)] if '*' in query else ([query] if query in index else [])
+
+
+def role_names_for(index, codes, mode='and', exclude=False):
+    """Positive: AND = contains every code, OR = contains any. Exclude is the complement among roles that have at least one mapping,
+    so AND excludes roles holding all codes together and OR excludes roles holding any; roles without mappings never match."""
+    positive = matching_role_names(index, codes, mode)
+    if not exclude: return positive
+    holding = set().union(*index.values()) if index else set()
+    return holding - positive
