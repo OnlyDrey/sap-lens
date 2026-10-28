@@ -162,3 +162,13 @@ test('the transaction mode is part of a Saved Filter and the selector is not add
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'User Access', exact: true }).click()
   await expect(page.getByRole('group', { name: 'Transaction match type' })).toHaveCount(0)
 })
+
+for (const width of [375, 800, 1280, 1600]) test(`visual order matches keyboard order: selector, transaction field, then role search at ${width}`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 900 })
+  await open(page)
+  const boxes = await Promise.all([mode(page), filter(page).getByRole('textbox'), page.getByPlaceholder('Search roles by name or description...')].map((locator) => locator.boundingBox()))
+  const [selector, transaction, search] = boxes as NonNullable<(typeof boxes)[number]>[]
+  expect(selector.y + selector.height).toBeLessThanOrEqual(transaction.y + 1)
+  expect(transaction.y + transaction.height <= search.y + 1 || transaction.x + transaction.width <= search.x + 1).toBeTruthy()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
+})

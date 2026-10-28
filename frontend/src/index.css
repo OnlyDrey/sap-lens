@@ -370,11 +370,12 @@ button:hover .module-icon:not([data-disabled="true"]) { border-color: currentCol
 .catalogue-search-controls { display:grid; grid-template-columns:minmax(0,3fr) minmax(0,7fr); }
 .catalogue-search-controls > * { grid-column:1/-1; }
 .catalogue-search-controls > .transaction-filter { display:contents; }
-.catalogue-search-controls .transaction-input-label { grid-column:1; grid-row:1; }
+.catalogue-search-controls .ui-button-group[aria-label="Transaction match type"] { grid-column:1/-1; grid-row:1; justify-self:start; }
+.catalogue-search-controls .transaction-input-label { grid-column:1; grid-row:2; }
 .catalogue-search-controls .transaction-input { min-height:var(--control-height); }
-.catalogue-search-controls .catalogue-role-search { grid-column:2; grid-row:1; min-width:0; }
+.catalogue-search-controls .catalogue-role-search { grid-column:2; grid-row:2; min-width:0; }
 .catalogue-search-controls .catalogue-role-search input { height:42px; }
-.catalogue-search-controls .transaction-chips { grid-column:1/-1; grid-row:2; }
+.catalogue-search-controls .transaction-chips { grid-column:1/-1; grid-row:3; }
 .notification-close:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
 .notification { color:var(--text); background:var(--surface); }
 .notification-success { color:var(--success); }
@@ -385,7 +386,7 @@ button:hover .module-icon:not([data-disabled="true"]) { border-color: currentCol
 .notification-content > div { min-width:0; overflow-wrap:anywhere; }
 .notification-close { padding:.25rem; flex:none; border-radius:.375rem; }
 .notification-close:hover { background:var(--hover); }
-@media(max-width:800px) { .catalogue-search-controls { grid-template-columns:minmax(0,1fr); gap:var(--space-2); } .catalogue-search-controls .catalogue-role-search { grid-column:1; grid-row:2; } .catalogue-search-controls .transaction-input-label { grid-column:1; grid-row:1; } .catalogue-search-controls .transaction-chips { grid-row:3; } }
+@media(max-width:800px) { .catalogue-search-controls { grid-template-columns:minmax(0,1fr); gap:var(--space-2); } .catalogue-search-controls .catalogue-role-search { grid-column:1; grid-row:3; } .catalogue-search-controls .transaction-input-label { grid-column:1; grid-row:2; } .catalogue-search-controls .transaction-chips { grid-row:4; } }
 
 @media(min-width:640px) { .notification-content { padding-inline:1.5rem; } }
 .active-evidence-filter > .transaction-filter { flex:1 1 20rem; min-width:0; }
