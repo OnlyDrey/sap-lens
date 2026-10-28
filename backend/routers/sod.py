@@ -166,7 +166,10 @@ def governance_overview():
         total=sum(count for kind in ('activity','acceptance') for count in gaps[kind].values())
         progress.append(dict(id=period.id,name=period.name,state=period.state,decided=decided,total=total,blocking=gaps['blocking']))
         if len(progress)>=5:break
-    return dict(available=True,users_with_conflicts=len(model),user_risk_findings=sum(len(entry['findings']) for entry in model.values()),
+    frozen=[item for item in index.items if not item.deleted_at and item.state in periods.FROZEN and item.approval_date]
+    latest=max(frozen,key=lambda item:(item.approval_date,item.modified),default=None)
+    latest_approval=dict(id=latest.id,name=latest.name,state=latest.state,approval_date=latest.approval_date.isoformat(),approver=latest.approver) if latest else None
+    return dict(available=True,latest_approval=latest_approval,users_with_conflicts=len(model),user_risk_findings=sum(len(entry['findings']) for entry in model.values()),
                 activities=tally('activity'),assignments=tally('assignment'),acceptance=tally('acceptance'),
                 assignments_marked_remove=sum(1 for life,_ in state['assignment'].values() if life=='Removal required'),
                 remediation=dict(open_actions=len(open_actions),overdue=sum(1 for item in open_actions if item.due_date and item.due_date<today),

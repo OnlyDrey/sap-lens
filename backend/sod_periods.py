@@ -36,6 +36,8 @@ class Deletion(StrictModel):
     timestamp:str
     actor:str=Field(default='',max_length=120)
     counts:dict[str,int]=Field(default_factory=dict)
+    reason:str=Field(default='',max_length=2000)
+    frozen:bool=False
 
 class Period(StrictModel):
     id:str=Field(pattern=r'^[a-f0-9]{32}$')
@@ -278,7 +280,8 @@ def compare(left_id,right_id):
         return result
 
 def deletion_impact(identifier):
-    """What a deletion would remove, retain or block; never changes state."""
+    """What a deletion would remove, retain or affect; never changes state. Every status can be deleted: only an empty draft is erased,
+    everything else is tombstoned (hidden, with snapshot, decisions, actions and the report log retained for audit)."""
     with lock:
         index=read();period=find(index,identifier);saved=snapshot(period)
     v2=saved.get('model')==2
@@ -286,29 +289,34 @@ def deletion_impact(identifier):
     with reviews.lock:legacy=reviews.read().contexts.get(identifier,{})
     counts=dict(decisions=summary['events'],legacy_risk_decisions=sum(len(events) for events in legacy.values()),actions=summary['actions'],reports=len(summary['reports']),dependents=len(summary['dependents']),snapshots=len(period.snapshots))
     issued=[item for item in summary['reports'] if item['status']!='Draft']
-    reason=''
-    if period.state in FROZEN:reason='Approved and closed periods are protected. Their snapshot, decisions and reports are retained.'
-    elif issued:reason='This period is referenced by reports issued for review or approval and is retained for audit.'
-    elif summary['dependents']:reason='Other reports use this period as their comparison baseline.'
-    empty=not counts['decisions'] and not counts['legacy_risk_decisions'] and not counts['actions'] and not counts['reports']
-    mode='protected' if reason else 'permanent' if period.state=='Draft' and empty else 'archive'
-    text={'protected':reason,'permanent':'The empty draft and its captured snapshot are permanently deleted. A deletion record is kept.',
-          'archive':'The period is archived: hidden from active work and comparisons, with decisions, actions and snapshots retained for audit. A deletion record is kept.'}[mode]
+    frozen=period.state in FROZEN
+    empty=not counts['decisions'] and not counts['legacy_risk_decisions'] and not counts['actions'] and not counts['reports'] and not counts['dependents']
+    mode='permanent' if period.state=='Draft' and empty else 'archive'
+    history=frozen or bool(issued) or bool(summary['dependents'])
+    warnings=[]
+    if frozen:warnings.append('This period was approved or closed. Its frozen snapshot, approval record and decisions are retained but hidden from active work, matrices, comparisons and report generation.')
+    if issued:warnings.append('Reports already issued from this period stay valid outside SAP Lens. Their entries remain in the report log, but they cannot be regenerated from SAP Lens afterwards.')
+    if summary['dependents']:warnings.append('Reports that use this period as their comparison baseline keep their log entries; new comparisons against this period are no longer possible.')
+    if frozen or summary['dependents']:warnings.append('Findings first seen in this period are classified as new rather than reopened in later comparisons.')
+    text='The empty draft and its captured snapshot are permanently deleted. A deletion record is kept.' if mode=='permanent' else 'The period is archived (tombstoned): hidden from active work and comparisons, with decisions, actions, snapshots and the report log retained for audit. A deletion record with the reason is kept.'
     return dict(id=identifier,name=period.name,state=period.state,mode=mode,counts=counts,reports=summary['reports'],dependents=summary['dependents'],
-                consequences=text,model=2 if v2 else 1,revision=index.revision)
+                consequences=text,warnings=warnings,requires_reason=frozen,requires_history_confirmation=history,model=2 if v2 else 1,revision=index.revision)
 
-def delete(identifier,expected_revision,confirm_name,confirm_impact,actor):
+def delete(identifier,expected_revision,confirm_name,confirm_impact,actor,reason='',confirm_history=False):
     with lock,reviews.lock,decisions.lock:
         index=read();expect(index,expected_revision);period=find(index,identifier)
         impact=deletion_impact(identifier)
-        if impact['mode']=='protected':raise HTTPException(409,impact['consequences'])
         if confirm_name!=period.name:raise HTTPException(422,'Type the exact period name to confirm deletion.')
         if impact['mode']=='archive' and not confirm_impact:raise HTTPException(422,'Confirm the impact of archiving a period with recorded work.')
+        if impact['requires_history_confirmation'] and not confirm_history:raise HTTPException(422,'Confirm that approved evidence, issued reports and dependent comparisons are retained but no longer available for active work.')
+        if impact['requires_reason'] and not reason.strip():raise HTTPException(422,'A reason is required to delete an approved or closed period.')
         if not actor.strip():raise HTTPException(422,'Record the person deleting this period.')
-        stamp=now();record=Deletion(id=period.id,name=period.name,state=period.state,mode='permanent' if impact['mode']=='permanent' else 'archived',timestamp=stamp,actor=actor.strip(),counts=impact['counts'])
+        stamp=now();record=Deletion(id=period.id,name=period.name,state=period.state,mode='permanent' if impact['mode']=='permanent' else 'archived',timestamp=stamp,actor=actor.strip(),counts=impact['counts'],reason=reason.strip(),frozen=period.state in FROZEN)
         snapshots=list(period.snapshots)
         if impact['mode']=='permanent':index.items=[item for item in index.items if item.id!=identifier]
-        else:period.deleted_at=stamp;period.modified=stamp
+        else:
+            period.history=[*period.history,PeriodEvent(timestamp=stamp,from_state=period.state,to_state='Archived',actor=actor.strip(),note=reason.strip())][-500:]
+            period.deleted_at=stamp;period.modified=stamp
         index.deletions=[*index.deletions,record][-500:];index.revision+=1;write(index)
         if impact['mode']=='permanent':
             for identity in snapshots:

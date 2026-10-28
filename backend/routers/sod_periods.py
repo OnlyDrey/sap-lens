@@ -25,6 +25,8 @@ class Delete(StrictModel):
     expected_revision:int=Field(ge=0)
     confirm_name:str=Field(max_length=120)
     confirm_impact:bool=False
+    confirm_history:bool=False
+    reason:str=Field(default='',max_length=2000)
     actor:str=Field(default='',max_length=120)
 class Recapture(StrictModel):
     expected_revision:int=Field(ge=0)

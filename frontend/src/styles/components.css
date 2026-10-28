@@ -594,3 +594,17 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .sod-config-table .sod-meta { font-size: 0.75rem; color: var(--muted); }
 .sod-config-toolbar .shared-select, .sod-config-toolbar .settings-select { width: auto; min-width: 12rem; }
 .sod-config-toolbar .ui-search { flex: 1 1 14rem; max-width: 22rem; }
+
+/* SoD overview: compact figure tiles that link into filtered views. */
+.sod-overview-figures { display: grid; min-width: 0; gap: 0.75rem; }
+.sod-tiles { display: grid; min-width: 0; gap: 0.5rem; grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); }
+.sod-tile { display: grid; min-width: 0; align-content: space-between; gap: 0.25rem; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--surface); }
+.sod-tile > button, .sod-tile > span { padding: 0; border: 0; background: none; color: inherit; font: inherit; font-size: 0.75rem; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.sod-tile > span { cursor: default; }
+.sod-tile > button:hover { color: var(--accent2); text-decoration: underline; }
+.sod-tile > button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.sod-tile > strong { font-size: 1.5rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.sod-tile[data-tone='error'] > strong { color: var(--error); }
+.sod-tile[data-tone='error'] { border-color: var(--error); }
+.sod-row-actions { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: 0.25rem; }
+.sod-periods-header > h2 { margin-right: auto; }

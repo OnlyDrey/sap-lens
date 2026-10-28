@@ -198,7 +198,8 @@ class FormalReportTests(ReportCase):
         log = decisions.context_summary(self.pid)['reports']
         self.assertEqual([item['kind'] for item in log], ['pdf', 'docx'])
         self.assertEqual(log[0]['model_checksum'], preview.json()['model_checksum'])
-        self.assertEqual(self.get(f'/api/sod/periods/{self.pid}/deletion-impact')['mode'], 'protected')
+        impact = self.get(f'/api/sod/periods/{self.pid}/deletion-impact')
+        self.assertEqual((impact['mode'], impact['requires_history_confirmation']), ('archive', True))
 
     def test_logo_extreme_aspect_ratio_does_not_overflow(self):
         from PIL import Image

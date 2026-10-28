@@ -13,12 +13,12 @@ Accept or reject → Approve → Remediate → Verify → Report**
 
 | View | Purpose |
 | --- | --- |
-| Overview | Conflicts, review progress, accepted/rejected risks, remediation, open periods, changes since the last refresh and source coverage. Figures link into the matrices. |
+| Overview | Compact figure tiles for conflicts, reviews and remediation that link into filtered views, review period progress and last approval, evidence freshness and source coverage. |
 | Risk Matrix | SAP users by risk. Cells show the risk-acceptance state; totals count distinct users and user-risk findings. Group rows by SAP user group. |
 | Activity Matrix | SAP users by activity with review state and the number of supplying roles (overlap flagged). The main entry point for reviewing. |
 | Access Explorer | User risk, user activity, access list, role lookup and role conflicts, with CSV export. Trace user, risk, activity, transaction, role and assignment in both directions. |
 | Reviews | Work queue with status filters and batch review of selected rows, and Remediation tracking. |
-| Review Periods | Frozen snapshots, workflow, comparison and deletion. |
+| Review Periods | Frozen snapshots, workflow, a per-row action menu, comparison in a dialog and audited deletion. |
 | Reports | Formal review report and access remediation report. |
 
 Business matrices (for example Finance or P2P) are **Saved Filters** on the two matrices,
@@ -55,9 +55,7 @@ are shown rather than one recommendation.
 Create a period (name, range, evaluation date) to freeze evidence, then
 `Draft → In review → Ready for approval → Approved → Closed` (or `Rejected` with a reason).
 Approval needs every activity and risk decision current, a different reviewer and approver,
-and freezes the snapshot with its decisions. Deleting needs the exact period name: empty
-drafts are removed, other open periods are archived, approved or report-referenced periods
-are protected. Reports: PDF and DOCX formal review (executive summary, scope, sources,
+and freezes the snapshot with its decisions. Reports: PDF and DOCX formal review (executive summary, scope, sources,
 risk overview, activity, assignment and acceptance results, controls, remediation, changes,
 conclusion and signature lines, technical appendix) and an access remediation report with
 CSV, DOCX and PDF. Generating a report never approves a review, and names and signature
@@ -91,3 +89,16 @@ Settings → SoD Risk Configuration has two tabs, **Risks** and **Activities**, 
 - It is never enabled automatically: importing or selecting a SoD matrix leaves it off. Installations that already had a SoD source when this setting was introduced are migrated as enabled, so existing behavior is unchanged; an explicit saved value always wins.
 - Status: Operational (enabled, matrix loaded, User–Role Mapping enabled and user data present), Disabled in saved settings, Requires User–Role Mapping, Data required.
 - While disabled the SoD entry is hidden from the main navigation (direct visits show a short notice), analysis reports coverage reason `sod_disabled`, and dynamic SoD refreshes are skipped. Matrices, risk and activity configuration, review decisions, periods and reports are retained untouched and return when it is re-enabled, without re-importing.
+
+## Deleting review periods
+
+Every period status can be deleted from the row action menu or the period dialog. The delete dialog previews what is affected
+(decisions, actions, reports, comparison baselines, snapshots) and always needs the exact period name and who is deleting.
+
+- An empty draft is erased together with its captured snapshot. A deletion record remains.
+- Anything else is tombstoned: hidden from active work, matrices, comparisons and report generation, while its snapshot, approval record,
+  decisions, actions and report log stay on disk. It appears under "Show archived periods". Archiving needs an impact confirmation.
+- Approved or closed periods, periods with issued reports, and periods used as a report baseline need a second history confirmation.
+  Approved or closed periods also need a reason. The reason, actor and previous state are stored in the deletion record and the period history.
+- Reports already issued outside SAP Lens stay valid; their log entries remain, but they cannot be regenerated afterwards. Findings first seen in a deleted
+  approved period are classified as new instead of reopened in later comparisons. Other periods and current decisions are never changed (no cascade).

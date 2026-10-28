@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { cleanup, openSod, seedGovernance } from './sod-fixture'
+import { cleanup, createPeriod, openSod, seedGovernance } from './sod-fixture'
 
 let directory: string
 test.beforeEach(async ({ request }) => { directory = await seedGovernance(request, 'static') })
@@ -62,4 +62,19 @@ test('risk and activity identifiers render as pills in the explorer', async ({ p
   await expect(page.locator('.id-pill-risk').first()).toBeVisible()
   await page.getByRole('tab', { name: 'User activity table', exact: true }).click()
   await expect(page.locator('.id-pill-activity').first()).toBeVisible()
+})
+
+for (const width of [375, 800, 1280]) test(`overview tiles and review periods fit without horizontal overflow at ${width}`, async ({ page, request }) => {
+  const periodName = `Layout period ${width}-${Date.now()}`
+  await createPeriod(request, periodName)
+  await page.setViewportSize({ width, height: 900 })
+  for (const view of ['Overview', 'Review Periods']) {
+    await openSod(page, view)
+    await expect(page.getByRole('region', { name: view === 'Overview' ? 'SoD key figures' : 'SoD review periods', exact: true })).toBeVisible()
+    const [scroll, inner, culprits] = await page.evaluate(() => [document.documentElement.scrollWidth, innerWidth, [...document.querySelectorAll('*')].filter((e) => e.getBoundingClientRect().right > innerWidth + 1 && !e.closest('.access-table')).slice(0, 4).map((e) => e.tagName + '.' + (e as HTMLElement).className)] as const)
+    expect(scroll, JSON.stringify(culprits)).toBeLessThanOrEqual(inner as number)
+  }
+  await page.getByRole('button', { name: `Actions for ${periodName}`, exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Delete…', exact: true })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
 })

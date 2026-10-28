@@ -168,22 +168,64 @@ class DeletionTests(PeriodV2Case):
         self.assertEqual(decisions.context_summary(pid)['activity'], 1)
         self.assertEqual(self.client.get('/api/sod/matrix/risk', params={'context': pid}, headers={'X-SAP-Lens': 'synthetic-governance-session'}).status_code, 404)
 
-    def test_approved_closed_and_report_referenced_periods_are_protected(self):
-        pid = self.new_period('Approved one')
+    def approved_period(self, name):
+        pid = self.new_period(name)
         self.decide_everything(pid)
         for state in ('In review', 'Ready for approval'):
             self.move(pid, state)
         self.approve(pid)
-        self.assertEqual(self.impact(pid)['mode'], 'protected')
-        self.delete(pid, 'Approved one', status=409, confirm_impact=True)
+        return pid
+
+    def test_approved_period_can_be_deleted_only_with_reason_history_confirmation_and_stays_in_the_audit_trail(self):
+        pid = self.approved_period('Approved one')
+        impact = self.impact(pid)
+        self.assertEqual((impact['mode'], impact['requires_reason'], impact['requires_history_confirmation']), ('archive', True, True))
+        self.assertTrue(impact['warnings'])
+        before = self.get(f'/api/sod/periods/{pid}')
+        events = decisions.context_summary(pid)['events']
+        self.assertGreater(events, 0)
+        self.delete(pid, 'Approved one', status=422, confirm_impact=True)
+        self.delete(pid, 'Approved one', status=422, confirm_impact=True, confirm_history=True)
+        self.delete(pid, 'Approved one', status=422, confirm_impact=True, reason='Duplicate review')
+        result = self.delete(pid, 'Approved one', confirm_impact=True, confirm_history=True, reason='Duplicate review')
+        self.assertEqual((result['deleted']['mode'], result['deleted']['reason'], result['deleted']['frozen']), ('archived', 'Duplicate review', True))
+        self.assertEqual(self.get('/api/sod/periods')['items'], [])
+        archived = self.get('/api/sod/periods', include_archived=True)['items'][0]
+        self.assertEqual((archived['state'], archived['history'][-1]['to_state'], archived['history'][-1]['note']), ('Approved', 'Archived', 'Duplicate review'))
+        self.assertEqual(archived['approver'], before['period']['approver'])
+        self.assertEqual(decisions.context_summary(pid)['events'], events)
+        from csv_lifecycle import private_path
+        self.assertTrue(private_path('snapshots', before['period']['snapshot']).exists())
+        self.assertEqual(self.client.get(f'/api/sod/periods/{pid}/deletion-impact', headers={'X-SAP-Lens': 'synthetic-governance-session'}).status_code, 404)
+
+    def test_period_with_issued_reports_and_dependent_baselines_is_archived_without_touching_the_report_log(self):
         draft = self.new_period('Referenced draft')
         decisions.log_report(draft, 'pdf', 'SoD Access Review', 'For review', '1.0', 'e' * 64)
-        self.assertEqual(self.impact(draft)['mode'], 'protected')
-        self.delete(draft, 'Referenced draft', status=409, confirm_impact=True)
+        impact = self.impact(draft)
+        self.assertEqual((impact['mode'], impact['requires_history_confirmation'], impact['requires_reason']), ('archive', True, False))
+        self.delete(draft, 'Referenced draft', status=422, confirm_impact=True)
+        self.delete(draft, 'Referenced draft', confirm_impact=True, confirm_history=True)
+        self.assertEqual(len(decisions.context_summary(draft)['reports']), 1)
         other = self.new_period('Baseline')
-        decisions.log_report(draft, 'pdf', 'SoD Access Review', 'Draft', '1.0', 'f' * 64, previous_period_id=other)
-        self.assertEqual(self.impact(other)['mode'], 'protected')
-        self.assertEqual(len(self.impact(other)['dependents']), 1)
+        third = self.new_period('Compared')
+        decisions.log_report(third, 'pdf', 'SoD Access Review', 'Draft', '1.0', 'f' * 64, previous_period_id=other)
+        impact = self.impact(other)
+        self.assertEqual((impact['mode'], len(impact['dependents'])), ('archive', 1))
+        self.assertTrue(any('baseline' in warning for warning in impact['warnings']))
+        self.delete(other, 'Baseline', confirm_impact=True, confirm_history=True)
+        self.assertEqual(len(decisions.context_summary(third)['reports']), 1)
+        self.assertEqual(decisions.context_summary(third)['reports'][0]['previous_period_id'], other)
+        self.assertEqual([item['id'] for item in self.get('/api/sod/periods')['items']], [third])
+
+    def test_closed_period_deletion_does_not_change_other_periods_or_current_decisions(self):
+        pid = self.approved_period('To close')
+        self.move(pid, 'Closed', confirm=True)
+        keep = self.new_period('Keep')
+        self.decide('activity', [self.activity_item('SYN_A', 'A', keep)], 'Approved', context=keep)
+        before = decisions.context_summary(keep)['events']
+        self.delete(pid, 'To close', confirm_impact=True, confirm_history=True, reason='Created in error')
+        self.assertEqual(decisions.context_summary(keep)['events'], before)
+        self.assertEqual([item['id'] for item in self.get('/api/sod/periods')['items']], [keep])
 
     def test_comparison_of_remaining_periods_works_after_deletion(self):
         first, second, third = self.new_period('One'), self.new_period('Two'), self.new_period('Three')
