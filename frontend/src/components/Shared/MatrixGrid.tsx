@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 
-export interface MatrixColumnDef { id: string; label: string; title?: string; sub?: string; onFilter?: () => void }
+export interface MatrixColumnDef { id: string; label: string; node?: ReactNode; title?: string; sub?: string; onFilter?: () => void }
 export interface MatrixCellView { icon: ReactNode; text: string; sub?: string; tone?: 'neutral' | 'success' | 'warning' | 'error' | 'info'; label: string }
 const CELL = 96
 const HEAD = 190
@@ -8,7 +8,11 @@ const OVERSCAN = 6
 const WINDOW_FROM = 48
 
 /** Sticky-header matrix with a fixed first column, roving-focus arrow navigation and column windowing for wide data. */
-export function MatrixGrid({ caption, rowLabel, columns, rows, cell, onSelect, onRow, selected }: {
+/** Scroll offsets survive remounts (for example Back from a role page) within the session. */
+const scrollMemory = new Map<string, { left: number; top: number }>()
+
+export function MatrixGrid({ caption, rowLabel, columns, rows, cell, onSelect, onRow, selected, scrollKey }: {
+  scrollKey?: string
   caption: string
   rowLabel: string
   columns: MatrixColumnDef[]
@@ -23,6 +27,15 @@ export function MatrixGrid({ caption, rowLabel, columns, rows, cell, onSelect, o
     [active, setActive] = useState<string>(''),
     wanted = useRef(false),
     windowed = columns.length > WINDOW_FROM
+  useEffect(() => {
+    const node = scroller.current,
+      saved = scrollKey ? scrollMemory.get(scrollKey) : undefined
+    if (!node || !scrollKey) return
+    if (saved) { node.scrollLeft = saved.left; node.scrollTop = saved.top }
+    const remember = () => scrollMemory.set(scrollKey, { left: node.scrollLeft, top: node.scrollTop })
+    node.addEventListener('scroll', remember, { passive: true })
+    return () => node.removeEventListener('scroll', remember)
+  }, [scrollKey])
   useEffect(() => {
     const node = scroller.current
     if (!node || !windowed) return
@@ -102,7 +115,7 @@ export function MatrixGrid({ caption, rowLabel, columns, rows, cell, onSelect, o
             {first > 0 && <th aria-hidden="true" colSpan={first} className="matrix-spacer" />}
             {visible.map((column) => (
               <th key={column.id} scope="col" className="matrix-col" title={column.title || column.label}>
-                {column.onFilter ? <button type="button" className="matrix-col-button" onClick={column.onFilter} aria-label={`Filter to ${column.label}`}>{column.label}</button> : column.label}
+                {column.onFilter ? <button type="button" className="matrix-col-button" onClick={column.onFilter} aria-label={`Filter to ${column.label}`}>{column.node ?? column.label}</button> : column.node ?? column.label}
                 {column.sub && <small>{column.sub}</small>}
               </th>
             ))}
@@ -126,8 +139,7 @@ export function MatrixGrid({ caption, rowLabel, columns, rows, cell, onSelect, o
                   <td key={column.id} className="matrix-cell" data-tone={view.tone || 'neutral'}>
                     <button type="button" data-cell={key} tabIndex={current === key ? 0 : -1} aria-label={view.label} aria-current={selected?.row === row.id && selected.col === column.id ? 'true' : undefined}
                       onFocus={() => setActive(key)} onClick={() => onSelect(row.id, column.id)}>
-                      <span className="matrix-icon" aria-hidden="true">{view.icon}</span>
-                      <span className="matrix-text">{view.text}</span>
+                      <span className="matrix-pill"><span className="matrix-icon" aria-hidden="true">{view.icon}</span><span className="matrix-text">{view.text}</span></span>
                       {view.sub && <span className="matrix-sub">{view.sub}</span>}
                     </button>
                   </td>

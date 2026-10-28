@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { cleanup, createPeriod, openSod, seedGovernance } from './sod-fixture'
+import { cleanup, createPeriod, headers, openSod, seedGovernance, wideMatrix } from './sod-fixture'
 
 let directory: string
 test.beforeEach(async ({ request }) => { directory = await seedGovernance(request, 'static') })
@@ -77,4 +77,26 @@ for (const width of [375, 800, 1280]) test(`overview tiles and review periods fi
   await page.getByRole('button', { name: `Actions for ${periodName}`, exact: true }).click()
   await expect(page.getByRole('button', { name: 'Delete…', exact: true })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
+})
+
+test('matrix cells are compact, column pills use configured colors and scroll position survives leaving the matrix', async ({ page, request }) => {
+  await cleanup(request, directory)
+  directory = await seedGovernance(request, 'static', wideMatrix)
+  const risk = (await (await request.get('/api/sod/catalogue?search=R001', { headers })).json()).items[0]
+  await request.post('/api/sod/catalogue/R001', { headers, data: { expected_revision: (await (await request.get('/api/sod/catalogue', { headers })).json()).revision, definition_version: risk.definition_version, metadata: { ...risk.local, color: '#2563eb' } } })
+  await openSod(page, 'Risk Matrix')
+  const header = page.getByRole('columnheader', { name: /Filter to R001/ })
+  await expect(header.locator('.id-pill-risk')).toHaveAttribute('data-colored', 'true')
+  const cell = page.getByRole('button', { name: /^SYN_.*risk R001:/ }).first()
+  expect((await cell.innerText()).trim().split('\n').join(' ').length).toBeLessThan(18)
+  await expect(page.getByText('Cells show the risk acceptance status', { exact: false })).toBeVisible()
+  await expect(header).not.toContainText('Criticality')
+  const grid = page.getByRole('region', { name: /Scrollable User by risk matrix/ })
+  await grid.evaluate((node) => { node.scrollLeft = 900 })
+  await expect.poll(() => grid.evaluate((node) => node.scrollLeft)).toBeGreaterThan(800)
+  await page.getByRole('link', { name: 'Access Explorer', exact: true }).click()
+  await page.getByRole('link', { name: 'Risk Matrix', exact: true }).click()
+  await expect.poll(() => page.getByRole('region', { name: /Scrollable User by risk matrix/ }).evaluate((node) => node.scrollLeft)).toBeGreaterThan(800)
+  await openSod(page, 'Activity Matrix')
+  await expect(page.getByText('Scope: activities that contribute to at least one potential conflict', { exact: false })).toBeVisible()
 })

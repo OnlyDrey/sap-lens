@@ -608,3 +608,11 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .sod-tile[data-tone='error'] { border-color: var(--error); }
 .sod-row-actions { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: 0.25rem; }
 .sod-periods-header > h2 { margin-right: auto; }
+
+/* Matrix cells: a colored status pill plus one short count. */
+.matrix-pill { display: inline-flex; align-items: center; gap: 0.25rem; max-width: 100%; padding: 0 0.375rem; border: 1px solid var(--border); border-radius: 999px; }
+.matrix-cell[data-tone='success'] .matrix-pill { border-color: var(--success); background: color-mix(in srgb, var(--success) 12%, transparent); }
+.matrix-cell[data-tone='warning'] .matrix-pill { border-color: var(--warning); background: color-mix(in srgb, var(--warning) 12%, transparent); }
+.matrix-cell[data-tone='error'] .matrix-pill { border-color: var(--error); background: color-mix(in srgb, var(--error) 12%, transparent); }
+.matrix-cell[data-tone='info'] .matrix-pill { border-color: var(--info); background: color-mix(in srgb, var(--info) 12%, transparent); }
+.matrix-col .id-pill { white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }

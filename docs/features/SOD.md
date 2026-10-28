@@ -102,3 +102,10 @@ Every period status can be deleted from the row action menu or the period dialog
   Approved or closed periods also need a reason. The reason, actor and previous state are stored in the deletion record and the period history.
 - Reports already issued outside SAP Lens stay valid; their log entries remain, but they cannot be regenerated afterwards. Findings first seen in a deleted
   approved period are classified as new instead of reopened in later comparisons. Other periods and current decisions are never changed (no cascade).
+
+## Matrix cells and scope
+
+- Cells show one status pill and one short count: for the Risk Matrix the acceptance status and reviewed/total activities, for the Activity Matrix the review status and ×roles supplying the activity (⧉ marks overlapping coverage). Full wording stays in each cell's accessible name. Criticality and type are in the column tooltip and the investigation, not in the grid.
+- Column headers show the risk or activity pill, tinted with the color configured in Settings → SoD Risk Configuration. Row and column headers stay sticky.
+- The Activity Matrix lists activities that contribute to at least one potential conflict (both sides of an enabled, supported risk are required). Other activities a role supplies are considered in Role Assignment Review, which shows the additional activities. Unavailable evidence is never shown as "no conflict".
+- Page, row grouping, scroll position and filters survive opening a role or user page and returning with Back, within the session.

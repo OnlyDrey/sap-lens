@@ -151,8 +151,9 @@ test('group aggregation lists distinct users per group and drills into the users
 test('activity matrix is a review entry point and shows role counts and decisions', async ({ page }) => {
   await openSod(page, 'Activity Matrix')
   const cell = cellButton(page, `${names.a}`, 'A')
-  await expect(cell).toContainText('×2 roles')
-  await expect(cell).toContainText('overlap')
+  await expect(cell).toContainText('×2')
+  await expect(cell).toContainText('⧉')
+  await expect(cell).toHaveAttribute('aria-label', /duplicate coverage/)
   await cell.click()
   const panel = page.getByRole('dialog', { name: `${names.a} · A` })
   await panel.getByRole('button', { name: 'Review activity', exact: true }).click()

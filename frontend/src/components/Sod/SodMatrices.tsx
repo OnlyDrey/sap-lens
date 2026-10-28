@@ -8,11 +8,14 @@ import { Select } from '@/components/Shared/Select'
 import { Button } from '@/components/Shared/Button'
 import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
 import { Pagination } from '@/components/Access/Shared'
+import { SodPill } from '@/lib/sodAppearance'
 import { ContextBar, CoverageNotice, SodFilters, LifecycleBadge, lifecycleView, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 
 type Risk = MatrixResult<RiskColumn, RiskCell>
 type Activity = MatrixResult<ActivityColumn, ActivityCell>
 const PAGE = 50
+/** Page and row grouping survive leaving the matrix (a role page, Back) within the session. */
+const memory: Record<string, { offset: number; groupBy: 'user' | 'group' }> = {}
 
 export const RiskMatrix = () => <MatrixPage kind="risk" />
 export const ActivityMatrix = () => <MatrixPage kind="activity" />
@@ -20,11 +23,13 @@ export const ActivityMatrix = () => <MatrixPage kind="activity" />
 function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
   const [context] = useSodContext(),
     [filters, setFiltersState] = useSodFilters(kind === 'risk' ? 'riskMatrix' : 'activityMatrix'),
-    [groupBy, setGroupBy] = useState<'user' | 'group'>('user'),
-    [offset, setOffset] = useState(0),
+    [groupBy, setGroupByState] = useState<'user' | 'group'>(memory[kind]?.groupBy || 'user'),
+    [offset, setOffsetState] = useState(memory[kind]?.offset || 0),
     [selected, setSelected] = useSodSubject(),
     [message, setMessage] = useState(''),
     [busy, setBusy] = useState(false)
+  const setOffset = (value: number) => { memory[kind] = { offset: value, groupBy }; setOffsetState(value) }
+  const setGroupBy = (value: 'user' | 'group') => { memory[kind] = { offset: 0, groupBy: value }; setGroupByState(value) }
   const setFilters = (value: Filters) => {
     setOffset(0)
     setFiltersState(value)
@@ -37,8 +42,8 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
   const columns = (data?.columns || []).map((column) => {
     const id = risk ? (column as RiskColumn).risk_id : (column as ActivityColumn).activity
     return risk
-      ? { id, label: id, sub: `${(column as RiskColumn).criticality} · ${column.users} users`, title: (column as RiskColumn).display_name || (column as RiskColumn).source_text || id, onFilter: () => setFilters({ ...filters, risk: id }) }
-      : { id, label: id, sub: `${column.users} users · ${(column as ActivityColumn).risks.length} risks`, title: `Activity ${id}`, onFilter: () => setFilters({ ...filters, activity: id }) }
+      ? { id, label: id, node: <SodPill kind="risk" value={id} />, sub: `${column.users} users`, title: `${(column as RiskColumn).display_name || (column as RiskColumn).source_text || id} · criticality ${(column as RiskColumn).criticality}`, onFilter: () => setFilters({ ...filters, risk: id }) }
+      : { id, label: id, node: <SodPill kind="activity" value={id} />, sub: `${column.users} users`, title: `Activity ${id} · ${(column as ActivityColumn).risks.length} risks`, onFilter: () => setFilters({ ...filters, activity: id }) }
   })
   const cell = (row: string, column: string): MatrixCellView | null => {
     const entry = byUser.get(row)?.cells[column]
@@ -52,12 +57,12 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
         view = lifecycleView(value.acceptance),
         sides = Object.values(value.activities).reduce((sum, count) => sum + count, 0),
         undecided = (value.activities.Pending || 0) + (value.activities.Outdated || 0)
-      return { icon: view.icon, tone: view.tone, text: view.text, sub: `${value.criticality} · ${sides - undecided}/${sides} act.`,
+      return { icon: view.icon, tone: view.tone, text: view.text, sub: `${sides - undecided}/${sides}`,
         label: `${row}, risk ${column}: potential conflict detected, risk acceptance ${view.text}, ${sides - undecided} of ${sides} activities reviewed. Open investigation.` }
     }
     const value = entry as ActivityCell,
       view = lifecycleView(value.decision)
-    return { icon: view.icon, tone: view.tone, text: view.text, sub: `×${value.roles} role${value.roles === 1 ? '' : 's'}${value.duplicate ? ' · overlap' : ''}`,
+    return { icon: view.icon, tone: view.tone, text: view.text, sub: `×${value.roles}${value.duplicate ? ' ⧉' : ''}`,
       label: `${row}, activity ${column}: review ${view.text}, supplied by ${value.roles} role assignments${value.duplicate ? ', duplicate coverage' : ''}. Open investigation.` }
   }
   const open = (row: string, column: string) => {
@@ -107,9 +112,10 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
           </Toolbar>
           {message && <p role="status">{message}</p>}
           <ul className="flex flex-wrap items-center gap-2" aria-label="Cell status legend">{legend.map((value) => <li key={value}><LifecycleBadge value={value} /></li>)}</ul>
+          <p className="ui-description">{risk ? 'Cells show the risk acceptance status and how many of the risk activities are reviewed (reviewed/total). Criticality and type are in the column tooltip and the investigation.' : 'Scope: activities that contribute to at least one potential conflict (both sides of an enabled, supported risk). Activities a role supplies beyond those are considered in Role Assignment Review. Cells show the activity review status and ×roles supplying it; ⧉ marks overlapping coverage.'}</p>
           <p className="ui-description">Totals count distinct users and distinct {risk ? 'user-risk' : 'user-activity'} pairs. {data.columns_truncated ? 'Showing the first 500 columns; narrow the filters. ' : ''}{groupBy === 'group' ? 'Cells show distinct users per group; select one to list them. ' : 'Select a cell to investigate and review. '}Detected conflicts are potential and derived from imported evidence.</p>
           {data.rows.length
-            ? <MatrixGrid caption={risk ? 'User by risk matrix' : 'User by activity matrix'} rowLabel={groupBy === 'group' ? 'User group' : 'SAP user'} columns={columns}
+            ? <MatrixGrid scrollKey={`sod-${kind}-${groupBy}`} caption={risk ? 'User by risk matrix' : 'User by activity matrix'} rowLabel={groupBy === 'group' ? 'User group' : 'SAP user'} columns={columns}
                 rows={data.rows.map((row) => ({ id: row.user, label: row.user, sub: groupBy === 'group' ? `${row.users} users` : row.groups.join(', ') }))}
                 cell={cell} onSelect={open} onRow={groupBy === 'user' ? (row) => setSelected({ user: row }) : undefined}
                 selected={selected ? { row: selected.user, col: selected.risk || selected.activity || '' } : null} />
