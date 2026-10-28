@@ -9,6 +9,7 @@ import { App } from './App'
 import './index.css'
 import './styles/components.css'
 import { ApiError } from './api/client'
+import { installFocusReveal } from './lib/focusVisibility'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 5 * 60 * 1000, retry: (count, error) => count < 2 && !(error instanceof ApiError && error.kind === 'client') } },
@@ -27,6 +28,7 @@ skipLink.addEventListener('click', event => { event.preventDefault(); const main
 document.body.insertBefore(skipLink, rootElement)
 
 initializeViewHistory()
+installFocusReveal()
 
 createRoot(rootElement).render(
   <StrictMode>

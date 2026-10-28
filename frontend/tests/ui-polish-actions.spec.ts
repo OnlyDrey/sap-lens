@@ -145,3 +145,88 @@ test('keyboard: identifiers are not tab stops, only their copy and open controls
     for (const height of heights) expect(height, selector).toBeGreaterThanOrEqual(23.5)
   }
 })
+
+test('keyboard focus is fully revealed inside scrolling navigation strips at 375px', async ({ page, request }) => {
+  await seedGovernance(request, 'static')
+  await page.setViewportSize({ width: 375, height: 900 })
+  await page.goto('/#session=browser-test-session')
+  await page.getByRole('navigation', { name: 'Main navigation', exact: true }).getByRole('link', { name: 'SoD', exact: true }).click()
+  await page.getByRole('link', { name: 'Overview', exact: true }).first().focus()
+  const seen: string[] = []
+  for (let step = 0; step < 8; step++) {
+    await page.keyboard.press('Tab')
+    const state = await page.evaluate(() => {
+      const element = document.activeElement as HTMLElement, strip = element.closest('nav.ui-secondary-navigation')
+      if (!strip) return null
+      const box = element.getBoundingClientRect(), area = strip.getBoundingClientRect()
+      return { name: element.textContent!.trim(), inside: box.left >= area.left - 0.5 && box.right <= area.right + 0.5 }
+    })
+    if (!state) continue
+    seen.push(state.name)
+    expect(state.inside, state.name).toBe(true)
+  }
+  expect(seen).toEqual(expect.arrayContaining(['Activity Matrix', 'Reviews', 'Reports']))
+})
+
+test('skip link is fully visible when focused', async ({ page }) => {
+  await page.goto('/#session=browser-test-session')
+  await page.keyboard.press('Tab')
+  const skip = page.getByRole('link', { name: 'Skip to main content' })
+  await expect(skip).toBeFocused()
+  await expect.poll(async () => (await skip.boundingBox())!.y).toBeGreaterThanOrEqual(5)
+})
+
+test('access package panel takes focus when opened, stays non-modal, and returns focus to the trigger on Escape', async ({ page }) => {
+  await page.goto('/#session=browser-test-session')
+  await page.getByRole('navigation', { name: 'Main navigation', exact: true }).getByRole('link', { name: 'Role Lookup', exact: true }).click()
+  await page.getByRole('article', { name: /Buyer plant/ }).getByRole('button', { name: 'Add to access package' }).click()
+  const trigger = page.getByRole('button', { name: 'Access package (1)' })
+  await trigger.click()
+  const dialog = page.getByRole('dialog', { name: 'Proposed access package' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog).toHaveAttribute('aria-modal', 'false')
+  expect(await page.evaluate(() => !!document.activeElement?.closest('[role="dialog"]'))).toBe(true)
+  await page.keyboard.press('Tab')
+  expect(await page.evaluate(() => !!document.activeElement?.closest('[role="dialog"]'))).toBe(true)
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await expect(trigger).toBeFocused()
+})
+
+const contrastOf = (foreground: string, background: string) => {
+  const channels = (value: string) => {
+    const numbers = value.match(/-?[\d.]+/g)!.map(Number)
+    return value.startsWith('color(') ? numbers.slice(0, 3).map(x => x * 255) : numbers.slice(0, 3)
+  }
+  const luminance = (value: string) => channels(value).map(x => { const c = x / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4 }).reduce((sum, c, index) => sum + c * [0.2126, 0.7152, 0.0722][index], 0)
+  const [a, b] = [luminance(foreground), luminance(background)]
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+}
+
+test('selected Settings item and active role card toggles meet 4.5:1 text and 3:1 icon contrast in both themes', async ({ page, request }) => {
+  for (const theme of ['light', 'dark']) {
+    const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
+    settings.theme = theme
+    expect((await request.post('/api/configuration', { headers, data: settings })).ok()).toBeTruthy()
+    await page.goto('about:blank'); await page.goto('/#session=browser-test-session')
+    await page.getByRole('navigation', { name: 'Main navigation', exact: true }).getByRole('link', { name: 'Role Lookup', exact: true }).click()
+    const card = page.getByRole('article', { name: /Buyer plant/ })
+    for (const name of ['Add to access package', 'Add to comparison']) if (await card.getByRole('button', { name, exact: true }).count()) await card.getByRole('button', { name, exact: true }).click()
+    await page.mouse.move(2, 2); await page.waitForTimeout(400)
+    for (const name of ['Remove from access package', 'Remove from comparison']) {
+      const colors = await card.getByRole('button', { name }).evaluate(el => { const s = getComputedStyle(el); return [s.color, s.backgroundColor] })
+      expect(contrastOf(colors[0], colors[1]), `${theme} ${name}`).toBeGreaterThanOrEqual(3)
+    }
+    await page.getByRole('button', { name: 'Open settings', exact: true }).click()
+    await page.getByRole('tab', { name: 'Features', exact: true }).click()
+    await page.mouse.move(2, 2); await page.waitForTimeout(300)
+    for (const [name, minimum] of [['Features', 4.5], ['SAP Modules', 4.5]] as const) {
+      const colors = await page.getByRole('tab', { name, exact: true }).evaluate(el => {
+        let background = 'rgb(0, 0, 0)'
+        for (let node: Element | null = el; node; node = node.parentElement) { const value = getComputedStyle(node).backgroundColor; if (!/rgba\(.*, 0\)$/.test(value) && value !== 'transparent') { background = value; break } }
+        return [getComputedStyle(el).color, background]
+      })
+      expect(contrastOf(colors[0], colors[1]), `${theme} ${name}`).toBeGreaterThanOrEqual(minimum)
+    }
+  }
+})

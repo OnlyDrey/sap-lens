@@ -8,6 +8,7 @@ Results apply only to their recorded source and environment. Start with the
 
 - [Operational UI, settings and account-review validation](validation/ACCOUNT_REVIEW_VALIDATION.md)
 - [UX, SoD, access management and scheduling](validation/UX_SOD_ACCESS_VALIDATION.md)
+- [UI/UX quality audit: progress and recovery record](validation/UI_UX_AUDIT_PROGRESS.md)
 - [Windows build performance](validation/BUILD_PERFORMANCE.md)
 - [Deployment channels and publication — Phase 2](validation/DEPLOYMENT_RELEASE_VALIDATION.md)
 - [Cross-platform deployment validation — 24 October 2026](validation/DEPLOYMENT_VALIDATION.md)

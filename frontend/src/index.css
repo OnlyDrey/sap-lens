@@ -42,7 +42,7 @@
     font-weight: 700; border-radius: 0 0 8px 8px; transition: top .15s;
     text-decoration: none;
   }
-  .skip-link:focus { top: 0; }
+  .skip-link:focus { top: 8px; border-radius: 8px; }
 
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -54,7 +54,8 @@
 .settings-nav-item { border:0; display:flex; align-items:center; gap:var(--space-3); min-height:var(--control-height); padding:10px 12px; border-radius:var(--radius-control); text-align:left; font-size:var(--font-label); font-weight:500; color:var(--text2); background:transparent; transition:background-color .12s,color .12s; }
 .settings-nav-item svg { flex-shrink:0; }
 .settings-nav-item:hover { background:var(--hover); color:var(--text); }
-.settings-nav-item.active,.settings-nav-item.active:hover { background:color-mix(in srgb,var(--accent2) 14%,var(--surface)); color:var(--accent2); font-weight:600; }
+.settings-nav-item.active,.settings-nav-item.active:hover { background:color-mix(in srgb,var(--accent2) 14%,var(--surface)); color:var(--text); font-weight:600; }
+.settings-nav-item.active svg { color:var(--accent2); }
 .settings-main { flex:1; min-width:0; min-height:0; display:flex; flex-direction:column; }
 .settings-scroll { overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; scrollbar-gutter:stable; flex:1 1 0%; min-height:0; }
 .settings-content { width:100%; min-width:0; max-width:1200px; padding:32px 40px; margin:0 auto; }

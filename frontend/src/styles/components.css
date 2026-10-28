@@ -655,7 +655,7 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .dashboard-workspace .dashboard-secondary-metrics .dashboard-metric:focus-visible { outline-offset:-2px; }
 
 /* Keyboard focus scrolls elements in with a margin so their focus rings are never cut off at a scroll edge. */
-.settings-scroll,.filter-sidebar,.ui-side-panel-body,.ui-dialog-content,.matrix-scroll { scroll-padding:12px; }
+.settings-scroll,.filter-sidebar,.ui-side-panel-body,.ui-dialog-content,.matrix-scroll,.access-table,.ui-navigation,.transaction-table-scroll { scroll-padding:12px; }
 .dashboard-metric > svg:first-child { grid-column:1; grid-row:1; }
 .dashboard-metric[data-tone='warning'] > strong { color:var(--warning); }
 .dashboard-metric[data-tone='error'] > strong { color:var(--error); }
