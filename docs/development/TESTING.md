@@ -46,13 +46,13 @@ Never dispatch expensive builds or publish artifacts without the required approv
 
 ## Risk-based selection during development
 
-Use QUICK for an edit, STANDARD for a completed phase, and FULL at the final
-implementation freeze, as defined in [repository guidance](../../AGENTS.md).
-The local-check list above is the final checklist, not a command block to repeat
-following every edit. Reinstall dependencies only when their inputs/environment
+Run targeted checks while editing, Fast Validation at each phase boundary and Full
+Validation once after the final phase, as defined in the validation policy of
+[repository guidance](../../AGENTS.md). The local-check list above is the Full
+Validation checklist, not a command block to repeat following every edit. Reinstall dependencies only when their inputs/environment
 changed; rebuilding is necessary before browser tests of changed production code.
 
-| Changed area | QUICK / STANDARD primary coverage |
+| Changed area | Targeted / Fast Validation primary coverage |
 | --- | --- |
 | UI component or filter | Affected browser cases, keyboard behavior, type checking |
 | CSS, layout, theme | Affected browser cases and representative screenshots |
