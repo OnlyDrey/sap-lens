@@ -257,10 +257,14 @@ Evidence and exports are bounded; see [SoD architecture](SOD.md) and the
 | POST | `/api/data-sources/sod/{select,preview}` | Validated SoD matrix selection and snapshot preview (shared source lifecycle) |
 | GET | `/api/sod/overview` | Catalogue counts plus a `governance` block: conflicts, decisions, remediation, open period progress, changes since the last refresh |
 | GET | `/api/sod/catalogue`, `/catalogue/export` | Filtered risks with local guidance; CSV |
-| POST | `/api/sod/catalogue/{risk_id}`, `/catalogue/bulk` | Edit local metadata; confirmed bulk enablement |
+| POST | `/api/sod/catalogue/{risk_id}`, `/catalogue/bulk` | Edit local metadata (English text, color); confirmed bulk enablement |
+| GET/POST | `/api/sod/catalogue-activities`, `/catalogue-activities/{activity}` | Activities derived from the import with local English-only metadata; optimistic `expected_revision` |
+| GET | `/api/sod/appearance` | Display names and colors for risk and activity pills |
+| GET | `/api/sod/queue/users` | One row per SAP user with per-review-type progress |
+| GET/PUT/DELETE | `/api/sod/reports/branding` | Report-only logo (PNG/JPEG, validated and re-encoded) |
 | GET | `/api/sod/matrix/{risk,activity}` | User-by-risk and user-by-activity matrices, paged rows, `group_by=group`, distinct totals |
 | GET | `/api/sod/explorer/{user_risk,user_activity,access_list,lookup}` and `/export` | Explorer tables and filtered CSV |
-| GET | `/api/sod/subject` | Investigation workspace: risk, activities, contributing assignments, decisions, removal impact |
+| GET | `/api/sod/subject` | Investigation workspace: risk, activities, contributing assignments, decisions, removal impact, and an `overview` of all the user's activities, assignments and risks |
 | POST | `/api/sod/simulate` | Read-only what-if removal of assignments for one user |
 | GET | `/api/sod/queue`, `/queue/export` | Review work queue (`kind`, `status`) with status counts; CSV |
 | POST | `/api/sod/decisions/{activity,assignment,acceptance}` | Record one decision for explicitly listed items (max 100) |

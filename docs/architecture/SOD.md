@@ -45,6 +45,8 @@ the matrix version is unchanged, otherwise **Historical**.
 | `sod-decisions.json` | Decision events per context and kind, actions with history, report log. Evidence at decision time is retained as content-addressed snapshots. |
 | `sod-periods.json` | Period index, workflow history and deletion records. |
 | `sod-reviews.json` | Legacy risk decisions (unchanged). |
+| `sod-catalogue.json` | Local risk metadata and, in the optional `activities` map, local English-only activity metadata (display name, area, explanation, guidance, notes, color). Imports never modify it. |
+| `report-branding.json` | Pointer to the optional report-only logo (a sanitized PNG under `branding/`). |
 | `sod-observations.json` | Finding ids at the last observed source refresh, for "changes since refresh". Bounded; rebuilt on demand. |
 | snapshot files | Immutable period snapshots and decision evidence; integrity-checked by SHA-256. |
 
@@ -63,10 +65,29 @@ Reopening an approved period is not supported; create a new period.
 
 ## Deletion
 
-Approved/closed periods and periods referenced by reports issued as "For review" or
-"Approved snapshot" are protected. An empty Draft is deleted permanently with its snapshot.
-Any other open period is archived (hidden, work retained). Both require the exact period
-name, a recorded actor and a single atomic index write; a deletion record is kept.
+Every status can be deleted. An empty Draft is erased permanently with its snapshot. Anything
+else is tombstoned: `deleted_at` is set and a `Archived` event is appended to the period history,
+while the snapshot, approval record, decisions, actions and report log stay on disk. Tombstoned
+periods are excluded from active work, matrices, comparisons, baselines and report generation.
+All deletions require the exact period name, a recorded actor and a single atomic index write.
+Archiving needs an impact confirmation; approved/closed periods, periods with issued reports
+and periods used as a report baseline also need a history confirmation, and approved/closed
+periods need a reason. The deletion record keeps reason, actor, previous state and counts.
+Other periods and current decisions are never modified (no cascade). `deletion-impact`
+previews counts and warnings and never changes state.
+
+## Feature toggle
+
+`features.sod` is a manual setting (default off, never enabled by importing a source). Settings
+saved before it existed are migrated once: with a SoD source present it is enabled, otherwise off.
+While disabled, `analyze()` runs with `sod_enabled=False` (coverage reason `sod_disabled`), dynamic
+SoD refreshes are skipped and the UI hides the entry; stored data is untouched.
+
+## Review workspace and queue
+
+`/api/sod/queue/users` groups the review items by user with independent progress per review type.
+`/api/sod/subject` returns the focused investigation plus an `overview` with every activity,
+assignment and risk of the user, which feeds the three review sections of the workspace.
 
 ## Migration and compatibility
 

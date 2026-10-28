@@ -43,3 +43,7 @@ or legal ownership determination was performed. This is a scoped local review
 using signatures, generated-data verification, repository tests and manual source
 inspection, not a hosted vulnerability scan or a guarantee about ownership or
 every possible historical exposure.
+
+## Report logo
+
+The optional SoD report logo (Settings → Organization & SAP System) is decoded, re-encoded without metadata and stored in the per-user `branding` folder with a pointer file. It is excluded from configuration packages, diagnostics and release artifacts, and is never part of a frozen review snapshot.
