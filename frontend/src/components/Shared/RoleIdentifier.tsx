@@ -24,8 +24,8 @@ export function RoleIdentifier({ moduleId: _moduleId, value, label = 'role ident
       onClick={(e) => e.stopPropagation()}
       onKeyDown={event=>{if((event.key==='ArrowRight'||event.key==='ArrowLeft')&&(event.target instanceof HTMLElement)&&(event.target.tagName==='CODE'||event.target.closest('.role-identifier-link'))){event.currentTarget.querySelector('code')?.scrollBy({left:event.key==='ArrowRight'?60:-60});event.preventDefault()}}}
     >
-      {onOpen && href ? <a href={href} className="role-identifier-link" aria-label={openLabel || `Open ${value}`} data-user={openButtonProps?.['data-user']} onClick={(event) => { if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return; event.preventDefault(); onOpen() }}><code title={value}>{value}</code><ArrowUpRight size={14} aria-hidden="true" className="shrink-0"/></a>
-        : onOpen ? <button {...openButtonProps} type="button" className="role-identifier-link" aria-label={openLabel || `Open ${value}`} onClick={onOpen}><code title={value}>{value}</code><ArrowUpRight size={14} aria-hidden="true" className="shrink-0"/></button> : <code title={value}>{value}</code>}
+      {onOpen && href ? <a href={href} className="role-identifier-link" aria-label={openLabel || `Open ${value}`} data-user={openButtonProps?.['data-user']} onClick={(event) => { if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return; event.preventDefault(); onOpen() }}><code title={value} tabIndex={-1}>{value}</code><ArrowUpRight size={14} aria-hidden="true" className="shrink-0"/></a>
+        : onOpen ? <button {...openButtonProps} type="button" className="role-identifier-link" aria-label={openLabel || `Open ${value}`} onClick={onOpen}><code title={value} tabIndex={-1}>{value}</code><ArrowUpRight size={14} aria-hidden="true" className="shrink-0"/></button> : <code title={value} tabIndex={-1}>{value}</code>}
       <button
         type="button"
         aria-label={`Copy ${label} ${value}`}

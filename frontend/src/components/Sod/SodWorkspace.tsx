@@ -26,7 +26,7 @@ export function SodWorkspace() {
     { change: navigate } = useViewHistory()
   if (configuration.data?.settings.features?.sod === false) return (
     <section className="sod-workspace grid min-w-0 gap-3" aria-label="SoD investigation">
-      <PageHeader title="Segregation of Duties" icon={<ShieldCheck size={24} aria-hidden="true" />} />
+      <PageHeader title="Segregation of Duties" icon={<ShieldCheck size={22} aria-hidden="true" />} />
       <Card aria-label="SoD is turned off">
         <StatusBadge tone="neutral">Turned off</StatusBadge>
         <p>SoD analysis is disabled in Features. Imported matrices, risk configuration, review history and periods are kept and return when it is enabled.</p>
@@ -46,7 +46,7 @@ function SodWorkspaceContent() {
     [detailRole] = useHistoryValue('detailRole')
   return (
     <section className="sod-workspace grid min-w-0 gap-3" aria-label="SoD investigation">
-      <PageHeader title="Segregation of Duties" icon={<ShieldCheck size={24} aria-hidden="true" />} />
+      <PageHeader title="Segregation of Duties" icon={<ShieldCheck size={22} aria-hidden="true" />} />
       <SecondaryNavigation label="SoD views" items={VIEWS.map(([value, label, icon]) => ({ value, label, icon, href: sodHref(value), active: view === value, onSelect: () => change({ sodView: value }) }))} />
       {view === 'overview' ? <SodOverview /> : view === 'risk-matrix' ? <RiskMatrix /> : view === 'activity-matrix' ? <ActivityMatrix /> : view === 'explorer' ? <SodExplorer />
         : view === 'reviews' ? <SodReviews /> : view === 'periods' ? <SodPeriods /> : <SodReports />}

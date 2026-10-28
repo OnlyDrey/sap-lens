@@ -1,9 +1,9 @@
 import { test, expect, type Page } from '@playwright/test'
+import { seedGovernance, headers } from './sod-fixture'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
 const roles = `FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT
 MM,ZC:MM:BUY:ENP,Buyer plant,ZS:SH,MM - Shared purchasing,MIGO,Goods movement
 FI,ZC:FI:VIEW:ENP,Finance view,ZS:EX2,FI - Exclusive two,FB03,Display document
@@ -86,4 +86,62 @@ test('Settings navigation: keyboard focus is a separate outline and arrow keys m
   await expect(next).toBeFocused()
   await expect(next).not.toHaveText(/^Features$/)
   expect(await next.evaluate(el => getComputedStyle(el).borderBottomWidth)).toBe('0px')
+})
+
+// Shared geometry scan: the Settings tab bug class (a bottom indicator drawn on a rounded button) and doubled borders.
+const borderDefects = () => {
+  const out: string[] = []
+  const widths = (s: CSSStyleDeclaration) => [s.borderTopWidth, s.borderRightWidth, s.borderBottomWidth, s.borderLeftWidth].map(parseFloat)
+  const name = (e: Element) => `${e.tagName.toLowerCase()}.${String(e.className).trim().split(/\s+/).slice(0, 2).join('.')} "${(e.textContent || '').trim().slice(0, 24)}"`
+  for (const e of Array.from(document.querySelectorAll('body *'))) {
+    const box = e.getBoundingClientRect()
+    if (!box.width || !box.height) continue
+    const style = getComputedStyle(e), [top, right, bottom, left] = widths(style)
+    if (bottom > 0 && !top && !right && !left && parseFloat(style.borderTopLeftRadius) > 2) out.push(`rounded underline: ${name(e)}`)
+    const parent = e.parentElement
+    if (parent && top + right + bottom + left > 0 && style.borderTopStyle !== 'none') {
+      const parentStyle = getComputedStyle(parent), [pt, pr, pb, pl] = widths(parentStyle), outer = parent.getBoundingClientRect()
+      const inset = [box.top - outer.top - pt, outer.right - box.right - pr, outer.bottom - box.bottom - pb, box.left - outer.left - pl]
+      if (pt + pr + pb + pl > 0 && parentStyle.borderTopStyle !== 'none' && inset.every(value => Math.abs(value) < 1.5)) out.push(`double border: ${name(parent)} > ${name(e)}`)
+    }
+  }
+  return out
+}
+
+test('no rounded underlines or double borders on Settings sections and main screens in both themes', async ({ page, request }) => {
+  test.setTimeout(240_000)
+  await seedGovernance(request, 'static', undefined, true)
+  const defects: string[] = []
+  for (const theme of ['light', 'dark']) {
+    const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
+    settings.theme = theme
+    expect((await request.post('/api/configuration', { headers, data: settings })).ok()).toBeTruthy()
+    await page.goto('about:blank'); await page.goto('/#session=browser-test-session')
+    const main = page.getByRole('navigation', { name: 'Main navigation', exact: true })
+    const scan = async (label: string) => { await page.waitForTimeout(250); for (const defect of await page.evaluate(borderDefects)) defects.push(`${theme} ${label}: ${defect}`) }
+    for (const link of ['Dashboard', 'Role Lookup', 'User Access', 'Release Roles', 'SoD']) { await main.getByRole('link', { name: link, exact: true }).click(); await scan(link) }
+    for (const tab of ['Risk Matrix', 'Access Explorer', 'Reviews', 'Review Periods', 'Reports']) { await page.getByRole('link', { name: tab, exact: true }).first().click(); await scan(`SoD ${tab}`) }
+    await page.getByRole('button', { name: 'Open settings', exact: true }).click()
+    for (const tab of await page.getByRole('tab').evaluateAll(els => els.map(element => element.getAttribute('aria-label')!))) { await page.getByRole('tab', { name: tab, exact: true }).click(); await scan(`Settings ${tab}`) }
+  }
+  expect(defects).toEqual([])
+})
+
+test('keyboard: identifiers are not tab stops, only their copy and open controls are, and small targets stay at least 24px', async ({ page, request }) => {
+  await seedGovernance(request, 'static', undefined, true)
+  await page.goto('/#session=browser-test-session')
+  await page.getByRole('navigation', { name: 'Main navigation', exact: true }).getByRole('link', { name: 'Role Lookup', exact: true }).click()
+  await page.getByRole('article').first().waitFor()
+  expect(await page.locator('.role-identifier code').evaluateAll(els => els.map(element => (element as HTMLElement).tabIndex))).not.toContain(0)
+  for (let step = 0; step < 40; step++) {
+    await page.keyboard.press('Tab')
+    expect(await page.evaluate(() => document.activeElement?.tagName === 'CODE')).toBe(false)
+  }
+  await page.getByRole('navigation', { name: 'Main navigation', exact: true }).getByRole('link', { name: 'SoD', exact: true }).click()
+  await page.getByRole('link', { name: 'Risk Matrix', exact: true }).first().click()
+  for (const selector of ['.matrix-row-button', '.sod-tile > button']) {
+    const heights = await page.locator(selector).evaluateAll(els => els.map(element => element.getBoundingClientRect().height))
+    expect(heights.length, selector).toBeGreaterThan(0)
+    for (const height of heights) expect(height, selector).toBeGreaterThanOrEqual(23.5)
+  }
 })

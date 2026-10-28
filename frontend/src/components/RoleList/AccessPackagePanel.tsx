@@ -47,7 +47,7 @@ export function AccessPackagePanel({ onClose }: { onClose: () => void }) {
       footer={<>
         <Button onClick={() => void copyAll()} disabled={!names.length}><Copy size={16} aria-hidden="true" />Copy all names</Button>
         <ExportCSVButton loading={busy} disabled={!names.length} onClick={() => void download()} title="Exports the valid generated names, sorted, one row per name." />
-        <Button variant="ghost" onClick={cart.clear} disabled={!cart.items.length}><Trash2 size={16} aria-hidden="true" />Clear cart</Button>
+        <Button variant="ghost" onClick={cart.clear} disabled={!cart.items.length}><Trash2 size={16} aria-hidden="true" />Clear package</Button>
       </>}>
       <section className="grid gap-3" aria-label="Package suffix">
         <FormField label="Package default suffix">

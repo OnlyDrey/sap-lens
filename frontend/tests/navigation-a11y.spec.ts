@@ -157,9 +157,9 @@ test('identifier codeblocks add no keyboard stop: Tab goes from the username lin
   await link.focus()
   await page.keyboard.press('Tab')
   expect(await accessibleName(page)).toBe('Copy username DEMO_ONE')
-  expect(await page.locator('code[tabindex]').count()).toBe(0)
+  expect(await page.locator('code[tabindex]:not([tabindex="-1"])').count()).toBe(0)
   await main(page).getByRole('link', { name: 'Role Lookup', exact: true }).click()
-  expect(await page.locator('code[tabindex]').count()).toBe(0)
+  expect(await page.locator('code[tabindex]:not([tabindex="-1"])').count()).toBe(0)
 })
 
 test.describe('SAP username deep links', () => {

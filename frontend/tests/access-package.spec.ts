@@ -100,7 +100,7 @@ test('package: default suffix, per-role override, validation, copy, CSV, persist
   await expect(page.getByRole('button', { name: 'Access package (3)' })).toBeVisible()
   await page.getByRole('button', { name: 'Access package (3)' }).click()
   await expect(panel.getByRole('combobox', { name: 'Package default suffix' })).toHaveValue('ENS')
-  await panel.getByRole('button', { name: 'Clear cart' }).click()
+  await panel.getByRole('button', { name: 'Clear package' }).click()
   await expect(panel).toContainText('The access package is empty')
   await expect(page.getByRole('button', { name: 'Access package (0)' })).toBeVisible()
 })

@@ -5,7 +5,7 @@ import {useViewHistory} from '@/hooks/useViewHistory'
 import {MoreHorizontal} from 'lucide-react'
 import {Button} from '@/components/Shared/Button'
 import {Popover} from '@/components/Shared/Popover'
-import {Card,DataTable,Toolbar,StatusBadge,LoadingState,EvidenceDisclosure,ErrorState} from '@/components/Shared/Presentation'
+import {Card,DataTable,Toolbar,StatusBadge,LoadingState,EvidenceDisclosure,ErrorState,EmptyState} from '@/components/Shared/Presentation'
 import {FormField,Input,Checkbox} from '@/components/Shared/Controls'
 import {Select} from '@/components/Shared/Select'
 import {Dialog} from '@/components/Shared/Dialog'
@@ -40,7 +40,7 @@ export function SodPeriods(){
   {notice&&<p role="status">{notice}</p>}{error&&<p role="alert">{error}</p>}
   {listing.isError?<ErrorState error={listing.error} onRetry={()=>void listing.refetch()}/>:!listing.data?<LoadingState/>:
    <DataTable caption="SoD review periods" tableClassName="sod-config-table"><thead><tr><th>Period</th><th>Status</th><th>Actions</th></tr></thead>
-    <tbody>{listing.data.items.map(period=>{const gone=!!period.deleted_at;return <tr key={period.id}>
+    <tbody>{!listing.data.items.length&&<tr><td colSpan={3}><EmptyState>No review periods yet. Create a review period to capture a snapshot of the imported evidence.</EmptyState></td></tr>}{listing.data.items.map(period=>{const gone=!!period.deleted_at;return <tr key={period.id}>
      <td>{period.name}<p className="sod-meta">{formatDate(period.start)} → {formatDate(period.end)} · as of {formatDate(period.evaluation_date)}</p><p className="sod-meta">Updated {formatTimestamp(period.modified)}</p></td>
      <td><StatusBadge>{period.state}</StatusBadge>{gone&&<StatusBadge tone="neutral">Archived {formatDate(period.deleted_at)}</StatusBadge>}</td>
      <td>{gone?<span className="sod-meta">Retained for audit</span>:<div className="sod-row-actions"><Button size="compact" variant="primary" onClick={()=>setSelected(period.id)} aria-label={`Open ${period.name}`}>Open</Button>

@@ -103,7 +103,9 @@ main h1,.settings-content h1 { font-size:var(--font-title); font-weight:600; }
 .app-brand>div { min-width:0; }
 .app-brand p,.app-brand p[title] { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 /* Compatibility for remaining Settings actions; compact primitives explicitly opt in. */
-.settings-workspace button { min-height:var(--control-height); border-radius:var(--radius-control); }
+.settings-workspace button { min-height:var(--control-height); }
+/* Tabs keep a square bottom indicator; only the vertical Settings navigation (.settings-nav-item) is a rounded filled item. */
+.settings-workspace button:not([role="tab"]),.settings-workspace .settings-nav-item { border-radius:var(--radius-control); }
 .settings-workspace .ui-button-compact { min-height:var(--control-compact); }
 
 /* Three source forms keep their icon labels visible in the narrow Settings pane. */
@@ -502,7 +504,7 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .matrix-grid .matrix-corner,.matrix-grid .matrix-row-head { position:sticky; left:0; z-index:3; background:var(--surface2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .matrix-grid .matrix-row-head { z-index:1; background:var(--surface); font-weight:600; }
 .matrix-grid small { display:block; color:var(--muted); font-weight:400; overflow:hidden; text-overflow:ellipsis; }
-.matrix-col-button,.matrix-row-button { max-width:100%; padding:0; border:0; background:none; color:inherit; font:inherit; font-weight:600; text-align:left; cursor:pointer; overflow:hidden; text-overflow:ellipsis; }
+.matrix-col-button,.matrix-row-button { min-height:24px; max-width:100%; padding:0; border:0; background:none; color:inherit; font:inherit; font-weight:600; text-align:left; cursor:pointer; overflow:hidden; text-overflow:ellipsis; }
 .matrix-col-button:hover,.matrix-row-button:hover { color:var(--accent2); text-decoration:underline; }
 .matrix-col-button:focus-visible,.matrix-row-button:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
 .matrix-cell { padding:2px !important; height:52px; }
@@ -590,6 +592,7 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .sod-overview-figures { display: grid; min-width: 0; gap: 0.75rem; }
 .sod-tiles { display: grid; min-width: 0; gap: 0.5rem; grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); }
 .sod-tile { display: grid; min-width: 0; align-content: space-between; gap: 0.25rem; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--surface); }
+.sod-tile > button { min-height: 24px; }
 .sod-tile > button, .sod-tile > span { padding: 0; border: 0; background: none; color: inherit; font: inherit; font-size: 0.75rem; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
 .sod-tile > span { cursor: default; }
 .sod-tile > button:hover { color: var(--accent2); text-decoration: underline; }
@@ -613,7 +616,7 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 
 /* Explorer: one expandable evidence line per row. */
 .sod-expandable { min-width: 0; }
-.sod-expand-toggle { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-size: 0.8125rem; cursor: pointer; text-align: left; }
+.sod-expand-toggle { display: inline-flex; align-items: center; min-height: 24px; gap: 0.25rem; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-size: 0.8125rem; cursor: pointer; text-align: left; }
 .sod-expand-toggle:hover { color: var(--accent2); text-decoration: underline; }
 .sod-expand-toggle:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .sod-expandable-body { margin-top: 0.25rem; padding-left: 1rem; font-size: 0.8125rem; overflow-wrap: anywhere; }
