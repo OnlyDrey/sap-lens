@@ -74,13 +74,23 @@ test('review validity stays status-only and Release Roles retains the chosen vie
  const row=page.getByRole('row').filter({has:page.getByRole('link', { name: 'SYN_VIEW',exact:true})});await expect(row).toBeVisible();await expect(row.locator('.review-account-dates')).toHaveCount(0);await expect(row.locator('td').nth(3)).toContainText('Valid')
  await nav.getByRole('link',{name:'Release Roles',exact:true}).click();const group=page.getByRole('group',{name:'Release results view',exact:true});await expect(group.getByRole('button').first()).toHaveText('Matrix');await expect(group.getByRole('button',{name:'Matrix',exact:true})).toHaveAttribute('aria-pressed','true');await group.getByRole('button',{name:'Table',exact:true}).click();await page.getByRole('combobox',{name:'Release assignment status',exact:true}).selectOption('all');await expect(group.getByRole('button',{name:'Table',exact:true})).toHaveAttribute('aria-pressed','true')
 })
-test('branding carousel supports every color keyboard reset and synchronized draft logos',async({page,request})=>{
+test('theme color swatches show every color together and edit, reset and sync draft logos',async({page,request})=>{
  await page.goto('/#session=browser-test-session');await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:'Appearance & Branding',exact:true}).click()
- const carousel=page.getByRole('region',{name:'Theme color settings',exact:true}),viewport=carousel.getByLabel('Color properties',{exact:true})
- await carousel.scrollIntoViewIfNeeded();for(let index=0;index<5;index++){await expect(carousel.getByRole('status')).toContainText(`${index+1} / 5`);const slide=carousel.getByRole('group').nth(index);await expect(slide.locator('input:not([type=color])')).toBeInViewport();if(index<4)await carousel.getByRole('button',{name:'Next color property',exact:true}).click()}
- await viewport.focus();await viewport.press('Home');await expect(carousel.getByRole('status')).toContainText('1 / 5');await viewport.press('End');await expect(carousel.getByRole('status')).toContainText('5 / 5');await expect(carousel.getByRole('button',{name:'Next color property',exact:true})).toBeDisabled()
+ const colors=page.getByRole('region',{name:'Theme color settings',exact:true}),swatches=colors.getByRole('list',{name:'Theme colors',exact:true})
+ await colors.scrollIntoViewIfNeeded()
+ const names=['Primary color','Accent color','Secondary color','Application background','Surface / card background','Primary text color']
+ await expect(swatches.getByRole('button')).toHaveCount(6)
+ const boxes=await swatches.getByRole('button').evaluateAll(nodes=>nodes.map(node=>{const box=node.getBoundingClientRect();return {top:Math.round(box.top),inView:box.top<innerHeight&&box.bottom>0,width:box.width}}))
+ expect(boxes.every(box=>box.width<200)).toBeTruthy()
+ for(const name of names){await swatches.getByRole('button',{name:new RegExp(`^Edit ${name.replace(/[/]/g,'\\/')},`)}).click();await expect(colors.getByLabel(name,{exact:true})).toBeVisible()}
  const before=(await(await request.get('/api/configuration',{headers})).json()).settings
- await carousel.getByRole('button',{name:'Previous color property',exact:true}).click();const slide=carousel.getByRole('group').nth(3),value=slide.locator('input:not([type=color])');const original=await value.inputValue();await value.fill('#123456');await slide.getByRole('button',{name:'Reset Surface / card background',exact:true}).click();await expect(value).toHaveValue(original)
+ await swatches.getByRole('button',{name:/^Edit Surface/}).click()
+ const value=colors.getByLabel('Surface / card background',{exact:true}),original=await value.inputValue()
+ await value.fill('#123456');await expect(swatches.getByRole('button',{name:/^Edit Surface/})).toContainText('#123456')
+ await colors.getByRole('button',{name:'Reset Surface / card background',exact:true}).click();await expect(value).toHaveValue(original)
+ await swatches.getByRole('button',{name:/^Edit Secondary/}).click();await colors.getByLabel('Secondary color',{exact:true}).fill('#cccccc')
+ await expect(page.getByText(/secondary color .* needs at least 4.5:1/)).toBeVisible()
+ await colors.getByRole('button',{name:'Reset Secondary color',exact:true}).click();await expect(page.getByText(/WCAG AA text contrast passes/)).toBeVisible()
  const live=page.getByAltText('Header logo preview',{exact:true}),local=page.getByAltText('Selected header logo preview',{exact:true});await local.scrollIntoViewIfNeeded();await expect(local).toBeVisible();expect(await local.getAttribute('src')).toBe(await live.getAttribute('src'));expect((await(await request.get('/api/configuration',{headers})).json()).settings.theme_colors).toEqual(before.theme_colors)
 })
 for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`stabilization visual ${theme} ${width}`,async({page,request},info)=>{

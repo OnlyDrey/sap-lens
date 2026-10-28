@@ -152,7 +152,7 @@ button:hover .module-icon:not([data-disabled="true"]) { border-color: currentCol
 .primary-nav-button[aria-current="page"] { background:color-mix(in srgb,var(--on-primary) 20%,transparent); }
 .primary-nav-button:focus-visible { outline:2px solid var(--on-primary); outline-offset:2px; }
 .detail-navigation { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:var(--space-3); }
-[aria-label="User role sections"] [aria-pressed="true"], .settings-secondary-button[aria-pressed="true"] { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+[aria-label="User role sections"] [aria-pressed="true"], .settings-secondary-button[aria-pressed="true"] { background:var(--secondary,var(--accent)); color:var(--text); border-color:var(--accent); }
 .import-source-panel { min-width:0; }
 .source-file-row { display:flex; align-items:flex-end; gap:var(--space-2); min-width:0; }
 .source-file-row > :is(label,.ui-field) { flex:1; min-width:0; }
@@ -188,7 +188,7 @@ button:hover .module-icon:not([data-disabled="true"]) { border-color: currentCol
 .role-identifier-link:hover code { text-decoration:underline; }
 /* Selected controls retain their contrast pair when the generic hover rule applies. */
 [aria-label="User role sections"] .settings-secondary-button[aria-pressed="true"]:hover:not(:disabled),
-.settings-secondary-button[aria-pressed="true"]:hover:not(:disabled) { background:var(--accent); color:var(--on-accent); }
+.settings-secondary-button[aria-pressed="true"]:hover:not(:disabled) { background:var(--secondary-hover,var(--accent)); color:var(--text); }
 
 /* Investigation layout: shared surfaces, readable evidence and compact controls. */
 .import-section { border:1px solid var(--border); border-radius:14px; background:var(--surface); min-width:0; }
@@ -523,7 +523,7 @@ button.manager-identity:focus-visible { outline:2px solid var(--focus); outline-
 
 /* Shared compact investigation persistence and evidence tables. */
 .comparison-identity-grid, .health-source-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
-.health-source-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.health-source-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
 .health-findings { display:flex; flex-wrap:wrap; gap:.5rem; }
 .comparison-table th, .comparison-table td { text-align:left; vertical-align:top; padding:.75rem; border-bottom:1px solid var(--border); overflow-wrap:anywhere; }
 .comparison-table { min-width:640px; }
@@ -531,3 +531,4 @@ button.manager-identity:focus-visible { outline:2px solid var(--focus); outline-
 .comparison-table th:nth-child(1) { min-width:180px; }
 .comparison-table th:nth-child(2) { min-width:115px; }
 .comparison-table th:nth-child(3), .comparison-table th:nth-child(4) { min-width:300px; }
+.feature-controls { display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-2); }

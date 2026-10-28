@@ -8,7 +8,7 @@ module preferences and theme colors retain their existing schema and behavior.
 | General | Organization & SAP System | Organization identity and SAP system/client description |
 | General | Appearance & Branding | Themes, colors, local logo and appearance |
 | Data & Modules | Data Sources | Role Catalogue, User Access, Employee Directory; mappings, validation, imports and recovery |
-| Data & Modules | SAP Modules | Enabled areas, labels, icons, colors and filter preferences |
+| Data & Modules | SAP Modules | Module search, enabled areas, labels, icons and colors used throughout the application |
 | Application | Features | Optional capabilities and account-review group classification |
 | Application | Health & Diagnostics | Backend/storage status, refresh history, actionable recovery and safe export |
 | Application | Runtime & Scheduling | Scheduled refresh; Windows Desktop tray and sign-in options (Windows Desktop only) |
@@ -27,6 +27,10 @@ links open the relevant Data Sources subsection directly.
 Employee Directory is an optional third CSV source; see [Employee Directory](../data/EMPLOYEE_DIRECTORY.md). Defaults describe one dataset/system; no multi-system infrastructure is introduced.
 
 Organization name, platform (S/4HANA, ECC or Other/Custom), system ID, client, description and footer are editable. The configured organization name is the primary header heading; an empty name uses SAP Lens. Windows and repository branding remain SAP Lens. Module display overrides preserve stable SAP area IDs; custom business-domain configuration has been retired. Theme supports System, Light and Dark, defaults to Dark, and persists independent color palettes and custom presets. See [desktop workspace and theme colors](../architecture/APPEARANCE.md).
+
+## Features and colors
+
+Features lists User–Role Mapping, Employee Directory and Segregation of Duties in the same order as the Data Sources tabs; each card shows the **Enabled** switch above its **Configure** action. SoD risk and activity colors use the same hexadecimal input as module colors, with validation, a preview and Reset.
 
 ## Storage and upgrades
 
@@ -113,6 +117,7 @@ Each source can be Static (manual replacement) or Dynamic (Global Refresh reread
 
 ## Scheduled refresh and runtime
 
+
 **Settings → Runtime & Scheduling** holds the scheduled refresh and, in the Windows Desktop application only, the tray options. The schedule is saved in the `refresh_schedule` object of the settings (`enabled`, `mode` daily or cron, `time` HH:MM, `cron`, `timezone`) with the normal Apply/Cancel and revision checks; its run history is kept separately in `refresh-schedule.json` so refreshes never change the settings revision. See [Scheduled refresh](../data/IMPORT_AND_REFRESH.md#scheduled-refresh).
 
 Windows Desktop background preferences are under **Settings → Runtime & Scheduling → Windows
@@ -123,9 +128,8 @@ checks apply; portable packages do not activate another machine's sign-in startu
 See [tray operation](../deployment/WINDOWS_DESKTOP.md#optional-system-tray-operation).
 
 Appearance & Branding previews draft organization/system details and the same draft
-logo in both live and local previews. The five palette properties use a compact
-horizontal carousel: Previous/Next, keyboard focus, or Arrow/Home/End on the
-focused Color properties region. Native picker, hex editing and per-property Reset
+logo in both live and local previews. The six palette colors (including Secondary Color) are
+small adjacent swatch tiles; select one to edit it. Native picker, hex editing and per-color Reset
 remain available; Apply/Cancel retain their existing persistence behavior.
 
 ## SoD review data

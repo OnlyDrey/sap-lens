@@ -1,8 +1,7 @@
-import {Select} from '@/components/Shared/Select'
 import {textMatches} from '@/lib/searchMatching'
 import {Dialog} from '@/components/Shared/Dialog'
 import {Button} from '@/components/Shared/Button'
-import { FormField, SearchInput } from '@/components/Shared/Controls'
+import { SearchInput } from '@/components/Shared/Controls'
 import { controlClass } from '@/components/Shared/Controls'
 import { ModuleIcon } from '@/components/Modules/ModuleIcon'
 import { StatusPill } from '@/components/Shared/StatusPill'
@@ -52,8 +51,7 @@ export function ModuleEditor({
   const [reset,setReset]=useState(false)
   const [initial,setInitial]=useState('')
   const cancel=()=>{if(JSON.stringify(local)!==initial && !window.confirm('Discard module changes?'))return;setExpanded(null)}
-  const [availability,setAvailability]=useState('all')
-  const rows = modules.filter(m=>(search.includes('*')?[m.id,m.name,...m.aliases].some(value=>textMatches(value,search)):textMatches(`${m.id} ${m.name} ${m.aliases.join(' ')}`,search))&&(availability==='all'||(overrides[m.id]?.enabled??m.enabled??true)===(availability==='enabled')))
+  const rows = modules.filter(m=>(search.includes('*')?[m.id,m.name,...m.aliases].some(value=>textMatches(value,search)):textMatches(`${m.id} ${m.name} ${m.aliases.join(' ')}`,search)))
   return (
     <div className="space-y-4">
       <label className="block text-sm font-medium">
@@ -61,7 +59,6 @@ export function ModuleEditor({
         <SearchInput value={search} onChange={event=>onSearch(event.target.value)}/>
 
       </label>
-      <FormField label="Module availability"><Select className={control} value={availability} onChange={event=>setAvailability(event.target.value)}><option value="all">All</option><option value="enabled">Enabled</option><option value="disabled">Disabled</option></Select></FormField>
       <p className="text-xs text-[var(--muted)]">
         {rows.length} areas · Open an area to customize its appearance. Disabled
         areas remain in your dataset.

@@ -41,6 +41,7 @@ test('theme preview, accessible validation, custom preset persistence, system ap
  await primary.fill('#123456')
  await expect(page.getByRole('region',{name:'SAP Lens settings'})).toContainText('Unsaved changes')
  expect(await page.locator('html').evaluate(el=>getComputedStyle(el).getPropertyValue('--primary'))).toBe(original)
+ await page.getByRole('button',{name:/^Edit Primary text color,/}).click()
  await page.getByLabel('Primary text color',{exact:true}).fill('#111827')
  await expect(page.getByText(/needs at least 4.5:1 contrast/).first()).toBeVisible()
  await expect(page.getByRole('button',{name:'Apply settings',exact:true})).toBeDisabled()

@@ -1,6 +1,6 @@
 import { apiRequest } from './client'
 
-export interface ThemePalette { primary:string;accent:string;background:string;surface:string;text:string }
+export interface ThemePalette { primary:string;accent:string;secondary:string;background:string;surface:string;text:string }
 export interface ThemePreset { name:string;mode:'light'|'dark';colors:ThemePalette }
 export interface ThemeColors { dark:ThemePalette;light:ThemePalette;custom_presets:ThemePreset[] }
 export interface Organization { name: string; platform: string; custom_platform: string; system_id: string; client: string; description: string; footer: string }

@@ -9,7 +9,7 @@ import {FormField,Input,SearchInput,Checkbox} from '@/components/Shared/Controls
 import {Select} from '@/components/Shared/Select'
 import {Card,DataTable,StatusBadge,Toolbar,LoadingState,EmptyState,EvidenceDisclosure} from '@/components/Shared/Presentation'
 import {Dialog} from '@/components/Shared/Dialog'
-import {ColorPalette} from '@/components/Shared/ColorPalette'
+import {ColorControl} from './Controls'
 import {IdPill} from '@/components/Shared/IdPill'
 import {ContentTabs} from '@/components/Shared/Navigation'
 import {Pagination} from '@/components/Access/Shared'
@@ -19,6 +19,7 @@ type Metadata={enabled:boolean;display_name:string;business_category:string;note
 type Mapping={activity:string;tcode:string;ttext:string}
 type Risk={risk_id:string;source:{criticality:string;risk_type:string;source_text:string;activity1:string;activity2:string;activities:Record<'ACTVT1'|'ACTVT2',Mapping[]>;supported:boolean;evaluation_policy:string|null};local:Metadata;new:boolean;source_changed:boolean;description_review_status:string;current:boolean;definition_version:string;modified:string|null}
 type Catalogue={revision:number;items:Risk[];total:number;offset:number;limit:number;summary:Record<string,number>;source:{loaded:boolean;records:number;risks:number;version:string|null;imported_at:string|null;checked_at:string|null}}
+const validColor=(value:string)=>value===''||/^#[0-9a-fA-F]{6}$/.test(value)
 const explanationFields=[['explanation_en','Business explanation',12000],['consequence_en','Risk consequence',8000],['mitigating_controls_en','Mitigating controls',12000],['review_guidance_en','Review guidance',8000]] as const
 export function SodRiskSettings({onConfigure}:{onConfigure:()=>void}) {
  const [tab,setTab]=useState('risks')
@@ -64,11 +65,11 @@ function RiskEditor({risk,revision,onClose,onSaved}:{risk:Risk;revision:number;o
  const update=(key:keyof Metadata,value:string|boolean)=>setMetadata(previous=>({...previous,[key]:value}))
  // Norwegian text from earlier versions is kept untouched in metadata; only English is edited here.
  const save=async()=>{setBusy(true);setError('');try{await apiRequest(`/api/sod/catalogue/${encodeURIComponent(risk.risk_id)}`,'POST',{expected_revision:revision,definition_version:risk.definition_version,metadata});await onSaved()}catch(cause){setError(cause instanceof Error?cause.message:'Risk configuration could not be saved.')}finally{setBusy(false)}}
- return <Dialog title={`SoD risk ${risk.risk_id}`} onClose={onClose} footer={<><Button disabled={busy} onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} onClick={()=>void save()}><Save size={16} aria-hidden="true"/>Save changes</Button></>}>
+ return <Dialog title={`SoD risk ${risk.risk_id}`} onClose={onClose} footer={<><Button disabled={busy} onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} disabled={!validColor(metadata.color)} onClick={()=>void save()}><Save size={16} aria-hidden="true"/>Save changes</Button></>}>
   <section className="grid gap-3" aria-label="Imported risk definition"><h3>Imported source definition</h3><p>{risk.source.source_text}</p><p className="sod-meta">Criticality {risk.source.criticality} · type {risk.source.risk_type} · {risk.current?'Current source':'Historical source'}. Identifiers, relationships and transaction mappings come from the import and cannot be edited.</p>{(['ACTVT1','ACTVT2'] as const).map(slot=><section key={slot}><h4>{slot} · {slot==='ACTVT1'?risk.source.activity1:risk.source.activity2}</h4><DataTable caption={`${slot} transaction mappings`}><thead><tr><th>Transaction</th><th>Description</th></tr></thead><tbody>{risk.source.activities[slot].map(mapping=><tr key={mapping.tcode}><td>{mapping.tcode}</td><td>{mapping.ttext||'Description unavailable'}</td></tr>)}</tbody></DataTable></section>)}</section>
   <section className="grid gap-3" aria-label="Local business metadata"><h3>Local business guidance</h3><Checkbox checked={metadata.enabled} onChange={event=>update('enabled',event.target.checked)}>Risk enabled</Checkbox>
    <div className="grid gap-3 sm:grid-cols-2"><FormField label="Display name"><Input value={metadata.display_name} maxLength={200} onChange={event=>update('display_name',event.target.value)}/></FormField><FormField label="Business area"><Input value={metadata.business_category} maxLength={120} onChange={event=>update('business_category',event.target.value)}/></FormField></div>
-   <ColorPalette label="Risk color" value={metadata.color} onChange={value=>update('color',value)}/>
+   <ColorControl optional label="Risk color" value={metadata.color} onChange={value=>update('color',value.toLowerCase())} onReset={()=>update('color','')} preview={<IdPill kind="risk" value={risk.risk_id} color={metadata.color}/>}/>
    {explanationFields.map(([key,label,max])=><FormField key={key} label={label}><textarea className="ui-control min-h-24" value={String(metadata[key])} maxLength={max} onChange={event=>update(key,event.target.value)}/></FormField>)}
    <FormField label="Local notes"><textarea className="ui-control min-h-24" value={metadata.notes} maxLength={8000} onChange={event=>update('notes',event.target.value)}/></FormField>
    <FormField label="Description review status"><Select value={metadata.description_review_status} onChange={event=>update('description_review_status',event.target.value)}><option>Needs description review</option><option>Reviewed</option></Select></FormField></section>
@@ -95,11 +96,11 @@ function ActivityEditor({row,revision,onClose,onSaved}:{row:ActivityRow;revision
  const [metadata,setMetadata]=useState<ActivityMeta>(row.local),[busy,setBusy]=useState(false),[error,setError]=useState('')
  const update=(key:keyof ActivityMeta,value:string)=>setMetadata(previous=>({...previous,[key]:value}))
  const save=async()=>{setBusy(true);setError('');try{await apiRequest(`/api/sod/catalogue-activities/${encodeURIComponent(row.activity)}`,'POST',{expected_revision:revision,metadata});await onSaved()}catch(cause){setError(cause instanceof Error?cause.message:'Activity configuration could not be saved.')}finally{setBusy(false)}}
- return <Dialog title={`SoD activity ${row.activity}`} onClose={onClose} footer={<><Button disabled={busy} onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} onClick={()=>void save()}><Save size={16} aria-hidden="true"/>Save changes</Button></>}>
+ return <Dialog title={`SoD activity ${row.activity}`} onClose={onClose} footer={<><Button disabled={busy} onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} disabled={!validColor(metadata.color)} onClick={()=>void save()}><Save size={16} aria-hidden="true"/>Save changes</Button></>}>
   <section className="grid gap-2" aria-label="Imported activity definition"><h3>Imported source definition</h3><p className="sod-meta">The activity identifier, its risks and its transaction mappings come from the import and cannot be edited.</p><p>Risks: {row.risks.join(', ')}</p><p>Transactions: {row.tcodes.join(', ')}</p></section>
   <section className="grid gap-3" aria-label="Local activity guidance"><h3>Local business guidance</h3>
    <div className="grid gap-3 sm:grid-cols-2"><FormField label="Display name"><Input value={metadata.display_name} maxLength={200} onChange={event=>update('display_name',event.target.value)}/></FormField><FormField label="Business area"><Input value={metadata.business_category} maxLength={120} onChange={event=>update('business_category',event.target.value)}/></FormField></div>
-   <ColorPalette label="Activity color" value={metadata.color} onChange={value=>update('color',value)}/>
+   <ColorControl optional label="Activity color" value={metadata.color} onChange={value=>update('color',value.toLowerCase())} onReset={()=>update('color','')} preview={<IdPill kind="activity" value={row.activity} color={metadata.color}/>}/>
    <FormField label="Business explanation"><textarea className="ui-control min-h-24" value={metadata.explanation_en} maxLength={12000} onChange={event=>update('explanation_en',event.target.value)}/></FormField>
    <FormField label="Review guidance"><textarea className="ui-control min-h-24" value={metadata.review_guidance_en} maxLength={8000} onChange={event=>update('review_guidance_en',event.target.value)}/></FormField>
    <FormField label="Local notes"><textarea className="ui-control min-h-24" value={metadata.notes} maxLength={8000} onChange={event=>update('notes',event.target.value)}/></FormField></section>

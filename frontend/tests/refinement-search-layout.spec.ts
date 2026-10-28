@@ -37,8 +37,8 @@ for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(
  await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:'SAP Modules',exact:true}).click()
  const grid=page.locator('.module-tile-grid');await expect(grid).toBeVisible();
  await page.screenshot({path:info.outputPath(`modules-${theme}-${width}.png`)});expect((await grid.evaluate(element=>getComputedStyle(element).gridTemplateColumns.split(' ').length))).toBe(width<=600?1:width<=1100?2:3)
- await page.getByLabel('Module availability',{exact:true}).selectOption('disabled')
- await expect(grid.getByText('Enabled',{exact:true})).toHaveCount(0)
+ await expect(page.getByLabel('Module availability',{exact:true})).toHaveCount(0)
+ await page.getByRole('searchbox').first().fill('zzzz-no-module');await expect(grid.getByText('No areas match your search.',{exact:true})).toBeVisible()
  await page.getByRole('tab',{name:'Appearance & Branding',exact:true}).click();await expect(page.getByAltText('Header logo preview',{exact:true})).toBeVisible()
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
  await page.screenshot({path:info.outputPath(`appearance-${theme}-${width}.png`)})

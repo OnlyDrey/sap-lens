@@ -290,35 +290,37 @@ export function FeatureSettings({
               </StatusBadge>
             </div>
             {saved.data&&enabled!==(saved.data.settings.features?.[key]??key==='user_role_mapping')&&<p role="status" className="ui-description">Pending change — choose Apply settings to save.</p>}
-            <Toggle
-              label={`${name} feature`}
-              checked={enabled}
-              onChange={(next) =>
-                onChange({
-                  ...draft,
-                  features: {
-                    employee_directory:
-                      draft.features?.employee_directory ?? false,
-                    user_role_mapping:
-                      draft.features?.user_role_mapping ?? true,
-                    sod: draft.features?.sod ?? false,
-                    [key]: next,
-                  },
-                })
-              }
-            />
-            <button
-              type="button"
-              className="settings-secondary-button"
-              onClick={() =>
-                onConfigure(
-                  key === 'employee_directory' ? 'employees' : key === 'sod' ? 'sod' : 'users',
-                )
-              }
-            >
-              <Settings2 size={15} aria-hidden="true" />
-              Configure {key === 'sod' ? 'SoD' : name}
-            </button>
+            <div className="feature-controls">
+              <Toggle
+                label={`${name} feature`}
+                checked={enabled}
+                onChange={(next) =>
+                  onChange({
+                    ...draft,
+                    features: {
+                      employee_directory:
+                        draft.features?.employee_directory ?? false,
+                      user_role_mapping:
+                        draft.features?.user_role_mapping ?? true,
+                      sod: draft.features?.sod ?? false,
+                      [key]: next,
+                    },
+                  })
+                }
+              />
+              <button
+                type="button"
+                className="settings-secondary-button"
+                onClick={() =>
+                  onConfigure(
+                    key === 'employee_directory' ? 'employees' : key === 'sod' ? 'sod' : 'users',
+                  )
+                }
+              >
+                <Settings2 size={15} aria-hidden="true" />
+                Configure {key === 'sod' ? 'SoD' : name}
+              </button>
+            </div>
           </section>
         )
       })}

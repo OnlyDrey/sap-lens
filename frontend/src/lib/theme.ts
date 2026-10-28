@@ -6,6 +6,7 @@ import type {
 export const defaultDark: ThemePalette = {
   primary: '#1a003b',
   accent: '#7c85d4',
+  secondary: '#2a3156',
   background: '#0d0d1a',
   surface: '#111827',
   text: '#f1f5f9'
@@ -13,6 +14,7 @@ export const defaultDark: ThemePalette = {
 export const defaultLight: ThemePalette = {
   primary: '#182c53',
   accent: '#515793',
+  secondary: '#e1e5f2',
   background: '#f0f2f7',
   surface: '#ffffff',
   text: '#182c53'
@@ -25,6 +27,7 @@ export const themePresets: ThemePreset[] = [
     colors: {
       primary: '#101e3d',
       accent: '#71b7ff',
+      secondary: '#1d3354',
       background: '#08111f',
       surface: '#122036',
       text: '#eef5ff'
@@ -36,6 +39,7 @@ export const themePresets: ThemePreset[] = [
     colors: {
       primary: '#063b68',
       accent: '#64b5f6',
+      secondary: '#1c3a5c',
       background: '#0b1728',
       surface: '#142940',
       text: '#f1f7ff'
@@ -47,6 +51,7 @@ export const themePresets: ThemePreset[] = [
     colors: {
       primary: '#262626',
       accent: '#b4abff',
+      secondary: '#37334f',
       background: '#121212',
       surface: '#242424',
       text: '#f5f5f5'
@@ -78,11 +83,11 @@ export const onColor = (color: string) =>
 export const paletteErrors = (p: ThemePalette) => {
   if (Object.values(p).some((v) => !isHex(v)))
     return ['Use six-digit HEX colors, for example #1a003b.']
-  return (['background', 'surface'] as const)
+  return (['background', 'surface', 'secondary'] as const)
     .filter((key) => contrast(p.text, p[key]) < 4.5)
     .map(
       (key) =>
-        `Primary text against ${key === 'surface' ? 'card background' : 'application background'} needs at least 4.5:1 contrast (currently ${contrast(p.text, p[key]).toFixed(2)}:1).`
+        `Primary text against ${key === 'surface' ? 'card background' : key === 'secondary' ? 'the secondary color (secondary buttons and selected controls)' : 'application background'} needs at least 4.5:1 contrast (currently ${contrast(p.text, p[key]).toFixed(2)}:1).`
     )
 }
 function mix(first: string, second: string, amount: number) {
@@ -111,7 +116,8 @@ export function readableIconColor(color: string, background: string) {
   }
   return target
 }
-export function themeTokens(p: ThemePalette): Record<string, string> {
+export function themeTokens(input: ThemePalette): Record<string, string> {
+  const p = { ...input, secondary: input.secondary || mix(input.accent, input.surface, 0.18) }
   const safe = Object.values(p).every(isHex) ? p : defaultDark
   const focus =
     Math.min(
@@ -135,7 +141,12 @@ export function themeTokens(p: ThemePalette): Record<string, string> {
     [0.3, 0.4, 0.5, 0.6, 0.7, 1]
       .map((amount) => mix(safe.text, safe.surface, amount))
       .find((color) => contrast(color, safe.surface) >= 3) || safe.text
+  // Secondary buttons and selected controls carry the primary text, so an unreadable choice falls back to a soft accent tint.
+  const secondary = contrast(safe.text, safe.secondary) >= 4.5 ? safe.secondary : readableSurface(mix(safe.accent, safe.surface, 0.18))
+  const secondaryHover = [0.25, 0.4, 0.55].map((amount) => mix(safe.accent, secondary, amount)).find((color) => contrast(safe.text, color) >= 4.5) || secondary
   return {
+    '--secondary': secondary,
+    '--secondary-hover': secondaryHover,
     '--on-success': onColor(success),
     '--success': success,
     '--error': semantic(['#b42318', '#ffb4a9']),

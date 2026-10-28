@@ -185,11 +185,7 @@ export function Diagnostics({
                 }
               >
                 Review{' '}
-                {source.id === 'employees'
-                  ? 'Employee Directory'
-                  : source.id === 'users'
-                    ? 'User Access'
-                    : 'Role Catalogue'}{' '}
+                {({ employees: 'Employee Directory', users: 'User Access', sod: 'SoD Matrix', roles: 'Role Catalogue' } as Record<string, string>)[source.id] || source.name}{' '}
                 source
               </Button>
               <Button onClick={()=>setDetail(source)}><FileText size={16} aria-hidden="true"/>Technical source details</Button>

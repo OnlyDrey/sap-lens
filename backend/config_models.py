@@ -75,15 +75,27 @@ class UserImportProfile(ImportProfile):
 class ThemePalette(StrictModel):
     primary: str = Field(default='#1a003b', pattern=r'^#[0-9a-fA-F]{6}$')
     accent: str = Field(default='#7c85d4', pattern=r'^#[0-9a-fA-F]{6}$')
+    secondary: str = Field(default='#2a3156', pattern=r'^#[0-9a-fA-F]{6}$')
     background: str = Field(default='#0d0d1a', pattern=r'^#[0-9a-fA-F]{6}$')
     surface: str = Field(default='#111827', pattern=r'^#[0-9a-fA-F]{6}$')
     text: str = Field(default='#f1f5f9', pattern=r'^#[0-9a-fA-F]{6}$')
+
+    @model_validator(mode='before')
+    @classmethod
+    def legacy_secondary(cls, value):
+        # Palettes saved before Secondary Color existed get a readable tint instead of failing to load.
+        if isinstance(value, dict) and 'secondary' not in value:
+            from theme_colors import derive_secondary
+            value = {**value, 'secondary': derive_secondary(value)}
+        return value
 
     @model_validator(mode='after')
     def readable_text(self):
         from theme_colors import contrast
         if min(contrast(self.text, self.background), contrast(self.text, self.surface)) < 4.5:
             raise ValueError('Primary text must meet WCAG AA contrast (4.5:1) against both application and card backgrounds.')
+        if contrast(self.text, self.secondary) < 4.5:
+            raise ValueError('Primary text must meet WCAG AA contrast (4.5:1) against the secondary color used by secondary buttons and selected controls.')
         return self
 
 
@@ -95,7 +107,7 @@ class ThemePreset(StrictModel):
 
 class ThemeColors(StrictModel):
     dark: ThemePalette = Field(default_factory=ThemePalette)
-    light: ThemePalette = Field(default_factory=lambda: ThemePalette(primary='#182c53', accent='#515793', background='#f0f2f7', surface='#ffffff', text='#182c53'))
+    light: ThemePalette = Field(default_factory=lambda: ThemePalette(primary='#182c53', accent='#515793', secondary='#e1e5f2', background='#f0f2f7', surface='#ffffff', text='#182c53'))
     custom_presets: list[ThemePreset] = Field(default_factory=list, max_length=20)
 
     @model_validator(mode='after')
