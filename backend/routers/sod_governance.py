@@ -41,10 +41,14 @@ def info(bundle, **extra):
     return dict(scope.context_info(bundle), **extra)
 
 
-def _matrix(kind, group_by, offset, limit, q):
+def _built(kind, q):
     bundle, _, state, view = scope.scoped(q['context'], q)
     builder = governance.risk_matrix if kind == 'risk' else governance.activity_matrix
-    matrix = builder(view, state)
+    return bundle, builder(view, state)
+
+
+def _matrix(kind, group_by, offset, limit, q):
+    bundle, matrix = _built(kind, q)
     key = 'acceptance' if kind == 'risk' else 'decision'
     status_counts = {}
     for row in matrix['rows']:
@@ -117,6 +121,18 @@ def filter_options(q: dict = Depends(scope_query), field: OPTION_FIELDS = 'risk'
     if needle:
         values = [value for value in values if needle in value.casefold()]
     return dict(info(bundle), field=field, items=values[:limit], total=len(values))
+
+
+HEATMAP_COLUMNS = {kind: ['SAP_USER_GROUP', 'RISK_ID' if kind == 'risk' else 'ACTIVITY', 'USERS_WITH_ITEM', 'USERS_IN_GROUP_WITH_ITEMS'] for kind in ('risk', 'activity')}
+
+
+@router.get('/matrix/{kind}/group-export')
+def group_heatmap_export(kind: Literal['risk', 'activity'], q: dict = Depends(scope_query)):
+    """Long-format CSV of the SAP-user-group heatmap: distinct users per group and risk (or activity), honoring every filter."""
+    _, matrix = _built(kind, q)
+    grouped = governance.aggregate_by_group(matrix)
+    rows = ((row['user'], column, cell['users'], row['users']) for row in grouped['rows'] for column, cell in row['cells'].items())
+    return csv_response(HEATMAP_COLUMNS[kind], rows, f'group-{kind}-heatmap')
 
 
 def _explorer(table, q):
@@ -309,7 +325,7 @@ QUEUE_COLUMNS = ['CONTEXT', 'REVIEW_TYPE', 'USERNAME', 'REFERENCE', 'RISKS', 'LI
 def native_csv_header(filename):
     """Exact header contract for a native Save dialog, or None when the filename is not a SoD 2.0 export."""
     import re
-    match = re.fullmatch(r'sap-lens-sod-(explorer-(user-risk|user-activity|access-list|lookup)|review-queue|access-remediation)-\d{4}-\d{2}-\d{2}\.csv', filename)
+    match = re.fullmatch(r'sap-lens-sod-(explorer-(user-risk|user-activity|access-list|lookup)|group-(risk|activity)-heatmap|review-queue|access-remediation)-\d{4}-\d{2}-\d{2}\.csv', filename)
     if not match:
         return None
     name = match.group(1)
@@ -317,6 +333,8 @@ def native_csv_header(filename):
         return csv_header(QUEUE_COLUMNS)
     if name == 'access-remediation':
         return csv_header(REMEDIATION_COLUMNS)
+    if name.startswith('group-'):
+        return csv_header(HEATMAP_COLUMNS[match.group(3)])
     return csv_header(EXPLORER_COLUMNS[match.group(2).replace('-', '_')][0])
 
 

@@ -662,3 +662,15 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 
 /* Keyboard focus scrolls elements in with a margin so their focus rings are never cut off at a scroll edge. */
 .settings-scroll,.filter-sidebar,.ui-side-panel-body,.ui-dialog-content,.matrix-scroll { scroll-padding:12px; }
+.dashboard-metric > svg:first-child { grid-column:1; grid-row:1; }
+.dashboard-metric[data-tone='warning'] > strong { color:var(--warning); }
+.dashboard-metric[data-tone='error'] > strong { color:var(--error); }
+.sod-heatmap { width:100%; border-collapse:separate; border-spacing:0; font-size:var(--font-label); }
+.sod-heatmap th, .sod-heatmap td { padding:0.25rem 0.5rem; border-bottom:1px solid var(--border); text-align:center; white-space:nowrap; }
+.sod-heatmap thead th { position:sticky; top:0; background:var(--surface); z-index:1; }
+.sod-heatmap tbody th, .sod-heatmap thead th:first-child { position:sticky; left:0; background:var(--surface); text-align:left; z-index:1; }
+.sod-heatmap tfoot th, .sod-heatmap tfoot td { border-top:2px solid var(--border); font-weight:600; }
+.sod-heatmap button.sod-heat-cell { min-width:3rem; padding:0.125rem 0.5rem; border:0; border-radius:var(--radius-control); color:var(--text); font:inherit; font-variant-numeric:tabular-nums; cursor:pointer; background:var(--heat, transparent); }
+.sod-heatmap button.sod-heat-cell:hover { outline:1px solid var(--accent2); }
+.sod-heatmap button.sod-heat-cell:focus-visible { outline:2px solid var(--focus); outline-offset:1px; }
+.sod-heatmap .sod-heat-empty { color:var(--muted); }

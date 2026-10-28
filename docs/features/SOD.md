@@ -13,7 +13,7 @@ Accept or reject → Approve → Remediate → Verify → Report**
 
 | View | Purpose |
 | --- | --- |
-| Overview | Compact figure tiles for conflicts, reviews and remediation that link into filtered views, review period progress and last approval, evidence freshness and source coverage. |
+| Overview | Dashboard-style sections with metric tiles for conflicts, reviews and remediation that link into filtered views, a SAP user group heatmap, review period progress and last approval, evidence freshness and source coverage. |
 | Risk Matrix | SAP users by risk. Cells show the risk-acceptance state; totals count distinct users and user-risk findings. Group rows by SAP user group. |
 | Activity Matrix | SAP users by activity with review state and the number of supplying roles (overlap flagged). The main entry point for reviewing. |
 | Access Explorer | Four modes: **Users** (grouped by risk or by activity), **Assignments**, **Roles** (role lookup with the users assigned to each role) and **Role conflicts** (catalogue roles). Identifiers are pills, evidence (roles, transactions, assigned users) expands per row, and CSV export covers the filtered rows. Trace user, risk, activity, transaction, role and assignment in both directions. |
@@ -102,6 +102,10 @@ Every period status can be deleted from the row action menu or the period dialog
   Approved or closed periods also need a reason. The reason, actor and previous state are stored in the deletion record and the period history.
 - Reports already issued outside SAP Lens stay valid; their log entries remain, but they cannot be regenerated afterwards. Findings first seen in a deleted
   approved period are classified as new instead of reopened in later comparisons. Other periods and current decisions are never changed (no cascade).
+
+## SAP user group heatmap
+
+The Overview heatmap shows distinct users per SAP user group and risk (or activity) over current evidence. Darker cells have more users; the Users column and the Distinct users row are distinct counts. A user in several groups counts in each group, so group counts can exceed the distinct total. The 25 most affected columns are shown; the matrix lists all of them. Sort by group, distinct users or number of risks/activities, select a cell to open the matrix for that group and item, and use Export CSV (long format: group, item, users with the item, users in the group with items). When SoD is enabled the [Dashboard](DASHBOARD.md) also summarizes conflicts, pending reviews and remediation.
 
 ## Filters, tiles and drawer
 

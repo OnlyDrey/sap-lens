@@ -223,5 +223,5 @@ export async function downloadFile(path: string, options: { method?: 'GET' | 'PO
   return name
 }
 
-export const EXPORT_NAME = /^sap-lens-sod-(explorer-(user-risk|user-activity|access-list|lookup)|review-queue|access-remediation)-\d{4}-\d{2}-\d{2}\.csv$/
+export const EXPORT_NAME = /^sap-lens-sod-(explorer-(user-risk|user-activity|access-list|lookup)|group-(risk|activity)-heatmap|review-queue|access-remediation)-\d{4}-\d{2}-\d{2}\.csv$/
 export const REPORT_NAME = /^sap-lens-(sod-report-[a-f0-9]{32}|access-remediation-(current|[a-f0-9]{32}))-\d{4}-\d{2}-\d{2}\.(pdf|docx|csv)$/

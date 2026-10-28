@@ -3,7 +3,7 @@ import {Button} from '@/components/Shared/Button'
 import {useModules} from '@/hooks/useModules'
 import {SourceHealthSummary,useSourceEvidence} from '@/components/Settings/SourceStatus'
 import { PageHeader, SectionHeader } from '@/components/Shared/Presentation'
-import { LayoutDashboard, ShieldAlert, HeartPulse, BarChart3, SlidersHorizontal } from 'lucide-react'
+import { AlertTriangle, CircleDashed, LayoutDashboard, ShieldAlert, ShieldCheck, HeartPulse, BarChart3, SlidersHorizontal, UsersRound as ConflictUsers } from 'lucide-react'
 import { formatTimestamp } from '@/lib/dateFormat'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -20,6 +20,8 @@ import { apiRequest } from '@/api/client'
 import { useViewHistory } from '@/hooks/useViewHistory'
 import { useApplicationData } from '@/state/ApplicationData'
 import { StatusPill } from '@/components/Shared/StatusPill'
+import { MetricTile } from '@/components/Shared/MetricTile'
+import { fetchConfiguration } from '@/api/configuration'
 interface Metric {
   id: string
   label: string
@@ -41,6 +43,10 @@ export function Dashboard() {
   const { view, change } = useViewHistory(),
     { loading } = useApplicationData()
   const sourceEvidence=useSourceEvidence('roles')
+  const configuration=useQuery({queryKey:['configuration'],queryFn:fetchConfiguration})
+  const sodEnabled=configuration.data?.settings.features?.sod===true
+  const sodSummary=useQuery({queryKey:['sod-overview'],enabled:sodEnabled,queryFn:()=>apiRequest<{governance:{available:boolean;reason?:string|null;users_with_conflicts?:number;user_risk_findings?:number;activities?:Record<string,number>;acceptance?:Record<string,number>;remediation?:{open_actions:number;overdue:number}}}>('/api/sod/overview')})
+  const openSod=(sodView:'overview'|'risk-matrix'|'activity-matrix'|'reviews')=>change({page:'sod',sodView,settings:false,detailRole:null})
   const query = useQuery({
     queryKey: ['dashboard'],
     queryFn: () =>
@@ -175,6 +181,23 @@ export function Dashboard() {
               )}
             </section>
           ))}
+
+          {sodEnabled&&sodSummary.data&&(()=>{
+            const g=sodSummary.data.governance,pending=(g.activities?.Pending||0)+(g.activities?.Outdated||0)+(g.acceptance?.Pending||0)+(g.acceptance?.Outdated||0)
+            return <section aria-label="Segregation of Duties" className="dashboard-section col-span-full min-w-0 rounded-card bg-surface p-4">
+              <SectionHeader title="Segregation of Duties" icon={<ShieldAlert size={18}/>}/>
+              {g.available
+                ? <div className="dashboard-metrics dashboard-secondary-metrics">
+                    <MetricTile icon={<ConflictUsers size={18} aria-hidden="true"/>} label="Users with potential conflicts" value={g.users_with_conflicts} onOpen={()=>openSod('risk-matrix')}/>
+                    <MetricTile icon={<ShieldAlert size={18} aria-hidden="true"/>} label="User-risk findings" value={g.user_risk_findings} onOpen={()=>openSod('risk-matrix')}/>
+                    <MetricTile icon={<CircleDashed size={18} aria-hidden="true"/>} label="SoD reviews pending" value={pending} onOpen={()=>openSod('reviews')}/>
+                    <MetricTile icon={<ShieldCheck size={18} aria-hidden="true"/>} label="Open remediation actions" value={g.remediation?.open_actions} onOpen={()=>openSod('reviews')}/>
+                    <MetricTile icon={<AlertTriangle size={18} aria-hidden="true"/>} label="Overdue remediation actions" value={g.remediation?.overdue} tone="error" onOpen={()=>openSod('reviews')}/>
+                  </div>
+                : <p className="text-sm text-[var(--muted)]">SoD analysis is not available ({g.reason==='mapping_disabled'?'User–Role Mapping is disabled':'a supported SoD matrix and validated role catalogue are required'}). <Button variant="ghost" onClick={()=>openSod('overview')}>Open SoD</Button></p>}
+              <p className="text-xs text-[var(--muted)]">Potential transaction-derived conflicts, not effective SAP authorization.</p>
+            </section>
+          })()}
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 col-span-full"><section aria-label="Role Distribution" className="dashboard-section dashboard-distribution min-w-0 rounded-card bg-surface p-4"><SectionHeader title="Role Distribution" icon={<BarChart3 size={18}/>}/><p className="ui-description">Distinct catalogue roles by canonical SAP area. Single-role relationships and release assignments are separate evidence.</p><div className="grid gap-0">{query.data.role_distribution==null?<p>Role catalogue unavailable.</p>:Object.entries(query.data.role_distribution).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,allAreas?undefined:5).map(([area,count])=><button key={area} className="dashboard-distribution-link" title={modules.data?.find(module=>module.function_key===area)?.module_name||area} aria-label={`Investigate ${area} catalogue roles`} onClick={()=>{const metric=query.data.metrics.find(m=>m.id==='roles');if(metric)open(metric,area)}}><span>{area}</span><progress aria-label={`${area} catalogue roles`} max={Math.max(1,...Object.values(query.data.role_distribution||{}))} value={count}/><strong>{count}</strong><ArrowUpRight size={14}/></button>)}</div>{query.data.role_distribution&&Object.keys(query.data.role_distribution).length>5&&<Button size="compact" aria-expanded={allAreas} onClick={()=>setAllAreas(value=>!value)}>{allAreas?'Show less':'Show all'}</Button>}</section>
 <section aria-label="Assignment Distribution" className="dashboard-section dashboard-distribution min-w-0 rounded-card bg-surface p-4"><SectionHeader title="Assignment Distribution" icon={<UsersRound size={18}/>}/><p className="ui-description">Distinct currently valid assigned roles. Historical and unknown intervals are excluded. High counts are not security findings.</p><div className="grid gap-0">{query.data.assignment_distribution?['1–5','6–20','21+'].map(bin=><button key={bin} className="dashboard-distribution-stat" aria-label={`Investigate users with ${bin} currently valid roles`} onClick={()=>change({page:'users',accessMode:'directory',user:'',userContext:{},assignmentBand:bin,settings:false,detailRole:null})}><span>{bin} roles</span><progress aria-label={`${bin} roles user count`} max={Math.max(1,...Object.values(query.data.assignment_distribution||{}))} value={query.data.assignment_distribution?.[bin]||0}/><strong>{query.data.assignment_distribution?.[bin]||0}</strong></button>):<p>User–Role Mapping unavailable.</p>}</div>

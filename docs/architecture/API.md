@@ -263,6 +263,7 @@ Evidence and exports are bounded; see [SoD architecture](SOD.md) and the
 | GET | `/api/sod/queue/users` | One row per SAP user with per-review-type progress |
 | GET/PUT/DELETE | `/api/sod/reports/branding` | Report-only logo (PNG/JPEG, validated and re-encoded) |
 | GET | `/api/sod/matrix/{risk,activity}` | User-by-risk and user-by-activity matrices, paged rows, `group_by=group`, distinct totals and `status_counts` (cells per review status over the whole filtered matrix) |
+| GET | `/api/sod/matrix/{risk,activity}/group-export` | Long-format CSV of the SAP user group heatmap (`sap-lens-sod-group-{risk,activity}-heatmap-DATE.csv`), honoring the shared filters |
 | GET | `/api/sod/filter-options` | Searchable predefined filter values (`field`, `term`, `limit`) from the imported evidence of the context; unaffected by the other filters |
 | GET | `/api/sod/explorer/{user_risk,user_activity,access_list,lookup}` and `/export` | Explorer tables and filtered CSV |
 | GET | `/api/sod/subject` | Investigation workspace: risk, activities, contributing assignments, decisions, removal impact, and an `overview` of all the user's activities, assignments and risks |

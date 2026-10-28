@@ -178,6 +178,19 @@ class MatrixTests(GovernanceCase):
         self.assertTrue(response.text.startswith('﻿"USERNAME"'))
         self.assertEqual(self.client.get('/api/sod/explorer/lookup/export', headers=H).status_code, 200)
 
+    def test_group_heatmap_export_counts_distinct_users_with_a_fixed_header(self):
+        response = self.client.get('/api/sod/matrix/risk/group-export', headers=H)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('sap-lens-sod-group-risk-heatmap-', response.headers['content-disposition'])
+        lines = response.text.strip().splitlines()
+        self.assertEqual(lines[0], '\ufeff"SAP_USER_GROUP";"RISK_ID";"USERS_WITH_ITEM";"USERS_IN_GROUP_WITH_ITEMS"')
+        self.assertEqual(sorted(lines[1:]), ['"FIN";"R1";"1";"1"', '"FIN";"R2";"1";"1"', '"P2P";"R1";"1";"1"'])
+        activity = self.client.get('/api/sod/matrix/activity/group-export', params={'group': 'P2P'}, headers=H).text.strip().splitlines()
+        self.assertEqual(activity[0], '\ufeff"SAP_USER_GROUP";"ACTIVITY";"USERS_WITH_ITEM";"USERS_IN_GROUP_WITH_ITEMS"')
+        self.assertEqual(sorted(activity[1:]), ['"P2P";"A";"1";"1"', '"P2P";"B";"1";"1"'])
+        from routers.sod_governance import native_csv_header
+        self.assertEqual(native_csv_header('sap-lens-sod-group-activity-heatmap-2026-10-28.csv'), activity[0] + '\r\n')
+
     def test_csv_export_follows_assignment_validity_including_expired(self):
         expired = user('ROLE_A1', 'ROLE_B')
         expired['assignments'] = [assignment('ROLE_A1', end='2021-12-31'), assignment('ROLE_B', end='2021-12-31')]

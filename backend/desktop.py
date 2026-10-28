@@ -25,7 +25,7 @@ def _save_csv_dialog(owner, token, filename, content, kind):
     import re
     pattern = (r'sap-lens-refresh-changes-report-\d{4}-\d{2}-\d{2}\.csv' if kind == 'changes' else r'sap-lens-[A-Za-z0-9_-]{1,100}-[a-z]+-\d{4}-\d{2}-\d{2}\.csv')
     if kind == 'sod':
-        pattern = r'sap-lens-sod-((users|roles)-findings|reviews|actions|catalogue|explorer-(user-risk|user-activity|access-list|lookup)|review-queue|access-remediation)-\d{4}-\d{2}-\d{2}\.csv'
+        pattern = r'sap-lens-sod-((users|roles)-findings|reviews|actions|catalogue|explorer-(user-risk|user-activity|access-list|lookup)|group-(risk|activity)-heatmap|review-queue|access-remediation)-\d{4}-\d{2}-\d{2}\.csv'
     if not isinstance(filename, str) or not re.fullmatch(pattern, filename):
         raise ValueError('Invalid CSV export filename.')
     header = ('\ufeff"Timestamp","Source","Change","Identifier","Field","Before","After"\r\n' if kind == 'changes' else '\ufeff"Username","User group",')
@@ -39,7 +39,7 @@ def _save_csv_dialog(owner, token, filename, content, kind):
         elif filename.startswith(('sap-lens-sod-reviews-', 'sap-lens-sod-actions-')):
             from routers.sod_reviews import REVIEW_HEADER
             header = REVIEW_HEADER
-        elif filename.startswith(('sap-lens-sod-explorer-', 'sap-lens-sod-review-queue-', 'sap-lens-sod-access-remediation-')):
+        elif filename.startswith(('sap-lens-sod-explorer-', 'sap-lens-sod-group-', 'sap-lens-sod-review-queue-', 'sap-lens-sod-access-remediation-')):
             from routers.sod_governance import native_csv_header
             header = native_csv_header(filename)
         else:

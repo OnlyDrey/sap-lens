@@ -5,6 +5,10 @@ Dashboard is the default landing page, available from the main navigation and at
 still work, and an existing detail history entry remains meaningful. No historical trends are inferred
 from a single import. Data stays on the configured SAP Lens instance; desktop defaults to loopback.
 
+## Segregation of Duties summary
+
+When the SoD feature is enabled, a **Segregation of Duties** section shows users with potential conflicts, user-risk findings, pending reviews and open or overdue remediation actions, each opening the matching [SoD](SOD.md) view. If analysis is unavailable the section says why. The counts are potential transaction-derived conflicts, not effective authorization.
+
 ## Startup, refresh and navigation
 
 Configured SAP sources initialize in the backend lifespan, independently of which
