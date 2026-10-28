@@ -42,7 +42,7 @@ test("user to role to transactions and reverse role or transaction investigation
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/#session=browser-test-session");
   const navigation = page.getByRole("navigation", { name: "Main navigation" });
-  await expect(navigation.getByRole("button")).toHaveCount(4);
+  await expect(navigation.getByRole("button")).toHaveCount(5);
   await expect(navigation.getByRole("button", {name:"Dashboard",exact:true})).toBeVisible();
   await navigation
     .getByRole("button", { name: "User Access", exact: true })

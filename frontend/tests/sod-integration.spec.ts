@@ -26,3 +26,9 @@ for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(
  await request.post('/api/configuration/theme',{headers,data:{theme}});await page.setViewportSize({width,height:950});await page.goto('/#session=browser-test-session');await page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('button',{name:'SoD',exact:true}).click();await expect(page.getByRole('region',{name:'SoD overview',exact:true})).toBeVisible();
  for(const view of ['Risk Catalogue','Access Review','Review Periods','Reports']){await page.getByRole('link',{name:view,exact:true}).click();await page.screenshot({path:info.outputPath(`${view.replaceAll(' ','-')}-${theme}-${width}.png`)});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()}
 })
+
+for(const width of [375,414])test(`main navigation fits five items without clipped labels at ${width}`,async({page})=>{
+ await page.setViewportSize({width,height:800});await page.goto('/#session=browser-test-session');const navigation=page.getByRole('navigation',{name:'Main navigation',exact:true});await expect(navigation.getByRole('button')).toHaveCount(5)
+ const fit=await navigation.evaluate((nav)=>({scrolls:nav.scrollWidth>nav.clientWidth,clipped:[...nav.querySelectorAll('button')].filter((button)=>button.scrollWidth>button.clientWidth).length}))
+ expect(fit).toEqual({scrolls:false,clipped:0})
+})

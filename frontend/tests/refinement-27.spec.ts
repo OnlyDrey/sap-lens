@@ -78,7 +78,7 @@ test('release fields align and Data Health reuses canonical source state',async(
   expect(Math.max(...visible.map(box=>box!.y))-Math.min(...visible.map(box=>box!.y))).toBeLessThanOrEqual(1)
   for(const box of visible)expect(box!.height).toBe(42)
  }
- await settings(page,'Data Sources');await page.getByText('Data Health & Coverage',{exact:true}).click();await expect(page.locator('.health-source-grid .source-compact')).toHaveCount(3);await expect(page.locator('.health-source-grid').getByText('Loaded',{exact:true})).toHaveCount(2)
+ await settings(page,'Data Sources');await page.getByText('Data Health & Coverage',{exact:true}).click();await expect(page.locator('.health-source-grid .source-compact')).toHaveCount(4);await expect(page.locator('.health-source-grid').getByText('Loaded',{exact:true})).toHaveCount(2)
 })
 
 test('Windows tray settings use the parent draft, persist and respond to native settings navigation',async({page,request})=>{
