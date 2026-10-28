@@ -207,7 +207,7 @@ def simulate(body: SimulateBody):
                 note='Simulation only: SAP Lens does not change SAP. A removal recommendation is not confirmed removal.')
 
 
-STATUS_FILTERS = ('Pending', 'Reviewed', 'Conditional', 'Removal required', 'Rejected', 'Risk acceptance pending', 'Awaiting approval', 'Outdated', 'Resolved')
+STATUS_FILTERS = ('Pending', 'Reviewed', 'Conditional', 'Removal required', 'Rejected', 'Risk acceptance pending', 'Awaiting approval', 'Outdated', 'Resolved', 'Historical')
 
 
 def _status_match(item, status, awaiting):
@@ -215,7 +215,7 @@ def _status_match(item, status, awaiting):
     return {'Pending': life == 'Pending', 'Reviewed': life in {'Approved', 'Keep', 'Accepted'}, 'Conditional': life == 'Conditional',
             'Removal required': life == 'Removal required', 'Rejected': life == 'Rejected',
             'Risk acceptance pending': item['kind'] == 'acceptance' and life == 'Pending',
-            'Awaiting approval': awaiting and life in scope.DECIDED, 'Outdated': life == 'Outdated', 'Resolved': life == 'Resolved'}[status]
+            'Awaiting approval': awaiting and life in scope.DECIDED, 'Outdated': life == 'Outdated', 'Resolved': life == 'Resolved', 'Historical': life == 'Historical'}[status]
 
 
 def _queue(q, kind, status):
@@ -265,7 +265,7 @@ def _public(item):
 
 @router.get('/queue')
 def queue(q: dict = Depends(scope_query), kind: Literal['', 'activity', 'assignment', 'acceptance'] = '',
-          status: Literal['', 'Pending', 'Reviewed', 'Conditional', 'Removal required', 'Rejected', 'Risk acceptance pending', 'Awaiting approval', 'Outdated', 'Resolved'] = '',
+          status: Literal['', 'Pending', 'Reviewed', 'Conditional', 'Removal required', 'Rejected', 'Risk acceptance pending', 'Awaiting approval', 'Outdated', 'Resolved', 'Historical'] = '',
           offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200)):
     bundle, items, counts = _queue(q, kind, status)
     return dict(info(bundle), items=[_public(item) for item in items[offset:offset + limit]], total=len(items), counts=counts, offset=offset, limit=limit,
@@ -274,7 +274,7 @@ def queue(q: dict = Depends(scope_query), kind: Literal['', 'activity', 'assignm
 
 @router.get('/queue/export')
 def queue_export(q: dict = Depends(scope_query), kind: Literal['', 'activity', 'assignment', 'acceptance'] = '',
-                 status: Literal['', 'Pending', 'Reviewed', 'Conditional', 'Removal required', 'Rejected', 'Risk acceptance pending', 'Awaiting approval', 'Outdated', 'Resolved'] = ''):
+                 status: Literal['', 'Pending', 'Reviewed', 'Conditional', 'Removal required', 'Rejected', 'Risk acceptance pending', 'Awaiting approval', 'Outdated', 'Resolved', 'Historical'] = ''):
     _, items, _ = _queue(q, kind, status)
 
     def rows():

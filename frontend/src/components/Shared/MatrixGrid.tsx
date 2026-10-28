@@ -44,8 +44,12 @@ export function MatrixGrid({ caption, rowLabel, columns, rows, cell, onSelect, o
   const current = active || firstKey
   useEffect(() => {
     if (!wanted.current || !active) return
-    wanted.current = false
-    scroller.current?.querySelector<HTMLElement>(`[data-cell="${active}"]`)?.focus()
+    // Windowed columns render after the scroll event; keep waiting until the target cell exists.
+    const target = scroller.current?.querySelector<HTMLElement>(`[data-cell="${active}"]`)
+    if (target) {
+      wanted.current = false
+      target.focus()
+    }
   }, [active, first, last])
   const move = (event: KeyboardEvent<HTMLElement>) => {
     const delta: Record<string, [number, number]> = { ArrowRight: [0, 1], ArrowLeft: [0, -1], ArrowDown: [1, 0], ArrowUp: [-1, 0] }

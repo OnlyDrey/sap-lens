@@ -15,7 +15,7 @@ import { AlertNote, ContextBar, CoverageNotice, FilterBar, invalidateSod, KIND_L
 import { DecisionForm, SodInvestigation, type FormState } from './SodInvestigation'
 import { RemediationView } from './SodRemediation'
 
-const STATUSES = ['Pending', 'Reviewed', 'Conditional', 'Removal required', 'Rejected', 'Risk acceptance pending', 'Awaiting approval', 'Outdated', 'Resolved']
+const STATUSES = ['Pending', 'Reviewed', 'Conditional', 'Removal required', 'Rejected', 'Risk acceptance pending', 'Awaiting approval', 'Outdated', 'Resolved', 'Historical']
 interface Result extends ContextInfo { items: QueueItem[]; total: number; counts: Record<string, number>; offset: number; limit: number }
 const itemKey = (item: QueueItem) => `${item.kind}:${item.key}`
 
@@ -101,7 +101,7 @@ function Queue() {
               <td>{item.ref}<p className="text-xs text-muted">{item.risks.join(', ')}</p></td>
               <td><LifecycleBadge value={item.lifecycle} /></td>
               <td className="text-xs">{item.event ? <>{item.event.decision}<p>{item.event.reviewer} · {formatTimestamp(item.event.timestamp)}</p></> : 'No decision yet'}</td>
-              <td><Button onClick={() => openItem(item)} aria-label={`Open ${item.user} ${item.ref}`}>Open</Button></td>
+              <td>{item.lifecycle === 'Historical' || item.lifecycle === 'Resolved' ? <span className="text-xs text-muted">No longer detected</span> : <Button onClick={() => openItem(item)} aria-label={`Open ${item.user} ${item.ref}`}>Open</Button>}</td>
             </tr>))}</tbody>
         </DataTable> : <EmptyState>Nothing matches this queue scope. Results describe imported evidence only; missing sources are not proof of no conflict.</EmptyState>}
         <Pagination label="Queue pages" offset={data.offset} total={data.total} limit={data.limit} onChange={setOffset} />

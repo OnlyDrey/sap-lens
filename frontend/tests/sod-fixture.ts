@@ -16,12 +16,12 @@ const risk = (id: string, a: string, b: string, first: string, second: string) =
 const matrix = header + risk('R1', 'A', 'B', 'X1', 'X2') + risk('R2', 'A', 'C', 'X1', 'X3')
 
 /** Two risks sharing activity A, duplicate role coverage for SYN_A, a single-role conflict for SYN_B and a control user. */
-export async function seedGovernance(request: APIRequestContext, sodMode: 'static' | 'dynamic' = 'static'): Promise<string> {
+export async function seedGovernance(request: APIRequestContext, sodMode: 'static' | 'dynamic' = 'static', sodMatrix = matrix): Promise<string> {
   await request.post('/api/configuration/reset', { headers })
   const tag = `${process.pid}${++sequence}`
   Object.assign(names, { a: `SYN_A${tag}`, b: `SYN_B${tag}`, c: `SYN_C${tag}` })
   const directory = mkdtempSync(path.join(tmpdir(), 'sod-governance-ui-'))
-  for (const [source, content] of Object.entries({ roles, users: users(), sod: matrix })) {
+  for (const [source, content] of Object.entries({ roles, users: users(), sod: sodMatrix })) {
     const filename = path.join(directory, `${source}.csv`)
     writeFileSync(filename, content)
     const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
@@ -92,3 +92,6 @@ export async function bridge(page: Page) {
     } }
   })
 }
+
+/** 70 risks over shared transactions: wide enough to require column windowing. */
+export const wideMatrix = header + Array.from({ length: 70 }, (_, index) => risk(`R${String(index + 1).padStart(3, '0')}`, `A${index + 1}`, `B${index + 1}`, 'X1', 'X2')).join('')

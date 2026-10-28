@@ -116,7 +116,7 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
           </Toolbar>
           {message && <p role="status">{message}</p>}
           <ul className="flex flex-wrap items-center gap-2" aria-label="Cell status legend">{legend.map((value) => <li key={value}><LifecycleBadge value={value} /></li>)}</ul>
-          <p className="ui-description">Totals count distinct users and distinct user-risk pairs. {data.columns_truncated ? 'Showing the first 500 columns; narrow the filters. ' : ''}{groupBy === 'group' ? 'Cells show distinct users per group; select one to list them. ' : 'Select a cell to investigate and review. '}Detected conflicts are potential and derived from imported evidence.</p>
+          <p className="ui-description">Totals count distinct users and distinct {risk ? 'user-risk' : 'user-activity'} pairs. {data.columns_truncated ? 'Showing the first 500 columns; narrow the filters. ' : ''}{groupBy === 'group' ? 'Cells show distinct users per group; select one to list them. ' : 'Select a cell to investigate and review. '}Detected conflicts are potential and derived from imported evidence.</p>
           {data.rows.length
             ? <MatrixGrid caption={risk ? 'User by risk matrix' : 'User by activity matrix'} rowLabel={groupBy === 'group' ? 'User group' : 'SAP user'} columns={columns}
                 rows={data.rows.map((row) => ({ id: row.user, label: row.user, sub: groupBy === 'group' ? `${row.users} users` : row.groups.join(', ') }))}

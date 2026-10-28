@@ -1,5 +1,6 @@
 """SoD 2.0 review periods: approval workflow, frozen decisions, comparisons and guarded deletion."""
 from datetime import date
+import os
 from pathlib import Path
 import sys
 import unittest
@@ -199,3 +200,29 @@ class DeletionTests(PeriodV2Case):
         self.assertEqual(len(self.get('/api/sod/periods')['items']), 1)
         summary = decisions.context_summary(pid)
         self.assertEqual((summary['events'], summary['actions'], summary['reports']), (0, 0, []))
+
+
+class RestartTests(PeriodV2Case):
+    def test_decisions_actions_and_frozen_period_restore_in_a_fresh_process(self):
+        import json
+        import subprocess
+        pid = self.new_period('Restart period')
+        self.decide_everything(pid)
+        remove = self.assignment_item('SYN_A', 'ROLE_A2', 'A', pid)
+        self.decide('assignment', [remove], 'Remove', context=pid)
+        view = self.get('/api/sod/remediation', context=pid)
+        self.post('/api/sod/remediation/actions', dict(context=pid, expected_revision=view['revision'], actor='Owner', user='SYN_A', assignment_id=remove['key'], role='ROLE_A2',
+                                                         recommended='Remove assignment', reason='Duplicate coverage', owner='Access team'))
+        for state in ('In review', 'Ready for approval'):
+            self.move(pid, state)
+        self.approve(pid)
+        expected = self.get(f'/api/sod/periods/{pid}')
+        script = ('import json,sys;import sod_decisions as d,sod_periods as p;'
+                  'data=d.read();details=p.details(sys.argv[1]);'
+                  'print(json.dumps(dict(events=sum(len(e) for k in data.contexts[sys.argv[1]].values() for e in k.values()),actions=len(data.actions),'
+                  'state=details["period"]["state"],checksum=details["checksum"],frozen=len(details["snapshot"]["decisions"]["actions"]))))')
+        result = subprocess.run([sys.executable, '-B', '-c', script, pid], cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True, env=os.environ.copy())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        restored = json.loads(result.stdout)
+        self.assertEqual((restored['state'], restored['checksum'], restored['actions'], restored['frozen']), ('Approved', expected['checksum'], 1, 1))
+        self.assertEqual(restored['events'], 5 + 3 + 1)

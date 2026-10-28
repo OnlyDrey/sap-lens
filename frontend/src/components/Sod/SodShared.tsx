@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useQuery, type QueryClient } from '@tanstack/react-query'
 import { AlertTriangle, CheckCircle2, CircleDashed, CircleDot, History, Lock, RefreshCw, ShieldCheck, ShieldX, UserMinus } from 'lucide-react'
 import { sod, emptyFilters, type ContextInfo, type Filters, type Lifecycle } from '@/api/sod'
@@ -51,6 +51,10 @@ export const invalidateSod = (qc: QueryClient) => Promise.all(refreshKeys.map((k
 export function ContextBar({ info }: { info?: ContextInfo }) {
   const [context, setContext] = useSodContext()
   const periods = useQuery({ queryKey: ['sod-periods'], queryFn: () => sod<{ items: { id: string; name: string; state: string }[] }>('/api/sod/periods') })
+  // A period that was archived or deleted elsewhere falls back to current evidence instead of an error.
+  useEffect(() => {
+    if (periods.data && context !== 'current' && !periods.data.items.some((period) => period.id === context)) setContext('current')
+  }, [periods.data, context, setContext])
   return (
     <Toolbar aria-label="Review context">
       <FormField label="Review context">
@@ -89,7 +93,7 @@ export function FilterBar({ view, filters, setFilters, decisions = true, childre
   const active = Object.entries(filters).filter(([name, value]) => !['sort', 'descending', 'validity', 'as_of'].includes(name) && value !== '' && value !== false).length + (text('validity') !== 'active' ? 1 : 0)
   const [open, setOpen] = useState(() => typeof window === 'undefined' || window.matchMedia('(min-width: 800px)').matches)
   return (
-    <details className="grid min-w-0 gap-3" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
+    <details className="min-w-0" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary className="cursor-pointer font-semibold">Filters{active ? ` · ${active} active` : ''}</summary>
       <div className="mt-3 grid min-w-0 gap-3" role="search" aria-label="SoD filters">
         <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">

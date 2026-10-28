@@ -86,7 +86,8 @@ class GovernanceCase(unittest.TestCase):
     def decide(self, kind, items, decision, status=200, context='current', **extra):
         view = self.risk_matrix(context=context)
         body = dict(context=context, expected_revision=view['revision'], expected_generation=view['generation'], items=items, decision=decision,
-                    reviewer='Synthetic Reviewer', justification='Synthetic business need', **extra)
+                    reviewer='Synthetic Reviewer', justification='Synthetic business need')
+        body.update(extra)
         return self.post(f'/api/sod/decisions/{kind}', body, status)
 
     def activity_item(self, user_name, name, context='current'):
@@ -372,6 +373,14 @@ class QueueTests(GovernanceCase):
         self.assertEqual(self.get('/api/sod/queue', kind='assignment', status='Pending')['total'], 5)
         self.assertEqual(self.client.get('/api/sod/queue/export', headers=H).status_code, 200)
 
+    def test_decisions_without_verifiable_absence_stay_historical_not_resolved(self):
+        self.decide('assignment', [self.assignment_item('SYN_A', 'ROLE_A2')], 'Remove')
+        cache._cache = snapshot()
+        cache._cache.users = UserState(users={})
+        queue = self.get('/api/sod/queue', status='Historical')
+        self.assertEqual([(item['kind'], item['ref'], item['lifecycle']) for item in queue['items']], [('assignment', 'ROLE_A2', 'Historical')])
+        self.assertEqual(self.get('/api/sod/queue', status='Resolved')['total'], 0)
+
     def test_legacy_risk_decisions_remain_historical_and_are_not_reinterpreted(self):
         import sod_reviews as legacy
         finding = next(row for row in self.get('/api/sod/analysis', as_of=str(date.today()), limit=100)['items'] if row['subject'] == 'SYN_B')
@@ -402,3 +411,41 @@ class OverviewTests(GovernanceCase):
     def test_overview_without_evidence_is_unavailable_not_zero(self):
         cache._cache.users = UserState(users={})
         self.assertEqual(self.get('/api/sod/overview')['governance']['available'], False)
+
+
+class SecurityAndPrivacyTests(GovernanceCase):
+    GET_PATHS = ['/api/sod/matrix/risk', '/api/sod/matrix/activity', '/api/sod/explorer/user_risk', '/api/sod/explorer/lookup/export', '/api/sod/queue',
+                 '/api/sod/queue/export', '/api/sod/remediation', '/api/sod/remediation/export', '/api/sod/subject?user=x', '/api/sod/overview']
+
+    def test_every_governance_route_requires_the_application_capability(self):
+        for path in self.GET_PATHS:
+            self.assertEqual(self.client.get(path).status_code, 403, path)
+        for path, body in [('/api/sod/decisions/activity', {}), ('/api/sod/simulate', {}), ('/api/sod/remediation/actions', {}),
+                           ('/api/sod/reports/remediation/pdf', {}), ('/api/sod/periods/' + 'a' * 32 + '/delete', {})]:
+            self.assertEqual(self.client.post(path, json=body).status_code, 403, path)
+        self.assertEqual(self.client.get('/api/sod/matrix/risk', headers={'X-SAP-Lens': 'wrong'}).status_code, 403)
+
+    def test_decision_text_stays_out_of_diagnostics_and_portable_exports(self):
+        marker = 'CONFIDENTIAL-JUSTIFICATION-MARKER'
+        self.decide('activity', [self.activity_item('SYN_A', 'A')], 'Approved', controls='', justification=marker)
+        diagnostics = self.client.get('/api/diagnostics/export', headers=H)
+        portable = self.client.post('/api/configuration/export?include_private=false', json={}, headers=H)
+        for response in (diagnostics, portable):
+            self.assertEqual(response.status_code, 200)
+            self.assertNotIn(marker, response.text)
+            self.assertNotIn(str(self.root), response.text)
+        self.assertTrue(any(marker in path.read_text(encoding='utf-8') for path in self.root.glob('sod-decisions.json')))
+
+    def test_exports_contain_no_filesystem_paths(self):
+        self.decide('assignment', [self.assignment_item('SYN_A', 'ROLE_A2')], 'Remove')
+        for path in ('/api/sod/explorer/access_list/export', '/api/sod/queue/export', '/api/sod/remediation/export'):
+            text = self.client.get(path, headers=H).text
+            self.assertNotIn(str(self.root), text, path)
+            self.assertNotIn('sod-decisions', text, path)
+
+    def test_unsupported_values_are_rejected_without_side_effects(self):
+        for params in ({'context': 'not a context'}, {'validity': 'bogus'}, {'acceptance': 'Maybe'}, {'sort': 'bogus'}):
+            self.assertEqual(self.client.get('/api/sod/matrix/risk', params=params, headers=H).status_code, 422, params)
+        self.assertEqual(self.client.get('/api/sod/matrix/risk', params={'context': 'a' * 32}, headers=H).status_code, 404)
+        self.assertEqual(self.client.get('/api/sod/explorer/other', headers=H).status_code, 422)
+        self.assertEqual(decisions.read().revision, 0)

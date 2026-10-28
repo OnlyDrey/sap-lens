@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { cellButton, cleanup, headers, names, openSod, seedGovernance } from './sod-fixture'
+import { cellButton, cleanup, headers, names, openSod, seedGovernance, wideMatrix } from './sod-fixture'
 
 let directory: string
 test.beforeEach(async ({ request }) => { directory = await seedGovernance(request) })
@@ -242,4 +242,22 @@ test('overview shows actionable counts and links into the matrices', async ({ pa
   await figures.getByRole('button', { name: 'Risks rejected', exact: true }).click()
   await expect(page).toHaveURL(/#\/sod\/risk-matrix/)
   await expect(page.getByText('No users match this scope.', { exact: false })).toBeVisible()
+})
+
+test('wide matrices render a window of columns and keep keyboard access to every column', async ({ page, request }) => {
+  await cleanup(request, directory)
+  directory = await seedGovernance(request, 'static', wideMatrix)
+  await openSod(page, 'Risk Matrix')
+  const headersRendered = page.getByRole('columnheader', { name: /Filter to R\d{3}/ })
+  await expect(headersRendered.first()).toBeVisible()
+  expect(await headersRendered.count()).toBeLessThan(40)
+  await expect(page.getByRole('columnheader', { name: /Filter to R070/ })).toHaveCount(0)
+  await expect(page.getByText('Distinct user-risk findings', { exact: true }).locator('xpath=following-sibling::dd[1]')).toHaveText('140')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
+  await cellButton(page, names.b, 'R001').focus()
+  await page.keyboard.press('End')
+  await expect(cellButton(page, names.b, 'R070')).toBeFocused()
+  await expect(page.getByRole('columnheader', { name: /Filter to R070/ })).toBeVisible()
+  await page.keyboard.press('Home')
+  await expect(cellButton(page, names.b, 'R001')).toBeFocused()
 })
