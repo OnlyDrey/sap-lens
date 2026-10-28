@@ -10,6 +10,7 @@ import { Select } from '@/components/Shared/Select'
 import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
 import { NorwegianDateInput, parseNorwegianDate } from '@/components/Shared/NorwegianDateInput'
 import { Pagination } from '@/components/Access/Shared'
+import { announceExport } from '@/lib/exportNotice'
 import { formatDate } from '@/lib/dateFormat'
 import { AlertNote, ContextBar, CoverageNotice, SodFilters, invalidateSod, LifecycleBadge, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 
@@ -85,19 +86,17 @@ export function RemediationView() {
     [offset, setOffset] = useState(0),
     [editing, setEditing] = useState<Row | null>(null),
     [, setSubject] = useSodSubject(),
-    [message, setMessage] = useState(''),
     [busy, setBusy] = useState(false)
   const params = scopeParams(context, filters, { recommended, offset, limit: 50 })
   const result = useQuery({ queryKey: ['sod-remediation', params.toString()], queryFn: () => sod<Result>('/api/sod/remediation', params) })
   const data = result.data
   const exportCsv = async () => {
     setBusy(true)
-    setMessage('')
     try {
       const name = await downloadFile('/api/sod/remediation/export', { params: scopeParams(context, filters, { recommended }), namePattern: EXPORT_NAME, kind: 'csv' })
-      setMessage(name ? `Exported ${name}.` : 'Export cancelled.')
+      announceExport(name ? { kind: 'success', message: `Exported ${name}.` } : { kind: 'info', message: 'Export cancelled.' })
     } catch (cause) {
-      setMessage(cause instanceof Error ? cause.message : 'Export failed.')
+      announceExport({ kind: 'error', message: cause instanceof Error ? cause.message : 'Export failed.' })
     } finally {
       setBusy(false)
     }
@@ -118,7 +117,6 @@ export function RemediationView() {
           <Button variant="ghost" onClick={() => change({ sodView: 'reports' })}>Remediation report</Button>
         </Toolbar>
         <p className="ui-description">A proposed removal is not completed remediation. Verification compares with the latest imported evidence and is only conclusive when source coverage is complete.</p>
-        {message && <p role="status">{message}</p>}
         {data.items.length ? <DataTable caption="Access remediation rows">
           <thead><tr><th>SAP user / activity</th><th>Role assignment</th><th>Reviews</th><th>Recommended handling</th><th>Action</th><th>Verification</th></tr></thead>
           <tbody>{data.items.map((row) => (

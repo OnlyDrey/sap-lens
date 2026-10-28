@@ -289,7 +289,7 @@ def queue_items(model, state, context_info=None):
 GROUPS = ('Remove assignment', 'Investigate assignment', 'Apply compensating control', 'Maintain access', 'No action required')
 
 
-def remediation_rows(model, state, actions, verify, today=None):
+def remediation_rows(model, state, actions, verify, today=None, include_pending=False):
     """Recommended handling per (user, activity, assignment) for decided items; pending items are excluded.
 
     ``verify(user, assignment_id)`` returns the verification text for a tracked removal. A completed action
@@ -326,7 +326,9 @@ def remediation_rows(model, state, actions, verify, today=None):
                     reason = (a_event or c_event).justification if (a_event or c_event) else ''
                 else:
                     undecided += 1
-                    continue
+                    if not include_pending:
+                        continue
+                    recommended, reason = 'Awaiting review', ''
                 action = tracked.get(aid) if recommended == 'Remove assignment' else None
                 rows.append(dict(user=user, activity=name, risks=risks, role=assignment['role'], assignment_id=aid, valid_from=assignment['valid_from'],
                                  valid_to=assignment['valid_to'], user_group=assignment['user_group'], activity_decision=c_state, assignment_decision=a_state,
@@ -337,6 +339,6 @@ def remediation_rows(model, state, actions, verify, today=None):
                                  action_status=action.status if action else 'Not tracked',
                                  overdue=bool(action and action.due_date and action.due_date < today and action.status in {'Open', 'In progress'}),
                                  verification=verify(user, aid) if action else 'Not tracked'))
-    summary = {name: sum(row['recommended'] == name for row in rows) for name in GROUPS}
+    summary = {name: sum(row['recommended'] == name for row in rows) for name in GROUPS + (('Awaiting review',) if include_pending else ())}
     summary.update(undecided=undecided, overdue=sum(row['overdue'] for row in rows))
     return rows, summary

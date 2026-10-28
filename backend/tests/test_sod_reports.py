@@ -228,6 +228,29 @@ class FormalReportTests(ReportCase):
             self.assertEqual(error.exception.status_code, 409)
 
 
+class StatusDistinctionTests(ReportCase):
+    def tables(self, data, key):
+        return next(section for section in data['sections'] if section['key'] == key)['tables']
+
+    def test_not_reviewed_reviewed_no_action_and_removal_recommended_are_separate(self):
+        self.mixed_decisions()
+        status = {row[0]: row[1:] for row in self.tables(self.model(), 'executive')[1][1:]}
+        self.assertEqual(status['Reviewed, removal recommended'][:2], ['1', '1'])
+        self.assertEqual(status['Reviewed, risk rejected'][2], '1')
+        self.assertEqual(status['Reviewed, no action required'][2], '1')
+        self.assertGreater(int(status['Not reviewed (pending or outdated)'][1]), 0)
+
+    def test_removal_follow_up_separates_recommended_completed_and_verified(self):
+        self.mixed_decisions()
+        row = {item[0]: item[1] for item in self.tables(self.model(), 'remediation')[1][1:]}
+        self.assertEqual((row['Removal recommended'], row['Recommended, no action tracked'], row['Action completed (manually recorded, not proof of removal)'], row['Removal verified in later source evidence']), ('1', '1', '0', '0'))
+        view = self.get('/api/sod/remediation', context=self.pid)
+        item = next(entry for entry in view['items'] if entry['recommended'] == 'Remove assignment')
+        self.post('/api/sod/remediation/actions', dict(context=self.pid, expected_revision=view['revision'], actor='Owner', user=item['user'], assignment_id=item['assignment_id'], role=item['role'], recommended='Remove assignment', reason='Duplicate coverage', owner='Access team'))
+        row = {entry[0]: entry[1] for entry in self.tables(self.model(), 'remediation')[1][1:]}
+        self.assertEqual((row['Recommended, no action tracked'], row['Action tracked and open'], row['Removal verified in later source evidence']), ('0', '1', '0'))
+
+
 class RemediationReportTests(ReportCase):
     def request(self, kind, context=None, status=200, **options):
         body = dict(context=context or self.pid, options=dict(prepared_by='Synthetic Author', report_date='2026-10-27', **options))
@@ -240,13 +263,26 @@ class RemediationReportTests(ReportCase):
         self.decide('activity', [self.activity_item('SYN_B', 'A', self.pid)], 'Approved', context=self.pid)
         preview = self.request('preview').json()
         titles = [section['title'] for section in preview['sections']]
-        self.assertEqual(titles, ['Summary', 'Remove assignment', 'Investigate assignment', 'Apply compensating control', 'Maintain access', 'No action required'])
+        self.assertEqual(titles, ['Summary', 'Remove assignment', 'Investigate assignment', 'Apply compensating control', 'Maintain access', 'No action required', 'Awaiting review'])
         summary = preview['sections'][0]['tables'][0]
         self.assertIn('A proposed removal is not completed remediation', preview['sections'][0]['paragraphs'][0])
         counts = {row[0]: row[1] for row in summary[1:]}
         self.assertEqual(counts['Remove assignment'], '1')
         self.assertGreaterEqual(int(counts['Investigate assignment']), 3)
         self.assertEqual(counts['Apply compensating control'], '0')
+
+    def test_report_is_useful_without_any_decision_or_action(self):
+        preview = self.request('preview').json()
+        summary = preview['sections'][0]
+        counts = {row[0]: row[1] for row in summary['tables'][0][1:]}
+        self.assertGreater(int(counts['Awaiting review']), 0)
+        self.assertTrue(any('No remediation actions have been recorded' in text for text in summary['paragraphs']))
+        self.assertEqual(preview['row_count'], int(counts['Awaiting review']))
+        self.assertIn('Review status', summary['tables'][1][0][0])
+        csv = self.request('csv').text
+        self.assertGreater(len(csv.strip().splitlines()), 2)
+        self.assertTrue(all('Awaiting review' in line for line in csv.strip().splitlines()[1:]))
+        self.assertEqual(self.request('csv', recommended=['Remove assignment']).text.strip().count('\n'), 0)
 
     def test_csv_rows_filters_and_formula_protection(self):
         self.mixed_decisions()

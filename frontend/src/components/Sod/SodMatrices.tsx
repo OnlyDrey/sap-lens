@@ -8,6 +8,7 @@ import { Select } from '@/components/Shared/Select'
 import { Button } from '@/components/Shared/Button'
 import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
 import { Pagination } from '@/components/Access/Shared'
+import { announceExport } from '@/lib/exportNotice'
 import { SodPill } from '@/lib/sodAppearance'
 import { ContextBar, CoverageNotice, SodFilters, LifecycleBadge, lifecycleView, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 
@@ -26,7 +27,6 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
     [groupBy, setGroupByState] = useState<'user' | 'group'>(memory[kind]?.groupBy || 'user'),
     [offset, setOffsetState] = useState(memory[kind]?.offset || 0),
     [selected, setSelected] = useSodSubject(),
-    [message, setMessage] = useState(''),
     [busy, setBusy] = useState(false)
   const setOffset = (value: number) => { memory[kind] = { offset: value, groupBy }; setOffsetState(value) }
   const setGroupBy = (value: 'user' | 'group') => { memory[kind] = { offset: 0, groupBy: value }; setGroupByState(value) }
@@ -75,13 +75,12 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
   }
   const exportCsv = async () => {
     setBusy(true)
-    setMessage('')
     try {
       const table = risk ? 'user_risk' : 'user_activity'
       const name = await downloadFile(`/api/sod/explorer/${table}/export`, { params: scopeParams(context, filters), namePattern: EXPORT_NAME, kind: 'csv' })
-      setMessage(name ? `Exported ${name}.` : 'Export cancelled.')
+      announceExport(name ? { kind: 'success', message: `Exported ${name}.` } : { kind: 'info', message: 'Export cancelled.' })
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Export failed.')
+      announceExport({ kind: 'error', message: error instanceof Error ? error.message : 'Export failed.' })
     } finally {
       setBusy(false)
     }
@@ -110,7 +109,6 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
                 ...Object.entries((data as Risk).criticality || {}).map(([key, value]) => ({ label: `Criticality ${key}`, value: `${value.user_risk} findings · ${value.users} users` }))]
               : [{ label: 'Users with activity evidence', value: data.totals.users }, { label: 'User-activity pairs', value: data.totals.user_activity ?? 0 }, { label: 'Activities shown', value: data.totals.activities ?? 0 }]} />
           </Toolbar>
-          {message && <p role="status">{message}</p>}
           <ul className="flex flex-wrap items-center gap-2" aria-label="Cell status legend">{legend.map((value) => <li key={value}><LifecycleBadge value={value} /></li>)}</ul>
           <p className="ui-description">{risk ? 'Cells show the risk acceptance status and how many of the risk activities are reviewed (reviewed/total). Criticality and type are in the column tooltip and the investigation.' : 'Scope: activities that contribute to at least one potential conflict (both sides of an enabled, supported risk). Activities a role supplies beyond those are considered in Role Assignment Review. Cells show the activity review status and ×roles supplying it; ⧉ marks overlapping coverage.'}</p>
           <p className="ui-description">Totals count distinct users and distinct {risk ? 'user-risk' : 'user-activity'} pairs. {data.columns_truncated ? 'Showing the first 500 columns; narrow the filters. ' : ''}{groupBy === 'group' ? 'Cells show distinct users per group; select one to list them. ' : 'Select a cell to investigate and review. '}Detected conflicts are potential and derived from imported evidence.</p>

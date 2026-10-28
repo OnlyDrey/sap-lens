@@ -70,7 +70,9 @@ independent of assignment filters.
 user matching the current directory filters, across all pages. User search, SAP
 User Group, role search, selected transactions, AND/OR mode and assignment-validity
 settings select the users using the same logic as the directory. The export then
-includes their other assignments and expired/future intervals too. `MATCHED_FILTER`
+includes their other assignments and future intervals too. Expired assignments are excluded while
+**Show expired assignments** is off (the result count and the exported row count follow the same rule); turn it on, or
+filter by expired status, to include them. `MATCHED_FILTER`
 is Yes only for assignment evidence contributing to the active selection; No
 does not imply invalid or unauthorized access. AND transaction matching retains
 the directory's existing aggregate role-evidence semantics.

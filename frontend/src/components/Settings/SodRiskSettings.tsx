@@ -3,6 +3,7 @@ import {useState} from 'react'
 import {useQuery,useQueryClient} from '@tanstack/react-query'
 import {Save,ShieldCheck,Database} from 'lucide-react'
 import {apiRequest,applicationToken} from '@/api/client'
+import {announceExport} from '@/lib/exportNotice'
 import {Button} from '@/components/Shared/Button'
 import {FormField,Input,SearchInput,Checkbox} from '@/components/Shared/Controls'
 import {Select} from '@/components/Shared/Select'
@@ -36,8 +37,8 @@ function RiskTab({onConfigure}:{onConfigure:()=>void}) {
  const exportCsv=async()=>{
   setBusy(true);setError('')
   try{const response=await fetch(`/api/sod/catalogue/export?${params}`,{headers:{'X-SAP-Lens':applicationToken()},cache:'no-store'});if(!response.ok)throw Error('Catalogue export failed. Reload and retry.');const content=await response.text(),filename=`sap-lens-sod-catalogue-${new Date().toISOString().slice(0,10)}.csv`;
-   if(window.pywebview){if(!window.pywebview.api.save_sod_csv)throw Error('Update the desktop application for catalogue export.');await window.pywebview.api.save_sod_csv(applicationToken(),filename,content)}else{const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
-  }catch(cause){setError(cause instanceof Error?cause.message:'Catalogue export failed.')}finally{setBusy(false)}
+   if(window.pywebview){if(!window.pywebview.api.save_sod_csv)throw Error('Update the desktop application for catalogue export.');announceExport((await window.pywebview.api.save_sod_csv(applicationToken(),filename,content))?{kind:'success',message:`Exported ${filename}.`}:{kind:'info',message:'Export cancelled.'})}else{const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);announceExport({kind:'success',message:`Exported ${filename}.`})}
+  }catch(cause){announceExport({kind:'error',message:cause instanceof Error?cause.message:'Catalogue export failed.'})}finally{setBusy(false)}
  }
  return <section className="grid min-w-0 gap-4" aria-label="SoD Risk Configuration">
   <Toolbar><ShieldCheck size={20} aria-hidden="true"/><h2>SoD Risk Catalogue</h2><ExportCSVButton loading={busy} disabled={!query.data?.total||query.isFetching} onClick={()=>void exportCsv()} title="All filtered risks, including bilingual guidance and source transaction mappings."/><Button onClick={onConfigure}><Database size={16} aria-hidden="true"/>Configure SoD source</Button></Toolbar>

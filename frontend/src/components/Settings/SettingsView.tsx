@@ -52,6 +52,7 @@ import {
   type ImportProfile
 } from '@/api/configuration'
 
+import { ReportBranding } from './ReportBranding'
 const ComponentLibrary=lazy(()=>import('./ComponentLibrary').then(module=>({default:module.ComponentLibrary})))
 const sectionIcons = [Building2, Database, Layers, Palette, Activity, BookUser, Info, Layers, ShieldCheck]
 const sections = [
@@ -718,6 +719,7 @@ export function SettingsView({
                           }
                         />
                       </Field>
+                      <div className="md:col-span-2"><ReportBranding /></div>
                     </div>
                   )}
                   {section === 1 && imports && (

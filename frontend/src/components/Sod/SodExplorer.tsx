@@ -10,6 +10,7 @@ import { ContentTabs } from '@/components/Shared/Navigation'
 import { Select } from '@/components/Shared/Select'
 import { AssignmentStatus } from '@/components/Shared/InvestigationNavigation'
 import { Pagination } from '@/components/Access/Shared'
+import { announceExport } from '@/lib/exportNotice'
 import { formatDate } from '@/lib/dateFormat'
 import { ConflictView } from './SodConflicts'
 import { SodPill } from '@/lib/sodAppearance'
@@ -74,7 +75,6 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
     [filters, setFiltersState] = useSodFilters('explorer'),
     [offset, setOffset] = useState(0),
     [, setSelected] = useSodSubject(),
-    [message, setMessage] = useState(''),
     [busy, setBusy] = useState(false),
     [expanded, setExpanded] = useState<Set<string>>(new Set())
   const toggle = (id: string) => setExpanded((previous) => { const next = new Set(previous); if (next.has(id)) next.delete(id); else next.add(id); return next })
@@ -83,12 +83,11 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
   const data = result.data
   const download = async (path: string, namePattern: RegExp, extra: Record<string, string> = {}) => {
     setBusy(true)
-    setMessage('')
     try {
       const name = await downloadFile(path, { params: scopeParams(context, filters, extra), namePattern, kind: 'csv' })
-      setMessage(name ? `Exported ${name}.` : 'Export cancelled.')
+      announceExport(name ? { kind: 'success', message: `Exported ${name}.` } : { kind: 'info', message: 'Export cancelled.' })
     } catch (cause) {
-      setMessage(cause instanceof Error ? cause.message : 'Export failed.')
+      announceExport({ kind: 'error', message: cause instanceof Error ? cause.message : 'Export failed.' })
     } finally {
       setBusy(false)
     }
@@ -113,7 +112,6 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
           <h2 className="text-base font-semibold">{data.total} {table === 'lookup' ? 'roles' : 'rows'}</h2>
         </Toolbar>
         <p className="ui-description">Trace User → Risk → Activity → Transaction → Role → Assignment. Select a row to investigate; from the lookup, show the users behind a role.</p>
-        {message && <p role="status">{message}</p>}
         {data.items.length ? <DataTable caption={LABELS[table]}>
           {table === 'user_risk' && <><thead><tr><th>SAP user</th><th>Risk</th><th>Activities</th><th>Evidence</th><th>Risk acceptance</th><th>Open</th></tr></thead>
             <tbody>{data.items.map((row) => { const id = `${row.user}:${row.risk_id}`; return <tr key={id}><td>{row.user}<p className="text-xs text-muted">{list(row.groups)}</p></td><td>{pills('risk', row.risk_id)}{row.category && <p className="text-xs text-muted">{row.category}</p>}</td><td>{pills('activity', row.activities)}</td>

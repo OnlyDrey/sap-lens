@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { announceExport } from '@/lib/exportNotice'
 import { useQuery } from '@tanstack/react-query'
 import { downloadFile, REPORT_NAME, sod, sodPost } from '@/api/sod'
 import { Button } from '@/components/Shared/Button'
@@ -11,7 +12,7 @@ import { NorwegianDateInput, parseNorwegianDate } from '@/components/Shared/Norw
 const sectionNames: Record<string, string> = { executive: 'Executive Summary', methodology: 'Scope & Methodology', sources: 'Data Sources & Evidence Limitations', risk_overview: 'Risk Overview',
   activity_results: 'Activity Review Results', assignment_results: 'Role Assignment Review Results', risk_acceptance: 'Risk Acceptance Decisions', controls: 'Compensating Controls',
   remediation: 'Outstanding Remediation', changes: 'Changes Since Previous Review', conclusion: 'Conclusion and Approval', appendices: 'Detailed Appendices' }
-const groups = ['Remove assignment', 'Investigate assignment', 'Apply compensating control', 'Maintain access', 'No action required']
+const groups = ['Remove assignment', 'Investigate assignment', 'Apply compensating control', 'Maintain access', 'No action required', 'Awaiting review']
 const FROZEN = ['Approved', 'Closed', 'Approved / closed']
 type Preview = { model_checksum: string; snapshot_checksum: string; status: string; sections: { key: string; title: string; paragraphs: string[]; tables: string[][][] }[]; limitation: string; row_count?: number }
 type PeriodItem = { id: string; name: string; state: string }
@@ -42,12 +43,11 @@ function useExport() {
   const [busy, setBusy] = useState(false), [message, setMessage] = useState('')
   const run = async (path: string, body: unknown, kind: 'csv' | 'document', label: string) => {
     setBusy(true)
-    setMessage('')
     try {
       const name = await downloadFile(path, { method: 'POST', body, namePattern: kind === 'csv' ? /^sap-lens-sod-access-remediation-\d{4}-\d{2}-\d{2}\.csv$/ : REPORT_NAME, kind })
-      setMessage(name ? `${label} exported as ${name}.` : 'Export cancelled.')
+      announceExport(name ? { kind: 'success', message: `${label} exported as ${name}.` } : { kind: 'info', message: 'Export cancelled.' })
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Report export failed.')
+      announceExport({ kind: 'error', message: error instanceof Error ? error.message : 'Report export failed.' })
     } finally {
       setBusy(false)
     }
@@ -85,14 +85,18 @@ function FormalReport({ items }: { items: PeriodItem[] }) {
         <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <FormField label="Report period"><Select value={period} onChange={(event) => { setPeriod(event.target.value); setStatus('Draft') }}><option value="">Choose period</option>{items.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.state}</option>)}</Select></FormField>
           <FormField label="Report title"><Input value={title} maxLength={160} onChange={(event) => setTitle(event.target.value)} /></FormField>
-          <FormField label="Report language"><Select value={language} onChange={(event) => setLanguage(event.target.value)}><option value="en">English</option><option value="no">Norwegian headings / guidance</option></Select></FormField>
           <FormField label="Report status"><Select value={status} onChange={(event) => setStatus(event.target.value)}><option>Draft</option><option>For review</option>{frozen && <option>Approved snapshot</option>}</Select></FormField>
+        </div>
+        <details className="sod-report-details"><summary>Document details</summary>
+        <div className="grid min-w-0 gap-3 py-3 sm:grid-cols-2 xl:grid-cols-4">
+          <FormField label="Report language"><Select value={language} onChange={(event) => setLanguage(event.target.value)}><option value="en">English</option><option value="no">Norwegian headings / guidance</option></Select></FormField>
           {([['Prepared by', prepared, setPrepared], ['Report reviewer', reviewer, setReviewer], ['Reviewer role', reviewerRole, setReviewerRole], ['Report approver', approver, setApprover], ['Approver role', approverRole, setApproverRole], ['Document version', version, setVersion]] as [string, string, (value: string) => void][]).map(([label, value, set]) => (
             <FormField key={label} label={label}><Input value={value} maxLength={label === 'Document version' ? 80 : 120} onChange={(event) => set(event.target.value)} /></FormField>))}
           <NorwegianDateInput label="Report date" value={date} onChange={setDate} />
           <FormField label="Previous approved period"><Select value={previous} onChange={(event) => setPrevious(event.target.value)}><option value="">No comparison</option>{items.filter((item) => FROZEN.includes(item.state) && item.id !== period).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></FormField>
         </div>
         <FormField label="Management comments"><textarea className="ui-control min-h-24" value={comments} maxLength={12000} onChange={(event) => setComments(event.target.value)} /></FormField>
+        </details>
         <details><summary>Included report sections</summary><div className="grid gap-2 py-3 sm:grid-cols-2">{Object.entries(sectionNames).map(([value, label]) => <Checkbox key={value} checked={sections.includes(value)} onChange={(event) => setSections((previousList) => (event.target.checked ? [...previousList, value] : previousList.filter((name) => name !== value)))}>{label}</Checkbox>)}</div></details>
         <Checkbox checked={appendices} onChange={(event) => setAppendices(event.target.checked)}>Include detailed appendices</Checkbox>
         <Toolbar>
@@ -136,13 +140,17 @@ function RemediationReport({ items }: { items: PeriodItem[] }) {
       <Card>
         <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <FormField label="Evidence context"><Select value={context} onChange={(event) => setContext(event.target.value)}><option value="current">Current evidence</option>{items.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.state}</option>)}</Select></FormField>
+        </div>
+        <fieldset><legend>Included handling</legend><div className="grid gap-2 py-2 sm:grid-cols-2 xl:grid-cols-3">{groups.map((group) => <Checkbox key={group} checked={recommended.includes(group)} onChange={(event) => setRecommended((previousList) => (event.target.checked ? [...previousList, group] : previousList.filter((name) => name !== group)))}>{group}</Checkbox>)}</div></fieldset>
+        <details className="sod-report-details"><summary>Document details</summary>
+        <div className="grid min-w-0 gap-3 py-3 sm:grid-cols-2 xl:grid-cols-4">
           <FormField label="Report title"><Input value={title} maxLength={160} onChange={(event) => setTitle(event.target.value)} /></FormField>
           <FormField label="Report language"><Select value={language} onChange={(event) => setLanguage(event.target.value)}><option value="en">English</option><option value="no">Norwegian headings</option></Select></FormField>
           <FormField label="Prepared by"><Input value={prepared} maxLength={120} onChange={(event) => setPrepared(event.target.value)} /></FormField>
           <FormField label="Document version"><Input value={version} maxLength={80} onChange={(event) => setVersion(event.target.value)} /></FormField>
           <NorwegianDateInput label="Report date" value={date} onChange={setDate} />
         </div>
-        <fieldset><legend>Included handling</legend><div className="grid gap-2 py-2 sm:grid-cols-2 xl:grid-cols-3">{groups.map((group) => <Checkbox key={group} checked={recommended.includes(group)} onChange={(event) => setRecommended((previousList) => (event.target.checked ? [...previousList, group] : previousList.filter((name) => name !== group)))}>{group}</Checkbox>)}</div></fieldset>
+        </details>
         <Toolbar>
           <Button loading={exporter.busy} disabled={!recommended.length} onClick={() => void showPreview()}>Preview report</Button>
           <Button disabled={exporter.busy || !active} onClick={() => void exporter.run('/api/sod/reports/remediation/csv', { context, options, expected_model: active!.model_checksum }, 'csv', 'CSV')}>Export CSV</Button>

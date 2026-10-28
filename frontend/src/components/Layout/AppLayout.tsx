@@ -1,4 +1,5 @@
 import { IconButton } from '@/components/Shared/Button'
+import { ExportNotice } from '@/components/Shared/ExportNotice'
 import { RefreshBanner } from '@/components/Shared/RefreshReport'
 import { useApplicationData } from '@/state/ApplicationData'
 import { Notification } from '@/components/Shared/Notification'
@@ -183,6 +184,7 @@ export function AppLayout({
         {children}
       </main>
 
+      <ExportNotice />
       {!configuration?.loading && !configuration?.error && (
         <p role="status" className="sr-only">
           Ready

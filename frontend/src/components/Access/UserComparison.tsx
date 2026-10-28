@@ -1,4 +1,5 @@
 import { Popover } from '@/components/Shared/Popover'
+import { announceExport } from '@/lib/exportNotice'
 import { ClearFilterButton } from '@/components/Shared/ClearFilterButton'
 import { FilterPanel } from '@/components/Shared/InvestigationPatterns'
 import { SearchInput } from '@/components/Shared/Controls'
@@ -220,8 +221,7 @@ export function UserComparison({
     [offset, setOffset] = useState(0),
     [sort, setSort] = useState(context?.sort || 'identifier'),
     [descending, setDescending] = useState(context?.descending || false),
-    [busy, setBusy] = useState(false),
-    [message, setMessage] = useState('')
+    [busy, setBusy] = useState(false)
   useEffect(() => {
     if (initialUser) {
       setA(initialUser)
@@ -331,7 +331,6 @@ export function UserComparison({
   const exportCSV = async () => {
     if (!data) return
     setBusy(true)
-    setMessage('')
     try {
       const chunks = [
         '\ufeff' +
@@ -445,7 +444,7 @@ export function UserComparison({
           filename,
           content,
         )
-        setMessage(saved ? 'Comparison CSV saved.' : 'Export cancelled.')
+        announceExport(saved ? { kind: 'success', message: 'Comparison CSV saved.' } : { kind: 'info', message: 'Export cancelled.' })
       } else {
         const url = URL.createObjectURL(
             new Blob([content], { type: 'text/csv;charset=utf-8' }),
@@ -455,10 +454,10 @@ export function UserComparison({
         link.download = filename
         link.click()
         setTimeout(() => URL.revokeObjectURL(url), 1000)
-        setMessage('Comparison CSV exported.')
+        announceExport({ kind: 'success', message: 'Comparison CSV exported.' })
       }
     } catch (e) {
-      setMessage((e as Error).message)
+      announceExport({ kind: 'error', message: (e as Error).message })
     } finally {
       setBusy(false)
     }
@@ -694,7 +693,6 @@ export function UserComparison({
               Export comparison CSV
             </Button>
           </Toolbar>
-          {message && <p role="status">{message}</p>}
           {!data.total && (
             <p>
               No matching {kind}. Check validity and source coverage; absence is

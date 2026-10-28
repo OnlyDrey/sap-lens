@@ -13,6 +13,7 @@ from fastapi import HTTPException
 from pydantic import Field,model_validator,field_validator
 from config_models import StrictModel
 from branding import logo_bytes
+import report_branding
 import sod_periods as periods
 import sod_decisions as decisions
 import sod_governance as governance
@@ -88,6 +89,29 @@ def _counts(state,kind,*names):
     return sum(1 for life,_ in state[kind].values() if life in names)
 
 
+def _status_table(state):
+    """Explicit review states so 'not reviewed', 'reviewed, no action' and 'removal recommended' are never merged."""
+    def count(kind,*names):return str(_counts(state,kind,*names))
+    return [['Review status','Activities','Role assignments','Risk acceptance'],
+            ['Not reviewed (pending or outdated)',count('activity','Pending','Outdated'),count('assignment','Pending','Outdated'),count('acceptance','Pending','Outdated')],
+            ['Reviewed, no action required',count('activity','Approved','Conditional'),count('assignment','Keep'),count('acceptance','Accepted')],
+            ['Reviewed, removal recommended',count('activity','Removal required'),count('assignment','Removal required'),'—'],
+            ['Reviewed, risk rejected','—','—',count('acceptance','Rejected')]]
+
+
+def _followup_table(rows):
+    """Removal follow-up per role assignment: a recommendation, a manual completion and source verification are different facts."""
+    seen={};[seen.setdefault(row['assignment_id'],row) for row in rows if row['recommended']=='Remove assignment']
+    items=list(seen.values())
+    tracked=[row for row in items if row['action_status']!='Not tracked']
+    open_=[row for row in tracked if row['action_status'] in {'Open','In progress'}]
+    completed=[row for row in tracked if row['action_status']=='Completed']
+    verified=[row for row in tracked if row['verification']=='Not present in current evidence']
+    return [['Removal follow-up (role assignments)','Count'],['Removal recommended',str(len(items))],['Recommended, no action tracked',str(len(items)-len(tracked))],['Action tracked and open',str(len(open_))],
+            ['Action completed (manually recorded, not proof of removal)',str(len(completed))],['Removal verified in later source evidence',str(len(verified))],
+            ['Tracked, still present or not assessable',str(len(tracked)-len(verified)-len([row for row in tracked if row['action_status']=='Cancelled']))]]
+
+
 def _issued(period_id):
     return [row for row in decisions.context_summary(period_id)['reports']]
 
@@ -137,7 +161,7 @@ def model(identifier,options):
     else:
         metrics=[['Measure','Count','Unit'],['SAP users evaluated',str(users_evaluated),'users'],['Users with detected potential conflicts',str(len({row['subject'] for row in findings})),'users'],['Detected potential conflicts',str(user_risk),'user-risk findings'],*[[f'Legacy risk decisions: {key}',str(value),'findings'] for key,value in saved['reviews']['summary'].items()]]
         lead=[f"{len({row['subject'] for row in findings})} of {users_evaluated} evaluated SAP users have {user_risk} detected potential conflicts.",'This period predates activity, role-assignment and risk-acceptance review; only legacy risk decisions are available.']
-    section('executive',[*lead,limitation],[metrics])
+    section('executive',[*lead,limitation],[metrics,_status_table(state)] if v2 else [metrics])
     meta=saved['source_metadata'];names={'roles':'Role Catalogue','users':'User–Role Mapping','sod':'SoD Matrix','employees':'Employee Directory'}
     section('methodology',[f"Evaluation date: {localized_date(saved['evaluation_date'])}. Review period: {localized_date(period['start'])} - {localized_date(period['end'])}. Policy: {saved['analysis']['methodology']['policy']}.",
         'Method: potential conflicts are calculated from imported role and transaction evidence and enabled risk definitions. Reviewers decide whether each user needs a conflict-relevant activity, whether each supplying role assignment is necessary, and separately whether each remaining risk is accepted. Review decisions never change the calculation.',
@@ -164,7 +188,7 @@ def model(identifier,options):
     section('controls',['Controls are recorded by reviewers and are not independently verified by SAP Lens.'],[_table(['SAP user / risk or activity','Controls or conditions','Reviewer'],control_rows)])
     action_rows=[[item.user+' / '+(item.activity or item.risk_id or item.role),item.recommended,item.owner or '—',localized_date(item.due_date.isoformat() if item.due_date else None),item.status+(' (overdue)' if item in overdue else '')] for item in actions if item.status!='Cancelled']
     section('remediation',['A manually completed action is not proof that access was removed. Only later source evidence can establish absence, subject to source completeness.',
-        f"{untracked} removal recommendations have no tracked action."],[_table(['Recommended handling','Rows'],[[key,str(summary.get(key,0))] for key in governance.GROUPS]) if v2 else [],_table(['User / reference','Recommended','Owner','Due','Status'],action_rows)])
+        f"{untracked} removal recommendations have no tracked action."],[_table(['Recommended handling','Rows'],[[key,str(summary.get(key,0))] for key in governance.GROUPS]) if v2 else [],_followup_table(rows) if v2 else [],_table(['User / reference','Recommended','Owner','Due','Status'],action_rows)])
     section('changes',['No previous review selected; change analysis was not calculated.'] if previous is None else ['Missing records or changed coverage do not establish resolved access.',f"Source coverage changed: {previous['source_coverage_changed']}. Changed risk definitions: {', '.join(previous['changed_risks']) or 'None'}."],
             [] if previous is None else [_table(['Change classification','Findings'],[[key,str(value)] for key,value in previous['summary'].items()])])
     section('conclusion',[options.management_comments or 'No additional management comments recorded.',f"Recorded period approval: {'Yes' if frozen else 'No'} ({period['state']}). Report generation alone does not approve a review.",
@@ -189,7 +213,7 @@ def model(identifier,options):
         section('appendices',[f"Source capture: {localized_stamp(saved['captured_at'])} UTC. Methodology: {saved['analysis']['methodology']['policy']}.",limitation],[catalogue_rows,transaction_rows,evidence_rows,decision_rows if len(decision_rows)>1 else [],remediation_detail if len(remediation_detail)>1 else [],technical])
     total=sum(len(table) for item in sections for table in item['tables'])
     if total>MAX_ROWS:raise HTTPException(413,'Detailed report exceeds 20,000 rows. Exclude appendices and use complete CSV exports for detailed evidence.')
-    data=dict(version=2,title=options.title,language=options.language,status=options.status,document_version=options.document_version,report_date=options.report_date.isoformat(),prepared_by=options.prepared_by,period=period,organization=saved['organization'],logo_id=saved['logo_id'],snapshot_checksum=details['checksum'],sections=sections,limitation=limitation)
+    data=dict(version=2,title=options.title,language=options.language,status=options.status,document_version=options.document_version,report_date=options.report_date.isoformat(),prepared_by=options.prepared_by,period=period,organization=saved['organization'],logo_id=report_branding.current_logo_id() or saved['logo_id'],snapshot_checksum=details['checksum'],sections=sections,limitation=limitation)
     return _seal(data)
 
 
@@ -206,7 +230,7 @@ class RemediationOptions(StrictModel):
     prepared_by:str=Field(default='',max_length=120)
     report_date:date=Field(default_factory=date.today)
     document_version:str=Field(default='1.0',min_length=1,max_length=80)
-    recommended:list[Literal['Remove assignment','Investigate assignment','Apply compensating control','Maintain access','No action required']]=Field(default_factory=lambda:list(governance.GROUPS),max_length=5)
+    recommended:list[Literal['Remove assignment','Investigate assignment','Apply compensating control','Maintain access','No action required','Awaiting review']]=Field(default_factory=lambda:[*governance.GROUPS,'Awaiting review'],max_length=6)
 
 
 def remediation_model(context,options):
@@ -215,22 +239,23 @@ def remediation_model(context,options):
     bundle=scope.load(context);view=scope.model_for(bundle);state=governance.states(view,scope.latest_for(bundle));actions=scope.actions_for(bundle)
     frozen=bundle['frozen_decisions']
     verify=(lambda user,aid:(frozen.get('verification') or {}).get(aid,'Not assessed at approval')) if frozen is not None else scope.make_verifier()
-    rows,summary=governance.remediation_rows(view,state,actions,verify,today=options.report_date)
-    rows=[row for row in rows if row['recommended'] in options.recommended]
+    all_rows,summary=governance.remediation_rows(view,state,actions,verify,today=options.report_date,include_pending=True)
+    rows=[row for row in all_rows if row['recommended'] in options.recommended]
     if len(rows)>MAX_ROWS:raise HTTPException(413,'Remediation report exceeds 20,000 rows. Filter by recommended handling or use CSV.')
     from config import get_settings
     settings=get_settings();period=bundle['period'] or dict(id='current',name='Current evidence',start=bundle['as_of'],end=bundle['as_of'],state='Current',history=[])
     en=options.language=='en'
-    titles={'Remove assignment':'Remove assignment' if en else 'Fjern tildeling','Investigate assignment':'Investigate assignment' if en else 'Undersøk tildeling','Apply compensating control':'Apply compensating control' if en else 'Innfør kompenserende kontroll','Maintain access':'Maintain access' if en else 'Behold tilgang','No action required':'No action required' if en else 'Ingen tiltak nødvendig'}
+    titles={'Remove assignment':'Remove assignment' if en else 'Fjern tildeling','Investigate assignment':'Investigate assignment' if en else 'Undersøk tildeling','Apply compensating control':'Apply compensating control' if en else 'Innfør kompenserende kontroll','Maintain access':'Maintain access' if en else 'Behold tilgang','No action required':'No action required' if en else 'Ingen tiltak nødvendig','Awaiting review':'Awaiting review' if en else 'Venter på gjennomgang'}
     sections=[dict(key='summary',title='Summary' if en else 'Sammendrag',paragraphs=['A proposed removal is not completed remediation. Verification reflects source evidence only after a refresh and only when source coverage is complete.' if en else 'Et forslag om fjerning er ikke gjennomført utbedring. Verifisering bygger på kildedata etter oppdatering og kun ved fullstendig dekning.',_limitation(options.language)],
-                    tables=[[['Recommended handling','Rows'],*[[titles[key],str(summary.get(key,0))] for key in governance.GROUPS],['Awaiting review (excluded)',str(summary.get('undecided',0))],['Overdue tracked actions',str(summary.get('overdue',0))]]])]
-    for key in governance.GROUPS:
+                    tables=[[['Recommended handling','Rows'],*[[titles[key],str(summary.get(key,0))] for key in (*governance.GROUPS,'Awaiting review')],['Overdue tracked actions',str(summary.get('overdue',0))]],_status_table(state),_followup_table(all_rows)])]
+    if not actions:sections[0]['paragraphs'].insert(1,'No remediation actions have been recorded for this scope. Rows below show what is recommended or still awaiting review; nothing here means access was removed.' if en else 'Ingen utbedringstiltak er registrert for dette omfanget. Radene viser hva som anbefales eller venter på gjennomgang; ingenting her betyr at tilgang er fjernet.')
+    for key in (*governance.GROUPS,'Awaiting review'):
         if key not in options.recommended:continue
         group=[row for row in rows if row['recommended']==key]
         table=[['SAP user','Activity / risks','Role / validity','Decisions','Reason / controls','Owner / due / status','Verification']]+[[row['user'],row['activity']+' / '+', '.join(row['risks']),row['role']+'\n'+localized_date(row['valid_from'])+' - '+localized_date(row['valid_to']),f"Activity: {row['activity_decision']}\nAssignment: {row['assignment_decision']}\nRisk: {', '.join(row['risk_acceptance'])}",row['reason'] or row['controls'],(row['owner'] or '—')+' / '+localized_date(row['due_date'])+' / '+row['action_status']+(' (overdue)' if row['overdue'] else ''),row['verification']] for row in group]
         sections.append(dict(key=key,title=titles[key],paragraphs=[f'{len(group)} rows.'],tables=[table] if group else []))
     data=dict(version=2,kind='remediation',title=options.title,language=options.language,status='Draft',document_version=options.document_version,report_date=options.report_date.isoformat(),prepared_by=options.prepared_by,
-              period=period,organization=settings.organization.model_dump(),logo_id=settings.logo_id,snapshot_checksum=(bundle['generation'] if bundle['period'] else 'live-evidence'),sections=sections,limitation=_limitation(options.language),
+              period=period,organization=settings.organization.model_dump(),logo_id=report_branding.current_logo_id() or settings.logo_id,snapshot_checksum=(bundle['generation'] if bundle['period'] else 'live-evidence'),sections=sections,limitation=_limitation(options.language),
               rows=[{key:row[key] for key in ('user','activity','risks','role','assignment_id','valid_from','valid_to','activity_decision','assignment_decision','risk_acceptance','recommended','reason','controls','owner','due_date','action_status','overdue','verification')} for row in rows])
     return _seal(data)
 

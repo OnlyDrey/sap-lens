@@ -7,12 +7,26 @@ from pydantic import Field
 from fastapi import HTTPException
 import sod_reports as reports
 import sod_decisions as decisions
+import report_branding
 from .sod_governance import csv_response,REMEDIATION_COLUMNS,remediation_csv_rows
 router=APIRouter(prefix='/api/sod/reports',tags=['SoD reports'])
 class Request(StrictModel):
     period_id:str=Field(pattern=r'^[a-f0-9]{32}$')
     expected_model:str|None=Field(default=None,pattern=r'^[a-f0-9]{64}$')
     options:reports.Options
+class BrandingImage(StrictModel):
+    image_base64:str=Field(min_length=1,max_length=1_500_000)
+    filename:str=Field(default='',max_length=200)
+@router.get('/branding')
+def branding():return report_branding.describe()
+@router.put('/branding')
+def branding_upload(body:BrandingImage):
+    try:return report_branding.store(body.image_base64,body.filename)
+    except ValueError as error:raise HTTPException(422,str(error)) from None
+@router.delete('/branding')
+def branding_remove():
+    try:return report_branding.remove()
+    except ValueError as error:raise HTTPException(409,str(error)) from None
 @router.post('/preview')
 def preview(body:Request):return reports.model(body.period_id,body.options)
 @router.post('/{kind}')

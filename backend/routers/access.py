@@ -180,13 +180,19 @@ def directory_selection(snapshot, *, search,group,role,tcode,tcodes,transaction_
     return result,evidence
 
 
+def audit_assignments(snapshot, key, filters, today):
+    """Every imported assignment of a matching user, except expired ones unless expired assignments are shown or filtered explicitly."""
+    include_expired = filters['show_expired'] or filters['status'] == 'expired'
+    return [a for a in snapshot.users.users[key]['assignments'] if include_expired or interval_status(sap_date(a['valid_from']), sap_date(a['valid_to']), today) != 'expired']
+
+
 @router.get('/users')
 def users(filters:dict=Depends(directory_filters),anchor:str=Query('',max_length=512),offset:int=Query(0,ge=0),limit:int=Query(50,ge=1,le=100)):
     snapshot=cache.get_snapshot();today=date.today()
     result,evidence=directory_selection(snapshot,**filters,today=today)
     if anchor:return dict(**page(result,offset,limit),navigation=record_navigation(result,anchor,'username',normalize_username))
     return dict(**page(result,offset,limit),**source_info(snapshot,today),groups=snapshot.users.groups,groups_total=snapshot.users.group_count,
-                export_assignments=sum(len(snapshot.users.users[u['user_key']]['assignments']) for u in result))
+                export_assignments=sum(len(audit_assignments(snapshot,u['user_key'],filters,today)) for u in result))
 
 
 @router.get('/exports/users')
@@ -196,8 +202,9 @@ def export_users(filters:dict=Depends(directory_filters)):
     result,evidence=directory_selection(snapshot,**filters,today=today)
     identities={u['user_key']:u for u in result}
     matching={key:{a['id'] for a in values} for key,values in evidence.items()}
-    count=sum(len(snapshot.users.users[key]['assignments']) for key in identities)
-    entries=((a,a['id'] in matching.get(key,())) for key in identities for a in snapshot.users.users[key]['assignments'])
+    included={key:audit_assignments(snapshot,key,filters,today) for key in identities}
+    count=sum(len(values) for values in included.values())
+    entries=((a,a['id'] in matching.get(key,())) for key in identities for a in included[key])
     return assignment_response(snapshot,entries,identities,count,'user-directory',today)
 
 

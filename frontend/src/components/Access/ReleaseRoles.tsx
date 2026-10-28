@@ -220,7 +220,6 @@ export function ReleaseRoles({
 
       </div>
       <p className="ui-description">Export scope: {result.data?.export_assignments?.toLocaleString()??'…'} matching user–release-role assignments across all pages; identical in Table and Matrix.</p>
-      {assignmentExport.message&&<p role={assignmentExport.failed?'alert':'status'}>{assignmentExport.message}</p>}
       <div className="release-secondary-toolbar">
         {matrix && (
           <label className="filter-toggle">

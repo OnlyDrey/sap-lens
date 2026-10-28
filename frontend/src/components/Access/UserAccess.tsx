@@ -18,6 +18,7 @@ import { ClearFilterButton } from '@/components/Shared/ClearFilterButton';
 import { Select } from '@/components/Shared/Select';
 import { formatDate } from '@/lib/dateFormat';
 import { exportAssignments } from '@/lib/accessExport';
+import { announceExport } from '@/lib/exportNotice'
 import { ArrowRight, Download } from 'lucide-react';
 import { useHistoryValue, useViewHistory, userAccessHref } from '@/hooks/useViewHistory';
 import { useRecordNavigation, type RecordNavigationState } from "@/hooks/useRecordNavigation";
@@ -233,8 +234,7 @@ export function UserAccess({
       {result.data && (
         <>
           <div className="results-toolbar"><h2 className="text-base font-semibold">User directory <span className="text-sm font-normal text-[var(--muted)]">{result.data.total.toLocaleString()} {result.data.total === 1 ? 'user' : 'users'}</span></h2><ExportCSVButton loading={assignmentExport.busy} disabled={dataLoading||result.isFetching||search!==term||directoryTransaction.settling||!result.data.export_assignments} title="Exports every imported assignment for all matching users, across pages. MATCHED_FILTER marks assignments contributing to the active filters; expired and other assignments remain included." onClick={()=>void assignmentExport.download()}/></div>
-          <p className="ui-description">Export scope: all {result.data.export_assignments?.toLocaleString()??'available'} imported assignments for matching users, including expired and other roles. MATCHED_FILTER identifies assignment-level matches.</p>
-          {assignmentExport.message&&<p role={assignmentExport.failed?'alert':'status'}>{assignmentExport.message}</p>}
+          <p className="ui-description">Export scope: all {result.data.export_assignments?.toLocaleString()??'available'} imported assignments for matching users, including other roles{expired?' and expired assignments':'; expired assignments are excluded while Show expired assignments is off'}. MATCHED_FILTER identifies assignment-level matches.</p>
           <div className="access-table user-directory-table">
             <table>
               <thead>
@@ -315,7 +315,6 @@ function UserDetails({
 }) {
   const {loading:dataLoading}=useApplicationData();
   const [exporting, setExporting] = useState(false);
-  const [exportMessage, setExportMessage] = useState('');
   const [assignmentDates, setAssignmentDates] = useState({ ...emptyDates });
   const dateKey = JSON.stringify(assignmentDates);
   const transaction = useTransactionFilter(username);
@@ -329,7 +328,7 @@ function UserDetails({
     [nameOffset, setNameOffset] = useState(0),
     [emailOffset, setEmailOffset] = useState(0);
   useEffect(() => { setOffset(0) }, [scope, status, username, transaction.key, transactionMode, dateKey]);
-  useEffect(() => { exportGeneration.current++; setExportMessage(''); return () => { exportGeneration.current++ } }, [username, scope, status, transaction.key, transactionMode, dateKey]);
+  useEffect(() => { exportGeneration.current++;  return () => { exportGeneration.current++ } }, [username, scope, status, transaction.key, transactionMode, dateKey]);
 
   useEffect(() => { setAssignmentDates({ ...emptyDates }); setTransactionMode('and'); setAccountOffset(0); setNameOffset(0); setEmailOffset(0) }, [username]);
   const result = useQuery({
@@ -429,16 +428,15 @@ function UserDetails({
           <AssignmentDateFilters value={assignmentDates} onChange={setAssignmentDates}/>
             <Button type="button" className="settings-secondary-button user-export-button" title="Exports every assignment matching the selected role view, validity, date bounds and transaction matching mode." disabled={exporting || result.isFetching || transaction.settling || !user.total} onClick={async () => {
               const generation = exportGeneration.current;
-              setExporting(true); setExportMessage('Preparing CSV…');
+              setExporting(true);
               try { const saved = await exportAssignments(user, scope, status, () => generation === exportGeneration.current, transactionCodes, dateParams(assignmentDates), transactionMode);
-                if (generation === exportGeneration.current) setExportMessage(saved ? 'CSV exported.' : 'Export cancelled.');
-              } catch (error) { if (generation === exportGeneration.current) setExportMessage(error instanceof Error ? error.message : 'CSV export failed.'); }
+                if (generation === exportGeneration.current) announceExport(saved ? { kind: 'success', message: 'CSV exported.' } : { kind: 'info', message: 'Export cancelled.' });
+              } catch (error) { if (generation === exportGeneration.current) announceExport({ kind: 'error', message: error instanceof Error ? error.message : 'CSV export failed.' }); }
               finally { setExporting(false); }
             }}><Download size={15} aria-hidden="true"/>{exporting ? 'Exporting…' : 'Export CSV'}</Button>
           </form>
           <div className="assignment-results-summary"><strong>{user.total.toLocaleString()} matching assignments</strong><span className="ui-description">Validity evaluated on {formatDate(user.as_of)}.</span></div>
           {transactionCodes.length > 0 && (!user.mapping_available || Boolean(user.unmapped_assignments)) && <details className="compact-evidence-warning"><summary>Catalogue coverage may be incomplete</summary><p>{user.mapping_available ? `${user.unmapped_assignments} assignment records have unresolved or unavailable catalogue mappings.` : 'No role catalogue is loaded.'} Transaction coverage is role-derived evidence, not effective SAP authorization.</p></details>}
-          <p role="status">{exportMessage}</p>
           <div className="access-table user-assignment-table" role="region" aria-label="User role assignments" tabIndex={0}>
             <table>
               <thead>

@@ -632,3 +632,11 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .sod-review-main { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; min-width: 0; }
 .sod-review-actions { display: flex; flex-wrap: wrap; gap: 0.25rem; }
 .sod-review-section > .ui-toolbar, .sod-review-section > div:first-child { align-items: center; }
+
+/* Global export notice: overlays the page top without shifting content; success fades, errors persist. */
+.export-notice { position: fixed; top: 0.5rem; left: 50%; z-index: 130; display: flex; align-items: center; gap: 0.5rem; max-width: min(36rem, calc(100vw - 2rem)); padding: 0.5rem 0.75rem; transform: translateX(-50%); border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--surface); box-shadow: 0 4px 16px var(--shadow-color); font-size: 0.875rem; overflow-wrap: anywhere; }
+.export-notice[data-kind='success'] { border-color: var(--success); animation: export-notice-fade 0.4s ease 5.6s forwards; }
+.export-notice[data-kind='info'] { animation: export-notice-fade 0.4s ease 5.6s forwards; }
+.export-notice[data-kind='error'] { border-color: var(--error); }
+@keyframes export-notice-fade { to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .export-notice[data-kind='success'], .export-notice[data-kind='info'] { animation: none; } }
