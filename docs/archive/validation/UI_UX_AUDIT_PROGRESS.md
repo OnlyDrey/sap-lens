@@ -9,12 +9,21 @@ phases. Results apply to the recorded commits and the Linux build environment on
 | Field | Value |
 |---|---|
 | Completed phases | 1 Settings navigation, 2 Role card actions, 3 Shared components, 4 Screen audit, 5 Accessibility, 6 Responsive and theme validation, 7 Component Library and regression tests |
-| Current phase | Full Validation (after Phase 7) |
-| Remaining | Complete backend and browser suites, types, build, static and security checks, representative visual QA, final report |
-| Last verified pushed commit | Phase 5: `441e65f`; Phase 6 and 7 commits are in `git log origin/work` |
-| Validation | Fast Validation per phase passed locally; Full Validation pending |
+| Current phase | Complete |
+| Remaining | None. Native Windows and Linux acceptance testing stays manual |
+| Last verified pushed commit | Phase 7: `b590930` (Fast Validation success, run 72); this record is committed on top |
+| Validation | Full Validation passed on `b590930` (see below) |
 | Known blockers | None |
-| Next executable action | Run Full Validation per AGENTS.md; fix any failure, retest only the affected checks, push |
+| Next executable action | None required; dispatch build workflows only with explicit authorization |
+
+## Full Validation (after Phase 7)
+
+- Backend: 716 tests ran, OK, 3 skipped.
+- Browser: 473 passed in 3 deterministic batches of sorted spec files (160, 175 and 138), no failures. All 49 spec files executed.
+- Static: `check-docs`, `check-workflows`, Lucide catalog check, `git diff --check`, `pip check` clean; `pip-audit` and `npm audit --omit=dev` report no known vulnerabilities.
+- Types and production build: clean.
+- Visual QA: overflow, off-screen and overlap scan over 16 theme and width combinations; representative captures reviewed in light and dark at 375, 800, 1280 and 1600 px.
+- CI: Fast Validation succeeded for `92eb946`-`b590930` pushes (runs 69 to 72); the run for `26ea16e` was cancelled by the next push.
 
 ## Fixed so far
 
