@@ -155,7 +155,7 @@ DirectoryMatchDetails, source technical details, ReviewFindings and ChangeRecord
 reuse that owner instead of large inline editors. Their private evidence remains in
 authenticated application responses; it is not copied into diagnostics exports.
 
-SourceHealthSummary is canonical for all three sources, including Employee Directory;
+SourceHealthSummary is canonical for all four sources, including Employee Directory and the SoD Matrix;
 SourceStatusSummary reads the shared diagnostics query to keep persisted mode, loaded
 state, activation, snapshot and validation evidence aligned. Source configuration
 navigation is separate from the technical details modal.

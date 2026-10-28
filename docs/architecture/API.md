@@ -240,3 +240,23 @@ filtered role summaries from one captured snapshot, with offset zero. The defaul
 remains paged for compatible callers; anchor-based detail traversal retains its
 existing pagination/navigation behavior. This option changes presentation scope,
 not assignment filtering, sorting or CSV export interpretation.
+
+## SoD API
+
+All routes require the same session/origin protection as other `/api` routes and
+return no-store responses. Mutations carry the expected revision and evidence
+version; a stale value returns a conflict instead of overwriting. Evidence and
+exports are bounded; see the [SoD reference](../data/SOD_MATRIX.md) for limits.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| POST | `/api/data-sources/sod/{select,preview}` | Validated SoD matrix selection and snapshot preview (shared source lifecycle) |
+| GET | `/api/sod/overview` | Catalogue overview with analysis and review counts |
+| GET | `/api/sod/catalogue`, `/api/sod/catalogue/export` | Filtered risks with local guidance; CSV |
+| POST | `/api/sod/catalogue/{risk_id}`, `/api/sod/catalogue/bulk` | Edit local metadata; confirmed bulk enablement |
+| GET | `/api/sod/analysis`, `/evidence`, `/export` | User/role findings, paged supporting paths, filtered CSV (generation-guarded) |
+| GET | `/api/sod/reviews`, `/export`, `/actions/export` | Review findings, decisions CSV, outstanding actions CSV |
+| POST / GET | `/api/sod/reviews/{finding_id}`, `/{finding_id}/history[/{event_id}/evidence]` | Record a decision; history and frozen evidence |
+| GET / POST | `/api/sod/periods`, `/{id}`, `/compare` | List/create, read frozen snapshot, compare two periods |
+| POST | `/api/sod/periods/{id}/{transition,recapture,reviews/{finding_id}}` | State change with approval gates; explicit open-period recapture; period-scoped decision |
+| POST | `/api/sod/reports/{preview,docx,pdf}` | Structured preview and exports; `expected_model` rejects changed evidence |

@@ -3,9 +3,10 @@
 The SoD matrix is an externally supplied CSV. SAP Lens does not query SAP or
 schedule source extraction. The backend supports it as a fourth source through
 the existing validated import, snapshot and refresh lifecycle. Settings → SoD Risk Configuration provides the imported catalogue and local
-business guidance. The SoD area adds user/role evidence investigation. Persistent access review
-and report interfaces are being implemented separately; investigation findings
-are not review decisions or approvals.
+business guidance. The SoD area adds user/role evidence investigation, justified Access Review
+decisions, frozen Review Periods and DOCX/PDF reports (see the
+[SoD guide](../features/SOD.md)). Investigation findings are not review decisions
+or approvals.
 
 ## Schema and policy
 

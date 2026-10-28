@@ -7,6 +7,72 @@
 - Validate backend changes with `python -m unittest discover -s backend/tests -v`, and frontend changes with `npm ci` and `npm run build` from `frontend`.
 - Windows packaging and desktop lifecycle checks run in `.github/workflows/build-windows.yml`.
 
+## Stack and conventions
+
+Verified against `backend/requirements*.txt`, `frontend/package.json` and configs.
+
+- **Backend:** Python 3.12 (CI and Linux lifecycle tests require it; 3.13 fails
+  them), FastAPI, Pydantic, Uvicorn, `unittest` in `backend/tests`. App factory
+  `backend/main.py:create_app`, routers in `backend/routers/`, one module per domain
+  (`csv_*`, `user_access`, `sod_*`). SoD reports use python-docx and ReportLab.
+- **Frontend:** React 18, TypeScript, Vite, TanStack Query, Radix ScrollArea,
+  lucide-react, Playwright. Node 24 or 25 is enforced by `engines` and the build gate.
+  There is no other UI, state or CSS framework.
+- **Styling:** Tailwind 3 utilities plus custom CSS. Theme tokens live in
+  `frontend/src/styles/tokens.css` (light/dark, applied by `useTheme` through
+  `data-theme` and the `dark` class); Tailwind semantic colors alias them in
+  `tailwind.config.ts`. Reusable component CSS is in `src/styles/components.css`
+  and `src/index.css`. Rules are in the Tailwind-first section below.
+- **Frontend layout:** feature areas in `src/components/<Area>` (Access, Dashboard,
+  Modules, RoleComparison, RoleDetail, RoleList, Settings, Sod), shared primitives in
+  `src/components/Shared` (Button, Select, Combobox, Dialog, Popover, Navigation,
+  filters, status pills), the Component Library under Settings, typed clients in
+  `src/api`, plus `src/hooks`, `src/lib`, `src/state`. Component contracts:
+  [component APIs](docs/architecture/COMPONENTS.md).
+- **Responsive/visual:** check light and dark at 375, 800, 1280 and 1600 px with no
+  horizontal page scroll. Count-based UI assertions (main navigation buttons, Settings
+  tab order, source tiles) change whenever a feature adds an entry; update the
+  affected specs in the same change.
+
+## Commands
+
+From the repository root (full list and risk-based selection:
+[Testing](docs/development/TESTING.md)).
+
+- Backend: `python -m unittest discover -s backend/tests -v` in a Python 3.12 venv
+  with `backend/requirements-dev.txt`; one module with `-p test_<name>.py`.
+- Frontend, in `frontend`: `npm ci`, `npm run check:types`, `npm run build`,
+  `npm run test:browser`. Build first: Playwright serves `dist` through
+  `scripts/serve-browser-tests.py` on 127.0.0.1:18745, and a stale server on that
+  port blocks the run. A prepared Chromium may need `PLAYWRIGHT_EXECUTABLE_PATH`;
+  report the override. Target with `npm run test:browser -- tests/<file>.spec.ts --grep <name>`.
+- Static: `python scripts/check-docs.py`, `python scripts/check-workflows.py`,
+  `node scripts/sync-lucide-catalog.mjs --check`, `git diff --check`,
+  `npm audit --omit=dev`, `python -m pip check`, pip-audit per [CI](docs/development/CI.md).
+
+## Git workflow
+
+- Develop on `work` (tracking `origin/work`). If a checkout is detached at `main`:
+  `git checkout -b work --track origin/work`. `main` receives `work` only through
+  pull requests; do not push to `main`, tag, release or dispatch workflows without
+  explicit authorization.
+- Deliver in logically complete, validated increments with conventional subjects
+  (`feat(scope):`, `fix(scope):`, `docs:`). Push to `origin/work` only after the
+  pre-push validation below, never force-push or rewrite history, and verify the
+  result with `git ls-remote origin work`.
+
+## Working efficiently (AI agents)
+
+- Start at the [documentation index](docs/README.md) and the guide for the area; read
+  only the files you change and their direct callers or tests. Prefer Grep/Glob over
+  tree-wide exploration, and skip `dist/`, `node_modules/`, `test-results/` and lockfiles.
+- Reuse `Shared` components, hooks and `src/api` clients before writing new ones, and
+  match the dense style of neighboring code.
+- Add no dependencies, frameworks or styling systems, and refactor nothing beyond the
+  request. Update the canonical guide instead of writing new reports.
+- Run the smallest sufficient checks (see Efficient Execution below); documentation-only
+  changes need `check-docs.py` and the affected documentation tests.
+
 ## Mandatory pre-push validation
 
 Complete the implementation locally before pushing. Do not push partial work or
@@ -45,8 +111,11 @@ following `npm ci`; regenerate with the same script without `--check` when neede
 
 ## Architecture and documentation map
 
-- Work on the existing development branch; preserve approved history and private
-  data. Do not publish, push or dispatch workflows beyond explicit session authority.
+- Preserve approved history and private data; publication limits are in Git workflow.
+- SoD: `backend/sod_*.py` and `backend/routers/sod*.py`, UI in `frontend/src/components/Sod`
+  and Settings. Reviews, periods and their snapshots are immutable private data; reports
+  render from one frozen model. Guides: [SoD workflow](docs/features/SOD.md),
+  [SoD matrix reference](docs/data/SOD_MATRIX.md).
 - Shared business logic lives under `backend/`; `backend/desktop.py` owns the
   Windows WebView2 lifecycle and `backend/server.py` the headless single-worker
   runtime. Centralize hosting policy in `backend/deployment.py`. Do not duplicate

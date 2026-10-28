@@ -48,8 +48,10 @@ See [access schema](../docs/data/CSV_SCHEMAS.md) and
 [directory schema](../docs/data/EMPLOYEE_DIRECTORY.md). Regenerate deterministically
 from the repository root with `python scripts/generate-examples.py`. The generator
 never reads local configuration or source exports. Automated regression tests
-import all three sources through the real APIs and verify snapshot restoration in
-a fresh process after removing the source files.
+import the role, user and directory examples through the real APIs and verify snapshot
+restoration in a fresh process after removing the source files. A separate test
+parses the SoD matrix with the production importer and checks its policy support,
+catalogue T-code links and privacy boundaries.
 
 ## Compatibility examples
 

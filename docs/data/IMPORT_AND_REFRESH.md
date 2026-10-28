@@ -2,7 +2,7 @@
 
 ## Sources and compatibility
 
-SAP Lens has three independent local CSV sources: Role Catalogue, User–Role Mapping and Employee Directory. Role catalogue and user assignments default to **Dynamic**, preserving the existing refresh behavior. Employee Directory defaults to **Static**, retaining snapshots until explicit replacement. Older schema-3 settings receive these additive defaults without losing feature preferences, profiles or paths.
+SAP Lens has four independent local CSV sources: Role Catalogue, User–Role Mapping, Employee Directory and the [SoD Matrix](SOD_MATRIX.md). Role catalogue and user assignments default to **Dynamic**, preserving the existing refresh behavior. Employee Directory and the SoD Matrix default to **Static**, retaining snapshots until explicit replacement. Older schema-3 settings receive these additive defaults without losing feature preferences, profiles or paths.
 
 Settings → Data Sources offers a source mode selector. Use the existing **Apply settings** action to persist mode changes; no second Save action is needed. Changing a mode does not delete imported records. Existing CSV mappings, delimiter/encoding controls and validation remain authoritative.
 
@@ -65,7 +65,7 @@ The older `operational_status` directory API field remains a compatibility descr
 
 ## Employee import and preview
 
-For all three sources, selecting a file automatically reads, validates, stages and
+For all four sources, selecting a file automatically reads, validates, stages and
 activates a complete non-empty dataset. There is no separate normal-flow Validate,
 Confirm or Import action. Native Browse activates the selected server-visible file;
 browser uploads activate a private Static source. Entering a path activates on Enter

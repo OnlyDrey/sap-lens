@@ -1,7 +1,7 @@
 # Catalogue and assignment investigation filters
 
 This refinement follows the completed optional Employee Directory implementation.
-It preserves the three independent CSV sources and feature/diagnostic behavior.
+It preserves the four independent CSV sources and feature/diagnostic behavior.
 No additional data source, classification profile or SAP authorization inference
 is introduced.
 

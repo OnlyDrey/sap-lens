@@ -23,7 +23,7 @@ sources. No direct AD connection, cloud upload or credentials are required.
    unified profile without replacing SAP identity. A uniquely resolved manager opens
    the existing SAP User Details page; Browser Back returns to the employee.
 
-All three sources use the same automatic-selection workflow. Static snapshots remain
+All four sources use the same automatic-selection workflow. Static snapshots remain
 available without the original CSV; Dynamic sources revalidate on Global Refresh.
 Importing does not enable Employee Directory automatically. Use its direct Feature
 Settings action when imported records are retained but enrichment is disabled.

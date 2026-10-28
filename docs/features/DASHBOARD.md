@@ -124,7 +124,7 @@ assignment evidence. See [Account Review](ACCOUNT_REVIEW.md).
 The icon-led shared header introduces SAP Overview's four primary metrics. Access
 & Risk uses compact investigation rows rather than another equal-sized card grid;
 Directory & Data Health keeps identity counts and the coverage progress together.
-Data Sources & Configuration includes all three independent sources with their
+Data Sources & Configuration includes all four independent sources (including the SoD Matrix) with their
 feature/availability state and actual last successful refresh. Counts and KPI
 navigation retain their existing backend definitions. Lifecycle totals are
 informational evidence, not automatically a security-risk finding.
