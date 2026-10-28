@@ -38,7 +38,7 @@ class SodLifecycleTests(unittest.TestCase):
 
     def settings(self, mode='static'):
         settings=config.get_settings().model_copy(deep=True)
-        settings.sod_csv_path=str(self.path);settings.source_modes.sod=mode
+        settings.sod_csv_path=str(self.path);settings.source_modes.sod=mode;settings.features.sod=True
         return settings
 
     def activate(self,mode='static'):

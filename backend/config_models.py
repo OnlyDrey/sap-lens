@@ -109,6 +109,7 @@ class ThemeColors(StrictModel):
 class FeatureSettings(StrictModel):
     user_role_mapping: bool = True
     employee_directory: bool = False
+    sod: bool = False
 
 
 class SourceModes(StrictModel):
@@ -211,6 +212,14 @@ class AppConfig(StrictModel):
         if not isinstance(value, dict): return value
         value = dict(value)
         if value.get('schema_version', 3) == 2: value['schema_version'] = 3
+        # SoD becomes a manual feature. Installations that already use a SoD source keep working; a source never enables it later.
+        features = value.get('features')
+        if not isinstance(features, dict) or 'sod' not in features:
+            lifecycle = value.get('data_lifecycle')
+            sources = lifecycle.get('sources', {}) if isinstance(lifecycle, dict) else getattr(lifecycle, 'sources', {})
+            existing = bool(value.get('sod_csv_path') or 'sod' in (sources or {}))
+            if isinstance(features, dict) or features is None:
+                value['features'] = {**(features or {}), 'sod': existing}
         archived = {key: value.pop(key) for key in ('classification_profiles', 'active_classification') if key in value}
         if archived: value['legacy_classification'] = archived
         # Deleting an active custom preset safely restores the source's built-in default.

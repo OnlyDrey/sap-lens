@@ -36,7 +36,7 @@ class SodSettingsIntegrationTests(unittest.TestCase):
             writer = csv.DictWriter(stream, fieldnames=HEADERS); writer.writeheader()
             for slot, activity, code in [('ACTVT1','CREATE','X001'), ('ACTVT2','APPROVE','X002')]:
                 writer.writerow(dict(base, ACTIVITY_SLOT=slot, ACTIVITY=activity, TCODE=code))
-        settings = config.get_settings().model_copy(deep=True); settings.sod_csv_path = str(path)
+        settings = config.get_settings().model_copy(deep=True); settings.sod_csv_path = str(path); settings.features.sod = True
         load(settings, operation='import', strict=True, force=('sod',))
         return path
 

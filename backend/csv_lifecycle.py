@@ -261,7 +261,7 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
         sources.append('sod')
     for source in sources:
         path = {'roles': settings.data_csv_path, 'users': settings.user_csv_path, 'employees': settings.employee_csv_path, 'sod': settings.sod_csv_path}[source]
-        enabled = source in {'roles', 'sod'} or getattr(settings.features, 'user_role_mapping' if source == 'users' else 'employee_directory')
+        enabled = source == 'roles' or getattr(settings.features, {'users': 'user_role_mapping', 'sod': 'sod'}.get(source, 'employee_directory'))
         mode = getattr(settings.source_modes, source)
         result = dict(source=source, name=NAMES[source], mode=mode, checked_at=stamp)
         if mode == 'static' and source in getattr(old, 'restore_errors', set()) and source not in forced:

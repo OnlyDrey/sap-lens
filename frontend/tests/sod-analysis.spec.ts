@@ -2,6 +2,7 @@ import {test,expect} from '@playwright/test'
 import {mkdtempSync,writeFileSync,rmSync,readFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
+import {enableSod} from './sod-fixture'
 const headers={'X-SAP-Lens':'browser-test-session'}
 let directory:string
 const matrix='RISK,CRITICITY,TYPE,TEXT,ACTVT1,ACTVT2,ACTIVITY_SLOT,ACTIVITY,TCODE,TTEXT\nUIR01,H,S,Synthetic review activities,CREATE,APPROVE,ACTVT1,CREATE,X001,Creation\nUIR01,H,S,Synthetic review activities,CREATE,APPROVE,ACTVT2,APPROVE,X002,Approval\n'
@@ -15,6 +16,7 @@ const users='USERNAME,ROLE_NAME,USER_GROUP,FIRST_NAME,LAST_NAME,EMAIL,USER_VALID
 test.beforeEach(async({request})=>{
  await request.post('/api/configuration/reset',{headers});directory=mkdtempSync(path.join(tmpdir(),'sap-lens-sod-ui-'))
  for(const[source,contents]of[['roles',catalogue],['users',users],['sod',matrix]] as const){const filename=path.join(directory,`${source}.csv`);writeFileSync(filename,contents);const config=await(await request.get('/api/configuration',{headers})).json();expect((await request.post(`/api/data-sources/${source}/select`,{headers,data:{path:filename,revision:config.settings.revision,mode:'static'}})).ok()).toBeTruthy()}
+ await enableSod(request)
 })
 test.afterEach(async({request})=>{await request.post('/api/configuration/reset',{headers});rmSync(directory,{recursive:true,force:true})})
 async function userView(page:any){await page.goto('/#session=browser-test-session');await page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('button',{name:'SoD',exact:true}).click();await page.getByRole('link',{name:'Access Explorer',exact:true}).click()}

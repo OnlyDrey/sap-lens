@@ -344,7 +344,7 @@ test('explicit import, independent feature toggles, retained data and Diagnostic
   await expect(page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'User Access',exact:true})).toBeEnabled()
   await page.reload()
   await expect(page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'User Access',exact:true})).toBeEnabled()
-  expect((await settings(request)).features).toEqual({employee_directory:true,user_role_mapping:false})
+  expect((await settings(request)).features).toEqual({employee_directory:true,user_role_mapping:false,sod:false})
   await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'User Access',exact:true}).click()
   await expect(page.getByRole('region',{name:'User–Role Mapping disabled',exact:true})).toBeVisible()
   expect((await request.get('/api/access/users',{headers})).status()).toBe(409)

@@ -46,7 +46,7 @@ class SodAnalysisApiTests(unittest.TestCase):
         self.env.start();config.get_settings.cache_clear();cache.clear_cache()
         cache._cache=synthetic_snapshot()
         settings=config.get_settings().model_copy(deep=True)
-        settings.sod_csv_path=str(self.root/'sensitive-internal-source.csv')
+        settings.sod_csv_path=str(self.root/'sensitive-internal-source.csv');settings.features.sod=True
         settings.data_lifecycle.sources['sod']=SourceSnapshot(snapshot='a'*64,path=settings.sod_csv_path,imported_at='2026-10-27T00:00:00+00:00',checked_at='2026-10-27T00:00:00+00:00')
         config.save_configuration(settings,settings.revision)
         app=FastAPI();app.include_router(router)

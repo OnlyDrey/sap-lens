@@ -33,7 +33,7 @@ def _paths(role, catalogue):
 
 
 def analyze(snapshot, metadata=None, as_of=None, validity='active', selected_roles=None,
-            mapping_enabled=True, directory_enabled=False):
+            mapping_enabled=True, directory_enabled=False, sod_enabled=True):
     """Analyze one captured snapshot, with stable per-subject/risk finding identity.
 
     users/roles contain findings, each with ACTVT1/ACTVT2 evidence arrays.
@@ -44,7 +44,7 @@ def analyze(snapshot, metadata=None, as_of=None, validity='active', selected_rol
         raise ValueError('Unsupported assignment validity filter.')
     day = date.fromisoformat(as_of) if isinstance(as_of, str) else as_of or date.today()
     metadata = metadata or {}
-    source = snapshot.sod or {}
+    source = (snapshot.sod or {}) if sod_enabled else {}
     risks = {}
     index = {}
     for risk in source.get('risks', []):
@@ -118,7 +118,7 @@ def analyze(snapshot, metadata=None, as_of=None, validity='active', selected_rol
             account = dict(accounts=_unique(user.get('accounts', [])), directory_match=match['status'],
                            ad_status=employee.get('account_status', 'Unknown') if employee else 'Unknown')
             user_results.extend(findings(normalize_username(key), 'user', paths, account))
-    reason = None if users_available else ('mapping_disabled' if not mapping_enabled else 'required_source_unavailable')
+    reason = None if users_available else ('sod_disabled' if not sod_enabled else 'mapping_disabled' if not mapping_enabled else 'required_source_unavailable')
     return dict(users=user_results, roles=role_results,
                 summary=dict(user_findings=len(user_results), role_findings=len(role_results),
                              users_with_findings=len({item['subject'] for item in user_results}),

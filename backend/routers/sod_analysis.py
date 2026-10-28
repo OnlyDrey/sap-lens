@@ -47,7 +47,7 @@ def context_key(snapshot, settings, saved, query):
     references = {name: dict(snapshot=ref.snapshot, imported_at=ref.imported_at, checked_at=ref.checked_at)
                   for name, ref in settings.data_lifecycle.sources.items()}
     key = (id(snapshot), saved.revision, query['as_of'], query['validity'], tuple(query['selected_roles']),
-           settings.features.user_role_mapping, settings.features.employee_directory,
+           settings.features.user_role_mapping, settings.features.employee_directory, settings.features.sod,
            json.dumps(references, sort_keys=True))
     return key, references
 
@@ -80,7 +80,7 @@ def captured(query):
             return _cached_value
     try:
         result = analyze(snapshot, metadata=metadata, as_of=query['as_of'], validity=query['validity'],
-                         selected_roles=query['selected_roles'], mapping_enabled=key[5], directory_enabled=key[6])
+                         selected_roles=query['selected_roles'], mapping_enabled=key[5], directory_enabled=key[6], sod_enabled=key[7])
     except ValueError:
         raise HTTPException(422, 'A selected role or analysis option is unavailable in the current dataset.') from None
     definitions = {item['risk_id']: item for item in snapshot.sod.get('risks', [])}

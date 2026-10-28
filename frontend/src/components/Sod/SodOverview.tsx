@@ -41,8 +41,8 @@ export function SodOverview() {
   const activities = g.activities || {}, acceptance = g.acceptance || {}
   return (
     <section className="grid min-w-0 gap-4" aria-label="SoD overview">
-      {!g.available && <Card><AlertNote>Conflict analysis is unavailable ({g.reason === 'mapping_disabled' ? 'User–Role Mapping is disabled' : 'a supported SoD matrix, validated role catalogue and User–Role Mapping data are required'}). Missing evidence is not proof that no conflict exists.</AlertNote>
-        <Toolbar><Button onClick={() => change({ settings: true, settingsTarget: g.reason === 'mapping_disabled' ? 'features' : 'sod' })}>Review configuration</Button></Toolbar></Card>}
+      {!g.available && <Card><AlertNote>Conflict analysis is unavailable ({g.reason === 'sod_disabled' ? 'SoD is turned off in Features' : g.reason === 'mapping_disabled' ? 'User–Role Mapping is disabled' : 'a supported SoD matrix, validated role catalogue and User–Role Mapping data are required'}). Missing evidence is not proof that no conflict exists.</AlertNote>
+        <Toolbar><Button onClick={() => change({ settings: true, settingsTarget: g.reason === 'mapping_disabled' || g.reason === 'sod_disabled' ? 'features' : 'sod' })}>Review configuration</Button></Toolbar></Card>}
       {g.available && <Card className="content-start" aria-label="SoD key figures">
         <div className="grid min-w-0 gap-6 sm:grid-cols-2 xl:grid-cols-3">
           <div className="sod-kpi-group">

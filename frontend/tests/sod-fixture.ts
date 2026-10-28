@@ -18,6 +18,13 @@ const matrix = header + risk('R1', 'A', 'B', 'X1', 'X2') + risk('R2', 'A', 'C', 
 /** Two risks sharing activity A, duplicate role coverage for SYN_A, a single-role conflict for SYN_B and a control user. */
 export const longRoleName = 'ZC:SYN:A_VERY_LONG_ROLE_IDENTIFIER_FOR_LAYOUT_STRESS_TESTING:ABCDEFGHIJKLMNOP:0123456789:QRSTUV'
 
+/** SoD is a manual feature, so fixtures that exercise it enable it explicitly through the saved configuration. */
+export async function enableSod(request: APIRequestContext, enabled = true) {
+  const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
+  settings.features.sod = enabled
+  expect((await request.post('/api/configuration', { headers, data: settings })).ok()).toBeTruthy()
+}
+
 export async function seedGovernance(request: APIRequestContext, sodMode: 'static' | 'dynamic' = 'static', sodMatrix = matrix, longRole = false): Promise<string> {
   await request.post('/api/configuration/reset', { headers })
   const tag = `${process.pid}${++sequence}`
@@ -30,6 +37,7 @@ export async function seedGovernance(request: APIRequestContext, sodMode: 'stati
     const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
     expect((await request.post(`/api/data-sources/${source}/select`, { headers, data: { path: filename, revision: settings.revision, mode: source === 'sod' ? sodMode : 'static' } })).ok()).toBeTruthy()
   }
+  await enableSod(request)
   return directory
 }
 

@@ -142,7 +142,7 @@ def absence_verified(user):
     with sod_catalogue.lock, cache._load_lock:
         snapshot = cache.get_snapshot()
         settings = get_settings()
-        if not settings.features.user_role_mapping or not snapshot.roles or not snapshot.sod:
+        if not settings.features.sod or not settings.features.user_role_mapping or not snapshot.roles or not snapshot.sod:
             return False
         record = snapshot.users.users.get(user)
         if not record:

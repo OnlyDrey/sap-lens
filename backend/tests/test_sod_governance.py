@@ -57,6 +57,7 @@ class GovernanceCase(unittest.TestCase):
         cache.clear_cache()
         cache._cache = snapshot()
         settings = config.get_settings().model_copy(deep=True)
+        settings.features.sod = True
         settings.data_lifecycle.sources['sod'] = SourceSnapshot(snapshot='a' * 64, path=str(self.root / 'x.csv'), imported_at='2026-10-27T00:00:00+00:00', checked_at='2026-10-27T00:00:00+00:00')
         config.save_configuration(settings, settings.revision)
         self.client = TestClient(create_app(session_token=H['X-SAP-Lens']), base_url='http://127.0.0.1:18743')
@@ -402,6 +403,7 @@ class OverviewTests(GovernanceCase):
         refreshed.users.users.pop('SYN_B')
         cache._cache = refreshed
         settings = config.get_settings().model_copy(deep=True)
+        settings.features.sod = True
         settings.data_lifecycle.sources['sod'] = SourceSnapshot(snapshot='b' * 64, path=str(self.root / 'x.csv'), imported_at='2026-10-28T00:00:00+00:00', checked_at='2026-10-28T00:00:00+00:00')
         config.save_configuration(settings, settings.revision)
         after = self.get('/api/sod/overview')['governance']

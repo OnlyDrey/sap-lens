@@ -13,6 +13,8 @@ import { ReleaseRoles } from '@/components/Access/ReleaseRoles'
 import { Search, Users, FileCheck2, LayoutDashboard, ShieldCheck } from 'lucide-react'
 import { Dashboard } from '@/components/Dashboard'
 import { useTheme } from '@/hooks/useTheme'
+import { useQuery } from '@tanstack/react-query'
+import { fetchConfiguration } from '@/api/configuration'
 
 export function App() {
   const { isDark, toggle } = useTheme()
@@ -20,6 +22,9 @@ export function App() {
   const [kpiNavigation] = useHistoryValue('kpiNavigation')
   const [catalogueArea] = useHistoryValue('catalogueArea')
   const { change } = useViewHistory()
+  const configuration = useQuery({ queryKey: ['configuration'], queryFn: fetchConfiguration })
+  // Unknown (still loading or unreadable) keeps the entry; only an explicit saved "off" hides it.
+  const sodEnabled = configuration.data?.settings.features?.sod !== false
   useEffect(()=>{
     const open=()=>{if(window.pywebview?.api.desktop_runtime)change({settings:true})}
     const ready=()=>{void window.pywebview?.api.desktop_frontend_ready?.(applicationToken()).catch(()=>{})}
@@ -62,7 +67,7 @@ export function App() {
     <AppLayout
       navigation={<>
       <MainNavigation>
-        {([['dashboard','Dashboard',LayoutDashboard],['roles','Role Lookup',Search],['users','User Access',Users],['releases','Release Roles',FileCheck2],['sod','SoD',ShieldCheck]] as const).map(([key,label,Icon])=><MainNavigationItem key={key} label={label} icon={<Icon size={17} aria-hidden="true"/>} active={page===key} onClick={()=>navigate(key)}/>)}
+        {([['dashboard','Dashboard',LayoutDashboard],['roles','Role Lookup',Search],['users','User Access',Users],['releases','Release Roles',FileCheck2],['sod','SoD',ShieldCheck]] as const).filter(([key])=>key!=='sod'||sodEnabled).map(([key,label,Icon])=><MainNavigationItem key={key} label={label} icon={<Icon size={17} aria-hidden="true"/>} active={page===key} onClick={()=>navigate(key)}/>)}
       </MainNavigation>
       </>}
       onDataChanged={() => {

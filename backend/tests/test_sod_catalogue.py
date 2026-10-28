@@ -49,6 +49,7 @@ class SodCatalogueTests(unittest.TestCase):
         settings = config.get_settings().model_copy(deep=True)
         reference = SourceSnapshot(snapshot=identity, path='/synthetic/matrix.csv', imported_at='2026-01-01T12:00:00+00:00', checked_at='2026-01-01T12:00:00+00:00')
         settings.sod_csv_path = reference.path
+        settings.features.sod = True
         settings.data_lifecycle.sources['sod'] = reference
         settings.data_lifecycle.sod_history.append(reference)
         config.save_configuration(settings, settings.revision)

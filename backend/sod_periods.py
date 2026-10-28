@@ -112,7 +112,7 @@ def capture(identifier,evaluation_date,legacy=False):
         config=settings.model_copy(deep=True)
         metadata={key:item.metadata.model_dump() for key,item in local.entries.items()}
         risk_items=[item for item in catalogue.catalogue(state,config,local)['items'] if item['current']]
-    result=analyze(state,metadata=metadata,as_of=evaluation_date,mapping_enabled=config.features.user_role_mapping,directory_enabled=config.features.employee_directory)
+    result=analyze(state,metadata=metadata,as_of=evaluation_date,mapping_enabled=config.features.user_role_mapping,directory_enabled=config.features.employee_directory,sod_enabled=config.features.sod)
     if result['coverage']['status']!='available':raise HTTPException(409,'Review periods require validated matrix, catalogue and enabled User–Role Mapping sources.')
     definitions={item['risk_id']:item for item in state.sod['risks']}
     for finding in result['users']:

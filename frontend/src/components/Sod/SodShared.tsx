@@ -172,13 +172,14 @@ export function AlertNote({ children }: { children: ReactNode }) {
 export function CoverageNotice({ info }: { info?: ContextInfo }) {
   const { change } = useViewHistory()
   if (!info || info.coverage.status === 'available') return null
-  const disabled = info.coverage.reason === 'mapping_disabled'
+  const disabled = info.coverage.reason === 'mapping_disabled',
+    off = info.coverage.reason === 'sod_disabled'
   return (
     <Card aria-label="Evidence coverage">
       <StatusBadge tone="warning">Analysis unavailable or incomplete</StatusBadge>
-      <p>{disabled ? 'User–Role Mapping is disabled. Re-enable it in Features to analyze retained assignment evidence.' : 'A supported SoD matrix, validated role catalogue and User–Role Mapping data are required.'}</p>
+      <p>{off ? 'SoD is turned off in Features. Retained evidence and decisions return when it is enabled.' : disabled ? 'User–Role Mapping is disabled. Re-enable it in Features to analyze retained assignment evidence.' : 'A supported SoD matrix, validated role catalogue and User–Role Mapping data are required.'}</p>
       <p className="ui-description">Unavailable evidence is not proof that no access or conflict exists.</p>
-      <Toolbar><Button onClick={() => change({ settings: true, settingsTarget: disabled ? 'features' : 'sod' })}>Review configuration</Button></Toolbar>
+      <Toolbar><Button onClick={() => change({ settings: true, settingsTarget: disabled || off ? 'features' : 'sod' })}>Review configuration</Button></Toolbar>
     </Card>
   )
 }

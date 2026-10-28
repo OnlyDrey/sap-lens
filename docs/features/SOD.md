@@ -84,3 +84,10 @@ Settings → SoD Risk Configuration has two tabs, **Risks** and **Activities**, 
 - Overrides are keyed by risk ID and activity name in `sod-catalogue.json` (`activities` is optional, so earlier files still load). Imports never touch them, and they never affect conflict detection.
 - Pills show the identifier text; the color only tints the pill. `GET /api/sod/appearance` supplies names and colors to the other SoD views. Activity endpoints: `GET /api/sod/catalogue-activities`, `POST /api/sod/catalogue-activities/{activity}` (optimistic `expected_revision`).
 - Edit dialogs have a header close button and only Cancel and Save changes in the footer.
+
+## SoD feature toggle (Settings → Features)
+
+- Segregation of Duties has its own card in Settings → Features: a manual toggle, imported-data availability, an operational status and a **Configure SoD** link to the SoD Matrix source.
+- It is never enabled automatically: importing or selecting a SoD matrix leaves it off. Installations that already had a SoD source when this setting was introduced are migrated as enabled, so existing behavior is unchanged; an explicit saved value always wins.
+- Status: Operational (enabled, matrix loaded, User–Role Mapping enabled and user data present), Disabled in saved settings, Requires User–Role Mapping, Data required.
+- While disabled the SoD entry is hidden from the main navigation (direct visits show a short notice), analysis reports coverage reason `sod_disabled`, and dynamic SoD refreshes are skipped. Matrices, risk and activity configuration, review decisions, periods and reports are retained untouched and return when it is re-enabled, without re-importing.
