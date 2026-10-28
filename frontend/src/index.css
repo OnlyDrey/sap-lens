@@ -111,6 +111,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,su
 .settings-status-list dd { min-width:0; overflow-wrap:anywhere; }
 .settings-actions { z-index:2; flex-wrap:wrap; }
 .settings-actions > p { flex:1 1 180px; }
+@media(max-width:700px) { .settings-actions { justify-content:flex-end; } .settings-actions > p { flex-basis:100%; margin-right:0; } }
 .settings-content { padding-bottom:40px; }
 @media(max-width:700px) { .settings-card { padding:14px; } .settings-status-list { grid-template-columns:1fr; gap:6px; } .settings-status-list dd { margin-bottom:8px; } }
 .settings-workspace input[type="file"] { width:100%; padding:10px; border:1px dashed var(--border); border-radius:var(--radius-control); background:var(--surface2); font-size:var(--font-label); }
