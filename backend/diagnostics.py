@@ -26,6 +26,11 @@ def diagnostics_snapshot(loader=None, private=False):
     from deployment import server_mode
     result['deployment_mode'] = 'server' if server_mode() else 'desktop'
     result['last_failed_load'] = result['last_failed_load'] or settings.data_lifecycle.last_failed_refresh
+    from scheduler import read_state
+    schedule_state = read_state()
+    result['scheduled_refresh'] = dict(enabled=settings.refresh_schedule.enabled, mode=settings.refresh_schedule.mode, timezone=settings.refresh_schedule.timezone,
+                                       last_attempt=schedule_state['last_attempt'], last_success=schedule_state['last_success'], last_failure=schedule_state['last_failure'],
+                                       last_status=schedule_state['last_status'], consecutive_failures=schedule_state['consecutive_failures'])
     sources = []
     for key, name, path, count, report in [
         ('roles', 'Role Catalogue CSV', settings.data_csv_path, len(state.roles), state.import_report),

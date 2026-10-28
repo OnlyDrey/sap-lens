@@ -172,8 +172,29 @@ class DesktopPreferences(StrictModel):
         return self
 
 
+class RefreshSchedule(StrictModel):
+    """Scheduled background refresh; the daily time or the cron expression applies depending on the mode."""
+    enabled: bool = False
+    mode: Literal['daily', 'cron'] = 'daily'
+    time: str = Field(default='06:00', max_length=5)
+    cron: str = Field(default='0 6 * * *', max_length=100)
+    timezone: str = Field(default='local', max_length=64, pattern=r'^(local|UTC|[A-Za-z0-9_+\-]{1,32}(/[A-Za-z0-9_+\-]{1,32}){0,2})$')
+
+    @property
+    def expression(self):
+        import cron_schedule as schedule
+        return schedule.daily_cron(self.time) if self.mode == 'daily' else self.cron.strip()
+
+    @model_validator(mode='after')
+    def readable_schedule(self):
+        import cron_schedule as schedule
+        schedule.parse_cron(self.expression)
+        return self
+
+
 class AppConfig(StrictModel):
     desktop: DesktopPreferences = Field(default_factory=DesktopPreferences)
+    refresh_schedule: RefreshSchedule = Field(default_factory=RefreshSchedule)
     source_modes: SourceModes = Field(default_factory=SourceModes)
     data_lifecycle: DataLifecycle = Field(default_factory=DataLifecycle)
     unlicensed_user_groups: list[str] = Field(default_factory=lambda: ['UNLICENSED'], max_length=100)

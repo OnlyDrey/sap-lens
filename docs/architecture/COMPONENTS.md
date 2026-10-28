@@ -234,7 +234,7 @@ from one snapshot; assignment-detail and other table pagination remain unchanged
 
 Appearance & Branding previews draft organization, system, logo and palette at full
 content width without saving them. Native Windows Desktop preferences are under
-About SAP Lens and still use the parent settings draft/Apply/Cancel lifecycle.
+Runtime & Scheduling (with the scheduled refresh) and still use the parent settings draft/Apply/Cancel lifecycle.
 
 ## SoD matrix and side panel
 

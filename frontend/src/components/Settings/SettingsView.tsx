@@ -1,5 +1,6 @@
 import {useApplicationData} from '@/state/ApplicationData'
 import {DesktopOptions} from './DesktopOptions'
+import {ScheduledRefresh} from './ScheduledRefresh'
 import { FormField, controlClass } from '@/components/Shared/Controls'
 import { ContentTabList } from '@/components/Shared/Navigation'
 import { DataHealth } from './DataHealth'
@@ -31,7 +32,8 @@ import {
   X,
   BookUser,
   ShieldCheck,
-  Info
+  Info,
+  Clock
 } from 'lucide-react'
 import { ModuleEditor } from './ModuleEditor'
 import { UserSourceEditor, PresetActions } from './ImportPresets'
@@ -55,7 +57,7 @@ import {
 import { ReportBranding } from './ReportBranding'
 import { DISCARD_PROMPT, setSettingsDirty } from '@/lib/settingsGuard'
 const ComponentLibrary=lazy(()=>import('./ComponentLibrary').then(module=>({default:module.ComponentLibrary})))
-const sectionIcons = [Building2, Database, Layers, Palette, Activity, BookUser, Info, Layers, ShieldCheck]
+const sectionIcons = [Building2, Database, Layers, Palette, Activity, BookUser, Info, Layers, ShieldCheck, Clock]
 const sections = [
   'Organization & SAP System',
   'Data Sources',
@@ -65,9 +67,10 @@ const sections = [
   'Features',
   'About SAP Lens',
   'Component Library',
-  'SoD Risk Configuration'
+  'SoD Risk Configuration',
+  'Runtime & Scheduling'
 ]
-const navigationOrder=[0,3,1,2,8,5,4,7,6]
+const navigationOrder=[0,3,1,2,8,5,9,4,7,6]
 const fieldLabels: Record<string, string> = {
   FUNCTION_KEY: 'SAP module or area',
   AGR_NAME: 'Role name (required)',
@@ -975,7 +978,8 @@ export function SettingsView({
                       </div>
                     </div>
                   }
-                  {section === 6 && <><About/><DesktopOptions draft={draft} onChange={setDraft}/></>}
+                  {section === 6 && <About/>}
+                  {section === 9 && <><ScheduledRefresh draft={draft} onChange={setDraft}/><DesktopOptions draft={draft} onChange={setDraft}/></>}
                   {section === 8 && <SodRiskSettings onConfigure={()=>{setSection(1);setImportSource('sod')}}/>}
                   {section === 7 && <Suspense fallback={<p role="status">Loading component previews…</p>}><ComponentLibrary/></Suspense>}
                   {section === 5 && <><FeatureSettings draft={draft} onChange={setDraft} onConfigure={source => { setSection(1); setImportSource(source) }}/></>}

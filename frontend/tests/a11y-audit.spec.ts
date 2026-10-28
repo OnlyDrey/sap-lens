@@ -84,7 +84,7 @@ test('major views have names, sane tab order and visible, unclipped focus indica
     }
     await page.goto('/#session=browser-test-session')
     await page.getByRole('button', { name: 'Open settings', exact: true }).click()
-    for (const section of ['Organization & SAP System', 'Data Sources', 'SAP Modules', 'SoD Risk Configuration', 'Features', 'Health & Diagnostics']) {
+    for (const section of ['Organization & SAP System', 'Data Sources', 'SAP Modules', 'SoD Risk Configuration', 'Features', 'Runtime & Scheduling', 'Health & Diagnostics']) {
       await page.getByRole('tab', { name: section, exact: true }).click()
       problems.push(...await audit(page, tag('Settings ' + section), 40))
     }

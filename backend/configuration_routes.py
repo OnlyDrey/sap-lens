@@ -54,6 +54,10 @@ def configuration_router(loader, desktop_preferences=None):
         try:
             current = get_settings()
             validate_configuration(config,current)
+            if config.refresh_schedule.enabled:
+                import cron_schedule as schedule
+                try: schedule.check(config.refresh_schedule.expression, config.refresh_schedule.timezone)
+                except ValueError as error: raise HTTPException(422, str(error)) from None
             if config.data_lifecycle != current.data_lifecycle:
                 raise HTTPException(409, 'Dataset metadata changed. Reload Settings before saving.')
             config.data_lifecycle = config.data_lifecycle.model_copy(deep=True)

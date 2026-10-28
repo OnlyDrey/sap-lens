@@ -11,6 +11,7 @@ module preferences and theme colors retain their existing schema and behavior.
 | Data & Modules | SAP Modules | Enabled areas, labels, icons, colors and filter preferences |
 | Application | Features | Optional capabilities and account-review group classification |
 | Application | Health & Diagnostics | Backend/storage status, refresh history, actionable recovery and safe export |
+| Application | Runtime & Scheduling | Scheduled refresh; Windows Desktop tray and sign-in options (Windows Desktop only) |
 | Application | About SAP Lens | Version, build and runtime information |
 
 Employee Directory remains a Data Sources subsection, not another top-level page.
@@ -110,7 +111,11 @@ Settings → APPLICATION → Component Library contains interactive previews of 
 
 Each source can be Static (manual replacement) or Dynamic (Global Refresh rereads its configured path). Role/user sources default to Dynamic; Employee Directory defaults to Static. Validated observations now have durable local snapshots, separate from original CSV availability. See [CSV data lifecycle](../data/IMPORT_AND_REFRESH.md) for replacement semantics, recovery, feature dependencies, preview and private change/error reports.
 
-Windows Desktop background preferences are under **Settings → About SAP Lens → Windows
+## Scheduled refresh and runtime
+
+**Settings → Runtime & Scheduling** holds the scheduled refresh and, in the Windows Desktop application only, the tray options. The schedule is saved in the `refresh_schedule` object of the settings (`enabled`, `mode` daily or cron, `time` HH:MM, `cron`, `timezone`) with the normal Apply/Cancel and revision checks; its run history is kept separately in `refresh-schedule.json` so refreshes never change the settings revision. See [Scheduled refresh](../data/IMPORT_AND_REFRESH.md#scheduled-refresh).
+
+Windows Desktop background preferences are under **Settings → Runtime & Scheduling → Windows
 Desktop**, visible only through the native Windows capability. The local `desktop`
 object contains `close_to_tray`, `run_at_signin` and `start_minimized`, all defaulting
 to false. Start minimized requires tray mode. Ordinary Apply/Cancel and revision

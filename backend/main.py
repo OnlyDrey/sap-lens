@@ -36,6 +36,8 @@ def create_app(origin: str | None = None, session_token: str | None = None,
     if server is None and server_mode():
         server = ServerSettings.from_env()
     loader = DataLoader()
+    from scheduler import Scheduler
+    scheduler = Scheduler(loader)
     allowed_origins = [server.origin] if server else [origin] if origin else get_settings().cors_origins
     if not server and any(not _is_loopback_origin(value) for value in allowed_origins):
         raise ValueError('Only explicit HTTP loopback origins are supported.')
@@ -53,12 +55,16 @@ def create_app(origin: str | None = None, session_token: str | None = None,
             with suppress(HTTPException):
                 await loader.load()
 
+        scheduled = asyncio.create_task(scheduler.loop())
         task = None
         if get_settings().data_csv_path or get_settings().user_csv_path or get_settings().employee_csv_path or get_settings().employee_snapshot_id or get_settings().sod_csv_path:
             task = asyncio.create_task(initial_load())
         else:
             loader.error = 'Choose a SAP role catalogue or user access CSV in Settings.'
         yield
+        scheduled.cancel()
+        with suppress(asyncio.CancelledError):
+            await scheduled
         if task:
             task.cancel()
             with suppress(asyncio.CancelledError):
@@ -126,6 +132,9 @@ def create_app(origin: str | None = None, session_token: str | None = None,
         return response
 
     app.include_router(configuration_router(loader, desktop_preferences=desktop_preferences))
+    from routers.refresh_schedule import refresh_schedule_router
+    app.include_router(refresh_schedule_router(scheduler, server))
+    app.state.scheduler = scheduler
     app.include_router(roles.router)
     app.include_router(access.router)
     app.include_router(employees.router)

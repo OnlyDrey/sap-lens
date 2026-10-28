@@ -158,7 +158,9 @@ checks are not equivalent to these tests.
 
 ## Optional system tray operation
 
-In the native Windows application, open **Settings → About SAP Lens → Windows Desktop**.
+These preferences are under **Settings → Runtime & Scheduling** and exist only in the Windows Desktop application. A [scheduled refresh](../data/IMPORT_AND_REFRESH.md#scheduled-refresh) also runs only while the desktop application is running, so combine it with tray operation if the window is normally closed.
+
+In the native Windows application, open **Settings → Runtime & Scheduling → Windows Desktop**.
 Enable **Minimize to System Tray on Close**, then **Apply settings**. Defaults remain
 off: ordinary close still stops the owned backend. When enabled, X hides the window
 only after the backend and notification icon are ready. Double-click the SAP Lens

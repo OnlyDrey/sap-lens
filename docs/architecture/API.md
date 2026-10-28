@@ -8,6 +8,8 @@ Desktop: the owned `http://127.0.0.1:<selected-port>` origin, preferring `18743`
 | GET | `/api/settings` | Current file location, latest safe load error and loading flag |
 | POST | `/api/settings` | Validate/load an absolute CSV path and atomically save its location |
 | GET | `/api/roles` | Role summaries; optional `function_key`, `search`, `tcode` parameters |
+| GET | `/api/refresh-schedule` | Saved schedule, readable description, next runs, last run status and what the deployment requires |
+| POST | `/api/refresh-schedule/preview` | Explain an unsaved schedule draft (description and next runs, or the reason it is invalid); the schedule is saved with `POST /api/configuration` (`refresh_schedule`) |
 | GET | `/api/roles/naming` | Organizational suffixes detected in the imported role names |
 | POST | `/api/roles/package/preview` | Proposed access package: generated names, validation and catalogue matches for up to 200 roles (read-only) |
 | POST | `/api/roles/package/export` | Package CSV (`sap-lens-access-package-DATE.csv`) of the valid generated names |
