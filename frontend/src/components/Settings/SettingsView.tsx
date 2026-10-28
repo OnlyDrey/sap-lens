@@ -549,7 +549,9 @@ export function SettingsView({
                   'Service health, local storage and safe configuration recovery.',
                   'Enable optional capabilities and configure review classification.',
                   'Version, build and runtime information.',
-                  'Interactive reference for shared UI components; isolated synthetic previews.'
+                  'Interactive reference for shared UI components; isolated synthetic previews.',
+                  'Review imported SoD risks and keep local business guidance and risk settings.',
+                  'Schedule background refresh of dynamic sources and review the last runs.'
                 ][section]
               }
             </p>
