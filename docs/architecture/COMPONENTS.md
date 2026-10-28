@@ -235,3 +235,17 @@ from one snapshot; assignment-detail and other table pagination remain unchanged
 Appearance & Branding previews draft organization, system, logo and palette at full
 content width without saving them. Native Windows Desktop preferences are under
 About SAP Lens and still use the parent settings draft/Apply/Cancel lifecycle.
+
+## SoD matrix and side panel
+
+`MatrixGrid` (`Shared/MatrixGrid.tsx`) renders a sticky-header matrix with a fixed first
+column. Cells are real buttons in a roving-focus grid: arrow keys move between detected cells
+(to the nearest one in sparse rows), Home/End jump along a row, Enter opens. Status is shown
+by icon, text and tone together, never color alone. Above 48 columns only a window of columns
+renders, with scrolling and keyboard focus kept consistent. The scroll region is its own
+containing block so wide matrices never widen the page.
+
+`SidePanel` (`Shared/SidePanel.tsx`) is a docked, non-modal detail panel: the list or matrix
+behind it keeps its scroll position and filters, Escape closes it and focus returns to the
+trigger, and it is full width below 800 px. Use `Dialog` for modal confirmations. Both
+components have isolated Component Library previews and are used by the SoD views.

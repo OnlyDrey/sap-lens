@@ -112,10 +112,14 @@ following `npm ci`; regenerate with the same script without `--check` when neede
 ## Architecture and documentation map
 
 - Preserve approved history and private data; publication limits are in Git workflow.
-- SoD: `backend/sod_*.py` and `backend/routers/sod*.py`, UI in `frontend/src/components/Sod`
-  and Settings. Reviews, periods and their snapshots are immutable private data; reports
-  render from one frozen model. Guides: [SoD workflow](docs/features/SOD.md),
-  [SoD matrix reference](docs/data/SOD_MATRIX.md).
+- SoD: evidence in `sod_import`/`sod_analysis`, pure derivations in `sod_governance`, context
+  and filters in `sod_scope`, private decisions in `sod_decisions`, periods and reports in
+  `sod_periods`/`sod_reports`; routers `backend/routers/sod*.py`; UI in
+  `frontend/src/components/Sod` plus Shared `MatrixGrid`/`SidePanel`. Review decisions never
+  change conflict detection, snapshots and decisions are immutable private data, reports render
+  from one frozen model. Browser specs share `frontend/tests/sod-fixture.ts` (unique users per
+  test because reset keeps review history). Guides: [SoD workflow](docs/features/SOD.md),
+  [SoD architecture](docs/architecture/SOD.md), [SoD matrix reference](docs/data/SOD_MATRIX.md).
 - Shared business logic lives under `backend/`; `backend/desktop.py` owns the
   Windows WebView2 lifecycle and `backend/server.py` the headless single-worker
   runtime. Centralize hosting policy in `backend/deployment.py`. Do not duplicate

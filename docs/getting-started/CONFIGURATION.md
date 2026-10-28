@@ -90,8 +90,8 @@ still requires native validation; these tests do not establish share availabilit
 ## Safe diagnostic export
 
 Diagnostic JSON contains allowlisted versions, status, counts and refresh times.
-It excludes CSV paths/contents, organization/employee identities, review annotations,
-credentials and routine logs. Full source paths appear only in the protected local
+It excludes CSV paths/contents, organization/employee identities, review annotations
+and SoD decisions, periods and remediation actions, credentials and routine logs. Full source paths appear only in the protected local
 UI. Account Review CSV export is a separate explicit export containing identity
 and review information; do not confuse it with the redacted support report.
 
@@ -122,3 +122,11 @@ logo in both live and local previews. The five palette properties use a compact
 horizontal carousel: Previous/Next, keyboard focus, or Arrow/Home/End on the
 focused Color properties region. Native picker, hex editing and per-property Reset
 remain available; Apply/Cancel retain their existing persistence behavior.
+
+## SoD review data
+
+SoD decisions, review periods, remediation actions, the report log and their immutable
+snapshots are private application data (see [SoD architecture](../architecture/SOD.md#stores-private-atomically-written-backed-up-with-the-application-data)).
+They are not part of portable configuration or diagnostic exports. Include them in private
+backups; restoring only part of them can leave a period snapshot or retained decision
+evidence unavailable, which SAP Lens reports instead of silently changing history.

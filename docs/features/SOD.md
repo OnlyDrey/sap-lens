@@ -1,41 +1,76 @@
 # Segregation of Duties (SoD)
 
-SoD turns an externally supplied risk matrix into **potential conflict evidence**
-and a documented review trail. It is investigation support: a transaction mapping
-does not prove effective SAP authorization, a confirmed violation or license use.
-Methodology, schema and limits are defined once in the
-[SoD matrix reference](../data/SOD_MATRIX.md); this page is the workflow.
+SoD turns an externally supplied risk matrix into **potential conflict evidence** and a
+documented review trail. It supports investigation: a transaction mapping does not prove
+effective SAP authorization, a confirmed violation or license use. Methodology, schema and
+limits: [SoD matrix reference](../data/SOD_MATRIX.md). Internals:
+[SoD architecture](../architecture/SOD.md).
 
-## Workflow
+**Analyze → Investigate → Review activities → Review role assignments → Calculate risks →
+Accept or reject → Approve → Remediate → Verify → Report**
 
-1. **Import sources.** Load Role Catalogue and User–Role Mapping, then the SoD
-   Matrix under Settings → Data Sources ([import](../data/IMPORT_AND_REFRESH.md),
-   [synthetic example](../../examples/sod-matrix.example.csv)). The matrix is
-   Static by default and restores from its snapshot after restart.
-2. **Configure risks.** Settings → SoD Risk Configuration holds local enablement,
-   business explanations and controls. Imported values stay separate from local text.
-3. **Investigate.** SoD → Risk Catalogue (overview, export), User Conflicts and Role
-   Conflicts. Filters and Saved Filters work as elsewhere; CSV exports use the same
-   filters across all pages.
-4. **Review.** SoD → Access Review records justified decisions with controls and
-   actions. Each save appends history against an immutable evidence snapshot.
-5. **Freeze a period.** SoD → Review Periods captures a named range and evaluation
-   date, moves Draft → In review → Ready for approval → Approved/closed, and
-   compares periods. Pending or outdated findings block approval; closed
-   snapshots cannot change; refresh never alters a snapshot.
-6. **Report.** SoD → Reports previews and exports DOCX (editable) or PDF from one
-   frozen model. Approved status requires a closed period.
+## Views
+
+| View | Purpose |
+| --- | --- |
+| Overview | Conflicts, review progress, accepted/rejected risks, remediation, open periods, changes since the last refresh and source coverage. Figures link into the matrices. |
+| Risk Matrix | SAP users by risk. Cells show the risk-acceptance state; totals count distinct users and user-risk findings. Group rows by SAP user group. |
+| Activity Matrix | SAP users by activity with review state and the number of supplying roles (overlap flagged). The main entry point for reviewing. |
+| Access Explorer | User risk, user activity, access list, role lookup and role conflicts, with CSV export. Trace user, risk, activity, transaction, role and assignment in both directions. |
+| Reviews | Work queue with status filters and batch review of selected rows, and Remediation tracking. |
+| Review Periods | Frozen snapshots, workflow, comparison and deletion. |
+| Reports | Formal review report and access remediation report. |
+
+Business matrices (for example Finance or P2P) are **Saved Filters** on the two matrices,
+not separate pages. The risk catalogue stays in Settings → SoD Risk Configuration.
+Choose **Review context**: current evidence, or a review period (frozen after approval).
+
+## Three separate decisions
+
+1. **Activity review** (user + activity): Approved, Conditional (conditions required),
+   Remove or Pending. Reviewed once per user across all risks the activity contributes to.
+2. **Role assignment review** (the actual assignment): Keep, Remove or Pending. An approved
+   activity does not mean every role supplying it is needed. The panel shows all
+   contributing roles, duplicate coverage, other activities each role supplies, the risks it
+   contributes to and the effect of removing it.
+3. **Risk acceptance** (user + risk): Accepted, Rejected or Pending, with a named approver
+   who differs from the reviewer, optional compensating controls and an optional expiry.
+
+Decisions never change what is detected: an approved activity can still produce an active
+risk, and an accepted risk stays visible. Evidence that changes materially marks a
+decision **Outdated** for reassessment; history is kept. Select a matrix cell or queue row
+to open the investigation panel with evidence, decisions, history, what-if removal and
+remediation. Batch review applies one decision only to the rows you select.
+
+## Remediation
+
+Removal and investigation recommendations become tracked actions (owner, due date, status,
+completion evidence). A completed action is a manual statement; only later source evidence,
+with complete coverage, shows that access is gone. What-if analysis recalculates conflicts
+on a copy of the evidence and never changes SAP or imported data. Several valid options
+are shown rather than one recommendation.
+
+## Periods and reports
+
+Create a period (name, range, evaluation date) to freeze evidence, then
+`Draft → In review → Ready for approval → Approved → Closed` (or `Rejected` with a reason).
+Approval needs every activity and risk decision current, a different reviewer and approver,
+and freezes the snapshot with its decisions. Deleting needs the exact period name: empty
+drafts are removed, other open periods are archived, approved or report-referenced periods
+are protected. Reports: PDF and DOCX formal review (executive summary, scope, sources,
+risk overview, activity, assignment and acceptance results, controls, remediation, changes,
+conclusion and signature lines, technical appendix) and an access remediation report with
+CSV, DOCX and PDF. Generating a report never approves a review, and names and signature
+lines are not verified digital signatures.
 
 ## Evidence rules
 
-- Reviewer and approver names are self-reported, not verified identities or
-  signatures. Use an external signing process for formal approval.
-- Missing sources or coverage show as unavailable or "Not observed", never as
-  resolved or zero.
-- Source criticality labels (for example C/H) are shown literally; no severity
-  dictionary is inferred.
-- Private backups must include the review, period and snapshot stores. Portable
-  configuration exports exclude them. Never commit real exports; use synthetic data.
+- Missing sources or coverage appear as unavailable or "Not observed", never as resolved or zero.
+- Source criticality labels (for example C/H) are shown literally.
+- Private backups must include the SoD stores. Portable configuration and diagnostics
+  exports exclude them. Use only synthetic data in examples and tests.
 
-API routes: [SoD API](../architecture/API.md#sod-api). Validation evidence and
-open native acceptance items: [SoD validation](../archive/validation/SOD_VALIDATION.md).
+Source import: [Data & CSV](../data/IMPORT_AND_REFRESH.md), synthetic example
+[sod-matrix.example.csv](../../examples/sod-matrix.example.csv). API: [SoD API](../architecture/API.md#sod-api).
+Validation and open native acceptance items: [SoD validation](../archive/validation/SOD_VALIDATION.md)
+and [SoD 2.0 validation](../archive/validation/SOD2_VALIDATION.md).

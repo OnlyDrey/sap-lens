@@ -243,20 +243,33 @@ not assignment filtering, sorting or CSV export interpretation.
 
 ## SoD API
 
-All routes require the same session/origin protection as other `/api` routes and
-return no-store responses. Mutations carry the expected revision and evidence
-version; a stale value returns a conflict instead of overwriting. Evidence and
-exports are bounded; see the [SoD reference](../data/SOD_MATRIX.md) for limits.
+All routes require the same session/origin protection as other `/api` routes and return
+no-store responses. Review routes take a `context` (`current`, or a period id) and the shared
+filter parameters (`search`, `group`, `risk`, `activity`, `role`, `role_suffix`, `tcode`,
+`category`, `criticality`, `validity`, `acceptance`, `activity_decision`,
+`assignment_decision`, `sort`). Mutations carry the expected revision, evidence generation and
+per-item evidence version; a stale value returns a conflict instead of overwriting.
+Evidence and exports are bounded; see [SoD architecture](SOD.md) and the
+[SoD reference](../data/SOD_MATRIX.md).
 
 | Method | Route | Purpose |
 | --- | --- | --- |
 | POST | `/api/data-sources/sod/{select,preview}` | Validated SoD matrix selection and snapshot preview (shared source lifecycle) |
-| GET | `/api/sod/overview` | Catalogue overview with analysis and review counts |
-| GET | `/api/sod/catalogue`, `/api/sod/catalogue/export` | Filtered risks with local guidance; CSV |
-| POST | `/api/sod/catalogue/{risk_id}`, `/api/sod/catalogue/bulk` | Edit local metadata; confirmed bulk enablement |
-| GET | `/api/sod/analysis`, `/evidence`, `/export` | User/role findings, paged supporting paths, filtered CSV (generation-guarded) |
-| GET | `/api/sod/reviews`, `/export`, `/actions/export` | Review findings, decisions CSV, outstanding actions CSV |
-| POST / GET | `/api/sod/reviews/{finding_id}`, `/{finding_id}/history[/{event_id}/evidence]` | Record a decision; history and frozen evidence |
-| GET / POST | `/api/sod/periods`, `/{id}`, `/compare` | List/create, read frozen snapshot, compare two periods |
-| POST | `/api/sod/periods/{id}/{transition,recapture,reviews/{finding_id}}` | State change with approval gates; explicit open-period recapture; period-scoped decision |
-| POST | `/api/sod/reports/{preview,docx,pdf}` | Structured preview and exports; `expected_model` rejects changed evidence |
+| GET | `/api/sod/overview` | Catalogue counts plus a `governance` block: conflicts, decisions, remediation, open period progress, changes since the last refresh |
+| GET | `/api/sod/catalogue`, `/catalogue/export` | Filtered risks with local guidance; CSV |
+| POST | `/api/sod/catalogue/{risk_id}`, `/catalogue/bulk` | Edit local metadata; confirmed bulk enablement |
+| GET | `/api/sod/matrix/{risk,activity}` | User-by-risk and user-by-activity matrices, paged rows, `group_by=group`, distinct totals |
+| GET | `/api/sod/explorer/{user_risk,user_activity,access_list,lookup}` and `/export` | Explorer tables and filtered CSV |
+| GET | `/api/sod/subject` | Investigation workspace: risk, activities, contributing assignments, decisions, removal impact |
+| POST | `/api/sod/simulate` | Read-only what-if removal of assignments for one user |
+| GET | `/api/sod/queue`, `/queue/export` | Review work queue (`kind`, `status`) with status counts; CSV |
+| POST | `/api/sod/decisions/{activity,assignment,acceptance}` | Record one decision for explicitly listed items (max 100) |
+| GET | `/api/sod/decisions/{kind}/history`, `/evidence` | Event history and the evidence retained with an event |
+| GET | `/api/sod/remediation`, `/remediation/export` | Recommended handling per assignment, tracked actions with verification; CSV |
+| POST | `/api/sod/remediation/actions` | Create or update a tracked action (completion needs evidence) |
+| GET / POST | `/api/sod/periods`, `/{id}`, `/compare` | List (optionally archived), create, read snapshot, compare two periods with decision changes |
+| POST | `/api/sod/periods/{id}/{transition,recapture}` | Workflow change with gates, approval separation and rejection reason; explicit open-period recapture |
+| GET / POST | `/api/sod/periods/{id}/deletion-impact`, `/delete` | Impact preview; delete or archive with typed name and recorded actor |
+| POST | `/api/sod/reports/{preview,docx,pdf}` | Formal review report; `expected_model` rejects changed evidence |
+| POST | `/api/sod/reports/remediation/{preview,csv,docx,pdf}` | Access remediation report for `current` or a period |
+| GET / POST | `/api/sod/analysis`, `/evidence`, `/export`, `/api/sod/reviews/*` | Original evidence investigation and legacy risk decisions (retained for compatibility) |

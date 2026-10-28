@@ -3,8 +3,8 @@
 The SoD matrix is an externally supplied CSV. SAP Lens does not query SAP or
 schedule source extraction. The backend supports it as a fourth source through
 the existing validated import, snapshot and refresh lifecycle. Settings → SoD Risk Configuration provides the imported catalogue and local
-business guidance. The SoD area adds user/role evidence investigation, justified Access Review
-decisions, frozen Review Periods and DOCX/PDF reports (see the
+business guidance. The SoD area adds matrices and investigation, activity, role-assignment and
+risk-acceptance review, frozen Review Periods and DOCX/PDF reports (see the
 [SoD guide](../features/SOD.md)). Investigation findings are not review decisions
 or approvals.
 
@@ -117,112 +117,85 @@ references did not establish an explicit C/H label mapping.
 
 ## Investigation and CSV export
 
-Open SoD → User Conflicts or Role Conflicts. Filters and sorting are independent
-between views and can be stored with the existing Saved Filters menu. User
-investigation defaults to active assignments; the evaluation date uses Norwegian
-manual date entry while internal values remain ISO dates. Role combinations are
-explicit selections, not a global pairwise risk metric.
+SoD → Risk Matrix, Activity Matrix and Access Explorer share one filter set (search, user
+group, risk, activity, role, role suffix, transaction, business area, criticality, assignment
+validity, review decisions) that Saved Filters can store. Evidence defaults to active
+assignments; expired, future and unknown intervals are separate investigation choices and
+read-only for review. Evaluation dates use Norwegian manual entry; internal values stay ISO.
+Role combinations (Access Explorer → Role conflicts) are explicit selections, not a global
+pairwise risk metric.
 
-Inspect both activities to page through every supporting path. Actual assigned
-role identifiers, matched catalogue patterns, single roles and transaction
-provenance are distinct. Existing user/profile and catalogue drawers remain the
-navigation targets. The generation guard rejects evidence requests after the
-underlying analysis context changes.
+Matrix exports and explorer tables use UTF-8 BOM, semicolons, quoted fields, Norwegian dates
+and spreadsheet-formula protection without changing stored values. They never contain
+filesystem paths. The evidence export lists every supporting path (actual and catalogue
+role, single role, transaction, validity, source versions). Browser downloads and the guarded
+desktop Save dialog share the server-generated CSV; the limit is 32 MiB, so narrow the
+filters for larger exports. Native Save-dialog behavior requires Windows acceptance testing.
 
-Export CSV uses the same filters across all result pages and includes every
-supporting path. Files use UTF-8 BOM, semicolons, quoted fields, Norwegian dates
-and spreadsheet-formula protection without changing stored values. Columns cover
-finding identity, subject, risk/type/criticality, activity slot, original
-transaction spellings, actual/catalogue/single roles, assignment dates/status,
-user group, matching status, evidence version, evaluation date/policy and source
-snapshot versions. No filesystem paths are included.
+## Reviews
 
-Browser downloads and the guarded desktop Save dialog share the server-generated
-CSV contract. The client/native size limit is 32 MiB; narrow filters for larger
-exports. Native Windows Save-dialog behavior still requires acceptance testing;
-Linux mocked bridge tests are not equivalent to native validation.
-
-## Access Review
-
-SoD → Access Review records justified decisions against current active assignment
-evidence. Accepted-with-controls decisions require documented controls; completed
-actions require completion notes. Reviewer names are explicitly self-reported,
-not authenticated identities or verified signatures. SAP source data is never
-modified by a review.
-
-Each save appends an event referencing an immutable, integrity-checked finding
-snapshot. History includes the original rationale, controls, actions and both
-activity sides, even after source changes. Evidence fingerprints distinguish
-outdated decisions from unrelated refresh changes. Snapshot staging and revision/
-generation guards preserve the previous decision if a save fails.
-
-Decision and lifecycle are separate. Missing sources, removed users, disabled
-risks and changed matrix coverage do not establish resolution. A resolved
-potential finding means complete current imported evidence no longer supports it;
-it does not prove a SAP account was disabled or effective access removed.
-Outstanding actions and filtered review records have local CSV exports.
+Decisions are recorded in three independent layers (activity, role assignment, risk
+acceptance); see the [SoD guide](../features/SOD.md) and
+[architecture](../architecture/SOD.md). Reviewer and approver names are self-reported, not
+authenticated identities or verified signatures. SAP source data is never modified.
+Each save appends an event referencing an immutable evidence snapshot, so history keeps the
+original rationale, conditions and both supporting paths after source changes. Missing
+sources, removed users, disabled risks and changed coverage do not establish resolution.
+A resolved item means complete current imported evidence no longer supports it, not that an
+account was disabled or access removed. Risk-level decisions recorded before SoD 2.0 are
+retained as legacy history and are not converted into activity or acceptance decisions.
 
 ## Review periods
 
-SoD → Review Periods captures a named date range and explicit evaluation date.
-Each snapshot retains source IDs/timestamps, risk definitions and enablement,
-local guidance, findings, decisions, methodology and organization metadata.
-Period-specific decisions do not overwrite current or other-period decisions.
-
-Move Draft → In review → Ready for approval → Approved / closed. Pending/outdated
-findings block approval preparation. Closure requires explicit confirmation,
-self-reported reviewer/approver and an approval date. Closed snapshots cannot be
-edited or recaptured. Open-period recapture is explicit and retains previous
-snapshot references. Ordinary refresh never changes a period snapshot.
-
-Comparisons distinguish new, changed, unchanged, reopened and resolved potential
-findings. Lost users, disabled/changed risks or incomplete source coverage produce
-“Not observed / coverage changed” rather than automatic resolution. Evaluation
-at a past date uses the imported evidence retained in the snapshot; it is not a
-reconstruction of unexported historical SAP access. Private backups must include
-both the period/review indexes and their immutable snapshot files.
+A period captures a named range and an explicit evaluation date: source versions and
+timestamps, risk definitions and enablement, local guidance, findings, methodology and
+organization metadata. Decisions in a period never overwrite current or other-period
+decisions. Workflow: Draft, In review, Ready for approval, Approved, Closed, with Rejected
+returning to In review. Pending or outdated activity and risk decisions block approval; the
+reviewer and approver must differ. Approval freezes the snapshot together with its decisions,
+actions and removal verification and cannot be edited or recaptured; ordinary refresh never
+changes a snapshot. Comparisons classify new, changed, unchanged, reopened and resolved
+findings and list decision changes. Lost users, changed risks or incomplete coverage give
+"Not observed / coverage changed", never automatic resolution. Periods can be deleted only
+under the guarded rules in [architecture](../architecture/SOD.md#deletion). Private backups
+must include the period and decision stores and their immutable snapshot files.
 
 ## DOCX and PDF reports
 
-SoD → Reports uses one structured model from a selected period snapshot for both
-formats. Choose title, date/version, prepared-by/reviewer/approver details,
-management comments, sections, appendices and an optional closed previous period.
-Preview the structured summary before exporting. Changed evidence invalidates the
-preview. Approved status is allowed only for a closed period; recorded approval
-identities cannot be overridden by report options.
+SoD → Reports builds one structured model from a period snapshot for both formats: cover,
+executive summary, scope and methodology, sources and limitations, risk overview, activity,
+role assignment and risk acceptance results, compensating controls, outstanding
+remediation, changes, conclusion with signature lines and a technical appendix. Counts
+distinguish users, user-risk findings, activities and assignments. Preview before exporting;
+changed evidence invalidates the preview. Approved status requires an approved period and
+recorded approval identities cannot be overridden by report options. The separate access
+remediation report (CSV, DOCX, PDF) lists recommended handling per assignment and never
+treats a proposal as completed work. Long hashes and source versions are in the technical
+appendix and the document-integrity block.
 
-DOCX is editable. PDF uses bundled Unicode fonts and needs no Office installation.
-Both include organization metadata/logo when configured, source and methodology
-versions, potential findings, decisions, controls, actions, signature lines and
-integrity metadata. Names/signature lines are not verified digital signatures;
-use an external signing solution. Import/check timestamps are labelled UTC;
-dates use DD.MM.YYYY and 24-hour time.
-
-The English template is complete. Norwegian headings and locally maintained
-Norwegian business guidance are supported; supporting template prose remains
-English. PDF font coverage includes the tested Nordic characters; unsupported
-symbols fail explicitly instead of producing missing glyphs. Editable DOCX is
-available for such content. Detailed reports are bounded at 20,000 rows, an
-8 MiB structured model and 32 MiB output. Exclude appendices and use complete CSV
-exports when limits are reached. Missing/corrupt frozen logos require backup
-recovery rather than silently changing an approved report's branding.
+DOCX is editable. PDF uses bundled Unicode fonts and needs no Office installation. Both
+include organization metadata/logo when configured. Names and signature lines are not
+verified digital signatures; use an external signing solution. Timestamps are labelled UTC;
+dates use DD.MM.YYYY. The English template is complete; Norwegian headings are supported
+while supporting prose remains English. Unsupported PDF symbols fail explicitly (use DOCX).
+Reports are bounded at 20,000 rows, an 8 MiB model and 32 MiB output. Exported reports are
+recorded in a private log; reports issued for review or approval protect their period from
+deletion. A missing frozen logo needs backup recovery rather than silently changing branding.
 
 New runtime dependencies are pinned: python-docx (MIT), ReportLab (BSD), lxml
-(BSD-3-Clause) and charset-normalizer (MIT). Windows packaging includes DOCX
-standard templates, ReportLab's Bitstream Vera fonts/font license and dependency
-license metadata. Docker/native deployments install the same pinned packages and
-resources. Native Word/WebView2/packaged Windows acceptance remains separate from
-structural DOCX, Linux PDF and mocked native-dialog validation.
+(BSD-3-Clause) and charset-normalizer (MIT). Windows packaging includes DOCX standard
+templates, ReportLab's Bitstream Vera fonts/font license and dependency license metadata.
+Docker/native deployments install the same pinned packages and resources. Native
+Word/WebView2/packaged Windows acceptance remains separate from structural DOCX, Linux PDF
+and mocked native-dialog validation.
 
-## Integrated overview and source refresh
+## Overview and source refresh
 
-The Risk Catalogue overview reuses current analysis and review counts. Unavailable
-user evidence is labelled unavailable, not zero. Criticality counts retain raw
-source labels; no unverified C/H translation is applied. Source import and check
-timestamps remain separate from the SAP refresh timestamp.
-
-Catalogue **Export CSV** exports all filtered risks across pages, including both
-activity mappings and local English/Norwegian guidance. It uses the same filters,
-UTF-8 BOM, semicolons and spreadsheet-safe cells as the investigation exports.
-A [synthetic matrix](../../examples/sod-matrix.example.csv) is provided for the
-linked example catalogue; its invented pairs are not production risk guidance.
+The SoD Overview reuses current analysis and decision counts. Unavailable evidence is
+labelled unavailable, not zero. Criticality labels keep their raw source values. Source
+import and check timestamps remain separate from the SAP refresh timestamp, and the
+Overview reports findings newly detected or no longer detected since the previous refresh.
+The risk catalogue (including its CSV export, both activity mappings and local
+English/Norwegian guidance) lives only in Settings → SoD Risk Configuration. A
+[synthetic matrix](../../examples/sod-matrix.example.csv) is provided for the linked example
+catalogue; its invented pairs are not production risk guidance.
