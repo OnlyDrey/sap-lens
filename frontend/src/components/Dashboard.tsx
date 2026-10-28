@@ -15,6 +15,7 @@ import {
   FileCheck2,
   CalendarDays,
   MailCheck,
+  UserCog,
 } from 'lucide-react'
 import { apiRequest } from '@/api/client'
 import { useViewHistory } from '@/hooks/useViewHistory'
@@ -71,7 +72,7 @@ export function Dashboard() {
           kpiNavigation:{...view.kpiNavigation,users:(view.kpiNavigation?.users||0)+1},
           user: '',
           reviewFinding:
-            metric.id==='outdated'?'stale':metric.id==='reviewed'?'reviewed':metric.id==='pending'?'pending':metric.id==='ad_disabled_open'?'ad_disabled_open':metric.id === 'unresolved'
+            metric.id==='outdated'?'stale':metric.id==='position_changes'?'position_change':metric.id==='reviewed'?'reviewed':metric.id==='pending'?'pending':metric.id==='ad_disabled_open'?'ad_disabled_open':metric.id === 'unresolved'
               ? 'directory_match'
               : metric.id === 'email_matches'
                 ? 'matched'
@@ -100,6 +101,8 @@ export function Dashboard() {
     const Icon =
       metric.id === 'account_review'
         ? ClipboardCheck
+        : metric.id === 'position_changes'
+          ? UserCog
         : metric.id === 'areas'
           ? Network
           : metric.id === 'releases'
@@ -143,7 +146,7 @@ export function Dashboard() {
   const modules=useModules()
   const groups = [
     ['SAP Overview', ['users', 'roles', 'releases', 'mappings']],
-    ['Access & Risk', ['account_review','ad_disabled_open','expired','future','assignments','assigned_users']],
+    ['Access & Risk', ['account_review','position_changes','ad_disabled_open','expired','future','assignments','assigned_users']],
     ['Directory & Data Health', ['email_matches','unresolved']],
     ['Review Progress',['reviewed','pending','outdated']],
   ] as const

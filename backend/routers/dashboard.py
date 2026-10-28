@@ -38,10 +38,10 @@ def overview():
     add('email_matches','Matched SAP identities',coverage.get('matched',0) if directory['coverage_total'] else None,'review',f"Exact matches of {directory['coverage_total']} SAP identities; open directory data quality.",directory['coverage_reason'])
     add('unresolved','Missing or ambiguous directory matches',sum(v for k,v in coverage.items() if k!='matched') if directory['coverage_total'] else None,'review','Includes missing SAP email, unmatched and ambiguous evidence; open data quality.',directory['coverage_reason'])
     if mapping:
-        from account_review import cached_rows, decisions
+        from account_review import current_rows, decisions
         from .employees import available
         try:
-            review_rows = cached_rows(state, available(state), decisions(), settings.unlicensed_user_groups, date.today())
+            review_rows, _ = current_rows(state, available(state), decisions(), settings.unlicensed_user_groups, date.today())
         except HTTPException:
             add('account_review', 'Accounts requiring review', None, 'review', 'Open Account Review for recovery.', 'Review annotations unavailable; other source metrics remain available.')
             for key,label in [('reviewed','Reviewed accounts'),('pending','Pending reviews'),('outdated','Outdated reviews')]: add(key,label,None,'review','Open Account Review for recovery.','Review annotations unavailable.')
@@ -50,6 +50,7 @@ def overview():
             reviewed=sum(bool(r['decision']) and r['review_state']!='Needs review' and not r['stale'] for r in review_rows)
             for key,label,value in [('reviewed','Reviewed accounts',reviewed),('pending','Pending reviews',len(review_rows)-reviewed),('outdated','Outdated reviews',sum(r['stale'] for r in review_rows))]:
                 add(key,label,value,'review','All currently imported SAP accounts form the review population; outdated reviews are included in pending.')
+            add('position_changes','Users requiring review — Position changes',sum(bool(r['position_change'] and r['position_change']['open']) for r in review_rows) if directory['loaded'] and enabled else None,'review','Department or job title changed between Employee Directory imports and not yet reviewed. Separate from SoD conflicts and other account findings; opens Account Review.','Employee Directory not loaded')
             add('ad_disabled_open','AD disabled / SAP valid and unlocked',sum('ad_disabled_open' in r['findings'] for r in review_rows) if directory['loaded'] and enabled else None,'review','Reliably matched AD and SAP account evidence.',directory['coverage_reason'])
     else:
         add('account_review', 'Accounts requiring review', None, 'review', 'Open Account Review.', reason)

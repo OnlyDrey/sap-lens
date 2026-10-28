@@ -427,6 +427,9 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
                 store.error = store.import_error = None
         from account_review import record_missing_users
         record_missing_users(state)
+        if previous_directory is not None and directory is not None and directory is not previous_directory:
+            from position_changes import record_safely
+            record_safely(previous_directory, directory)
         for identity in old_reports:
             if identity not in settings.data_lifecycle.history:
                 try: private_path('reports', identity).unlink(missing_ok=True)

@@ -9,6 +9,10 @@ from a single import. Data stays on the configured SAP Lens instance; desktop de
 
 When the SoD feature is enabled, a **Segregation of Duties** section shows users with potential conflicts, user-risk findings, pending reviews and open or overdue remediation actions, each opening the matching [SoD](SOD.md) view. If analysis is unavailable the section says why. The counts are potential transaction-derived conflicts, not effective authorization.
 
+## Position changes metric
+
+**Users requiring review — Position changes** counts Account Review accounts with an unreviewed Department or Job title change between Employee Directory imports. It opens Account Review filtered to those accounts and is separate from SoD conflicts and the other account findings.
+
 ## Startup, refresh and navigation
 
 Configured SAP sources initialize in the backend lifespan, independently of which

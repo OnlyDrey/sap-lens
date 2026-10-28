@@ -80,6 +80,10 @@ Enabled preference, configured path, available records, satisfied dependency and
 operational health are separate states. Disabled optional capabilities do not fail
 core health. Missing emails are warnings: records remain imported and searchable.
 
+## Position change detection
+
+Replacing the directory with a different validated snapshot compares Department and Title per employee e-mail (see [Account Review](../features/ACCOUNT_REVIEW.md#position-changes)). The comparison happens once when the replacement is published, because the previous snapshot is then removed; imports and refreshes that change nothing record nothing, and a failed or unpublished import records nothing.
+
 ## Persistence, privacy and recovery
 
 Confirmation atomically stages one validated, content-addressed UTF-8 JSON snapshot

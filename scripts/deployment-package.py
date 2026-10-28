@@ -56,7 +56,7 @@ def privacy(names):
         parts=safe(name).parts;base=parts[-1].lower()
         if any(p.lower() in {'node_modules','.git','.venv','__pycache__','tests','fixtures','csv-data','employee-directory','local-config','snapshots','user-branding'} for p in parts):
             raise ValueError('Private/development directory in artifact.')
-        if base in {'settings.json','runtime.json','account-review.json','saved-filters.json'} or base.startswith('.env') or base.endswith(('.csv','.secret','.log','.bak','.tmp')):
+        if base in {'settings.json','runtime.json','account-review.json','position-changes.json','saved-filters.json'} or base.startswith('.env') or base.endswith(('.csv','.secret','.log','.bak','.tmp')):
             raise ValueError('Private file in artifact.')
 
 

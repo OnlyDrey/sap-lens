@@ -68,6 +68,8 @@ Native additions `close_application`, `open_logs` and `export_diagnostics` requi
 
 ## Global user/release record navigation
 
+`GET /api/account-review` accepts `finding=position_change` and `sort=priority`; rows carry `position_change` and `priority`, and the summary `position_changes`.
+
 `GET /api/access/users` also accepts `missing_roles` (repeatable, up to 20 catalogue roles) with `missing_mode=any|all` to list users lacking at least one or every role; the export follows the same filters.
 
 `GET /api/access/users` and `GET /api/access/releases` accept optional `anchor`
