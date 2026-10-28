@@ -10,7 +10,7 @@ import { AssignmentStatus } from '@/components/Shared/InvestigationNavigation'
 import { Pagination } from '@/components/Access/Shared'
 import { formatDate } from '@/lib/dateFormat'
 import { ConflictView } from './SodConflicts'
-import { IdPill } from '@/components/Shared/IdPill'
+import { SodPill } from '@/lib/sodAppearance'
 import { type FilterField, ContextBar, CoverageNotice, SodFilters, LifecycleBadge, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 
 type TableName = Exclude<SodExplorerTable, 'roles'>
@@ -28,7 +28,7 @@ const FIELDS: Record<string, FilterField[]> = {
   lookup: COMMON,
 }
 const LABELS: Record<TableName, string> = { user_risk: 'User risk table', user_activity: 'User activity table', access_list: 'Access list', lookup: 'User & role lookup' }
-const pills = (kind: 'risk' | 'activity', value?: string[] | string) => <span className="id-pill-list">{(Array.isArray(value) ? value : value ? [value] : []).map((item) => <IdPill key={item} kind={kind} value={item} />)}</span>
+const pills = (kind: 'risk' | 'activity', value?: string[] | string) => <span className="id-pill-list">{(Array.isArray(value) ? value : value ? [value] : []).map((item) => <SodPill key={item} kind={kind} value={item} />)}</span>
 const list = (value?: string[] | string | number) => (Array.isArray(value) ? value.join(', ') : String(value ?? ''))
 
 export function SodExplorer() {

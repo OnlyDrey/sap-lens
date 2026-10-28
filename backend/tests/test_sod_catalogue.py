@@ -204,6 +204,46 @@ class SodCatalogueTests(unittest.TestCase):
         self.assertEqual(result.json()['total'], 0)
         self.assertFalse(result.json()['source']['loaded'])
 
+    def test_risk_color_is_validated_and_survives_reimport(self):
+        self.publish(rows())
+        item = catalogue.catalogue()['items'][0]
+        with self.assertRaises(ValueError): catalogue.LocalMetadata(color='red')
+        with self.assertRaises(ValueError): catalogue.LocalMetadata(color='#12345')
+        self.save(item, color='#1D4ED8', display_name='Local name')
+        self.assertEqual(self.client.get('/api/sod/appearance').json()['risks']['SYN01'], dict(name='Local name', color='#1d4ed8'))
+        self.publish(rows(description='Changed source wording'))
+        reloaded = catalogue.catalogue()['items'][0]
+        self.assertEqual(reloaded['local']['color'], '#1d4ed8')
+        self.assertTrue(reloaded['source_changed'])
+
+    def test_activities_are_derived_from_source_and_edit_only_local_english_guidance(self):
+        self.publish(rows() + rows('SYN02'))
+        listing = self.client.get('/api/sod/catalogue-activities').json()
+        self.assertEqual([item['activity'] for item in listing['items']], ['SYN_A', 'SYN_B'])
+        self.assertEqual(listing['items'][0]['risks'], ['SYN01', 'SYN02'])
+        self.assertEqual(listing['items'][0]['tcodes'], ['X001'])
+        metadata = dict(display_name='Create invoices', business_category='Finance', explanation_en='Posting capability', review_guidance_en='Check approvals', notes='n', color='#0f766e')
+        saved = self.client.post('/api/sod/catalogue-activities/SYN_A', json=dict(expected_revision=listing['revision'], metadata=metadata))
+        self.assertEqual(saved.status_code, 200)
+        self.assertEqual(saved.json()['item']['tcodes'], ['X001'])
+        self.assertEqual(saved.json()['item']['local']['display_name'], 'Create invoices')
+        for extra in (dict(metadata, tcodes=['X999']), dict(metadata, activity='OTHER'), dict(metadata, explanation_no='nei')):
+            self.assertEqual(self.client.post('/api/sod/catalogue-activities/SYN_A', json=dict(expected_revision=saved.json()['revision'], metadata=extra)).status_code, 422)
+        self.assertEqual(self.client.post('/api/sod/catalogue-activities/MISSING', json=dict(expected_revision=saved.json()['revision'], metadata=metadata)).status_code, 404)
+        self.assertEqual(self.client.post('/api/sod/catalogue-activities/SYN_A', json=dict(expected_revision=0, metadata=metadata)).status_code, 409)
+        self.assertEqual(self.client.get('/api/sod/appearance').json()['activities']['SYN_A'], dict(name='Create invoices', color='#0f766e'))
+        self.assertEqual(self.client.get('/api/sod/catalogue-activities', params=dict(search='invoices')).json()['total'], 1)
+        # An import that drops the activity keeps the override as a historical entry only while retained history lists it.
+        self.publish(rows(risk='SYN03'))
+        self.assertEqual(catalogue.read().activities['SYN_A'].metadata.display_name, 'Create invoices')
+
+    def test_legacy_storage_without_activities_or_color_still_loads(self):
+        self.publish(rows())
+        path = config.config_dir() / 'sod-catalogue.json'
+        path.write_text(json.dumps(dict(version=1, revision=3, entries={})), encoding='utf-8')
+        self.assertEqual(catalogue.read().activities, {})
+        self.assertEqual(catalogue.LocalMetadata().color, '')
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -74,3 +74,13 @@ Source import: [Data & CSV](../data/IMPORT_AND_REFRESH.md), synthetic example
 [sod-matrix.example.csv](../../examples/sod-matrix.example.csv). API: [SoD API](../architecture/API.md#sod-api).
 Validation and open native acceptance items: [SoD validation](../archive/validation/SOD_VALIDATION.md)
 and [SoD 2.0 validation](../archive/validation/SOD2_VALIDATION.md).
+
+## SoD Risk Configuration (Settings)
+
+Settings → SoD Risk Configuration has two tabs, **Risks** and **Activities**, with compact tables and no copy buttons or code styling.
+
+- Editable, English only: display name, business area, explanation, consequence, mitigating controls, review guidance, notes, and a per-ID color from a fixed named palette. Risks also keep the enabled flag and description review status. Earlier Norwegian text is retained in storage untouched but no longer shown or edited.
+- Immutable (always from the import): risk and activity identifiers, risk/activity relationships, transaction mappings, criticality and type. Edit requests that include them are rejected.
+- Overrides are keyed by risk ID and activity name in `sod-catalogue.json` (`activities` is optional, so earlier files still load). Imports never touch them, and they never affect conflict detection.
+- Pills show the identifier text; the color only tints the pill. `GET /api/sod/appearance` supplies names and colors to the other SoD views. Activity endpoints: `GET /api/sod/catalogue-activities`, `POST /api/sod/catalogue-activities/{activity}` (optimistic `expected_revision`).
+- Edit dialogs have a header close button and only Cancel and Save changes in the footer.

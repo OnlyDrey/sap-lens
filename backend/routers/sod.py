@@ -96,6 +96,40 @@ def overview():
     counts=dict(defined=catalogue['summary']['current'],enabled=catalogue['summary']['enabled'],new=catalogue['summary']['new'],needs_description_review=catalogue['summary']['needs_description_review'],user_findings=analysis['summary']['user_findings'] if available else None,role_findings=analysis['summary']['role_findings'] if analysis['coverage']['roles_available'] else None,reviewed=reviews['summary'].get('Reviewed',0),pending=reviews['summary'].get('Pending',0) if available else None,outdated=reviews['summary'].get('Outdated',0))
     return dict(counts=counts,criticality=dict(Counter(row['criticality'] for row in analysis['users'])),source=catalogue['source'],coverage=analysis['coverage'],governance=governance_overview())
 
+class ActivityEdit(StrictModel):
+    expected_revision: int = Field(ge=0)
+    metadata: store.ActivityMetadata
+
+
+@router.get('/catalogue-activities')
+def activities(search: str = Query('', max_length=256), current: Literal['', 'current', 'historical'] = '',
+               sort: Literal['activity', 'display_name', 'business_category', 'risks'] = 'activity', descending: bool = False,
+               offset: int = Query(0, ge=0), limit: int = Query(25, ge=1, le=100)):
+    with store.lock, cache._load_lock:
+        result = store.activity_catalogue()
+    needle = search.strip()
+    items = [item for item in result['items']
+             if (not current or item['current'] == (current == 'current'))
+             and (not needle or search_fields(needle, item['activity'], item['local']['display_name'], item['local']['business_category'],
+                                              item['local']['explanation_en'], *item['risks'], *item['tcodes']))]
+    key = {'activity': lambda item: item['activity'].casefold(), 'risks': lambda item: (len(item['risks']), item['activity'].casefold()),
+           'display_name': lambda item: (item['local']['display_name'].casefold(), item['activity'].casefold()),
+           'business_category': lambda item: (item['local']['business_category'].casefold(), item['activity'].casefold())}[sort]
+    items.sort(key=key, reverse=descending)
+    return dict(items=items[offset:offset + limit], total=len(items), offset=offset, limit=limit, revision=result['revision'])
+
+
+@router.post('/catalogue-activities/{activity:path}')
+def edit_activity(activity: str, request: ActivityEdit):
+    return store.save_activity(activity, request.metadata, request.expected_revision)
+
+
+@router.get('/appearance')
+def appearance():
+    with store.lock:
+        return store.appearance()
+
+
 @router.post('/catalogue/bulk')
 def bulk(request: CatalogueBulk):
     return store.bulk(request.enabled, request.expected_revision, request.confirm)

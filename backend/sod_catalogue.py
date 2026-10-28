@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from functools import lru_cache
 import hashlib
 import json
+import re
 from pathlib import Path
 import threading
 from typing import Literal
@@ -20,6 +21,40 @@ lock = threading.RLock()
 MAX_BYTES = 20 * 1024 * 1024
 MAX_RISKS = 5000
 ReviewStatus = Literal['Needs description review', 'Reviewed']
+
+
+def _color(value):
+    value = (value or '').strip().lower()
+    if value and not re.fullmatch(r'#[0-9a-f]{6}', value):
+        raise ValueError('Color must be empty or a #rrggbb value.')
+    return value
+
+
+class ActivityMetadata(StrictModel):
+    """English-only local guidance for an activity; the identifier and its transaction mappings stay imported."""
+    display_name: str = Field(default='', max_length=200)
+    business_category: str = Field(default='', max_length=120)
+    explanation_en: str = Field(default='', max_length=12000)
+    review_guidance_en: str = Field(default='', max_length=8000)
+    notes: str = Field(default='', max_length=8000)
+    color: str = Field(default='', max_length=7)
+
+    @field_validator('color')
+    @classmethod
+    def valid_color(cls, value):
+        return _color(value)
+
+    @field_validator('display_name', 'business_category', 'explanation_en', 'review_guidance_en', 'notes')
+    @classmethod
+    def safe_text(cls, value):
+        if any(ord(char) < 32 and char not in '\n\r\t' for char in value):
+            raise ValueError('Metadata contains unsupported control characters.')
+        return value.strip()
+
+
+class StoredActivity(StrictModel):
+    metadata: ActivityMetadata
+    modified: str = Field(max_length=40)
 
 
 class LocalMetadata(StrictModel):
@@ -36,6 +71,12 @@ class LocalMetadata(StrictModel):
     review_guidance_no: str = Field(default='', max_length=8000)
     notes: str = Field(default='', max_length=8000)
     description_review_status: ReviewStatus = 'Needs description review'
+    color: str = Field(default='', max_length=7)
+
+    @field_validator('color')
+    @classmethod
+    def valid_color(cls, value):
+        return _color(value)
 
     @field_validator('*')
     @classmethod
@@ -64,8 +105,9 @@ class CatalogueStorage(StrictModel):
     version: Literal[1] = 1
     revision: int = Field(default=0, ge=0)
     entries: dict[str, StoredEntry] = Field(default_factory=dict, max_length=MAX_RISKS)
+    activities: dict[str, StoredActivity] = Field(default_factory=dict, max_length=MAX_RISKS)
 
-    @field_validator('entries')
+    @field_validator('entries', 'activities')
     @classmethod
     def bounded_keys(cls, values):
         if any(not key or len(key) > 512 or any(ord(c) < 32 for c in key) for key in values):
@@ -160,6 +202,57 @@ def catalogue(snapshot=None, settings=None, saved=None):
                             risks=len(current), version=snapshot.sod.get('content_hash'),
                             imported_at=reference.imported_at if reference else None,
                             checked_at=reference.checked_at if reference else None))
+
+
+def activity_catalogue(snapshot=None, settings=None, saved=None):
+    """Activities derived from current and retained risk definitions, joined to local overrides keyed by activity name."""
+    import cache
+    snapshot = snapshot if snapshot is not None else cache.get_snapshot()
+    settings = settings if settings is not None else get_settings()
+    saved = saved if saved is not None else read()
+    identities = tuple(ref.snapshot for ref in settings.data_lifecycle.sod_history)
+    definitions = dict(_historical_definitions(str(config_dir()), identities))
+    current = {risk['risk_id']: risk for risk in snapshot.sod.get('risks', [])}
+    definitions.update(current)
+    found = {}
+    for risk_id, risk in definitions.items():
+        for slot in ('ACTVT1', 'ACTVT2'):
+            for mapping in risk['activities'][slot]:
+                entry = found.setdefault(mapping['activity'], dict(risks=set(), tcodes=set(), current=False))
+                entry['risks'].add(risk_id)
+                entry['tcodes'].add(mapping['tcode'])
+                entry['current'] = entry['current'] or risk_id in current
+    items = []
+    for name, entry in sorted(found.items()):
+        stored = saved.activities.get(name)
+        items.append(dict(activity=name, risks=sorted(entry['risks']), tcodes=sorted(entry['tcodes']), current=entry['current'],
+                          local=(stored.metadata if stored else ActivityMetadata()).model_dump(), modified=stored.modified if stored else None))
+    return dict(items=items, revision=saved.revision)
+
+
+def save_activity(activity, metadata, expected_revision):
+    import cache
+    with lock, cache._load_lock:
+        saved = read()
+        _expect(saved, expected_revision)
+        item = next((row for row in activity_catalogue(saved=saved)['items'] if row['activity'] == activity), None)
+        if item is None:
+            raise HTTPException(404, 'SoD activity is not present in the current or retained source history.')
+        if activity not in saved.activities and len(saved.activities) >= MAX_RISKS:
+            raise HTTPException(409, 'SoD catalogue capacity is reached. Existing annotations are retained.')
+        metadata = ActivityMetadata.model_validate(metadata.model_dump() if isinstance(metadata, ActivityMetadata) else metadata)
+        saved.activities[activity] = StoredActivity(metadata=metadata, modified=datetime.now(timezone.utc).isoformat())
+        saved.revision += 1
+        write(saved)
+        return dict(item=next(row for row in activity_catalogue(saved=saved)['items'] if row['activity'] == activity), revision=saved.revision)
+
+
+def appearance(saved=None):
+    """Display names and colors for pills across SoD views; empty overrides are omitted."""
+    saved = saved if saved is not None else read()
+    risks = {key: dict(name=entry.metadata.display_name, color=entry.metadata.color) for key, entry in saved.entries.items() if entry.metadata.display_name or entry.metadata.color}
+    activities = {key: dict(name=entry.metadata.display_name, color=entry.metadata.color) for key, entry in saved.activities.items() if entry.metadata.display_name or entry.metadata.color}
+    return dict(risks=risks, activities=activities)
 
 
 def _expect(saved, expected):
