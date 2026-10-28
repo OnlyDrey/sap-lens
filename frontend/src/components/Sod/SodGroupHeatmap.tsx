@@ -74,7 +74,7 @@ export function SodGroupHeatmap({ onOpen }: { onOpen: (kind: Kind, patch: Record
               <tfoot><tr><th scope="row">Distinct users</th><td>{data.totals.users.toLocaleString()}</td>{columns.map((column) => <td key={idOf(column)}>{column.users.toLocaleString()}</td>)}</tr></tfoot>
             </table>
           </div>
-          <p className="ui-description">A user in several SAP user groups counts in each group, so group counts can add up to more than the distinct total. {data.columns.length > MAX_COLUMNS ? `Showing the ${MAX_COLUMNS} most affected of ${data.columns.length} ${risk ? 'risks' : 'activities'}; ` : ''}the matrix and the CSV list all of them.</p>
+          <p className="ui-description">A user in several SAP user groups counts in each group, so group counts can add up to more than the distinct total. {data.columns.length > MAX_COLUMNS ? `Showing the ${MAX_COLUMNS} most affected of ${data.columns.length} ${risk ? 'risks' : 'activities'}; the matrix and the CSV list all of them.` : 'The matrix and the CSV list the same data with every user.'}</p>
           {data.total_rows > rows.length && <Button variant="ghost" onClick={() => onOpen(kind, {})}>Open the full matrix</Button>}
         </>}
     </section>

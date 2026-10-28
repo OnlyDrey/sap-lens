@@ -12,7 +12,7 @@ import { formatTimestamp } from '@/lib/dateFormat'
 const zones = (): string[] => {
   try { return ['local', 'UTC', ...(Intl as unknown as { supportedValuesOf: (key: string) => string[] }).supportedValuesOf('timeZone').filter((zone) => zone !== 'UTC')] } catch { return ['local', 'UTC'] }
 }
-const zoneLabel = (zone: string) => (zone === 'local' ? 'Local time (this computer or server)' : zone)
+const zoneLabel = (zone: string) => (zone === 'local' ? 'Local time' : zone)
 const STATUS = { succeeded: 'success', partial: 'warning', failed: 'error', skipped: 'neutral' } as const
 const STATUS_TEXT = { succeeded: 'Succeeded', partial: 'Partly failed', failed: 'Failed', skipped: 'Skipped' }
 
@@ -40,7 +40,7 @@ export function ScheduledRefresh({ draft, onChange }: { draft: Configuration; on
       <Toggle label="Enable scheduled refresh" checked={value.enabled} onChange={(enabled) => patch({ enabled })} />
       <ButtonGroup label="Schedule type" value={value.mode} onChange={(mode) => patch({ mode: mode === 'cron' ? 'cron' : 'daily' })} options={[{ value: 'daily', label: 'Daily' }, { value: 'cron', label: 'Advanced (cron)' }]} />
       {value.mode === 'daily'
-        ? <FormField label="Daily time (24-hour)"><Input type="time" step={60} value={value.time} onChange={(event) => patch({ time: event.target.value })} /></FormField>
+        ? <FormField label="Daily time"><Input type="time" step={60} value={value.time} onChange={(event) => patch({ time: event.target.value })} /></FormField>
         : <FormField label="Cron expression"><Input value={value.cron} maxLength={100} spellCheck={false} placeholder="0 6 * * 1-5" onChange={(event) => patch({ cron: event.target.value })} /></FormField>}
       {value.mode === 'cron' && <p className="ui-description">Five fields: minute hour day-of-month month day-of-week. Lists (1,15), ranges (1-5), steps (*/15) and names (MON, JAN) are supported. Runs must be at least 5 minutes apart.</p>}
       <FormField label="Time zone">

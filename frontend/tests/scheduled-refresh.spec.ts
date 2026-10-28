@@ -17,7 +17,7 @@ test('a daily schedule is explained, applied, persisted and shown with its next 
   await expect(section.getByRole('switch', { name: 'Enable scheduled refresh' })).toHaveAttribute('aria-checked', 'false')
   await expect(section.getByLabel('Last successful run').or(section.getByText('Never').first())).toBeVisible()
   await section.getByRole('switch', { name: 'Enable scheduled refresh' }).click()
-  await section.getByLabel('Daily time (24-hour)').fill('05:30')
+  await section.getByLabel('Daily time').fill('05:30')
   await section.getByRole('combobox', { name: 'Time zone', exact: true }).fill('UTC')
   await page.getByRole('option', { name: 'UTC', exact: true }).click()
   await expect(section.getByRole('status').filter({ hasText: 'At 05:30 every day (UTC)' })).toBeVisible()
@@ -28,7 +28,7 @@ test('a daily schedule is explained, applied, persisted and shown with its next 
   await page.reload()
   const again = await open(page)
   await expect(again.getByRole('switch', { name: 'Enable scheduled refresh' })).toHaveAttribute('aria-checked', 'true')
-  await expect(again.getByLabel('Daily time (24-hour)')).toHaveValue('05:30')
+  await expect(again.getByLabel('Daily time')).toHaveValue('05:30')
   await expect(again.locator('dl')).not.toContainText('Disabled')
 })
 

@@ -113,7 +113,7 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
                 active = filters[filterName] === value,
                 view = lifecycleView(value)
               return (
-                <div className="sod-tile" key={value} data-active={active || undefined} data-tone={value === 'Pending' || value === 'Outdated' ? 'warning' : value === 'Rejected' || value === 'Removal required' ? 'error' : undefined}>
+                <div className="sod-tile" key={value} data-active={active || undefined} data-tone={(data.status_counts?.[value] || 0) === 0 ? undefined : value === 'Pending' || value === 'Outdated' ? 'warning' : value === 'Rejected' || value === 'Removal required' ? 'error' : undefined}>
                   <button type="button" aria-pressed={active} onClick={() => setFilters({ ...filters, [filterName]: active ? '' : value })}>{view.text}{risk ? ' risks' : ' activities'}</button>
                   <strong>{(data.status_counts?.[value] || 0).toLocaleString()}</strong>
                 </div>
