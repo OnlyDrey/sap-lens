@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { useQuery, type QueryClient } from '@tanstack/react-query'
 import { AlertTriangle, CheckCircle2, CircleDashed, CircleDot, History, Lock, RefreshCw, ShieldCheck, ShieldX, UserMinus } from 'lucide-react'
 import { sod, emptyFilters, type ContextInfo, type Filters, type Lifecycle } from '@/api/sod'
@@ -7,6 +7,7 @@ import { Card, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
 import { FormField, Input, SearchInput } from '@/components/Shared/Controls'
 import { Select } from '@/components/Shared/Select'
 import { Button } from '@/components/Shared/Button'
+import { FilterLayout, FilterSection, PageToolbar, SortControl } from '@/components/Shared/FilterLayout'
 import { SavedFilters } from '@/components/Shared/SavedFilters'
 import { formatDate } from '@/lib/dateFormat'
 
@@ -89,62 +90,77 @@ const DECISION_OPTIONS: Record<string, string[]> = {
   acceptance: ['Pending', 'Accepted', 'Rejected', 'Outdated'],
 }
 
-/** Shared filter set for matrices, explorer and queue; Saved Filters reuse the existing storage and component. */
-export function FilterBar({ view, filters, setFilters, decisions = true, children }: { view: string; filters: Filters; setFilters: (value: Filters) => void; decisions?: boolean; children?: ReactNode }) {
+export type FilterField = 'group' | 'risk' | 'activity' | 'username' | 'role' | 'role_suffix' | 'tcode' | 'category' | 'criticality' | 'validity' | 'activity_decision' | 'assignment_decision' | 'acceptance'
+const FIELD_LABELS: Record<string, [string, number]> = {
+  group: ['SAP user group', 256], risk: ['Risk ID', 512], activity: ['Activity', 512], username: ['SAP username', 512], role: ['Assigned role', 512], role_suffix: ['Role suffix', 128],
+  tcode: ['Transaction code', 256], category: ['Business area', 120], criticality: ['Source criticality', 64],
+}
+const FIELD_SECTIONS: { title: string; fields: FilterField[] }[] = [
+  { title: 'Subject', fields: ['group', 'username'] },
+  { title: 'Risk and activity', fields: ['risk', 'activity', 'tcode', 'category', 'criticality'] },
+  { title: 'Roles and assignments', fields: ['role', 'role_suffix', 'validity'] },
+  { title: 'Review status', fields: ['activity_decision', 'assignment_decision', 'acceptance'] },
+]
+const DECISION_LABELS: Record<string, string> = { activity_decision: 'Activity review', assignment_decision: 'Role assignment review', acceptance: 'Risk acceptance' }
+
+/** Filters relevant to the page. Hidden fields are cleared when a Saved Filter is applied so they cannot silently narrow results. */
+export function SodFilters({ view, filters, setFilters, fields, sorts, actions, children }: {
+  view: string; filters: Filters; setFilters: (value: Filters) => void; fields: FilterField[]; sorts?: { value: string; label: string }[]; actions?: ReactNode; children: ReactNode
+}) {
   const text = (name: string) => (typeof filters[name] === 'string' ? (filters[name] as string) : '')
   const update = (name: string, value: string | boolean) => setFilters({ ...filters, [name]: value })
   const clear = () => setFilters({ ...emptyFilters })
-  const field = (name: string, label: string, max = 256) => (
-    <FormField key={name} label={label}><Input value={text(name)} maxLength={max} onChange={(event) => update(name, event.target.value)} /></FormField>
+  const shown = new Set<string>(fields)
+  const apply = (value: Record<string, unknown>) => {
+    const next = { ...emptyFilters, ...value } as Filters
+    for (const name of Object.keys(FIELD_LABELS).concat(Object.keys(DECISION_LABELS), ['validity'])) if (!shown.has(name)) next[name] = emptyFilters[name]
+    setFilters(next)
+  }
+  const active = [...shown].filter((name) => (name === 'validity' ? text(name) !== 'active' : text(name) !== '')).length + (text('search') ? 1 : 0)
+  const field = (name: FilterField) => {
+    if (name === 'validity') return (
+      <FormField key={name} label="Assignment validity">
+        <Select value={text('validity')} onChange={(event) => update('validity', event.target.value)}>
+          <option value="active">Active assignments</option>
+          <option value="expired">Expired assignments</option>
+          <option value="future">Future assignments</option>
+          <option value="unknown">Unknown validity</option>
+          <option value="all">All assignment evidence</option>
+        </Select>
+      </FormField>
+    )
+    if (DECISION_LABELS[name]) return (
+      <FormField key={name} label={DECISION_LABELS[name]}>
+        <Select value={text(name)} onChange={(event) => update(name, event.target.value)}>
+          <option value="">Any</option>
+          {DECISION_OPTIONS[name].map((option) => <option key={option} value={option}>{option === 'Removal required' ? 'Remove' : option}</option>)}
+        </Select>
+      </FormField>
+    )
+    const [label, max] = FIELD_LABELS[name]
+    return <FormField key={name} label={label}><Input value={text(name)} maxLength={max} onChange={(event) => update(name, event.target.value)} /></FormField>
+  }
+  const sidebar = (
+    <div className="grid min-w-0 gap-3" role="search" aria-label="SoD filters">
+      <FilterSection title="Saved Filters">
+        <SavedFilters view={view} state={filters as Record<string, string | boolean | number | string[]>} apply={apply} clear={clear} showClear={false} />
+      </FilterSection>
+      {FIELD_SECTIONS.map((section) => {
+        const visible = section.fields.filter((name) => shown.has(name))
+        return visible.length ? <FilterSection key={section.title} title={section.title}>{visible.map(field)}</FilterSection> : null
+      })}
+      <Button variant="ghost" onClick={clear} disabled={!active && text('sort') === 'subject' && filters.descending !== true}>Reset filters</Button>
+    </div>
   )
-  const active = Object.entries(filters).filter(([name, value]) => !['sort', 'descending', 'validity', 'as_of'].includes(name) && value !== '' && value !== false).length + (text('validity') !== 'active' ? 1 : 0)
-  const [open, setOpen] = useState(() => typeof window === 'undefined' || window.matchMedia('(min-width: 800px)').matches)
-  return (
-    <details className="min-w-0" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary className="cursor-pointer font-semibold">Filters{active ? ` · ${active} active` : ''}</summary>
-      <div className="mt-3 grid min-w-0 gap-3" role="search" aria-label="SoD filters">
-        <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <FormField label="Search SoD data"><SearchInput aria-label="Search SoD data" value={text('search')} onChange={(event) => update('search', event.target.value)} onClear={() => update('search', '')} /></FormField>
-          {field('group', 'SAP user group')}
-          {field('risk', 'Risk ID', 512)}
-          {field('activity', 'Activity', 512)}
-        </div>
-        <details>
-          <summary className="cursor-pointer">More filters</summary>
-          <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {field('username', 'SAP username', 512)}
-            {field('role', 'Assigned role', 512)}
-            {field('role_suffix', 'Role suffix', 128)}
-            {field('tcode', 'Transaction code')}
-            {field('category', 'Business area', 120)}
-            {field('criticality', 'Source criticality', 64)}
-            <FormField label="Assignment validity">
-              <Select value={text('validity')} onChange={(event) => update('validity', event.target.value)}>
-                <option value="active">Active assignments</option>
-                <option value="expired">Expired assignments</option>
-                <option value="future">Future assignments</option>
-                <option value="unknown">Unknown validity</option>
-                <option value="all">All assignment evidence</option>
-              </Select>
-            </FormField>
-            {decisions && Object.entries({ activity_decision: 'Activity review', assignment_decision: 'Role assignment review', acceptance: 'Risk acceptance' }).map(([name, label]) => (
-              <FormField key={name} label={label}>
-                <Select value={text(name)} onChange={(event) => update(name, event.target.value)}>
-                  <option value="">Any</option>
-                  {DECISION_OPTIONS[name].map((option) => <option key={option} value={option}>{option === 'Removal required' ? 'Remove' : option}</option>)}
-                </Select>
-              </FormField>
-            ))}
-          </div>
-        </details>
-        <Toolbar>
-          {children}
-          <SavedFilters view={view} state={filters as Record<string, string | boolean | number | string[]>} apply={(value) => setFilters({ ...emptyFilters, ...value })} clear={clear} showClear={false} />
-          <Button variant="ghost" onClick={clear}>Clear all filters</Button>
-        </Toolbar>
-      </div>
-    </details>
+  const toolbar = (
+    <PageToolbar>
+      <SearchInput aria-label="Search SoD data" placeholder="Search" value={text('search')} onChange={(event) => update('search', event.target.value)} onClear={() => update('search', '')} />
+      {sorts && <SortControl value={text('sort') || sorts[0].value} options={sorts} descending={filters.descending === true} onChange={(value) => update('sort', value)} onDescending={(value) => update('descending', value)} />}
+      {actions}
+      <Button variant="ghost" onClick={clear}>Reset</Button>
+    </PageToolbar>
   )
+  return <FilterLayout activeCount={active} sidebar={sidebar} toolbar={toolbar}>{children}</FilterLayout>
 }
 
 export function AlertNote({ children }: { children: ReactNode }) {

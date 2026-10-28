@@ -4,14 +4,14 @@ import { downloadFile, scopeParams, sod, sodPost, EXPORT_NAME, type AssignmentRo
 import { useViewHistory } from '@/hooks/useViewHistory'
 import { Button } from '@/components/Shared/Button'
 import { Dialog } from '@/components/Shared/Dialog'
-import { Card, ErrorState, DataTable, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
+import { ErrorState, DataTable, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
 import { FormField, Input } from '@/components/Shared/Controls'
 import { Select } from '@/components/Shared/Select'
 import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
 import { NorwegianDateInput, parseNorwegianDate } from '@/components/Shared/NorwegianDateInput'
 import { Pagination } from '@/components/Access/Shared'
 import { formatDate } from '@/lib/dateFormat'
-import { AlertNote, ContextBar, CoverageNotice, FilterBar, invalidateSod, LifecycleBadge, useSodContext, useSodFilters, useSodSubject } from './SodShared'
+import { AlertNote, ContextBar, CoverageNotice, SodFilters, invalidateSod, LifecycleBadge, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 
 const GROUPS = ['Remove assignment', 'Investigate assignment', 'Apply compensating control', 'Maintain access', 'No action required']
 const STATUSES = ['Open', 'In progress', 'Completed', 'Cancelled']
@@ -106,14 +106,15 @@ export function RemediationView() {
     <section className="grid min-w-0 gap-4" aria-label="SoD remediation">
       <ContextBar info={data} />
       <CoverageNotice info={data} />
-      <Card aria-label="Remediation filters"><FilterBar view="sod_queue" filters={filters} setFilters={(value) => { setOffset(0); setFiltersState(value) }} decisions={false} /></Card>
+      <SodFilters view="sod_queue" filters={filters} setFilters={(value) => { setOffset(0); setFiltersState(value) }}
+        fields={['group', 'username', 'risk', 'activity', 'role', 'role_suffix', 'tcode', 'category', 'criticality', 'validity']}
+        actions={<ExportCSVButton loading={busy} disabled={!data?.total} onClick={() => void exportCsv()} title="Exports the filtered remediation rows." />}>
       {result.isError ? <ErrorState error={result.error} onRetry={() => void result.refetch()} /> : !data ? <LoadingState /> : <>
         <Toolbar aria-label="Recommended handling">
           <Button variant={recommended ? 'secondary' : 'primary'} aria-pressed={!recommended} onClick={() => { setRecommended(''); setOffset(0) }}>All handling</Button>
           {GROUPS.map((group) => <Button key={group} variant={recommended === group ? 'primary' : 'secondary'} aria-pressed={recommended === group} onClick={() => { setRecommended(group); setOffset(0) }}>{group}: {data.summary[group] ?? 0}</Button>)}
           <StatusBadge tone={data.summary.undecided ? 'warning' : 'neutral'}>{data.summary.undecided ?? 0} awaiting review (not listed)</StatusBadge>
           <StatusBadge tone={data.summary.overdue ? 'error' : 'neutral'}>{data.summary.overdue ?? 0} overdue</StatusBadge>
-          <ExportCSVButton loading={busy} disabled={!data.total} onClick={() => void exportCsv()} title="Exports the filtered remediation rows." />
           <Button variant="ghost" onClick={() => change({ sodView: 'reports' })}>Remediation report</Button>
         </Toolbar>
         <p className="ui-description">A proposed removal is not completed remediation. Verification compares with the latest imported evidence and is only conclusive when source coverage is complete.</p>
@@ -144,6 +145,7 @@ export function RemediationView() {
                 <td>{action.owner || '—'}<p>{action.due_date ? formatDate(action.due_date) : '—'}</p></td><td>{action.status}{action.completion_evidence && <p className="text-xs">{action.completion_evidence}</p>}</td><td className="text-xs">{action.verification}</td></tr>))}</tbody>
           </DataTable></>}
       </>}
+      </SodFilters>
       {editing && data && <ActionDialog context={context} revision={data.revision} user={editing.user} row={editing} onClose={() => setEditing(null)} onSaved={async () => { setEditing(null); await invalidateSod(qc) }} />}
     </section>
   )

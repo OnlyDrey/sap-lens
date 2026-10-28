@@ -550,3 +550,32 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .ui-side-panel .role-identifier code { overflow-wrap:anywhere; word-break:break-all; white-space:normal; }
 .ui-side-panel-body > * { min-width:0; }
 .sod-workspace .sod-break { overflow-wrap:anywhere; word-break:break-all; }
+
+/* Shared filter layout: collapsible sidebar on wide screens, overlay drawer on narrow ones. */
+.filter-layout { display: grid; min-width: 0; gap: 0.75rem; }
+.page-toolbar { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.page-toolbar-actions { display: flex; min-width: 0; flex: 1; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.5rem; }
+.page-toolbar-end { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.5rem; }
+.page-toolbar-end > .ui-search { flex: 1 1 12rem; max-width: 18rem; }
+.page-toolbar-end .shared-select, .page-toolbar-end .settings-select, .sod-sort .shared-select { width: auto; min-width: 9rem; max-width: 14rem; }
+.page-toolbar > .page-toolbar-actions { flex: 1 1 24rem; }
+.page-toolbar-end .ui-tooltip-anchor { flex: none; }
+.filter-layout-body { display: grid; min-width: 0; gap: 1rem; grid-template-columns: minmax(0, 1fr); align-items: start; }
+.filter-layout[data-wide='true'][data-open='true'] .filter-layout-body { grid-template-columns: 17rem minmax(0, 1fr); }
+.filter-layout-main { display: grid; min-width: 0; gap: 1rem; }
+.filter-sidebar { min-width: 0; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--surface); }
+.filter-sidebar[hidden] { display: none; }
+.filter-sidebar > header { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+.filter-sidebar > header h2 { font-size: 0.9rem; font-weight: 600; }
+.filter-sidebar-body { padding: 0.75rem; }
+.filter-layout[data-wide='true'] .filter-sidebar { position: sticky; top: 0.5rem; max-height: calc(100vh - 1rem); overflow: auto; }
+.filter-layout[data-wide='false'] .filter-sidebar { position: fixed; inset: 0 auto 0 0; z-index: 80; width: min(20rem, 92vw); overflow: auto; border-radius: 0; }
+.filter-backdrop { position: fixed; inset: 0; z-index: 70; background: rgb(0 0 0 / 0.4); }
+.filter-section { display: grid; min-width: 0; gap: 0.5rem; margin: 0; padding: 0; border: 0; }
+.filter-section > legend { margin-bottom: 0.25rem; padding: 0; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.sod-sort { display: inline-flex; flex-flow: row nowrap; align-items: center; gap: 0.25rem; }
+
+/* Risk and activity identifier pills: text carries the meaning, tint is supplementary. */
+.id-pill-list { display: inline-flex; flex-wrap: wrap; gap: 0.25rem; }
+.id-pill { display: inline-block; max-width: 100%; padding: 0.0625rem 0.5rem; border: 1px solid var(--pill, var(--border)); border-radius: 999px; font-size: 0.75rem; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; background: color-mix(in srgb, var(--pill, transparent) 14%, transparent); }
+.id-pill-activity { border-style: dashed; }

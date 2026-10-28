@@ -4,14 +4,14 @@ import { downloadFile, scopeParams, sod, EXPORT_NAME, type ContextInfo, type Que
 import { useHistoryValue } from '@/hooks/useViewHistory'
 import { Button } from '@/components/Shared/Button'
 import { Dialog } from '@/components/Shared/Dialog'
-import { Card, ErrorState, DataTable, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
-import { Checkbox, FormField } from '@/components/Shared/Controls'
+import { ErrorState, DataTable, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
+import { Checkbox } from '@/components/Shared/Controls'
 import { Select } from '@/components/Shared/Select'
 import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
 import { ContentTabs } from '@/components/Shared/Navigation'
 import { Pagination } from '@/components/Access/Shared'
 import { formatTimestamp } from '@/lib/dateFormat'
-import { AlertNote, ContextBar, CoverageNotice, FilterBar, invalidateSod, KIND_LABEL, LifecycleBadge, useSodContext, useSodFilters, useSodSubject } from './SodShared'
+import { AlertNote, ContextBar, CoverageNotice, SodFilters, invalidateSod, KIND_LABEL, LifecycleBadge, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 import { DecisionForm, type FormState } from './SodInvestigation'
 import { RemediationView } from './SodRemediation'
 
@@ -65,23 +65,21 @@ function Queue() {
     <section className="grid min-w-0 gap-4" aria-label="SoD review work queue">
       <ContextBar info={data} />
       <CoverageNotice info={data} />
-      <Card aria-label="Queue filters">
-        <FilterBar view="sod_queue" filters={filters} setFilters={(value) => { reset(); setFiltersState(value) }} decisions={false}>
-          <FormField label="Review type">
-            <Select value={kind} onChange={(event) => { reset(); setKind(event.target.value) }}>
-              <option value="">All review types</option>
-              <option value="activity">Activity reviews</option>
-              <option value="assignment">Role assignment reviews</option>
-              <option value="acceptance">Risk acceptance</option>
-            </Select>
-          </FormField>
-        </FilterBar>
-      </Card>
+      <SodFilters view="sod_queue" filters={filters} setFilters={(value) => { reset(); setFiltersState(value) }}
+        fields={['group', 'username', 'risk', 'activity', 'role', 'role_suffix', 'tcode', 'category', 'criticality', 'validity']}
+        actions={<>
+          <Select aria-label="Review type" value={kind} onChange={(event) => { reset(); setKind(event.target.value) }}>
+            <option value="">All review types</option>
+            <option value="activity">Activity reviews</option>
+            <option value="assignment">Role assignment reviews</option>
+            <option value="acceptance">Risk acceptance</option>
+          </Select>
+          <ExportCSVButton loading={busy} disabled={!data?.total} onClick={() => void exportCsv()} title="Exports the filtered queue with decisions." />
+        </>}>
       {result.isError ? <ErrorState error={result.error} onRetry={() => void result.refetch()} /> : !data ? <LoadingState /> : <>
         <Toolbar aria-label="Review status">
           <Button variant={status ? 'secondary' : 'primary'} aria-pressed={!status} onClick={() => { reset(); setStatus('') }}>All</Button>
           {STATUSES.map((name) => <Button key={name} variant={status === name ? 'primary' : 'secondary'} aria-pressed={status === name} onClick={() => { reset(); setStatus(name) }}>{name}: {data.counts[name] ?? 0}</Button>)}
-          <ExportCSVButton loading={busy} disabled={!data.total} onClick={() => void exportCsv()} title="Exports the filtered queue with decisions." />
         </Toolbar>
         <p className="ui-description">Activities are reviewed once per user across all risks they contribute to. Role assignments are reviewed separately, and risk acceptance is a third, independent decision. Batch review applies one decision only to the rows you select.</p>
         {message && <p role="status">{message}</p>}
@@ -106,6 +104,7 @@ function Queue() {
         </DataTable> : <EmptyState>Nothing matches this queue scope. Results describe imported evidence only; missing sources are not proof of no conflict.</EmptyState>}
         <Pagination label="Queue pages" offset={data.offset} total={data.total} limit={data.limit} onChange={setOffset} />
       </>}
+      </SodFilters>
       {batch && data && <Dialog title={batch.heading} onClose={() => setBatch(null)} footer={<Button variant="ghost" onClick={() => setBatch(null)}>Close</Button>}>
         <DecisionForm form={batch} subject={data} onCancel={() => setBatch(null)} onSaved={async () => { setBatch(null); setPicked({}); await invalidateSod(qc) }} />
       </Dialog>}

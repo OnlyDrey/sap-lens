@@ -249,3 +249,9 @@ containing block so wide matrices never widen the page.
 behind it keeps its scroll position and filters, Escape closes it and focus returns to the
 trigger, and it is full width below 800 px. Use `Dialog` for modal confirmations. Both
 components have isolated Component Library previews and are used by the SoD views.
+
+## SoD filter layout (Phase 2)
+
+- `Shared/FilterLayout`: `FilterLayout` (collapsible left sidebar from 1024 px, overlay drawer below; sidebar open state is a per-viewer convenience in `localStorage`, filter values stay in view history), `FilterSection`, `PageToolbar`, `SortControl`.
+- `Sod/SodShared.SodFilters` replaces the old `FilterBar`: each page passes only the filter fields it can act on. Saved Filters sit at the top of the sidebar; applying one clears values for fields the page does not show so hidden filters never narrow results. Search, sort, view options, CSV export and Reset share one toolbar.
+- `Shared/IdPill`: compact risk/activity identifier pill. The identifier text always carries the meaning; the optional `color` (validated `#rrggbb`) only tints it.
