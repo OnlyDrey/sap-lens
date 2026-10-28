@@ -537,3 +537,16 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .sod-kpi strong { font-size:18px; font-variant-numeric:tabular-nums; }
 @media (max-width:800px) { .ui-side-panel { width:100vw; } .matrix-scroll { max-height:min(66dvh,640px); } }
 .sod-kpi-group { align-content:start; }
+
+/* SoD tables: keep a readable minimum width and scroll inside the region; never squeeze columns or wrap buttons. */
+.sod-workspace .access-table table { min-width:760px; }
+.sod-workspace .access-table th,.sod-workspace .access-table td { overflow-wrap:normal; word-break:normal; max-width:420px; }
+.sod-workspace .access-table th,.sod-workspace .access-table .ui-button { white-space:nowrap; }
+.sod-workspace .access-table td .role-identifier,.sod-workspace .access-table td .role-identifier code { overflow-wrap:anywhere; word-break:break-all; }
+.sod-workspace .access-table td:has(.role-identifier) { min-width:200px; max-width:360px; }
+.sod-workspace .access-table td:has(input[type="checkbox"]) { width:44px; min-width:44px; }
+.ui-side-panel .role-identifier { max-width:100%; min-width:0; }
+.ui-side-panel .role-identifier-link { min-width:0; max-width:100%; overflow:hidden; }
+.ui-side-panel .role-identifier code { overflow-wrap:anywhere; word-break:break-all; white-space:normal; }
+.ui-side-panel-body > * { min-width:0; }
+.sod-workspace .sod-break { overflow-wrap:anywhere; word-break:break-all; }

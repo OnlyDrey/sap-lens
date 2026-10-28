@@ -102,7 +102,7 @@ def _path_matches(finding, q):
 def visible_cells(bundle, model, state, q):
     """{user: {risk_id}} after path-level, text and decision filters."""
     base = filtered({'users': [row for row in bundle['findings'] if row['subject'] in model and row['risk_id'] in model[row['subject']]['findings']]},
-                    dict(q, kind='users'))
+                    dict(q, kind='users', sort='subject', descending=False))  # row order belongs to the view, not this filter
     visible = {}
     for finding in base:
         if not _path_matches(finding, q):

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { emptyFilters, sod, type Filters } from '@/api/sod'
 import { useHistoryValue, useViewHistory, type SodView } from '@/hooks/useViewHistory'
-import { Card, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
+import { Card, ErrorState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
 import { Button } from '@/components/Shared/Button'
 import { formatDate, formatTimestamp } from '@/lib/dateFormat'
 import { AlertNote } from './SodShared'
@@ -27,7 +27,7 @@ export function SodOverview() {
   const result = useQuery({ queryKey: ['sod-overview'], queryFn: () => sod<Overview>('/api/sod/overview') }),
     { change } = useViewHistory(),
     [stored] = useHistoryValue('sodFilters')
-  if (result.isError) return <p role="alert">SoD overview unavailable. Review the source configuration.</p>
+  if (result.isError) return <ErrorState error={result.error} onRetry={() => void result.refetch()} title="The SoD overview could not be loaded" />
   if (!result.data) return <LoadingState />
   const { counts, source, coverage, governance: g } = result.data
   const go = (view: SodView, name?: string, patch: Filters = {}, extra: Record<string, unknown> = {}) =>

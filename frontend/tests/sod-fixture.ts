@@ -16,12 +16,15 @@ const risk = (id: string, a: string, b: string, first: string, second: string) =
 const matrix = header + risk('R1', 'A', 'B', 'X1', 'X2') + risk('R2', 'A', 'C', 'X1', 'X3')
 
 /** Two risks sharing activity A, duplicate role coverage for SYN_A, a single-role conflict for SYN_B and a control user. */
-export async function seedGovernance(request: APIRequestContext, sodMode: 'static' | 'dynamic' = 'static', sodMatrix = matrix): Promise<string> {
+export const longRoleName = 'ZC:SYN:A_VERY_LONG_ROLE_IDENTIFIER_FOR_LAYOUT_STRESS_TESTING:ABCDEFGHIJKLMNOP:0123456789:QRSTUV'
+
+export async function seedGovernance(request: APIRequestContext, sodMode: 'static' | 'dynamic' = 'static', sodMatrix = matrix, longRole = false): Promise<string> {
   await request.post('/api/configuration/reset', { headers })
   const tag = `${process.pid}${++sequence}`
   Object.assign(names, { a: `SYN_A${tag}`, b: `SYN_B${tag}`, c: `SYN_C${tag}` })
   const directory = mkdtempSync(path.join(tmpdir(), 'sod-governance-ui-'))
-  for (const [source, content] of Object.entries({ roles, users: users(), sod: sodMatrix })) {
+  const stress = longRole ? { roles: roles + `${longRoleName},Long,ZS:LONG,X1\n${longRoleName},Long,ZS:LONG,X2\n`, users: users() + `${names.c},${longRoleName},P2P,20000101,99991231\n` } : { roles, users: users() }
+  for (const [source, content] of Object.entries({ roles: stress.roles, users: stress.users, sod: sodMatrix })) {
     const filename = path.join(directory, `${source}.csv`)
     writeFileSync(filename, content)
     const settings = (await (await request.get('/api/configuration', { headers })).json()).settings

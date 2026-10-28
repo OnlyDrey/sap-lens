@@ -18,6 +18,22 @@ if (fragment.has('session')) window.history.replaceState(null, '', window.locati
 
 export function applicationToken(): string { return desktopSession || '1' }
 
+/** Failure classes the UI can explain: network (no response), server (5xx), client (4xx) and format (a response that is not the expected JSON). */
+export class ApiError extends Error {
+  constructor(message: string, readonly kind: 'network' | 'server' | 'client' | 'format', readonly status = 0) {
+    super(message)
+    this.name = 'ApiError'
+  }
+}
+
+function problemDetail(data: unknown, status: number): string {
+  const detail = (data as { detail?: unknown } | undefined)?.detail
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) return (detail as {loc?:string[];msg?:string}[]).slice(0,3).map(e=>`${(e.loc||[]).slice(1).join('.')}: ${e.msg||'Invalid value'}`).join('; ')
+  if (status >= 500) return `SAP Lens could not complete the request (server error ${status}). Retry; if it persists, check the application logs.`
+  return `Request failed (${status})`
+}
+
 // Same-origin fetch keeps the desktop bundle small and needs no HTTP client dependency.
 const apiClient = {
   async request<T>(path: string, method: string, body?: unknown): Promise<{ data: T }> {
@@ -29,16 +45,16 @@ const apiClient = {
       headers: { 'Content-Type': 'application/json', 'X-SAP-Lens': applicationToken() },
       body: body === undefined ? undefined : JSON.stringify(body),
       cache: 'no-store',
-    }) } catch { throw new Error('SAP Lens could not connect. Retry or close and reopen the application.') }
+    }) } catch { throw new ApiError('SAP Lens could not connect. Retry or close and reopen the application.', 'network') }
     finally { if(timer)clearTimeout(timer) }
-    const data = await response.json()
-    if (!response.ok) {
-      const detail = typeof data.detail === 'string' ? data.detail : Array.isArray(data.detail)
-        ? (data.detail as {loc?:string[];msg?:string}[]).slice(0,3).map(e=>`${(e.loc||[]).slice(1).join('.')}: ${e.msg||'Invalid value'}`).join('; ')
-        : `Request failed (${response.status})`
-      throw new Error(detail)
-    }
-    return { data: data as T }
+    // Read text first: a proxy or crash page is not JSON and must not surface as a parser exception.
+    const text = await response.text().catch(() => '')
+    let data: unknown
+    let parsed = true
+    try { data = text === '' ? undefined : JSON.parse(text) } catch { parsed = false }
+    if (!response.ok) throw new ApiError(problemDetail(parsed ? data : undefined, response.status), response.status >= 500 ? 'server' : 'client', response.status)
+    if (!parsed) throw new ApiError('SAP Lens received an unexpected response instead of data. Retry, or reload the application.', 'format', response.status)
+    return { data: (data ?? {}) as T }
   },
   get<T>(path: string, options?: { params: Record<string, string> }) {
     const query = options ? `?${new URLSearchParams(options.params)}` : ''

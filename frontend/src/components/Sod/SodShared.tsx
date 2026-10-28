@@ -40,6 +40,13 @@ export function useSodContext(): [string, (value: string) => void] {
   return [value || 'current', set]
 }
 
+export interface SodSubject { user: string; risk?: string; activity?: string }
+/** Investigation target lives in view history: Back closes it, and it returns after visiting a role or user page. */
+export function useSodSubject(): [SodSubject | null, (value: SodSubject | null) => void] {
+  const { view, change } = useViewHistory()
+  return [view.sodSubject || null, (value) => change({ sodSubject: value }, value === null)]
+}
+
 export function useSodFilters(name: string): [Filters, (value: Filters) => void] {
   const [stored, set] = useHistoryValue('sodFilters')
   return [{ ...emptyFilters, ...stored?.[name] }, (value) => set((previous) => ({ ...previous, [name]: value as SodFilterState }))]

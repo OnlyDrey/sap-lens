@@ -3,15 +3,14 @@ import { useQuery } from '@tanstack/react-query'
 import { downloadFile, scopeParams, sod, EXPORT_NAME, type ContextInfo, type Lifecycle } from '@/api/sod'
 import { useHistoryValue, type SodExplorerTable } from '@/hooks/useViewHistory'
 import { Button } from '@/components/Shared/Button'
-import { Card, DataTable, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
+import { Card, ErrorState, DataTable, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
 import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
 import { ContentTabs } from '@/components/Shared/Navigation'
 import { AssignmentStatus } from '@/components/Shared/InvestigationNavigation'
 import { Pagination } from '@/components/Access/Shared'
 import { formatDate } from '@/lib/dateFormat'
 import { ConflictView } from './SodConflicts'
-import { ContextBar, CoverageNotice, FilterBar, LifecycleBadge, useSodContext, useSodFilters } from './SodShared'
-import { SodInvestigation } from './SodInvestigation'
+import { ContextBar, CoverageNotice, FilterBar, LifecycleBadge, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 
 type TableName = Exclude<SodExplorerTable, 'roles'>
 interface Row {
@@ -38,7 +37,7 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
   const [context] = useSodContext(),
     [filters, setFiltersState] = useSodFilters('explorer'),
     [offset, setOffset] = useState(0),
-    [selected, setSelected] = useState<{ user: string; risk?: string; activity?: string } | null>(null),
+    [, setSelected] = useSodSubject(),
     [message, setMessage] = useState(''),
     [busy, setBusy] = useState(false)
   const params = scopeParams(context, filters, { offset, limit: 50 })
@@ -65,7 +64,7 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
       <ContextBar info={data} />
       <CoverageNotice info={data} />
       <Card aria-label="Explorer filters"><FilterBar view="sod_explorer" filters={filters} setFilters={(value) => { setOffset(0); setFiltersState(value) }} /></Card>
-      {result.isError ? <p role="alert">{result.error instanceof Error ? result.error.message : 'The table is unavailable.'}</p> : !data ? <LoadingState /> : <>
+      {result.isError ? <ErrorState error={result.error} onRetry={() => void result.refetch()} /> : !data ? <LoadingState /> : <>
         <Toolbar>
           <h2 className="text-base font-semibold">{data.total} {table === 'lookup' ? 'roles' : 'rows'}</h2>
           <ExportCSVButton loading={busy} disabled={!data.total} onClick={() => void download(`/api/sod/explorer/${table}/export`, EXPORT_NAME)} title="Exports every filtered row across pages." />
@@ -75,21 +74,20 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
         {message && <p role="status">{message}</p>}
         {data.items.length ? <DataTable caption={LABELS[table]}>
           {table === 'user_risk' && <><thead><tr><th>SAP user</th><th>Risk</th><th>Activities</th><th>Roles</th><th>Risk acceptance</th><th>Open</th></tr></thead>
-            <tbody>{data.items.map((row) => <tr key={`${row.user}:${row.risk_id}`}><td>{row.user}<p className="text-xs text-muted">{list(row.groups)}</p></td><td>{row.risk_id}<p className="text-xs text-muted">{row.criticality}{row.category ? ` · ${row.category}` : ''}</p></td><td>{list(row.activities)}</td><td>{list(row.roles)}</td><td><LifecycleBadge value={row.acceptance || 'Pending'} /></td>
+            <tbody>{data.items.map((row) => <tr key={`${row.user}:${row.risk_id}`}><td>{row.user}<p className="text-xs text-muted">{list(row.groups)}</p></td><td>{row.risk_id}<p className="text-xs text-muted">{row.criticality}{row.category ? ` · ${row.category}` : ''}</p></td><td>{list(row.activities)}</td><td className="sod-break">{list(row.roles)}</td><td><LifecycleBadge value={row.acceptance || 'Pending'} /></td>
               <td><Button onClick={() => setSelected({ user: row.user!, risk: row.risk_id })} aria-label={`Investigate ${row.user} ${row.risk_id}`}>Investigate</Button></td></tr>)}</tbody></>}
           {table === 'user_activity' && <><thead><tr><th>SAP user</th><th>Activity</th><th>Risks</th><th>Transactions</th><th>Role assignments</th><th>Review</th><th>Open</th></tr></thead>
             <tbody>{data.items.map((row) => <tr key={`${row.user}:${row.activity}`}><td>{row.user}</td><td>{row.activity}</td><td>{list(row.risks)}</td><td>{list(row.tcodes)}</td><td>{String(row.roles)}{row.duplicate && <StatusBadge tone="info">Overlap</StatusBadge>}</td><td><LifecycleBadge value={row.decision || 'Pending'} /></td>
               <td><Button onClick={() => setSelected({ user: row.user!, activity: row.activity })} aria-label={`Investigate ${row.user} ${row.activity}`}>Investigate</Button></td></tr>)}</tbody></>}
           {table === 'access_list' && <><thead><tr><th>SAP user</th><th>Role assignment</th><th>Validity</th><th>Activities / risks</th><th>Review</th><th>Open</th></tr></thead>
-            <tbody>{data.items.map((row) => <tr key={`${row.user}:${row.id}`}><td>{row.user}<p className="text-xs text-muted">{row.user_group}</p></td><td>{row.role}</td><td>{row.interval_status && <AssignmentStatus value={row.interval_status} />}<p>{formatDate(row.valid_from)} → {formatDate(row.valid_to)}</p></td><td>{list(row.activities)}<p className="text-xs text-muted">{list(row.risks)}</p></td><td><LifecycleBadge value={row.decision || 'Pending'} /></td>
+            <tbody>{data.items.map((row) => <tr key={`${row.user}:${row.id}`}><td>{row.user}<p className="text-xs text-muted">{row.user_group}</p></td><td className="sod-break">{row.role}</td><td>{row.interval_status && <AssignmentStatus value={row.interval_status} />}<p>{formatDate(row.valid_from)} → {formatDate(row.valid_to)}</p></td><td>{list(row.activities)}<p className="text-xs text-muted">{list(row.risks)}</p></td><td><LifecycleBadge value={row.decision || 'Pending'} /></td>
               <td><Button onClick={() => setSelected({ user: row.user!, activity: Array.isArray(row.activities) ? row.activities[0] : undefined })} aria-label={`Investigate ${row.user} ${row.role}`}>Investigate</Button></td></tr>)}</tbody></>}
           {table === 'lookup' && <><thead><tr><th>Assigned role</th><th>Users</th><th>Activities</th><th>Risks</th><th>Trace</th></tr></thead>
-            <tbody>{data.items.map((row) => <tr key={row.role}><td>{row.role}<p className="text-xs text-muted">{list(row.catalogue_roles)}</p></td><td>{row.users}</td><td>{list(row.activities)}</td><td>{list(row.risks)}</td>
+            <tbody>{data.items.map((row) => <tr key={row.role}><td className="sod-break">{row.role}<p className="text-xs text-muted">{list(row.catalogue_roles)}</p></td><td>{row.users}</td><td>{list(row.activities)}</td><td>{list(row.risks)}</td>
               <td><Button onClick={() => showUsers(row.role!)} aria-label={`Show users with ${row.role}`}>Show users</Button></td></tr>)}</tbody></>}
         </DataTable> : <EmptyState>No rows match this scope. Results describe imported evidence only; incomplete source coverage cannot establish absence of access.</EmptyState>}
         <Pagination label="Explorer pages" offset={data.offset} total={data.total} limit={data.limit} onChange={setOffset} />
       </>}
-      {selected && <SodInvestigation context={context} user={selected.user} risk={selected.risk} activity={selected.activity} onClose={() => setSelected(null)} />}
     </section>
   )
 }

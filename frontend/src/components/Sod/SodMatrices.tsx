@@ -3,14 +3,13 @@ import { useQuery } from '@tanstack/react-query'
 import { Users } from 'lucide-react'
 import { downloadFile, scopeParams, sod, EXPORT_NAME, type ActivityCell, type ActivityColumn, type Filters, type GroupCell, type MatrixResult, type RiskCell, type RiskColumn } from '@/api/sod'
 import { MatrixGrid, type MatrixCellView } from '@/components/Shared/MatrixGrid'
-import { Card, EmptyState, LoadingState, MetadataList, Toolbar } from '@/components/Shared/Presentation'
+import { Card, ErrorState, EmptyState, LoadingState, MetadataList, Toolbar } from '@/components/Shared/Presentation'
 import { FormField } from '@/components/Shared/Controls'
 import { Select } from '@/components/Shared/Select'
 import { Button } from '@/components/Shared/Button'
 import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
 import { Pagination } from '@/components/Access/Shared'
-import { ContextBar, CoverageNotice, FilterBar, LifecycleBadge, lifecycleView, useSodContext, useSodFilters } from './SodShared'
-import { SodInvestigation } from './SodInvestigation'
+import { ContextBar, CoverageNotice, FilterBar, LifecycleBadge, lifecycleView, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 
 type Risk = MatrixResult<RiskColumn, RiskCell>
 type Activity = MatrixResult<ActivityColumn, ActivityCell>
@@ -24,7 +23,7 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
     [filters, setFiltersState] = useSodFilters(kind === 'risk' ? 'riskMatrix' : 'activityMatrix'),
     [groupBy, setGroupBy] = useState<'user' | 'group'>('user'),
     [offset, setOffset] = useState(0),
-    [selected, setSelected] = useState<{ user: string; risk?: string; activity?: string } | null>(null),
+    [selected, setSelected] = useSodSubject(),
     [message, setMessage] = useState(''),
     [busy, setBusy] = useState(false)
   const setFilters = (value: Filters) => {
@@ -103,7 +102,7 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
           </FormField>
         </FilterBar>
       </Card>
-      {result.isError ? <p role="alert">{result.error instanceof Error ? result.error.message : 'The matrix is unavailable.'}</p>
+      {result.isError ? <ErrorState error={result.error} onRetry={() => void result.refetch()} />
         : !data ? <LoadingState />
         : <>
           <CoverageNotice info={data} />
@@ -126,7 +125,6 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
           <Pagination label="Matrix pages" offset={data.offset} total={data.total_rows} limit={data.limit} onChange={setOffset} />
           {filters.risk || filters.activity || filters.group ? <Button variant="ghost" onClick={() => setFilters({ ...filters, risk: '', activity: '', group: '' })}>Show all risks, activities and groups</Button> : null}
         </>}
-      {selected && <SodInvestigation context={context} user={selected.user} risk={selected.risk} activity={selected.activity} onClose={() => setSelected(null)} />}
     </section>
   )
 }

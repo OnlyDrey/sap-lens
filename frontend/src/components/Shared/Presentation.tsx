@@ -1,5 +1,6 @@
 import type { HTMLAttributes, ReactNode } from 'react'
-import { Info, Loader2 } from 'lucide-react'
+import { AlertTriangle, Info, Loader2, RotateCw } from 'lucide-react'
+import { Button } from './Button'
 export function Toolbar({
   children,
   className = '',
@@ -120,4 +121,16 @@ export function MetadataList({items}:{items:{label:string;value:ReactNode}[]}) {
 
 export function SectionHeader({title,icon,children}:{title:string;icon?:ReactNode;children?:ReactNode}) {
  return <header className="ui-section-header"><h2>{icon}{title}</h2>{children}</header>
+}
+
+/** Application-level failure state with a plain-language message and an optional retry; never shows parser internals. */
+export function ErrorState({ error, onRetry, title = 'This view could not be loaded' }: { error: unknown; onRetry?: () => void; title?: string }) {
+  const message = error instanceof Error && error.message ? error.message : 'An unexpected problem occurred. Retry, or reload the application.'
+  return (
+    <div role="alert" className="ui-card grid gap-2">
+      <p className="flex items-center gap-2 font-semibold"><AlertTriangle size={16} aria-hidden="true" />{title}</p>
+      <p>{message}</p>
+      {onRetry && <div><Button onClick={onRetry}><RotateCw size={16} aria-hidden="true" />Retry</Button></div>}
+    </div>
+  )
 }

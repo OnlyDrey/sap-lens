@@ -5,7 +5,7 @@ import { emptyFilters, scopeParams, sod, sodPost, type ActivityDetail, type Assi
 import { useViewHistory } from '@/hooks/useViewHistory'
 import { SidePanel } from '@/components/Shared/SidePanel'
 import { Button } from '@/components/Shared/Button'
-import { Card, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
+import { Card, ErrorState, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
 import { Checkbox, FormField, Input } from '@/components/Shared/Controls'
 import { Select } from '@/components/Shared/Select'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
@@ -47,7 +47,7 @@ export function SodInvestigation({ context, user, risk, activity, onClose }: { c
   const activities = data?.activities || []
   return (
     <SidePanel title={`${user}${risk ? ` · ${risk}` : activity ? ` · ${activity}` : ''}`} subtitle={data ? <>Potential conflict evidence, not effective authorization · evaluation {formatDate(data.as_of)}</> : undefined} onClose={onClose}>
-      {query.isError ? <p role="alert">{query.error instanceof Error ? query.error.message : 'Investigation unavailable.'}</p> : !data ? <LoadingState /> : <>
+      {query.isError ? <ErrorState error={query.error} onRetry={() => void query.refetch()} /> : !data ? <LoadingState /> : <>
         <section className="sod-section" aria-label="Subject summary">
           <Toolbar>
             <RoleIdentifier value={user} label="SAP username" onOpen={() => change({ page: 'users', accessMode: 'directory', user, userContext: {}, detailRole: null, settings: false })} openLabel={`Open SAP user ${user}`} />

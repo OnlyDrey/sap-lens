@@ -67,6 +67,13 @@ def create_app(origin: str | None = None, session_token: str | None = None,
     app = FastAPI(title='SAP Lens API', version=VERSION, lifespan=lifespan,
                   docs_url=None, redoc_url=None)
     app.state.loader = loader
+
+    @app.exception_handler(Exception)
+    async def unexpected_failure(request: Request, error: Exception):
+        # Always answer API failures as JSON so clients never have to parse a plain-text page; details stay in logs.
+        import logging
+        logging.getLogger('sap-lens').error('Unhandled %s on %s', type(error).__name__, request.url.path)
+        return JSONResponse({'detail': 'The operation failed unexpectedly. Retry, and check the application logs if it persists.'}, status_code=500)
     app.state.deployment = server
     app.add_middleware(RequestBodyLimit)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(server.hosts) if server else ['127.0.0.1', 'localhost'])

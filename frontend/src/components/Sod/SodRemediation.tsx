@@ -4,15 +4,14 @@ import { downloadFile, scopeParams, sod, sodPost, EXPORT_NAME, type AssignmentRo
 import { useViewHistory } from '@/hooks/useViewHistory'
 import { Button } from '@/components/Shared/Button'
 import { Dialog } from '@/components/Shared/Dialog'
-import { Card, DataTable, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
+import { Card, ErrorState, DataTable, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
 import { FormField, Input } from '@/components/Shared/Controls'
 import { Select } from '@/components/Shared/Select'
 import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
 import { NorwegianDateInput, parseNorwegianDate } from '@/components/Shared/NorwegianDateInput'
 import { Pagination } from '@/components/Access/Shared'
 import { formatDate } from '@/lib/dateFormat'
-import { AlertNote, ContextBar, CoverageNotice, FilterBar, invalidateSod, LifecycleBadge, useSodContext, useSodFilters } from './SodShared'
-import { SodInvestigation } from './SodInvestigation'
+import { AlertNote, ContextBar, CoverageNotice, FilterBar, invalidateSod, LifecycleBadge, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 
 const GROUPS = ['Remove assignment', 'Investigate assignment', 'Apply compensating control', 'Maintain access', 'No action required']
 const STATUSES = ['Open', 'In progress', 'Completed', 'Cancelled']
@@ -85,7 +84,7 @@ export function RemediationView() {
     [recommended, setRecommended] = useState(''),
     [offset, setOffset] = useState(0),
     [editing, setEditing] = useState<Row | null>(null),
-    [selected, setSelected] = useState<Row | null>(null),
+    [, setSubject] = useSodSubject(),
     [message, setMessage] = useState(''),
     [busy, setBusy] = useState(false)
   const params = scopeParams(context, filters, { recommended, offset, limit: 50 })
@@ -108,7 +107,7 @@ export function RemediationView() {
       <ContextBar info={data} />
       <CoverageNotice info={data} />
       <Card aria-label="Remediation filters"><FilterBar view="sod_queue" filters={filters} setFilters={(value) => { setOffset(0); setFiltersState(value) }} decisions={false} /></Card>
-      {result.isError ? <p role="alert">{result.error instanceof Error ? result.error.message : 'Remediation is unavailable.'}</p> : !data ? <LoadingState /> : <>
+      {result.isError ? <ErrorState error={result.error} onRetry={() => void result.refetch()} /> : !data ? <LoadingState /> : <>
         <Toolbar aria-label="Recommended handling">
           <Button variant={recommended ? 'secondary' : 'primary'} aria-pressed={!recommended} onClick={() => { setRecommended(''); setOffset(0) }}>All handling</Button>
           {GROUPS.map((group) => <Button key={group} variant={recommended === group ? 'primary' : 'secondary'} aria-pressed={recommended === group} onClick={() => { setRecommended(group); setOffset(0) }}>{group}: {data.summary[group] ?? 0}</Button>)}
@@ -124,13 +123,13 @@ export function RemediationView() {
           <tbody>{data.items.map((row) => (
             <tr key={`${row.user}:${row.assignment_id}:${row.activity}`}>
               <td>{row.user}<p>{row.activity}</p><p className="text-xs text-muted">{row.risks.join(', ')}</p></td>
-              <td>{row.role}<p className="text-xs text-muted">{formatDate(row.valid_from)} → {formatDate(row.valid_to)}</p></td>
+              <td className="sod-break">{row.role}<p className="text-xs text-muted">{formatDate(row.valid_from)} → {formatDate(row.valid_to)}</p></td>
               <td><p>Activity <LifecycleBadge value={row.activity_decision} /></p><p>Assignment <LifecycleBadge value={row.assignment_decision} /></p><p className="text-xs text-muted">Risk: {row.risk_acceptance.join(', ') || '—'}</p></td>
               <td><StatusBadge tone={row.recommended === 'Remove assignment' ? 'error' : row.recommended === 'Investigate assignment' ? 'warning' : 'neutral'}>{row.recommended}</StatusBadge><p className="text-xs">{row.reason || row.controls}</p></td>
               <td>{row.action_status}{row.overdue && <StatusBadge tone="error">Overdue</StatusBadge>}<p className="text-xs text-muted">{row.owner || 'No owner'} · {row.due_date ? formatDate(row.due_date) : 'No due date'}</p>
                 <div className="mt-1 flex flex-wrap gap-1">
                   {data.reviewable && row.recommended === 'Remove assignment' && <Button onClick={() => setEditing(row)}>{row.action ? 'Update action' : 'Track action'}</Button>}
-                  <Button onClick={() => setSelected(row)}>Investigate</Button>
+                  <Button onClick={() => setSubject({ user: row.user, activity: row.activity })}>Investigate</Button>
                 </div></td>
               <td className="text-xs">{row.verification}</td>
             </tr>))}</tbody>
@@ -146,7 +145,6 @@ export function RemediationView() {
           </DataTable></>}
       </>}
       {editing && data && <ActionDialog context={context} revision={data.revision} user={editing.user} row={editing} onClose={() => setEditing(null)} onSaved={async () => { setEditing(null); await invalidateSod(qc) }} />}
-      {selected && <SodInvestigation context={context} user={selected.user} activity={selected.activity} onClose={() => setSelected(null)} />}
     </section>
   )
 }

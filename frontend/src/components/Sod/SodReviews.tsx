@@ -4,15 +4,15 @@ import { downloadFile, scopeParams, sod, EXPORT_NAME, type ContextInfo, type Que
 import { useHistoryValue } from '@/hooks/useViewHistory'
 import { Button } from '@/components/Shared/Button'
 import { Dialog } from '@/components/Shared/Dialog'
-import { Card, DataTable, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
+import { Card, ErrorState, DataTable, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
 import { Checkbox, FormField } from '@/components/Shared/Controls'
 import { Select } from '@/components/Shared/Select'
 import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
 import { ContentTabs } from '@/components/Shared/Navigation'
 import { Pagination } from '@/components/Access/Shared'
 import { formatTimestamp } from '@/lib/dateFormat'
-import { AlertNote, ContextBar, CoverageNotice, FilterBar, invalidateSod, KIND_LABEL, LifecycleBadge, useSodContext, useSodFilters } from './SodShared'
-import { DecisionForm, SodInvestigation, type FormState } from './SodInvestigation'
+import { AlertNote, ContextBar, CoverageNotice, FilterBar, invalidateSod, KIND_LABEL, LifecycleBadge, useSodContext, useSodFilters, useSodSubject } from './SodShared'
+import { DecisionForm, type FormState } from './SodInvestigation'
 import { RemediationView } from './SodRemediation'
 
 const STATUSES = ['Pending', 'Reviewed', 'Conditional', 'Removal required', 'Rejected', 'Risk acceptance pending', 'Awaiting approval', 'Outdated', 'Resolved', 'Historical']
@@ -37,7 +37,7 @@ function Queue() {
     [offset, setOffset] = useState(0),
     [picked, setPicked] = useState<Record<string, QueueItem>>({}),
     [batch, setBatch] = useState<FormState | null>(null),
-    [open, setOpen] = useState<QueueItem | null>(null),
+    [, setSubject] = useSodSubject(),
     [message, setMessage] = useState(''),
     [busy, setBusy] = useState(false)
   const reset = () => { setOffset(0); setPicked({}) }
@@ -60,7 +60,7 @@ function Queue() {
   }
   const toggle = (item: QueueItem) => setPicked((previous) => { const next = { ...previous }; if (next[itemKey(item)]) delete next[itemKey(item)]; else next[itemKey(item)] = item; return next })
   const decidable = (item: QueueItem) => !!data?.reviewable && item.lifecycle !== 'Historical' && item.lifecycle !== 'Resolved'
-  const openItem = (item: QueueItem) => setOpen(item)
+  const openItem = (item: QueueItem) => setSubject(item.kind === 'acceptance' ? { user: item.user, risk: item.ref } : item.kind === 'activity' ? { user: item.user, activity: item.ref } : { user: item.user, ...(item.risks[0] ? { risk: item.risks[0] } : {}) })
   return (
     <section className="grid min-w-0 gap-4" aria-label="SoD review work queue">
       <ContextBar info={data} />
@@ -77,7 +77,7 @@ function Queue() {
           </FormField>
         </FilterBar>
       </Card>
-      {result.isError ? <p role="alert">{result.error instanceof Error ? result.error.message : 'The work queue is unavailable.'}</p> : !data ? <LoadingState /> : <>
+      {result.isError ? <ErrorState error={result.error} onRetry={() => void result.refetch()} /> : !data ? <LoadingState /> : <>
         <Toolbar aria-label="Review status">
           <Button variant={status ? 'secondary' : 'primary'} aria-pressed={!status} onClick={() => { reset(); setStatus('') }}>All</Button>
           {STATUSES.map((name) => <Button key={name} variant={status === name ? 'primary' : 'secondary'} aria-pressed={status === name} onClick={() => { reset(); setStatus(name) }}>{name}: {data.counts[name] ?? 0}</Button>)}
@@ -95,10 +95,10 @@ function Queue() {
           <thead><tr><th>Select</th><th>SAP user</th><th>Review type</th><th>Reference</th><th>Status</th><th>Decision</th><th>Open</th></tr></thead>
           <tbody>{data.items.map((item) => (
             <tr key={itemKey(item)}>
-              <td>{decidable(item) && <Checkbox checked={!!picked[itemKey(item)]} onChange={() => toggle(item)} aria-label={`Select ${item.user} ${item.ref}`}>Select</Checkbox>}</td>
+              <td>{decidable(item) && <Checkbox checked={!!picked[itemKey(item)]} onChange={() => toggle(item)} aria-label={`Select ${item.user} ${item.ref}`}><span className="sr-only">Select</span></Checkbox>}</td>
               <td>{item.user}</td>
               <td>{KIND_LABEL[item.kind]}</td>
-              <td>{item.ref}<p className="text-xs text-muted">{item.risks.join(', ')}</p></td>
+              <td><span className="sod-break">{item.ref}</span><p className="text-xs text-muted">{item.risks.join(', ')}</p></td>
               <td><LifecycleBadge value={item.lifecycle} /></td>
               <td className="text-xs">{item.event ? <>{item.event.decision}<p>{item.event.reviewer} · {formatTimestamp(item.event.timestamp)}</p></> : 'No decision yet'}</td>
               <td>{item.lifecycle === 'Historical' || item.lifecycle === 'Resolved' ? <span className="text-xs text-muted">No longer detected</span> : <Button onClick={() => openItem(item)} aria-label={`Open ${item.user} ${item.ref}`}>Open</Button>}</td>
@@ -109,7 +109,6 @@ function Queue() {
       {batch && data && <Dialog title={batch.heading} onClose={() => setBatch(null)} footer={<Button variant="ghost" onClick={() => setBatch(null)}>Close</Button>}>
         <DecisionForm form={batch} subject={data} onCancel={() => setBatch(null)} onSaved={async () => { setBatch(null); setPicked({}); await invalidateSod(qc) }} />
       </Dialog>}
-      {open && <SodInvestigation context={context} user={open.user} {...(open.kind === 'acceptance' ? { risk: open.ref } : open.kind === 'activity' ? { activity: open.ref } : open.risks[0] ? { risk: open.risks[0] } : {})} onClose={() => setOpen(null)} />}
     </section>
   )
 }

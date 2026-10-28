@@ -449,3 +449,31 @@ class SecurityAndPrivacyTests(GovernanceCase):
         self.assertEqual(self.client.get('/api/sod/matrix/risk', params={'context': 'a' * 32}, headers=H).status_code, 404)
         self.assertEqual(self.client.get('/api/sod/explorer/other', headers=H).status_code, 422)
         self.assertEqual(decisions.read().revision, 0)
+
+
+class RobustnessTests(GovernanceCase):
+    def test_every_matrix_sort_and_grouping_combination_returns_valid_json(self):
+        for kind in ('risk', 'activity'):
+            for sort in ('subject', 'findings'):
+                for group_by in ('user', 'group'):
+                    for descending in ('false', 'true'):
+                        response = self.client.get(f'/api/sod/matrix/{kind}', params={'sort': sort, 'group_by': group_by, 'descending': descending}, headers=H)
+                        self.assertEqual(response.status_code, 200, (kind, sort, group_by, descending, response.text[:120]))
+                        self.assertEqual(len(response.json()['rows']) > 0, True)
+        most = self.risk_matrix(sort='findings')['rows']
+        self.assertEqual([row['user'] for row in most], ['SYN_A', 'SYN_B'])
+        self.assertEqual([row['user'] for row in self.risk_matrix(sort='findings', descending='true')['rows']], ['SYN_B', 'SYN_A'])
+
+    def test_unexpected_server_failures_answer_as_json_not_plain_text(self):
+        import routers.sod_governance as router_module
+        original = router_module.scope.scoped
+        router_module.scope.scoped = lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError('synthetic internal failure'))
+        try:
+            client = TestClient(create_app(session_token=H['X-SAP-Lens']), base_url='http://127.0.0.1:18743', raise_server_exceptions=False)
+            response = client.get('/api/sod/matrix/risk', headers=H)
+        finally:
+            router_module.scope.scoped = original
+        self.assertEqual(response.status_code, 500)
+        self.assertTrue(response.headers['content-type'].startswith('application/json'))
+        self.assertIn('failed unexpectedly', response.json()['detail'])
+        self.assertNotIn('synthetic internal failure', response.text)
