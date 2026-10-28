@@ -1,6 +1,6 @@
 import {textMatches} from '@/lib/searchMatching'
 import { PageHeader } from '@/components/Shared/Presentation'
-import { Search as PageIcon, ShoppingCart } from 'lucide-react'
+import { Search as PageIcon, Package } from 'lucide-react'
 import { Button } from '@/components/Shared/Button'
 import { AccessPackagePanel } from './AccessPackagePanel'
 import { useAccessPackage } from '@/lib/accessPackage'
@@ -258,7 +258,7 @@ export function RoleList({
   return (
     <div className="flex flex-col gap-4" role="region" aria-label="Role catalogue investigation" aria-busy={isLoading||search!==debSearch||transaction.settling||exactTransactions.isFetching}>
       <PageHeader title="Role Lookup" icon={<PageIcon size={22} aria-hidden="true"/>}>
-        <Button onClick={()=>setPackageOpen(true)} aria-haspopup="dialog"><ShoppingCart size={16} aria-hidden="true"/>Access package ({cart.items.length})</Button>
+        <Button onClick={()=>setPackageOpen(true)} aria-haspopup="dialog"><Package size={16} aria-hidden="true"/>Access package ({cart.items.length})</Button>
       </PageHeader>
       {packageOpen&&<AccessPackagePanel onClose={()=>setPackageOpen(false)}/>}
       <SavedFilters showClear={false} view="roles" state={{search,activeModules,transactionMode,tcodes:transaction.codes,transactionExclude:exclude,sortBy}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(Array.isArray(s.activeModules))setActiveModules(s.activeModules);if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(Array.isArray(s.tcodes)){transaction.setInput('');transaction.setChips(s.tcodes)};if(Array.isArray(s.notTcodes)&&s.notTcodes.length&&!(Array.isArray(s.tcodes)&&s.tcodes.length)){transaction.setInput('');transaction.setChips(s.notTcodes);setTransactionMode('or');setExclude(true)}else{const legacy=s.transactionOperator==='not'&&s.transactionExclude!==true;if(legacy)setTransactionMode('or');setExclude(s.transactionExclude===true||legacy)};if(SORT_OPTIONS.some(o=>o.key===s.sortBy))setSortBy(s.sortBy as SortKey)}} clear={()=>{setSearch('');setActiveModules([]);setTransactionMode('and');setExclude(false);transaction.clear();setSortBy('name-asc')}}/>

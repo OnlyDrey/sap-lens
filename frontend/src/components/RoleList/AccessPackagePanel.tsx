@@ -58,7 +58,7 @@ export function AccessPackagePanel({ onClose }: { onClose: () => void }) {
           The suffix replaces a wildcard or the existing organizational suffix of each role. A role-specific suffix overrides the default; changing the default never changes it.
         </p>
       </section>
-      {!cart.items.length ? <EmptyState>The cart is empty. Use Add to cart on a role in Role Lookup.</EmptyState>
+      {!cart.items.length ? <EmptyState>The access package is empty. Use Add to access package on a role in Role Lookup.</EmptyState>
         : preview.isError ? <ErrorState error={preview.error} onRetry={() => void preview.refetch()} />
         : !preview.data ? <LoadingState />
         : <>
@@ -70,7 +70,7 @@ export function AccessPackagePanel({ onClose }: { onClose: () => void }) {
                 <li key={row.role} className="ui-list-row grid min-w-0 gap-2 p-3">
                   <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
                     <RoleIdentifier value={row.role} label="source role" />
-                    <IconButton label={`Remove ${row.role} from cart`} onClick={() => cart.remove(row.role)}><Trash2 size={16} /></IconButton>
+                    <IconButton label={`Remove ${row.role} from access package`} onClick={() => cart.remove(row.role)}><Trash2 size={16} /></IconButton>
                   </div>
                   {row.description && <p className="ui-description">{row.description}</p>}
                   <FormField label={`Suffix for ${row.role}`}>

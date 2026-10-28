@@ -2,7 +2,7 @@ import { Button } from '@/components/Shared/Button'
 import { TransactionCount } from '@/components/Shared/TransactionCount'
 import { ModuleIcon } from '@/components/Modules/ModuleIcon'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
-import { Scale, ShoppingCart, ArrowRight, Layers } from 'lucide-react'
+import { Scale, Plus, ArrowRight, Layers } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { RoleSummary } from '@/api/types'
 
@@ -15,10 +15,10 @@ interface Props {
   onClick: (n: string) => void
 }
 
-/** Round selection toggle shared by comparison and the access package cart so both read the same. */
+/** Round selection toggle shared by comparison and the access package so both read the same. */
 function ToggleButton({ active, label, onToggle, children }: { active: boolean; label: string; onToggle: () => void; children: React.ReactNode }) {
   return (
-    <button data-np type="button" onClick={e => { e.stopPropagation(); onToggle() }} aria-label={label} aria-pressed={active}
+    <button data-np type="button" onClick={e => { e.stopPropagation(); onToggle() }} aria-label={label} title={label} aria-pressed={active}
       className={cn('w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--focus)] hover:scale-110 active:scale-95')}
       style={active
         ? { backgroundColor:'var(--accent)', color:'var(--on-accent)', border:'none' }
@@ -45,7 +45,7 @@ export function RoleCard({ role, isSelected, onSelect, inCart, onCart, onClick }
   return (
     <article
       onClick={handleCardClick}
-      aria-label={`${title || role.agr_name}${isSelected ? ', selected' : ''}${inCart ? ', in cart' : ''}`}
+      aria-label={`${title || role.agr_name}${isSelected ? ', selected' : ''}${inCart ? ', in access package' : ''}`}
       className={cn('role-card rounded-2xl cursor-pointer transition-all duration-150 flex flex-col')}
       style={{
         backgroundColor: 'var(--surface)',
@@ -59,7 +59,7 @@ export function RoleCard({ role, isSelected, onSelect, inCart, onCart, onClick }
       }}>
       <div className="flex flex-col gap-2.5 flex-1">
 
-        {/* Top row: module label + add button */}
+        {/* Top row: module label + compare, then add to access package (rightmost) */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
             <ModuleIcon moduleId={role.function_key} selected={isSelected} />
@@ -68,11 +68,11 @@ export function RoleCard({ role, isSelected, onSelect, inCart, onCart, onClick }
             </span>
           </div>
           <div className="flex items-center gap-1.5">
-            <ToggleButton active={inCart} label={inCart ? 'Remove from cart' : 'Add to cart'} onToggle={() => onCart(role.agr_name)}>
-              <ShoppingCart className="w-3.5 h-3.5" strokeWidth={2.5} />
-            </ToggleButton>
             <ToggleButton active={isSelected} label={isSelected ? 'Remove from comparison' : 'Add to comparison'} onToggle={() => onSelect(role.agr_name)}>
               <Scale className="w-3.5 h-3.5" strokeWidth={2.5} />
+            </ToggleButton>
+            <ToggleButton active={inCart} label={inCart ? 'Remove from access package' : 'Add to access package'} onToggle={() => onCart(role.agr_name)}>
+              <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
             </ToggleButton>
           </div>
         </div>

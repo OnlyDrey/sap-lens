@@ -38,13 +38,13 @@ test.afterEach(async ({ request }) => {
 const nav = (page: Page, name: string) => page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name, exact: true }).click()
 const tile = (page: Page, title: string) => page.getByRole('article', { name: new RegExp(title) })
 
-test('Add to cart and Add to comparison are independent toggles on each Role Lookup tile', async ({ page }) => {
+test('Add to access package and Add to comparison are independent toggles on each Role Lookup tile', async ({ page }) => {
   await page.goto('/#session=browser-test-session')
   await nav(page, 'Role Lookup')
   await expect(page.getByRole('article')).toHaveCount(5)
   const buyer = tile(page, 'Buyer plant')
-  await buyer.getByRole('button', { name: 'Add to cart' }).click()
-  await expect(buyer.getByRole('button', { name: 'Remove from cart' })).toHaveAttribute('aria-pressed', 'true')
+  await buyer.getByRole('button', { name: 'Add to access package' }).click()
+  await expect(buyer.getByRole('button', { name: 'Remove from access package' })).toHaveAttribute('aria-pressed', 'true')
   await expect(buyer.getByRole('button', { name: 'Add to comparison' })).toHaveAttribute('aria-pressed', 'false')
   await expect(page.getByRole('button', { name: 'Access package (1)' })).toBeVisible()
   await expect(page.getByRole('button', { name: /Compare now/ })).toHaveCount(0)
@@ -52,7 +52,7 @@ test('Add to cart and Add to comparison are independent toggles on each Role Loo
   await tile(page, 'Finance view$').getByRole('button', { name: 'Add to comparison' }).click()
   await expect(page.getByRole('button', { name: /Compare now/ })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Access package (1)' })).toBeVisible()
-  await buyer.getByRole('button', { name: 'Remove from cart' }).click()
+  await buyer.getByRole('button', { name: 'Remove from access package' }).click()
   await expect(buyer.getByRole('button', { name: 'Remove from comparison' })).toHaveAttribute('aria-pressed', 'true')
 })
 
@@ -60,13 +60,13 @@ test('package: default suffix, per-role override, validation, copy, CSV, persist
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await page.goto('/#session=browser-test-session')
   await nav(page, 'Role Lookup')
-  for (const title of ['Buyer plant', 'Finance view$', 'Buyer wildcard', 'Orders ENK']) await tile(page, title).getByRole('button', { name: 'Add to cart' }).click()
+  for (const title of ['Buyer plant', 'Finance view$', 'Buyer wildcard', 'Orders ENK']) await tile(page, title).getByRole('button', { name: 'Add to access package' }).click()
   await page.getByRole('button', { name: 'Access package (4)' }).click()
   const panel = page.getByRole('dialog', { name: 'Proposed access package' })
   await expect(panel).toContainText('Nothing here assigns roles or changes SAP access')
   await expect(panel).toContainText('ENK (2), ENP (2)')
   await expect(panel.getByRole('listitem').first()).toContainText('Needs suffix')
-  const row = (role: string) => panel.getByRole('listitem').filter({ has: page.getByRole('button', { name: `Remove ${role} from cart` }) })
+  const row = (role: string) => panel.getByRole('listitem').filter({ has: page.getByRole('button', { name: `Remove ${role} from access package` }) })
   await panel.getByRole('combobox', { name: 'Package default suffix' }).fill('enk')
   await expect(row('ZC:MM:BUY:ENP')).toContainText('ZC:MM:BUY:ENK')
   await expect(row('ZC:MM:BUY:*')).toContainText('Duplicate name')
@@ -93,7 +93,7 @@ test('package: default suffix, per-role override, validation, copy, CSV, persist
     '﻿"Generated SAP Role Name";"Role Description";"Suffix"',
     '"ZC:FI:VIEW:ENS";"Finance view";"ENS"', '"ZC:MM:BUY:ENO";"Buyer wildcard";"ENO"', '"ZC:MM:BUY:ENS";"Buyer plant";"ENS"', '"ZC:SD:ORD:ENS";"Orders ENK";"ENS"',
   ])
-  await row('ZC:SD:ORD:ENK').getByRole('button', { name: 'Remove ZC:SD:ORD:ENK from cart' }).click()
+  await row('ZC:SD:ORD:ENK').getByRole('button', { name: 'Remove ZC:SD:ORD:ENK from access package' }).click()
   await expect(panel.getByRole('status').first()).toContainText('3 roles · 3 valid names')
   await page.keyboard.press('Escape')
   await nav(page, 'Dashboard'); await nav(page, 'Role Lookup')
@@ -101,7 +101,7 @@ test('package: default suffix, per-role override, validation, copy, CSV, persist
   await page.getByRole('button', { name: 'Access package (3)' }).click()
   await expect(panel.getByRole('combobox', { name: 'Package default suffix' })).toHaveValue('ENS')
   await panel.getByRole('button', { name: 'Clear cart' }).click()
-  await expect(panel).toContainText('The cart is empty')
+  await expect(panel).toContainText('The access package is empty')
   await expect(page.getByRole('button', { name: 'Access package (0)' })).toBeVisible()
 })
 
