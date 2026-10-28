@@ -103,6 +103,14 @@ Every period status can be deleted from the row action menu or the period dialog
 - Reports already issued outside SAP Lens stay valid; their log entries remain, but they cannot be regenerated afterwards. Findings first seen in a deleted
   approved period are classified as new instead of reopened in later comparisons. Other periods and current decisions are never changed (no cascade).
 
+## Filters, tiles and drawer
+
+- Every SoD page (matrices, Access Explorer, Role Conflicts, User Conflicts) uses the same **Filters** sidebar: search, Saved Filters and all filters live there. The toolbar keeps only sort, direction, row mode, Export CSV and Reset.
+- Risk, activity, group, user, role, transaction, business area and criticality fields suggest values taken from the imported evidence (searchable, bounded). A typed value that is not suggested still filters.
+- Risk and Activity matrices show tiles for users, distinct user-risk or user-activity pairs and each review status (Pending, Accepted, Rejected, Outdated; Pending, Approved, Conditional, Removal required, Outdated). Counts cover the whole filtered matrix, not the visible page; a status tile toggles the matching filter.
+- A matrix cell opens the investigation drawer for that one user-risk or user-activity: only the matching activities, role assignments and risk acceptance are listed, with **Show all review items** to widen it. A user row opens everything. The business area reuses the configured module icon and color when it names a module.
+- CSV exports use exactly the filters shown, including assignment validity (active, expired, future, unknown, all).
+
 ## Matrix cells and scope
 
 - Cells show one status pill and one short count: for the Risk Matrix the acceptance status and reviewed/total activities, for the Activity Matrix the review status and ×roles supplying the activity (⧉ marks overlapping coverage). Full wording stays in each cell's accessible name. Criticality and type are in the column tooltip and the investigation, not in the grid.

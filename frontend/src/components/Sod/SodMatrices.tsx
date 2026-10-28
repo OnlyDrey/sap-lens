@@ -3,14 +3,14 @@ import { useQuery } from '@tanstack/react-query'
 import { Users } from 'lucide-react'
 import { downloadFile, scopeParams, sod, EXPORT_NAME, type ActivityCell, type ActivityColumn, type Filters, type GroupCell, type MatrixResult, type RiskCell, type RiskColumn } from '@/api/sod'
 import { MatrixGrid, type MatrixCellView } from '@/components/Shared/MatrixGrid'
-import { ErrorState, EmptyState, LoadingState, MetadataList, Toolbar } from '@/components/Shared/Presentation'
+import { ErrorState, EmptyState, LoadingState } from '@/components/Shared/Presentation'
 import { Select } from '@/components/Shared/Select'
 import { Button } from '@/components/Shared/Button'
 import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
 import { Pagination } from '@/components/Access/Shared'
 import { announceExport } from '@/lib/exportNotice'
 import { SodPill } from '@/lib/sodAppearance'
-import { ContextBar, CoverageNotice, SodFilters, LifecycleBadge, lifecycleView, useSodContext, useSodFilters, useSodSubject } from './SodShared'
+import { ContextBar, CoverageNotice, SodFilters, lifecycleView, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 
 type Risk = MatrixResult<RiskColumn, RiskCell>
 type Activity = MatrixResult<ActivityColumn, ActivityCell>
@@ -103,13 +103,24 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
         : !data ? <LoadingState />
         : <>
           <CoverageNotice info={data} />
-          <Toolbar>
-            <MetadataList items={risk
-              ? [{ label: 'Users with conflicts', value: data.totals.users }, { label: 'Distinct user-risk findings', value: data.totals.user_risk ?? 0 }, { label: 'Risks shown', value: data.totals.risks ?? 0 },
-                ...Object.entries((data as Risk).criticality || {}).map(([key, value]) => ({ label: `Criticality ${key}`, value: `${value.user_risk} findings · ${value.users} users` }))]
-              : [{ label: 'Users with activity evidence', value: data.totals.users }, { label: 'User-activity pairs', value: data.totals.user_activity ?? 0 }, { label: 'Activities shown', value: data.totals.activities ?? 0 }]} />
-          </Toolbar>
-          <ul className="flex flex-wrap items-center gap-2" aria-label="Cell status legend">{legend.map((value) => <li key={value}><LifecycleBadge value={value} /></li>)}</ul>
+          <section className="sod-tiles" aria-label={risk ? 'Risk matrix figures' : 'Activity matrix figures'}>
+            {(risk
+              ? [['Users with conflicts', data.totals.users], ['Distinct user-risk findings', data.totals.user_risk ?? 0], ['Risks shown', data.totals.risks ?? 0]]
+              : [['Users with activity evidence', data.totals.users], ['User-activity pairs', data.totals.user_activity ?? 0], ['Activities shown', data.totals.activities ?? 0]]
+            ).map(([label, value]) => <div className="sod-tile" key={label}><span>{label}</span><strong>{Number(value).toLocaleString()}</strong></div>)}
+            {legend.map((value) => {
+              const filterName = risk ? 'acceptance' : 'activity_decision',
+                active = filters[filterName] === value,
+                view = lifecycleView(value)
+              return (
+                <div className="sod-tile" key={value} data-active={active || undefined} data-tone={value === 'Pending' || value === 'Outdated' ? 'warning' : value === 'Rejected' || value === 'Removal required' ? 'error' : undefined}>
+                  <button type="button" aria-pressed={active} onClick={() => setFilters({ ...filters, [filterName]: active ? '' : value })}>{view.text}{risk ? ' risks' : ' activities'}</button>
+                  <strong>{(data.status_counts?.[value] || 0).toLocaleString()}</strong>
+                </div>
+              )
+            })}
+            {Object.entries((data as Risk).criticality || {}).map(([key, value]) => <div className="sod-tile" key={key}><span>Criticality {key}</span><strong>{value.user_risk.toLocaleString()}</strong><small>{value.users} users</small></div>)}
+          </section>
           <p className="ui-description">{risk ? 'Cells show the risk acceptance status and how many of the risk activities are reviewed (reviewed/total). Criticality and type are in the column tooltip and the investigation.' : 'Scope: activities that contribute to at least one potential conflict (both sides of an enabled, supported risk). Activities a role supplies beyond those are considered in Role Assignment Review. Cells show the activity review status and ×roles supplying it; ⧉ marks overlapping coverage.'}</p>
           <p className="ui-description">Totals count distinct users and distinct {risk ? 'user-risk' : 'user-activity'} pairs. {data.columns_truncated ? 'Showing the first 500 columns; narrow the filters. ' : ''}{groupBy === 'group' ? 'Cells show distinct users per group; select one to list them. ' : 'Select a cell to investigate and review. '}Detected conflicts are potential and derived from imported evidence.</p>
           {data.rows.length

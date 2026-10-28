@@ -604,6 +604,9 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .sod-tile > button:hover { color: var(--accent2); text-decoration: underline; }
 .sod-tile > button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .sod-tile > strong { font-size: 1.5rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.sod-tile[data-active] { border-color: var(--accent2); background: color-mix(in srgb,var(--accent2) 10%,var(--surface)); }
+.sod-tile > small { font-size: 0.75rem; color: var(--muted); }
+.sod-tile[data-tone='warning'] > strong { color: var(--warning); }
 .sod-tile[data-tone='error'] > strong { color: var(--error); }
 .sod-tile[data-tone='error'] { border-color: var(--error); }
 .sod-row-actions { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: 0.25rem; }

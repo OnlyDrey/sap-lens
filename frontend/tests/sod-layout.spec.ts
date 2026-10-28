@@ -13,14 +13,14 @@ test('wide screens show a collapsible filter sidebar that keeps filter state and
   const sidebar = page.getByRole('complementary', { name: 'Filters', exact: true })
   await expect(sidebar).toBeVisible()
   await expect(sidebar.locator('legend').first()).toHaveText('Saved Filters')
-  await sidebar.getByLabel('Risk ID', { exact: true }).fill('R1')
+  await sidebar.getByRole('combobox', { name: 'Risk ID', exact: true }).fill('R1')
   await page.getByRole('button', { name: /^Hide filters/ }).click()
   await expect(sidebar).toBeHidden()
   await page.getByRole('button', { name: /^Filters/ }).click()
-  await expect(sidebar.getByLabel('Risk ID', { exact: true })).toHaveValue('R1')
+  await expect(sidebar.getByRole('combobox', { name: 'Risk ID', exact: true })).toHaveValue('R1')
   await expect(page.getByRole('button', { name: /^Hide filters/ })).toContainText('1')
   await page.getByRole('button', { name: 'Reset', exact: true }).click()
-  await expect(sidebar.getByLabel('Risk ID', { exact: true })).toHaveValue('')
+  await expect(sidebar.getByRole('combobox', { name: 'Risk ID', exact: true })).toHaveValue('')
 })
 
 test('every SoD page has the same toolbar and only the filters it needs', async ({ page }) => {

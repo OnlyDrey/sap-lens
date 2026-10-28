@@ -31,6 +31,7 @@ export interface MatrixResult<Column, Cell> extends ContextInfo {
   limit: number
   totals: { users: number; user_risk?: number; user_activity?: number; risks?: number; activities?: number }
   criticality?: Record<string, { risks: number; user_risk: number; users: number }>
+  status_counts: Record<string, number>
 }
 export interface DecisionEvent {
   event_id: string

@@ -114,6 +114,21 @@ class MatrixTests(GovernanceCase):
         self.assertEqual(result['criticality']['H'], dict(risks=2, user_risk=3, users=2))
         self.assertEqual({column['risk_id']: column['users'] for column in result['columns']}, {'R1': 2, 'R2': 1})
         self.assertNotIn('SYN_C', str(result['rows']))
+        self.assertEqual(result['status_counts'], {'Pending': 3})
+        self.assertEqual(self.get('/api/sod/matrix/risk', group_by='group')['status_counts'], {'Pending': 3})
+        self.assertEqual(self.get('/api/sod/matrix/activity')['status_counts'], {'Pending': 5})
+
+    def test_filter_options_come_from_imported_evidence_and_are_searchable(self):
+        options = lambda field, **params: self.get('/api/sod/filter-options', field=field, **params)
+        self.assertEqual(options('risk')['items'], ['R1', 'R2'])
+        self.assertEqual(options('group')['items'], ['FIN', 'P2P'])
+        self.assertEqual(options('username')['items'], ['SYN_A', 'SYN_B'])
+        self.assertEqual(options('criticality')['items'], ['H'])
+        self.assertEqual(options('tcode', term='x2')['items'], ['X2'])
+        self.assertEqual(options('role', term='role_a')['items'], ['ROLE_A1', 'ROLE_A2', 'ROLE_AB'])
+        self.assertEqual(options('role_suffix')['items'], ['A1', 'A2', 'AB', 'B', 'C'])
+        self.assertEqual(options('risk', limit=1), dict(options('risk', limit=1), items=['R1'], total=2))
+        self.assertEqual(self.client.get('/api/sod/filter-options?field=password', headers=H).status_code, 422)
 
     def test_activity_matrix_shares_activity_across_risks_without_inflation(self):
         result = self.get('/api/sod/matrix/activity')
@@ -162,6 +177,16 @@ class MatrixTests(GovernanceCase):
         self.assertEqual(len(lines), 2)
         self.assertTrue(response.text.startswith('﻿"USERNAME"'))
         self.assertEqual(self.client.get('/api/sod/explorer/lookup/export', headers=H).status_code, 200)
+
+    def test_csv_export_follows_assignment_validity_including_expired(self):
+        expired = user('ROLE_A1', 'ROLE_B')
+        expired['assignments'] = [assignment('ROLE_A1', end='2021-12-31'), assignment('ROLE_B', end='2021-12-31')]
+        cache._cache = snapshot({'SYN_EXPIRED': expired})
+        export = lambda **params: self.client.get('/api/sod/explorer/user_risk/export', params=params, headers=H).text
+        self.assertNotIn('SYN_EXPIRED', export())
+        self.assertIn('SYN_EXPIRED', export(validity='expired'))
+        self.assertIn('SYN_EXPIRED', export(validity='all'))
+        self.assertNotIn('SYN_A', export(validity='expired', username='SYN_EXPIRED').replace('SYN_EXPIRED', ''))
 
 
 class DecisionTests(GovernanceCase):
@@ -439,7 +464,7 @@ class OverviewTests(GovernanceCase):
 
 class SecurityAndPrivacyTests(GovernanceCase):
     GET_PATHS = ['/api/sod/matrix/risk', '/api/sod/matrix/activity', '/api/sod/explorer/user_risk', '/api/sod/explorer/lookup/export', '/api/sod/queue',
-                 '/api/sod/queue/export', '/api/sod/remediation', '/api/sod/remediation/export', '/api/sod/subject?user=x', '/api/sod/overview']
+                 '/api/sod/queue/export', '/api/sod/remediation', '/api/sod/remediation/export', '/api/sod/subject?user=x', '/api/sod/overview', '/api/sod/filter-options']
 
     def test_every_governance_route_requires_the_application_capability(self):
         for path in self.GET_PATHS:

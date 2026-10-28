@@ -45,6 +45,11 @@ def _matrix(kind, group_by, offset, limit, q):
     bundle, _, state, view = scope.scoped(q['context'], q)
     builder = governance.risk_matrix if kind == 'risk' else governance.activity_matrix
     matrix = builder(view, state)
+    key = 'acceptance' if kind == 'risk' else 'decision'
+    status_counts = {}
+    for row in matrix['rows']:
+        for cell in row['cells'].values():
+            status_counts[cell[key]] = status_counts.get(cell[key], 0) + 1
     if group_by == 'group':
         matrix = governance.aggregate_by_group(matrix)
     rows = matrix['rows']
@@ -57,7 +62,7 @@ def _matrix(kind, group_by, offset, limit, q):
     page = [dict(row, cells={name: cell for name, cell in row['cells'].items() if name in keep}) for row in rows[offset:offset + limit]]
     extra = {name: value for name, value in matrix.items() if name not in {'columns', 'rows'}}
     return dict(info(bundle), kind=kind, group_by=group_by, columns=columns, columns_truncated=len(matrix['columns']) > MAX_COLUMNS, rows=page,
-                total_rows=len(rows), offset=offset, limit=limit, **extra)
+                total_rows=len(rows), offset=offset, limit=limit, status_counts=status_counts, **extra)
 
 
 @router.get('/matrix/risk')
@@ -68,6 +73,50 @@ def risk_matrix(q: dict = Depends(scope_query), group_by: Literal['user', 'group
 @router.get('/matrix/activity')
 def activity_matrix(q: dict = Depends(scope_query), group_by: Literal['user', 'group'] = 'user', offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200)):
     return _matrix('activity', group_by, offset, limit, q)
+
+
+OPTION_FIELDS = Literal['risk', 'activity', 'criticality', 'risk_type', 'category', 'group', 'username', 'role', 'role_suffix', 'tcode',
+                        'composite_role', 'single_role']
+
+
+def option_values(model, field):
+    """Distinct values present in the imported evidence for one filter field (unfiltered by the other filters)."""
+    values = set()
+    for user, entry in model.items():
+        if field == 'username':
+            values.add(user)
+        elif field == 'group':
+            values.update(entry['groups'])
+        elif field in {'risk', 'criticality', 'risk_type', 'category'}:
+            for risk_id, finding in entry['findings'].items():
+                definition = finding.get('risk') or {}
+                values.add({'risk': risk_id, 'criticality': finding['criticality'], 'risk_type': definition.get('risk_type', ''),
+                            'category': definition.get('business_category', '')}[field])
+        elif field in {'activity', 'tcode'}:
+            for activity in entry['activities'].values():
+                values.update([activity['activity']] if field == 'activity' else activity['tcodes'])
+        else:
+            for assignment in entry['assignments'].values():
+                if field == 'role':
+                    values.add(assignment['role'])
+                elif field == 'role_suffix':
+                    name = assignment['role']
+                    cut = max(name.rfind(mark) for mark in ':_-')
+                    values.add(name[cut + 1:] if cut >= 0 else '')
+                else:
+                    values.update(assignment['catalogue_roles' if field == 'composite_role' else 'single_roles'])
+    return sorted((value for value in values if value), key=lambda value: (value.casefold(), value))
+
+
+@router.get('/filter-options')
+def filter_options(q: dict = Depends(scope_query), field: OPTION_FIELDS = 'risk', term: str = Query('', max_length=128), limit: int = Query(50, ge=1, le=200)):
+    """Searchable predefined filter values taken from the imported SoD evidence of this context."""
+    bundle = scope.load(q['context'], q['validity'], q['as_of'])
+    values = option_values(scope.model_for(bundle), field)
+    needle = term.strip().casefold()
+    if needle:
+        values = [value for value in values if needle in value.casefold()]
+    return dict(info(bundle), field=field, items=values[:limit], total=len(values))
 
 
 def _explorer(table, q):

@@ -31,7 +31,7 @@ const DECIDED = new Set(['Approved', 'Keep', 'Accepted', 'Conditional', 'Removal
 const progressOf = (rows: { decision?: string; acceptance?: string }[]) => rows.filter((row) => DECIDED.has((row.decision ?? row.acceptance) as string)).length
 
 /** Unified review workspace for one SAP user: three independent review sections, history on demand and read-only supporting evidence. */
-export function SodInvestigation({ context, user, risk, activity, onClose }: { context: string; user: string; risk?: string; activity?: string; onClose: () => void }) {
+export function SodInvestigation({ context, user, risk, activity, onClose, onScope }: { context: string; user: string; risk?: string; activity?: string; onClose: () => void; onScope?: (subject: { user: string }) => void }) {
   const qc = useQueryClient(),
     { change } = useViewHistory(),
     [form, setForm] = useState<FormState | null>(null),
@@ -54,7 +54,12 @@ export function SodInvestigation({ context, user, risk, activity, onClose }: { c
   const pick = (kind: Kind, key: string) => setPicked((previous) => ({ ...previous, [kind]: previous[kind].includes(key) ? previous[kind].filter((value) => value !== key) : [...previous[kind], key] }))
   const item = (key: string, ref: string, version: string): Item => ({ key, user, ref, evidence_version: version })
   const overview = data?.overview
-  const activities = overview?.activities || [], assignments = overview?.assignments || [], risks = overview?.risks || []
+  // A matrix cell opens only that user-risk or user-activity and the evidence behind it; the user row opens everything.
+  const scoped = !!(risk || activity)
+  const allActivities = overview?.activities || [], allAssignments = overview?.assignments || [], allRisks = overview?.risks || []
+  const activities = !scoped ? allActivities : allActivities.filter((row) => (risk ? row.risks.includes(risk) : row.activity === activity))
+  const assignments = !scoped ? allAssignments : allAssignments.filter((row) => (risk ? row.risks.includes(risk) : row.activities.includes(activity as string)))
+  const risks = !scoped ? allRisks : allRisks.filter((row) => (risk ? row.risk_id === risk : activities.some((item) => item.risks.includes(row.risk_id))))
   const total = activities.length + assignments.length + risks.length
   const done = progressOf(activities) + progressOf(assignments) + progressOf(risks)
   const batch = (kind: Kind, heading: string, rows: Item[]) => setForm({ kind, items: rows, heading })
@@ -71,6 +76,7 @@ export function SodInvestigation({ context, user, risk, activity, onClose }: { c
             {!data.frozen && !data.reviewable && <StatusBadge>Read only</StatusBadge>}
           </Toolbar>
           {data.account && <p className="ui-description flex flex-wrap items-center gap-x-2 gap-y-1"><span>Directory match</span><StatusBadge tone={data.account.directory_match === 'matched' ? 'success' : ['ambiguous', 'unmatched'].includes(data.account.directory_match) ? 'warning' : 'neutral'}>{data.account.directory_match.replace(/_/g, ' ')}</StatusBadge><span>AD {data.account.ad_status}{data.account.lock_status ? ` · SAP ${data.account.lock_status}` : ''}</span></p>}
+          {scoped && <p className="ui-description" role="status">Showing only {risk ? `risk ${risk}` : `activity ${activity}`} and the evidence behind it.{onScope && <> <Button variant="ghost" onClick={() => onScope({ user })}>Show all review items for {user}</Button></>}</p>}
           <p className="ui-description">Activity review, role assignment review and risk acceptance are separate decisions. None of them changes what is detected or changes SAP.</p>
         </section>
         {form && <div ref={formRef}><DecisionForm key={form.heading} form={form} subject={data} onCancel={() => setForm(null)} onSaved={async () => { setForm(null); setPicked({ activity: [], assignment: [], acceptance: [] }); await invalidateSod(qc) }} /></div>}

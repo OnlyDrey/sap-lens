@@ -62,13 +62,13 @@ test('opening a role from the investigation panel shows one panel; Back and clos
 
 test('opening a user from the panel and returning keeps the investigation and filters', async ({ page }) => {
   await openSod(page, 'Risk Matrix')
-  await page.getByRole('textbox', { name: 'SAP user group', exact: true }).fill('FIN')
+  await page.getByRole('combobox', { name: 'SAP user group', exact: true }).fill('FIN')
   await cellButton(page, names.a, 'R1').click()
   await page.getByRole('dialog', { name: `${names.a} · R1` }).getByRole('link', { name: `Open SAP user ${names.a}`, exact: true }).click()
   await expect(page.getByRole('heading', { name: 'SAP Identity', exact: true })).toBeVisible()
   await page.goBack()
   await expect(page.getByRole('dialog', { name: `${names.a} · R1` })).toBeVisible()
-  await expect(page.getByRole('textbox', { name: 'SAP user group', exact: true })).toHaveValue('FIN')
+  await expect(page.getByRole('combobox', { name: 'SAP user group', exact: true })).toHaveValue('FIN')
 })
 
 for (const width of [375, 800]) test(`long roles never widen the page or break table actions at ${width}`, async ({ page }) => {

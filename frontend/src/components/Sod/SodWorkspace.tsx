@@ -51,7 +51,7 @@ function SodWorkspaceContent() {
       {view === 'overview' ? <SodOverview /> : view === 'risk-matrix' ? <RiskMatrix /> : view === 'activity-matrix' ? <ActivityMatrix /> : view === 'explorer' ? <SodExplorer />
         : view === 'reviews' ? <SodReviews /> : view === 'periods' ? <SodPeriods /> : <SodReports />}
       {/* One side panel at a time: it yields to the role detail panel and returns on Back. */}
-      {subject && !detailRole && <SodInvestigation context={context} user={subject.user} risk={subject.risk} activity={subject.activity} onClose={() => setSubject(null)} />}
+      {subject && !detailRole && <SodInvestigation context={context} user={subject.user} risk={subject.risk} activity={subject.activity} onClose={() => setSubject(null)} onScope={setSubject} />}
     </section>
   )
 }
