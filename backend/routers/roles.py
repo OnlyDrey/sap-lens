@@ -1,12 +1,71 @@
 """Roles router -- list, search, filter, T-code search, detail."""
 from search_matching import text_matches
+import csv
+from datetime import date
+import io
 from typing import Optional, Literal
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import Response
+from pydantic import Field
+import access_package
 import cache
+from config_models import StrictModel
+from csv_exports import spreadsheet_cell
 from models import RoleSummary, RoleDetail
 from transaction_filters import normalized_tcodes, role_names_for, matching_codes
 
 router = APIRouter(prefix="/api/roles", tags=["Roles"])
+
+PACKAGE_COLUMNS = ['Generated SAP Role Name', 'Role Description', 'Suffix']
+PACKAGE_HEADER = '\ufeff' + ';'.join('"' + column + '"' for column in PACKAGE_COLUMNS) + '\r\n'
+MAX_PACKAGE_ROLES = 200
+
+
+class PackageItem(StrictModel):
+    role: str = Field(min_length=1, max_length=512)
+    suffix: str = Field(default='', max_length=64)
+
+
+class PackageBody(StrictModel):
+    default_suffix: str = Field(default='', max_length=64)
+    items: list[PackageItem] = Field(max_length=MAX_PACKAGE_ROLES)
+
+
+def _package_rows(body):
+    state = cache.get_snapshot()
+    catalogue = {role.agr_name: role.text or '' for role in state.summaries}
+    return access_package.preview(body.default_suffix, [(item.role, item.suffix) for item in body.items], catalogue), catalogue
+
+
+@router.get("/naming")
+def naming():
+    """Organizational suffixes found in the imported role names (final segments used under several stems)."""
+    state = cache.get_snapshot()
+    names = [role.agr_name for role in state.summaries] + [a['role_name'] for a in getattr(state.users, 'assignments', [])]
+    evidence = access_package.naming_evidence(names)
+    return dict(suffixes=[dict(value=value, roles=count) for value, count in sorted(evidence.items(), key=lambda item: (-item[1], item[0]))], evidence_roles=len(names))
+
+
+@router.post("/package/preview")
+def package_preview(body: PackageBody):
+    """Proposed role names for the cart. Never changes SAP access or stored data."""
+    rows, _ = _package_rows(body)
+    return dict(items=rows, exportable=len(access_package.csv_rows(rows)), max_roles=MAX_PACKAGE_ROLES)
+
+
+@router.post("/package/export")
+def package_export(body: PackageBody):
+    rows, _ = _package_rows(body)
+    lines = access_package.csv_rows(rows)
+    if not lines:
+        raise HTTPException(422, 'No valid generated role names to export.')
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, delimiter=';', quoting=csv.QUOTE_ALL, lineterminator='\r\n')
+    writer.writerow(PACKAGE_COLUMNS)
+    for line in lines:
+        writer.writerow([spreadsheet_cell(value) for value in line])
+    return Response('\ufeff' + buffer.getvalue(), media_type='text/csv; charset=utf-8', headers={
+        'Content-Disposition': f'attachment; filename="sap-lens-access-package-{date.today().isoformat()}.csv"', 'Cache-Control': 'no-store'})
 
 @router.get("", response_model=list[RoleSummary])
 def list_roles(

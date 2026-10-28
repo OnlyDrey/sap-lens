@@ -2,10 +2,9 @@ import {useQueries} from '@tanstack/react-query'
 import {fetchRoleDetail} from '@/api/client'
 import {matchingTransactions} from '@/lib/searchMatching'
 import {presentRoleDescription} from '@/lib/rolePresentation'
-import {RoleMetadata} from '@/components/Shared/RoleMetadata'
+import {RoleEntryHeader} from '@/components/Shared/RoleMetadata'
 import {TransactionFilter,useTransactionFilter} from '@/components/Shared/TransactionFilter'
 import {jaccard} from '@/lib/comparisonMetrics'
-import { TransactionCount } from '@/components/Shared/TransactionCount'
 import { ModuleIcon } from '@/components/Modules/ModuleIcon'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -91,7 +90,8 @@ function TCodeTable({ rows }: { rows: ComparisonTCode[] }) {
   )
 }
 
-function SRRow({sr,parentRoleName,patterns=[],spanExpanded=false,mappedRows}:{sr:SingleRoleInfo;parentRoleName:string;patterns?:string[];spanExpanded?:boolean;mappedRows?:ComparisonTCode[]}) {
+/** variant tile: shared single role, expands inside its own tile. variant row: exclusive single role as a compact list row. */
+function SRRow({sr,parentRoleName,patterns=[],variant='tile',mappedRows}:{sr:SingleRoleInfo;parentRoleName:string;patterns?:string[];variant?:'tile'|'row';mappedRows?:ComparisonTCode[]}) {
  const [expanded,setExpanded]=useState(false),[searchExpanded,setSearchExpanded]=useState(true)
  const key=JSON.stringify(patterns),searching=patterns.length>0
  useEffect(()=>setSearchExpanded(true),[key])
@@ -99,13 +99,14 @@ function SRRow({sr,parentRoleName,patterns=[],spanExpanded=false,mappedRows}:{sr
  const {data:detail,isLoading,isError}=useRoleDetail(open?parentRoleName:null)
  const rows=mappedRows||detail?.single_roles.find(row=>row.child_agr===sr.child_agr)?.tcodes||[]
  const visible=matchingTransactions(rows,patterns)
- return <article aria-label={`Single role ${sr.child_agr}`} data-expanded={open} className={`single-role-tile min-w-0 self-start rounded-card border border-line bg-surface ${spanExpanded&&open?'md:col-span-2 xl:col-span-3':''}`}>
+ const Wrapper=variant==='row'?'div':'article'
+ return <Wrapper aria-label={`Single role ${sr.child_agr}`} data-expanded={open} className={variant==='row'?'single-role-row ui-list-row min-w-0':'single-role-tile min-w-0 self-start rounded-card border border-line bg-surface'}>
   <div className="flex min-w-0 items-start gap-2 p-3">
    <button type="button" className="role-expand" aria-label={`Expand single role ${sr.child_agr}`} aria-expanded={open} onClick={()=>searching?setSearchExpanded(value=>!value):setExpanded(value=>!value)}>{open?<ChevronDown size={16}/>:<ChevronRight size={16}/>}</button>
-   <div className="min-w-0 flex-1 space-y-2"><RoleMetadata code={sr.function_key} name={sr.module_name} description={sr.child_agr_text}/><RoleIdentifier value={sr.child_agr}/><div className="flex items-center gap-2"><TransactionCount count={sr.tcode_count}/>{searching&&<span className="text-xs text-muted">{visible.length} matching transactions</span>}</div></div>
+   <div className="min-w-0 flex-1"><RoleEntryHeader code={sr.function_key} name={sr.module_name} description={sr.child_agr_text} tcodeCount={sr.tcode_count} identifier={sr.child_agr}>{searching&&<span className="text-xs text-muted">{visible.length} matching transactions</span>}</RoleEntryHeader></div>
   </div>
   {open&&<div role="region" aria-label={`Transactions for ${sr.child_agr}`} tabIndex={0} className="min-w-0 overflow-x-auto border-t border-line">{isLoading?<p role="status" className="p-3 text-sm">Loading transactions…</p>:isError?<p role="alert" className="p-3">Transaction evidence unavailable; close and reopen to retry.</p>:visible.length?<TCodeTable rows={visible}/>:<p className="p-3 text-sm text-muted">{searching?'No matching transactions.':'No transaction mappings supplied.'}</p>}</div>}
- </article>
+ </Wrapper>
 }
 
 function PairModal({
@@ -420,6 +421,7 @@ function ExclusiveColumn({role,rows,patterns}:{role:ComparisonRole;rows:SingleRo
                   sr={sr}
                   parentRoleName={role.agr_name}
                   patterns={patterns}
+                  variant="row"
                 />
               ))}
             </div>
@@ -579,7 +581,7 @@ export function ComparisonView({ roleNames, onBack }: Props) {
                 )
                 : (
                   <>
-                    {selectRows(data.shared_single_roles).map(sr => <SRRow key={sr.child_agr} sr={sr} parentRoleName={roleNames[0]} patterns={patterns} mappedRows={searching?sharedTransactions(sr):undefined} spanExpanded/>)}
+                    {selectRows(data.shared_single_roles).map(sr => <SRRow key={sr.child_agr} sr={sr} parentRoleName={roleNames[0]} patterns={patterns} mappedRows={searching?sharedTransactions(sr):undefined}/>)}
                   </>
                 )}
             </div>

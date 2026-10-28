@@ -433,10 +433,10 @@ for (const theme of ['light', 'dark'] as const) for (const width of [1280, 600])
       const expand = entry.getByRole('button', { name: 'Expand single role ZS:VIEW', exact: true })
       await expand.press('Enter')
       await expect(expand).toHaveAttribute('aria-expanded', 'true')
-      const description = entry.locator('.role-metadata-title'), identifier = entry.locator('.single-role-heading-main .role-identifier')
-      const metadataBox = (await entry.locator('.role-module-metadata').boundingBox())!, identifierBox = (await identifier.boundingBox())!
-      expect(metadataBox.x + metadataBox.width).toBeLessThanOrEqual(identifierBox.x + 1)
-      expect(metadataBox.y + metadataBox.height / 2).toBeCloseTo(identifierBox.y + identifierBox.height / 2, 0)
+      const description = entry.locator('.role-entry-description'), identifier = entry.locator('.single-role-heading-main .role-identifier')
+      const metadataBox = (await entry.locator('.role-entry-module').boundingBox())!, descriptionBox = (await description.boundingBox())!, identifierBox = (await identifier.boundingBox())!
+      expect(metadataBox.x + metadataBox.width).toBeLessThanOrEqual(descriptionBox.x + 1)
+      expect(identifierBox.y).toBeGreaterThanOrEqual(metadataBox.y + metadataBox.height - 1)
       const headingBox = (await entry.locator('.single-role-heading').boundingBox())!
       expect(identifierBox.x + identifierBox.width).toBeLessThanOrEqual(headingBox.x + headingBox.width)
       await expect(description).not.toHaveCSS('text-overflow', 'ellipsis')

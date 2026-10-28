@@ -96,7 +96,7 @@ test('single-role zebra surfaces remain unchanged on hover without inner roundin
  expect(primary).not.toBe(secondary);await expect(entries.nth(0)).toHaveCSS('border-radius','0px');await expect(entries.nth(1)).toHaveCSS('border-radius','0px')
  await entries.nth(0).hover();await expect(entries.nth(0)).toHaveCSS('background-color',primary)
  await entries.nth(1).hover();await expect(entries.nth(1)).toHaveCSS('background-color',secondary)
- await expect(entries.nth(0).locator('.role-module-metadata .transaction-count')).toHaveText('1')
+ await expect(entries.nth(0).locator('.role-entry-module .transaction-count')).toHaveText('1')
 })
 test('large matrix contains scrolling, empty cells and high counts in both themes',async({page,request},info)=>{
  const cells=Array.from({length:200},(_,i)=>({document_type:'PR',user_group:'SYN_GROUP',release_group:`G${Math.floor(i/20)}`,release_strategy:String(i%20).padStart(2,'0'),user_count:i===0?99999:i+1})).filter((_,i)=>i!==1)

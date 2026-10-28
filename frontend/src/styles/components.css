@@ -674,3 +674,10 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .sod-heatmap button.sod-heat-cell:hover { outline:1px solid var(--accent2); }
 .sod-heatmap button.sod-heat-cell:focus-visible { outline:2px solid var(--focus); outline-offset:1px; }
 .sod-heatmap .sod-heat-empty { color:var(--muted); }
+.role-entry-header { display:grid; grid-template-columns:auto minmax(0,1fr); gap:0.25rem 0.75rem; align-items:start; min-width:0; }
+.role-entry-module { display:grid; gap:0.25rem; justify-items:start; }
+.role-entry-module-line { display:flex; align-items:center; gap:0.5rem; }
+.role-entry-description { margin:0; min-width:0; font-size:var(--font-label); overflow-wrap:anywhere; }
+.role-entry-identifier { grid-column:1/-1; display:flex; flex-wrap:wrap; align-items:center; gap:0.5rem; min-width:0; }
+.single-role-row { display:block; }
+.single-role-row[data-expanded='true'] { background:color-mix(in srgb,var(--accent2) 6%,var(--surface)); }

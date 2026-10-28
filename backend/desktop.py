@@ -24,6 +24,8 @@ def _save_csv_dialog(owner, token, filename, content, kind):
         raise ValueError('Application request is not authorized.')
     import re
     pattern = (r'sap-lens-refresh-changes-report-\d{4}-\d{2}-\d{2}\.csv' if kind == 'changes' else r'sap-lens-[A-Za-z0-9_-]{1,100}-[a-z]+-\d{4}-\d{2}-\d{2}\.csv')
+    if kind == 'package':
+        pattern = r'sap-lens-access-package-\d{4}-\d{2}-\d{2}\.csv'
     if kind == 'sod':
         pattern = r'sap-lens-sod-((users|roles)-findings|reviews|actions|catalogue|explorer-(user-risk|user-activity|access-list|lookup)|group-(risk|activity)-heatmap|review-queue|access-remediation)-\d{4}-\d{2}-\d{2}\.csv'
     if not isinstance(filename, str) or not re.fullmatch(pattern, filename):
@@ -32,6 +34,9 @@ def _save_csv_dialog(owner, token, filename, content, kind):
     if kind=='access' and re.fullmatch(r'sap-lens-(user-directory|release-roles)-review-\d{4}-\d{2}-\d{2}\.csv',filename):
         from csv_exports import ASSIGNMENT_HEADER
         header=ASSIGNMENT_HEADER
+    if kind == 'package':
+        from routers.roles import PACKAGE_HEADER
+        header = PACKAGE_HEADER
     if kind == 'sod':
         if filename.startswith('sap-lens-sod-catalogue-'):
             from routers.sod import CATALOGUE_HEADER
@@ -238,6 +243,9 @@ class NativeDialogs:
 
     def save_sod_csv(self, token: str, filename: str, content: str):
         return _save_csv_dialog(self, token, filename, content, 'sod')
+
+    def save_role_package_csv(self, token: str, filename: str, content: str):
+        return _save_csv_dialog(self, token, filename, content, 'package')
 
     def save_refresh_changes_csv(self, token: str, filename: str, content: str):
         return _save_csv_dialog(self, token, filename, content, 'changes')

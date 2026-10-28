@@ -8,6 +8,9 @@ Desktop: the owned `http://127.0.0.1:<selected-port>` origin, preferring `18743`
 | GET | `/api/settings` | Current file location, latest safe load error and loading flag |
 | POST | `/api/settings` | Validate/load an absolute CSV path and atomically save its location |
 | GET | `/api/roles` | Role summaries; optional `function_key`, `search`, `tcode` parameters |
+| GET | `/api/roles/naming` | Organizational suffixes detected in the imported role names |
+| POST | `/api/roles/package/preview` | Proposed access package: generated names, validation and catalogue matches for up to 200 roles (read-only) |
+| POST | `/api/roles/package/export` | Package CSV (`sap-lens-access-package-DATE.csv`) of the valid generated names |
 | GET | `/api/roles/{agr_name}` | Role details with single roles and transactions |
 | GET | `/api/modules` | Distinct module labels |
 | POST | `/api/compare` | Compare two to five distinct roles |
@@ -64,6 +67,8 @@ Native additions `close_application`, `open_logs` and `export_diagnostics` requi
 
 
 ## Global user/release record navigation
+
+`GET /api/access/users` also accepts `missing_roles` (repeatable, up to 20 catalogue roles) with `missing_mode=any|all` to list users lacking at least one or every role; the export follows the same filters.
 
 `GET /api/access/users` and `GET /api/access/releases` accept optional `anchor`
 (maximum 512 characters). Supply the same filters, `sort` and `descending` as the

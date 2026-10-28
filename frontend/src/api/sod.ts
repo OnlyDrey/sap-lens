@@ -180,7 +180,7 @@ async function readLimited(response: Response, limit: number): Promise<Uint8Arra
 }
 
 /** Fetch a server-generated file and save it through the browser or the guarded native dialog. Returns the saved name, or '' when cancelled. */
-export async function downloadFile(path: string, options: { method?: 'GET' | 'POST'; body?: unknown; params?: URLSearchParams; namePattern: RegExp; kind: 'csv' | 'document' }): Promise<string> {
+export async function downloadFile(path: string, options: { method?: 'GET' | 'POST'; body?: unknown; params?: URLSearchParams; namePattern: RegExp; kind: 'csv' | 'document'; nativeCsv?: 'save_sod_csv' | 'save_role_package_csv' }): Promise<string> {
   const response = await fetch(options.params ? `${path}?${options.params}` : path, {
     method: options.method || 'GET',
     headers: { 'Content-Type': 'application/json', 'X-SAP-Lens': applicationToken() },
@@ -198,10 +198,11 @@ export async function downloadFile(path: string, options: { method?: 'GET' | 'PO
   if (window.pywebview) {
     const api = window.pywebview.api
     if (options.kind === 'csv') {
-      if (!api.save_sod_csv) throw Error('Update the desktop application for SoD CSV export.')
+      const save = api[options.nativeCsv || 'save_sod_csv']
+      if (!save) throw Error('Update the desktop application for CSV export.')
       const text = new TextDecoder('utf-8', { fatal: true })
       const content = blocks.map((block, index) => text.decode(block, { stream: index < blocks.length - 1 })).join('')
-      return (await api.save_sod_csv(applicationToken(), name, '﻿' + content.replace(/^﻿/, ''))) ? name : ''
+      return (await save(applicationToken(), name, '﻿' + content.replace(/^﻿/, ''))) ? name : ''
     }
     if (!api.save_sod_document) throw Error('Update the desktop application for SoD document export.')
     const blob = new Blob(blocks as BlobPart[])

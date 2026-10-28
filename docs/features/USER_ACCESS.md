@@ -37,6 +37,10 @@ never automatically mean active. Account validity/lock does not alter assignment
 assignment table and do not filter the profile. Missing ends differ from the real
 SAP maximum 31.12.9999. Display is DD.MM.YYYY; API/export comparisons use date-only ISO.
 
+## Users lacking roles
+
+**Roles the user must lack** selects up to 20 catalogue roles. The operator is always shown: **Missing ANY** lists users who lack at least one selected role, **Missing ALL** users who lack every selected role. With transactions, the **Exclude matching transactions** checkbox gives the same two readings (AND is Missing ANY, OR is Missing ALL). Only current, eligible assignments count (expired ones follow **Show expired assignments**), and only users whose assignments are all mapped to catalogue roles are listed; a user with no assignment evidence or an unmapped role is never reported as lacking access. The filter combines with the other directory filters, Saved Filters and the CSV export.
+
 ## Investigation and export
 
 Open a matched catalogue role for relationships and transactions. Role or T-code

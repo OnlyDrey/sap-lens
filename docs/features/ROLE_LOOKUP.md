@@ -109,11 +109,20 @@ Transaction search appears first visually and in keyboard order; role text searc
 
 Role Comparison summaries use symmetric Jaccard similarity: shared / (A + B − shared), separately for single roles and mapped transactions. Empty unions display 0%, conveying no observed shared evidence. Matrix percentages remain explicitly directional (percent of the row role); the cell title includes both directions and Jaccard. Subsets can have 100% containment and less than 100% similarity. Most similar/distinct use the same symmetric metric, with deterministic identifier ordering for ties; equally scored pairs have equal similarity, not different risk. Exclusive panels size independently.
 
+## Add to cart: proposed access package
+
+Each Role Lookup tile has two independent round toggles: **Add to cart** (shopping cart) and **Add to comparison** (scales). Comparison selection and the cart never affect each other. **Access package (N)** opens the panel; the cart is kept for the browser session only and holds role names, never user data.
+
+The package turns catalogue roles into proposed SAP role names. It never assigns roles or changes SAP.
+
+- **Suffixes.** A package default suffix applies to every role; a role-specific suffix overrides it, and changing the default never changes an override. The suffix replaces a catalogue wildcard (`ZC:MM:BUY:*` becomes `ZC:MM:BUY:ENP`) or the existing organizational suffix (`ZC:MM:BUY:ENP` becomes `ZC:MM:BUY:ENS`). Known organizational suffixes are detected from the imported role names (a final segment of business roles used under at least two stems, for example ENP, ENK, ENS, ENO); none is hard-coded.
+- **Validation.** Syntax (A-Z, 0-9, underscore, hyphen, up to 16 characters), generated names (A-Z, 0-9, `_ : / . -`, up to 30 characters), duplicates (the first keeps the name), the catalogue match of each generated name (exists, covered by a pattern, ambiguous, or not in the catalogue) and ambiguous sources. A pattern with a partial segment (`ZC:SD:ORD:EN*`) only accepts a suffix that starts with that segment. A final segment that is not a known suffix is reported as ambiguous and is rewritten only when the role has an explicit suffix, with a warning. Ambiguous identifiers are never rewritten silently.
+- **Copy and export.** Each generated name and the source role have a copy button; **Copy all names** copies the valid names. **Export CSV** has the columns Generated SAP Role Name, Role Description and Suffix, sorted by name, without duplicates or invalid rows, semicolon separated, UTF-8 with BOM and protected against spreadsheet formulas.
+
 ## Single-role comparison
 
 Role Comparison keeps the high-level single-role and mapped-transaction similarity
-metrics, with responsive Shared by all and Exclusive per composite tiles (maximum
-three columns). Expand a tile to inspect transaction evidence. Search comparison
+metrics, with responsive Shared by all tiles (maximum three columns) and Exclusive per composite lists. A shared single role expands vertically inside its own tile, pushing later content down, and exclusive single roles are compact list rows that expand beneath the row. Every single-role entry (also in Role Details) shows the module icon and code with the transaction count below, the description beside them and the copyable role identifier last. Expand an entry to inspect transaction evidence. Search comparison
 transactions accepts exact codes or explicit SAP `*` patterns and filters both
 component tiles and transaction rows. Original totals remain unchanged; filtered
 shared mappings retain their observed parent catalogue sources. The similarity

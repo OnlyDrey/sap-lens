@@ -2,7 +2,7 @@ import { Button } from '@/components/Shared/Button'
 import { TransactionCount } from '@/components/Shared/TransactionCount'
 import { ModuleIcon } from '@/components/Modules/ModuleIcon'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
-import { Plus, Check, ArrowRight, Layers } from 'lucide-react'
+import { Scale, ShoppingCart, ArrowRight, Layers } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { RoleSummary } from '@/api/types'
 
@@ -10,13 +10,28 @@ interface Props {
   role: RoleSummary
   isSelected: boolean
   onSelect: (n: string) => void
+  inCart: boolean
+  onCart: (n: string) => void
   onClick: (n: string) => void
+}
+
+/** Round selection toggle shared by comparison and the access package cart so both read the same. */
+function ToggleButton({ active, label, onToggle, children }: { active: boolean; label: string; onToggle: () => void; children: React.ReactNode }) {
+  return (
+    <button data-np type="button" onClick={e => { e.stopPropagation(); onToggle() }} aria-label={label} aria-pressed={active}
+      className={cn('w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--focus)] hover:scale-110 active:scale-95')}
+      style={active
+        ? { backgroundColor:'var(--accent)', color:'var(--on-accent)', border:'none' }
+        : { backgroundColor:'var(--surface2)', color:'var(--muted)', border:'1.5px solid var(--border)' }}>
+      {children}
+    </button>
+  )
 }
 
 const cleanTitle = (t: string | null) =>
   t ? t.replace(/^[A-Z]{2,3}\s*-\s*/, '').trim() : ''
 
-export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
+export function RoleCard({ role, isSelected, onSelect, inCart, onCart, onClick }: Props) {
   const title   = cleanTitle(role.text)
   const modName = role.module_name ?? role.function_key ?? ''
   const hasSR   = (role.single_role_count ?? 0) > 0
@@ -30,7 +45,7 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
   return (
     <article
       onClick={handleCardClick}
-      aria-label={`${title || role.agr_name}${isSelected ? ', selected' : ''}`}
+      aria-label={`${title || role.agr_name}${isSelected ? ', selected' : ''}${inCart ? ', in cart' : ''}`}
       className={cn('role-card rounded-2xl cursor-pointer transition-all duration-150 flex flex-col')}
       style={{
         backgroundColor: 'var(--surface)',
@@ -52,17 +67,14 @@ export function RoleCard({ role, isSelected, onSelect, onClick }: Props) {
               {modName}{role.module_ambiguous?' · Ambiguous':''}
             </span>
           </div>
-          <button data-np
-            onClick={e => { e.stopPropagation(); onSelect(role.agr_name) }}
-            aria-label={isSelected ? 'Remove from comparison' : 'Add to comparison'}
-            className={cn('w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--focus)] hover:scale-110 active:scale-95')}
-            style={isSelected
-              ? { backgroundColor:'var(--accent)', color:'var(--on-accent)', border:'none' }
-              : { backgroundColor:'var(--surface2)', color:'var(--muted)', border:'1.5px solid var(--border)' }}>
-            {isSelected
-              ? <Check className="w-3.5 h-3.5" strokeWidth={3} />
-              : <Plus  className="w-3.5 h-3.5" strokeWidth={2.5} />}
-          </button>
+          <div className="flex items-center gap-1.5">
+            <ToggleButton active={inCart} label={inCart ? 'Remove from cart' : 'Add to cart'} onToggle={() => onCart(role.agr_name)}>
+              <ShoppingCart className="w-3.5 h-3.5" strokeWidth={2.5} />
+            </ToggleButton>
+            <ToggleButton active={isSelected} label={isSelected ? 'Remove from comparison' : 'Add to comparison'} onToggle={() => onSelect(role.agr_name)}>
+              <Scale className="w-3.5 h-3.5" strokeWidth={2.5} />
+            </ToggleButton>
+          </div>
         </div>
 
         {/* Role title */}

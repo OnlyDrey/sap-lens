@@ -342,6 +342,16 @@ class DesktopTests(unittest.TestCase):
             self.assertTrue(bridge.save_user_access_csv('synthetic-capability',name,content));self.assertEqual(target.read_bytes(),content.encode('utf-8'))
         with self.assertRaises(ValueError):bridge.save_user_access_csv('synthetic-capability','sap-lens-unrelated-review-2026-10-26.csv',content)
 
+    def test_role_package_export_uses_the_native_save_contract(self):
+        from routers.roles import PACKAGE_HEADER
+        bridge=desktop.NativeDialogs('synthetic-capability');bridge._window=self.window
+        target=self.root/'Synthetic package.csv';self.window.create_file_dialog.return_value=[str(target)]
+        name='sap-lens-access-package-2026-10-28.csv';content=PACKAGE_HEADER+'"ZC:MM:BUY:ENS";"Synthetic";"ENS"\r\n'
+        with self.assertRaises(ValueError):bridge.save_role_package_csv('wrong',name,content)
+        with self.assertRaises(ValueError):bridge.save_role_package_csv('synthetic-capability',name,'unrelated header')
+        with self.assertRaises(ValueError):bridge.save_role_package_csv('synthetic-capability','sap-lens-sod-explorer-user-risk-2026-10-28.csv',content)
+        self.assertTrue(bridge.save_role_package_csv('synthetic-capability',name,content));self.assertEqual(target.read_bytes(),content.encode('utf-8'))
+
     def test_sod_group_heatmap_export_uses_the_native_save_contract(self):
         from routers.sod_governance import HEATMAP_COLUMNS, csv_header
         bridge=desktop.NativeDialogs('synthetic-capability');bridge._window=self.window

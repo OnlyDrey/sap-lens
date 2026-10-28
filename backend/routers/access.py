@@ -123,6 +123,8 @@ def directory_filters(
     status: Status = "",
     show_expired: bool = False,
     exclude_transactions: bool = Query(False, description="Reverse the transaction filter across the user's eligible role assignments"),
+    missing_roles: list[str] = Query(default=[], max_length=20, description="Catalogue roles the user must lack"),
+    missing_mode: Literal["any", "all"] = Query("any", description="any = lacks at least one selected role; all = lacks every selected role"),
     sort: Literal[
         "username",
         "group",
@@ -134,10 +136,34 @@ def directory_filters(
     ] = "username",
     descending: bool = False,
 ):
-    return dict(assignment_band=assignment_band,search=search,group=group,role=role,tcode=tcode,tcodes=tcodes,transaction_mode=transaction_mode,status=status,show_expired=show_expired,exclude_transactions=exclude_transactions,sort=sort,descending=descending)
+    return dict(assignment_band=assignment_band,search=search,group=group,role=role,tcode=tcode,tcodes=tcodes,transaction_mode=transaction_mode,status=status,show_expired=show_expired,exclude_transactions=exclude_transactions,missing_roles=missing_roles,missing_mode=missing_mode,sort=sort,descending=descending)
 
 
-def directory_selection(snapshot, *, search,group,role,tcode,tcodes,transaction_mode,status,show_expired,sort,descending,today=None,assignment_band="",exclude_transactions=False):
+def missing_users(snapshot, roles, mode, group, status, show_expired, today):
+    """Users whose current eligible assignments are all mapped to catalogue roles and lack the selected roles.
+
+    any = lacks at least one selected role, all = lacks every selected role. A user with no eligible assignment or with an
+    unmapped/ambiguous one is not listed: absence cannot be concluded from incomplete evidence."""
+    state = snapshot.users
+    wanted = {normalize_role(name) for name in roles}
+    if not snapshot.roles:
+        return {}
+    eligible = defaultdict(list)
+    for a in state.assignments:
+        if a["scope"] != "other" and relevant(a, status, show_expired, today) and (not group or group == a["user_group"]):
+            eligible[a["user_key"]].append(a)
+    found = {}
+    for key, entries in eligible.items():
+        if any(a["match_status"] not in {"exact", "wildcard"} for a in entries):
+            continue
+        held = {normalize_role(a["role_name"]) for a in entries} | {normalize_role(name) for a in entries for name in a["catalogue_roles"]}
+        lacking = wanted - held
+        if (mode == "any" and lacking) or (mode == "all" and lacking == wanted):
+            found[key] = entries
+    return found
+
+
+def directory_selection(snapshot, *, search,group,role,tcode,tcodes,transaction_mode,status,show_expired,sort,descending,today=None,assignment_band="",exclude_transactions=False,missing_roles=(),missing_mode="any"):
     state = snapshot.users
     wanted_codes = normalized_tcodes([tcode] + tcodes if tcode else tcodes)
     candidates = matching_entries(state, role)
@@ -164,9 +190,14 @@ def directory_selection(snapshot, *, search,group,role,tcode,tcodes,transaction_
                 evidence[key] = [a for a in entries if any(a['id'] in ids for ids in code_ids.values())]
     elif wanted_codes and exclude_transactions:
         evidence.clear()  # without a catalogue no transaction evidence exists, so absence cannot be concluded
+    missing = missing_users(snapshot, missing_roles, missing_mode, group, status, show_expired, today) if missing_roles else None
     result = []
     term = search.strip()
     for key, user in state.users.items():
+        if missing is not None:
+            if key not in missing or (role and key not in evidence):
+                continue
+            evidence[key] = evidence.get(key) or missing[key]
         if assignment_band:
             count=current_role_count(user,today)
             band='0' if count==0 else '1–5' if count<=5 else '6–20' if count<=20 else '21+'

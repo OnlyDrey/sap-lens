@@ -44,7 +44,7 @@ export function useTransactionFilter(resetKey?: string | null) {
 function excludeHelp(subject: 'roles' | 'users' | undefined, mode: 'and' | 'or' | undefined) {
   const users = subject === 'users',
     unlisted = users ? 'Users with unmapped roles are not listed.' : 'Roles without mappings are not listed.'
-  return `${users ? 'Users' : 'Roles'} ${mode === 'or' ? 'with none of these codes' : 'lacking at least one of these codes'}. ${unlisted}`
+  return `${mode === 'or' ? 'Missing ALL' : 'Missing ANY'}: ${users ? 'users' : 'roles'} ${mode === 'or' ? 'with none of these codes' : 'lacking at least one of these codes'}. ${unlisted}`
 }
 
 export function TransactionFilter({

@@ -112,7 +112,7 @@ const accessibleName = (page: Page) => page.evaluate(() => {
 })
 
 test.describe('User Directory keyboard order', () => {
-  const order = ['Search users', 'SAP User Group', 'Filter users by role', 'Show expired assignments', 'Filter users by transaction', 'Exclude matching transactions', 'Sort users', 'Descending', 'Clear filters']
+  const order = ['Search users', 'SAP User Group', 'Filter users by role', 'Show expired assignments', 'Filter users by transaction', 'Exclude matching transactions', 'Roles the user must lack', 'Sort users', 'Descending', 'Clear filters']
   for (const width of [375, 800, 1280, 1600]) test(`Tab and Shift+Tab follow the reading order at ${width}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })
     await page.goto('/#session=browser-test-session')

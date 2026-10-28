@@ -186,7 +186,7 @@ test.describe('User Access', () => {
     await expect.poll(() => listed(page)).toEqual(['U2', 'U3', 'U4'])
     await group.getByRole('button', { name: 'OR', exact: true }).click()
     await expect.poll(() => listed(page)).toEqual(['U3', 'U4'])
-    await expect(page.locator('.transaction-help')).toContainText('Users with none of these codes')
+    await expect(page.locator('.transaction-help')).toContainText('Missing ALL: users with none of these codes')
     await exclude(group).uncheck()
     await expect(group.getByRole('button', { name: 'Remove transaction MIGO' })).toBeVisible()
     await expect.poll(() => listed(page)).toEqual(['U1', 'U2'])

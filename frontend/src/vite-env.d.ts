@@ -9,6 +9,7 @@ interface Window {
       save_user_access_csv?: (token: string, filename: string, content: string) => Promise<boolean>
       save_sod_document?: (token: string, filename: string, contentBase64: string) => Promise<boolean>
       save_sod_csv?: (token: string, filename: string, content: string) => Promise<boolean>
+      save_role_package_csv?: (token: string, filename: string, content: string) => Promise<boolean>
       save_refresh_changes_csv?: (token: string, filename: string, content: string) => Promise<boolean>
       open_logs?: (token: string) => Promise<boolean>
       export_diagnostics?: (token: string) => Promise<boolean>

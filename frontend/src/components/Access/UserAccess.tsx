@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/Shared/Presentation'
 import { UsersRound as PageIcon } from 'lucide-react'
 import { useRoles } from '@/hooks/useRoles'
 import { FilterChip } from '@/components/Shared/FilterChip'
-import { Button } from '@/components/Shared/Button'
+import { Button, ButtonGroup } from '@/components/Shared/Button'
 import { SecondaryNavigation, ContentTabs } from '@/components/Shared/Navigation'
 import { UserComparison, type ComparisonContext } from './UserComparison'
 import { SavedFilters } from '@/components/Shared/SavedFilters'
@@ -82,12 +82,16 @@ export function UserAccess({
   const [roleSearch, setRoleSearch] = useState(''), [roleTerm, setRoleTerm] = useState('')
   useEffect(() => { const timer = setTimeout(() => setRoleTerm(roleSearch), 200); return () => clearTimeout(timer) }, [roleSearch])
   const roleOptions = useRoles(undefined, roleTerm)
+  const [missingRoles, setMissingRoles] = useState<string[]>([]), [missingMode, setMissingMode] = useState<'any' | 'all'>('any')
+  const [missingSearch, setMissingSearch] = useState(''), [missingTerm, setMissingTerm] = useState('')
+  useEffect(() => { const timer = setTimeout(() => setMissingTerm(missingSearch), 200); return () => clearTimeout(timer) }, [missingSearch])
+  const missingOptions = useRoles(undefined, missingTerm)
   const directoryTransaction = useTransactionFilter()
   const [transactionMode,setTransactionMode] = useState<'and'|'or'>('and')
   const [excludeTransactions,setExcludeTransactions] = useState(false)
   useEffect(()=>{ directoryTransaction.setChips(initialTcode ? [initialTcode.trim().toUpperCase()] : []) },[initialTcode])
   useEffect(()=>{ if (!directoryTransaction.codes.length) setTransactionMode('and') },[directoryTransaction.key])
-  const clearEvidence = () => {setRole(''); directoryTransaction.clear(); setTransactionMode('and'); setExcludeTransactions(false)}
+  const clearEvidence = () => {setRole(''); directoryTransaction.clear(); setTransactionMode('and'); setExcludeTransactions(false); setMissingRoles([]); setMissingMode('any')}
   const [term, setTerm] = useState("");
   useEffect(() => {
     const t = setTimeout(() => setTerm(search), 250);
@@ -95,8 +99,8 @@ export function UserAccess({
   }, [search]);
   useEffect(() => {
     setOffset(0);
-  }, [term, group, sort, descending, role, directoryTransaction.deferredKey, transactionMode, excludeTransactions, expired, assignmentBand]);
-  const filters = { assignment_band:assignmentBand, search: term, group, sort, descending, role, tcodes: directoryTransaction.deferredCodes, transaction_mode: transactionMode, exclude_transactions: excludeTransactions, show_expired: expired };
+  }, [term, group, sort, descending, role, directoryTransaction.deferredKey, transactionMode, excludeTransactions, missingRoles, missingMode, expired, assignmentBand]);
+  const filters = { assignment_band:assignmentBand, search: term, group, sort, descending, role, tcodes: directoryTransaction.deferredCodes, transaction_mode: transactionMode, exclude_transactions: excludeTransactions, missing_roles: missingRoles, missing_mode: missingMode, show_expired: expired };
   const navigation = useRecordNavigation('users', filters, selected, setSelected);
   const result = useQuery({
     queryKey: [
@@ -109,6 +113,8 @@ export function UserAccess({
       directoryTransaction.deferredCodes,
       transactionMode,
       excludeTransactions,
+      missingRoles,
+      missingMode,
       offset,
       expired,
     ],
@@ -153,7 +159,7 @@ export function UserAccess({
     <section aria-label="User Access" className="space-y-4">
       {modeButtons}<PageHeader title="User Access" icon={<PageIcon size={22} aria-hidden="true"/>}/>
       <EvidenceNote />
-      <SavedFilters showClear={false} view="users" state={{assignmentBand,search,group,sort,descending,role,tcodes:directoryTransaction.codes,transactionMode,transactionExclude:excludeTransactions,expired}} apply={s=>{setAssignmentBand(typeof s.assignmentBand==='string'?s.assignmentBand:'');if(typeof s.search==='string')setSearch(s.search);if(typeof s.group==='string')setGroup(s.group);if(typeof s.sort==='string'&&['username','group','first_name','last_name','email','account_status','relevant_roles'].includes(s.sort))setSort(s.sort);if(typeof s.descending==='boolean')setDescending(s.descending);if(typeof s.role==='string')setRole(s.role);if(Array.isArray(s.tcodes)){directoryTransaction.setInput('');directoryTransaction.setChips(s.tcodes)};if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);setExcludeTransactions(s.transactionExclude===true);if(typeof s.expired==='boolean')setExpired(s.expired)}} clear={()=>{setAssignmentBand('');setSearch('');setGroup('');setSort('username');setDescending(false);setRole('');directoryTransaction.clear();setTransactionMode('and');setExcludeTransactions(false);setExpired(false)}}/>
+      <SavedFilters showClear={false} view="users" state={{assignmentBand,search,group,sort,descending,role,tcodes:directoryTransaction.codes,transactionMode,transactionExclude:excludeTransactions,missingRoles,missingMode,expired}} apply={s=>{setMissingRoles(Array.isArray(s.missingRoles)?s.missingRoles.filter((name:unknown):name is string=>typeof name==='string').slice(0,20):[]);setMissingMode(s.missingMode==='all'?'all':'any');setAssignmentBand(typeof s.assignmentBand==='string'?s.assignmentBand:'');if(typeof s.search==='string')setSearch(s.search);if(typeof s.group==='string')setGroup(s.group);if(typeof s.sort==='string'&&['username','group','first_name','last_name','email','account_status','relevant_roles'].includes(s.sort))setSort(s.sort);if(typeof s.descending==='boolean')setDescending(s.descending);if(typeof s.role==='string')setRole(s.role);if(Array.isArray(s.tcodes)){directoryTransaction.setInput('');directoryTransaction.setChips(s.tcodes)};if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);setExcludeTransactions(s.transactionExclude===true);if(typeof s.expired==='boolean')setExpired(s.expired)}} clear={()=>{setAssignmentBand('');setSearch('');setGroup('');setSort('username');setDescending(false);setRole('');directoryTransaction.clear();setTransactionMode('and');setExcludeTransactions(false);setExpired(false)}}/>
 
       <div className="investigation-filters user-filters"><fieldset><legend>User directory</legend><div className="directory-filter-grid">
         <Filter label="Search users">
@@ -182,6 +188,18 @@ export function UserAccess({
       <section className="directory-transaction" aria-label="User transaction filter">
         <TransactionFilter label="Filter users by transaction" filter={directoryTransaction} mode={transactionMode} onModeChange={setTransactionMode} exclude={excludeTransactions} onExcludeChange={setExcludeTransactions} subject="users" showClear={false} chipPrefix="Transaction: "/>
 
+      </section>
+      <section className="directory-missing grid min-w-0 gap-2" aria-label="Users lacking roles">
+        <Filter label="Roles the user must lack">
+          <Combobox label="Roles the user must lack" value="" options={(missingOptions.data || []).slice(0,100).map(item=>item.agr_name).filter(name=>!missingRoles.includes(name))} onChange={name=>{if(name&&!missingRoles.includes(name)&&missingRoles.length<20)setMissingRoles([...missingRoles,name])}} onSearch={setMissingSearch} allowCustom={false} serverFiltered loading={missingOptions.isFetching} hasMore={(missingOptions.data?.length||0)>100} placeholder="Add a catalogue role to find users lacking it"/>
+        </Filter>
+        {missingRoles.length>0&&<>
+          <div className="flex flex-wrap items-center gap-2">
+            <ButtonGroup label="Missing role operator" value={missingMode} onChange={value=>setMissingMode(value==='all'?'all':'any')} options={[{value:'any',label:'Missing ANY'},{value:'all',label:'Missing ALL'}]}/>
+            {missingRoles.map(name=><FilterChip key={name} removeLabel={`Remove missing role ${name}`} onRemove={()=>setMissingRoles(missingRoles.filter(value=>value!==name))}>Lacks: {name}</FilterChip>)}
+          </div>
+          <p className="transaction-help text-xs text-[var(--muted)]" role="status">{missingMode==='all'?'Missing ALL: users lacking every selected role.':'Missing ANY: users lacking at least one selected role.'} Only users whose current assignments are all mapped to catalogue roles are listed; missing or unmapped evidence is never read as missing access.</p>
+        </>}
       </section>
         <div className="directory-sort"><Filter label="Sort users">
           <Select aria-label="Sort users"
@@ -213,7 +231,7 @@ export function UserAccess({
           Descending
         </label>
         </div>
-        <ClearFilterButton className="directory-clear" disabled={!assignmentBand && !search && !group && sort==='username' && !descending && !expired && !role && !excludeTransactions && !directoryTransaction.codes.length} onClick={()=>{setAssignmentBand('');setSearch('');setTerm('');setGroup('');setSort('username');setDescending(false);setExpired(false);clearEvidence()}}>Clear filters</ClearFilterButton>
+        <ClearFilterButton className="directory-clear" disabled={!assignmentBand && !search && !group && sort==='username' && !descending && !expired && !role && !excludeTransactions && !missingRoles.length && !directoryTransaction.codes.length} onClick={()=>{setAssignmentBand('');setSearch('');setTerm('');setGroup('');setSort('username');setDescending(false);setExpired(false);clearEvidence()}}>Clear filters</ClearFilterButton>
       </div></fieldset></div>
       {(assignmentBand || role || group || search || expired) && <div className="active-filter-row" aria-label="Active user filters">
         {assignmentBand&&<FilterChip removeLabel="Remove assignment count filter" onRemove={()=>setAssignmentBand('')}>{assignmentBand} currently valid roles</FilterChip>}

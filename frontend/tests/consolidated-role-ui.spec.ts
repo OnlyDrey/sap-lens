@@ -42,16 +42,16 @@ async function openUser(page: Page) {
 test('description area labels remain separate from canonical classification', async ({ page, request }) => {
   const dialog = await openRole(page)
   const entry = dialog.locator('.single-role-entry').filter({ has: page.getByRole('button', { name: 'Expand single role ZD:MATERIAL', exact: true }) })
-  await expect(entry.locator('.role-module-metadata .evidence-badge')).toHaveText('CA')
-  await expect(entry.locator('.role-metadata-title')).toHaveText('Master Data - Materials Display & Reporting')
+  await expect(entry.locator('.role-entry-module .evidence-badge')).toHaveText('CA')
+  await expect(entry.locator('.role-entry-description')).toHaveText('Master Data - Materials Display & Reporting')
   await expect(entry.locator('.single-role-description')).toHaveCount(0)
-  const meta = (await entry.locator('.role-module-metadata').boundingBox())!, code = (await entry.locator('.role-identifier').boundingBox())!
-  expect(meta.x + meta.width).toBeLessThanOrEqual(code.x + 1)
-  expect(meta.y + meta.height / 2).toBeCloseTo(code.y + code.height / 2, 0)
+  const meta = (await entry.locator('.role-entry-module').boundingBox())!, text = (await entry.locator('.role-entry-description').boundingBox())!, code = (await entry.locator('.role-identifier').boundingBox())!
+  expect(meta.x + meta.width).toBeLessThanOrEqual(text.x + 1)
+  expect(code.y).toBeGreaterThanOrEqual(meta.y + meta.height - 1)
   const heading = (await entry.locator('.single-role-heading').boundingBox())!
   expect(code.x + code.width).toBeLessThanOrEqual(heading.x + heading.width)
-  await expect(dialog.locator('.role-metadata-title').filter({ hasText: 'ZZZ - Source description' })).toBeVisible()
-  await expect(dialog.locator('.role-metadata-title').filter({ hasText: 'Unclassified' })).toHaveCount(1)
+  await expect(dialog.locator('.role-entry-description').filter({ hasText: 'ZZZ - Source description' })).toBeVisible()
+  await expect(dialog.locator('.role-entry-description').filter({ hasText: 'Unclassified' })).toHaveCount(1)
   const response = await request.get(`/api/roles/${encodeURIComponent(pattern)}`, { headers })
   expect(response.ok()).toBeTruthy()
   const data=await response.json()

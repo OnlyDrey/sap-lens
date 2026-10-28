@@ -1,6 +1,9 @@
 import {textMatches} from '@/lib/searchMatching'
 import { PageHeader } from '@/components/Shared/Presentation'
-import { Search as PageIcon } from 'lucide-react'
+import { Search as PageIcon, ShoppingCart } from 'lucide-react'
+import { Button } from '@/components/Shared/Button'
+import { AccessPackagePanel } from './AccessPackagePanel'
+import { useAccessPackage } from '@/lib/accessPackage'
 import { SearchInput } from '@/components/Shared/Controls'
 import { SavedFilters } from '@/components/Shared/SavedFilters'
 import { useApplicationData } from '@/state/ApplicationData'
@@ -154,6 +157,8 @@ export function RoleList({
 }: Props) {
   const {loading:dataLoading}=useApplicationData()
   const [page,setPage] = useState(0)
+  const cart = useAccessPackage()
+  const [packageOpen,setPackageOpen] = useState(false)
   const transaction = useTransactionFilter()
   const [exclude, setExclude] = useState(false)
   const [search, setSearch] = useState('')
@@ -252,7 +257,10 @@ export function RoleList({
 
   return (
     <div className="flex flex-col gap-4" role="region" aria-label="Role catalogue investigation" aria-busy={isLoading||search!==debSearch||transaction.settling||exactTransactions.isFetching}>
-      <PageHeader title="Role Lookup" icon={<PageIcon size={22} aria-hidden="true"/>}/>
+      <PageHeader title="Role Lookup" icon={<PageIcon size={22} aria-hidden="true"/>}>
+        <Button onClick={()=>setPackageOpen(true)} aria-haspopup="dialog"><ShoppingCart size={16} aria-hidden="true"/>Access package ({cart.items.length})</Button>
+      </PageHeader>
+      {packageOpen&&<AccessPackagePanel onClose={()=>setPackageOpen(false)}/>}
       <SavedFilters showClear={false} view="roles" state={{search,activeModules,transactionMode,tcodes:transaction.codes,transactionExclude:exclude,sortBy}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(Array.isArray(s.activeModules))setActiveModules(s.activeModules);if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(Array.isArray(s.tcodes)){transaction.setInput('');transaction.setChips(s.tcodes)};if(Array.isArray(s.notTcodes)&&s.notTcodes.length&&!(Array.isArray(s.tcodes)&&s.tcodes.length)){transaction.setInput('');transaction.setChips(s.notTcodes);setTransactionMode('or');setExclude(true)}else{const legacy=s.transactionOperator==='not'&&s.transactionExclude!==true;if(legacy)setTransactionMode('or');setExclude(s.transactionExclude===true||legacy)};if(SORT_OPTIONS.some(o=>o.key===s.sortBy))setSortBy(s.sortBy as SortKey)}} clear={()=>{setSearch('');setActiveModules([]);setTransactionMode('and');setExclude(false);transaction.clear();setSortBy('name-asc')}}/>
       <div
         className="catalogue-search-controls rounded-2xl border px-4 py-3 gap-3 "
@@ -532,6 +540,8 @@ export function RoleList({
                   role={r}
                   isSelected={selectedRoles.includes(r.agr_name)}
                   onSelect={onSelectRole}
+                  inCart={cart.has(r.agr_name)}
+                  onCart={name => (cart.has(name) ? cart.remove(name) : cart.add(name))}
                   onClick={onViewDetail}
                 />
               ))}
