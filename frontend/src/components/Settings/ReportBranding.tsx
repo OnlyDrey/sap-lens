@@ -70,7 +70,7 @@ export function ReportBranding() {
         </div>
       ) : <p className="text-sm">{query.isError ? 'Report branding could not be loaded.' : 'No report logo selected.'}</p>}
       <div className="flex flex-wrap items-center gap-2">
-        <input ref={input} type="file" accept="image/png,image/jpeg" className="sr-only" aria-label="Report logo file" onChange={(event) => void choose(event.target.files?.[0])} />
+        <input ref={input} type="file" accept="image/png,image/jpeg" className="hidden" aria-label="Report logo file" onChange={(event) => void choose(event.target.files?.[0])} />
         <Button loading={busy} disabled={!data} onClick={() => input.current?.click()}><ImagePlus size={16} aria-hidden="true" />{logo ? 'Replace logo' : 'Upload logo'}</Button>
         {logo && <Button variant="ghost" disabled={busy} onClick={() => void remove()}><Trash2 size={16} aria-hidden="true" />Remove logo</Button>}
       </div>

@@ -41,7 +41,7 @@ def listing():
 def save(request:Saved):
     allowed={
       'users':{'search','group','sort','descending','role','tcodes','transactionMode','expired','assignmentBand'},
-      'roles':{'search','activeModules','transactionMode','tcodes','sortBy'},
+      'roles':{'search','activeModules','transactionMode','tcodes','notTcodes','sortBy'},
       'release':{'group','kind','releaseGroup','strategy','username','role','status','sort','descending','valid_from_min','valid_from_max','valid_to_min','valid_to_max','include_missing_end'},
       'review':{'search','finding','license','state','sort','descending'},
       'comparison':{'validity','kind','difference','search','area','sort','descending'}}

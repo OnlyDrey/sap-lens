@@ -6,6 +6,19 @@ Multiple T-codes default to AND, with an explicit OR option. Enter creates a chi
 remove chips individually or Clear all filters. Sorting stays beside the result
 count, below the primary searches.
 
+## Roles without a transaction (reverse search)
+
+**Filter catalogue by missing transaction** is the *Does not have T-Code* counterpart of the transaction filter above, with the same
+chips, exact codes and `*` wildcards (for example `SM*`).
+
+- A role matches when it contains at least one other transaction and none of the listed codes or patterns. With several entries it
+  means "none of them". Roles that contain no transactions at all are never returned, and a code that does not exist in the catalogue
+  excludes nothing.
+- It combines with the *has* filter (AND, so "has MIGO and does not have ME21N"), the text search and the SAP area pills.
+- Clear all filters resets both lists, and Saved Filters keep the list (`notTcodes`). The API takes repeated `not_tcodes` parameters
+  on `GET /api/roles` (at most 21, 128 characters each).
+- Mappings come from the imported catalogue only: a missing mapping is not proof that SAP authorization is absent.
+
 Open a role for its relationships and transactions. Previous/Next spans the full
 filtered/sorted result set and preserves the originating list. The compact back
 action closes the drawer. Copy uses the exact identifier. Existing Role Comparison
