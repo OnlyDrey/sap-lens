@@ -94,7 +94,17 @@ export interface AssignmentImpact {
   warnings: string[]
   eliminates_all: boolean
 }
+export interface SubjectOverview {
+  activities: { activity: string; key: string; decision: Lifecycle; event: DecisionEvent | null; evidence_version: string; risks: string[]; tcodes: string[]; roles: number; duplicate_coverage: boolean }[]
+  assignments: { id: string; role: string; decision: Lifecycle; event: DecisionEvent | null; evidence_version: string; risks: string[]; activities: string[]; valid_from: string | null; valid_to: string | null; interval_status: string | null; user_group: string; catalogue_roles: string[] }[]
+  risks: { risk_id: string; criticality: string; display_name: string; source_text: string; finding_id: string; evidence_version: string; acceptance: Lifecycle; event: DecisionEvent | null }[]
+}
+export interface UserQueueRow {
+  user: string; total: number; decided: number; outstanding: number; removal: number; historical: number
+  activity: { total: number; decided: number }; assignment: { total: number; decided: number }; acceptance: { total: number; decided: number }
+}
 export interface Subject extends ContextInfo {
+  overview: SubjectOverview
   user: string
   groups: string[]
   account: { directory_match: string; ad_status: string; sap_validity?: string; lock_status?: string } | null

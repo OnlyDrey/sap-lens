@@ -100,3 +100,18 @@ test('matrix cells are compact, column pills use configured colors and scroll po
   await openSod(page, 'Activity Matrix')
   await expect(page.getByText('Scope: activities that contribute to at least one potential conflict', { exact: false })).toBeVisible()
 })
+
+for (const width of [375, 800]) test(`the review workspace is usable without horizontal overflow at ${width}`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 800 })
+  await openSod(page, 'Reviews')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
+  await page.getByRole('button', { name: /^Open review for / }).first().click()
+  const panel = page.getByRole('dialog', { name: /^SYN_/ })
+  for (const name of ['Activity Review', 'Role Assignment Review', 'Risk Acceptance']) await expect(panel.getByRole('region', { name, exact: true })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
+  const box = await panel.boundingBox()
+  expect(box!.x + box!.width).toBeLessThanOrEqual(width + 1)
+  await panel.getByRole('button', { name: /^Review activity / }).first().click()
+  await expect(panel.getByRole('button', { name: 'Save decision', exact: true })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
+})

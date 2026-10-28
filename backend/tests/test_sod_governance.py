@@ -374,6 +374,28 @@ class QueueTests(GovernanceCase):
         self.assertEqual(self.get('/api/sod/queue', kind='assignment', status='Pending')['total'], 5)
         self.assertEqual(self.client.get('/api/sod/queue/export', headers=H).status_code, 200)
 
+    def test_user_queue_has_one_row_per_user_with_independent_progress(self):
+        before = self.get('/api/sod/queue/users')
+        self.assertEqual(before['total'], len({item['user'] for item in self.get('/api/sod/queue', limit=200)['items']}))
+        self.assertTrue(all(row['decided'] == 0 and row['outstanding'] == row['total'] for row in before['items']))
+        self.decide('activity', [self.activity_item('SYN_A', 'A')], 'Remove')
+        after = {row['user']: row for row in self.get('/api/sod/queue/users')['items']}
+        row = after['SYN_A']
+        self.assertEqual((row['activity']['decided'], row['assignment']['decided'], row['acceptance']['decided'], row['removal']), (1, 0, 0, 1))
+        self.assertEqual(row['outstanding'], row['total'] - 1)
+        self.assertEqual(after['SYN_B']['decided'], 0)
+        self.assertEqual([item['user'] for item in self.get('/api/sod/queue/users', progress='removal')['items']], ['SYN_A'])
+        self.assertEqual(self.get('/api/sod/queue/users')['counts']['removal'], 1)
+        self.assertNotIn('SYN_A', [item['user'] for item in self.get('/api/sod/queue/users', progress='complete')['items']])
+
+    def test_subject_overview_lists_every_activity_assignment_and_risk_independent_of_focus(self):
+        focused = self.subject('SYN_A', risk='R1')
+        full = focused['overview']
+        self.assertGreaterEqual(len(full['activities']), len(focused['activities']))
+        self.assertTrue(full['assignments'] and full['risks'])
+        self.assertEqual({item['risk_id'] for item in full['risks']}, set(self.subject('SYN_A')['overview']['risks'][i]['risk_id'] for i in range(len(full['risks']))))
+        self.assertTrue(all({'id', 'decision', 'evidence_version', 'activities'} <= set(item) for item in full['assignments']))
+
     def test_decisions_without_verifiable_absence_stay_historical_not_resolved(self):
         self.decide('assignment', [self.assignment_item('SYN_A', 'ROLE_A2')], 'Remove')
         cache._cache = snapshot()

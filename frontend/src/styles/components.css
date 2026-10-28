@@ -624,3 +624,11 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .sod-expand-toggle:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .sod-expandable-body { margin-top: 0.25rem; padding-left: 1rem; font-size: 0.8125rem; overflow-wrap: anywhere; }
 .sod-assigned { display: grid; gap: 0.125rem; margin: 0; padding: 0; list-style: none; }
+
+/* Unified review workspace sections. */
+.sod-review-list { display: grid; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+.sod-review-row { display: grid; min-width: 0; gap: 0.25rem; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-card); }
+.sod-review-row[data-focused] { border-color: var(--accent2); }
+.sod-review-main { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; min-width: 0; }
+.sod-review-actions { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.sod-review-section > .ui-toolbar, .sod-review-section > div:first-child { align-items: center; }

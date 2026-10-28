@@ -17,7 +17,7 @@ Accept or reject → Approve → Remediate → Verify → Report**
 | Risk Matrix | SAP users by risk. Cells show the risk-acceptance state; totals count distinct users and user-risk findings. Group rows by SAP user group. |
 | Activity Matrix | SAP users by activity with review state and the number of supplying roles (overlap flagged). The main entry point for reviewing. |
 | Access Explorer | Four modes: **Users** (grouped by risk or by activity), **Assignments**, **Roles** (role lookup with the users assigned to each role) and **Role conflicts** (catalogue roles). Identifiers are pills, evidence (roles, transactions, assigned users) expands per row, and CSV export covers the filtered rows. Trace user, risk, activity, transaction, role and assignment in both directions. |
-| Reviews | Work queue with status filters and batch review of selected rows, and Remediation tracking. |
+| Reviews | Work queue with one row per SAP user and a unified review workspace (Activity Review, Role Assignment Review, Risk Acceptance), and Remediation tracking. |
 | Review Periods | Frozen snapshots, workflow, a per-row action menu, comparison in a dialog and audited deletion. |
 | Reports | Formal review report and access remediation report. |
 
@@ -109,3 +109,9 @@ Every period status can be deleted from the row action menu or the period dialog
 - Column headers show the risk or activity pill, tinted with the color configured in Settings → SoD Risk Configuration. Row and column headers stay sticky.
 - The Activity Matrix lists activities that contribute to at least one potential conflict (both sides of an enabled, supported risk are required). Other activities a role supplies are considered in Role Assignment Review, which shows the additional activities. Unavailable evidence is never shown as "no conflict".
 - Page, row grouping, scroll position and filters survive opening a role or user page and returning with Back, within the session.
+
+## Review workspace
+
+- **Reviews → Work queue** lists one row per SAP user with overall progress and separate progress for activity review, role assignment review and risk acceptance. Filter by Needs review, Complete or Removal recommended. The queue CSV still exports every review item with its decision (`GET /api/sod/queue/users` feeds the table).
+- **Open Review** (also from a matrix cell or Explorer row) opens one panel with three independent sections: **Activity Review**, **Role Assignment Review** and **Risk Acceptance**. Each row has its own decision button; tick several rows of one section and use **Review selected** for a batch with a single justification. Decision history opens on demand per item. The panel footer shows overall progress.
+- Supporting evidence (transactions, supplying roles, removal impact, what-if simulation) sits in a collapsible section, open when the panel was opened from a specific risk or activity. Names stay self-reported, every decision keeps its evidence version, and no decision changes detection or SAP.

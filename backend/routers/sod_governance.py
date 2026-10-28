@@ -181,7 +181,19 @@ def subject(q: dict = Depends(scope_query), user: str = Query(..., max_length=51
         impact = dict(options=governance.removal_options(entry, risk, mapping),
                       per_assignment={aid: governance.single_assignment_impact(entry, aid, mapping)
                                       for name in names for aid in entry['activities'][name]['assignments']})
-    return dict(info(bundle), user=user, groups=sorted(entry['groups']), account=entry.get('account'), risk=risk_info, activities=rows, related_risks=related, impact=impact)
+    overview = dict(
+        activities=[dict(activity=name, key=item['key'], decision=state['activity'][item['key']][0], event=_event(state['activity'][item['key']][1]),
+                         evidence_version=item['evidence_version'], risks=sorted(item['risks']), tcodes=sorted(item['tcodes']),
+                         roles=len(item['assignments']), duplicate_coverage=len(item['assignments']) > 1) for name, item in sorted(entry['activities'].items())],
+        assignments=[dict(id=aid, role=item['role'], decision=state['assignment'][aid][0], event=_event(state['assignment'][aid][1]), evidence_version=item['evidence_version'],
+                          risks=sorted(item['risks']), activities=sorted(item['supplies']), valid_from=item['valid_from'], valid_to=item['valid_to'],
+                          interval_status=item['interval_status'], user_group=item['user_group'], catalogue_roles=sorted(item['catalogue_roles']))
+                     for aid, item in sorted(entry['assignments'].items(), key=lambda pair: (pair[1]['role'].casefold(), pair[0]))],
+        risks=[dict(risk_id=risk_id, criticality=item['criticality'], display_name=(item.get('risk') or {}).get('display_name', ''),
+                    source_text=(item.get('risk') or {}).get('source_text', ''), finding_id=item['finding_id'], evidence_version=item['evidence_version'],
+                    acceptance=state['acceptance'][item['finding_id']][0], event=_event(state['acceptance'][item['finding_id']][1]))
+               for risk_id, item in sorted(entry['findings'].items())])
+    return dict(info(bundle), user=user, groups=sorted(entry['groups']), account=entry.get('account'), risk=risk_info, activities=rows, related_risks=related, impact=impact, overview=overview)
 
 
 class SimulateBody(StrictModel):
@@ -270,6 +282,43 @@ def queue(q: dict = Depends(scope_query), kind: Literal['', 'activity', 'assignm
     bundle, items, counts = _queue(q, kind, status)
     return dict(info(bundle), items=[_public(item) for item in items[offset:offset + limit]], total=len(items), counts=counts, offset=offset, limit=limit,
                 identity_notice=legacy.IDENTITY_NOTICE)
+
+
+PROGRESS_FILTERS = ('', 'outstanding', 'complete', 'removal')
+
+
+@router.get('/queue/users')
+def queue_users(q: dict = Depends(scope_query), progress: Literal['', 'outstanding', 'complete', 'removal'] = '',
+                offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200)):
+    """One row per SAP user with independent progress for activity, role assignment and risk acceptance reviews."""
+    bundle, items, _ = _queue(q, '', '')
+    rows = {}
+    for item in items:
+        row = rows.setdefault(item['user'], dict(user=item['user'], activity=dict(total=0, decided=0), assignment=dict(total=0, decided=0), acceptance=dict(total=0, decided=0), removal=0, historical=0))
+        if item['lifecycle'] in {'Historical', 'Resolved'}:
+            row['historical'] += 1
+            continue
+        part = row[item['kind']]
+        part['total'] += 1
+        part['decided'] += item['lifecycle'] in scope.DECIDED
+        row['removal'] += item['lifecycle'] == 'Removal required'
+    result = []
+    for row in rows.values():
+        total = sum(row[kind]['total'] for kind in decisions.DECISIONS)
+        decided = sum(row[kind]['decided'] for kind in decisions.DECISIONS)
+        result.append(dict(row, total=total, decided=decided, outstanding=total - decided))
+    result = [row for row in result if row['total']]
+    counts = dict(all=len(result), outstanding=sum(row['outstanding'] > 0 for row in result), complete=sum(row['total'] > 0 and row['outstanding'] == 0 for row in result), removal=sum(row['removal'] > 0 for row in result))
+    if progress == 'outstanding':
+        result = [row for row in result if row['outstanding'] > 0]
+    elif progress == 'complete':
+        result = [row for row in result if row['total'] > 0 and row['outstanding'] == 0]
+    elif progress == 'removal':
+        result = [row for row in result if row['removal'] > 0]
+    result.sort(key=lambda row: (-row['outstanding'], row['user'].casefold()))
+    if q['descending']:
+        result.reverse()
+    return dict(info(bundle), items=result[offset:offset + limit], total=len(result), counts=counts, offset=offset, limit=limit)
 
 
 @router.get('/queue/export')
