@@ -1,0 +1,132 @@
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Users } from 'lucide-react'
+import { downloadFile, scopeParams, sod, EXPORT_NAME, type ActivityCell, type ActivityColumn, type Filters, type GroupCell, type MatrixResult, type RiskCell, type RiskColumn } from '@/api/sod'
+import { MatrixGrid, type MatrixCellView } from '@/components/Shared/MatrixGrid'
+import { Card, EmptyState, LoadingState, MetadataList, Toolbar } from '@/components/Shared/Presentation'
+import { FormField } from '@/components/Shared/Controls'
+import { Select } from '@/components/Shared/Select'
+import { Button } from '@/components/Shared/Button'
+import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
+import { Pagination } from '@/components/Access/Shared'
+import { ContextBar, CoverageNotice, FilterBar, LifecycleBadge, lifecycleView, useSodContext, useSodFilters } from './SodShared'
+import { SodInvestigation } from './SodInvestigation'
+
+type Risk = MatrixResult<RiskColumn, RiskCell>
+type Activity = MatrixResult<ActivityColumn, ActivityCell>
+const PAGE = 50
+
+export const RiskMatrix = () => <MatrixPage kind="risk" />
+export const ActivityMatrix = () => <MatrixPage kind="activity" />
+
+function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
+  const [context] = useSodContext(),
+    [filters, setFiltersState] = useSodFilters(kind === 'risk' ? 'riskMatrix' : 'activityMatrix'),
+    [groupBy, setGroupBy] = useState<'user' | 'group'>('user'),
+    [offset, setOffset] = useState(0),
+    [selected, setSelected] = useState<{ user: string; risk?: string; activity?: string } | null>(null),
+    [message, setMessage] = useState(''),
+    [busy, setBusy] = useState(false)
+  const setFilters = (value: Filters) => {
+    setOffset(0)
+    setFiltersState(value)
+  }
+  const params = scopeParams(context, filters, { group_by: groupBy, offset, limit: PAGE })
+  const result = useQuery({ queryKey: ['sod-matrix', kind, params.toString()], queryFn: () => sod<Risk | Activity>(`/api/sod/matrix/${kind}`, params) })
+  const data = result.data
+  const byUser = new Map((data?.rows || []).map((row) => [row.user, row]))
+  const risk = kind === 'risk'
+  const columns = (data?.columns || []).map((column) => {
+    const id = risk ? (column as RiskColumn).risk_id : (column as ActivityColumn).activity
+    return risk
+      ? { id, label: id, sub: `${(column as RiskColumn).criticality} · ${column.users} users`, title: (column as RiskColumn).display_name || (column as RiskColumn).source_text || id, onFilter: () => setFilters({ ...filters, risk: id }) }
+      : { id, label: id, sub: `${column.users} users · ${(column as ActivityColumn).risks.length} risks`, title: `Activity ${id}`, onFilter: () => setFilters({ ...filters, activity: id }) }
+  })
+  const cell = (row: string, column: string): MatrixCellView | null => {
+    const entry = byUser.get(row)?.cells[column]
+    if (!entry) return null
+    if (groupBy === 'group') {
+      const count = (entry as GroupCell).users
+      return { icon: <Users size={14} />, text: String(count), sub: count === 1 ? 'user' : 'users', label: `${count} users in group ${row} with ${column}. Show these users.` }
+    }
+    if (risk) {
+      const value = entry as RiskCell,
+        view = lifecycleView(value.acceptance),
+        sides = Object.values(value.activities).reduce((sum, count) => sum + count, 0),
+        undecided = (value.activities.Pending || 0) + (value.activities.Outdated || 0)
+      return { icon: view.icon, tone: view.tone, text: view.text, sub: `${value.criticality} · ${sides - undecided}/${sides} act.`,
+        label: `${row}, risk ${column}: potential conflict detected, risk acceptance ${view.text}, ${sides - undecided} of ${sides} activities reviewed. Open investigation.` }
+    }
+    const value = entry as ActivityCell,
+      view = lifecycleView(value.decision)
+    return { icon: view.icon, tone: view.tone, text: view.text, sub: `×${value.roles} role${value.roles === 1 ? '' : 's'}${value.duplicate ? ' · overlap' : ''}`,
+      label: `${row}, activity ${column}: review ${view.text}, supplied by ${value.roles} role assignments${value.duplicate ? ', duplicate coverage' : ''}. Open investigation.` }
+  }
+  const open = (row: string, column: string) => {
+    if (groupBy === 'group') {
+      setGroupBy('user')
+      setFilters({ ...filters, group: row, ...(risk ? { risk: column } : { activity: column }) })
+      return
+    }
+    setSelected(risk ? { user: row, risk: column } : { user: row, activity: column })
+  }
+  const exportCsv = async () => {
+    setBusy(true)
+    setMessage('')
+    try {
+      const table = risk ? 'user_risk' : 'user_activity'
+      const name = await downloadFile(`/api/sod/explorer/${table}/export`, { params: scopeParams(context, filters), namePattern: EXPORT_NAME, kind: 'csv' })
+      setMessage(name ? `Exported ${name}.` : 'Export cancelled.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Export failed.')
+    } finally {
+      setBusy(false)
+    }
+  }
+  const legend = risk ? ['Pending', 'Accepted', 'Rejected', 'Outdated'] : ['Pending', 'Approved', 'Conditional', 'Removal required', 'Outdated']
+  return (
+    <section className="grid min-w-0 gap-4" aria-label={risk ? 'SoD risk matrix' : 'SoD activity matrix'}>
+      <ContextBar info={data} />
+      <Card aria-label="Matrix filters">
+        <FilterBar view={risk ? 'sod_risk_matrix' : 'sod_activity_matrix'} filters={filters} setFilters={setFilters}>
+          <FormField label="Rows">
+            <Select value={groupBy} onChange={(event) => { setOffset(0); setGroupBy(event.target.value as 'user' | 'group') }}>
+              <option value="user">SAP users</option>
+              <option value="group">SAP user groups</option>
+            </Select>
+          </FormField>
+          <FormField label="Sort rows">
+            <Select value={String(filters.sort)} onChange={(event) => setFilters({ ...filters, sort: event.target.value })}>
+              <option value="subject">Name</option>
+              <option value="findings">{risk ? 'Most risks' : 'Most activities'}</option>
+            </Select>
+          </FormField>
+        </FilterBar>
+      </Card>
+      {result.isError ? <p role="alert">{result.error instanceof Error ? result.error.message : 'The matrix is unavailable.'}</p>
+        : !data ? <LoadingState />
+        : <>
+          <CoverageNotice info={data} />
+          <Toolbar>
+            <MetadataList items={risk
+              ? [{ label: 'Users with conflicts', value: data.totals.users }, { label: 'Distinct user-risk findings', value: data.totals.user_risk ?? 0 }, { label: 'Risks shown', value: data.totals.risks ?? 0 },
+                ...Object.entries((data as Risk).criticality || {}).map(([key, value]) => ({ label: `Criticality ${key}`, value: `${value.user_risk} findings · ${value.users} users` }))]
+              : [{ label: 'Users with activity evidence', value: data.totals.users }, { label: 'User-activity pairs', value: data.totals.user_activity ?? 0 }, { label: 'Activities shown', value: data.totals.activities ?? 0 }]} />
+            <ExportCSVButton loading={busy} disabled={!data.total_rows} onClick={() => void exportCsv()} title={`Exports the filtered ${risk ? 'user-risk' : 'user-activity'} table.`} />
+          </Toolbar>
+          {message && <p role="status">{message}</p>}
+          <ul className="flex flex-wrap items-center gap-2" aria-label="Cell status legend">{legend.map((value) => <li key={value}><LifecycleBadge value={value} /></li>)}</ul>
+          <p className="ui-description">Totals count distinct users and distinct user-risk pairs. {data.columns_truncated ? 'Showing the first 500 columns; narrow the filters. ' : ''}{groupBy === 'group' ? 'Cells show distinct users per group; select one to list them. ' : 'Select a cell to investigate and review. '}Detected conflicts are potential and derived from imported evidence.</p>
+          {data.rows.length
+            ? <MatrixGrid caption={risk ? 'User by risk matrix' : 'User by activity matrix'} rowLabel={groupBy === 'group' ? 'User group' : 'SAP user'} columns={columns}
+                rows={data.rows.map((row) => ({ id: row.user, label: row.user, sub: groupBy === 'group' ? `${row.users} users` : row.groups.join(', ') }))}
+                cell={cell} onSelect={open} onRow={groupBy === 'user' ? (row) => setSelected({ user: row }) : undefined}
+                selected={selected ? { row: selected.user, col: selected.risk || selected.activity || '' } : null} />
+            : <EmptyState>No users match this scope. Results describe imported evidence only; incomplete source coverage cannot establish absence of access.</EmptyState>}
+          <Pagination label="Matrix pages" offset={data.offset} total={data.total_rows} limit={data.limit} onChange={setOffset} />
+          {filters.risk || filters.activity || filters.group ? <Button variant="ghost" onClick={() => setFilters({ ...filters, risk: '', activity: '', group: '' })}>Show all risks, activities and groups</Button> : null}
+        </>}
+      {selected && <SodInvestigation context={context} user={selected.user} risk={selected.risk} activity={selected.activity} onClose={() => setSelected(null)} />}
+    </section>
+  )
+}

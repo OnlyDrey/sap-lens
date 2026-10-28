@@ -9,7 +9,7 @@ import { SourceHealthSummary } from './SourceStatus'
 import { AssignmentDateFilters, emptyDates } from '@/components/Shared/AssignmentDateFilters'
 import { StatusCard, FilterPanel, ResultsToolbar } from '@/components/Shared/InvestigationPatterns'
 import { useRef, useState, useEffect } from 'react'
-import { Copy, Download, Search, Users, Info } from 'lucide-react'
+import { Copy, Download, Search, Users, Info, CheckCircle2 } from 'lucide-react'
 import { Button, IconButton, ButtonGroup } from '@/components/Shared/Button'
 import {
   Input,
@@ -26,6 +26,8 @@ import {
 } from '@/components/Shared/Navigation'
 import { Popover } from '@/components/Shared/Popover'
 import { Dialog } from '@/components/Shared/Dialog'
+import { SidePanel } from '@/components/Shared/SidePanel'
+import { MatrixGrid } from '@/components/Shared/MatrixGrid'
 import {
   Card,
   Toolbar,
@@ -118,6 +120,8 @@ export function ComponentLibrary() {
   const categories=[['all','All components'],['buttons','Buttons & Actions'],['navigation','Navigation & Tabs'],['forms','Forms & Inputs'],['filters','Filters & Search'],['status','Status & Feedback'],['dialogs','Dialogs & Popovers'],['data','Tables & Data Display'],['sap','SAP-Specific Components']]
   const [text, setText] = useState(''),
     [dialogOpen, setDialogOpen] = useState(false),
+    [panelOpen, setPanelOpen] = useState(false),
+    [matrixPick, setMatrixPick] = useState(''),
     [select, setSelect] = useState('all'),
     [check, setCheck] = useState(false),
     [toggle, setToggle] = useState(false),
@@ -354,7 +358,13 @@ export function ComponentLibrary() {
             </>
           )}
         </Popover>
-        <Button onClick={() => setDialogOpen(true)}>Open demo dialog</Button></Toolbar>
+        <Button onClick={() => setDialogOpen(true)}>Open demo dialog</Button><Button onClick={() => setPanelOpen(true)}>Open demo side panel</Button></Toolbar>
+        {panelOpen && (
+          <SidePanel title="Isolated side panel" subtitle="Docked, non-modal detail" onClose={() => setPanelOpen(false)}>
+            <p>The side panel keeps the list behind it in place. Escape closes it and restores focus to the trigger.</p>
+            <Input aria-label="Demo side panel input" />
+          </SidePanel>
+        )}
         {dialogOpen && (
           <Dialog
             title="Isolated component dialog"
@@ -367,6 +377,15 @@ export function ComponentLibrary() {
             <Input aria-label="Demo dialog input" />
           </Dialog>
         )}
+      </Card>}
+      {(category==='all'||category==='data')&&<Card aria-label="Matrix grid preview">
+        <h2>Matrix grid</h2>
+        <p className="ui-description">Sticky header and first column, arrow-key navigation, and status shown by icon and text, never color alone.</p>
+        <MatrixGrid caption="Demo matrix" rowLabel="Demo row" columns={[{id:'c1',label:'C1',sub:'2 rows'},{id:'c2',label:'C2',sub:'1 row'},{id:'c3',label:'C3',sub:'0 rows'}]}
+          rows={[{id:'r1',label:'DEMO_ROW_1',sub:'Group A'},{id:'r2',label:'DEMO_ROW_2',sub:'Group B'}]}
+          cell={(row,column)=>row==='r1'&&column==='c1'||row==='r1'&&column==='c2'||row==='r2'&&column==='c1'?{icon:<CheckCircle2 size={14}/>,tone:column==='c1'?'success':'warning',text:column==='c1'?'Approved':'Pending',sub:'demo',label:`${row}, ${column}: ${column==='c1'?'approved':'pending'}`}:null}
+          onSelect={(row,column)=>setMatrixPick(`${row}/${column}`)}/>
+        <p role="status">{matrixPick?`Selected ${matrixPick}`:'No cell selected'}</p>
       </Card>}
       {(category==='all'||category==='status')&&<Card>
         <h2>Status &amp; feedback</h2>

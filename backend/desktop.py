@@ -25,7 +25,7 @@ def _save_csv_dialog(owner, token, filename, content, kind):
     import re
     pattern = (r'sap-lens-refresh-changes-report-\d{4}-\d{2}-\d{2}\.csv' if kind == 'changes' else r'sap-lens-[A-Za-z0-9_-]{1,100}-[a-z]+-\d{4}-\d{2}-\d{2}\.csv')
     if kind == 'sod':
-        pattern = r'sap-lens-sod-((users|roles)-findings|reviews|actions|catalogue)-\d{4}-\d{2}-\d{2}\.csv'
+        pattern = r'sap-lens-sod-((users|roles)-findings|reviews|actions|catalogue|explorer-(user-risk|user-activity|access-list|lookup)|review-queue|access-remediation)-\d{4}-\d{2}-\d{2}\.csv'
     if not isinstance(filename, str) or not re.fullmatch(pattern, filename):
         raise ValueError('Invalid CSV export filename.')
     header = ('\ufeff"Timestamp","Source","Change","Identifier","Field","Before","After"\r\n' if kind == 'changes' else '\ufeff"Username","User group",')
@@ -39,6 +39,9 @@ def _save_csv_dialog(owner, token, filename, content, kind):
         elif filename.startswith(('sap-lens-sod-reviews-', 'sap-lens-sod-actions-')):
             from routers.sod_reviews import REVIEW_HEADER
             header = REVIEW_HEADER
+        elif filename.startswith(('sap-lens-sod-explorer-', 'sap-lens-sod-review-queue-', 'sap-lens-sod-access-remediation-')):
+            from routers.sod_governance import native_csv_header
+            header = native_csv_header(filename)
         else:
             from routers.sod_analysis import EXPORT_HEADER
             header = EXPORT_HEADER
@@ -73,7 +76,7 @@ def _save_document_dialog(owner,token,filename,encoded):
     from io import BytesIO
     from zipfile import ZipFile,BadZipFile
     if not isinstance(token,str) or not hmac.compare_digest(token.encode(),owner._token.encode()):raise ValueError('Application request is not authorized.')
-    if not isinstance(filename,str) or not re.fullmatch(r'sap-lens-sod-report-[a-f0-9]{32}-\d{4}-\d{2}-\d{2}\.(pdf|docx)',filename):raise ValueError('Invalid report filename.')
+    if not isinstance(filename,str) or not re.fullmatch(r'sap-lens-(sod-report-[a-f0-9]{32}|access-remediation-(current|[a-f0-9]{32}))-\d{4}-\d{2}-\d{2}\.(pdf|docx)',filename):raise ValueError('Invalid report filename.')
     if not isinstance(encoded,str) or len(encoded)>45*1024*1024:raise ValueError('Report exceeds its size limit.')
     try:payload=base64.b64decode(encoded,validate=True)
     except (ValueError,TypeError):raise ValueError('Invalid report content.') from None

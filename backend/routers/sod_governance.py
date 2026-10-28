@@ -88,8 +88,12 @@ def explorer(table: Literal['user_risk', 'user_activity', 'access_list', 'lookup
     return dict(info(bundle), table=table, items=rows[offset:offset + limit], total=len(rows), offset=offset, limit=limit)
 
 
+def csv_header(columns):
+    return '\ufeff' + ';'.join('"' + column + '"' for column in columns) + '\r\n'
+
+
 def csv_response(columns, rows, name):
-    header = '﻿' + ';'.join('"' + column + '"' for column in columns) + '\r\n'
+    header = csv_header(columns)
 
     def stream():
         yield header
@@ -225,7 +229,7 @@ def _queue(q, kind, status):
             for key, event in events.items():
                 if key not in known[kind_name]:
                     items.append(dict(kind=kind_name, key=key, user=event.user, ref=event.ref, risks=[event.ref] if kind_name == 'acceptance' else [],
-                                      lifecycle=scope.orphan_lifecycle(kind_name, event), roles=0, event=event))
+                                      lifecycle=scope.orphan_lifecycle(kind_name, event), roles=0, event=event, evidence_version=event.evidence_version))
     awaiting = bool(bundle['period'] and bundle['period']['state'] == 'Ready for approval')
     if kind:
         items = [item for item in items if item['kind'] == kind]
@@ -235,6 +239,24 @@ def _queue(q, kind, status):
     order = {'activity': 0, 'assignment': 1, 'acceptance': 2}
     items.sort(key=lambda item: (item['user'].casefold(), order[item['kind']], item['ref'].casefold()))
     return bundle, items, counts
+
+
+QUEUE_COLUMNS = ['CONTEXT', 'REVIEW_TYPE', 'USERNAME', 'REFERENCE', 'RISKS', 'LIFECYCLE', 'DECISION', 'REVIEWER', 'APPROVER', 'TIMESTAMP',
+                 'JUSTIFICATION', 'CONTROLS', 'EXPIRES', 'EVIDENCE_VERSION']
+
+
+def native_csv_header(filename):
+    """Exact header contract for a native Save dialog, or None when the filename is not a SoD 2.0 export."""
+    import re
+    match = re.fullmatch(r'sap-lens-sod-(explorer-(user-risk|user-activity|access-list|lookup)|review-queue|access-remediation)-\d{4}-\d{2}-\d{2}\.csv', filename)
+    if not match:
+        return None
+    name = match.group(1)
+    if name == 'review-queue':
+        return csv_header(QUEUE_COLUMNS)
+    if name == 'access-remediation':
+        return csv_header(REMEDIATION_COLUMNS)
+    return csv_header(EXPLORER_COLUMNS[match.group(2).replace('-', '_')][0])
 
 
 def _public(item):
@@ -261,8 +283,7 @@ def queue_export(q: dict = Depends(scope_query), kind: Literal['', 'activity', '
             yield [q['context'], item['kind'], item['user'], item['ref'], ', '.join(item['risks']), item['lifecycle'], event.decision if event else '',
                    event.reviewer if event else '', event.approver if event else '', event.timestamp if event else '', event.justification if event else '',
                    event.controls if event else '', event.expires.isoformat() if event and event.expires else '', event.evidence_version if event else '']
-    return csv_response(['CONTEXT', 'REVIEW_TYPE', 'USERNAME', 'REFERENCE', 'RISKS', 'LIFECYCLE', 'DECISION', 'REVIEWER', 'APPROVER', 'TIMESTAMP',
-                         'JUSTIFICATION', 'CONTROLS', 'EXPIRES', 'EVIDENCE_VERSION'], rows(), 'review-queue')
+    return csv_response(QUEUE_COLUMNS, rows(), 'review-queue')
 
 
 class DecisionItem(StrictModel):

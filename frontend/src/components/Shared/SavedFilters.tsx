@@ -148,7 +148,7 @@ export function SavedFilters({
       ],
       account_status: ['', 'locked', 'unlocked', 'ad_disabled', 'ad_enabled', 'unknown'],
       sort:
-        view.startsWith('sod_') ? ['subject','risk_id','criticality','evidence_count'] : view === 'users'
+        view.startsWith('sod_') ? ['subject','risk_id','criticality','evidence_count','findings'] : view === 'users'
           ? [
               'username',
               'group',

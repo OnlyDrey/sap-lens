@@ -1,19 +1,31 @@
 import {test,expect} from '@playwright/test'
-import {mkdtempSync,writeFileSync,rmSync,readFileSync} from 'node:fs'
-import {tmpdir} from 'node:os'
-import path from 'node:path'
-const headers={'X-SAP-Lens':'browser-test-session'}
+import {bridge,cleanup,createPeriod,decide,decideEverything,headers,names,openSod,seedGovernance} from './sod-fixture'
 let directory:string
-let username:string
-let risk:string
-test.beforeEach(async({request},info)=>{
- await request.post('/api/configuration/reset',{headers});directory=mkdtempSync(path.join(tmpdir(),'sod-review-ui-'));const suffix=info.title.includes('period')?'REPORT':'REPORT';username=`SYN_REVIEW_${suffix}`;risk=`SYN_${suffix}`
- const files={roles:'AGR_NAME,TEXT,CHILD_AGR,TCODE\nZC:SYN:REVIEW,Synthetic role,ZS:SYN:REVIEW,X001\nZC:SYN:REVIEW,Synthetic role,ZS:SYN:REVIEW,X002\n',users:`USERNAME,ROLE_NAME,ROLE_VALID_FROM,ROLE_VALID_TO\n${username},ZC:SYN:REVIEW,20000101,99991231\n`,sod:`RISK,CRITICITY,TYPE,TEXT,ACTVT1,ACTVT2,ACTIVITY_SLOT,ACTIVITY,TCODE,TTEXT\n${risk},H,S,Synthetic review,A,B,ACTVT1,A,X001,Create\n${risk},H,S,Synthetic review,A,B,ACTVT2,B,X002,Approve\n`}
- for(const[source,content]of Object.entries(files)){const filename=path.join(directory,source+'.csv');writeFileSync(filename,content);const settings=(await(await request.get('/api/configuration',{headers})).json()).settings;expect((await request.post(`/api/data-sources/${source}/select`,{headers,data:{path:filename,revision:settings.revision,mode:'static'}})).ok()).toBeTruthy()}
+test.beforeEach(async({request})=>{directory=await seedGovernance(request)})
+test.afterEach(async({request})=>{await cleanup(request,directory)})
+const sections=['Executive Summary','Scope & Methodology','Data Sources & Evidence Limitations','Risk Overview','Activity Review Results','Role Assignment Review Results','Risk Acceptance Decisions','Compensating Controls','Outstanding Remediation','Changes Since Previous Review','Conclusion and Approval','Detailed Appendices']
+
+test('formal report previews every section from one frozen model and exports PDF and DOCX',async({page,request})=>{
+ const id=await createPeriod(request,'Synthetic Browser Report');await decideEverything(request,id,'Rejected')
+ await openSod(page,'Reports');await page.getByRole('combobox',{name:'Report period',exact:true}).selectOption(id)
+ await expect(page.getByRole('option',{name:'Approved snapshot'})).toHaveCount(0)
+ await expect(page.getByRole('button',{name:'Export PDF',exact:true})).toBeDisabled()
+ await page.getByRole('button',{name:'Preview report',exact:true}).click();const preview=page.getByRole('region',{name:'Structured report preview',exact:true})
+ for(const title of sections)await expect(preview.getByText(title,{exact:false}).first()).toBeVisible()
+ await expect(preview).toContainText('Snapshot reference');await bridge(page)
+ await page.getByRole('button',{name:'Export PDF',exact:true}).click();await expect.poll(()=>page.evaluate(()=>(window as any).__saved?.name)).toMatch(/^sap-lens-sod-report-[a-f0-9]{32}-\d{4}-\d{2}-\d{2}\.pdf$/)
+ const saved=await page.evaluate(()=>(window as any).__saved);expect(Buffer.from(saved.encoded,'base64').subarray(0,5).toString()).toBe('%PDF-')
+ await page.getByRole('button',{name:'Export DOCX',exact:true}).click();await expect.poll(()=>page.evaluate(()=>(window as any).__saved?.name)).toMatch(/\.docx$/)
+ await page.getByLabel('Report title',{exact:true}).fill('Changed title');await expect(page.getByRole('button',{name:'Export PDF',exact:true})).toBeDisabled()
 })
-test.afterEach(async({request})=>{await request.post('/api/configuration/reset',{headers});rmSync(directory,{recursive:true,force:true})})
-test('SoD report preview and editable DOCX/PDF downloads use one snapshot',async({page,request})=>{
- const index=(await(await request.get('/api/sod/periods',{headers})).json());const year=new Date().getFullYear();const created=await request.post('/api/sod/periods',{headers,data:{name:'Synthetic Browser Report',start:`${year}-01-01`,end:`${year}-12-31`,evaluation_date:`${year}-10-27`,expected_revision:index.revision}});expect(created.ok()).toBeTruthy();const period=(await created.json()).period;
- await page.goto('/#session=browser-test-session');await page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('button',{name:'SoD',exact:true}).click();await page.getByRole('link',{name:'Reports',exact:true}).click();await page.getByRole('combobox',{name:'Report period',exact:true}).selectOption(period.id);await page.getByRole('button',{name:'Preview report',exact:true}).click();await expect(page.getByRole('region',{name:'Structured report preview',exact:true})).toContainText('Potential conflicts');for(const kind of ['DOCX','PDF']){const promise=page.waitForEvent('download');await page.getByRole('button',{name:`Export ${kind}`,exact:true}).click();const download=await promise;const bytes=readFileSync((await download.path())!);expect(bytes.subarray(0,kind==='PDF'?5:2).toString()).toBe(kind==='PDF'?'%PDF-':'PK')}
- await page.evaluate(()=>{(window as any).pywebview={api:{save_sod_document:async(_token:string,name:string,encoded:string)=>{(window as any).__savedReport={name,encoded};return true}}}});await page.getByRole('button',{name:'Export PDF',exact:true}).click();await expect.poll(()=>page.evaluate(()=>(window as any).__savedReport?.name)).toMatch(/\.pdf$/);const saved=await page.evaluate(()=>(window as any).__savedReport);expect(Buffer.from(saved.encoded,'base64').subarray(0,5).toString()).toBe('%PDF-');await page.getByRole('textbox',{name:'Report title',exact:true}).fill('Synthetic Updated Title');await expect(page.getByRole('button',{name:'Export PDF',exact:true})).toBeDisabled();await page.getByRole('combobox',{name:'Report status',exact:true}).selectOption('Approved snapshot');await page.getByRole('button',{name:'Preview report',exact:true}).click();await expect(page.getByRole('status').filter({hasText:'Only a frozen closed period'})).toBeVisible()
+
+test('remediation report separates handling groups, previews counts and exports CSV and PDF',async({page,request})=>{
+ const subject=await(await request.get('/api/sod/subject',{headers,params:{context:'current',user:names.a,activity:'A'}})).json();const row=subject.activities[0];const duplicate=row.assignments.find((item:any)=>item.role==='ROLE_A2')
+ await decide(request,'assignment','current',[{key:duplicate.id,user:names.a,ref:'ROLE_A2',evidence_version:duplicate.evidence_version}],'Remove')
+ await openSod(page,'Reports');await page.getByRole('tab',{name:'Access remediation report',exact:true}).click()
+ await expect(page.getByText('A proposed removal is not completed remediation',{exact:false}).first()).toBeVisible()
+ await page.getByRole('button',{name:'Preview report',exact:true}).click();const preview=page.getByRole('region',{name:'Remediation report preview',exact:true});await expect(preview.getByRole('table',{name:'Remediation summary',exact:true})).toContainText('Remove assignment')
+ await bridge(page);await page.getByRole('button',{name:'Export CSV',exact:true}).click();await expect.poll(()=>page.evaluate(()=>(window as any).__saved?.name)).toMatch(/^sap-lens-sod-access-remediation-\d{4}-\d{2}-\d{2}\.csv$/)
+ const csv=await page.evaluate(()=>(window as any).__saved.content);expect(csv.startsWith('﻿"USERNAME"')).toBeTruthy();expect(csv).toContain('ROLE_A2');expect(csv).toContain('Remove assignment')
+ await page.getByRole('button',{name:'Export PDF',exact:true}).click();await expect.poll(()=>page.evaluate(()=>(window as any).__saved?.name)).toMatch(/^sap-lens-access-remediation-current-\d{4}-\d{2}-\d{2}\.pdf$/)
 })

@@ -1,40 +1,115 @@
-import {useState} from 'react'
-import {useQuery,useQueryClient} from '@tanstack/react-query'
-import {apiRequest,applicationToken} from '@/api/client'
-import {Button} from '@/components/Shared/Button'
-import {Card,DataTable,Toolbar,StatusBadge,LoadingState,EvidenceDisclosure} from '@/components/Shared/Presentation'
-import {FormField,SearchInput} from '@/components/Shared/Controls'
-import {Select} from '@/components/Shared/Select'
-import {Dialog} from '@/components/Shared/Dialog'
-import {RoleIdentifier} from '@/components/Shared/RoleIdentifier'
-import {ExportCSVButton} from '@/components/Shared/ExportCSVButton'
-import {Pagination} from '@/components/Access/Shared'
-import {NorwegianDateInput,parseNorwegianDate} from '@/components/Shared/NorwegianDateInput'
-import {formatDate,formatTimestamp} from '@/lib/dateFormat'
-const decisions=['Pending review','Accepted with mitigating controls','Access removal required','Not applicable / false positive','Further investigation required']
-const blank={decision:'Pending review',reviewer:'',rationale:'',comments:'',mitigating_controls:'',action_owner:'',target_date:null as string|null,action_status:'Not started',completion_notes:''}
-type Annotation=typeof blank
-type Event={event_id:string;timestamp:string;evidence_version:string;annotation:Annotation}
-export type Row={finding_id:string;finding:{subject:string;risk_id:string;evidence_version:string};decision:string;event:Event|null;history_count:number;stale:boolean;lifecycle:string;presence:string}
-type Result={items:Row[];total:number;offset:number;limit:number;revision:number;generation:string;summary:Record<string,number>;reviewer_identity:string;coverage:{status:string;reason:string}}
-export function SodReviews(){
- const qc=useQueryClient(),[search,setSearch]=useState(''),[decision,setDecision]=useState(''),[lifecycle,setLifecycle]=useState(''),[offset,setOffset]=useState(0),[editing,setEditing]=useState<Row|null>(null),[history,setHistory]=useState<Row|null>(null),[message,setMessage]=useState(''),[busy,setBusy]=useState(false)
- const query=new URLSearchParams({search,decision,lifecycle}),result=useQuery({queryKey:['sod-reviews',query.toString(),offset],queryFn:()=>apiRequest<Result>(`/api/sod/reviews?${query}&offset=${offset}`)})
- const download=async(actions=false)=>{setBusy(true);setMessage('');try{const response=await fetch(`/api/sod/reviews/${actions?'actions/':''}export?${query}`,{headers:{'X-SAP-Lens':applicationToken()},cache:'no-store'});if(!response.ok)throw Error('Review export failed.');const length=Number(response.headers.get('content-length')||0);if(length>32*1024*1024)throw Error('Export exceeds 32 MiB. Narrow filters.');const reader=response.body?.getReader();if(!reader)throw Error('Export unavailable.');let size=0;const blocks:Uint8Array[]=[];while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>32*1024*1024){await reader.cancel();throw Error('Export exceeds 32 MiB. Narrow filters.')}blocks.push(value)}const content='\ufeff'+new TextDecoder('utf-8',{fatal:true}).decode(new Blob(blocks as BlobPart[]).size?await new Blob(blocks as BlobPart[]).arrayBuffer():new ArrayBuffer(0)).replace(/^\ufeff/,'');const name=response.headers.get('content-disposition')?.match(/filename="(sap-lens-sod-(?:reviews|actions)-\d{4}-\d{2}-\d{2}\.csv)"/)?.[1];if(!name)throw Error('Invalid export filename.');if(window.pywebview){if(!window.pywebview.api.save_sod_csv)throw Error('Update the desktop application for SoD export.');if(!await window.pywebview.api.save_sod_csv(applicationToken(),name,content)){setMessage('Export cancelled.');return}}else{const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}setMessage('Review CSV exported.')}catch(error){setMessage(error instanceof Error?error.message:'Export failed.')}finally{setBusy(false)}}
- return <section className="grid min-w-0 gap-3" aria-label="SoD Access Review"><h2>SoD Access Review</h2><EvidenceDisclosure title="Review scope and identity">Reviews here use current active assignment evidence. Reviewer names are self-reported, not verified identities or digital signatures. Historical/source-unavailable findings remain retained; completing an action does not establish that access was removed.</EvidenceDisclosure><Card><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"><FormField label="Search SoD reviews"><SearchInput value={search} onChange={e=>{setSearch(e.target.value);setOffset(0)}} onClear={()=>setSearch('')}/></FormField><FormField label="Review decision"><Select value={decision} onChange={e=>{setDecision(e.target.value);setOffset(0)}}><option value="">All decisions</option>{decisions.map(x=><option key={x}>{x}</option>)}</Select></FormField><FormField label="Review lifecycle"><Select value={lifecycle} onChange={e=>{setLifecycle(e.target.value);setOffset(0)}}><option value="">All states</option>{['Pending','Reviewed','Action required','Outdated','Resolved','Historical'].map(x=><option key={x}>{x}</option>)}</Select></FormField></div><Toolbar><Button onClick={()=>{setSearch('');setDecision('');setLifecycle('');setOffset(0)}}>Clear filters</Button><ExportCSVButton disabled={busy} onClick={()=>void download()}/><Button disabled={busy} onClick={()=>void download(true)}>Export outstanding actions</Button></Toolbar></Card>{message&&<p role="status">{message}</p>}{result.isError?<p role="alert">{String(result.error)}</p>:!result.data?<LoadingState/>:<><Toolbar>{Object.entries(result.data.summary).map(([name,count])=><StatusBadge key={name}>{name}: {count}</StatusBadge>)}</Toolbar>{result.data.coverage.status!=='available'&&<p role="status">Current analysis unavailable: {result.data.coverage.reason?.replace(/_/g,' ')}. Retained reviews are historical, not resolved.</p>}<p>{result.data.total} review findings</p><DataTable caption="SoD review findings"><thead><tr><th>SAP User / Risk</th><th>Decision / Lifecycle</th><th>Reviewer / Date</th><th>Action</th><th>Review</th></tr></thead><tbody>{result.data.items.map(row=><tr key={row.finding_id}><td><RoleIdentifier value={row.finding.subject}/><p>{row.finding.risk_id}</p></td><td>{row.decision}<p><StatusBadge tone={row.stale?'warning':'neutral'}>{row.lifecycle}</StatusBadge></p></td><td>{row.event?.annotation.reviewer||'Not reviewed'}<p>{formatTimestamp(row.event?.timestamp)}</p></td><td>{row.event?.annotation.action_status||'—'}<p>{row.event?.annotation.action_owner}</p><p>{formatDate(row.event?.annotation.target_date)}</p></td><td><Toolbar><Button disabled={row.presence!=='current'} onClick={()=>setEditing(row)}>Record decision</Button><Button disabled={!row.history_count} onClick={()=>setHistory(row)}>History ({row.history_count})</Button></Toolbar></td></tr>)}</tbody></DataTable><Pagination label="SoD review pages" total={result.data.total} limit={result.data.limit} offset={offset} onChange={setOffset}/>{editing&&<ReviewEditor row={editing} revision={result.data.revision} generation={result.data.generation} onClose={()=>setEditing(null)} onSaved={async()=>{setEditing(null);await qc.invalidateQueries({queryKey:['sod-reviews']})}}/>}</>}{history&&<ReviewHistory row={history} onClose={()=>setHistory(null)}/>}</section>
-}
-export function ReviewEditor({row,revision,generation,onClose,onSaved,saveReview}:{row:Row;revision:number;generation:string;onClose:()=>void;onSaved:()=>Promise<void>;saveReview?:(value:Annotation)=>Promise<unknown>}){
- const [value,setValue]=useState<Annotation>({...blank,...row.event?.annotation}),[due,setDue]=useState(formatDate(value.target_date,'')),[error,setError]=useState(''),[busy,setBusy]=useState(false)
- const save=async()=>{setBusy(true);setError('');try{const parsed=due?parseNorwegianDate(due):null;if(due&&!parsed)throw Error('Target date must use DD.MM.YYYY.');if(saveReview)await saveReview({...value,target_date:parsed});else await apiRequest(`/api/sod/reviews/${row.finding_id}`,'POST',{expected_revision:revision,expected_generation:generation,evidence_version:row.finding.evidence_version,annotation:{...value,target_date:parsed}});await onSaved()}catch(e){setError(e instanceof Error?e.message:'Review could not be saved.')}finally{setBusy(false)}}
- return <Dialog title={`Review ${row.finding.subject} · ${row.finding.risk_id}`} onClose={onClose}><p className="ui-description">Self-reported reviewer; not authenticated identity. Every save creates an immutable history event.</p><FormField label="Decision"><Select value={value.decision} onChange={e=>setValue({...value,decision:e.target.value})}>{decisions.map(x=><option key={x}>{x}</option>)}</Select></FormField>{(['reviewer','rationale','comments','mitigating_controls','action_owner','completion_notes'] as const).map(key=><FormField key={key} label={{reviewer:'Reviewer (self-reported)',rationale:'Justification',comments:'Comments',mitigating_controls:'Mitigating controls',action_owner:'Action owner',completion_notes:'Completion notes'}[key]}><textarea className="ui-control" value={value[key]} maxLength={key==='reviewer'||key==='action_owner'?120:key==='mitigating_controls'?8000:4000} onChange={e=>setValue({...value,[key]:e.target.value})}/></FormField>)}<FormField label="Target date"><NorwegianDateInput label="Action target date" value={due} onChange={setDue}/></FormField><FormField label="Action status"><Select value={value.action_status} onChange={e=>setValue({...value,action_status:e.target.value})}>{['Not started','In progress','Completed','Not applicable'].map(x=><option key={x}>{x}</option>)}</Select></FormField>{error&&<p role="alert">{error}</p>}<Toolbar><Button variant="primary" loading={busy} onClick={()=>void save()}>Save review decision</Button><Button onClick={onClose}>Cancel</Button></Toolbar></Dialog>
-}
-function ReviewHistory({row,onClose}:{row:Row;onClose:()=>void}){
- const [offset,setOffset]=useState(0),[evidence,setEvidence]=useState<string|null>(null),query=useQuery({queryKey:['sod-review-history',row.finding_id,offset],queryFn:()=>apiRequest<{items:Event[];total:number;limit:number}>(`/api/sod/reviews/${row.finding_id}/history?offset=${offset}`)})
- return <Dialog title={`Review history · ${row.finding.subject}`} onClose={onClose}>{query.isError?<p role="alert">History unavailable; original storage is retained.</p>:!query.data?<LoadingState/>:<>{query.data.items.map(event=><Card key={event.event_id}><h3>{event.annotation.decision}</h3><p>{event.annotation.reviewer} · {formatTimestamp(event.timestamp)}</p><p className="whitespace-pre-wrap">{event.annotation.rationale}</p><p>{event.annotation.mitigating_controls}</p><p>{event.annotation.action_status} · {event.annotation.action_owner}</p><p className="text-xs break-all text-muted">Evidence: {event.evidence_version}</p><Button onClick={()=>setEvidence(evidence===event.event_id?null:event.event_id)}>Inspect retained evidence</Button>{evidence===event.event_id&&<RetainedEvidence findingId={row.finding_id} eventId={event.event_id}/>}</Card>)}<Pagination label="Review history pages" offset={offset} limit={query.data.limit} total={query.data.total} onChange={setOffset}/></>}</Dialog>
+import { useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { downloadFile, scopeParams, sod, EXPORT_NAME, type ContextInfo, type QueueItem } from '@/api/sod'
+import { useHistoryValue } from '@/hooks/useViewHistory'
+import { Button } from '@/components/Shared/Button'
+import { Dialog } from '@/components/Shared/Dialog'
+import { Card, DataTable, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
+import { Checkbox, FormField } from '@/components/Shared/Controls'
+import { Select } from '@/components/Shared/Select'
+import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
+import { ContentTabs } from '@/components/Shared/Navigation'
+import { Pagination } from '@/components/Access/Shared'
+import { formatTimestamp } from '@/lib/dateFormat'
+import { AlertNote, ContextBar, CoverageNotice, FilterBar, invalidateSod, KIND_LABEL, LifecycleBadge, useSodContext, useSodFilters } from './SodShared'
+import { DecisionForm, SodInvestigation, type FormState } from './SodInvestigation'
+import { RemediationView } from './SodRemediation'
+
+const STATUSES = ['Pending', 'Reviewed', 'Conditional', 'Removal required', 'Rejected', 'Risk acceptance pending', 'Awaiting approval', 'Outdated', 'Resolved']
+interface Result extends ContextInfo { items: QueueItem[]; total: number; counts: Record<string, number>; offset: number; limit: number }
+const itemKey = (item: QueueItem) => `${item.kind}:${item.key}`
+
+export function SodReviews() {
+  const [tab, setTab] = useHistoryValue('sodReviews')
+  return (
+    <ContentTabs label="Review areas" value={tab || 'queue'} onChange={(value) => setTab(value as 'queue' | 'remediation')} items={[{ value: 'queue', label: 'Work queue' }, { value: 'remediation', label: 'Remediation' }]}>
+      {(tab || 'queue') === 'queue' ? <Queue /> : <RemediationView />}
+    </ContentTabs>
+  )
 }
 
-function RetainedEvidence({findingId,eventId}:{findingId:string;eventId:string}){return <>{(['ACTVT1','ACTVT2'] as const).map(side=><RetainedSide key={side} findingId={findingId} eventId={eventId} side={side}/>)}</>}
-function RetainedSide({findingId,eventId,side}:{findingId:string;eventId:string;side:string}){
- const [offset,setOffset]=useState(0),query=useQuery({queryKey:['sod-retained-evidence',findingId,eventId,side,offset],queryFn:()=>apiRequest<{items:{actual_assigned_role:string;matched_catalogue_pattern:string;single_role:string;tcode:string;role_valid_from:string|null;role_valid_to:string|null;interval_status:string}[];total:number;limit:number}>(`/api/sod/reviews/${findingId}/history/${eventId}/evidence?side=${side}&offset=${offset}`)})
- return <section className="grid min-w-0 gap-2"><h4>{side} retained evidence</h4>{query.isError?<p role="alert">Retained evidence unavailable; restore the private snapshot.</p>:!query.data?<LoadingState/>:<><DataTable caption={`${side} retained review evidence`}><thead><tr><th>Actual role / Catalogue</th><th>Single Role / Transaction</th><th>Validity</th></tr></thead><tbody>{query.data.items.map((item,index)=><tr key={index}><td><RoleIdentifier value={item.actual_assigned_role}/><p>{item.matched_catalogue_pattern}</p></td><td><RoleIdentifier value={item.single_role}/><p>{item.tcode}</p></td><td>{formatDate(item.role_valid_from)} → {formatDate(item.role_valid_to)}<p>{item.interval_status}</p></td></tr>)}</tbody></DataTable><Pagination label={`${side} retained evidence pages`} offset={offset} limit={query.data.limit} total={query.data.total} onChange={setOffset}/></>}</section>
+function Queue() {
+  const qc = useQueryClient(),
+    [context] = useSodContext(),
+    [filters, setFiltersState] = useSodFilters('queue'),
+    [status, setStatus] = useState(''),
+    [kind, setKind] = useState(''),
+    [offset, setOffset] = useState(0),
+    [picked, setPicked] = useState<Record<string, QueueItem>>({}),
+    [batch, setBatch] = useState<FormState | null>(null),
+    [open, setOpen] = useState<QueueItem | null>(null),
+    [message, setMessage] = useState(''),
+    [busy, setBusy] = useState(false)
+  const reset = () => { setOffset(0); setPicked({}) }
+  const params = scopeParams(context, filters, { status, kind, offset, limit: 50 })
+  const result = useQuery({ queryKey: ['sod-queue', params.toString()], queryFn: () => sod<Result>('/api/sod/queue', params) })
+  const data = result.data
+  const selected = Object.values(picked)
+  const sameKind = selected.length > 0 && selected.every((item) => item.kind === selected[0].kind)
+  const exportCsv = async () => {
+    setBusy(true)
+    setMessage('')
+    try {
+      const name = await downloadFile('/api/sod/queue/export', { params: scopeParams(context, filters, { status, kind }), namePattern: EXPORT_NAME, kind: 'csv' })
+      setMessage(name ? `Exported ${name}.` : 'Export cancelled.')
+    } catch (cause) {
+      setMessage(cause instanceof Error ? cause.message : 'Export failed.')
+    } finally {
+      setBusy(false)
+    }
+  }
+  const toggle = (item: QueueItem) => setPicked((previous) => { const next = { ...previous }; if (next[itemKey(item)]) delete next[itemKey(item)]; else next[itemKey(item)] = item; return next })
+  const decidable = (item: QueueItem) => !!data?.reviewable && item.lifecycle !== 'Historical' && item.lifecycle !== 'Resolved'
+  const openItem = (item: QueueItem) => setOpen(item)
+  return (
+    <section className="grid min-w-0 gap-4" aria-label="SoD review work queue">
+      <ContextBar info={data} />
+      <CoverageNotice info={data} />
+      <Card aria-label="Queue filters">
+        <FilterBar view="sod_queue" filters={filters} setFilters={(value) => { reset(); setFiltersState(value) }} decisions={false}>
+          <FormField label="Review type">
+            <Select value={kind} onChange={(event) => { reset(); setKind(event.target.value) }}>
+              <option value="">All review types</option>
+              <option value="activity">Activity reviews</option>
+              <option value="assignment">Role assignment reviews</option>
+              <option value="acceptance">Risk acceptance</option>
+            </Select>
+          </FormField>
+        </FilterBar>
+      </Card>
+      {result.isError ? <p role="alert">{result.error instanceof Error ? result.error.message : 'The work queue is unavailable.'}</p> : !data ? <LoadingState /> : <>
+        <Toolbar aria-label="Review status">
+          <Button variant={status ? 'secondary' : 'primary'} aria-pressed={!status} onClick={() => { reset(); setStatus('') }}>All</Button>
+          {STATUSES.map((name) => <Button key={name} variant={status === name ? 'primary' : 'secondary'} aria-pressed={status === name} onClick={() => { reset(); setStatus(name) }}>{name}: {data.counts[name] ?? 0}</Button>)}
+          <ExportCSVButton loading={busy} disabled={!data.total} onClick={() => void exportCsv()} title="Exports the filtered queue with decisions." />
+        </Toolbar>
+        <p className="ui-description">Activities are reviewed once per user across all risks they contribute to. Role assignments are reviewed separately, and risk acceptance is a third, independent decision. Batch review applies one decision only to the rows you select.</p>
+        {message && <p role="status">{message}</p>}
+        {selected.length > 0 && <Toolbar aria-label="Batch review">
+          <StatusBadge>{selected.length} selected</StatusBadge>
+          {sameKind ? <Button variant="primary" onClick={() => setBatch({ kind: selected[0].kind, heading: `Batch ${KIND_LABEL[selected[0].kind].toLowerCase()} review (${selected.length})`, items: selected.map((item) => ({ key: item.key, user: item.user, ref: item.ref, evidence_version: item.evidence_version })) })}>Review selected</Button>
+            : <AlertNote>Select rows of one review type to review them together.</AlertNote>}
+          <Button variant="ghost" onClick={() => setPicked({})}>Clear selection</Button>
+        </Toolbar>}
+        {data.items.length ? <DataTable caption="SoD review work queue">
+          <thead><tr><th>Select</th><th>SAP user</th><th>Review type</th><th>Reference</th><th>Status</th><th>Decision</th><th>Open</th></tr></thead>
+          <tbody>{data.items.map((item) => (
+            <tr key={itemKey(item)}>
+              <td>{decidable(item) && <Checkbox checked={!!picked[itemKey(item)]} onChange={() => toggle(item)} aria-label={`Select ${item.user} ${item.ref}`}>Select</Checkbox>}</td>
+              <td>{item.user}</td>
+              <td>{KIND_LABEL[item.kind]}</td>
+              <td>{item.ref}<p className="text-xs text-muted">{item.risks.join(', ')}</p></td>
+              <td><LifecycleBadge value={item.lifecycle} /></td>
+              <td className="text-xs">{item.event ? <>{item.event.decision}<p>{item.event.reviewer} · {formatTimestamp(item.event.timestamp)}</p></> : 'No decision yet'}</td>
+              <td><Button onClick={() => openItem(item)} aria-label={`Open ${item.user} ${item.ref}`}>Open</Button></td>
+            </tr>))}</tbody>
+        </DataTable> : <EmptyState>Nothing matches this queue scope. Results describe imported evidence only; missing sources are not proof of no conflict.</EmptyState>}
+        <Pagination label="Queue pages" offset={data.offset} total={data.total} limit={data.limit} onChange={setOffset} />
+      </>}
+      {batch && data && <Dialog title={batch.heading} onClose={() => setBatch(null)} footer={<Button variant="ghost" onClick={() => setBatch(null)}>Close</Button>}>
+        <DecisionForm form={batch} subject={data} onCancel={() => setBatch(null)} onSaved={async () => { setBatch(null); setPicked({}); await invalidateSod(qc) }} />
+      </Dialog>}
+      {open && <SodInvestigation context={context} user={open.user} {...(open.kind === 'acceptance' ? { risk: open.ref } : open.kind === 'activity' ? { activity: open.ref } : open.risks[0] ? { risk: open.risks[0] } : {})} onClose={() => setOpen(null)} />}
+    </section>
+  )
 }

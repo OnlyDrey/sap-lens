@@ -40,4 +40,4 @@ def remediation_download(kind:Literal['csv','docx','pdf'],body:RemediationReques
         response=csv_response(REMEDIATION_COLUMNS,remediation_csv_rows(model['rows']),'access-remediation')
         response.headers['X-SAP-Lens-Model']=model['model_checksum'];return response
     payload=reports.render(model,kind)
-    return Response(payload,media_type='application/pdf' if kind=='pdf' else 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',headers={'Content-Disposition':f'attachment; filename="sap-lens-access-remediation-{body.context}.{kind}"','Cache-Control':'no-store','X-SAP-Lens-Model':model['model_checksum']})
+    return Response(payload,media_type='application/pdf' if kind=='pdf' else 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',headers={'Content-Disposition':f'attachment; filename="sap-lens-access-remediation-{body.context}-{model["report_date"]}.{kind}"','Cache-Control':'no-store','X-SAP-Lens-Model':model['model_checksum']})

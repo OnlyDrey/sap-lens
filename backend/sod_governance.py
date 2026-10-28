@@ -274,15 +274,15 @@ def queue_items(model, state, context_info=None):
         for name, activity in sorted(entry['activities'].items()):
             lifecycle_name, event = state['activity'][activity['key']]
             items.append(dict(kind='activity', key=activity['key'], user=user, ref=name, risks=sorted(activity['risks']), lifecycle=lifecycle_name,
-                              roles=len(activity['assignments']), event=event))
+                              roles=len(activity['assignments']), event=event, evidence_version=activity['evidence_version']))
         for aid, assignment in sorted(entry['assignments'].items()):
             lifecycle_name, event = state['assignment'][aid]
             items.append(dict(kind='assignment', key=aid, user=user, ref=assignment['role'], risks=sorted(assignment['risks']), lifecycle=lifecycle_name,
-                              roles=len(assignment['supplies']), event=event))
+                              roles=len(assignment['supplies']), event=event, evidence_version=assignment['evidence_version']))
         for risk_id, finding in sorted(entry['findings'].items()):
             lifecycle_name, event = state['acceptance'][finding['finding_id']]
             items.append(dict(kind='acceptance', key=finding['finding_id'], user=user, ref=risk_id, risks=[risk_id], lifecycle=lifecycle_name,
-                              roles=0, event=event))
+                              roles=0, event=event, evidence_version=finding['evidence_version']))
     return items
 
 

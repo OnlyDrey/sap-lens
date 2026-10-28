@@ -1,30 +1,25 @@
 import {test,expect} from '@playwright/test'
-import {mkdtempSync,writeFileSync,rmSync,readFileSync} from 'node:fs'
-import {tmpdir} from 'node:os'
+import {writeFileSync,readFileSync} from 'node:fs'
 import path from 'node:path'
-const headers={'X-SAP-Lens':'browser-test-session'}
+import {cellButton,cleanup,headers,names,openSod,seedGovernance} from './sod-fixture'
 let directory:string
-let username:string
-let risk:string
-test.beforeEach(async({request},info)=>{
- await request.post('/api/configuration/reset',{headers});directory=mkdtempSync(path.join(tmpdir(),'sod-review-ui-'));const suffix=info.title.includes('period')?'REPORT':'REPORT';username=`SYN_REVIEW_${suffix}`;risk=`SYN_${suffix}`
- const files={roles:'AGR_NAME,TEXT,CHILD_AGR,TCODE\nZC:SYN:REVIEW,Synthetic role,ZS:SYN:REVIEW,X001\nZC:SYN:REVIEW,Synthetic role,ZS:SYN:REVIEW,X002\n',users:`USERNAME,ROLE_NAME,ROLE_VALID_FROM,ROLE_VALID_TO\n${username},ZC:SYN:REVIEW,20000101,99991231\n`,sod:`RISK,CRITICITY,TYPE,TEXT,ACTVT1,ACTVT2,ACTIVITY_SLOT,ACTIVITY,TCODE,TTEXT\n${risk},H,S,Synthetic review,A,B,ACTVT1,A,X001,Create\n${risk},H,S,Synthetic review,A,B,ACTVT2,B,X002,Approve\n`}
- for(const[source,content]of Object.entries(files)){const filename=path.join(directory,source+'.csv');writeFileSync(filename,content);const settings=(await(await request.get('/api/configuration',{headers})).json()).settings;expect((await request.post(`/api/data-sources/${source}/select`,{headers,data:{path:filename,revision:settings.revision,mode:source==='sod'?'dynamic':'static'}})).ok()).toBeTruthy()}
-})
-test.afterEach(async({request})=>{await request.post('/api/configuration/reset',{headers});rmSync(directory,{recursive:true,force:true})})
+test.afterEach(async({request})=>{await cleanup(request,directory)})
+const matrix=(second:string)=>`RISK,CRITICITY,TYPE,TEXT,ACTVT1,ACTVT2,ACTIVITY_SLOT,ACTIVITY,TCODE,TTEXT\nR1,H,S,Synthetic R1,A,B,ACTVT1,A,X1,Create\nR1,H,S,Synthetic R1,A,B,ACTVT2,B,${second},Approve\nR2,H,S,Synthetic R2,A,C,ACTVT1,A,X1,Create\nR2,H,S,Synthetic R2,A,C,ACTVT2,C,X3,Approve\n`
 
-test('SoD-only refresh updates open findings without changing SAP revision and catalogue exports all matching risks',async({page,request})=>{
- await page.goto('/#session=browser-test-session');await page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('button',{name:'SoD',exact:true}).click();await expect(page.getByRole('region',{name:'SoD overview',exact:true})).toContainText('Source Risks');
- const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export CSV',exact:true}).click();expect(readFileSync((await(await download).path())!).toString('utf8')).toContain('EXPLANATION_NO');
- await page.getByRole('link',{name:'User Conflicts',exact:true}).click();await expect(page.getByRole('button',{name:`Inspect SoD evidence ${username} ${risk}`,exact:true})).toBeVisible();
- const before=(await(await request.get('/api/configuration',{headers})).json()).data_revision;
- writeFileSync(path.join(directory,'sod.csv'),`RISK,CRITICITY,TYPE,TEXT,ACTVT1,ACTVT2,ACTIVITY_SLOT,ACTIVITY,TCODE,TTEXT\n${risk},H,S,Synthetic replacement,A,B,ACTVT1,A,X001,Create\n${risk},H,S,Synthetic replacement,A,B,ACTVT2,B,X999,Other\n`.replace(/\n/g,'\n'));
- await page.getByRole('button',{name:'Refresh role data from CSV',exact:true}).click();await expect(page.getByRole('button',{name:`Inspect SoD evidence ${username} ${risk}`,exact:true})).toHaveCount(0);await expect(page.getByText('No potential conflicts match this scope.',{exact:false})).toBeVisible();
- expect((await(await request.get('/api/configuration',{headers})).json()).data_revision).toBe(before);
+test('SoD-only refresh updates open findings without changing the SAP revision and the catalogue export lists risks',async({page,request})=>{
+ directory=await seedGovernance(request,'dynamic')
+ await page.goto('/#session=browser-test-session');await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:'SoD Risk Configuration',exact:true}).click()
+ const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export CSV',exact:true}).click();const csv=readFileSync((await(await download).path())!).toString('utf8');expect(csv).toContain('EXPLANATION_NO');expect(csv).toContain('R1');expect(csv).toContain('R2')
+ await openSod(page,'Access Explorer');const table=page.getByRole('table',{name:'User risk table',exact:true});await expect(table).toContainText('R1');await expect(table.getByRole('row').filter({hasText:names.a})).toHaveCount(2)
+ const before=(await(await request.get('/api/configuration',{headers})).json()).data_revision
+ writeFileSync(path.join(directory,'sod.csv'),matrix('X999'))
+ await page.getByRole('button',{name:'Refresh role data from CSV',exact:true}).click();await expect(table.getByRole('row').filter({hasText:names.a})).toHaveCount(1);await expect(table.getByRole('row').filter({hasText:`${names.b}`})).toHaveCount(0)
+ expect((await(await request.get('/api/configuration',{headers})).json()).data_revision).toBe(before)
 })
 for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`SoD integration ${theme} ${width}`,async({page,request},info)=>{
- await request.post('/api/configuration/theme',{headers,data:{theme}});await page.setViewportSize({width,height:950});await page.goto('/#session=browser-test-session');await page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('button',{name:'SoD',exact:true}).click();await expect(page.getByRole('region',{name:'SoD overview',exact:true})).toBeVisible();
- for(const view of ['Risk Catalogue','Access Review','Review Periods','Reports']){await page.getByRole('link',{name:view,exact:true}).click();await page.screenshot({path:info.outputPath(`${view.replaceAll(' ','-')}-${theme}-${width}.png`)});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()}
+ directory=await seedGovernance(request);await request.post('/api/configuration/theme',{headers,data:{theme}});await page.setViewportSize({width,height:950})
+ for(const view of ['Overview','Risk Matrix','Activity Matrix','Access Explorer','Reviews','Review Periods','Reports']){await openSod(page,view);await expect(page.getByRole('heading',{name:'Segregation of Duties',level:1})).toBeVisible();await page.screenshot({path:info.outputPath(`${view.replaceAll(' ','-')}-${theme}-${width}.png`)});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${view} must not overflow the page`).toBeTruthy()}
+ await openSod(page,'Risk Matrix');await cellButton(page,names.a,'R1').click();await expect(page.getByRole('dialog',{name:`${names.a} · R1`})).toBeVisible();await page.screenshot({path:info.outputPath(`panel-${theme}-${width}.png`)});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
 })
 
 for(const width of [375,414])test(`main navigation fits five items without clipped labels at ${width}`,async({page})=>{

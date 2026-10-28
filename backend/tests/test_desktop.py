@@ -364,6 +364,25 @@ class DesktopTests(unittest.TestCase):
         self.assertFalse(bridge.save_sod_csv('synthetic-capability',name,content))
         with self.assertRaises(ValueError):bridge.save_sod_csv('synthetic-capability','sap-lens-sod-arbitrary-findings-2026-10-27.csv',content)
 
+    def test_sod_governance_exports_use_fixed_native_names_and_headers(self):
+        import base64
+        from routers.sod_governance import native_csv_header
+        bridge=desktop.NativeDialogs('synthetic-capability');bridge._window=self.window
+        target=self.root/'Synthetic governance export.csv';self.window.create_file_dialog.return_value=[str(target)]
+        for stem in ('explorer-user-risk','explorer-user-activity','explorer-access-list','explorer-lookup','review-queue','access-remediation'):
+            name=f'sap-lens-sod-{stem}-2026-10-27.csv';header=native_csv_header(name)
+            self.assertTrue(header.startswith('\ufeff"'))
+            self.assertTrue(bridge.save_sod_csv('synthetic-capability',name,header+'"Synthetic"\r\n'))
+            with self.assertRaises(ValueError):bridge.save_sod_csv('synthetic-capability',name,'\ufeff"Other"\r\n')
+        self.assertIsNone(native_csv_header('sap-lens-sod-explorer-other-2026-10-27.csv'))
+        with self.assertRaises(ValueError):bridge.save_sod_csv('synthetic-capability','sap-lens-sod-explorer-other-2026-10-27.csv','x')
+        with self.assertRaises(ValueError):bridge.save_sod_csv('synthetic-capability','../sap-lens-sod-review-queue-2026-10-27.csv',native_csv_header('sap-lens-sod-review-queue-2026-10-27.csv'))
+        payload=b'%PDF-1.4\nSynthetic remediation\n%%EOF';encoded=base64.b64encode(payload).decode()
+        self.window.create_file_dialog.return_value=[str(self.root/'Synthetic remediation.pdf')]
+        for context in ('current','b'*32):
+            self.assertTrue(bridge.save_sod_document('synthetic-capability',f'sap-lens-access-remediation-{context}-2026-10-27.pdf',encoded))
+        with self.assertRaises(ValueError):bridge.save_sod_document('synthetic-capability','sap-lens-access-remediation-other-2026-10-27.pdf',encoded)
+
     def test_sod_document_save_keeps_fixed_formats_and_capability_boundary(self):
         import base64
         from io import BytesIO
