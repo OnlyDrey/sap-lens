@@ -224,10 +224,14 @@ test('remediation separates proposals from verification and keeps tracked action
 
 test('access explorer traces user to role and back through the lookup', async ({ page }) => {
   await openSod(page, 'Access Explorer')
+  await expect(page.getByRole('table', { name: 'User risk table' })).not.toContainText('ROLE_A1, ROLE_A2, ROLE_B')
+  await page.getByRole('button', { name: `Show evidence for ${names.a} R1`, exact: true }).click()
   await expect(page.getByRole('table', { name: 'User risk table' })).toContainText('ROLE_A1, ROLE_A2, ROLE_B')
-  await page.getByRole('tab', { name: 'User & role lookup', exact: true }).click()
+  await page.getByRole('tab', { name: 'Roles', exact: true }).click()
+  await page.getByRole('button', { name: 'Show evidence for ROLE_AB', exact: true }).click()
+  await expect(page.getByRole('list', { name: 'Users with ROLE_AB' })).toContainText(names.b)
   await page.getByRole('button', { name: 'Show users with ROLE_AB', exact: true }).click()
-  await expect(page.getByRole('tab', { name: 'Access list', exact: true })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('tab', { name: 'Assignments', exact: true })).toHaveAttribute('aria-selected', 'true')
   const list = page.getByRole('table', { name: 'Access list' })
   await expect(list).toContainText(`${names.b}`)
   await expect(list).not.toContainText(`${names.a}`)

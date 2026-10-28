@@ -616,3 +616,11 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .matrix-cell[data-tone='error'] .matrix-pill { border-color: var(--error); background: color-mix(in srgb, var(--error) 12%, transparent); }
 .matrix-cell[data-tone='info'] .matrix-pill { border-color: var(--info); background: color-mix(in srgb, var(--info) 12%, transparent); }
 .matrix-col .id-pill { white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+
+/* Explorer: one expandable evidence line per row. */
+.sod-expandable { min-width: 0; }
+.sod-expand-toggle { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-size: 0.8125rem; cursor: pointer; text-align: left; }
+.sod-expand-toggle:hover { color: var(--accent2); text-decoration: underline; }
+.sod-expand-toggle:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.sod-expandable-body { margin-top: 0.25rem; padding-left: 1rem; font-size: 0.8125rem; overflow-wrap: anywhere; }
+.sod-assigned { display: grid; gap: 0.125rem; margin: 0; padding: 0; list-style: none; }

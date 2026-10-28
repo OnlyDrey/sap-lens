@@ -60,7 +60,7 @@ for (const width of [375, 800]) test(`narrow screens use a drawer without horizo
 test('risk and activity identifiers render as pills in the explorer', async ({ page }) => {
   await openSod(page, 'Access Explorer')
   await expect(page.locator('.id-pill-risk').first()).toBeVisible()
-  await page.getByRole('tab', { name: 'User activity table', exact: true }).click()
+  await page.getByRole('combobox', { name: 'Group users by', exact: true }).selectOption('user_activity')
   await expect(page.locator('.id-pill-activity').first()).toBeVisible()
 })
 

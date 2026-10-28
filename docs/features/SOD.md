@@ -16,7 +16,7 @@ Accept or reject → Approve → Remediate → Verify → Report**
 | Overview | Compact figure tiles for conflicts, reviews and remediation that link into filtered views, review period progress and last approval, evidence freshness and source coverage. |
 | Risk Matrix | SAP users by risk. Cells show the risk-acceptance state; totals count distinct users and user-risk findings. Group rows by SAP user group. |
 | Activity Matrix | SAP users by activity with review state and the number of supplying roles (overlap flagged). The main entry point for reviewing. |
-| Access Explorer | User risk, user activity, access list, role lookup and role conflicts, with CSV export. Trace user, risk, activity, transaction, role and assignment in both directions. |
+| Access Explorer | Four modes: **Users** (grouped by risk or by activity), **Assignments**, **Roles** (role lookup with the users assigned to each role) and **Role conflicts** (catalogue roles). Identifiers are pills, evidence (roles, transactions, assigned users) expands per row, and CSV export covers the filtered rows. Trace user, risk, activity, transaction, role and assignment in both directions. |
 | Reviews | Work queue with status filters and batch review of selected rows, and Remediation tracking. |
 | Review Periods | Frozen snapshots, workflow, a per-row action menu, comparison in a dialog and audited deletion. |
 | Reports | Formal review report and access remediation report. |
