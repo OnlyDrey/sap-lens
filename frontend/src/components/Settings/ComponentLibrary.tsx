@@ -9,7 +9,8 @@ import { SourceHealthSummary } from './SourceStatus'
 import { AssignmentDateFilters, emptyDates } from '@/components/Shared/AssignmentDateFilters'
 import { StatusCard, FilterPanel, ResultsToolbar } from '@/components/Shared/InvestigationPatterns'
 import { useRef, useState, useEffect } from 'react'
-import { Copy, Download, Search, Users, Info, CheckCircle2 } from 'lucide-react'
+import { Copy, Download, Search, Users, Info, CheckCircle2, Database, Layers } from 'lucide-react'
+import { RoleCard } from '@/components/RoleList/RoleCard'
 import { Button, IconButton, ButtonGroup } from '@/components/Shared/Button'
 import {
   Input,
@@ -131,6 +132,9 @@ export function ComponentLibrary() {
     [feedback, setFeedback] = useState(''),
     [section, setSection] = useState('directory'),
     [tab, setTab] = useState('all'),
+    [settingsItem, setSettingsItem] = useState('Data Sources'),
+    [cardCompare, setCardCompare] = useState(false),
+    [cardPackage, setCardPackage] = useState(false),
     [offset, setOffset] = useState(0),
     [user, setUser] = useState('DEMO_ANALYST'),
     [role, setRole] = useState('ZC:DEMO:VIEW')
@@ -237,6 +241,15 @@ export function ComponentLibrary() {
         >
           <p className="text-sm">Selected content: {tab}</p>
         </ContentTabs>
+        <h3 className="settings-subheading">Settings navigation</h3>
+        <p className="ui-description">Vertical sidebar items: one filled rounded surface for the selected item, a separate focus outline, no underline. Used only for Settings sections.</p>
+        <div role="tablist" aria-label="Settings navigation preview" aria-orientation="vertical" className="grid max-w-xs gap-1">
+          {([['Data Sources', Database], ['SAP Modules', Layers]] as const).map(([label, Icon]) => (
+            <button key={label} type="button" role="tab" aria-selected={settingsItem === label} tabIndex={settingsItem === label ? 0 : -1} className={`settings-nav-item ${settingsItem === label ? 'active' : ''}`} onClick={() => setSettingsItem(label)}>
+              <Icon size={19} aria-hidden="true" /><span>{label}</span>
+            </button>
+          ))}
+        </div>
       </Card>}
       {(category==='all'||category==='sap')&&<Card><PageHeader title="Page header preview" icon={<LayoutDashboard size={22} aria-hidden="true"/>}/><MetadataList items={[{label:'Records',value:'2'},{label:'Last validated source check',value:'Not checked · Static source'}]}/><TransactionCount count={12}/><ExportCSVButton disabled title="Isolated preview; no records are exported."/><h2>Import and source controls</h2><p className="ui-description">Real import components with isolated synthetic state. In Data Sources, selection automatically validates and imports a complete dataset. This isolated preview only selects a demo string; no files, settings or datasets are changed.</p><SourceFileField label="Demo source file" value={demoPath} onChange={setDemoPath} native onBrowse={()=>setDemoPath('C:/synthetic/replacement.csv')} browseLabel="Browse demo source"/><div className="demo-grid"><MappingField field="AGR_NAME" label="Demo role name" required value={demoMapping} columns={['AGR_NAME','ROLE_NAME']} onChange={setDemoMapping}/><SourceHealthSummary source={{id:'roles',mode:'static',loaded:true,loading:false,error:null,records:2,last_successful_load:'2026-01-01T12:00:00Z',snapshot_available:true}}/></div><ImportPreview fileName="synthetic.csv" metrics={[{label:'Records',value:2}]} samples={[{AGR_NAME:'ZC:DEMO',TCODE:'MIGO'},{AGR_NAME:'ZC:EXAMPLE',TCODE:'ME23N'}]} warnings={['Example warning: an optional description was not supplied.']}/></Card>}
       {(category==='all'||category==='data')&&<Card><SectionHeader title="Investigation evidence" icon={<Info size={18}/>}/><ReviewFindings row={{sap_validity:'Valid',lock_status:'Unlocked',ad_status:'Unknown',match_status:'missing_email',findings:['directory_match'],stale:false}} labels={{directory_match:'Missing directory match'}}/><ChangeRecordDetails change={{source:'employees',source_name:'Synthetic directory',type:'modified',identifier:'SYNTHETIC_RECORD',fields:[{field:'Title',before:'Example analyst',after:'Example reviewer'}],before:{Name:'Synthetic Example'},after:{Name:'Synthetic Example'}}}/></Card>}
@@ -408,6 +421,18 @@ export function ComponentLibrary() {
       </Card>}
       {(category==='all'||category==='sap')&&<Card>
         <h2>SAP components &amp; data display</h2>
+        <h3 className="settings-subheading">Role card</h3>
+        <p className="ui-description">Compare (Scale) sits left of Add to access package (Plus). Both are toggles whose label and pressed state change; nothing here is saved.</p>
+        <div className="w-full min-w-0 max-w-sm">
+          <RoleCard
+            role={{ agr_name: 'ZC:DEMO:VIEW', text: 'Demo finance display role', function_key: 'FI', module_name: 'Financial Accounting', tcode_count: 12, single_role_count: 2 }}
+            isSelected={cardCompare}
+            onSelect={() => setCardCompare(value => !value)}
+            inCart={cardPackage}
+            onCart={() => setCardPackage(value => !value)}
+            onClick={() => undefined}
+          />
+        </div>
         <SAPUserSelector
           label="Demo SAP user"
           value={user}

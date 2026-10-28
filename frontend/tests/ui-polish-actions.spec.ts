@@ -139,6 +139,7 @@ test('keyboard: identifiers are not tab stops, only their copy and open controls
   }
   await page.getByRole('navigation', { name: 'Main navigation', exact: true }).getByRole('link', { name: 'SoD', exact: true }).click()
   await page.getByRole('link', { name: 'Risk Matrix', exact: true }).first().click()
+  await expect(page.locator('.matrix-row-button').first()).toBeVisible()
   for (const selector of ['.matrix-row-button', '.sod-tile > button']) {
     const heights = await page.locator(selector).evaluateAll(els => els.map(element => element.getBoundingClientRect().height))
     expect(heights.length, selector).toBeGreaterThan(0)
@@ -229,4 +230,30 @@ test('selected Settings item and active role card toggles meet 4.5:1 text and 3:
       expect(contrastOf(colors[0], colors[1]), `${theme} ${name}`).toBeGreaterThanOrEqual(minimum)
     }
   }
+})
+
+test('Component Library shows the production role card and Settings navigation previews', async ({ page }) => {
+  await page.goto('/#session=browser-test-session')
+  await page.getByRole('button', { name: 'Open settings', exact: true }).click()
+  await page.getByRole('tab', { name: 'Component Library', exact: true }).click()
+  const card = page.getByRole('article', { name: /Demo finance display role/ })
+  await expect(card.locator('svg.lucide-scale')).toHaveCount(1)
+  await expect(card.locator('svg.lucide-plus')).toHaveCount(1)
+  await card.getByRole('button', { name: 'Add to access package', exact: true }).click()
+  await expect(card.getByRole('button', { name: 'Remove from access package', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  const preview = page.getByRole('tablist', { name: 'Settings navigation preview' })
+  await preview.getByRole('tab', { name: 'SAP Modules', exact: true }).click()
+  await expect(preview.getByRole('tab', { name: 'SAP Modules', exact: true })).toHaveAttribute('aria-selected', 'true')
+  expect(await preview.getByRole('tab', { name: 'SAP Modules', exact: true }).evaluate(el => getComputedStyle(el).borderBottomWidth)).toBe('0px')
+})
+
+test('Settings actions bar keeps Cancel and Apply on one row below the status at 375px', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 700 })
+  await page.goto('/#session=browser-test-session')
+  await page.getByRole('button', { name: 'Open settings', exact: true }).click()
+  const [status, cancel, apply] = await Promise.all(['.settings-actions > p', '.settings-actions button:has-text("Cancel")', '.settings-actions button:has-text("Apply settings")'].map(selector => page.locator(selector).first().boundingBox()))
+  expect(Math.abs(cancel!.y - apply!.y)).toBeLessThanOrEqual(1)
+  expect(cancel!.x + cancel!.width).toBeLessThanOrEqual(apply!.x)
+  expect(status!.y + status!.height).toBeLessThanOrEqual(cancel!.y + 1)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })

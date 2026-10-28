@@ -8,13 +8,13 @@ phases. Results apply to the recorded commits and the Linux build environment on
 
 | Field | Value |
 |---|---|
-| Completed phases | 1 Settings navigation, 2 Role card actions, 3 Shared components, 4 Screen audit, 5 Accessibility |
-| Current phase | 6 Responsive and theme validation |
-| Remaining | 6 Responsive/theme QA with fixes, 7 Component Library and regression prevention, then Full Validation |
-| Last verified pushed commit | Phase 4: `6bd134e` (Fast Validation success). Phase 5 commit is recorded in `git log` |
-| Validation | Fast Validation per phase; Full Validation only after Phase 7 |
+| Completed phases | 1 Settings navigation, 2 Role card actions, 3 Shared components, 4 Screen audit, 5 Accessibility, 6 Responsive and theme validation, 7 Component Library and regression tests |
+| Current phase | Full Validation (after Phase 7) |
+| Remaining | Complete backend and browser suites, types, build, static and security checks, representative visual QA, final report |
+| Last verified pushed commit | Phase 5: `441e65f`; Phase 6 and 7 commits are in `git log origin/work` |
+| Validation | Fast Validation per phase passed locally; Full Validation pending |
 | Known blockers | None |
-| Next executable action | Phase 6: capture 375/800/1280/1600 px in light and dark for the main screens, fix overflow or overlap, add targeted tests |
+| Next executable action | Run Full Validation per AGENTS.md; fix any failure, retest only the affected checks, push |
 
 ## Fixed so far
 
@@ -22,6 +22,9 @@ phases. Results apply to the recorded commits and the Linux build environment on
 - **Role cards:** Compare (Scale) then Add to access package (Plus, rightmost); labels, titles and `aria-pressed` carry the state; "cart" wording replaced by "access package".
 - **Shared components:** 24 px minimum targets for SoD tile, matrix row and evidence toggles; identifier `code` is not a tab stop; Review Periods empty state; SoD page icon size.
 - **Accessibility:** focus is revealed inside horizontally scrolling strips and tables (`lib/focusVisibility.ts`, `scroll-padding`), skip link ring no longer clipped, selected Settings item text meets 4.5:1 in both themes.
+
+- **Responsive (Phase 6):** 16 theme and width combinations (375, 800, 1280, 1600 px, light and dark) over the main screens, SoD views and all Settings sections show no page overflow or off-screen controls. Settings Cancel/Apply no longer split across two rows at 375 px. Reported overlaps were closed `<details>` content and combobox toggles, not defects.
+- **Component Library (Phase 7):** production `RoleCard` and the Settings navigation item are previewed.
 
 ## Regression tests added
 
