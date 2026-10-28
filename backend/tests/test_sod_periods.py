@@ -20,7 +20,7 @@ class SodPeriodTests(unittest.TestCase):
         self.client=TestClient(create_app(session_token=H['X-SAP-Lens']),base_url='http://127.0.0.1:18743')
     tearDown=fixtures.SodAnalysisApiTests.tearDown
     def create(self,name='Synthetic review'):
-        return periods.create(name,date(2026,1,1),date(2026,12,31),date(2026,10,27),periods.read().revision)['period']
+        return periods.create(name,date(2026,1,1),date(2026,12,31),date(2026,10,27),periods.read().revision,legacy=True)['period']
     def decide_all(self,period):
         data=periods.details(period['id'])
         for finding in data['snapshot']['analysis']['users']:

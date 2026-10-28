@@ -8,7 +8,7 @@ router=APIRouter(prefix='/api/saved-filters',tags=['Saved filters'])
 
 class Saved(StrictModel):
     name:str=Field(min_length=1,max_length=80)
-    view:Literal['users','roles','release','review','comparison','sod_users','sod_roles']
+    view:Literal['users','roles','release','review','comparison','sod_users','sod_roles','sod_risk_matrix','sod_activity_matrix','sod_explorer','sod_queue']
     filters:dict=Field(max_length=40)
     id:str=Field(default='',max_length=64)
     expected:str=Field(default='',max_length=64)
@@ -47,6 +47,10 @@ def save(request:Saved):
       'comparison':{'validity','kind','difference','search','area','sort','descending'}}
     for view in ('sod_users','sod_roles'):
         allowed[view]={'search','risk','criticality','risk_type','category','username','group','composite_role','single_role','tcode','account_status','sort','descending','validity','as_of','selected_roles'}
+    matrix={'search','risk','criticality','risk_type','category','username','group','composite_role','single_role','tcode','role','role_suffix','activity','account_status',
+            'activity_decision','assignment_decision','acceptance','validity','as_of','sort','descending','group_by','table','kind','status'}
+    for view in ('sod_risk_matrix','sod_activity_matrix','sod_explorer','sod_queue'):
+        allowed[view]=matrix
     if not request.rename and set(request.filters)-allowed[request.view]: raise HTTPException(422,'Unsupported filter fields; result datasets cannot be saved.')
     return store.save(request.name,request.view,request.filters,request.id,request.expected,request.rename)
 

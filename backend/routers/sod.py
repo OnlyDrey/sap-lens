@@ -94,7 +94,7 @@ def overview():
     with store.lock,cache._load_lock:catalogue=store.catalogue()
     available=analysis['coverage']['status']=='available'
     counts=dict(defined=catalogue['summary']['current'],enabled=catalogue['summary']['enabled'],new=catalogue['summary']['new'],needs_description_review=catalogue['summary']['needs_description_review'],user_findings=analysis['summary']['user_findings'] if available else None,role_findings=analysis['summary']['role_findings'] if analysis['coverage']['roles_available'] else None,reviewed=reviews['summary'].get('Reviewed',0),pending=reviews['summary'].get('Pending',0) if available else None,outdated=reviews['summary'].get('Outdated',0))
-    return dict(counts=counts,criticality=dict(Counter(row['criticality'] for row in analysis['users'])),source=catalogue['source'],coverage=analysis['coverage'])
+    return dict(counts=counts,criticality=dict(Counter(row['criticality'] for row in analysis['users'])),source=catalogue['source'],coverage=analysis['coverage'],governance=governance_overview())
 
 @router.post('/catalogue/bulk')
 def bulk(request: CatalogueBulk):
@@ -104,3 +104,37 @@ def bulk(request: CatalogueBulk):
 @router.post('/catalogue/{risk_id:path}')
 def edit(risk_id: str, request: CatalogueEdit):
     return store.save(risk_id, request.metadata, request.expected_revision, request.definition_version)
+
+
+def governance_overview():
+    """Actionable SoD 2.0 summary for the primary Overview; counts distinguish users, findings, activities and assignments."""
+    import sod_governance as governance
+    import sod_periods as periods
+    import sod_scope as scope
+    bundle=scope.load('current')
+    if bundle['coverage']['status']!='available':return dict(available=False,reason=bundle['coverage'].get('reason'))
+    model=scope.model_for(bundle);change=scope.observe(bundle,model);state=governance.states(model,scope.latest_for(bundle))
+    def tally(kind):
+        result={}
+        for life,_ in state[kind].values():result[life]=result.get(life,0)+1
+        return result
+    actions=scope.actions_for(bundle);today=date.today()
+    open_actions=[item for item in actions if item.status in {'Open','In progress'}]
+    rows,summary=governance.remediation_rows(model,state,actions,scope.make_verifier(),today=today)
+    with periods.lock:index=periods.read()
+    progress=[]
+    for period in sorted(index.items,key=lambda item:item.modified,reverse=True):
+        if period.deleted_at or period.state in periods.FROZEN:continue
+        try:gaps=periods.outstanding(period) if periods.snapshot(period).get('model')==2 else None
+        except Exception:gaps=None
+        if gaps is None:continue
+        decided=sum(count for kind in ('activity','acceptance') for name,count in gaps[kind].items() if name not in {'Pending','Outdated'})
+        total=sum(count for kind in ('activity','acceptance') for count in gaps[kind].values())
+        progress.append(dict(id=period.id,name=period.name,state=period.state,decided=decided,total=total,blocking=gaps['blocking']))
+        if len(progress)>=5:break
+    return dict(available=True,users_with_conflicts=len(model),user_risk_findings=sum(len(entry['findings']) for entry in model.values()),
+                activities=tally('activity'),assignments=tally('assignment'),acceptance=tally('acceptance'),
+                assignments_marked_remove=sum(1 for life,_ in state['assignment'].values() if life=='Removal required'),
+                remediation=dict(open_actions=len(open_actions),overdue=sum(1 for item in open_actions if item.due_date and item.due_date<today),
+                                 removal_without_action=len({(row['user'],row['assignment_id']) for row in rows if row['recommended']=='Remove assignment' and not row['action']})),
+                periods=progress,change=change,as_of=bundle['as_of'])
