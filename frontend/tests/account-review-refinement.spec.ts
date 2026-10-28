@@ -17,7 +17,7 @@ let root: string, source: string
 const nav = async (page: Page, name: string) =>
   page
     .getByRole('navigation', { name: 'Main navigation' })
-    .getByRole('button', { name, exact: true })
+    .getByRole('link', { name, exact: true })
     .click()
 const current = async (request: any) =>
   (await (await request.get('/api/configuration', { headers })).json()).settings
@@ -98,7 +98,7 @@ test('profile header, status pills, mismatch warning and manager card keep SAP i
 }) => {
   await page.goto('/#session=browser-test-session')
   await nav(page, 'User Access')
-  await page.getByRole('button', { name: 'DEMO_OPEN', exact: true }).click()
+  await page.getByRole('link', { name: 'DEMO_OPEN', exact: true }).click()
   const profile = page.getByRole('region', {
       name: 'User profile',
       exact: true,
@@ -124,7 +124,7 @@ test('profile header, status pills, mismatch warning and manager card keep SAP i
   )
   await expect(profile.getByRole('region',{name:'Organization',exact:true})).not.toContainText('AD username')
   await expect(profile).not.toContainText('Site')
-  const manager = profile.getByRole('button', {
+  const manager = profile.getByRole('link', {
     name: 'View SAP user',
     exact: true,
   })
@@ -249,11 +249,11 @@ test('review findings, license filter, local decision persistence and spreadshee
     /^sap-lens-account-review-review-\d{4}-\d{2}-\d{2}\.csv$/,
   )
   expect(native.content).toContain('DEMO_OPEN')
-  await table.getByRole('button', { name: 'DEMO_OPEN', exact: true }).click()
+  await table.getByRole('link', { name: 'DEMO_OPEN', exact: true }).click()
   await expect(
     page.getByRole('region', { name: 'SAP Identity', exact: true }),
   ).toContainText('DEMO_OPEN')
-  await page.getByRole('button', { name: 'View SAP user', exact: true }).click()
+  await page.getByRole('link', { name: 'View SAP user', exact: true }).click()
   await expect(
     page.getByRole('region', { name: 'SAP Identity', exact: true }),
   ).toContainText('SAP_MANAGER')
@@ -520,7 +520,7 @@ for (const theme of ['light', 'dark'])
       await shot('account-review')
       await page
         .getByRole('region', { name: 'Account review results', exact: true })
-        .getByRole('button', { name: 'DEMO_OPEN', exact: true })
+        .getByRole('link', { name: 'DEMO_OPEN', exact: true })
         .click()
       await expect(
         page.getByRole('region', { name: 'User profile', exact: true }),
@@ -663,7 +663,7 @@ for(const theme of ['light','dark']) test(`directory conflict evidence identifie
   expect((await request.post('/api/employees/import',{headers,data:{revision,path:source,digest:(await preview.json()).digest}})).ok()).toBeTruthy()
   await page.setViewportSize({width:800,height:1000})
   await page.goto('/#session=browser-test-session');await nav(page,'User Access')
-  await page.getByRole('button',{name:'DEMO_OPEN',exact:true}).click()
+  await page.getByRole('link', { name: 'DEMO_OPEN',exact:true}).click()
   await page.getByRole('button',{name:'Directory matching details · Ambiguous',exact:true}).click()
   const details=page.getByRole('dialog',{name:'Directory matching details',exact:true})
   await expect(details).toContainText('No candidate is selected')

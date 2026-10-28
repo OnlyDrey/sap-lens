@@ -48,7 +48,7 @@ export async function cleanup(request: APIRequestContext, directory: string) {
 
 export async function openSod(page: Page, link = 'Overview') {
   await page.goto('/#session=browser-test-session')
-  await page.getByRole('navigation', { name: 'Main navigation', exact: true }).getByRole('button', { name: 'SoD', exact: true }).click()
+  await page.getByRole('navigation', { name: 'Main navigation', exact: true }).getByRole('link', { name: 'SoD', exact: true }).click()
   if (link !== 'Overview') await page.getByRole('link', { name: link, exact: true }).click()
 }
 

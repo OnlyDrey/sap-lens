@@ -81,7 +81,7 @@ for (const theme of ['dark', 'light'] as const) {
       ).toBeTruthy()
       await context.grantPermissions(['clipboard-read', 'clipboard-write'])
       await page.goto('/#session=browser-test-session')
-      await page.getByRole('navigation', {name:'Main navigation'}).getByRole('button',{name:'Role Lookup',exact:true}).click()
+      await page.getByRole('navigation', {name:'Main navigation'}).getByRole('link',{name:'Role Lookup',exact:true}).click()
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
       const card = page.getByRole('article', {
         name: 'Synthetic long role',
@@ -274,7 +274,7 @@ test('clipboard denial is announced and leaves exact identifier selectable', asy
   await page.goto('/#session=browser-test-session')
   await activateCSV(page,'roles',path.resolve('tests/fixtures/synthetic.csv'))
   await page.getByRole('button',{name:'Back to SAP Lens',exact:true}).click()
-  await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Role Lookup',exact:true}).click()
+  await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'Role Lookup',exact:true}).click()
   const card = page.getByRole('article').first()
   const copy = card.getByRole('button', { name: /^Copy role identifier/ })
   const confirmation = await observeCopy(copy)
@@ -293,7 +293,7 @@ for (const theme of ['light', 'dark'] as const) {
       data_csv_path: path.resolve('tests/fixtures/synthetic.csv'), theme } })).ok()).toBeTruthy()
     await context.grantPermissions(['clipboard-read', 'clipboard-write'])
     await page.goto('/#session=browser-test-session')
-    await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Role Lookup',exact:true}).click()
+    await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'Role Lookup',exact:true}).click()
     const identifier = page.getByRole('article').first().locator('.role-identifier').first()
     const value = await identifier.locator('code').innerText()
     const before = await identifier.boundingBox()

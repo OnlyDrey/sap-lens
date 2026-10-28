@@ -1,4 +1,5 @@
-import { ShieldCheck } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { Activity, CalendarRange, ClipboardCheck, FileText, Grid3x3, LayoutDashboard, Search, ShieldCheck } from 'lucide-react'
 import { useHistoryValue, useViewHistory, sodHref, type SodView } from '@/hooks/useViewHistory'
 import { SecondaryNavigation } from '@/components/Shared/Navigation'
 import { Card, PageHeader, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
@@ -14,7 +15,11 @@ import { SodReports } from './SodReports'
 import { SodInvestigation } from './SodInvestigation'
 import { useSodContext, useSodSubject } from './SodShared'
 
-const VIEWS: [SodView, string][] = [['overview', 'Overview'], ['risk-matrix', 'Risk Matrix'], ['activity-matrix', 'Activity Matrix'], ['explorer', 'Access Explorer'], ['reviews', 'Reviews'], ['periods', 'Review Periods'], ['reports', 'Reports']]
+const VIEWS: [SodView, string, ReactNode][] = [
+  ['overview', 'Overview', <LayoutDashboard size={16} aria-hidden="true" />], ['risk-matrix', 'Risk Matrix', <Grid3x3 size={16} aria-hidden="true" />],
+  ['activity-matrix', 'Activity Matrix', <Activity size={16} aria-hidden="true" />], ['explorer', 'Access Explorer', <Search size={16} aria-hidden="true" />],
+  ['reviews', 'Reviews', <ClipboardCheck size={16} aria-hidden="true" />], ['periods', 'Review Periods', <CalendarRange size={16} aria-hidden="true" />], ['reports', 'Reports', <FileText size={16} aria-hidden="true" />],
+]
 
 export function SodWorkspace() {
   const configuration = useQuery({ queryKey: ['configuration'], queryFn: fetchConfiguration }),
@@ -42,7 +47,7 @@ function SodWorkspaceContent() {
   return (
     <section className="sod-workspace grid min-w-0 gap-3" aria-label="SoD investigation">
       <PageHeader title="Segregation of Duties" icon={<ShieldCheck size={24} aria-hidden="true" />} />
-      <SecondaryNavigation label="SoD views" items={VIEWS.map(([value, label]) => ({ value, label, href: sodHref(value), active: view === value, onSelect: () => change({ sodView: value }) }))} />
+      <SecondaryNavigation label="SoD views" items={VIEWS.map(([value, label, icon]) => ({ value, label, icon, href: sodHref(value), active: view === value, onSelect: () => change({ sodView: value }) }))} />
       {view === 'overview' ? <SodOverview /> : view === 'risk-matrix' ? <RiskMatrix /> : view === 'activity-matrix' ? <ActivityMatrix /> : view === 'explorer' ? <SodExplorer />
         : view === 'reviews' ? <SodReviews /> : view === 'periods' ? <SodPeriods /> : <SodReports />}
       {/* One side panel at a time: it yields to the role detail panel and returns on Back. */}

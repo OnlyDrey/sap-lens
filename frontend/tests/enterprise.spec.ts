@@ -107,7 +107,7 @@ test('registry customization preserves custom mappings, CSV modules and transact
     settings.import_profiles.find((p:{id:string})=>p.id===settings.active_import).mapping={FUNCTION_KEY:'Module',AGR_NAME:'Role',CHILD_AGR:'Child',PARENT_AGR:'Parent',Effective_Role:'Effective',TCODE:'Transaction'}
     expect((await request.post('/api/configuration',{headers,data:settings})).ok()).toBeTruthy()
     await page.goto('/#session=browser-test-session')
-    await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Role Lookup',exact:true}).click()
+    await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'Role Lookup',exact:true}).click()
 
     await page.getByRole('button',{name:'Open settings'}).click()
     await page.getByRole('tab',{name:'SAP Modules'}).click()
@@ -141,7 +141,7 @@ test('large catalogs render bounded pages and retain cross-page comparisons',asy
   try {
     expect((await request.post('/api/settings',{headers,data:{data_csv_path:file}})).ok()).toBeTruthy()
     await page.goto('/#session=browser-test-session')
-    await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Role Lookup',exact:true}).click()
+    await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'Role Lookup',exact:true}).click()
     const cards=page.getByRole('main').locator('article')
     await expect(cards).toHaveCount(100)
     await expect(cards.first()).toBeInViewport()

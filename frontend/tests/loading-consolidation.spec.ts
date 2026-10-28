@@ -12,7 +12,7 @@ const userCSV =
 async function nav(page: Page, name: string) {
   await page
     .getByRole('navigation', { name: 'Main navigation' })
-    .getByRole('button', { name, exact: true })
+    .getByRole('link', { name, exact: true })
     .click()
 }
 test.beforeEach(async ({ request }) => {
@@ -79,7 +79,7 @@ test('startup load completion refreshes every route cache without revisiting Set
   ).toBeVisible()
   await nav(page, 'User Access')
   await expect(
-    page.getByRole('button', { name: 'DEMO_ONE', exact: true }),
+    page.getByRole('link', { name: 'DEMO_ONE', exact: true }),
   ).toBeVisible()
   loading = false
   // Config polling observes completion, but the baseline only invalidates roles/modules.
@@ -156,11 +156,11 @@ test('navigation during refresh cancels a late old route response and updates al
     ).toContainText('2')
     await nav(page, 'User Access')
     await expect(
-      page.getByRole('button', { name: 'DEMO_TWO', exact: true }),
+      page.getByRole('link', { name: 'DEMO_TWO', exact: true }),
     ).toBeVisible()
     releaseOld()
     await expect(
-      page.getByRole('button', { name: 'DEMO_TWO', exact: true }),
+      page.getByRole('link', { name: 'DEMO_TWO', exact: true }),
     ).toBeVisible()
   } finally {
     releaseRefresh()
@@ -174,7 +174,7 @@ test('failed refresh retains data through navigation and a subsequent refresh re
   await page.goto('/#session=browser-test-session')
   await nav(page, 'User Access')
   await expect(
-    page.getByRole('button', { name: 'DEMO_ONE', exact: true }),
+    page.getByRole('link', { name: 'DEMO_ONE', exact: true }),
   ).toBeVisible()
   writeFileSync(users, 'invalid')
   await page
@@ -182,7 +182,7 @@ test('failed refresh retains data through navigation and a subsequent refresh re
     .click()
   await expect(page.locator('.notification-error')).toBeVisible()
   await expect(
-    page.getByRole('button', { name: 'DEMO_ONE', exact: true }),
+    page.getByRole('link', { name: 'DEMO_ONE', exact: true }),
   ).toBeVisible()
   await nav(page, 'Dashboard')
   await expect(
@@ -197,10 +197,10 @@ test('failed refresh retains data through navigation and a subsequent refresh re
   await expect(page.locator('.notification-error')).toHaveCount(0)
   await nav(page, 'User Access')
   await expect(
-    page.getByRole('button', { name: 'DEMO_RECOVERED', exact: true }),
+    page.getByRole('link', { name: 'DEMO_RECOVERED', exact: true }),
   ).toBeVisible()
   await expect(
-    page.getByRole('button', { name: 'DEMO_ONE', exact: true }),
+    page.getByRole('link', { name: 'DEMO_ONE', exact: true }),
   ).toHaveCount(0)
 })
 
@@ -258,7 +258,7 @@ for (const theme of ['light', 'dark'] as const)
       })
       await nav(page, 'User Access')
       await expect(
-        page.getByRole('button', { name: 'DEMO_ONE', exact: true }),
+        page.getByRole('link', { name: 'DEMO_ONE', exact: true }),
       ).toBeVisible()
       const filter = page.locator('.directory-filter-grid')
       const cols = await filter.evaluate(
@@ -271,7 +271,7 @@ for (const theme of ['light', 'dark'] as const)
         fullPage: true,
         animations: 'disabled',
       })
-      await page.getByRole('button', { name: 'DEMO_ONE', exact: true }).click()
+      await page.getByRole('link', { name: 'DEMO_ONE', exact: true }).click()
       const profile = page.getByRole('region', {
         name: 'User profile',
         exact: true,
@@ -376,7 +376,7 @@ test('clear user filters resets all directory controls while evidence-only clear
     page.getByRole('button', { name: 'Remove transaction MIGO', exact: true }),
   ).toHaveCount(0)
   await expect(
-    page.getByRole('button', { name: 'DEMO_ONE', exact: true }),
+    page.getByRole('link', { name: 'DEMO_ONE', exact: true }),
   ).toBeVisible()
 })
 
@@ -389,6 +389,7 @@ test('restored user detail waits for the startup publication instead of flashing
     history.replaceState(
       { sapLensView: { page: 'users', user: 'DEMO_ONE' } },
       '',
+      '#/user-access/user/DEMO_ONE',
     )
   })
   await page.route('**/api/configuration', async (route) => {

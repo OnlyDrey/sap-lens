@@ -7,7 +7,7 @@ let root: string
 const nav = async (page: Page, name: string) =>
   page
     .getByRole('navigation', { name: 'Main navigation' })
-    .getByRole('button', { name, exact: true })
+    .getByRole('link', { name, exact: true })
     .click()
 const mode = async (page: Page, name: string) =>
   page
@@ -90,7 +90,7 @@ test('comparison entry from details retains User A and original comparison on Ba
 }) => {
   await page.goto('/#session=browser-test-session')
   await nav(page, 'User Access')
-  await page.getByRole('button', { name: 'DEMO_A', exact: true }).click()
+  await page.getByRole('link', { name: 'DEMO_A', exact: true }).click()
   await page.getByRole('button', { name: 'Compare users', exact: true }).click()
   await expect(
     page.getByRole('combobox', { name: 'User A', exact: true }),
@@ -385,7 +385,7 @@ test('Data Health coverage and drilldown navigate to existing records', async ({
   })
   await expect(drill).toContainText('ZC:OLD')
   await drill
-    .getByRole('button', { name: 'DEMO_A', exact: true })
+    .getByRole('link', { name: 'DEMO_A', exact: true })
     .first()
     .click()
   await expect(
@@ -699,10 +699,10 @@ test('directory role description selection and removable chips preserve unrelate
   const role = page.getByRole('combobox',{name:'Filter users by role',exact:true})
   await role.fill('Materials')
   await page.getByRole('option').filter({hasText:'ZC:ONLY_A'}).click()
-  await expect(page.getByRole('button',{name:'DEMO_A',exact:true})).toBeVisible()
-  await expect(page.getByRole('button',{name:'DEMO_B',exact:true})).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'DEMO_A',exact:true})).toBeVisible()
+  await expect(page.getByRole('link', { name: 'DEMO_B',exact:true})).toHaveCount(0)
   await page.getByRole('button',{name:'Remove role filter',exact:true}).click()
-  await expect(page.getByRole('button',{name:'DEMO_B',exact:true})).toBeVisible()
+  await expect(page.getByRole('link', { name: 'DEMO_B',exact:true})).toBeVisible()
   await expect(page.getByLabel('Search users',{exact:true})).toHaveValue('DEMO_')
   await expect(page.getByLabel('Sort users',{exact:true})).toHaveValue('email')
   await page.getByRole('button',{name:'Clear filters',exact:true}).click()

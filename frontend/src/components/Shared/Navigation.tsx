@@ -32,6 +32,7 @@ export function SecondaryNavigation({
     href: string
     active: boolean
     onSelect: () => void
+    icon?: ReactNode
   }[]
 }) {
   return (
@@ -55,6 +56,7 @@ export function SecondaryNavigation({
             }
           }}
         >
+          {item.icon}
           <span>{item.label}</span>
         </a>
       ))}
@@ -64,7 +66,6 @@ export function SecondaryNavigation({
 type TabItem = {
   value: string
   label: string
-  count?: number
   icon?: ReactNode
 }
 export function ContentTabList({
@@ -119,9 +120,6 @@ export function ContentTabList({
         >
           {item.icon}
           <span>{item.label}</span>
-          {item.count !== undefined && (
-            <span className="ui-tab-count">{item.count}</span>
-          )}
         </button>
       ))}
     </NavigationStrip>
@@ -165,27 +163,34 @@ export function ContentTabs({
   )
 }
 
+/** Primary destinations are real links: modified clicks open a new tab, a plain click navigates inside the app. */
 export function MainNavigationItem({
   label,
   icon,
   active,
-  onClick,
+  href,
+  onNavigate,
 }: {
   label: string
   icon: ReactNode
   active: boolean
-  onClick: () => void
+  href: string
+  onNavigate: () => void
 }) {
   return (
-    <button
-      type="button"
+    <a
+      href={href}
       title={label}
       className="primary-nav-button"
       aria-current={active ? 'page' : undefined}
-      onClick={onClick}
+      onClick={(event) => {
+        if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return
+        event.preventDefault()
+        onNavigate()
+      }}
     >
       {icon}
       <span>{label}</span>
-    </button>
+    </a>
   )
 }

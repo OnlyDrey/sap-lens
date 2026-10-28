@@ -42,15 +42,15 @@ test("user to role to transactions and reverse role or transaction investigation
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/#session=browser-test-session");
   const navigation = page.getByRole("navigation", { name: "Main navigation" });
-  await expect(navigation.getByRole("button")).toHaveCount(4);
-  await expect(navigation.getByRole("button", {name:"Dashboard",exact:true})).toBeVisible();
+  await expect(navigation.getByRole("link")).toHaveCount(4);
+  await expect(navigation.getByRole("link", {name:"Dashboard",exact:true})).toBeVisible();
   await navigation
-    .getByRole("button", { name: "User Access", exact: true })
+    .getByRole("link", { name: "User Access", exact: true })
     .click();
   await page
     .getByLabel("Search users", { exact: true })
     .fill("alpha@example.invalid");
-  await page.getByRole("button", { name: "DEMO_ALFA", exact: true }).click();
+  await page.getByRole("link", { name: "DEMO_ALFA", exact: true }).click();
   const detail = page.getByRole("region", {
     name: "User details",
     exact: true,
@@ -79,13 +79,13 @@ test("user to role to transactions and reverse role or transaction investigation
     page.getByRole("region", { name: "User Access", exact: true }),
   ).toContainText("Role: ZC:MM:BUY:EN*");
   await expect(
-    page.getByRole("button", { name: "DEMO_ALFA", exact: true }),
+    page.getByRole("link", { name: "DEMO_ALFA", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "DEMO_GAMMA", exact: true }),
+    page.getByRole("link", { name: "DEMO_GAMMA", exact: true }),
   ).toHaveCount(0);
   await navigation
-    .getByRole("button", { name: "Role Lookup", exact: true })
+    .getByRole("link", { name: "Role Lookup", exact: true })
     .click();
   await page
     .getByRole("button", {
@@ -103,10 +103,10 @@ test("user to role to transactions and reverse role or transaction investigation
     page.getByRole("region", { name: "User Access", exact: true }),
   ).toContainText("Transaction: ME23N");
   await expect(
-    page.getByRole("button", { name: "DEMO_ALFA", exact: true }),
+    page.getByRole("link", { name: "DEMO_ALFA", exact: true }),
   ).toHaveCount(1);
   await expect(
-    page.getByRole("button", { name: "DEMO_DELTA", exact: true }),
+    page.getByRole("link", { name: "DEMO_DELTA", exact: true }),
   ).toHaveCount(1);
 });
 
@@ -116,9 +116,9 @@ test("directory-only users, expired and future assignments, unknown validity and
   await page.goto("/#session=browser-test-session");
   await page
     .getByRole("navigation", { name: "Main navigation" })
-    .getByRole("button", { name: "User Access", exact: true })
+    .getByRole("link", { name: "User Access", exact: true })
     .click();
-  await page.getByRole("button", { name: "DEMO_GAMMA", exact: true }).click();
+  await page.getByRole("link", { name: "DEMO_GAMMA", exact: true }).click();
   const detail = page.getByRole("region", {
     name: "User details",
     exact: true,
@@ -136,19 +136,19 @@ test("directory-only users, expired and future assignments, unknown validity and
   await detail
     .getByRole("button", { name: "Back to users", exact: true })
     .click();
-  await page.getByRole("button", { name: "DEMO_BETA", exact: true }).click();
+  await page.getByRole("link", { name: "DEMO_BETA", exact: true }).click();
   await expect(
     detail.getByRole("definition").filter({ hasText: "Locked" }),
   ).toBeVisible();
   await detail
     .getByRole("button", { name: "Back to users", exact: true })
     .click();
-  await page.getByRole("button", { name: "DEMO_EMPTY", exact: true }).click();
+  await page.getByRole("link", { name: "DEMO_EMPTY", exact: true }).click();
   await expect(detail).toContainText("0 assignment records retained");
   await detail
     .getByRole("button", { name: "Back to users", exact: true })
     .click();
-  await page.getByRole("button", { name: "DEMO_DELTA", exact: true }).click();
+  await page.getByRole("link", { name: "DEMO_DELTA", exact: true }).click();
   await expect(detail).toContainText("Unknown");
   await expect(detail).toContainText("ZC:FI:VIEW:ENS");
 });
@@ -159,7 +159,7 @@ test("release table matrix distinct counts, group comparison and user drilldown 
   await page.goto("/#session=browser-test-session");
   await page
     .getByRole("navigation", { name: "Main navigation" })
-    .getByRole("button", { name: "Release Roles", exact: true })
+    .getByRole("link", { name: "Release Roles", exact: true })
     .click();
   await page.getByRole("button", {name:"Table",exact:true}).click();
   const release = page.getByRole("region", {
@@ -182,7 +182,7 @@ test("release table matrix distinct counts, group comparison and user drilldown 
   ).toContainText("DEMO_BETA");
   await page
     .getByRole("navigation", { name: "Main navigation" })
-    .getByRole("button", { name: "Release Roles", exact: true })
+    .getByRole("link", { name: "Release Roles", exact: true })
     .click();
   await page.getByRole("button", { name: "Back to Release Roles", exact: true }).click();
   await page.getByRole("button", { name: "Matrix", exact: true }).click();
@@ -281,10 +281,10 @@ test("user CSV detection preview and independent custom preset create rename dup
   await page.reload();
   await page
     .getByRole("navigation", { name: "Main navigation" })
-    .getByRole("button", { name: "User Access", exact: true })
+    .getByRole("link", { name: "User Access", exact: true })
     .click();
   await expect(
-    page.getByRole("button", { name: "DEMO_EMPTY", exact: true }),
+    page.getByRole("link", { name: "DEMO_EMPTY", exact: true }),
   ).toBeVisible();
 });
 
@@ -304,7 +304,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.setViewportSize({ width: 1024, height: 800 });
     await page.goto("/#session=browser-test-session");
     const nav = page.getByRole("navigation", { name: "Main navigation" });
-    await nav.getByRole("button", { name: "User Access", exact: true }).focus();
+    await nav.getByRole("link", { name: "User Access", exact: true }).focus();
     await page.keyboard.press("Enter");
     await expect(
       page.getByRole("heading", { name: "User Access", exact: true }),
@@ -313,7 +313,7 @@ for (const theme of ["light", "dark"] as const) {
       path: info.outputPath(`user-access-${theme}.png`),
     });
     await nav
-      .getByRole("button", { name: "Release Roles", exact: true })
+      .getByRole("link", { name: "Release Roles", exact: true })
       .click();
     await page.getByRole("button", { name: "Matrix", exact: true }).click();
     await expect(
@@ -368,7 +368,7 @@ test("a partial matrix never presents off-page cells as zero users", async ({
   await page.goto("/#session=browser-test-session");
   await page
     .getByRole("navigation", { name: "Main navigation" })
-    .getByRole("button", { name: "Release Roles", exact: true })
+    .getByRole("link", { name: "Release Roles", exact: true })
     .click();
   await page.getByRole("button", { name: "Matrix", exact: true }).click();
   const matrix = page.getByRole("table", {
@@ -394,7 +394,7 @@ for (const theme of ['light', 'dark'] as const) for (const width of [1280, 600])
     await page.goto('/#session=browser-test-session')
     const nav = page.getByRole('navigation', { name: 'Main navigation' })
     for (const name of ['Release Roles', 'Role Lookup', 'User Access']) {
-      const button = nav.getByRole('button', { name, exact: true })
+      const button = nav.getByRole('link', { name, exact: true })
       await button.click()
       await expect(button).toHaveAttribute('aria-current', 'page')
       await expect(button).toHaveCSS('box-shadow', 'none')
@@ -404,7 +404,7 @@ for (const theme of ['light', 'dark'] as const) for (const width of [1280, 600])
       await button.focus(); await button.press('Tab'); await page.keyboard.press('Shift+Tab')
       await expect(button).toHaveCSS('outline-style', 'solid')
     }
-    const row = page.getByRole('row').filter({ has: page.getByRole('button', { name: 'DEMO_ALFA', exact: true }) })
+    const row = page.getByRole('row').filter({ has: page.getByRole('link', { name: 'DEMO_ALFA', exact: true }) })
     const identifier = row.locator('.role-identifier')
     await expect(identifier.locator('code')).toHaveText('DEMO_ALFA')
     const copy = identifier.getByRole('button', { name: 'Copy username DEMO_ALFA', exact: true })
@@ -414,7 +414,7 @@ for (const theme of ['light', 'dark'] as const) for (const width of [1280, 600])
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('DEMO_ALFA')
     await expect(page.getByRole('region', { name: 'User details', exact: true })).toHaveCount(0)
     await page.screenshot({ path: info.outputPath('user-directory.png'), fullPage: true })
-    await row.getByRole('button', { name: 'DEMO_ALFA', exact: true }).press('Enter')
+    await row.getByRole('link', { name: 'DEMO_ALFA', exact: true }).press('Enter')
     const detail = page.getByRole('region', { name: 'User details', exact: true })
     await expect(detail.getByRole('button', { name: 'Copy username DEMO_ALFA', exact: true })).toBeVisible()
     await expect(detail.getByRole('columnheader',{name:'Role description',exact:true})).toBeVisible()
@@ -424,9 +424,9 @@ for (const theme of ['light', 'dark'] as const) for (const width of [1280, 600])
     await page.evaluate(() => window.scrollTo(0, 0))
     await page.screenshot({ path: info.outputPath('catalogue-matches.png'), fullPage: true })
     await page.getByRole('button', { name: 'Back to users', exact: true }).click()
-    await expect(page.getByRole('button', { name: 'DEMO_ALFA', exact: true })).toBeFocused()
+    await expect(page.getByRole('link', { name: 'DEMO_ALFA', exact: true })).toBeFocused()
     for (const code of ['FB03', 'ME23N']) {
-      await nav.getByRole('button', { name: 'Role Lookup', exact: true }).click()
+      await nav.getByRole('link', { name: 'Role Lookup', exact: true }).click()
       await page.getByRole('button', { name: 'View details for ZC:FI:VIEW:*', exact: true }).click()
       const dialog = page.getByRole('dialog')
       const entry = dialog.locator('.single-role-entry')
@@ -462,7 +462,7 @@ for (const theme of ['light', 'dark'] as const) for (const width of [1280, 600])
       await page.screenshot({ path: info.outputPath(`transactions-${code}.png`), fullPage: true })
       await table.getByRole('button', { name: `Investigate users with ${code}`, exact: true }).press('Enter')
       await expect(page.getByRole('region', { name: 'User Access', exact: true })).toContainText(`Transaction: ${code}`)
-      await expect(page.getByRole('button', { name: 'DEMO_ALFA', exact: true })).toBeVisible()
+      await expect(page.getByRole('link', { name: 'DEMO_ALFA', exact: true })).toBeVisible()
     }
   })
 }
@@ -476,8 +476,8 @@ test('long username code wraps within its cell and copies without navigation', a
   })
   await page.setViewportSize({ width: 600, height: 900 })
   await page.goto('/#session=browser-test-session')
-  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'User Access', exact: true }).click()
-  const identifier = page.getByRole('button', { name: username, exact: true }).locator('..')
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'User Access', exact: true }).click()
+  const identifier = page.getByRole('link', { name: username, exact: true }).locator('..')
   await expect(identifier.locator('code')).toHaveText(username)
   expect(await identifier.evaluate(element => element.scrollWidth <= element.clientWidth)).toBeTruthy()
   await identifier.getByRole('button', { name: `Copy username ${username}`, exact: true }).click()

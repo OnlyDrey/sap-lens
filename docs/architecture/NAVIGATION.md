@@ -32,6 +32,14 @@ Existing identities, record navigation, role comparison, selected transaction co
 
 Role sections retain the actual existing ZC/ZO investigation scopes; these naming conventions are not presented as universal SAP standards. Changing tabs does not change parsing, transaction resolution or date filters' scope.
 
+## Links, deep links and keyboard order
+
+- Main navigation items are real `<a href>` links (`#/dashboard`, `#/role-lookup`, `#/user-access`, `#/release-roles`, `#/sod`). A plain click is handled in-app and closes Settings; Ctrl/Cmd/Shift/middle click and "Open in new tab" use the browser. Leaving Settings with unsaved changes asks `Discard unsaved settings changes?` (`lib/settingsGuard.ts`); opening a link in a new tab never discards the draft.
+- SAP usernames are links to `#/user-access/user/<username>` (directory, Account Review, SoD, manager links). A missing user shows the normal not-found state. Manager links append to a route-based trail, so User Details shows **Back to previous user: NAME** and browser Back/Forward follow it.
+- DOM order is interaction order; there are no positive `tabindex` values. The User Directory order is Search users, SAP User Group, Filter users by role, Show expired assignments, transaction filter, Sort users, Descending, Clear filters at every breakpoint. Code blocks have no extra tab stop; the copy button is the only stop. `tests/a11y-audit.spec.ts` checks focus visibility, clipping and unnamed controls.
+- Secondary navigation (`SecondaryNavigation`) accepts an optional Lucide icon and has no count badges; counts belong in the result summary.
+- Stacked list rows use `.ui-list-row`: bottom separator, no rounded or double borders, with hover, active and focus-visible states.
+
 ## Compact navbar and metadata
 
 Theme, Settings and Refresh are icon actions with independent accessible names, focus tooltips and shared hit targets. Refresh retains application-scoped loading, request suppression and atomic publication; completion/error feedback is explicit. Destination text remains visible at narrow widths on a wrapped navigation row.

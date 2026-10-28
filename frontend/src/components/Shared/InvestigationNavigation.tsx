@@ -6,7 +6,8 @@ import { useEffect, useRef } from 'react'
 import { ArrowLeft, ArrowRight, ChevronRight, CircleHelp, CircleCheck, CircleX, Clock } from 'lucide-react'
 
 /** Global position and neighbours come from the same server-side list ordering. */
-export function DetailNavigation({ parent, current, onBack, index = -1, total = 0, onPrevious, onNext, showBreadcrumb=true, loading = false, error = null, missing = false }: {
+export function DetailNavigation({ parent, current, onBack, previousUser, index = -1, total = 0, onPrevious, onNext, showBreadcrumb=true, loading = false, error = null, missing = false }: {
+  previousUser?: { name: string; onBack: () => void };
   showBreadcrumb?:boolean; loading?: boolean; error?: Error | null; missing?: boolean;
   parent: string; current: string; onBack: () => void; index?: number; total?: number;
   onPrevious?: () => void; onNext?: () => void;
@@ -19,6 +20,7 @@ export function DetailNavigation({ parent, current, onBack, index = -1, total = 
       <ChevronRight size={16} aria-hidden="true" className="shrink-0"/>
       <span ref={focus} tabIndex={-1} aria-current="page" className="truncate" title={current}>{current}</span>
     </nav>}
+    {previousUser && <Button variant="ghost" size="compact" className="detail-back-action" onClick={previousUser.onBack}><ArrowLeft size={16} aria-hidden="true"/>Back to previous user: {previousUser.name}</Button>}
     {loading && <p role="status" className="text-sm">Locating record in filtered results…</p>}
     {error && <p role="alert" className="text-sm text-[var(--error)]">Record navigation unavailable. {error.message}</p>}
     {missing && <p role="status" className="text-sm">This record is missing or no longer matches these filters. Return to the list to review the current results.</p>}

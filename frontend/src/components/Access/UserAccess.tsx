@@ -34,6 +34,7 @@ import {
   type Assignment,
 } from "@/api/access";
 import { RoleIdentifier } from "@/components/Shared/RoleIdentifier";
+import { userHref } from '@/hooks/useViewHistory';
 import {
   dates,
   EvidenceNote,
@@ -68,13 +69,14 @@ export function UserAccess({
   const listScroll = useRef(0);
   const originUser = useRef(initialUser || "");
   const restoreList = useRef(false);
-  const openUser = (username: string) => { listScroll.current = window.scrollY; originUser.current = username; setSelected(username) };
+  const openUser = (username: string) => { listScroll.current = window.scrollY; originUser.current = username; changeView({ user: username, userTrail: [] }) };
   const [search, setSearch] = useState(""),
     [sort, setSort] = useState("username"),
     [descending, setDescending] = useState(false);
   const [group, setGroup] = useState(""),
     [offset, setOffset] = useState(0),
     [selected, setSelected] = useHistoryValue('user');
+  const { change: changeView } = useViewHistory();
   const [role, setRole] = useState(initialRole),
     [expired, setExpired] = useState(false);
   const [roleSearch, setRoleSearch] = useState(''), [roleTerm, setRoleTerm] = useState('')
@@ -141,7 +143,7 @@ export function UserAccess({
       <UserDetails
         username={selected}
         onCompare={()=>{setCompareInitial(selected);setSelected('');setAccessMode('compare')}}
-        onBack={() => { restoreList.current = true; setSelected("") }}
+        onBack={() => { restoreList.current = true; changeView({ user: '', userTrail: [] }) }}
         onRole={onRole}
         onRelease={onRelease}
         navigation={navigation}
@@ -169,6 +171,18 @@ export function UserAccess({
         <Filter label="Filter users by role">
           <Combobox label="Filter users by role" value={role} options={(roleOptions.data || []).slice(0,100).map(item=>item.agr_name)} onChange={setRole} onSearch={setRoleSearch} serverFiltered loading={roleOptions.isFetching} hasMore={(roleOptions.data?.length||0)>100} optionLabel={value=>{const item=roleOptions.data?.find(item=>item.agr_name===value);return item?.text ? `${value} · ${item.text}` : value}} placeholder="Role name or description"/>
         </Filter>
+        <label className="filter-toggle directory-expired">
+          <input
+            type="checkbox"
+            checked={expired}
+            onChange={(e) => setExpired(e.target.checked)}
+          />
+          Show expired assignments
+        </label>
+      <section className="directory-transaction" aria-label="User transaction filter">
+        <TransactionFilter label="Filter users by transaction" filter={directoryTransaction} mode={transactionMode} onModeChange={setTransactionMode} exclude={excludeTransactions} onExcludeChange={setExcludeTransactions} subject="users" showClear={false} chipPrefix="Transaction: "/>
+
+      </section>
         <div className="directory-sort"><Filter label="Sort users">
           <Select aria-label="Sort users"
             className={inputClass}
@@ -199,18 +213,6 @@ export function UserAccess({
           Descending
         </label>
         </div>
-      <section className="directory-transaction" aria-label="User transaction filter">
-        <TransactionFilter label="Filter users by transaction" filter={directoryTransaction} mode={transactionMode} onModeChange={setTransactionMode} exclude={excludeTransactions} onExcludeChange={setExcludeTransactions} subject="users" showClear={false} chipPrefix="Transaction: "/>
-
-      </section>
-        <label className="filter-toggle directory-expired">
-          <input
-            type="checkbox"
-            checked={expired}
-            onChange={(e) => setExpired(e.target.checked)}
-          />
-          Show expired assignments
-        </label>
         <ClearFilterButton className="directory-clear" disabled={!assignmentBand && !search && !group && sort==='username' && !descending && !expired && !role && !excludeTransactions && !directoryTransaction.codes.length} onClick={()=>{setAssignmentBand('');setSearch('');setTerm('');setGroup('');setSort('username');setDescending(false);setExpired(false);clearEvidence()}}>Clear filters</ClearFilterButton>
       </div></fieldset></div>
       {(assignmentBand || role || group || search || expired) && <div className="active-filter-row" aria-label="Active user filters">
@@ -268,6 +270,7 @@ export function UserAccess({
                         value={user.username}
                         label="username"
                         onOpen={() => openUser(user.username)}
+                        href={userHref(user.username)}
                         openLabel={user.username}
                         openButtonProps={{ 'data-user': user.username }}
                       />
@@ -363,9 +366,11 @@ function UserDetails({
       }),
   });
   const user = result.isError ? undefined : result.data;
+  const { view: historyView, change } = useViewHistory(),
+    trail = (historyView.userTrail || []).filter((name) => name !== username);
   return (
     <section aria-label="User details" className="space-y-4">
-      <DetailNavigation parent="User Access" current={username} onBack={onBack} {...navigation}/>
+      <DetailNavigation parent="User Access" current={username} onBack={onBack} previousUser={trail.length ? { name: trail[trail.length - 1], onBack: () => change({ user: trail[trail.length - 1], userTrail: trail.slice(0, -1) }) } : undefined} {...navigation}/>
       <div className="flex flex-wrap items-center gap-3"><h1 className="text-xl font-semibold">User details</h1><Button className="settings-secondary-button" onClick={onCompare}>Compare users</Button></div>
       <QueryState loading={result.isLoading || (dataLoading && !result.data)} error={dataLoading && !result.data ? null : result.error} />
       {user && (

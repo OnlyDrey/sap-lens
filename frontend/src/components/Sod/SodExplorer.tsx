@@ -14,7 +14,7 @@ import { announceExport } from '@/lib/exportNotice'
 import { formatDate } from '@/lib/dateFormat'
 import { ConflictView } from './SodConflicts'
 import { SodPill } from '@/lib/sodAppearance'
-import { type FilterField, ContextBar, CoverageNotice, SodFilters, LifecycleBadge, useSodContext, useSodFilters, useSodSubject } from './SodShared'
+import { type FilterField, ContextBar, SodArea, CoverageNotice, SodFilters, LifecycleBadge, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 
 type TableName = Exclude<SodExplorerTable, 'roles'>
 interface Row {
@@ -114,7 +114,7 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
         <p className="ui-description">Trace User → Risk → Activity → Transaction → Role → Assignment. Select a row to investigate; from the lookup, show the users behind a role.</p>
         {data.items.length ? <DataTable caption={LABELS[table]}>
           {table === 'user_risk' && <><thead><tr><th>SAP user</th><th>Risk</th><th>Activities</th><th>Evidence</th><th>Risk acceptance</th><th>Open</th></tr></thead>
-            <tbody>{data.items.map((row) => { const id = `${row.user}:${row.risk_id}`; return <tr key={id}><td>{row.user}<p className="text-xs text-muted">{list(row.groups)}</p></td><td>{pills('risk', row.risk_id)}{row.category && <p className="text-xs text-muted">{row.category}</p>}</td><td>{pills('activity', row.activities)}</td>
+            <tbody>{data.items.map((row) => { const id = `${row.user}:${row.risk_id}`; return <tr key={id}><td>{row.user}<p className="text-xs text-muted">{list(row.groups)}</p></td><td>{pills('risk', row.risk_id)}{row.category && <p><SodArea value={row.category} /></p>}</td><td>{pills('activity', row.activities)}</td>
               <td><Expandable id={id} label={`${row.user} ${row.risk_id}`} expanded={expanded.has(id)} toggle={toggle} summary={`${Array.isArray(row.roles) ? row.roles.length : row.roles} roles`}><p className="sod-break">{list(row.roles)}</p></Expandable></td>
               <td><LifecycleBadge value={row.acceptance || 'Pending'} /></td>
               <td><Button onClick={() => setSelected({ user: row.user!, risk: row.risk_id })} aria-label={`Investigate ${row.user} ${row.risk_id}`}>Investigate</Button></td></tr> })}</tbody></>}

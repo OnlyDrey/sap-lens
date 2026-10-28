@@ -10,6 +10,8 @@ import { Button } from '@/components/Shared/Button'
 import { FilterLayout, FilterSection, PageToolbar, SortControl } from '@/components/Shared/FilterLayout'
 import { SavedFilters } from '@/components/Shared/SavedFilters'
 import { formatDate } from '@/lib/dateFormat'
+import { ModuleIcon } from '@/components/Modules/ModuleIcon'
+import { useModuleDefinitions } from '@/components/Modules/ModuleRegistry'
 
 export type Tone = 'neutral' | 'success' | 'warning' | 'error' | 'info'
 export interface LifecycleView { icon: ReactNode; tone: Tone; text: string }
@@ -182,4 +184,13 @@ export function CoverageNotice({ info }: { info?: ContextInfo }) {
       <Toolbar><Button onClick={() => change({ settings: true, settingsTarget: disabled || off ? 'features' : 'sod' })}>Review configuration</Button></Toolbar>
     </Card>
   )
+}
+
+/** Business area text from the SoD source; reuses the configured SAP module icon and color when it names a module. */
+export function SodArea({ value }: { value?: string | null }) {
+  const modules = useModuleDefinitions()
+  if (!value) return null
+  const key = value.trim().toLowerCase()
+  const module = Object.values(modules).find((item) => item.id.toLowerCase() === key || item.name.toLowerCase() === key)
+  return <span className="inline-flex items-center gap-1.5 text-xs text-muted">{module && <ModuleIcon moduleId={module.id} />}<span>{value}</span></span>
 }

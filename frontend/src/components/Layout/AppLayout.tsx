@@ -119,7 +119,7 @@ export function AppLayout({
             </div>
           </div>
 
-          <fieldset disabled={settingsOpen} className="min-w-0">{navigation}</fieldset>
+          <div className="min-w-0">{navigation}</div>
 
           <div className="app-utilities">
             <IconButton label={isDark?'Switch to light mode':'Switch to dark mode'} variant="ghost" disabled={themeBusy||settingsOpen} loading={themeBusy} onClick={()=>{setErr(null);setThemeBusy(true);void onToggleTheme().catch(e=>setErr(e instanceof Error?e.message:'Could not save the theme.')).finally(()=>setThemeBusy(false))}}>{!themeBusy&&(isDark?<Sun size={17} aria-hidden="true"/>:<Moon size={17} aria-hidden="true"/>)}</IconButton>

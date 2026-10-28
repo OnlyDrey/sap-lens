@@ -38,7 +38,7 @@ test.afterEach(async ({ request }) => {
   rmSync(directory, { recursive: true, force: true })
 })
 
-const nav = (page: Page, name: string) => page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name, exact: true }).click()
+const nav = (page: Page, name: string) => page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name, exact: true }).click()
 async function openRoles(page: Page) {
   await page.goto('/#session=browser-test-session')
   await nav(page, 'Role Lookup')
@@ -47,7 +47,7 @@ async function openRoles(page: Page) {
 async function openUsers(page: Page) {
   await page.goto('/#session=browser-test-session')
   await nav(page, 'User Access')
-  await expect(page.getByRole('button', { name: 'U1', exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'U1', exact: true })).toBeVisible()
 }
 const filter = (page: Page, label: string) => page.getByRole('group', { name: label, exact: true })
 const roleFilter = (page: Page) => filter(page, 'Filter catalogue by transaction')
@@ -59,7 +59,7 @@ const add = async (group: ReturnType<typeof roleFilter>, code: string) => {
   await input.press('Enter')
 }
 const roleNames = async (page: Page) => (await page.getByRole('article').getByRole('heading').allInnerTexts()).map((text) => text.trim()).sort()
-const listed = async (page: Page) => (await page.getByRole('table').first().getByRole('button', { name: /^U\d$/ }).allInnerTexts()).sort()
+const listed = async (page: Page) => (await page.getByRole('table').first().getByRole('link', { name: /^U\d$/ }).allInnerTexts()).sort()
 
 test.describe('Role Lookup', () => {
   test('one compact checkbox; unchecked keeps positive matching with AND/OR and wildcards', async ({ page }) => {

@@ -32,7 +32,7 @@ test('first launch, native picker contract, invalid CSV, persistence and private
   await expect(page.getByRole('status').filter({hasText:'Completed ·'})).toBeVisible()
   await page.getByRole('button', { name: 'Back to SAP Lens',exact:true }).click()
   await expect(page.getByRole('region',{name:'SAP Lens settings',exact:true})).toBeHidden()
-  await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Role Lookup',exact:true}).click()
+  await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'Role Lookup',exact:true}).click()
   await expect(page.getByRole('article', {name:'Synthetic finance viewer', exact:true})).toBeVisible()
   await page.reload()
   await expect(page.getByRole('article', {name:'Synthetic finance viewer', exact:true})).toBeVisible()

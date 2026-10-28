@@ -29,14 +29,14 @@ test.beforeEach(async ({ request }) => {
 test.afterEach(async ({ request }) => { await request.post('/api/configuration/reset', { headers }); rmSync(directory, { recursive: true, force: true }) })
 async function openRole(page: Page, role = pattern) {
   await page.goto('/#session=browser-test-session')
-  await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Role Lookup',exact:true}).click()
+  await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'Role Lookup',exact:true}).click()
   await page.getByRole('button', { name: `View details for ${role === pattern ? 'Investigation example' : role === 'ZC:BC:SECOND:*' ? 'Second example' : role}`, exact: true }).click()
   return page.getByRole('dialog')
 }
 async function openUser(page: Page) {
   await page.goto('/#session=browser-test-session')
-  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'User Access', exact: true }).click()
-  await page.getByRole('button', { name: 'DEMO_REVIEW', exact: true }).click()
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'User Access', exact: true }).click()
+  await page.getByRole('link', { name: 'DEMO_REVIEW', exact: true }).click()
   return page.getByRole('region', { name: 'User details', exact: true })
 }
 test('description area labels remain separate from canonical classification', async ({ page, request }) => {

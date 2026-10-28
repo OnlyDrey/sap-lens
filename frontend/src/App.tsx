@@ -1,7 +1,8 @@
 import {SodWorkspace} from '@/components/Sod/SodWorkspace'
 import {applicationToken} from '@/api/client'
 import { MainNavigation, MainNavigationItem } from '@/components/Shared/Navigation'
-import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
+import { pageHref, useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
+import { DISCARD_PROMPT, settingsDirty } from '@/lib/settingsGuard'
 import { useState, useCallback, useRef, useLayoutEffect, useEffect } from 'react'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import { RoleList } from '@/components/RoleList/RoleList'
@@ -19,6 +20,7 @@ import { fetchConfiguration } from '@/api/configuration'
 export function App() {
   const { isDark, toggle } = useTheme()
   const [page] = useHistoryValue('page')
+  const [settingsOpen] = useHistoryValue('settings')
   const [kpiNavigation] = useHistoryValue('kpiNavigation')
   const [catalogueArea] = useHistoryValue('catalogueArea')
   const { change } = useViewHistory()
@@ -34,7 +36,9 @@ export function App() {
   },[change])
   const [visited, setVisited] = useState(() => new Set([page]))
   const scrollPositions = useRef<Record<string, number>>({})
-  const navigate = (next: 'dashboard'|'roles'|'users'|'releases'|'sod') => { scrollPositions.current[page] = window.scrollY; setVisited(previous => new Set([...previous, next])); change({page:next, detailRole:null}) }
+  const navigate = (next: 'dashboard'|'roles'|'users'|'releases'|'sod') => { scrollPositions.current[page] = window.scrollY; setVisited(previous => new Set([...previous, next])); change({page:next, detailRole:null, settings:false}) }
+  /** Settings stay open until the destination is confirmed when they hold unsaved edits. */
+  const go = (next: 'dashboard'|'roles'|'users'|'releases'|'sod') => { if (settingsDirty() && !window.confirm(DISCARD_PROMPT)) return; navigate(next) }
   useLayoutEffect(() => { setVisited(previous => new Set([...previous, page])); window.scrollTo(0, scrollPositions.current[page] || 0) }, [page])
   const [userContext] = useHistoryValue('userContext')
   const [selectedUser] = useHistoryValue('user')
@@ -67,7 +71,7 @@ export function App() {
     <AppLayout
       navigation={<>
       <MainNavigation>
-        {([['dashboard','Dashboard',LayoutDashboard],['roles','Role Lookup',Search],['users','User Access',Users],['releases','Release Roles',FileCheck2],['sod','SoD',ShieldCheck]] as const).filter(([key])=>key!=='sod'||sodEnabled).map(([key,label,Icon])=><MainNavigationItem key={key} label={label} icon={<Icon size={17} aria-hidden="true"/>} active={page===key} onClick={()=>navigate(key)}/>)}
+        {([['dashboard','Dashboard',LayoutDashboard],['roles','Role Lookup',Search],['users','User Access',Users],['releases','Release Roles',FileCheck2],['sod','SoD',ShieldCheck]] as const).filter(([key])=>key!=='sod'||sodEnabled).map(([key,label,Icon])=><MainNavigationItem key={key} label={label} icon={<Icon size={17} aria-hidden="true"/>} active={page===key&&!settingsOpen} href={pageHref(key)} onNavigate={()=>go(key)}/>)}
       </MainNavigation>
       </>}
       onDataChanged={() => {

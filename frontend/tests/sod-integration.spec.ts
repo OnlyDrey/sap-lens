@@ -23,7 +23,7 @@ for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(
 })
 
 for(const width of [375,414])test(`main navigation fits five items without clipped labels at ${width}`,async({page,request})=>{
- await enableSod(request);await page.setViewportSize({width,height:800});await page.goto('/#session=browser-test-session');const navigation=page.getByRole('navigation',{name:'Main navigation',exact:true});await expect(navigation.getByRole('button')).toHaveCount(5)
+ await enableSod(request);await page.setViewportSize({width,height:800});await page.goto('/#session=browser-test-session');const navigation=page.getByRole('navigation',{name:'Main navigation',exact:true});await expect(navigation.getByRole('link')).toHaveCount(5)
  const fit=await navigation.evaluate((nav)=>({scrolls:nav.scrollWidth>nav.clientWidth,clipped:[...nav.querySelectorAll('button')].filter((button)=>button.scrollWidth>button.clientWidth).length}))
  expect(fit).toEqual({scrolls:false,clipped:0})
 })

@@ -22,15 +22,15 @@ test('SoD is a manual feature with status, a configure link and preserved data w
   await page.getByRole('button', { name: /Apply settings/ }).click()
   await expect.poll(async () => (await (await request.get('/api/configuration', { headers })).json()).settings.features.sod).toBe(false)
   await page.reload()
-  await expect(mainNavigation(page).getByRole('button', { name: 'Dashboard', exact: true })).toBeVisible()
-  await expect(mainNavigation(page).getByRole('button', { name: 'SoD', exact: true })).toHaveCount(0)
+  await expect(mainNavigation(page).getByRole('link', { name: 'Dashboard', exact: true })).toBeVisible()
+  await expect(mainNavigation(page).getByRole('link', { name: 'SoD', exact: true })).toHaveCount(0)
   await expect(await features(page)).toContainText('Disabled in saved settings')
   // Retained matrix and catalogue survive while disabled.
   expect((await (await request.get('/api/sod/catalogue?current=current', { headers })).json()).source.loaded).toBe(true)
   await enableSod(request)
   await page.goto('/#session=browser-test-session')
   await page.reload()
-  await expect(mainNavigation(page).getByRole('button', { name: 'SoD', exact: true })).toBeVisible()
+  await expect(mainNavigation(page).getByRole('link', { name: 'SoD', exact: true })).toBeVisible()
 })
 
 test('a SoD source never enables the feature and a disabled workspace explains itself', async ({ page, request }) => {

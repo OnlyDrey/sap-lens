@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Activity, ChevronRight } from 'lucide-react'
 import { apiRequest } from '@/api/client'
 import { Pagination, QueryState } from '@/components/Access/Shared'
-import { useViewHistory } from '@/hooks/useViewHistory'
+import { useViewHistory, userHref } from '@/hooks/useViewHistory'
 interface Health {
   import_totals: Record<
     string,
@@ -158,25 +158,37 @@ export function DataHealth({
                         <td>{r.identifier}</td>
                         <td>{r.source}</td>
                         <td>
-                          <button
-                            className="text-link"
-                            onClick={() =>
-                              r.destination === 'user'
-                                ? change({
-                                    settings: false,
-                                    page: 'users',
-                                    accessMode: 'directory',
-                                    user: r.username || r.identifier,
-                                  })
-                                : change({
-                                    settings: false,
-                                    page: 'roles',
-                                    detailRole: r.identifier,
-                                  })
-                            }
-                          >
-                            {r.username || 'Open role'}
-                          </button>
+                          {r.destination === 'user' ? (
+                            <a
+                              className="text-link"
+                              href={userHref(r.username || r.identifier)}
+                              onClick={(event) => {
+                                if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+                                event.preventDefault()
+                                change({
+                                  settings: false,
+                                  page: 'users',
+                                  accessMode: 'directory',
+                                  user: r.username || r.identifier,
+                                })
+                              }}
+                            >
+                              {r.username || r.identifier}
+                            </a>
+                          ) : (
+                            <button
+                              className="text-link"
+                              onClick={() =>
+                                change({
+                                  settings: false,
+                                  page: 'roles',
+                                  detailRole: r.identifier,
+                                })
+                              }
+                            >
+                              Open role
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}

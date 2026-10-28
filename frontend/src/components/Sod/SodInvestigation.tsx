@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ClipboardCheck, FlaskConical, History, Wrench } from 'lucide-react'
 import { emptyFilters, scopeParams, sod, sodPost, type ActivityDetail, type AssignmentRow, type DecisionEvent, type Subject } from '@/api/sod'
-import { useViewHistory } from '@/hooks/useViewHistory'
+import { useViewHistory, userHref } from '@/hooks/useViewHistory'
 import { SidePanel } from '@/components/Shared/SidePanel'
 import { Button } from '@/components/Shared/Button'
 import { Card, ErrorState, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
@@ -65,12 +65,12 @@ export function SodInvestigation({ context, user, risk, activity, onClose }: { c
       {query.isError ? <ErrorState error={query.error} onRetry={() => void query.refetch()} /> : !data || !overview ? <LoadingState /> : <>
         <section className="sod-section" aria-label="Subject summary">
           <Toolbar>
-            <RoleIdentifier value={user} label="SAP username" onOpen={() => change({ page: 'users', accessMode: 'directory', user, userContext: {}, detailRole: null, settings: false })} openLabel={`Open SAP user ${user}`} />
+            <RoleIdentifier value={user} label="SAP username" onOpen={() => change({ page: 'users', accessMode: 'directory', user, userContext: {}, detailRole: null, settings: false })} openLabel={`Open SAP user ${user}`} href={userHref(user)} />
             {data.groups.map((group) => <StatusBadge key={group}>{group}</StatusBadge>)}
             {data.frozen && <StatusBadge tone="info">Frozen snapshot, read only</StatusBadge>}
             {!data.frozen && !data.reviewable && <StatusBadge>Read only</StatusBadge>}
           </Toolbar>
-          {data.account && <p className="ui-description">Directory match: {data.account.directory_match.replace(/_/g, ' ')} · AD {data.account.ad_status}{data.account.lock_status ? ` · SAP ${data.account.lock_status}` : ''}</p>}
+          {data.account && <p className="ui-description flex flex-wrap items-center gap-x-2 gap-y-1"><span>Directory match</span><StatusBadge tone={data.account.directory_match === 'matched' ? 'success' : ['ambiguous', 'unmatched'].includes(data.account.directory_match) ? 'warning' : 'neutral'}>{data.account.directory_match.replace(/_/g, ' ')}</StatusBadge><span>AD {data.account.ad_status}{data.account.lock_status ? ` · SAP ${data.account.lock_status}` : ''}</span></p>}
           <p className="ui-description">Activity review, role assignment review and risk acceptance are separate decisions. None of them changes what is detected or changes SAP.</p>
         </section>
         {form && <div ref={formRef}><DecisionForm key={form.heading} form={form} subject={data} onCancel={() => setForm(null)} onSaved={async () => { setForm(null); setPicked({ activity: [], assignment: [], acceptance: [] }); await invalidateSod(qc) }} /></div>}
@@ -187,11 +187,11 @@ function ActivityBlock({ row, selection, toggle, impact, onRole }: {
     <section className="sod-section" aria-label={`Activity ${row.activity}`}>
       <Toolbar><h3>Activity {row.activity}</h3>{row.duplicate_coverage && <StatusBadge tone="info">Supplied by {row.assignments.length} assignments</StatusBadge>}</Toolbar>
       <p className="ui-description">Transactions: {row.tcodes.join(', ')} · Risks: {row.risks.join(', ')}</p>
-      <ul className="grid gap-2" aria-label={`Role assignments supplying ${row.activity}`}>
+      <ul className="grid gap-0" aria-label={`Role assignments supplying ${row.activity}`}>
         {row.assignments.map((assignment) => {
           const effect = impact[assignment.id]
           return (
-            <li key={assignment.id} className="grid min-w-0 gap-2 rounded-card border border-line p-3">
+            <li key={assignment.id} className="ui-list-row grid min-w-0 gap-2 p-3">
               <Toolbar>
                 <Checkbox checked={selection.includes(assignment.id)} onChange={() => toggle(assignment.id)} aria-label={`Include ${assignment.role} in what-if removal`}>Simulate</Checkbox>
                 <RoleIdentifier value={assignment.role} onOpen={() => onRole(assignment.catalogue_roles[0] || assignment.role)} openLabel={`Open catalogue role ${assignment.catalogue_roles[0] || assignment.role} (evidence)`} />

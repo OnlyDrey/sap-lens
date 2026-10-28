@@ -6,7 +6,7 @@ import {jaccard,containment} from '../src/lib/comparisonMetrics'
 const headers={'X-SAP-Lens':'browser-test-session'}
 let directory:string,userPath:string
 const config=async(request:APIRequestContext)=>(await(await request.get('/api/configuration',{headers})).json()).settings
-const nav=async(page:Page,name:string)=>page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('button',{name,exact:true}).click()
+const nav=async(page:Page,name:string)=>page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('link',{name,exact:true}).click()
 const settings=async(page:Page,tab:string)=>{await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:tab,exact:true}).click()}
 test.beforeEach(async({request})=>{
  await request.post('/api/configuration/reset',{headers});directory=mkdtempSync(path.join(tmpdir(),'sap-lens-refine-'));userPath=path.join(directory,'users.csv');const rolePath=path.join(directory,'roles.csv')
@@ -64,10 +64,10 @@ for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(
 })
 
 test('profile match placement and manual review wording preserve separate account evidence',async({page})=>{
- await page.goto('/#session=browser-test-session');await nav(page,'User Access');await page.getByRole('button',{name:'SYN_REVIEW',exact:true}).click()
+ await page.goto('/#session=browser-test-session');await nav(page,'User Access');await page.getByRole('link', { name: 'SYN_REVIEW',exact:true}).click()
  const identity=page.getByRole('region',{name:'SAP Identity',exact:true});await expect(identity.getByRole('button',{name:/Directory matching details/})).toBeVisible()
  await page.getByRole('button',{name:'Back to users',exact:true}).click();await page.getByRole('link',{name:'Account Review',exact:true}).click()
- const row=page.getByRole('row').filter({has:page.getByRole('button',{name:'SYN_REVIEW',exact:true})});await expect(row).toContainText('No automated findings');await expect(row).not.toContainText('Pending manual review');await expect(row.getByRole('button',{name:'Needs review',exact:true})).toBeVisible();await expect(row.locator('.review-account-dates')).toHaveCount(0);await expect(row.locator('td').nth(3)).toContainText('Valid')
+ const row=page.getByRole('row').filter({has:page.getByRole('link', { name: 'SYN_REVIEW',exact:true})});await expect(row).toContainText('No automated findings');await expect(row).not.toContainText('Pending manual review');await expect(row.getByRole('button',{name:'Needs review',exact:true})).toBeVisible();await expect(row.locator('.review-account-dates')).toHaveCount(0);await expect(row.locator('td').nth(3)).toContainText('Valid')
 })
 
 test('release fields align and Data Health reuses canonical source state',async({page})=>{

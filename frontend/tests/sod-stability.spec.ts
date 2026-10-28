@@ -64,7 +64,7 @@ test('opening a user from the panel and returning keeps the investigation and fi
   await openSod(page, 'Risk Matrix')
   await page.getByRole('textbox', { name: 'SAP user group', exact: true }).fill('FIN')
   await cellButton(page, names.a, 'R1').click()
-  await page.getByRole('dialog', { name: `${names.a} · R1` }).getByRole('button', { name: `Open SAP user ${names.a}`, exact: true }).click()
+  await page.getByRole('dialog', { name: `${names.a} · R1` }).getByRole('link', { name: `Open SAP user ${names.a}`, exact: true }).click()
   await expect(page.getByRole('heading', { name: 'SAP Identity', exact: true })).toBeVisible()
   await page.goBack()
   await expect(page.getByRole('dialog', { name: `${names.a} · R1` })).toBeVisible()

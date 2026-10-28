@@ -4,13 +4,16 @@ export type ReleaseDrill = { status?: string; username?: string; role_search?: s
 export type SodFilterState = Record<string,string|boolean|number|string[]>
 export type SodView = 'overview'|'risk-matrix'|'activity-matrix'|'explorer'|'reviews'|'periods'|'reports'
 export type SodExplorerTable = 'user_risk'|'user_activity'|'access_list'|'lookup'|'roles'
-type View = { sodView?:SodView; sodFilters?:Record<string,SodFilterState>; sodContext?:string; sodSubject?:{user:string;risk?:string;activity?:string}|null; sodExplorer?:SodExplorerTable; sodReviews?:'queue'|'remediation'; assignmentBand?:string; catalogueArea?:string; accountReviewFilters?:{search:string;license:string;state:string;sort:string;descending:boolean}; userComparison?:{sort?:string;descending?:boolean;a:string;b:string;validity:string;kind:string;difference:string;search:string;area:string}; accessMode?: 'directory'|'review'|'compare'; reviewFinding?: string; kpiNavigation?: Partial<Record<'roles'|'users'|'releases',number>>; settingsTarget?: 'roles' | 'users' | 'employees' | 'sod' | 'diagnostics' | 'features'; page: 'dashboard' | 'roles' | 'users' | 'releases' | 'sod'; user: string; release: ReleaseDrill | null; detailRole: string | null; comparison: boolean; settings: boolean; releaseContext: string; userContext: { role?: string; tcode?: string } }
+type View = { userTrail?:string[]; sodView?:SodView; sodFilters?:Record<string,SodFilterState>; sodContext?:string; sodSubject?:{user:string;risk?:string;activity?:string}|null; sodExplorer?:SodExplorerTable; sodReviews?:'queue'|'remediation'; assignmentBand?:string; catalogueArea?:string; accountReviewFilters?:{search:string;license:string;state:string;sort:string;descending:boolean}; userComparison?:{sort?:string;descending?:boolean;a:string;b:string;validity:string;kind:string;difference:string;search:string;area:string}; accessMode?: 'directory'|'review'|'compare'; reviewFinding?: string; kpiNavigation?: Partial<Record<'roles'|'users'|'releases',number>>; settingsTarget?: 'roles' | 'users' | 'employees' | 'sod' | 'diagnostics' | 'features'; page: 'dashboard' | 'roles' | 'users' | 'releases' | 'sod'; user: string; release: ReleaseDrill | null; detailRole: string | null; comparison: boolean; settings: boolean; releaseContext: string; userContext: { role?: string; tcode?: string } }
 const paths = { dashboard: 'dashboard', roles: 'role-lookup', users: 'user-access', releases: 'release-roles', sod:'sod' }
 const defaults: View = { page: 'dashboard', user: '', release: null, detailRole: null, comparison: false, settings: false, releaseContext: '', userContext: {} }
 export function userAccessHref(mode:'directory'|'review'|'compare') {return '#/user-access'+(mode==='directory'?'':mode==='review'?'/account-review':'/compare')}
+/** Direct link to one SAP user in User Access; the same route is produced when a user is opened in the app. */
+export function userHref(username:string){return '#/user-access/user/'+encodeURIComponent(username)}
+export function pageHref(page:'dashboard'|'roles'|'users'|'releases'|'sod'){return page==='users'?userAccessHref('directory'):page==='sod'?sodHref('overview'):`#/${paths[page]}`}
 export function sodHref(view:SodView){return '#/sod'+(view==='overview'?'':`/${view}`)}
 function viewUrl(view:View) {
- const base=view.page==='sod'?sodHref(view.sodView||'overview'):view.page==='users'?userAccessHref(view.accessMode||'directory'):`#/${paths[view.page]}`
+ const base=view.page==='sod'?sodHref(view.sodView||'overview'):view.page==='users'?((view.accessMode||'directory')==='directory'&&view.user?userHref(view.user):userAccessHref(view.accessMode||'directory')):`#/${paths[view.page]}`
  const query=location.hash.startsWith('#/')?location.hash.split('?').slice(1).join('?'):''
  return base+(query?'?'+query:'')
 }
@@ -26,7 +29,11 @@ function readView(): View {
   if(part==='users')base.sodExplorer='user_risk'
   if(part==='roles')base.sodExplorer='roles'
  }
- if(page==='users'&&segments[1])base.accessMode=segments[1]==='account-review'?'review':segments[1]==='compare'?'compare':'directory'
+ if(page==='users'&&segments[1]){
+  base.accessMode=segments[1]==='account-review'?'review':segments[1]==='compare'?'compare':'directory'
+  if(segments[1]==='user'&&segments[2]){try{base.user=decodeURIComponent(segments[2])}catch{base.user=segments[2]}}
+ }
+ if(page==='users'&&(base.accessMode||'directory')==='directory'&&segments[1]!=='user')base.user=''
  return base
 }
 export function initializeViewHistory() {

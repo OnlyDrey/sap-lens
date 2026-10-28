@@ -147,7 +147,7 @@ button:hover .module-icon:not([data-disabled="true"]) { border-color: currentCol
 
 /* Shared investigation surfaces; all colors follow the persisted theme. */
 .primary-navigation { display:flex; align-items:center; gap:4px; min-width:0; }
-.primary-nav-button { display:flex; align-items:center; justify-content:center; gap:var(--space-2); padding:10px; border-radius:var(--radius-control); white-space:nowrap; font-size:var(--font-label); font-weight:600; color:var(--on-primary); }
+.primary-nav-button { text-decoration:none; color:inherit; display:flex; align-items:center; justify-content:center; gap:var(--space-2); padding:10px; border-radius:var(--radius-control); white-space:nowrap; font-size:var(--font-label); font-weight:600; color:var(--on-primary); }
 .primary-nav-button:hover { background:color-mix(in srgb,var(--on-primary) 12%,transparent); }
 .primary-nav-button[aria-current="page"] { background:color-mix(in srgb,var(--on-primary) 20%,transparent); }
 .primary-nav-button:focus-visible { outline:2px solid var(--on-primary); outline-offset:2px; }

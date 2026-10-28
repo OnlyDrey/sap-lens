@@ -626,9 +626,10 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .sod-assigned { display: grid; gap: 0.125rem; margin: 0; padding: 0; list-style: none; }
 
 /* Unified review workspace sections. */
-.sod-review-list { display: grid; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
-.sod-review-row { display: grid; min-width: 0; gap: 0.25rem; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-card); }
-.sod-review-row[data-focused] { border-color: var(--accent2); }
+.sod-review-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.sod-review-row { display: grid; min-width: 0; gap: 0.25rem; padding: 0.5rem 0.75rem; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; }
+.sod-review-row:last-child { border-bottom: 0; }
+.sod-review-row[data-focused] { background: color-mix(in srgb,var(--accent2) 12%,var(--surface)); box-shadow: inset 3px 0 0 var(--accent2); }
 .sod-review-main { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; min-width: 0; }
 .sod-review-actions { display: flex; flex-wrap: wrap; gap: 0.25rem; }
 .sod-review-section > .ui-toolbar, .sod-review-section > div:first-child { align-items: center; }
@@ -640,3 +641,21 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .export-notice[data-kind='error'] { border-color: var(--error); }
 @keyframes export-notice-fade { to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .export-notice[data-kind='success'], .export-notice[data-kind='info'] { animation: none; } }
+
+/* Focus rings stay inside scrolling strips so overflow never clips them; checkbox rows show focus on the whole row. */
+.ui-navigation a:focus-visible,.ui-navigation button:focus-visible { outline-offset:-3px; }
+.primary-navigation .primary-nav-button:focus-visible { outline-color:var(--on-primary); outline-offset:-3px; }
+.ui-checkbox:focus-within,.filter-toggle:focus-within { outline:2px solid var(--focus); outline-offset:2px; border-radius:var(--radius-control); }
+.ui-checkbox input:focus-visible,.filter-toggle input:focus-visible { outline:none; }
+
+/* Shared list row: bottom divider only, no rounded frame, and the same hover, active and focus feedback as navigation. */
+.ui-list-row { border:0; border-bottom:1px solid var(--border); border-radius:0; background:transparent; }
+.ui-list-row:last-child { border-bottom:0; }
+.ui-list-row:hover { background:var(--hover); }
+.ui-list-row:active,.ui-list-row[aria-current] { background:color-mix(in srgb,var(--accent) 12%,var(--surface)); }
+.ui-list-row:focus-visible { outline:2px solid var(--focus); outline-offset:-2px; }
+.dashboard-workspace .dashboard-secondary-metrics .dashboard-metric:active { background:color-mix(in srgb,var(--accent) 12%,var(--surface)); }
+.dashboard-workspace .dashboard-secondary-metrics .dashboard-metric:focus-visible { outline-offset:-2px; }
+
+/* Keyboard focus scrolls elements in with a margin so their focus rings are never cut off at a scroll edge. */
+.settings-scroll,.filter-sidebar,.ui-side-panel-body,.ui-dialog-content,.matrix-scroll { scroll-padding:12px; }

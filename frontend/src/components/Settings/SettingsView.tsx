@@ -53,6 +53,7 @@ import {
 } from '@/api/configuration'
 
 import { ReportBranding } from './ReportBranding'
+import { DISCARD_PROMPT, setSettingsDirty } from '@/lib/settingsGuard'
 const ComponentLibrary=lazy(()=>import('./ComponentLibrary').then(module=>({default:module.ComponentLibrary})))
 const sectionIcons = [Building2, Database, Layers, Palette, Activity, BookUser, Info, Layers, ShieldCheck]
 const sections = [
@@ -252,9 +253,10 @@ export function SettingsView({
     config.data &&
     JSON.stringify(draft) !== JSON.stringify(config.data.settings)
   )
+  useEffect(() => { setSettingsDirty(dirty && open); return () => setSettingsDirty(false) }, [dirty, open])
   const show = (value: boolean) => {
     if (busy) return
-    if (!value && dirty && !window.confirm('Discard unsaved settings changes?'))
+    if (!value && dirty && !window.confirm(DISCARD_PROMPT))
       return
     if (!value) {
       if (config.data) setDraft(structuredClone(config.data.settings))

@@ -8,6 +8,9 @@ open a user for SAP identity, Account Status and Organization. SAP CSV is author
 for SAP name/email. Optional [Employee Directory](../data/EMPLOYEE_DIRECTORY.md)
 enriches title, department, AD status and an unambiguously resolved manager link.
 Manager navigation uses exact normalized email, not AD username or name guesses.
+A SAP user has a shareable route, `#/user-access/user/<username>`; manager links keep a trail and
+User Details offers **Back to previous user**. The directory match status reads
+"Directory match" followed by a status badge.
 
 User validity, SAP lock and AD state are independent. Missing/conflicting evidence
 is Unknown, never implicitly Valid/Unlocked/Enabled. The profile shows source

@@ -34,13 +34,13 @@ async function go(page: Page, view = 'Role Lookup') {
   await page.goto('/#session=browser-test-session')
   await page
     .getByRole('navigation', { name: 'Main navigation' })
-    .getByRole('button', { name: view, exact: true })
+    .getByRole('link', { name: view, exact: true })
     .click()
   if(view==='Release Roles')await page.getByRole('button',{name:'Table',exact:true}).click()
 }
 async function user(page: Page) {
   await go(page, 'User Access')
-  await page.getByRole('button', { name: 'DEMO_ONE', exact: true }).click()
+  await page.getByRole('link', { name: 'DEMO_ONE', exact: true }).click()
   return page.getByRole('region', { name: 'User details', exact: true })
 }
 async function openDates(page: Page) {
@@ -389,9 +389,9 @@ for (const theme of ['light', 'dark'] as const)
       })
       await page
         .getByRole('navigation', { name: 'Main navigation' })
-        .getByRole('button', { name: 'User Access', exact: true })
+        .getByRole('link', { name: 'User Access', exact: true })
         .click()
-      await page.getByRole('button', { name: 'DEMO_ONE', exact: true }).click()
+      await page.getByRole('link', { name: 'DEMO_ONE', exact: true }).click()
       await page
         .getByRole('tab', { name: 'Release Roles — ZO:*', exact: true })
         .click()

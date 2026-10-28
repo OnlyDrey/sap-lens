@@ -10,7 +10,7 @@ const pattern=prefix+':*',actual=prefix+':ENP'
 const child='ZS:SYN:'+ 'SOURCE_RELATIONSHIP_'.repeat(6)
 const release='ZO:MM:M:PR_REL_ST_SH_N6:ALL'
 async function capture(page:Page,info:TestInfo,name:string){await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:info.outputPath(name),fullPage:true})}
-async function nav(page:Page,name:string){await page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('button',{name,exact:true}).click()}
+async function nav(page:Page,name:string){await page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('link',{name,exact:true}).click()}
 async function mode(page:Page,name:string){await page.getByRole('navigation',{name:'User Access view',exact:true}).getByRole('link',{name,exact:true}).click()}
 async function choose(page:Page,label:string,value:string){const input=page.getByRole('combobox',{name:label,exact:true});await input.click();await input.fill(value);await page.getByRole('option').filter({hasText:value}).first().click()}
 test.beforeEach(async({request})=>{

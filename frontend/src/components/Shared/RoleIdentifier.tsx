@@ -6,11 +6,13 @@ interface RoleIdentifierProps {
   value: string
   label?: string
   onOpen?: () => void
+  /** With a href the open control is a real link: modified clicks open a new tab, a plain click calls onOpen. */
+  href?: string
   openLabel?: string
   openButtonProps?: ButtonHTMLAttributes<HTMLButtonElement> & { 'data-user'?: string }
 }
 
-export function RoleIdentifier({ moduleId: _moduleId, value, label = 'role identifier', onOpen, openLabel, openButtonProps }: RoleIdentifierProps) {
+export function RoleIdentifier({ moduleId: _moduleId, value, label = 'role identifier', onOpen, href, openLabel, openButtonProps }: RoleIdentifierProps) {
   const [message, setMessage] = useState('')
   const timer = useRef<ReturnType<typeof setTimeout>>()
   useEffect(() => () => clearTimeout(timer.current), [])
@@ -22,7 +24,8 @@ export function RoleIdentifier({ moduleId: _moduleId, value, label = 'role ident
       onClick={(e) => e.stopPropagation()}
       onKeyDown={event=>{if((event.key==='ArrowRight'||event.key==='ArrowLeft')&&(event.target instanceof HTMLElement)&&(event.target.tagName==='CODE'||event.target.closest('.role-identifier-link'))){event.currentTarget.querySelector('code')?.scrollBy({left:event.key==='ArrowRight'?60:-60});event.preventDefault()}}}
     >
-      {onOpen ? <button {...openButtonProps} type="button" className="role-identifier-link" aria-label={openLabel || `Open ${value}`} onClick={onOpen}><code title={value}>{value}</code><ArrowUpRight size={14} aria-hidden="true" className="shrink-0"/></button> : <code tabIndex={0} aria-label={`Full ${label}: ${value}`} title={value}>{value}</code>}
+      {onOpen && href ? <a href={href} className="role-identifier-link" aria-label={openLabel || `Open ${value}`} data-user={openButtonProps?.['data-user']} onClick={(event) => { if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return; event.preventDefault(); onOpen() }}><code title={value}>{value}</code><ArrowUpRight size={14} aria-hidden="true" className="shrink-0"/></a>
+        : onOpen ? <button {...openButtonProps} type="button" className="role-identifier-link" aria-label={openLabel || `Open ${value}`} onClick={onOpen}><code title={value}>{value}</code><ArrowUpRight size={14} aria-hidden="true" className="shrink-0"/></button> : <code title={value}>{value}</code>}
       <button
         type="button"
         aria-label={`Copy ${label} ${value}`}

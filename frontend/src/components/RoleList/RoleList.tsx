@@ -265,7 +265,7 @@ export function RoleList({
         {exactTransactions.isError && transaction.codes.length > 0 && <p role="alert">Transaction filtering failed. {exactTransactions.error.message}</p>}
         <div className="catalogue-role-search flex gap-2">
           <div className="relative flex-1">
-            <SearchInput value={search} onChange={event=>setSearch(event.target.value)} placeholder="Search roles by name or description..."/>
+            <SearchInput aria-label="Search roles by name or description" value={search} onChange={event=>setSearch(event.target.value)} placeholder="Search roles by name or description..."/>
 
 
             {search && (

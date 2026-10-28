@@ -1,4 +1,5 @@
 import { Dialog } from '@/components/Shared/Dialog'
+import { userHref } from '@/hooks/useViewHistory'
 import { ReviewFindings, type ReviewEvidence } from '@/components/Shared/ReviewFindings'
 import { PageHeader, MetadataList } from '@/components/Shared/Presentation'
 import { ClipboardCheck as PageIcon } from 'lucide-react'
@@ -433,6 +434,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
                         value={row.username}
                         label="username"
                         onOpen={() => onUser(row.username)}
+                        href={userHref(row.username)}
                         openLabel={row.username}
                         openButtonProps={{
                           disabled: busy,

@@ -16,7 +16,7 @@ async function library(page: Page) {
 async function nav(page: Page, name: string) {
   await page
     .getByRole('navigation', { name: 'Main navigation', exact: true })
-    .getByRole('button', { name, exact: true })
+    .getByRole('link', { name, exact: true })
     .click()
 }
 test.beforeEach(async ({ request }) => {
@@ -165,7 +165,7 @@ test('role content tabs have keyboard semantics and associated assignment panel'
 }) => {
   await page.goto('/#session=browser-test-session')
   await nav(page, 'User Access')
-  await page.getByRole('button', { name: 'DEMO_A', exact: true }).click()
+  await page.getByRole('link', { name: 'DEMO_A', exact: true }).click()
   const tabs = page.getByRole('tablist', {
     name: 'User role sections',
     exact: true,
@@ -227,7 +227,7 @@ test('component library previews are isolated, interactive and use canonical com
     preview.getByRole('textbox', { name: 'Demo text', exact: true }),
   ).toHaveAttribute('aria-invalid', 'true')
   await preview.getByRole('tab', { name: /Business demo roles/ }).press('Enter')
-  await expect(preview.getByRole('tabpanel',{name:'Business demo roles 1',exact:true})).toContainText('business')
+  await expect(preview.getByRole('tabpanel',{name:'Business demo roles',exact:true})).toContainText('business')
   const popoverTrigger = preview.getByRole('button', {
     name: 'Open demo popover',
     exact: true,
@@ -351,7 +351,7 @@ for (const theme of ['light', 'dark'])
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
       for (const button of await page
         .getByRole('navigation', { name: 'Main navigation', exact: true })
-        .getByRole('button')
+        .getByRole('link')
         .all())
         await expect(button.locator('span')).toBeVisible()
       await library(page)

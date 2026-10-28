@@ -203,13 +203,15 @@ export function ComponentLibrary() {
               label="Lookup preview"
               icon={<Search size={16} />}
               active={section === 'directory'}
-              onClick={() => setSection('directory')}
+              href="#component-library-directory"
+              onNavigate={() => setSection('directory')}
             />
             <MainNavigationItem
               label="Review preview"
               icon={<Users size={16} />}
               active={section === 'review'}
-              onClick={() => setSection('review')}
+              href="#component-library-review"
+              onNavigate={() => setSection('review')}
             />
           </MainNavigation>
         </div>
@@ -228,8 +230,8 @@ export function ComponentLibrary() {
           label="Content tabs preview"
           value={tab}
           items={[
-            { value: 'all', label: 'All demo roles', count: 2 },
-            { value: 'business', label: 'Business demo roles', count: 1 },
+            { value: 'all', label: 'All demo roles' },
+            { value: 'business', label: 'Business demo roles' },
           ]}
           onChange={setTab}
         >

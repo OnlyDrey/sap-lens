@@ -37,7 +37,7 @@ async function go(page: Page, name: string) {
 async function nav(page: Page, name: string) {
   await page
     .getByRole('navigation', { name: 'Main navigation' })
-    .getByRole('button', { name, exact: true })
+    .getByRole('link', { name, exact: true })
     .click()
 }
 
@@ -51,10 +51,10 @@ test('editable user T-codes use AND across assignments, OR, unique chips and sco
   })
   await input.fill('migo')
   await expect(
-    page.getByRole('button', { name: 'DEMO_TWO', exact: true }),
+    page.getByRole('link', { name: 'DEMO_TWO', exact: true }),
   ).toBeVisible()
   await expect(
-    page.getByRole('button', { name: 'DEMO_THREE', exact: true }),
+    page.getByRole('link', { name: 'DEMO_THREE', exact: true }),
   ).toHaveCount(0)
   await input.press('Enter')
   await input.fill(' me21n ')
@@ -63,10 +63,10 @@ test('editable user T-codes use AND across assignments, OR, unique chips and sco
     page.getByRole('button', { name: 'AND', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true')
   await expect(
-    page.getByRole('button', { name: 'DEMO_TWO', exact: true }),
+    page.getByRole('link', { name: 'DEMO_TWO', exact: true }),
   ).toHaveCount(0)
   await expect(
-    page.getByRole('button', { name: 'DEMO_ONE', exact: true }),
+    page.getByRole('link', { name: 'DEMO_ONE', exact: true }),
   ).toBeVisible()
   await input.fill('MIGO')
   await input.press('Enter')
@@ -75,7 +75,7 @@ test('editable user T-codes use AND across assignments, OR, unique chips and sco
   ).toHaveCount(1)
   await page.getByRole('button', { name: 'OR', exact: true }).click()
   await expect(
-    page.getByRole('button', { name: 'DEMO_TWO', exact: true }),
+    page.getByRole('link', { name: 'DEMO_TWO', exact: true }),
   ).toBeVisible()
   const search = page.getByRole('textbox', {
     name: 'Search users',
@@ -100,7 +100,7 @@ test('editable user T-codes use AND across assignments, OR, unique chips and sco
     page.getByRole('combobox', { name: 'Sort users', exact: true }),
   ).toHaveValue('email')
   await expect(
-    page.getByRole('button', { name: 'DEMO_TWO', exact: true }),
+    page.getByRole('link', { name: 'DEMO_TWO', exact: true }),
   ).toBeVisible()
 })
 
@@ -132,9 +132,9 @@ test('incoming transaction evidence seeds the same editable controls and survive
   await input.fill('ME21N')
   await input.press('Enter')
   await expect(
-    page.getByRole('button', { name: 'DEMO_TWO', exact: true }),
+    page.getByRole('link', { name: 'DEMO_TWO', exact: true }),
   ).toHaveCount(0)
-  await page.getByRole('button', { name: 'DEMO_ONE', exact: true }).click()
+  await page.getByRole('link', { name: 'DEMO_ONE', exact: true }).click()
   await page.getByRole('button', { name: 'Back to users', exact: true }).click()
   await expect(
     summary.getByRole('button', {
@@ -320,7 +320,7 @@ test('KPI navigation resets only its destination filters', async ({ page }) => {
   })
   await search.fill('TWO')
   await expect(
-    page.getByRole('button', { name: 'DEMO_ONE', exact: true }),
+    page.getByRole('link', { name: 'DEMO_ONE', exact: true }),
   ).toHaveCount(0)
   await nav(page, 'Role Lookup')
   const roleSearch = page.getByPlaceholder(
@@ -332,7 +332,7 @@ test('KPI navigation resets only its destination filters', async ({ page }) => {
   await page.getByRole('button', { name: 'SAP users', exact: true }).click()
   await expect(search).toHaveValue('')
   await expect(
-    page.getByRole('button', { name: 'DEMO_ONE', exact: true }),
+    page.getByRole('link', { name: 'DEMO_ONE', exact: true }),
   ).toBeVisible()
   await nav(page, 'Role Lookup')
   await expect(roleSearch).toHaveValue('finance')

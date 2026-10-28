@@ -27,8 +27,8 @@ test.beforeEach(async ({ request }) => {
 test.afterEach(async ({ request }) => { await request.post('/api/configuration/reset', { headers }); rmSync(directory, { recursive: true, force: true }) })
 async function openUser(page: import('@playwright/test').Page) {
   await page.goto('/#session=browser-test-session')
-  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'User Access', exact: true }).click()
-  await page.getByRole('button', { name: 'DEMO_EXPORT', exact: true }).click()
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'User Access', exact: true }).click()
+  await page.getByRole('link', { name: 'DEMO_EXPORT', exact: true }).click()
 }
 test('transaction search respects exact code, scope and status and opens catalogue evidence', async ({ page }) => {
   await openUser(page)
@@ -97,20 +97,20 @@ for (const theme of ['light', 'dark']) for (const width of [800, 1280]) test(`se
   settings.theme = theme; await request.post('/api/configuration', { headers, data: settings })
   await page.setViewportSize({ width, height: 900 })
   await page.goto('/#session=browser-test-session')
-  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'User Access', exact: true }).click()
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'User Access', exact: true }).click()
   await expect(page.getByRole('columnheader', { name: 'User status', exact: true })).toBeVisible()
   await expect(page.getByRole('columnheader', { name: 'Lock status', exact: true })).toBeVisible()
-  const locked = page.getByRole('row').filter({ has: page.getByRole('button', { name: 'DEMO_LOCKED', exact: true }) })
+  const locked = page.getByRole('row').filter({ has: page.getByRole('link', { name: 'DEMO_LOCKED', exact: true }) })
   await expect(locked.locator('.lock-status')).toHaveText('Locked')
   await expect(locked.locator('.lock-status svg')).toHaveClass(/lucide-lock-keyhole/)
-  const unlocked = page.getByRole('row').filter({ has: page.getByRole('button', { name: 'DEMO_UNLOCKED', exact: true }) })
+  const unlocked = page.getByRole('row').filter({ has: page.getByRole('link', { name: 'DEMO_UNLOCKED', exact: true }) })
   await expect(unlocked.locator('.lock-status')).toHaveText('Unlocked')
   await expect(unlocked.locator('.lock-status svg')).toHaveClass(/lucide-lock-open/)
-  const unknown = page.getByRole('row').filter({ has: page.getByRole('button', { name: 'DEMO_EXPORT', exact: true }) })
+  const unknown = page.getByRole('row').filter({ has: page.getByRole('link', { name: 'DEMO_EXPORT', exact: true }) })
   await expect(unknown.locator('.lock-status')).toHaveText('Unknown')
   await expect(unknown.locator('.evidence-success svg')).toHaveClass(/lucide-circle-check/)
   for (const [username, icon] of [['DEMO_FUTURE', 'circle-x'], ['DEMO_EXPIRED', 'circle-x'], ['DEMO_UNKNOWN', 'circle-help']]) {
-    const row = page.getByRole('row').filter({ has: page.getByRole('button', { name: username, exact: true }) })
+    const row = page.getByRole('row').filter({ has: page.getByRole('link', { name: username, exact: true }) })
     await expect(row.locator(`td[aria-label="Account validity"] .evidence-badge svg.lucide-${icon}`)).toBeVisible()
   }
   const appearance = await locked.locator('.lock-status').evaluate(element => {
@@ -121,7 +121,7 @@ for (const theme of ['light', 'dark']) for (const width of [800, 1280]) test(`se
   expect(appearance.border).toBe('0px'); expect(appearance.centered).toBe(true)
   await locked.locator('.lock-status').scrollIntoViewIfNeeded()
   await page.screenshot({ path: info.outputPath('directory.png'), fullPage: true })
-  await page.getByRole('button', { name: 'DEMO_EXPORT', exact: true }).click()
+  await page.getByRole('link', { name: 'DEMO_EXPORT', exact: true }).click()
   await expect(page.getByRole('region', { name: 'Account Status', exact: true }).locator('.lock-status')).toHaveText('Unknown')
   await page.getByRole('tab', { name: 'All roles', exact: true }).click()
   await page.getByRole('textbox', { name: 'Find roles by transaction' }).fill('ME21N')
