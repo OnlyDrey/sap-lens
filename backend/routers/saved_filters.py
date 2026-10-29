@@ -48,7 +48,7 @@ def save(request:Saved):
     for view in ('sod_users','sod_roles'):
         allowed[view]={'search','risk','criticality','risk_type','category','username','group','composite_role','single_role','tcode','account_status','sort','descending','validity','as_of','selected_roles'}
     matrix={'search','risk','criticality','risk_type','category','username','usernames','role_suffixes','group','composite_role','single_role','tcode','role','role_suffix','activity','account_status',
-            'activity_decision','assignment_decision','acceptance','validity','as_of','sort','descending','group_by','table','kind','status'}
+            'activity_decision','assignment_decision','review_status','acceptance','validity','as_of','sort','descending','group_by','table','kind','status'}
     for view in ('sod_risk_matrix','sod_activity_matrix','sod_explorer','sod_queue'):
         allowed[view]=matrix
     if not request.rename and set(request.filters)-allowed[request.view]: raise HTTPException(422,'Unsupported filter fields; result datasets cannot be saved.')

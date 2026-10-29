@@ -56,6 +56,7 @@ const pick = async (page: Page, label: string, option: string) => {
   await page.getByRole('option', { name: option, exact: true }).click()
   await box.fill('') // the search text stays after a toggle; clear it so the next option is listed
 }
+const reviewStatus = async (page: Page, label: string) => page.getByRole('combobox', { name: 'Assignment review status', exact: true }).selectOption({ label })
 const toolbar = (page: Page) => page.getByRole('toolbar', { name: 'Bulk assignment review' })
 const sourceHashes = () => files.map((file) => createHash('sha256').update(readFileSync(file)).digest('hex'))
 
@@ -189,8 +190,10 @@ test('batch Keep is confirmed with a summary, persists per assignment and keeps 
   await apply.click()
   await expect(dialog.getByRole('status')).toContainText('3 of 3 assignments saved.')
   await dialog.getByRole('button', { name: 'Done' }).click()
-  await expect(table(page).locator('tbody tr').filter({ hasText: 'Keep' })).toHaveCount(3)
   await expect(toolbar(page)).toHaveCount(0) // saved assignments leave the selection
+  await expect.poll(() => roles(page)).toHaveLength(0) // completed decisions leave the default working view
+  await reviewStatus(page, 'Reviewed assignments')
+  await expect(table(page).locator('tbody tr').filter({ hasText: 'Keep' })).toHaveCount(3)
   // Each assignment has its own history event.
   const response = await page.request.get('/api/sod/explorer/access_list', { headers, params: { role_suffix: 'CDK', limit: '50' } })
   const items = (await response.json()).items as { id: string; decision: string }[]
@@ -219,6 +222,7 @@ test('Recommend removal for suffix and users, existing decisions need explicit r
   await dialog.getByRole('button', { name: 'Recommend removal for 4 assignments' }).click()
   await expect(dialog.getByRole('status')).toContainText('4 of 4 assignments saved.')
   await dialog.getByRole('button', { name: 'Done' }).click()
+  await reviewStatus(page, 'Reviewed assignments')
   await expect(table(page).locator('tbody tr').filter({ hasText: 'Remove' })).toHaveCount(4)
   // The remediation view lists the same four assignments as recommended removals.
   const remediation = await (await page.request.get('/api/sod/remediation', { headers, params: { recommended: 'Remove assignment', limit: '50' } })).json()
@@ -240,17 +244,24 @@ test('Recommend removal for suffix and users, existing decisions need explicit r
   const key = history.items[0].id as string
   const events = (await (await page.request.get('/api/sod/decisions/assignment/history', { headers, params: { key, context: 'current' } })).json()).items
   expect(events.map((event: { decision: string }) => event.decision)).toEqual(['Keep', 'Remove']) // earlier recommendation is retained
-  // Investigate creates tracked remediation actions and leaves decisions alone.
+  // Investigate is a review decision: it stays outstanding and creates an action only when asked.
   await page.getByRole('button', { name: /select all 4 matching/i }).first().click()
   await toolbar(page).getByRole('button', { name: 'Investigate', exact: true }).click()
   dialog = page.getByRole('dialog', { name: 'Mark for further investigation' })
   await dialog.getByRole('textbox', { name: 'Reviewer' }).fill('Synthetic Reviewer')
   await dialog.getByRole('textbox', { name: 'Rationale' }).fill('Check with the line manager')
-  await dialog.getByRole('button', { name: 'Track investigation for 4 assignments' }).click()
+  await dialog.getByRole('checkbox', { name: /Also track one investigation action/ }).check()
+  await expect(dialog.getByRole('region', { name: 'Existing decisions' })).toContainText('4 assignments have an earlier review decision')
+  await dialog.getByRole('checkbox', { name: /Replace the existing decisions of these 4 assignments/ }).check()
+  await dialog.getByRole('button', { name: 'Mark for investigation: 4 assignments' }).click()
   await expect(dialog.getByRole('status')).toContainText('4 of 4 assignments saved.')
+  await expect(dialog).toContainText('4 investigation actions were tracked.')
   await dialog.getByRole('button', { name: 'Done' }).click()
+  const query = new URLSearchParams({ assignment_decision: 'Investigate', limit: '50' }); query.append('usernames', user.e); query.append('usernames', user.f)
+  const decisions = (await (await page.request.get(`/api/sod/explorer/access_list?${query}`, { headers })).json()).items
+  expect(decisions).toHaveLength(4)
   const tracked = await (await page.request.get('/api/sod/remediation', { headers, params: { limit: '50' } })).json()
-  expect(tracked.actions.filter((action: { recommended: string }) => action.recommended === 'Investigate assignment')).toHaveLength(4)
+  expect(tracked.actions.filter((action: { recommended: string; user: string }) => action.recommended === 'Investigate assignment' && [user.e, user.f].includes(action.user))).toHaveLength(4)
 })
 
 test('partial failures are reported accurately and failed assignments stay selected', async ({ page }) => {

@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { keepPreviousData, useQuery, type QueryClient } from '@tanstack/react-query'
-import { AlertTriangle, CheckCircle2, CircleDashed, CircleDot, History, Lock, RefreshCw, ShieldCheck, ShieldX, UserMinus } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, CircleDashed, CircleDot, History, Lock, RefreshCw, Search, ShieldCheck, ShieldX, UserMinus } from 'lucide-react'
 import { sod, scopeParams, emptyFilters, type ContextInfo, type Filters, type Lifecycle } from '@/api/sod'
 import { useHistoryValue, useViewHistory, type SodFilterState } from '@/hooks/useViewHistory'
 import { Card, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
@@ -27,6 +27,7 @@ export function lifecycleView(value: string): LifecycleView {
     case 'Approved': case 'Keep': case 'Accepted': return { icon: <CheckCircle2 size={size} />, tone: 'success', text: value }
     case 'Conditional': return { icon: <CircleDot size={size} />, tone: 'info', text: value }
     case 'Removal required': return { icon: <UserMinus size={size} />, tone: 'error', text: 'Remove' }
+    case 'Investigate': return { icon: <Search size={size} />, tone: 'info', text: 'Investigate' }
     case 'Rejected': return { icon: <ShieldX size={size} />, tone: 'error', text: value }
     case 'Outdated': return { icon: <RefreshCw size={size} />, tone: 'warning', text: value }
     case 'Resolved': return { icon: <ShieldCheck size={size} />, tone: 'success', text: value }
@@ -39,6 +40,9 @@ export function LifecycleBadge({ value }: { value: Lifecycle | string }) {
   const view = lifecycleView(value)
   return <StatusBadge tone={view.tone}>{view.icon}{view.text}</StatusBadge>
 }
+
+/** Review status of the assignment queue as sent to the API: an empty choice means the documented default, assignments needing attention. */
+export const reviewStatusParam = (filters: Filters) => (typeof filters.review_status === 'string' && filters.review_status) || 'attention'
 
 export const KIND_LABEL: Record<string, string> = { activity: 'Activity', assignment: 'Role assignment', acceptance: 'Risk acceptance' }
 
@@ -92,12 +96,12 @@ export function ContextBar({ info }: { info?: ContextInfo }) {
 
 const DECISION_OPTIONS: Record<string, string[]> = {
   activity_decision: ['Pending', 'Approved', 'Conditional', 'Removal required', 'Outdated'],
-  assignment_decision: ['Pending', 'Keep', 'Removal required', 'Outdated'],
+  assignment_decision: ['Pending', 'Keep', 'Removal required', 'Investigate', 'Outdated'],
   acceptance: ['Pending', 'Accepted', 'Rejected', 'Outdated'],
 }
 
 export type FilterField = 'group' | 'risk' | 'activity' | 'username' | 'role' | 'role_suffix' | 'tcode' | 'category' | 'criticality' | 'validity' | 'activity_decision' | 'assignment_decision' | 'acceptance'
-  | 'risk_type' | 'composite_role' | 'single_role' | 'account_status'
+  | 'risk_type' | 'composite_role' | 'single_role' | 'account_status' | 'review_status'
 const FIELD_LABELS: Record<string, [string, number]> = {
   group: ['SAP user group', 256], risk: ['Risk ID', 512], activity: ['Activity', 512], username: ['SAP username', 512], role: ['Assigned role', 512], role_suffix: ['Role suffix', 128],
   tcode: ['Transaction code', 256], category: ['Business area', 120], criticality: ['Source criticality', 64], risk_type: ['Risk type', 64],
@@ -107,7 +111,7 @@ const FIELD_SECTIONS: { title: string; fields: FilterField[] }[] = [
   { title: 'Subject', fields: ['group', 'username', 'account_status'] },
   { title: 'Risk and activity', fields: ['risk', 'activity', 'tcode', 'category', 'criticality', 'risk_type'] },
   { title: 'Roles and assignments', fields: ['role', 'role_suffix', 'composite_role', 'single_role', 'validity'] },
-  { title: 'Review status', fields: ['activity_decision', 'assignment_decision', 'acceptance'] },
+  { title: 'Review status', fields: ['review_status', 'activity_decision', 'assignment_decision', 'acceptance'] },
 ]
 const DECISION_LABELS: Record<string, string> = { activity_decision: 'Activity review', assignment_decision: 'Role assignment review', acceptance: 'Risk acceptance' }
 
@@ -184,6 +188,17 @@ export function SodFilters({ view, filters, setFilters, fields, sorts, actions, 
         </Select>
       </FormField>
     )
+    if (name === 'review_status') return (
+      <FormField key={name} label="Assignment review status">
+        <Select value={text(name)} onChange={(event) => update(name, event.target.value)}>
+          <option value="">Needs attention (default)</option>
+          <option value="pending">Pending review</option>
+          <option value="investigating">Under investigation</option>
+          <option value="reviewed">Reviewed assignments</option>
+          <option value="all">All assignments</option>
+        </Select>
+      </FormField>
+    )
     if (name === 'account_status') return (
       <FormField key={name} label="Account evidence">
         <Select value={text(name)} onChange={(event) => update(name, event.target.value)}>
@@ -200,7 +215,7 @@ export function SodFilters({ view, filters, setFilters, fields, sorts, actions, 
       <FormField key={name} label={DECISION_LABELS[name]}>
         <Select value={text(name)} onChange={(event) => update(name, event.target.value)}>
           <option value="">Any</option>
-          {DECISION_OPTIONS[name].map((option) => <option key={option} value={option}>{option === 'Removal required' ? 'Remove' : option}</option>)}
+          {DECISION_OPTIONS[name].map((option) => <option key={option} value={option}>{option === 'Removal required' ? 'Remove' : option === 'Investigate' ? 'Investigate (under investigation)' : option}</option>)}
         </Select>
       </FormField>
     )

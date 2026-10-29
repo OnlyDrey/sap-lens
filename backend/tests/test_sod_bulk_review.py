@@ -166,16 +166,40 @@ class BulkReviewTests(BulkCase):
         events = self.history(items[0]['key'])
         self.assertEqual([event['decision'] for event in events], ['Remove', 'Keep'])  # earlier history is preserved
 
-    def test_investigate_tracks_one_action_per_assignment_without_deciding_it(self):
+    def test_investigate_is_a_review_decision_that_stays_outstanding_and_can_be_resolved(self):
         items = self.picked(role_suffix='ENO')
         result = self.bulk(items, 'Investigate')
-        self.assertEqual(len(result['recorded']), 1)
-        remediation = self.get('/api/sod/remediation', limit=100)
-        actions = [item for item in remediation['actions'] if item['recommended'] == 'Investigate assignment']
-        self.assertEqual([(item['user'], item['role'], item['status']) for item in actions], [('U2', 'ZC:MM:SEL:ENO', 'Open')])
-        self.assertEqual(self.listing(role_suffix='ENO')['items'][0]['decision'], 'Pending')
+        self.assertEqual((len(result['recorded']), result['tracked_actions']), (1, []))
+        self.assertEqual(self.listing(role_suffix='ENO')['items'][0]['decision'], 'Investigate')
+        self.assertEqual(self.get('/api/sod/remediation', limit=100)['actions'], [])  # a decision alone creates no action
         repeat = self.bulk(items, 'Investigate')
-        self.assertEqual((repeat['recorded'], len(repeat['skipped'])), ([], 1))
+        self.assertEqual((repeat['recorded'], repeat['skipped'][0]['reason']), ([], 'Already under investigation.'))
+        history = lambda: self.get('/api/sod/decisions/assignment/history', key=items[0]['key'])['items']
+        self.assertEqual(len(history()), 1)
+        outstanding = self.get('/api/sod/queue/users', limit=100)
+        self.assertEqual(sum(row['assignment']['decided'] for row in outstanding['items'] if row['user'] == 'U2'), 0)  # not a completed decision
+        resolved = self.bulk(items, 'Remove')  # resolving needs no replacement confirmation
+        self.assertEqual(len(resolved['recorded']), 1)
+        self.assertEqual([event['decision'] for event in history()], ['Remove', 'Investigate'])  # the Investigate decision stays in the history
+
+    def test_investigate_can_track_one_action_without_duplicates_and_keeps_states_separate(self):
+        items = self.picked(role_suffix='ENO')
+        first = self.bulk(items, 'Investigate', track_action=True)
+        self.assertEqual(len(first['tracked_actions']), 1)
+        self.bulk(items, 'Keep', replace_existing=True)
+        again = self.bulk(items, 'Investigate', track_action=True, replace_existing=True)
+        self.assertEqual((len(again['recorded']), again['tracked_actions']), (1, []))  # the open action is reused
+        actions = [item for item in self.get('/api/sod/remediation', limit=100)['actions'] if item['recommended'] == 'Investigate assignment']
+        self.assertEqual([(item['user'], item['role'], item['status']) for item in actions], [('U2', 'ZC:MM:SEL:ENO', 'Open')])
+        rows = self.get('/api/sod/remediation', recommended='Investigate assignment', limit=100)['items']
+        self.assertEqual((rows[0]['assignment_decision'], rows[0]['action_status'], rows[0]['verification']), ('Investigate', 'Open', 'Not verifiable from source evidence'))
+
+    def test_investigate_is_filterable_and_reported(self):
+        self.bulk(self.picked(role_suffix='ENO'), 'Investigate')
+        self.assertEqual(self.roles(assignment_decision='Investigate'), [('U2', 'ZC:MM:SEL:ENO')])
+        self.assertEqual(self.get('/api/sod/queue', kind='assignment', status='Investigate', limit=100)['total'], 1)
+        text = self.client.get('/api/sod/explorer/access_list/export', params=dict(assignment_decision='Investigate'), headers=H).text
+        self.assertIn('Investigate', text)
 
     def test_partial_failures_are_reported_per_assignment_and_only_valid_items_persist(self):
         good = self.picked(role_suffix='CDK')
@@ -262,6 +286,64 @@ class IndependentDecisionTests(BulkCase):
         self.assertEqual({role_name: value for role_name, value in after.items() if role_name.endswith(':CDK')}, {'ZC:MM:BUY:CDK': 'Keep', 'ZC:MM:SEL:CDK': 'Keep'})
         ems = next(item for item in self.picked(usernames=['U1']) if item['ref'] == 'ZC:MM:BUY:EMS')
         self.assertEqual(len(self.get('/api/sod/decisions/assignment/history', key=ems['key'])['items']), 1)
+
+
+class ReviewStatusQueueTests(BulkCase):
+    """The assignment queue filters individual assignments by review status; completed decisions leave the default view only."""
+
+    def setUp(self):
+        super().setUp()
+        picked = {item['ref']: item for item in self.picked(usernames=['U1'])}
+        self.bulk([picked['ZC:MM:BUY:CDK']], 'Keep')
+        self.bulk([picked['ZC:MM:BUY:EMS']], 'Remove')
+        self.bulk([picked['ZC:MM:SEL:CDK']], 'Investigate')
+
+    def of(self, user_name='U1', **params):
+        return sorted(row['role'] for row in self.listing(usernames=[user_name], **params)['items'])
+
+    def test_default_attention_view_hides_only_completed_assignments_of_the_same_user(self):
+        self.assertEqual(self.of(review_status='attention'), ['ZC:MM:SEL:CDK'])  # Investigate stays; Keep and Remove are completed
+        self.assertEqual(self.of(review_status='reviewed'), ['ZC:MM:BUY:CDK', 'ZC:MM:BUY:EMS'])
+        self.assertEqual(self.of(review_status='investigating'), ['ZC:MM:SEL:CDK'])
+        self.assertEqual(self.of(review_status='pending'), [])
+        self.assertEqual(self.of(review_status='all'), ['ZC:MM:BUY:CDK', 'ZC:MM:BUY:EMS', 'ZC:MM:SEL:CDK'])
+        self.assertEqual(self.of(), self.of(review_status='all'))  # no status means no filtering for other views
+        self.assertEqual(self.of('U2', review_status='attention'), ['ZC:MM:BUY:ES2', 'ZC:MM:SEL:ENO'])  # untouched users are pending
+
+    def test_counts_pages_selection_and_export_follow_the_status_filter(self):
+        params = dict(review_status='attention', role_suffixes=['CDK', 'ES2'])
+        page = self.get('/api/sod/explorer/access_list', limit=1, **params)
+        self.assertEqual(page['total'], 2)  # U1 SEL:CDK (investigating) and U2 BUY:ES2; U1 BUY:CDK is completed
+        self.assertEqual(self.selection(**params)['total'], 2)
+        lines = [line for line in self.get_multi('/api/sod/explorer/access_list/export', params).text.replace('\ufeff', '').splitlines() if line][1:]
+        self.assertEqual(len(lines), 2)
+
+    def test_progress_ignores_the_status_filter_and_does_not_double_count(self):
+        progress = self.get('/api/sod/explorer/access_list', review_status='reviewed')['progress']
+        self.assertEqual(progress, dict(total=10, completed=2, pending=7, investigating=1, outdated=0, attention=8))
+
+    def test_outdated_decisions_return_to_the_queue(self):
+        self.bulk(self.picked(usernames=['U2'], role_suffix='ES2'), 'Keep')
+        self.assertEqual(self.of('U2', review_status='attention'), ['ZC:MM:SEL:ENO'])
+        changed = suffix_snapshot()
+        changed.roles['ZC:MM:BUY:ENP'] = role(BUY, 'X1', 'X2')  # the catalogue role now also supplies the second activity: evidence changed
+        cache._cache = changed
+        self.assertIn('ZC:MM:BUY:ES2', self.of('U2', review_status='attention'))
+        self.assertEqual(self.get('/api/sod/explorer/access_list', usernames=['U2'], review_status='all')['progress']['outdated'], 1)
+
+    def test_export_keeps_each_individual_decision_and_the_assignment_identifier(self):
+        text = self.get_multi('/api/sod/explorer/access_list/export', dict(usernames=['U1'], review_status='all')).text.replace('\ufeff', '')
+        header, *lines = [line for line in text.splitlines() if line]
+        self.assertTrue(header.endswith('"ASSIGNMENT_REVIEW";"ASSIGNMENT_ID";"ROLE_SUFFIX"'))
+        by_role = {line.split(';')[1].strip('"'): line.split(';') for line in lines}
+        self.assertEqual({role_name: fields[8].strip('"') for role_name, fields in by_role.items()},
+                         {'ZC:MM:BUY:CDK': 'Keep', 'ZC:MM:BUY:EMS': 'Removal required', 'ZC:MM:SEL:CDK': 'Investigate'})
+        ids = {fields[9].strip('"') for fields in by_role.values()}
+        self.assertEqual(ids, {item['key'] for item in self.picked(usernames=['U1'], review_status='all')})
+
+    def test_status_filter_is_saved_filter_compatible(self):
+        response = self.client.post('/api/saved-filters', json=dict(name='Queue', view='sod_explorer', filters=dict(review_status='investigating')), headers=H)
+        self.assertEqual(response.status_code, 200, response.text)
 
 
 if __name__ == '__main__':

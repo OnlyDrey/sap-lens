@@ -1,7 +1,7 @@
 import { apiRequest, applicationToken } from './client'
 
 export type Filters = Record<string, string | boolean | number | string[]>
-export type Lifecycle = 'Pending' | 'Approved' | 'Keep' | 'Accepted' | 'Conditional' | 'Removal required' | 'Rejected' | 'Outdated' | 'Historical' | 'Resolved'
+export type Lifecycle = 'Pending' | 'Approved' | 'Keep' | 'Accepted' | 'Conditional' | 'Removal required' | 'Investigate' | 'Rejected' | 'Outdated' | 'Historical' | 'Resolved'
 
 export interface ContextInfo {
   context: string
@@ -248,4 +248,4 @@ export interface AssignmentPick {
 export interface AssignmentSelection extends ContextInfo { items: AssignmentPick[]; total: number; truncated: boolean; limit: number }
 export type BulkAction = 'Keep' | 'Remove' | 'Investigate'
 export interface BulkOutcome { key: string; user: string; ref: string; reason: string }
-export interface BulkResult { action: BulkAction; recorded: string[]; skipped: BulkOutcome[]; failed: BulkOutcome[]; revision: number }
+export interface BulkResult { action: BulkAction; recorded: string[]; skipped: BulkOutcome[]; failed: BulkOutcome[]; tracked_actions?: string[]; revision: number }

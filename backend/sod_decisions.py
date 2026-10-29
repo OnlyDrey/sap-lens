@@ -28,7 +28,7 @@ MAX_REPORTS = 5000
 MAX_BATCH = 100
 DECISIONS = {
     'activity': ('Pending', 'Approved', 'Conditional', 'Remove'),
-    'assignment': ('Pending', 'Keep', 'Remove'),
+    'assignment': ('Pending', 'Keep', 'Remove', 'Investigate'),
     'acceptance': ('Pending', 'Accepted', 'Rejected'),
 }
 RECOMMENDED = ('Remove assignment', 'Investigate assignment', 'Maintain access', 'Apply compensating control', 'No action required')
@@ -275,7 +275,7 @@ def evidence_for(event):
 def lifecycle(kind, event, current_version, today=None):
     """Lifecycle of one item. ``current_version`` is None when evidence no longer supports the item.
 
-    Returns Pending, the decision itself (Approved, Keep, Accepted, Conditional, Rejected), Removal required,
+    Returns Pending, the decision itself (Approved, Keep, Accepted, Conditional, Rejected, Investigate), Removal required,
     Outdated (evidence changed or acceptance expired) or Historical.
     """
     if event is None:

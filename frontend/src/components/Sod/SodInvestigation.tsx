@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, ClipboardCheck, FlaskConical, History, Trash2, Wrench } from 'lucide-react'
+import { Check, ClipboardCheck, FlaskConical, History, Search, Trash2, Wrench } from 'lucide-react'
 import { emptyFilters, scopeParams, sod, sodPost, type ActivityDetail, type AssignmentRow, type DecisionEvent, type OverviewAssignment, type Subject } from '@/api/sod'
 import { useViewHistory, userHref } from '@/hooks/useViewHistory'
 import { SidePanel } from '@/components/Shared/SidePanel'
@@ -24,7 +24,7 @@ export interface Item { key: string; user: string; ref: string; evidence_version
 export interface FormState { kind: Kind; items: Item[]; heading: string; decision?: string }
 const OPTIONS: Record<Kind, { value: string; label: string }[]> = {
   activity: [{ value: 'Approved', label: 'Approved: the user needs this activity' }, { value: 'Conditional', label: 'Conditional: approved with conditions' }, { value: 'Remove', label: 'Remove: the user should not have this activity' }, { value: 'Pending', label: 'Reset to pending' }],
-  assignment: [{ value: 'Keep', label: 'Keep this role assignment' }, { value: 'Remove', label: 'Remove this role assignment' }, { value: 'Pending', label: 'Reset to pending' }],
+  assignment: [{ value: 'Keep', label: 'Keep this role assignment' }, { value: 'Remove', label: 'Remove this role assignment' }, { value: 'Investigate', label: 'Investigate: further investigation is required' }, { value: 'Pending', label: 'Reset to pending' }],
   acceptance: [{ value: 'Accepted', label: 'Accept the risk' }, { value: 'Rejected', label: 'Reject the risk' }, { value: 'Pending', label: 'Reset to pending' }],
 }
 const QUICK_RATIONALE = 'Reviewed in Role Assignment Review'
@@ -61,7 +61,7 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
   /** One-click review. Each assignment is decided on its own: requests run one after another, so each reads the revision the previous
    * save produced, and the row changes only after the server confirmed it. A busy marker belongs to one row, never to the panel. */
   const queue = useRef<Promise<void>>(Promise.resolve())
-  const quickDecide = (row: OverviewAssignment, decision: 'Keep' | 'Remove') => {
+  const quickDecide = (row: OverviewAssignment, decision: 'Keep' | 'Remove' | 'Investigate') => {
     setQuickError('')
     if (!quickReviewer.trim()) { setQuickError('Enter a reviewer name above before recording a decision. It is self-reported and stored with each decision.'); return }
     setQuickBusy((previous) => new Set(previous).add(row.id))
@@ -84,7 +84,7 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
         try { sessionStorage.setItem(reviewerKey, reviewer) } catch { /* optional convenience */ }
         await invalidateSod(qc)
       } catch (cause) {
-        setQuickError(`${decision === 'Keep' ? 'Keep' : 'Removal recommendation'} for ${row.role} was not saved. ${cause instanceof Error ? cause.message : 'Try again.'}`)
+        setQuickError(`${decision === 'Keep' ? 'Keep' : decision === 'Investigate' ? 'Investigate' : 'Removal recommendation'} for ${row.role} was not saved. ${cause instanceof Error ? cause.message : 'Try again.'}`)
       } finally {
         setQuickBusy((previous) => { const next = new Set(previous); next.delete(row.id); return next })
       }
@@ -208,8 +208,8 @@ function ReviewSection({ title, kind, done, total, ok, picked, note, onBatch, ch
 }
 
 /** Role assignment: module, copyable identifier, validity, SAP User Group, activities supplied and review status, with compact icon decisions on the right. */
-function AssignmentReviewRow({ row, ok, checked, onCheck, busy, onDecide, onOpenRole, onTrack, history }: { row: OverviewAssignment; ok: boolean; checked: boolean; onCheck: () => void; busy: boolean; onDecide: (decision: 'Keep' | 'Remove') => void; onOpenRole: () => void; onTrack?: () => void; history: ReactNode }) {
-  const code = moduleOfRoles(useRoleModules(), row.catalogue_roles), kept = row.decision === 'Keep', removed = row.decision === 'Removal required'
+function AssignmentReviewRow({ row, ok, checked, onCheck, busy, onDecide, onOpenRole, onTrack, history }: { row: OverviewAssignment; ok: boolean; checked: boolean; onCheck: () => void; busy: boolean; onDecide: (decision: 'Keep' | 'Remove' | 'Investigate') => void; onOpenRole: () => void; onTrack?: () => void; history: ReactNode }) {
+  const code = moduleOfRoles(useRoleModules(), row.catalogue_roles), kept = row.decision === 'Keep', removed = row.decision === 'Removal required', investigating = row.decision === 'Investigate'
   return (
     <li className="sod-review-row sod-assignment-row">
       <div className="sod-assignment-line">
@@ -220,6 +220,7 @@ function AssignmentReviewRow({ row, ok, checked, onCheck, busy, onDecide, onOpen
             {onTrack && <Button size="compact" onClick={onTrack}>Track action</Button>}
             {ok && <span className="sod-decision-icons" role="group" aria-label={`Decision for ${row.role}`}>
               <IconButton label={`Keep ${row.role}`} tooltip="Keep this role assignment" variant={kept ? 'primary' : 'secondary'} aria-pressed={kept} loading={busy} disabled={busy} onClick={() => onDecide('Keep')}><Check size={16} aria-hidden="true" /></IconButton>
+              <IconButton label={`Investigate ${row.role}`} tooltip="Mark for further investigation (not a final decision)" variant={investigating ? 'primary' : 'secondary'} aria-pressed={investigating} loading={busy} disabled={busy} onClick={() => onDecide('Investigate')}><Search size={16} aria-hidden="true" /></IconButton>
               <IconButton label={`Remove ${row.role}`} tooltip="Recommend removing this role assignment (no change in SAP)" variant={removed ? 'destructive' : 'secondary'} aria-pressed={removed} loading={busy} disabled={busy} onClick={() => onDecide('Remove')}><Trash2 size={16} aria-hidden="true" /></IconButton>
             </span>}
           </>}
@@ -231,7 +232,7 @@ function AssignmentReviewRow({ row, ok, checked, onCheck, busy, onDecide, onOpen
           <span className="id-pill-list" aria-label={`Activities supplied by ${row.role}`}>{row.activities.map((name) => <SodPill key={name} kind="activity" value={name} />)}</span>
         </RoleEntry>
       </div>
-      {row.event && <p className="text-xs text-muted">{row.event.decision === 'Remove' ? 'Removal recommended' : row.event.decision} by {row.event.reviewer}, {formatTimestamp(row.event.timestamp)}: {row.event.justification}</p>}
+      {row.event && <p className="text-xs text-muted">{row.event.decision === 'Remove' ? 'Removal recommended' : row.event.decision === 'Investigate' ? 'Marked for investigation' : row.event.decision} by {row.event.reviewer}, {formatTimestamp(row.event.timestamp)}: {row.event.justification}</p>}
       {history}
     </li>
   )

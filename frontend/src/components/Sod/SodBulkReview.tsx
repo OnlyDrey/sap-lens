@@ -10,7 +10,7 @@ import { StatusBadge } from '@/components/Shared/Presentation'
 const COPY: Record<BulkAction, { title: string; verb: string; effect: string; confirm: string }> = {
   Keep: { title: 'Keep assignments', verb: 'Keep', effect: 'Each assignment gets its own Keep review event with the reviewer and rationale below.', confirm: 'Keep' },
   Remove: { title: 'Recommend removal', verb: 'Recommend removal', effect: 'Each assignment is marked Remove in its review history. This records a recommendation only: no role is removed from SAP and no imported data changes.', confirm: 'Recommend removal for' },
-  Investigate: { title: 'Mark for further investigation', verb: 'Investigate', effect: 'Each assignment gets a tracked Investigate assignment remediation action. The review decision stays unchanged.', confirm: 'Track investigation for' },
+  Investigate: { title: 'Mark for further investigation', verb: 'Investigate', effect: 'Each assignment is recorded as Investigate in its own review history. This is not a final decision: the assignment stays in the outstanding queue until it is kept or recommended for removal.', confirm: 'Mark for investigation:' },
 }
 const counted = (items: string[]) => [...items.reduce((map, value) => map.set(value, (map.get(value) || 0) + 1), new Map<string, number>())].sort(([x], [y]) => x.localeCompare(y))
 
@@ -19,16 +19,16 @@ export function BulkReviewDialog({ action, picks: livePicks, info, onClose, onAp
   const copy = COPY[action], qc = useQueryClient()
   // The dialog reports on the selection it was opened with, even after saved assignments leave the live selection.
   const [picks] = useState(livePicks)
-  const [reviewer, setReviewer] = useState(''), [rationale, setRationale] = useState(''), [replace, setReplace] = useState(false)
+  const [reviewer, setReviewer] = useState(''), [rationale, setRationale] = useState(''), [replace, setReplace] = useState(false), [track, setTrack] = useState(false)
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [result, setResult] = useState<BulkResult | null>(null)
   const users = counted(picks.map((pick) => pick.user)), suffixes = counted(picks.map((pick) => pick.suffix || 'No suffix')), roles = new Set(picks.map((pick) => pick.ref)).size
-  const reviewed = action === 'Investigate' ? [] : picks.filter((pick) => pick.decision !== 'Pending')
+  const reviewed = picks.filter((pick) => pick.decision === 'Keep' || pick.decision === 'Removal required')
   const ready = !!reviewer.trim() && !!rationale.trim() && (!reviewed.length || replace) && !busy
   const apply = async () => {
     setBusy(true); setError('')
     try {
       const response = await sodPost<BulkResult>('/api/sod/decisions/assignment/bulk', {
-        context: info.context, expected_revision: info.revision, expected_generation: info.generation, action, reviewer: reviewer.trim(), justification: rationale.trim(), replace_existing: replace,
+        context: info.context, expected_revision: info.revision, expected_generation: info.generation, action, reviewer: reviewer.trim(), justification: rationale.trim(), replace_existing: replace, track_action: action === 'Investigate' && track,
         items: picks.map((pick) => ({ key: pick.key, user: pick.user, ref: pick.ref, evidence_version: pick.evidence_version })),
       })
       setResult(response)
@@ -47,6 +47,7 @@ export function BulkReviewDialog({ action, picks: livePicks, info, onClose, onAp
             {result.recorded.length} of {picks.length} {picks.length === 1 ? 'assignment' : 'assignments'} saved{problems ? `; ${result.skipped.length} skipped and ${result.failed.length} failed` : ''}.</p>
           {!!result.skipped.length && <><h3 className="text-sm font-semibold">Skipped, nothing changed</h3><ul className="bulk-outcome">{result.skipped.map((item) => <li key={item.key}><strong>{item.user}</strong> {item.ref}: {item.reason}</li>)}</ul></>}
           {!!result.failed.length && <><h3 className="text-sm font-semibold">Failed, nothing saved</h3><ul className="bulk-outcome" role="alert">{result.failed.map((item) => <li key={item.key}><strong>{item.user}</strong> {item.ref}: {item.reason}</li>)}</ul></>}
+          {!!result.tracked_actions?.length && <p className="ui-description">{result.tracked_actions.length} investigation {result.tracked_actions.length === 1 ? 'action was' : 'actions were'} tracked.</p>}
           {problems > 0 && <p className="ui-description">Skipped and failed assignments stay selected so you can adjust and retry.</p>}
         </div>
       </Dialog>
@@ -70,10 +71,11 @@ export function BulkReviewDialog({ action, picks: livePicks, info, onClose, onAp
         {!!reviewed.length && (
           <section aria-label="Existing decisions" className="review-dialog-trigger">
             <h3>{reviewed.length} {reviewed.length === 1 ? 'assignment has' : 'assignments have'} an earlier review decision</h3>
-            <p className="ui-description">Replacing keeps the earlier decisions in each assignment history. They are never overwritten silently.</p>
+            <p className="ui-description">Replacing keeps the earlier decisions in each assignment history. Completed decisions are never overwritten silently.</p>
             <Checkbox checked={replace} onChange={(event) => setReplace(event.target.checked)}>Replace the existing decisions of these {reviewed.length} assignments</Checkbox>
           </section>
         )}
+        {action === 'Investigate' && <Checkbox checked={track} onChange={(event) => setTrack(event.target.checked)}>Also track one investigation action per assignment (existing open actions are reused)</Checkbox>}
         <div className="review-dialog-fields">
           <FormField label="Reviewer"><Input maxLength={120} value={reviewer} placeholder="Your name (self-declared)" onChange={(event) => setReviewer(event.target.value)} /></FormField>
           <FormField label="Rationale"><Input maxLength={2000} value={rationale} placeholder="Why this applies to the selected assignments" onChange={(event) => setRationale(event.target.value)} /></FormField>

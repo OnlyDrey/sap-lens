@@ -20,7 +20,7 @@ import sod_scope as scope
 from .sod_analysis import context_key, publication_guard
 
 router = APIRouter(prefix='/api/sod', tags=['SoD governance'])
-Lifecycle = Literal['', 'Pending', 'Approved', 'Keep', 'Accepted', 'Conditional', 'Removal required', 'Rejected', 'Outdated']
+Lifecycle = Literal['', 'Pending', 'Approved', 'Keep', 'Accepted', 'Conditional', 'Removal required', 'Investigate', 'Rejected', 'Outdated']
 MAX_COLUMNS = 500
 
 
@@ -34,6 +34,7 @@ def scope_query(context: str = Query('current', pattern=legacy.CONTEXT_PATTERN),
                 usernames: list[str] = Query(default=[], max_length=100), role_suffixes: list[str] = Query(default=[], max_length=100),
                 account_status: Literal['', 'locked', 'unlocked', 'ad_disabled', 'ad_enabled', 'unknown'] = '',
                 activity_decision: Lifecycle = '', assignment_decision: Lifecycle = '', acceptance: Lifecycle = '',
+                review_status: Literal['', 'attention', 'pending', 'investigating', 'reviewed', 'all'] = '',
                 sort: Literal['subject', 'findings'] = 'subject', descending: bool = False):
     return locals()
 
@@ -153,11 +154,20 @@ def _explorer(table, q):
     return bundle, rows
 
 
+def assignment_progress(q):
+    """Review progress of the assignments in scope, independent of the review status filter."""
+    _, rows = _explorer('access_list', dict(q, review_status=''))
+    count = lambda *names: sum(row['decision'] in names for row in rows)
+    return dict(total=len(rows), completed=count('Keep', 'Removal required'), pending=count('Pending'), investigating=count('Investigate'),
+                outdated=count('Outdated'), attention=count('Pending', 'Investigate', 'Outdated'))
+
+
 @router.get('/explorer/{table}')
 def explorer(table: Literal['user_risk', 'user_activity', 'access_list', 'lookup'], q: dict = Depends(scope_query),
              offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200)):
     bundle, rows = _explorer(table, q)
-    return dict(info(bundle), table=table, items=rows[offset:offset + limit], total=len(rows), offset=offset, limit=limit)
+    extra = dict(progress=assignment_progress(q)) if table == 'access_list' else {}
+    return dict(info(bundle), table=table, items=rows[offset:offset + limit], total=len(rows), offset=offset, limit=limit, **extra)
 
 
 def csv_header(columns):
@@ -189,8 +199,8 @@ EXPLORER_COLUMNS = {
                   lambda r: [r['user'], r['risk_id'], r['criticality'], r['category'], ', '.join(r['groups']), ', '.join(r['activities']), ', '.join(r['roles']), r['acceptance']]),
     'user_activity': (['USERNAME', 'ACTIVITY', 'RISKS', 'TRANSACTIONS', 'ROLE_ASSIGNMENTS', 'DUPLICATE_COVERAGE', 'ACTIVITY_REVIEW'],
                       lambda r: [r['user'], r['activity'], ', '.join(r['risks']), ', '.join(r['tcodes']), r['roles'], 'Yes' if r['duplicate'] else 'No', r['decision']]),
-    'access_list': (['USERNAME', 'ROLE', 'VALID_FROM', 'VALID_TO', 'ASSIGNMENT_STATUS', 'USER_GROUP', 'ACTIVITIES', 'RISKS', 'ASSIGNMENT_REVIEW'],
-                    lambda r: [r['user'], r['role'], *_dates(r), r['interval_status'], r['user_group'], ', '.join(r['activities']), ', '.join(r['risks']), r['decision']]),
+    'access_list': (['USERNAME', 'ROLE', 'VALID_FROM', 'VALID_TO', 'ASSIGNMENT_STATUS', 'USER_GROUP', 'ACTIVITIES', 'RISKS', 'ASSIGNMENT_REVIEW', 'ASSIGNMENT_ID', 'ROLE_SUFFIX'],
+                    lambda r: [r['user'], r['role'], *_dates(r), r['interval_status'], r['user_group'], ', '.join(r['activities']), ', '.join(r['risks']), r['decision'], r['id'], r['suffix']]),
     'lookup': (['ROLE', 'USERS', 'CATALOGUE_ROLES', 'ACTIVITIES', 'RISKS'],
                lambda r: [r['role'], r['users'], ', '.join(r['catalogue_roles']), ', '.join(r['activities']), ', '.join(r['risks'])]),
 }
@@ -291,13 +301,13 @@ def simulate(body: SimulateBody):
                 note='Simulation only: SAP Lens does not change SAP. A removal recommendation is not confirmed removal.')
 
 
-STATUS_FILTERS = ('Pending', 'Reviewed', 'Conditional', 'Removal required', 'Rejected', 'Risk acceptance pending', 'Awaiting approval', 'Outdated', 'Resolved', 'Historical')
+STATUS_FILTERS = ('Pending', 'Reviewed', 'Conditional', 'Removal required', 'Investigate', 'Rejected', 'Risk acceptance pending', 'Awaiting approval', 'Outdated', 'Resolved', 'Historical')
 
 
 def _status_match(item, status, awaiting):
     life = item['lifecycle']
     return {'Pending': life == 'Pending', 'Reviewed': life in {'Approved', 'Keep', 'Accepted'}, 'Conditional': life == 'Conditional',
-            'Removal required': life == 'Removal required', 'Rejected': life == 'Rejected',
+            'Removal required': life == 'Removal required', 'Investigate': life == 'Investigate', 'Rejected': life == 'Rejected',
             'Risk acceptance pending': item['kind'] == 'acceptance' and life == 'Pending',
             'Awaiting approval': awaiting and life in scope.DECIDED, 'Outdated': life == 'Outdated', 'Resolved': life == 'Resolved', 'Historical': life == 'Historical'}[status]
 
@@ -305,7 +315,7 @@ def _status_match(item, status, awaiting):
 def _queue(q, kind, status):
     bundle, model, state, view = scope.scoped(q['context'], q)
     items = governance.queue_items(view, state)
-    if q['context'] == 'current' and bundle['reviewable'] and not any(q.get(name) for name in ('search', 'risk', 'username', 'usernames', 'role', 'role_suffix', 'role_suffixes', 'tcode', 'activity', 'group', 'criticality', 'category', 'assignment_decision')):
+    if q['context'] == 'current' and bundle['reviewable'] and not any(q.get(name) for name in ('search', 'risk', 'username', 'usernames', 'role', 'role_suffix', 'role_suffixes', 'tcode', 'activity', 'group', 'criticality', 'category', 'assignment_decision', 'review_status')):
         known = dict(activity={item['key'] for entry in model.values() for item in entry['activities'].values()},
                      assignment={aid for entry in model.values() for aid in entry['assignments']},
                      acceptance={finding['finding_id'] for entry in model.values() for finding in entry['findings'].values()})
@@ -351,7 +361,7 @@ def _public(item):
 
 @router.get('/queue')
 def queue(q: dict = Depends(scope_query), kind: Literal['', 'activity', 'assignment', 'acceptance'] = '',
-          status: Literal['', 'Pending', 'Reviewed', 'Conditional', 'Removal required', 'Rejected', 'Risk acceptance pending', 'Awaiting approval', 'Outdated', 'Resolved', 'Historical'] = '',
+          status: Literal['', 'Pending', 'Reviewed', 'Conditional', 'Removal required', 'Investigate', 'Rejected', 'Risk acceptance pending', 'Awaiting approval', 'Outdated', 'Resolved', 'Historical'] = '',
           offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200)):
     bundle, items, counts = _queue(q, kind, status)
     return dict(info(bundle), items=[_public(item) for item in items[offset:offset + limit]], total=len(items), counts=counts, offset=offset, limit=limit,
@@ -397,7 +407,7 @@ def queue_users(q: dict = Depends(scope_query), progress: Literal['', 'outstandi
 
 @router.get('/queue/export')
 def queue_export(q: dict = Depends(scope_query), kind: Literal['', 'activity', 'assignment', 'acceptance'] = '',
-                 status: Literal['', 'Pending', 'Reviewed', 'Conditional', 'Removal required', 'Rejected', 'Risk acceptance pending', 'Awaiting approval', 'Outdated', 'Resolved', 'Historical'] = ''):
+                 status: Literal['', 'Pending', 'Reviewed', 'Conditional', 'Removal required', 'Investigate', 'Rejected', 'Risk acceptance pending', 'Awaiting approval', 'Outdated', 'Resolved', 'Historical'] = ''):
     _, items, _ = _queue(q, kind, status)
 
     def rows():
@@ -498,14 +508,20 @@ class BulkAssignmentBody(StrictModel):
     reviewer: str = Field(min_length=1, max_length=120)
     justification: str = Field(min_length=1, max_length=4000)
     replace_existing: bool = False
+    track_action: bool = False
+
+
+#: Current, completed assignment decisions. Replacing one needs explicit confirmation; Pending, Investigate and Outdated reviews do not.
+PROTECTED = {'Keep', 'Removal required'}
 
 
 @router.post('/decisions/assignment/bulk')
 def bulk_assignment_review(body: BulkAssignmentBody):
     """Review many role assignments with the individual decision behavior: one event per assignment, own history, evidence checks.
 
-    Keep and Remove append assignment review events. Investigate tracks an Investigate assignment remediation action.
-    Assignments that already carry a decision are never replaced unless replace_existing is true. Nothing here changes SAP.
+    Keep, Remove and Investigate append assignment review events. Completed Keep or Remove decisions are never replaced unless
+    replace_existing is true; an assignment already under investigation is not recorded twice. With track_action, Investigate also
+    tracks one open "Investigate assignment" remediation action per assignment (never a duplicate). Nothing here changes SAP.
     Each outcome is reported per assignment; success is only reported after the change is persisted.
     """
     bundle = scope.load(body.context)
@@ -528,29 +544,32 @@ def bulk_assignment_review(body: BulkAssignmentBody):
         if version != item.evidence_version:
             failed.append(dict(key=item.key, user=item.user, ref=item.ref, reason='Evidence changed since the selection was made.'))
             continue
-        if body.action == 'Investigate':
-            if key in tracked:
-                skipped.append(dict(key=item.key, user=item.user, ref=item.ref, reason='An open Investigate assignment action already exists.'))
-                continue
-        elif state['assignment'][key][0] != 'Pending' and not body.replace_existing:
-            skipped.append(dict(key=item.key, user=item.user, ref=item.ref, reason=f'Already reviewed ({state["assignment"][key][0]}); replacing needs explicit confirmation.'))
+        current = state['assignment'][key][0]
+        if body.action == 'Investigate' and current == 'Investigate':
+            skipped.append(dict(key=item.key, user=item.user, ref=item.ref, reason='Already under investigation.'))
+            continue
+        if current in PROTECTED and not body.replace_existing:
+            skipped.append(dict(key=item.key, user=item.user, ref=item.ref, reason=f'Already reviewed ({current}); replacing needs explicit confirmation.'))
             continue
         ready.append(dict(key=key, user=item.user, ref=item.ref, evidence_version=version, evidence=evidence))
-    recorded, revision = [], body.expected_revision
+    recorded, new_actions, revision = [], [], body.expected_revision
+    decision = 'Remove' if body.action == 'Remove' else body.action
 
     def apply(chunk):
         nonlocal revision
-        if body.action == 'Investigate':
+        revision = decisions.record('assignment', body.context, chunk, decision, body.reviewer, body.justification, revision, source_versions=bundle['versions'])['revision']
+        if body.action == 'Investigate' and body.track_action:
             for item in chunk:
+                if item['key'] in tracked:
+                    continue
                 result = decisions.save_action(body.context, dict(user=item['user'], assignment_id=item['key'], role=item['ref'], recommended='Investigate assignment',
                                                                   reason=body.justification, owner='', due_date=None, status='Open', completion_evidence='',
                                                                   activity='', risk_id=''), body.reviewer, revision)
                 revision = result['revision']
-        else:
-            revision = decisions.record('assignment', body.context, chunk, body.action, body.reviewer, body.justification, revision,
-                                        source_versions=bundle['versions'])['revision']
+                new_actions.append(item['key'])
+                tracked.add(item['key'])
+
     def run():
-        nonlocal failed
         for start in range(0, len(ready), decisions.MAX_BATCH):
             chunk = ready[start:start + decisions.MAX_BATCH]
             try:
@@ -567,7 +586,7 @@ def bulk_assignment_review(body: BulkAssignmentBody):
             run()
     else:
         run()
-    return dict(action=body.action, recorded=recorded, skipped=skipped, failed=failed, revision=revision, reviewer_identity=decisions.IDENTITY_NOTICE)
+    return dict(action=body.action, recorded=recorded, skipped=skipped, failed=failed, tracked_actions=new_actions, revision=revision, reviewer_identity=decisions.IDENTITY_NOTICE)
 
 
 @router.get('/decisions/{kind}/history')

@@ -19,7 +19,7 @@ import { formatDate } from '@/lib/dateFormat'
 import { ConflictView } from './SodConflicts'
 import { SodPill } from '@/lib/sodAppearance'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
-import { type FilterField, ContextBar, SodArea, RoleCodeList, CoverageNotice, SodFilters, LifecycleBadge, useSodContext, useSodFilters, useSodSubject } from './SodShared'
+import { type FilterField, reviewStatusParam, ContextBar, SodArea, RoleCodeList, CoverageNotice, SodFilters, LifecycleBadge, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 
 type TableName = Exclude<SodExplorerTable, 'roles'>
 interface Row {
@@ -27,12 +27,13 @@ interface Row {
   activity?: string; risks?: string[]; tcodes?: string[]; duplicate?: boolean; decision?: Lifecycle; id?: string; role?: string; valid_from?: string | null; valid_to?: string | null
   interval_status?: string | null; user_group?: string; users?: number; catalogue_roles?: string[]; suffix?: string; evidence_version?: string
 }
-interface Result extends ContextInfo { items: Row[]; total: number; offset: number; limit: number }
+interface Progress { total: number; completed: number; pending: number; investigating: number; outdated: number; attention: number }
+interface Result extends ContextInfo { items: Row[]; total: number; offset: number; limit: number; progress?: Progress }
 const COMMON: FilterField[] = ['username', 'risk', 'activity', 'role', 'role_suffix', 'tcode', 'validity']
 const FIELDS: Record<string, FilterField[]> = {
   user_risk: [...COMMON, 'group', 'category', 'criticality', 'activity_decision', 'assignment_decision', 'acceptance'],
   user_activity: [...COMMON, 'group', 'category', 'criticality', 'activity_decision', 'assignment_decision'],
-  access_list: [...COMMON, 'group', 'activity_decision', 'assignment_decision'],
+  access_list: [...COMMON, 'group', 'review_status', 'assignment_decision'],
   lookup: COMMON,
 }
 const LABELS: Record<TableName, string> = { user_risk: 'User risk table', user_activity: 'User activity table', access_list: 'Access list', lookup: 'User & role lookup' }
@@ -123,13 +124,14 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
   const selection = useBulkSelection<AssignmentPick>(pickKey)
   const setPageSize = (value: number) => { setPageSizeState(value); setOffset(0) }
   const toggle = (id: string) => setExpanded((previous) => { const next = new Set(previous); if (next.has(id)) next.delete(id); else next.add(id); return next })
-  const params = scopeParams(context, filters, { offset, limit: pageSize })
+  const queue: Record<string, string> = table === 'access_list' ? { review_status: reviewStatusParam(filters) } : {}
+  const params = scopeParams(context, filters, { offset, limit: pageSize, ...queue })
   const result = useQuery({ queryKey: ['sod-explorer', table, params.toString()], queryFn: () => sod<Result>(`/api/sod/explorer/${table}`, params) })
   const data = result.data
   const download = async (path: string, namePattern: RegExp, extra: Record<string, string> = {}) => {
     setBusy(true)
     try {
-      const name = await downloadFile(path, { params: scopeParams(context, filters, extra), namePattern, kind: 'csv' })
+      const name = await downloadFile(path, { params: scopeParams(context, filters, { ...queue, ...extra }), namePattern, kind: 'csv' })
       announceExport(name ? { kind: 'success', message: `Exported ${name}.` } : { kind: 'info', message: 'Export cancelled.' })
     } catch (cause) {
       announceExport({ kind: 'error', message: cause instanceof Error ? cause.message : 'Export failed.' })
@@ -143,7 +145,7 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
   const selectAllMatching = async () => {
     setGathering(true); setGatherNote('')
     try {
-      const all = await sod<AssignmentSelection>('/api/sod/explorer/access_list/selection', scopeParams(context, filters))
+      const all = await sod<AssignmentSelection>('/api/sod/explorer/access_list/selection', scopeParams(context, filters, queue))
       selection.add(all.items)
       setGatherNote(all.truncated ? `Only the first ${all.limit.toLocaleString()} of ${all.total.toLocaleString()} matching assignments were selected. Narrow the filters to cover the rest.` : `Selected all ${all.total.toLocaleString()} matching assignments.`)
     } catch (cause) {
@@ -170,6 +172,14 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
         <Toolbar>
           <h2 className="text-base font-semibold">{data.total} {table === 'lookup' ? 'roles' : 'rows'}</h2>
         </Toolbar>
+        {table === 'access_list' && data.progress && <section className="sod-tiles review-progress" aria-label="Role assignment review progress">
+          <div className="sod-tile"><span>In scope</span><strong>{data.progress.total.toLocaleString()}</strong></div>
+          <div className="sod-tile"><span>Completed (Keep or Remove)</span><strong>{data.progress.completed.toLocaleString()}</strong></div>
+          <div className="sod-tile"><span>Pending</span><strong>{data.progress.pending.toLocaleString()}</strong></div>
+          <div className="sod-tile"><span>Under investigation</span><strong>{data.progress.investigating.toLocaleString()}</strong></div>
+          <div className="sod-tile" data-tone={data.progress.outdated ? 'warning' : undefined}><span>Outdated, re-review</span><strong>{data.progress.outdated.toLocaleString()}</strong></div>
+          <div className="sod-tile" data-tone={data.progress.attention ? 'warning' : undefined}><span>Remaining to review</span><strong>{data.progress.attention.toLocaleString()}</strong></div>
+        </section>}
         {table === 'access_list' && data.reviewable && <>
           {picks.length > 0
             ? <BulkToolbar label="Bulk assignment review" summary={`${picks.length.toLocaleString()} ${picks.length === 1 ? 'assignment' : 'assignments'} selected`}

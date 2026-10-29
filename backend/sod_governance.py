@@ -317,7 +317,7 @@ def remediation_rows(model, state, actions, verify, today=None, include_pending=
     tracked = {}
     for action in sorted(actions, key=lambda item: item.modified):
         if action.assignment_id and action.status != 'Cancelled':
-            tracked[action.assignment_id] = action
+            tracked[(action.assignment_id, action.recommended)] = action
     rows, undecided = [], 0
     for user, entry in sorted(model.items()):
         for aid, assignment in sorted(shown(entry).items(), key=lambda pair: (pair[1]['role'], pair[0])):
@@ -332,6 +332,8 @@ def remediation_rows(model, state, actions, verify, today=None, include_pending=
                 accept_states = {item[0] for item in accept}
                 if a_state == 'Removal required':
                     recommended, reason = 'Remove assignment', (a_event.justification if a_event else '')
+                elif a_state == 'Investigate':
+                    recommended, reason = 'Investigate assignment', (a_event.justification if a_event else '')
                 elif c_state == 'Removal required':
                     recommended, reason = 'Investigate assignment', 'Activity marked for removal: ' + (c_event.justification if c_event else '')
                 elif 'Rejected' in accept_states:
@@ -346,7 +348,7 @@ def remediation_rows(model, state, actions, verify, today=None, include_pending=
                     if not include_pending:
                         continue
                     recommended, reason = 'Awaiting review', ''
-                action = tracked.get(aid) if recommended == 'Remove assignment' else None
+                action = tracked.get((aid, recommended)) if recommended in ('Remove assignment', 'Investigate assignment') else None
                 rows.append(dict(user=user, activity=name, risks=risks, role=assignment['role'], catalogue_roles=sorted(assignment['catalogue_roles']), assignment_id=aid, valid_from=assignment['valid_from'],
                                  valid_to=assignment['valid_to'], user_group=assignment['user_group'], activity_decision=c_state, assignment_decision=a_state,
                                  risk_acceptance=sorted(accept_states), recommended=recommended, reason=reason,
@@ -355,7 +357,7 @@ def remediation_rows(model, state, actions, verify, today=None, include_pending=
                                  owner=action.owner if action else '', due_date=action.due_date.isoformat() if action and action.due_date else None,
                                  action_status=action.status if action else 'Not tracked',
                                  overdue=bool(action and action.due_date and action.due_date < today and action.status in {'Open', 'In progress'}),
-                                 verification=verify(user, aid) if action else 'Not tracked'))
+                                 verification=(verify(user, aid) if recommended == 'Remove assignment' else 'Not verifiable from source evidence') if action else 'Not tracked'))
     summary = {name: sum(row['recommended'] == name for row in rows) for name in GROUPS + (('Awaiting review',) if include_pending else ())}
     summary.update(undecided=undecided, overdue=sum(row['overdue'] for row in rows))
     return rows, summary

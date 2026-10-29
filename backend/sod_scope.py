@@ -114,7 +114,12 @@ def _path_matches(finding, q):
 
 
 def assignment_filters_active(q):
-    return any(q.get(name) for name in ('role', 'role_suffix', 'role_suffixes', 'group', 'activity', 'tcode', 'assignment_decision'))
+    return any(q.get(name) for name in ('role', 'role_suffix', 'role_suffixes', 'group', 'activity', 'tcode', 'assignment_decision')) or q.get('review_status') not in (None, '', 'all')
+
+
+#: Review status filter of the assignment queue: lifecycle values each choice keeps. The default working view is 'attention'.
+REVIEW_STATUS = {'attention': {'Pending', 'Investigate', 'Outdated'}, 'pending': {'Pending', 'Outdated'}, 'investigating': {'Investigate'},
+                 'reviewed': {'Keep', 'Removal required'}}
 
 
 def allowed_assignments(model, state, q):
@@ -135,6 +140,8 @@ def allowed_assignments(model, state, q):
             if q.get('tcode') and not any(text_matches(code, q['tcode']) for codes in assignment['supplies'].values() for code in codes):
                 continue
             if q.get('assignment_decision') and state['assignment'][aid][0] != q['assignment_decision']:
+                continue
+            if q.get('review_status') in REVIEW_STATUS and state['assignment'][aid][0] not in REVIEW_STATUS[q['review_status']]:
                 continue
             ids.add(aid)
         result[user] = ids

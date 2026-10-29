@@ -107,10 +107,11 @@ def _status_table(state):
     """Explicit review states so 'not reviewed', 'reviewed, no action' and 'removal recommended' are never merged."""
     def count(kind,*names):return str(_counts(state,kind,*names))
     return [['Review status','Activities','Role assignments','Risk acceptance'],
-            ['Not reviewed (pending or outdated)',count('activity','Pending','Outdated'),count('assignment','Pending','Outdated'),count('acceptance','Pending','Outdated')],
+            ['Not reviewed (pending or outdated)',count('activity','Pending','Outdated'),count('assignment','Pending','Outdated','Investigate'),count('acceptance','Pending','Outdated')],
             ['Reviewed, no action required',count('activity','Approved','Conditional'),count('assignment','Keep'),count('acceptance','Accepted')],
             ['Reviewed, removal recommended',count('activity','Removal required'),count('assignment','Removal required'),'—'],
-            ['Reviewed, risk rejected','—','—',count('acceptance','Rejected')]]
+            ['Reviewed, risk rejected','—','—',count('acceptance','Rejected')],
+            ['Under investigation (not a final decision)','—',count('assignment','Investigate'),'—']]
 
 
 def _followup_table(rows):
@@ -165,14 +166,14 @@ def model(identifier,options):
         if key in options.sections:built[key]=dict(key=key,title=HEADINGS[SECTIONS.index(key)],paragraphs=paragraphs,tables=[table for table in tables if table])
     users_evaluated=saved['source_counts']['users']
     user_risk=len(findings)
-    pending=dict(activity=_counts(state,'activity','Pending','Outdated'),assignment=_counts(state,'assignment','Pending','Outdated'),acceptance=_counts(state,'acceptance','Pending','Outdated')) if v2 else {}
+    pending=dict(activity=_counts(state,'activity','Pending','Outdated'),assignment=_counts(state,'assignment','Pending','Outdated','Investigate'),acceptance=_counts(state,'acceptance','Pending','Outdated')) if v2 else {}
     review_items=sum(len(state[kind]) for kind in ('activity','assignment','acceptance')) if v2 else 0
     open_items=sum(pending.values())
     if v2:
         metrics=[['Measure','Count','Unit'],['SAP users evaluated',str(users_evaluated),'users'],['Users with detected potential conflicts',str(len(view)),'users'],['Detected potential conflicts',str(user_risk),'user-risk findings'],
                  ['Activities in review scope',str(len(state['activity'])),'user-activity pairs'],['Activities approved',str(_counts(state,'activity','Approved')),'activities'],['Activities approved conditionally',str(_counts(state,'activity','Conditional')),'activities'],
                  ['Activities marked for removal',str(_counts(state,'activity','Removal required')),'activities'],['Activity reviews pending or outdated',str(pending['activity']),'activities'],
-                 ['Role assignments to keep',str(_counts(state,'assignment','Keep')),'assignments'],['Role assignments marked for removal',str(_counts(state,'assignment','Removal required')),'assignments'],
+                 ['Role assignments to keep',str(_counts(state,'assignment','Keep')),'assignments'],['Role assignments marked for removal',str(_counts(state,'assignment','Removal required')),'assignments'],['Role assignments under investigation',str(_counts(state,'assignment','Investigate')),'assignments'],
                  ['Risks accepted',str(_counts(state,'acceptance','Accepted')),'user-risk findings'],['Risks rejected',str(_counts(state,'acceptance','Rejected')),'user-risk findings'],['Risk decisions pending or outdated',str(pending['acceptance']),'user-risk findings'],
                  ['Open remediation actions',str(len(open_actions)),'actions'],['Overdue remediation actions',str(len(overdue)),'actions'],['Removal recommendations without a tracked action',str(untracked),'assignments']]
         lead=['This report shows who holds SAP access that could let one person perform conflicting duties (segregation of duties) and how those findings were reviewed.',

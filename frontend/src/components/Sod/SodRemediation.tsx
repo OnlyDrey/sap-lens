@@ -19,6 +19,8 @@ import { formatDate } from '@/lib/dateFormat'
 import { AlertNote, ContextBar, CoverageNotice, SodFilters, invalidateSod, LifecycleBadge, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 
 const GROUPS = ['Remove assignment', 'Investigate assignment', 'Apply compensating control', 'Maintain access', 'No action required']
+/** Handling that can carry a tracked action: removals and investigations. */
+const TRACKABLE = ['Remove assignment', 'Investigate assignment']
 const STATUSES = ['Open', 'In progress', 'Completed', 'Cancelled']
 interface TrackedAction { id: string; user: string; activity: string; risk_id: string; assignment_id: string; role: string; recommended: string; reason: string; owner: string; due_date: string | null; status: string; completion_evidence: string; verification: string; history: { timestamp: string; actor: string; note: string }[] }
 interface Row {
@@ -161,7 +163,7 @@ export function RemediationView() {
                   <td>{[...new Set(parent.rows.map((row) => row.recommended))].sort((x, y) => GROUPS.indexOf(x) - GROUPS.indexOf(y)).map((value) => <StatusBadge key={value} tone={value === 'Remove assignment' ? 'error' : value === 'Investigate assignment' ? 'warning' : 'neutral'}>{value}</StatusBadge>)}</td>
                   <td>{tracked.action_status}{parent.rows.some((row) => row.overdue) && <StatusBadge tone="error">Overdue</StatusBadge>}<p className="text-xs text-muted">{tracked.owner || 'No owner'} · {tracked.due_date ? formatDate(tracked.due_date) : 'No due date'}</p></td>
                   <td className="col-actions"><div className="flex flex-wrap justify-end gap-1">
-                    {data.reviewable && parent.rows.some((row) => row.recommended === 'Remove assignment') && <Button size="compact" onClick={() => setEditing(parent.rows.find((row) => row.recommended === 'Remove assignment')!)}>{tracked.action ? 'Update action' : 'Track action'}</Button>}
+                    {data.reviewable && parent.rows.some((row) => TRACKABLE.includes(row.recommended)) && <Button size="compact" onClick={() => setEditing(parent.rows.find((row) => TRACKABLE.includes(row.recommended))!)}>{tracked.action ? 'Update action' : 'Track action'}</Button>}
                     <Button size="compact" onClick={() => setSubject({ user: parent.user, activity: first.activity })}>Investigate</Button>
                   </div></td>
                 </tr>}
