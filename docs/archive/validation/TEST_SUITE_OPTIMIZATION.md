@@ -37,7 +37,7 @@ tests; no gap was found that justified new application tests.
 | Browser regression | about 16.1 min serial (3 batches 6.1 + 5.4 + 4.6) | 3 processes 12.7 min (one run); 2 processes 16.0 min (shards 961 s and 731 s); default stays 1 process because the gain was uneven and CPU-bound |
 | Full `regression` profile | not available | 1016 s with 2 browser processes, including build, docs, workflow, catalog, whitespace and `pip check`; passed after fixing two docs-link failures caused by editing documentation during the run (backend rerun: 720 passed) |
 | Confirmed redundant tests removed | n/a | 0 |
-| CI execution time | Fast about 103 s (run 72); Full 9 to 14 min (runs 2 to 4) | Fast backend expected shorter (about 50 s saved from the backend step); measured values are recorded in the commit's CI run below |
+| CI execution time (hosted `ubuntu-latest`, single samples) | Fast Validation run 72 (`b590930`): backend step 71 s, job 99 s, run 103 s; Full Validation 9 to 14 min (runs 2 to 4, before this change) | Fast Validation run 74 (`cb26cfb`): backend step 48 s (-23 s, about 32%), job 81 s, run 85 s, success. Full Validation (PRs to `main`) not yet run with the new commands |
 
 Parallel scaling detail (SoD browser specs, 80 tests): 1 process 195.6 s, 2 processes 138.3 s,
 3 processes 131.2 s. Load average reached 10 on 4 vCPUs, so Chromium saturates the host;
