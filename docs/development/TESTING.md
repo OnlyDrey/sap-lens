@@ -65,8 +65,9 @@ production-asset server on its own port (`SAP_LENS_BROWSER_TEST_PORT`) with its 
 configuration directory, so the shared-state limits of one server never apply across
 processes. Within a process there is one worker and no retries, and
 `reuseExistingServer: false` prevents testing stale assets. Chromium saturates CPUs, so
-`auto` uses `min(3, CPUs/2)` browser processes and `min(3, CPUs)` backend processes;
-measurements are in the [optimization record](../archive/validation/TEST_SUITE_OPTIMIZATION.md).
+`auto` runs backend modules in `min(3, CPUs)` processes and the browser suite in one;
+opt in with `--jobs 3` on a host with spare cores. Measurements (the browser gain was
+modest and uneven on 4 vCPUs) are in the [optimization record](../archive/validation/TEST_SUITE_OPTIMIZATION.md).
 Do not raise workers inside one server without proving the fixtures cannot race.
 
 ## CI

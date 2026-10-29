@@ -227,10 +227,9 @@ def release_checks() -> tuple[list[dict], list[str]]:
 # ---------------------------------------------------------------------------- reporting
 
 def jobs_value(value: str, kind: str) -> int:
-    """`auto` is conservative: browser tests saturate CPUs (Chromium plus a server per process)."""
+    """`auto` parallelizes the backend only: browser processes compete for CPUs, so they are opt-in via --jobs."""
     if value == 'auto':
-        cpus = os.cpu_count() or 2
-        return max(1, min(3, cpus // 2)) if kind == 'browser' else max(1, min(3, cpus))
+        return 1 if kind == 'browser' else max(1, min(3, os.cpu_count() or 2))
     return max(1, int(value))
 
 
@@ -271,7 +270,7 @@ def main(argv: list[str]) -> int:
     side = parser.add_mutually_exclusive_group()
     side.add_argument('--backend', action='store_true', help='backend tests only')
     side.add_argument('--browser', action='store_true', help='browser tests only')
-    parser.add_argument('--jobs', default='auto', help='parallel processes (default auto: backend min(3, CPUs), browser min(3, CPUs/2); 1 disables)')
+    parser.add_argument('--jobs', default='auto', help='parallel processes (default auto: backend min(3, CPUs), browser 1; 1 disables)')
     parser.add_argument('--grep', help='additional Playwright title filter for browser tests')
     parser.add_argument('--no-build', action='store_true', help='skip the frontend build even if sources changed')
     parser.add_argument('--report', help='write a JSON summary to this file')
