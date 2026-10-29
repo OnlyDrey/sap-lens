@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers, goTo } from './support'
 let directory: string
 async function library(page: Page) {
   await page.getByRole('button', { name: 'Open settings', exact: true }).click()
@@ -12,12 +12,6 @@ async function library(page: Page) {
   await expect(
     page.getByRole('heading', { name: 'Component Library', exact: true }),
   ).toBeVisible()
-}
-async function nav(page: Page, name: string) {
-  await page
-    .getByRole('navigation', { name: 'Main navigation', exact: true })
-    .getByRole('link', { name, exact: true })
-    .click()
 }
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
@@ -75,7 +69,7 @@ test('compact navbar has labeled icon utilities, focus tooltips and refresh feed
   await expect(
     page.getByText('All data is up to date', { exact: true }),
   ).toBeVisible()
-  await nav(page, 'Dashboard')
+  await goTo(page, 'Dashboard')
   await expect(
     page.getByText('Last successful refresh:', { exact: false }),
   ).toBeVisible()
@@ -84,7 +78,7 @@ test('secondary navigation uses actual routes, preserves query strings and suppo
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   const secondary = page.getByRole('navigation', {
     name: 'User Access view',
     exact: true,
@@ -121,7 +115,7 @@ test('Account Review keeps investigation controls across secondary navigation an
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   const secondary = page.getByRole('navigation', {
     name: 'User Access view',
     exact: true,
@@ -143,7 +137,7 @@ test('Account Review keeps investigation controls across secondary navigation an
   await expect(
     page.getByLabel('Sort account reviews', { exact: true }),
   ).toHaveValue('name')
-  await nav(page, 'Dashboard')
+  await goTo(page, 'Dashboard')
   await page
     .getByRole('button', { name: 'Accounts requiring review', exact: true })
     .click()
@@ -164,7 +158,7 @@ test('role content tabs have keyboard semantics and associated assignment panel'
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   await page.getByRole('link', { name: 'DEMO_A', exact: true }).click()
   const tabs = page.getByRole('tablist', {
     name: 'User role sections',
@@ -295,7 +289,7 @@ test('saved filters portal handles keyboard, outside dismissal and neutral clear
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   const bar = page.locator(
       'div.saved-filter-toolbar[aria-label="users saved filters"]',
     ),
@@ -379,7 +373,7 @@ for (const theme of ['light', 'dark'])
       await page
         .getByRole('button', { name: 'Back to SAP Lens', exact: true })
         .click()
-      await nav(page, 'User Access')
+      await goTo(page, 'User Access')
       await page
         .getByRole('navigation', { name: 'User Access view' })
         .getByRole('link', { name: 'Compare users', exact: true })

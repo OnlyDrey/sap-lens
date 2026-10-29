@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers } from './support'
 let directory: string
 const roles =
   'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT\nMM,ZC:MM:A,Alpha purchasing,ZS:A1,MM - Purchasing,MIGO,Goods movement\nMM,ZC:MM:A,Alpha purchasing,ZS:A2,MM - Purchasing,ME21N,Create purchase order\nFI,ZC:FI:B,Beta finance,ZS:B,FI - Finance,MIGO,Goods movement\nSD,ZC:SD:C,Gamma sales,ZS:C,SD - Sales,VA03,Display sales\n'

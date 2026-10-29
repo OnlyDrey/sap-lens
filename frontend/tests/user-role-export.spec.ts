@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers } from './support'
 let directory: string
 const business = 'ZC:MM:BUY:ENP', release = 'ZO:MM:M:PR_REL_ST_SH_N6:ALL'
 test.beforeEach(async ({ request }) => {

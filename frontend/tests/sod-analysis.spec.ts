@@ -3,7 +3,7 @@ import {mkdtempSync,writeFileSync,rmSync,readFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {enableSod} from './sod-fixture'
-const headers={'X-SAP-Lens':'browser-test-session'}
+import { headers } from './support'
 let directory:string
 const matrix='RISK,CRITICITY,TYPE,TEXT,ACTVT1,ACTVT2,ACTIVITY_SLOT,ACTIVITY,TCODE,TTEXT\nUIR01,H,S,Synthetic review activities,CREATE,APPROVE,ACTVT1,CREATE,X001,Creation\nUIR01,H,S,Synthetic review activities,CREATE,APPROVE,ACTVT2,APPROVE,X002,Approval\n'
 const catalogue='FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT\nBC,ZC:SYN:CREATE:*,Synthetic Creation,ZS:SYN:CREATE,Synthetic create component,X001,Creation\nBC,ZC:SYN:APPROVE,Synthetic Approval,ZS:SYN:APPROVE,Synthetic approve component,X002,Approval\nBC,ZC:SYN:BOTH,Synthetic Both,ZS:SYN:BOTH,Synthetic combined component,X001,Creation\nBC,ZC:SYN:BOTH,Synthetic Both,ZS:SYN:BOTH,Synthetic combined component,X002,Approval\n'

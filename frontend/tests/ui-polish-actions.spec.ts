@@ -118,7 +118,7 @@ test('no rounded underlines or double borders on Settings sections and main scre
     expect((await request.post('/api/configuration', { headers, data: settings })).ok()).toBeTruthy()
     await page.goto('about:blank'); await page.goto('/#session=browser-test-session')
     const main = page.getByRole('navigation', { name: 'Main navigation', exact: true })
-    const scan = async (label: string) => { await page.waitForTimeout(250); for (const defect of await page.evaluate(borderDefects)) defects.push(`${theme} ${label}: ${defect}`) }
+    const scan = async (label: string) => { for (const defect of await page.evaluate(borderDefects)) defects.push(`${theme} ${label}: ${defect}`) }
     for (const link of ['Dashboard', 'Role Lookup', 'User Access', 'Release Roles', 'SoD']) { await main.getByRole('link', { name: link, exact: true }).click(); await scan(link) }
     for (const tab of ['Risk Matrix', 'Access Explorer', 'Reviews', 'Review Periods', 'Reports']) { await page.getByRole('link', { name: tab, exact: true }).first().click(); await scan(`SoD ${tab}`) }
     await page.getByRole('button', { name: 'Open settings', exact: true }).click()
@@ -205,6 +205,7 @@ const contrastOf = (foreground: string, background: string) => {
 }
 
 test('selected Settings item and active role card toggles meet 4.5:1 text and 3:1 icon contrast in both themes', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' }) // the app zeroes transitions, so colors are final immediately
   for (const theme of ['light', 'dark']) {
     const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
     settings.theme = theme
@@ -213,14 +214,14 @@ test('selected Settings item and active role card toggles meet 4.5:1 text and 3:
     await page.getByRole('navigation', { name: 'Main navigation', exact: true }).getByRole('link', { name: 'Role Lookup', exact: true }).click()
     const card = page.getByRole('article', { name: /Buyer plant/ })
     for (const name of ['Add to access package', 'Add to comparison']) if (await card.getByRole('button', { name, exact: true }).count()) await card.getByRole('button', { name, exact: true }).click()
-    await page.mouse.move(2, 2); await page.waitForTimeout(400)
+    await page.mouse.move(2, 2)
     for (const name of ['Remove from access package', 'Remove from comparison']) {
       const colors = await card.getByRole('button', { name }).evaluate(el => { const s = getComputedStyle(el); return [s.color, s.backgroundColor] })
       expect(contrastOf(colors[0], colors[1]), `${theme} ${name}`).toBeGreaterThanOrEqual(3)
     }
     await page.getByRole('button', { name: 'Open settings', exact: true }).click()
     await page.getByRole('tab', { name: 'Features', exact: true }).click()
-    await page.mouse.move(2, 2); await page.waitForTimeout(300)
+    await page.mouse.move(2, 2)
     for (const [name, minimum] of [['Features', 4.5], ['SAP Modules', 4.5]] as const) {
       const colors = await page.getByRole('tab', { name, exact: true }).evaluate(el => {
         let background = 'rgb(0, 0, 0)'

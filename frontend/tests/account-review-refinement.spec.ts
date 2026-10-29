@@ -8,21 +8,16 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers, goTo } from './support'
 const fields =
   'Site;Name;SamAccountName;UserPrincipalName;Mail;Department;Title;Enabled;DistinguishedName;ManagerDN;ManagerName;ManagerSamAccountName;ManagerMail;ManagerDepartment;ManagerTitle;ManagerLookupStatus'.split(
     ';',
   )
 let root: string, source: string
-const nav = async (page: Page, name: string) =>
-  page
-    .getByRole('navigation', { name: 'Main navigation' })
-    .getByRole('link', { name, exact: true })
-    .click()
 const current = async (request: any) =>
   (await (await request.get('/api/configuration', { headers })).json()).settings
 async function review(page: Page) {
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   await page
     .getByRole('navigation', { name: 'User Access view', exact: true })
     .getByRole('link', { name: 'Account Review', exact: true })
@@ -97,7 +92,7 @@ test('profile header, status pills, mismatch warning and manager card keep SAP i
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   await page.getByRole('link', { name: 'DEMO_OPEN', exact: true }).click()
   const profile = page.getByRole('region', {
       name: 'User profile',
@@ -142,7 +137,7 @@ test('profile header, status pills, mismatch warning and manager card keep SAP i
   ).toContainText('DEMO_OPEN')
 })
 
-test('review findings, license filter, local decision persistence and spreadsheet-safe export', async ({
+test('review findings, license filter, local decision persistence and spreadsheet-safe export', { tag: '@smoke' }, async ({
   page,
   request,
 }) => {
@@ -329,7 +324,7 @@ test('floating Norwegian calendar stays outside layout, handles maximum dates, E
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'Release Roles')
+  await goTo(page, 'Release Roles')
   const filters = page.locator('.release-filters')
   await expect(
     filters.getByLabel('Sort release roles', { exact: true }),
@@ -526,7 +521,7 @@ for (const theme of ['light', 'dark'])
         page.getByRole('region', { name: 'User profile', exact: true }),
       ).toContainText('Analyst')
       await shot('unified-profile')
-      await nav(page, 'Release Roles')
+      await goTo(page, 'Release Roles')
       await shot('release-compact')
       await page
         .getByRole('button', { name: 'Assignment date filters', exact: true })
@@ -604,7 +599,7 @@ test('calendar reopening restores the selected day and Back dismisses its portal
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'Release Roles')
+  await goTo(page, 'Release Roles')
   await page
     .getByRole('button', { name: 'Assignment date filters', exact: true })
     .click()
@@ -662,7 +657,7 @@ for(const theme of ['light','dark']) test(`directory conflict evidence identifie
   expect(preview.ok()).toBeTruthy()
   expect((await request.post('/api/employees/import',{headers,data:{revision,path:source,digest:(await preview.json()).digest}})).ok()).toBeTruthy()
   await page.setViewportSize({width:800,height:1000})
-  await page.goto('/#session=browser-test-session');await nav(page,'User Access')
+  await page.goto('/#session=browser-test-session');await goTo(page,'User Access')
   await page.getByRole('link', { name: 'DEMO_OPEN',exact:true}).click()
   await page.getByRole('button',{name:'Directory matching details · Ambiguous',exact:true}).click()
   const details=page.getByRole('dialog',{name:'Directory matching details',exact:true})

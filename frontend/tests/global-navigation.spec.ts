@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers } from './support'
 let directory = '', source = '', rows: string[] = []
 const csv = () => 'USERNAME,ROLE_NAME,USER_GROUP,FIRST_NAME,ROLE_VALID_FROM,ROLE_VALID_TO\n' + rows.join('\n') + '\n'
 const user = (n: number) => `DEMO_${String(n).padStart(3, '0')}`

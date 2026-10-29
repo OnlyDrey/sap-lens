@@ -2,8 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers, goTo } from './support'
 let directory: string
 const roles = `FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT
 MM,ZC:MM:BUY:ENP,Buyer plant,ZS:SH,MM - Shared purchasing,MIGO,Goods movement
@@ -35,12 +34,11 @@ test.afterEach(async ({ request }) => {
   rmSync(directory, { recursive: true, force: true })
 })
 
-const nav = (page: Page, name: string) => page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name, exact: true }).click()
 const tile = (page: Page, title: string) => page.getByRole('article', { name: new RegExp(title) })
 
-test('Add to access package and Add to comparison are independent toggles on each Role Lookup tile', async ({ page }) => {
+test('Add to access package and Add to comparison are independent toggles on each Role Lookup tile', { tag: '@smoke' }, async ({ page }) => {
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'Role Lookup')
+  await goTo(page, 'Role Lookup')
   await expect(page.getByRole('article')).toHaveCount(5)
   const buyer = tile(page, 'Buyer plant')
   await buyer.getByRole('button', { name: 'Add to access package' }).click()
@@ -59,7 +57,7 @@ test('Add to access package and Add to comparison are independent toggles on eac
 test('package: default suffix, per-role override, validation, copy, CSV, persistence and clearing', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'Role Lookup')
+  await goTo(page, 'Role Lookup')
   for (const title of ['Buyer plant', 'Finance view$', 'Buyer wildcard', 'Orders ENK']) await tile(page, title).getByRole('button', { name: 'Add to access package' }).click()
   await page.getByRole('button', { name: 'Access package (4)' }).click()
   const panel = page.getByRole('dialog', { name: 'Proposed access package' })
@@ -96,7 +94,7 @@ test('package: default suffix, per-role override, validation, copy, CSV, persist
   await row('ZC:SD:ORD:ENK').getByRole('button', { name: 'Remove ZC:SD:ORD:ENK from access package' }).click()
   await expect(panel.getByRole('status').first()).toContainText('3 roles · 3 valid names')
   await page.keyboard.press('Escape')
-  await nav(page, 'Dashboard'); await nav(page, 'Role Lookup')
+  await goTo(page, 'Dashboard'); await goTo(page, 'Role Lookup')
   await expect(page.getByRole('button', { name: 'Access package (3)' })).toBeVisible()
   await page.getByRole('button', { name: 'Access package (3)' }).click()
   await expect(panel.getByRole('combobox', { name: 'Package default suffix' })).toHaveValue('ENS')
@@ -107,7 +105,7 @@ test('package: default suffix, per-role override, validation, copy, CSV, persist
 
 test('Users lacking roles: Missing ANY and Missing ALL with a clearly shown operator', async ({ page }) => {
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   const usernames = () => page.getByRole('table').first().getByRole('link', { name: /^U\d$/ }).allInnerTexts().then(list => list.sort())
   await expect.poll(usernames).toEqual(['U1', 'U2', 'U3', 'U4'])
   const lack = page.getByRole('combobox', { name: 'Roles the user must lack', exact: true })
@@ -129,7 +127,7 @@ test('Users lacking roles: Missing ANY and Missing ALL with a clearly shown oper
 test('comparison: shared single roles expand inside their tile and exclusive roles are compact rows', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'Role Lookup')
+  await goTo(page, 'Role Lookup')
   await tile(page, 'Buyer plant').getByRole('button', { name: 'Add to comparison' }).click()
   await tile(page, 'Finance view$').getByRole('button', { name: 'Add to comparison' }).click()
   await page.getByRole('button', { name: /Compare now/ }).click()

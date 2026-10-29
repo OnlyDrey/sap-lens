@@ -3,7 +3,7 @@ import { test, expect, type Locator } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers } from './support'
 // Capture brief feedback in the browser at the moment it appears. A slow
 // automation round-trip must not miss a correctly expiring confirmation.
 const observeCopy = async (button: Locator) => {

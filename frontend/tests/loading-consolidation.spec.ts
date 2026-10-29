@@ -3,18 +3,12 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers, goTo } from './support'
 let directory: string, roles: string, users: string
 const roleCSV =
   'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,TCODE\nMM,ZC:DEMO:A,Demo purchasing,ZS:A,MIGO\n'
 const userCSV =
   'USERNAME,ROLE_NAME,USER_GROUP,FIRST_NAME,LAST_NAME,EMAIL,USER_VALID_FROM,USER_VALID_TO,ROLE_VALID_FROM,ROLE_VALID_TO\nDEMO_ONE,ZC:DEMO:A,G1,Demo,One,one@example.test,20200101,99991231,20200101,99991231\n'
-async function nav(page: Page, name: string) {
-  await page
-    .getByRole('navigation', { name: 'Main navigation' })
-    .getByRole('link', { name, exact: true })
-    .click()
-}
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
   directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-loading-'))
@@ -73,11 +67,11 @@ test('startup load completion refreshes every route cache without revisiting Set
     })
   })
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'Dashboard')
+  await goTo(page, 'Dashboard')
   await expect(
     page.getByRole('button', { name: 'Catalogue roles', exact: true }),
   ).toBeVisible()
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   await expect(
     page.getByRole('link', { name: 'DEMO_ONE', exact: true }),
   ).toBeVisible()
@@ -86,7 +80,7 @@ test('startup load completion refreshes every route cache without revisiting Set
   await expect
     .poll(
       async () => {
-        await nav(page, 'Dashboard')
+        await goTo(page, 'Dashboard')
         return page
           .getByRole('button', { name: 'Catalogue roles', exact: true })
           .innerText()
@@ -101,7 +95,7 @@ test('navigation during refresh cancels a late old route response and updates al
   request,
 }) => {
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'Dashboard')
+  await goTo(page, 'Dashboard')
   await expect(
     page.getByRole('button', { name: 'SAP users', exact: true }),
   ).toContainText('1')
@@ -143,10 +137,10 @@ test('navigation during refresh cancels a late old route response and updates al
       .getByRole('button', { name: 'Refresh role data from CSV', exact: true })
       .click()
     await expect.poll(() => refreshStarted).toBe(true)
-    await nav(page, 'User Access')
+    await goTo(page, 'User Access')
     await expect.poll(() => oldCaptured).toBe(true)
-    await nav(page, 'Release Roles')
-    await nav(page, 'Dashboard')
+    await goTo(page, 'Release Roles')
+    await goTo(page, 'Dashboard')
     await expect(
       page.getByRole('button', { name: 'SAP users', exact: true }),
     ).toContainText('1')
@@ -154,7 +148,7 @@ test('navigation during refresh cancels a late old route response and updates al
     await expect(
       page.getByRole('button', { name: 'SAP users', exact: true }),
     ).toContainText('2')
-    await nav(page, 'User Access')
+    await goTo(page, 'User Access')
     await expect(
       page.getByRole('link', { name: 'DEMO_TWO', exact: true }),
     ).toBeVisible()
@@ -172,7 +166,7 @@ test('failed refresh retains data through navigation and a subsequent refresh re
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   await expect(
     page.getByRole('link', { name: 'DEMO_ONE', exact: true }),
   ).toBeVisible()
@@ -184,18 +178,18 @@ test('failed refresh retains data through navigation and a subsequent refresh re
   await expect(
     page.getByRole('link', { name: 'DEMO_ONE', exact: true }),
   ).toBeVisible()
-  await nav(page, 'Dashboard')
+  await goTo(page, 'Dashboard')
   await expect(
     page.getByRole('button', { name: 'SAP users', exact: true }),
   ).toContainText('1')
-  await nav(page, 'Role Lookup')
+  await goTo(page, 'Role Lookup')
   await expect(page.getByRole('article')).toHaveCount(1)
   writeFileSync(users, userCSV.replaceAll('DEMO_ONE', 'DEMO_RECOVERED'))
   await page
     .getByRole('button', { name: 'Refresh role data from CSV', exact: true })
     .click()
   await expect(page.locator('.notification-error')).toHaveCount(0)
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   await expect(
     page.getByRole('link', { name: 'DEMO_RECOVERED', exact: true }),
   ).toBeVisible()
@@ -256,7 +250,7 @@ for (const theme of ['light', 'dark'] as const)
         fullPage: true,
         animations: 'disabled',
       })
-      await nav(page, 'User Access')
+      await goTo(page, 'User Access')
       await expect(
         page.getByRole('link', { name: 'DEMO_ONE', exact: true }),
       ).toBeVisible()
@@ -293,7 +287,7 @@ for (const theme of ['light', 'dark'] as const)
         fullPage: true,
         animations: 'disabled',
       })
-      await nav(page, 'Release Roles')
+      await goTo(page, 'Release Roles')
       await expect(
         page.getByLabel('Sort release roles', { exact: true }),
       ).toBeVisible()
@@ -350,7 +344,7 @@ test('clear user filters resets all directory controls while evidence-only clear
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   await page
     .getByRole('textbox', { name: 'Search users', exact: true })
     .fill('ONE')
@@ -426,11 +420,11 @@ test('Dashboard catalogue action leaves comparison mode and preserves unrelated 
   writeFileSync(roles, roleCSV + 'MM,ZC:DEMO:B,Demo inventory,ZS:B,MB51\n')
   expect((await request.post('/api/refresh', { headers })).ok()).toBeTruthy()
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   await page
     .getByRole('textbox', { name: 'Search users', exact: true })
     .fill('ONE')
-  await nav(page, 'Role Lookup')
+  await goTo(page, 'Role Lookup')
   await page
     .getByRole('button', { name: 'Add to comparison', exact: true })
     .first()
@@ -443,12 +437,12 @@ test('Dashboard catalogue action leaves comparison mode and preserves unrelated 
   await expect(
     page.getByRole('button', { name: 'Back to roles', exact: false }),
   ).toBeVisible()
-  await nav(page, 'Dashboard')
+  await goTo(page, 'Dashboard')
   await page
     .getByRole('button', { name: 'Catalogue roles', exact: true })
     .click()
   await expect(page.getByRole('article')).toHaveCount(2)
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   await expect(
     page.getByRole('textbox', { name: 'Search users', exact: true }),
   ).toHaveValue('ONE')

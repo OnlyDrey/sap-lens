@@ -2,13 +2,8 @@ import { test, expect, type Locator, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers, goTo } from './support'
 let root: string
-const nav = async (page: Page, name: string) =>
-  page
-    .getByRole('navigation', { name: 'Main navigation' })
-    .getByRole('link', { name, exact: true })
-    .click()
 const mode = async (page: Page, name: string) =>
   page
     .getByRole('navigation', { name: 'User Access view', exact: true })
@@ -24,7 +19,7 @@ async function openSaved(page: Page, view: string) {
       .click()
 }
 async function comparison(page: Page) {
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   await mode(page, 'Compare users')
 }
 async function choose(page: Page, label: string, query: string) {
@@ -85,11 +80,11 @@ test.afterEach(async ({ request }) => {
   rmSync(root, { recursive: true, force: true })
 })
 
-test('comparison entry from details retains User A and original comparison on Back', async ({
+test('comparison entry from details retains User A and original comparison on Back', { tag: '@smoke' }, async ({
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   await page.getByRole('link', { name: 'DEMO_A', exact: true }).click()
   await page.getByRole('button', { name: 'Compare users', exact: true }).click()
   await expect(
@@ -276,7 +271,7 @@ test('saved filters save load rename update delete and survive page reload', asy
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   const viewForBar = 'users'
   const bar = saved(page, 'users')
   await page.getByLabel('Search users', { exact: true }).fill('Alpha')
@@ -316,12 +311,12 @@ test('saved filters save load rename update delete and survive page reload', asy
   await expect(page.getByLabel('Search users', { exact: true })).toHaveValue(
     'Beta',
   )
-  await nav(page, 'Role Lookup')
+  await goTo(page, 'Role Lookup')
   await openSaved(page, 'roles')
   await expect(
     saved(page, 'roles').getByRole('option', { name: 'Renamed', exact: true }),
   ).toHaveCount(0)
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   await openSaved(page, viewForBar)
   page.once('dialog', (d) => d.accept())
   await bar.getByRole('button', { name: 'Delete', exact: true }).click()
@@ -343,7 +338,7 @@ test('unsupported saved values warn without overwriting original definition', as
   })
   expect(item.ok()).toBeTruthy()
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   const viewForBar = 'users'
   const bar = saved(page, 'users')
   await openSaved(page, viewForBar)
@@ -396,7 +391,7 @@ test('Account Review retains stale filter and includes evidence versions in expo
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   await mode(page, 'Account Review')
   await expect(
     page.getByText('Outdated reviews', { exact: true }),
@@ -573,7 +568,7 @@ test('Role Lookup saved filters restore multi-transaction and sorting controls',
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'Role Lookup')
+  await goTo(page, 'Role Lookup')
   const viewForBar = 'roles'
   const bar = saved(page, 'roles'),
     transaction = page.getByRole('textbox', {
@@ -627,7 +622,7 @@ test('future saved schema remains unavailable without crashing or replacing stor
     })
   })
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   const viewForBar = 'users'
   const bar = saved(page, 'users')
   await openSaved(page, viewForBar)
@@ -693,7 +688,7 @@ for (const theme of ['light', 'dark'])
 
 test('directory role description selection and removable chips preserve unrelated controls', async ({page}) => {
   await page.goto('/#session=browser-test-session')
-  await nav(page,'User Access')
+  await goTo(page,'User Access')
   await page.getByLabel('Search users',{exact:true}).fill('DEMO_')
   await page.getByLabel('Sort users',{exact:true}).selectOption('email')
   const role = page.getByRole('combobox',{name:'Filter users by role',exact:true})

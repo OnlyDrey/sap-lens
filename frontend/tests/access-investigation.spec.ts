@@ -2,8 +2,7 @@ import { test, expect } from "@playwright/test";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { tmpdir } from "node:os";
-
-const headers = { "X-SAP-Lens": "browser-test-session" };
+import { headers } from './support'
 const fixture = path.resolve("../backend/tests/fixtures/user-access.csv");
 const catalogue =
   "FUNCTION_KEY,AGR_NAME,CHILD_AGR,TCODE,CHILD_AGR_TEXT,TTEXT\nMM,ZC:MM:BUY:EN*,ZS:BUY,ME23N,Synthetic purchasing display role,Display purchase order\nFI,ZC:FI:VIEW:*,ZS:VIEW,ME23N,Synthetic accounting display role with a longer description that remains readable when the window is narrow,Display purchase order\nFI,ZC:FI:VIEW:*,ZS:VIEW,FB03,Synthetic accounting display role with a longer description that remains readable when the window is narrow,Display accounting document\n";
@@ -36,7 +35,7 @@ test.afterEach(async ({ request }) => {
   }
 });
 
-test("user to role to transactions and reverse role or transaction investigation preserves evidence", async ({
+test("user to role to transactions and reverse role or transaction investigation preserves evidence", { tag: '@smoke' }, async ({
   page,
 }) => {
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);

@@ -2,7 +2,7 @@ import { bootstrapDocument } from './bootstrap-fixture'
 import { contrast, onColor, themePresets, themeTokens, paletteErrors } from '../src/lib/theme'
 import { test, expect } from '@playwright/test'
 import path from 'node:path'
-const headers={'X-SAP-Lens':'browser-test-session'}
+import { headers } from './support'
 test.beforeEach(async({request})=>{expect((await request.post('/api/configuration/reset',{headers})).ok()).toBeTruthy()})
 const settings=(page:import('@playwright/test').Page)=>page.getByRole('region',{name:'SAP Lens settings',exact:true})
 

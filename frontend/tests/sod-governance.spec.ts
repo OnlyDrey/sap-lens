@@ -5,7 +5,7 @@ let directory: string
 test.beforeEach(async ({ request }) => { directory = await seedGovernance(request) })
 test.afterEach(async ({ request }) => { await cleanup(request, directory) })
 
-test('risk matrix counts distinct users and findings and opens the investigation panel with both activities', async ({ page }) => {
+test('risk matrix counts distinct users and findings and opens the investigation panel with both activities', { tag: '@smoke' }, async ({ page }) => {
   await openSod(page, 'Risk Matrix')
   await expect(page).toHaveURL(/#\/sod\/risk-matrix/)
   const grid = page.getByRole('table', { name: /User by risk matrix/ })

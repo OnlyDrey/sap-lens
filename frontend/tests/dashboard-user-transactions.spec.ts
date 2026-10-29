@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers, goTo } from './support'
 let directory: string
 const roles =
   'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,TCODE\nMM,ZC:MM:A,Demo purchasing,ZS:A,MIGO\nFI,ZC:FI:B,Demo finance,ZS:B,ME21N\nSD,ZC:SD:C,Demo sales,ZS:C,VA03\n'
@@ -32,15 +32,8 @@ test.afterEach(async ({ request }) => {
 })
 async function go(page: Page, name: string) {
   await page.goto('/#session=browser-test-session')
-  await nav(page, name)
+  await goTo(page, name)
 }
-async function nav(page: Page, name: string) {
-  await page
-    .getByRole('navigation', { name: 'Main navigation' })
-    .getByRole('link', { name, exact: true })
-    .click()
-}
-
 test('editable user T-codes use AND across assignments, OR, unique chips and scoped clear', async ({
   page,
 }) => {
@@ -144,7 +137,7 @@ test('incoming transaction evidence seeds the same editable controls and survive
   ).toBeVisible()
 })
 
-test('Dashboard counts and KPI routes are meaningful, with browser Back and disabled-source states', async ({
+test('Dashboard counts and KPI routes are meaningful, with browser Back and disabled-source states', { tag: '@smoke' }, async ({
   page,
   request,
 }) => {
@@ -177,7 +170,7 @@ test('Dashboard counts and KPI routes are meaningful, with browser Back and disa
   await expect(
     page.getByRole('region', { name: 'User Access', exact: true }),
   ).toBeVisible()
-  await nav(page, 'Role Lookup')
+  await goTo(page, 'Role Lookup')
   await expect(
     page.getByRole('button', { name: 'Catalogue roles', exact: true }),
   ).toHaveCount(0)
@@ -234,7 +227,7 @@ for (const theme of ['light', 'dark'] as const)
         path: info.outputPath('dashboard.png'),
         fullPage: true,
       })
-      await nav(page, 'Role Lookup')
+      await goTo(page, 'Role Lookup')
       const name = page.getByPlaceholder(
           'Search roles by name or description...',
         ),
@@ -322,21 +315,21 @@ test('KPI navigation resets only its destination filters', async ({ page }) => {
   await expect(
     page.getByRole('link', { name: 'DEMO_ONE', exact: true }),
   ).toHaveCount(0)
-  await nav(page, 'Role Lookup')
+  await goTo(page, 'Role Lookup')
   const roleSearch = page.getByPlaceholder(
     'Search roles by name or description...',
   )
   await roleSearch.fill('finance')
   await expect(page.getByRole('article')).toHaveCount(1)
-  await nav(page, 'Dashboard')
+  await goTo(page, 'Dashboard')
   await page.getByRole('button', { name: 'SAP users', exact: true }).click()
   await expect(search).toHaveValue('')
   await expect(
     page.getByRole('link', { name: 'DEMO_ONE', exact: true }),
   ).toBeVisible()
-  await nav(page, 'Role Lookup')
+  await goTo(page, 'Role Lookup')
   await expect(roleSearch).toHaveValue('finance')
-  await nav(page, 'Dashboard')
+  await goTo(page, 'Dashboard')
   await page
     .getByRole('button', { name: 'Catalogue roles', exact: true })
     .click()

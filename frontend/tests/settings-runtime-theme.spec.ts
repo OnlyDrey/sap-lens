@@ -1,6 +1,5 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test'
-
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers } from './support'
 const config = async (request: APIRequestContext) => (await (await request.get('/api/configuration', { headers })).json()).settings
 test.beforeEach(async ({ request }) => { await request.post('/api/configuration/reset', { headers }) })
 test.afterEach(async ({ request }) => { await request.post('/api/configuration/reset', { headers }) })

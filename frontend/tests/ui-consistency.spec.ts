@@ -2,7 +2,7 @@ import {test,expect} from '@playwright/test'
 import {mkdtempSync,writeFileSync,rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-const headers={'X-SAP-Lens':'browser-test-session'}
+import { headers } from './support'
 let directory:string
 const areas=['MM','FI','SD','BC','PP','QM','PM']
 test.beforeEach(async({request})=>{

@@ -1,15 +1,18 @@
 import { test, expect } from '@playwright/test'
 import path from 'node:path'
+import { headers } from './support'
+
+const testOrigin = `http://127.0.0.1:${process.env.SAP_LENS_BROWSER_TEST_PORT || 18745}`
 
 // This exercises the bridge contract with a stub; Windows verifies the real window,
 // and the native picker itself remains on the manual Windows checklist.
-test('first launch, native picker contract, invalid CSV, persistence and private session reload', async ({ page, request }) => {
+test('first launch, native picker contract, invalid CSV, persistence and private session reload', { tag: '@smoke' }, async ({ page, request }) => {
   expect((await request.post('/api/configuration/reset', {headers: {'X-SAP-Lens': 'browser-test-session'}})).ok()).toBeTruthy()
   const file = path.resolve('tests/fixtures/synthetic.csv')
   const errors: string[] = []
   const external: string[] = []
   page.on('pageerror', error => errors.push(error.message))
-  page.on('request', request => { if (!request.url().startsWith('http://127.0.0.1:18745/')) external.push(request.url()) })
+  page.on('request', request => { if (!request.url().startsWith(`${testOrigin}/`)) external.push(request.url()) })
   await page.addInitScript(({ file }) => {
     window.pywebview = { api: { choose_csv: async token => {
       if (token !== 'browser-test-session') throw new Error('Wrong desktop session')
@@ -56,7 +59,6 @@ test('first launch, native picker contract, invalid CSV, persistence and private
 })
 
 test('application information displays the resolved API identity for beta stable and development builds', async ({ page, request }) => {
-  const headers = { 'X-SAP-Lens': 'browser-test-session' }
   expect((await request.post('/api/configuration/reset', {headers})).ok()).toBeTruthy()
   const settings = (await (await request.get('/api/configuration', {headers})).json()).settings
   settings.data_csv_path = path.resolve('tests/fixtures/synthetic.csv')

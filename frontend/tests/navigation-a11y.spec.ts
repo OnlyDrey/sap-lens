@@ -2,8 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers } from './support'
 let directory: string
 const roles = `FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT
 MM,ZC:MM:A,Alpha purchasing,ZS:A1,MM - Purchasing,MIGO,Goods movement
@@ -39,7 +38,7 @@ async function openSettings(page: Page) {
 const organization = (page: Page) => settings(page).getByRole('textbox', { name: 'Organization name', exact: true })
 
 test.describe('main navigation from Settings', () => {
-  test('destinations are links and navigate immediately when nothing changed', async ({ page }) => {
+  test('destinations are links and navigate immediately when nothing changed', { tag: '@smoke' }, async ({ page }) => {
     await openSettings(page)
     await expect(main(page).getByRole('link')).toHaveCount(4)
     for (const [name, hash] of [['Role Lookup', '#/role-lookup'], ['User Access', '#/user-access'], ['Release Roles', '#/release-roles'], ['Dashboard', '#/dashboard']] as const) {

@@ -53,6 +53,7 @@ test('report logo can be uploaded, replaced, rejected when unsafe and removed in
 test('exports announce globally without shifting the page; success fades and errors persist until dismissed', async ({ page }) => {
   await openSod(page, 'Risk Matrix')
   await bridge(page)
+  await page.clock.install() // the notice fades on a timer; advance it instead of sleeping
   const top = () => page.getByRole('heading', { name: 'Segregation of Duties' }).evaluate((node) => node.getBoundingClientRect().top)
   const before = await top()
   await page.getByRole('button', { name: 'Export CSV', exact: true }).click()
@@ -60,11 +61,12 @@ test('exports announce globally without shifting the page; success fades and err
   await expect(notice).toContainText('Exported sap-lens-sod-explorer-user-risk')
   expect(await notice.evaluate((node) => getComputedStyle(node).position)).toBe('fixed')
   expect(await top()).toBe(before)
-  await expect(notice).toHaveCount(0, { timeout: 10_000 })
+  await page.clock.runFor(10_000)
+  await expect(notice).toHaveCount(0)
   await page.route('**/api/sod/explorer/user_risk/export*', (route) => route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ detail: 'Synthetic export failure.' }) }))
   await page.getByRole('button', { name: 'Export CSV', exact: true }).click()
   await expect(page.getByRole('alert').filter({ hasText: 'Synthetic export failure.' })).toBeVisible()
-  await page.waitForTimeout(7000)
+  await page.clock.runFor(7000)
   await expect(page.getByRole('alert').filter({ hasText: 'Synthetic export failure.' })).toBeVisible()
   await page.getByRole('button', { name: 'Dismiss export message', exact: true }).click()
   await expect(page.locator('.export-notice')).toHaveCount(0)

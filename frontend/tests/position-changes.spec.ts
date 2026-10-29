@@ -2,8 +2,7 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers, goTo } from './support'
 const columns = 'Site;Name;SamAccountName;UserPrincipalName;Mail;Department;Title;Enabled;DistinguishedName;ManagerDN;ManagerName;ManagerSamAccountName;ManagerMail;ManagerDepartment;ManagerTitle;ManagerLookupStatus'
 const employees = (department: string, title: string, manager = 'Demo Manager') =>
   '﻿' + columns + '\n' +
@@ -36,8 +35,6 @@ test.afterEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
   rmSync(directory, { recursive: true, force: true })
 })
-const nav = (page: Page, name: string) => page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name, exact: true }).click()
-
 test('manager-only and formatting-only directory changes are not position changes', async ({ page, request }) => {
   writeFileSync(csv, employees(' finance ', 'ACCOUNTANT', 'Another Manager'))
   await importDirectory(request)
@@ -72,6 +69,6 @@ test('a department change becomes a priority review that uses the existing Accou
   await dialog.getByRole('button', { name: /Save/ }).click()
   await expect(dialog).toHaveCount(0)
   await expect(queue).toHaveCount(0)
-  await nav(page, 'Dashboard')
+  await goTo(page, 'Dashboard')
   await expect(page.getByRole('button', { name: 'Users requiring review — Position changes' })).toContainText('0')
 })

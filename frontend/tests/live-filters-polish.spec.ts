@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { formatDate, formatTimestamp } from '../src/lib/dateFormat'
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers } from './support'
 let directory: string
 const catalogue = 'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT\nMM,ZC:MM:BUY:*,Purchasing,ZS:BUY,MM - Purchasing - Display,MIGO,Goods movement\nMM,ZC:MM:BUY:*,Purchasing,ZS:BUY,MM - Purchasing - Display,ME21N,Create purchase order\nSD,ZC:SD:VIEW:*,Sales,ZS:VIEW,SD - Sales - Display,VA03,Display sales order\nSD,ZC:SD:VIEW:*,Sales,ZS:VIEW,SD - Sales - Display,ME21N,Create purchase order\nFI,ZC:FI:EMPTY,No mappings,ZS:EMPTY,Missing exported mappings,,\n'
 test.beforeEach(async ({ request }) => {

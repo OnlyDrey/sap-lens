@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers } from './support'
 test.beforeEach(async ({ request }) => {
   expect(
     (await request.post('/api/configuration/reset', { headers })).ok()

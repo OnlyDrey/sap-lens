@@ -1,9 +1,9 @@
 import { expect, type APIRequestContext, type Page } from '@playwright/test'
+import { headers } from './support'
+export { headers }
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-
-export const headers = { 'X-SAP-Lens': 'browser-test-session' }
 const roles = 'AGR_NAME,TEXT,CHILD_AGR,TCODE\n' + [['ROLE_A1', 'X1'], ['ROLE_A2', 'X1'], ['ROLE_B', 'X2'], ['ROLE_C', 'X3'], ['ROLE_AB', 'X1'], ['ROLE_AB', 'X2']].map(([role, code]) => `${role},Synthetic ${role},ZS:${role},${code}`).join('\n') + '\n'
 /** Review history survives configuration reset by design, so each test gets unique user names. */
 export const names = { a: 'SYN_A', b: 'SYN_B', c: 'SYN_C' }

@@ -2,8 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers, goTo } from './support'
 let directory: string
 const roles = `FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT
 MM,ZC:MM:A,Alpha purchasing,ZS:A1,MM - Purchasing,MIGO,Goods movement
@@ -38,15 +37,14 @@ test.afterEach(async ({ request }) => {
   rmSync(directory, { recursive: true, force: true })
 })
 
-const nav = (page: Page, name: string) => page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name, exact: true }).click()
 async function openRoles(page: Page) {
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'Role Lookup')
+  await goTo(page, 'Role Lookup')
   await expect(page.getByRole('article')).toHaveCount(5)
 }
 async function openUsers(page: Page) {
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   await expect(page.getByRole('link', { name: 'U1', exact: true })).toBeVisible()
 }
 const filter = (page: Page, label: string) => page.getByRole('group', { name: label, exact: true })

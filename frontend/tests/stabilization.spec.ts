@@ -4,7 +4,7 @@ import {presentRoleDescription} from '../src/lib/rolePresentation'
 import {mkdtempSync,writeFileSync,appendFileSync,rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-const headers={'X-SAP-Lens':'browser-test-session'}
+import { headers } from './support'
 let directory:string
 const csv='FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT\n'+[
 'BC,ZC:SYN:A,Synthetic Alpha,ZS:SYN:SHARED,BC - Batch Input Management,SOST,Mail',
@@ -29,7 +29,7 @@ test('display descriptions and transaction matching preserve literal evidence se
  expect(transactionMatches('sost',['SO*'])).toBe(true);expect(transactionMatches('SM35',['SO*'])).toBe(false);expect(transactionMatches('SOST',['SO'])).toBe(false)
  expect(matchingTransactions([{tcode:'SOST'},{tcode:'SO20'},{tcode:'SM35'}],['SO*']).map(row=>row.tcode)).toEqual(['SOST','SO20'])
 })
-test('sidebar wildcard filters rows as well as roles and restores the original collapsed state',async({page,request})=>{
+test('sidebar wildcard filters rows as well as roles and restores the original collapsed state', { tag: '@smoke' },async({page,request})=>{
  await page.goto('/#session=browser-test-session');await page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('link',{name:'Role Lookup',exact:true}).click();await page.getByRole('button',{name:'View details for Synthetic Alpha',exact:true}).click()
  const dialog=page.getByRole('dialog'),input=dialog.getByRole('textbox',{name:'Find transaction code',exact:true})
  const shared=dialog.locator('.single-role-entry').filter({has:page.getByRole('button',{name:'Expand single role ZS:SYN:SHARED',exact:true})})

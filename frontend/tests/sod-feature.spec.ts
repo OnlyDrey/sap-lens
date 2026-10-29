@@ -13,7 +13,7 @@ const features = async (page: any) => {
   return page.getByRole('region', { name: 'Segregation of Duties feature settings', exact: true })
 }
 
-test('SoD is a manual feature with status, a configure link and preserved data when disabled', async ({ page, request }) => {
+test('SoD is a manual feature with status, a configure link and preserved data when disabled', { tag: '@smoke' }, async ({ page, request }) => {
   const card = await features(page)
   await expect(card).toContainText('Imported data available')
   await expect(card).toContainText('Operational')
