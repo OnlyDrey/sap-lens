@@ -90,3 +90,7 @@ dates and spreadsheet-formula protection support Excel without changing stored
 data. Zero-result exports are disabled. Source-generation, date, cancellation
 and 32 MiB guards match User Directory exports. This exports assignment evidence,
 not confirmed effective release authorization.
+
+## Matrix, Table and pagination
+
+The Matrix keeps counts, filters and drill-down but offers no Add to access package control; the Table keeps the package action column. The Table is paged server side with 10, 20, 50 or 100 rows (default 20); changing a filter or the page size returns to the first page. Release Area values show only the letter. Area and Group stay multi-selects with OR within a filter and AND between filters. The assignment CSV export and the role-list export keep their separate scopes.

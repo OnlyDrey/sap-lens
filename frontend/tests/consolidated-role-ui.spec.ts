@@ -42,16 +42,17 @@ async function openUser(page: Page) {
 test('description area labels remain separate from canonical classification', async ({ page, request }) => {
   const dialog = await openRole(page)
   const entry = dialog.locator('.single-role-entry').filter({ has: page.getByRole('button', { name: 'Expand single role ZD:MATERIAL', exact: true }) })
-  await expect(entry.locator('.role-entry-top .module-badge-label')).toHaveText('CA')
-  await expect(entry.locator('.role-entry-description')).toHaveText('Master Data - Materials Display & Reporting')
+  await expect(entry.locator('.role-entry-head .module-badge-label')).toHaveText('CA')
+  await expect(entry.locator('.role-entry-title')).toHaveText('Master Data - Materials Display & Reporting')
   await expect(entry.locator('.single-role-description')).toHaveCount(0)
-  const meta = (await entry.locator('.role-entry-top').boundingBox())!, text = (await entry.locator('.role-entry-description').boundingBox())!, code = (await entry.locator('.role-identifier').boundingBox())!
-  expect(text.y).toBeGreaterThanOrEqual(meta.y + meta.height - 1) // module identity, then the description
-  expect(code.y).toBeGreaterThanOrEqual(text.y + text.height - 1) // identifier below the description
+  const meta = (await entry.locator('.role-entry-head').boundingBox())!, text = (await entry.locator('.role-entry-title').boundingBox())!, code = (await entry.locator('.role-identifier').boundingBox())!
+  expect(text.y).toBeGreaterThanOrEqual(meta.y - 1) // module identity and description share line 1
+  expect(text.y + text.height).toBeLessThanOrEqual(meta.y + meta.height + 1)
+  expect(code.y).toBeGreaterThanOrEqual(meta.y + meta.height - 1) // identifier on line 2
   const heading = (await entry.locator('.single-role-heading').boundingBox())!
   expect(code.x + code.width).toBeLessThanOrEqual(heading.x + heading.width)
-  await expect(dialog.locator('.role-entry-description').filter({ hasText: 'ZZZ - Source description' })).toBeVisible()
-  await expect(dialog.locator('.role-entry-description').filter({ hasText: 'Unclassified' })).toHaveCount(1)
+  await expect(dialog.locator('.role-entry-title').filter({ hasText: 'ZZZ - Source description' })).toBeVisible()
+  await expect(dialog.locator('.role-entry-title').filter({ hasText: 'Unclassified' })).toHaveCount(1)
   const response = await request.get(`/api/roles/${encodeURIComponent(pattern)}`, { headers })
   expect(response.ok()).toBeTruthy()
   const data=await response.json()

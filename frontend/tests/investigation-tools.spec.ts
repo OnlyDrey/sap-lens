@@ -368,7 +368,7 @@ test('Data Health coverage and drilldown navigate to existing records', async ({
   ).toBeVisible()
   await page.getByText('Data Health & Coverage', { exact: true }).click()
   await expect(
-    page.locator('p').filter({
+    page.locator('li').filter({
       hasText: 'Business/release assignment records mapped to catalogue',
     }),
   ).toContainText('4 / 6 — 66.7%')
@@ -397,8 +397,9 @@ test('Account Review retains stale filter and includes evidence versions in expo
     page.getByText('Outdated reviews', { exact: true }),
   ).toBeVisible()
   await page
-    .getByRole('button', { name: 'Review changed evidence', exact: true })
+    .getByRole('button', { name: /^Outdated reviews/ })
     .click()
+  await expect(page.getByRole('button', { name: 'Remove review finding filter', exact: true })).toBeVisible()
   await expect(page.getByLabel('Review finding', { exact: true })).toHaveValue(
     'stale',
   )

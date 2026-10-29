@@ -61,8 +61,12 @@ test('risk and activity configuration is English only, colored by ID and keeps i
  await expect(page.getByRole('row').filter({has:page.getByRole('button',{name:'Edit SoD risk SYN01',exact:true})}).locator('.id-pill-risk')).toHaveAttribute('data-colored','true')
  const appearance=await(await request.get('/api/sod/appearance',{headers})).json();expect(appearance.risks.SYN01.color).toBe('#7c3aed');expect(appearance.activities.CREATE.name).toBe('Create documents')
 })
-test('SoD catalogue search and source-value filters remain independently clearable',async({page})=>{
- await settings(page);const search=page.getByRole('searchbox',{name:'Search SoD risks',exact:true});await search.fill('not-present');await expect(page.getByText('No risks match these filters.',{exact:true})).toBeVisible();await page.getByRole('button',{name:'Clear filters',exact:true}).click();await expect(page.getByRole('button',{name:'Edit SoD risk SYN01',exact:true})).toBeVisible();await page.getByRole('textbox',{name:'Source criticality',exact:true}).fill('C');await expect(page.getByText('No risks match these filters.',{exact:true})).toBeVisible();await page.getByRole('textbox',{name:'Source criticality',exact:true}).fill('H');await expect(page.getByRole('button',{name:'Edit SoD risk SYN01',exact:true})).toBeVisible();await page.getByRole('textbox',{name:'Source risk type',exact:true}).fill('UNSUPPORTED');await expect(page.getByText('No risks match these filters.',{exact:true})).toBeVisible();await page.getByRole('button',{name:'Clear filters',exact:true}).click();await expect(page.getByRole('button',{name:'Edit SoD risk SYN01',exact:true})).toBeVisible()
+test('SoD catalogue is filtered by search only and the search is clearable',async({page})=>{
+ await settings(page);const search=page.getByRole('searchbox',{name:'Search SoD risks',exact:true})
+ await expect(page.getByRole('textbox',{name:'Source criticality',exact:true})).toHaveCount(0)
+ await search.fill('not-present');await expect(page.getByText('No risks match these filters.',{exact:true})).toBeVisible()
+ await page.getByRole('button',{name:/^Clear .*Search SoD risks/}).click();await expect(search).toHaveValue('');await expect(page.getByRole('button',{name:'Edit SoD risk SYN01',exact:true})).toBeVisible()
+ await search.fill('SYN01');await expect(page.getByRole('button',{name:'Edit SoD risk SYN01',exact:true})).toBeVisible()
 })
 for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`SoD settings responsive ${theme} ${width}`,async({page,request},info)=>{
  await request.post('/api/configuration/theme',{headers,data:{theme}});await page.setViewportSize({width,height:950});await settings(page);await expect(page.getByRole('button',{name:'Edit SoD risk SYN01',exact:true})).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();await page.screenshot({path:info.outputPath(`sod-catalogue-${theme}-${width}.png`)})

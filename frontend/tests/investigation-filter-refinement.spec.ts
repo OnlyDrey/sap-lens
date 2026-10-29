@@ -118,7 +118,7 @@ test('catalogue AND/OR is exact across mapping rows; multi-area OR combines with
   )
   await expect(
     page.getByRole('button', { name: 'Clear all filters', exact: true }),
-  ).toHaveCount(0)
+  ).toBeDisabled()
 })
 
 test('one catalogue reset covers live-only transaction, text, areas, mode and sorting without clearing comparisons', async ({

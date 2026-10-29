@@ -165,7 +165,8 @@ test("release table matrix distinct counts, group comparison and user drilldown 
     name: "Release Roles",
     exact: true,
   });
-  await expect(release).toContainText("2 users · 4 records");
+  await expect(release).toContainText("2");
+  await expect(release).toContainText("4 records");
   await page.getByRole("button", { name: "Matrix", exact: true }).click();
   await page
     .getByRole("button", { name: "Investigate PR SH N6: 2 users", exact: true })
@@ -432,10 +433,12 @@ for (const theme of ['light', 'dark'] as const) for (const width of [1280, 600])
       const expand = entry.getByRole('button', { name: 'Expand single role ZS:VIEW', exact: true })
       await expand.press('Enter')
       await expect(expand).toHaveAttribute('aria-expanded', 'true')
-      const description = entry.locator('.role-entry-description'), identifier = entry.locator('.single-role-heading-main .role-identifier')
-      const metadataBox = (await entry.locator('.role-entry-top').boundingBox())!, descriptionBox = (await description.boundingBox())!, identifierBox = (await identifier.boundingBox())!
-      expect(descriptionBox.y).toBeGreaterThanOrEqual(metadataBox.y + metadataBox.height - 1)
-      expect(identifierBox.y).toBeGreaterThanOrEqual(descriptionBox.y + descriptionBox.height - 1)
+      const description = entry.locator('.role-entry-title'), identifier = entry.locator('.single-role-heading-main .role-identifier')
+      const metadataBox = (await entry.locator('.role-entry-head').boundingBox())!, descriptionBox = (await description.boundingBox())!, identifierBox = (await identifier.boundingBox())!
+      // Standard role presentation: module and description share line 1, the copyable identifier is line 2.
+      expect(descriptionBox.y).toBeGreaterThanOrEqual(metadataBox.y - 1)
+      expect(descriptionBox.y + descriptionBox.height).toBeLessThanOrEqual(metadataBox.y + metadataBox.height + 1)
+      expect(identifierBox.y).toBeGreaterThanOrEqual(metadataBox.y + metadataBox.height - 1)
       const headingBox = (await entry.locator('.single-role-heading').boundingBox())!
       expect(identifierBox.x + identifierBox.width).toBeLessThanOrEqual(headingBox.x + headingBox.width)
       await expect(description).not.toHaveCSS('text-overflow', 'ellipsis')

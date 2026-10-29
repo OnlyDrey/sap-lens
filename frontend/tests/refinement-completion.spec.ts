@@ -63,7 +63,7 @@ test('inline long-role comparison preserves all validity evidence and swap ident
  const row=table.getByRole('row').filter({has:page.getByRole('cell').filter({hasText:actual})}).first()
  await expect(table).toContainText(actual);await expect(table.getByText('Wildcard match',{exact:true})).toHaveCount(0)
  for(const text of ['Active assignment','Expired assignment','Future assignment','Unknown validity'])await expect(table.getByText(text,{exact:true}).first()).toBeVisible()
- await expect(table.getByRole('button',{name:`Copy role identifier ${actual}`,exact:true})).toHaveCount(6)
+ await expect(table.getByRole('button',{name:`Copy role identifier ${actual}`,exact:true})).toHaveCount(1) // the compared role is shown once; its evidence rows no longer repeat it
  await expect(row).toBeVisible();await expect(page.getByRole('button',{name:'Swap users',exact:true})).toBeVisible();await page.getByRole('button',{name:'Swap users',exact:true}).click()
  await expect(page.getByRole('combobox',{name:'User A',exact:true})).toHaveValue('SYN_B');await expect(page.getByRole('combobox',{name:'User B',exact:true})).toHaveValue('SYN_A')
  await capture(page,info,'inline-evidence.png')
@@ -95,7 +95,7 @@ test('single-role zebra surfaces remain unchanged on hover without inner roundin
  expect(primary).not.toBe(secondary);await expect(entries.nth(0)).toHaveCSS('border-radius','0px');await expect(entries.nth(1)).toHaveCSS('border-radius','0px')
  await entries.nth(0).hover();await expect(entries.nth(0)).toHaveCSS('background-color',primary)
  await entries.nth(1).hover();await expect(entries.nth(1)).toHaveCSS('background-color',secondary)
- await expect(entries.nth(0).locator('.role-entry-top .transaction-count')).toHaveText('1')
+ await expect(entries.nth(0).locator('.role-entry-head .transaction-count')).toHaveText('1')
 })
 test('large matrix contains scrolling, empty cells and high counts in both themes',async({page,request},info)=>{
  const cells=Array.from({length:200},(_,i)=>({document_type:'PR',user_group:'SYN_GROUP',release_group:`G${Math.floor(i/20)}`,release_strategy:String(i%20).padStart(2,'0'),user_count:i===0?99999:i+1})).filter((_,i)=>i!==1)
@@ -118,8 +118,8 @@ test('compact evidence retains exact dates, horizontal identifiers and keyboard 
  const table=page.getByRole('table',{name:'User comparison evidence',exact:true});expect((await table.getByRole('columnheader').first().boundingBox())!.width).toBeLessThan(400)
  expect(await panel.getByRole('button',{name:/Saved filters/}).count()).toBe(0)
  const evidence=page.locator('.comparison-evidence-item').filter({has:page.getByRole('button',{name:'Active assignment',exact:true})}).first()
- const code=evidence.locator('.role-identifier code').first();await expect(code).toHaveCSS('white-space','nowrap');expect(await code.evaluate(el=>el.scrollWidth>el.clientWidth)).toBeTruthy()
- await evidence.locator('.role-identifier-link').focus();await page.keyboard.press('ArrowRight');await expect.poll(()=>code.evaluate(el=>el.scrollLeft)).toBeGreaterThan(0)
+ const code=page.locator('.comparison-table .role-entry .role-identifier code').first();await expect(code).toBeVisible();expect(await code.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBeTruthy() // identifiers wrap instead of scrolling
+ await expect(evidence.locator('.role-identifier code')).toHaveCount(0) // the compared role is not repeated inside its own evidence
  const active=evidence.getByRole('button',{name:'Active assignment',exact:true});await active.click()
  const popup=page.getByRole('dialog',{name:`Assignment validity for ${actual}`,exact:true})
  await expect(popup).toContainText('01.01.2000');await expect(popup).toContainText('31.12.9999');await popup.screenshot({path:info.outputPath('assignment-popover.png')});await page.keyboard.press('Escape');await expect(active).toBeFocused()
