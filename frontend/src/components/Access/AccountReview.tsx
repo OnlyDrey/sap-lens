@@ -37,6 +37,8 @@ interface PositionChange {
   current_title: string
   detected_at: string
   source_generation: string
+  previous_imported_at?: string | null
+  current_imported_at?: string | null
 }
 interface Row {
   username: string
@@ -314,14 +316,14 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
         <section aria-label="Position changes priority queue" className="grid min-w-0 gap-2 rounded-card border border-line bg-surface p-4">
           <h2 className="text-base font-semibold">Position changes · priority review</h2>
           <p className="ui-description">
-            Department or job title changed between Employee Directory imports. A position change is a prompt to review, not evidence that access is inappropriate. Saving a review here uses the same Account Review decision and history.
+            Department or job title differs between two Employee Directory imports. The previous values are the last known before the replacement and the current values were first seen when it was published; the real date of the change is unknown. A position change is a prompt to review, not evidence that access is inappropriate. Saving a review here uses the same Account Review decision and history.
           </p>
           {!queue.data ? <p role="status">Loading position changes…</p> : (
             <div className="access-table" role="region" aria-label="Position change review queue" tabIndex={0}>
               <table>
                 <thead>
                   <tr>
-                    <th>SAP username</th><th>Employee</th><th>Department</th><th>Job title</th><th>Detected</th><th>Status</th><th>Priority</th><th>Review action</th>
+                    <th>SAP username</th><th>Employee</th><th>Previous department</th><th>Current department</th><th>Previous job title</th><th>Current job title</th><th>Previous snapshot</th><th>First detected</th><th>Status</th><th>Priority</th><th>Review action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -331,8 +333,11 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
                       <tr key={row.username}>
                         <td><RoleIdentifier value={row.username} label="username" onOpen={() => onUser(row.username)} href={userHref(row.username)} openLabel={`Open SAP user ${row.username}`} openButtonProps={{ 'data-user': row.username }} /></td>
                         <td>{row.name || 'Unknown'}</td>
-                        <td>{change.fields.includes('department') ? <>{change.previous_department} → <strong>{change.current_department}</strong></> : <span className="text-muted">Unchanged</span>}</td>
-                        <td>{change.fields.includes('title') ? <>{change.previous_title} → <strong>{change.current_title}</strong></> : <span className="text-muted">Unchanged</span>}</td>
+                        <td className={change.fields.includes('department') ? '' : 'text-muted'}>{change.previous_department || '—'}</td>
+                        <td>{change.fields.includes('department') ? <strong>{change.current_department}</strong> : <span className="text-muted">{change.current_department || '—'} (unchanged)</span>}</td>
+                        <td className={change.fields.includes('title') ? '' : 'text-muted'}>{change.previous_title || '—'}</td>
+                        <td>{change.fields.includes('title') ? <strong>{change.current_title}</strong> : <span className="text-muted">{change.current_title || '—'} (unchanged)</span>}</td>
+                        <td>{change.previous_imported_at ? formatTimestamp(change.previous_imported_at) : <span className="text-muted">Not recorded</span>}</td>
                         <td>{formatTimestamp(change.detected_at)}</td>
                         <td>{row.review_state}</td>
                         <td><span className="evidence-badge evidence-warning">{row.priority}</span></td>
@@ -574,13 +579,24 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
       )}
       {editing && (
         <Dialog title={`Review account · ${editing.username}`} onClose={closeEditor}><section
-          className="settings-card space-y-3"
+          className="review-dialog"
           aria-label={`Review decision for ${editing.username}`}
         >
-          <h2>Review {editing.username}</h2><p>{editing.name||'Name unavailable'} · {editing.groups.join(', ')||'Group unavailable'}</p>
-          <ReviewFindings row={editing} labels={data?.finding_labels||{}} onInvestigate={()=>{if(reviewer!==(editing.decision?.reviewer||'')||rationale!==(editing.decision?.rationale||'')||decision!==editing.review_state){if(!window.confirm('Discard unsaved review changes and investigate this user?'))return}setEditing(null);onUser(editing.username)}}/>
+          <p className="review-dialog-identity">{editing.name||'Name unavailable'} · {editing.groups.join(', ')||'Group unavailable'}</p>
+          {editing.position_change&&<section aria-label="Position change that triggered this review" className="review-dialog-trigger"><h3>Position change</h3>
+            <MetadataList items={[
+              {label:'Previous department (last known)',value:editing.position_change.previous_department||'—'},
+              {label:'Current department',value:editing.position_change.current_department||'—'},
+              {label:'Previous job title (last known)',value:editing.position_change.previous_title||'—'},
+              {label:'Current job title',value:editing.position_change.current_title||'—'},
+              {label:'Previous snapshot imported',value:editing.position_change.previous_imported_at?formatTimestamp(editing.position_change.previous_imported_at):'Not recorded'},
+              {label:'First detected',value:formatTimestamp(editing.position_change.detected_at)},
+            ]}/>
+            <p className="ui-description">The organizational change itself happened at an unknown time between the two imports. A position change prompts a review; it is not evidence that access is inappropriate.</p></section>}
+          <ReviewFindings positionTrigger={!!editing.position_change} row={editing} labels={data?.finding_labels||{}} onInvestigate={()=>{if(reviewer!==(editing.decision?.reviewer||'')||rationale!==(editing.decision?.rationale||'')||decision!==editing.review_state){if(!window.confirm('Discard unsaved review changes and investigate this user?'))return}setEditing(null);onUser(editing.username)}}/>
           {editing.decision&&<MetadataList items={[{label:'Previous decision',value:editing.decision.state},{label:'Previous reviewer',value:editing.decision.reviewer},{label:'Reviewed at',value:formatTimestamp(editing.decision.timestamp)},{label:'Previous rationale',value:editing.decision.rationale}]}/>}
           {actionError&&feedback&&<p role="alert">{feedback}</p>}
+          <div className="review-dialog-fields">
           <Filter label="Reviewer">
             <input
               className={inputClass}
@@ -603,6 +619,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
               ))}
             </Select>
           </Filter>
+          </div>
           <Filter label="Rationale">
             <textarea
               className={inputClass}
@@ -613,8 +630,9 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
             />
           </Filter>
           <p className="text-xs">
-            Reviewer is a local self-declared annotation, not an authenticated
-            approval. Nothing is sent to SAP.
+            Review decisions are local annotations: the reviewer name is
+            self-declared, not an authenticated approval, and nothing is sent to
+            or changed in SAP or Active Directory.
           </p>
           <div className="review-decision-actions"><Button
             variant="primary"

@@ -32,6 +32,22 @@ export function SourceHealthSummary({source,compact=false,includeSnapshot=true}:
  {label:'Last validated source check',value:formatTimestamp(source.last_checked,source.mode==='static'?'Not checked · Static source':'Not yet checked')},
  ]}/>{source.availability&&<p className="ui-description">{sourceAvailability(source.availability)}</p>}{source.error&&source.enabled!==false&&<StatusBadge tone={source.loaded?'warning':'error'}>{source.loaded?'Warning':'Error'}</StatusBadge>}{source.error&&source.enabled!==false&&<p className="text-sm text-[var(--warning)]">Last load attempt: {source.error.replace(/_/g,' ')}. {source.loaded?'Previously validated data is retained.':'No prior valid data is available.'}</p>}</div>
 }
+/** Essential operational facts of one source: load status, record count and last import. Mode, snapshot and check evidence live in SourceTechnicalFacts. */
+export function SourceEssentials({source}:{source:SourceEvidence}) {
+ return <div className="source-essentials"><div className="ui-toolbar">{source.enabled===false?<StatusBadge>Disabled · retained data</StatusBadge>:<SourceBadge loaded={source.loaded} loading={source.loading} error={source.error}/>}</div><MetadataList items={[
+  {label:'Records',value:source.records===undefined?'Not available':source.records.toLocaleString()},
+  {label:'Last import',value:formatTimestamp(source.last_successful_load,'Not yet loaded')},
+ ]}/>{source.error&&source.enabled!==false&&<p className="source-refresh-error text-sm text-[var(--warning)]">Last load attempt: {source.error.replace(/_/g,' ')}. {source.loaded?'Previously validated data is retained.':'No prior valid data is available.'}</p>}</div>
+}
+/** Secondary facts, shown on demand: source mode, snapshot availability, last validated check and file availability. */
+export function SourceTechnicalFacts({source}:{source:SourceEvidence}) {
+ return <MetadataList items={[
+  {label:'Source mode',value:source.mode==='static'?'Static':source.mode==='dynamic'?'Dynamic':'Not available'},
+  {label:'Snapshot',value:source.snapshot_available===undefined?'Not checked':source.snapshot_available?'Durable snapshot available':'No durable snapshot'},
+  {label:'Last validated source check',value:formatTimestamp(source.last_checked,source.mode==='static'?'Not checked · Static source':'Not yet checked')},
+  {label:'File availability',value:sourceAvailability(source.availability)},
+ ]}/>
+}
 export function useSourceEvidence(source:string) {
  const query=useQuery({queryKey:['diagnostics'],queryFn:()=>apiRequest<{sources:SourceEvidence[]}>('/api/diagnostics')})
  return {...query,source:query.data?.sources.find(item=>item.id===source)}

@@ -1,9 +1,9 @@
-import { Button } from './Button'
+import { Button, IconButton } from './Button'
 import { StatusBadge } from './Presentation'
 import { AccountStatus } from './AccountStatus'
 import type { ButtonHTMLAttributes } from 'react'
 import { useEffect, useRef } from 'react'
-import { ArrowLeft, ArrowRight, ChevronRight, CircleHelp, CircleCheck, CircleX, Clock } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, Undo2, CircleHelp, CircleCheck, CircleX, Clock } from 'lucide-react'
 
 /** Global position and neighbours come from the same server-side list ordering. */
 export function DetailNavigation({ parent, current, onBack, previousUser, index = -1, total = 0, onPrevious, onNext, showBreadcrumb=true, loading = false, error = null, missing = false }: {
@@ -14,21 +14,22 @@ export function DetailNavigation({ parent, current, onBack, previousUser, index 
 }) {
   const focus = useRef<HTMLSpanElement>(null)
   useEffect(() => { focus.current?.focus({ preventScroll: true }) }, [current])
+  const noun = parent === 'User Access' ? 'user' : parent === 'Release Roles' ? 'release role' : 'record'
   return <div className="detail-navigation">
-    {showBreadcrumb&&<nav aria-label="Breadcrumb" className="flex items-center gap-2 min-w-0 text-sm">
+    {showBreadcrumb&&<nav aria-label="Breadcrumb" className="detail-breadcrumb">
       <Button variant="ghost" size="compact" className="detail-back-action" onClick={onBack}><ArrowLeft size={16} aria-hidden="true"/>Back to {parent === 'User Access' ? 'users' : parent}</Button>
-      <ChevronRight size={16} aria-hidden="true" className="shrink-0"/>
-      <span ref={focus} tabIndex={-1} aria-current="page" className="truncate" title={current}>{current}</span>
+      <ChevronRight size={14} aria-hidden="true" className="shrink-0"/>
+      <span ref={focus} tabIndex={-1} aria-current="page" className="truncate font-semibold" title={current}>{current}</span>
     </nav>}
-    {previousUser && <Button variant="ghost" size="compact" className="detail-back-action" onClick={previousUser.onBack}><ArrowLeft size={16} aria-hidden="true"/>Back to previous user: {previousUser.name}</Button>}
-    {loading && <p role="status" className="text-sm">Locating record in filtered results…</p>}
-    {error && <p role="alert" className="text-sm text-[var(--error)]">Record navigation unavailable. {error.message}</p>}
-    {missing && <p role="status" className="text-sm">This record is missing or no longer matches these filters. Return to the list to review the current results.</p>}
+    {previousUser && <Button variant="ghost" size="compact" className="detail-back-action detail-return" aria-label={`Back to previous user: ${previousUser.name}`} onClick={previousUser.onBack}><Undo2 size={14} aria-hidden="true"/>Return to {previousUser.name}</Button>}
     {index >= 0 && total > 0 && <nav aria-label="Detail records" className="detail-record-controls">
-      <Button disabled={!onPrevious || index === 0} onClick={onPrevious}><ArrowLeft size={16} aria-hidden="true"/>Previous</Button>
-      <span className="whitespace-nowrap">{index + 1} of {total} in filtered results</span>
-      <Button disabled={!onNext || index >= total - 1} onClick={onNext}>Next<ArrowRight size={16} aria-hidden="true"/></Button>
+      <IconButton variant="ghost" label="Previous" tooltip={`Previous ${noun} in filtered results`} disabled={!onPrevious || index === 0} onClick={onPrevious}><ChevronLeft size={16} aria-hidden="true"/></IconButton>
+      <span className="whitespace-nowrap">{index + 1} of {total}<span className="sr-only"> in filtered results</span></span>
+      <IconButton variant="ghost" label="Next" tooltip={`Next ${noun} in filtered results`} disabled={!onNext || index >= total - 1} onClick={onNext}><ChevronRight size={16} aria-hidden="true"/></IconButton>
     </nav>}
+    {loading && <p role="status" className="detail-navigation-note">Locating record in filtered results…</p>}
+    {error && <p role="alert" className="detail-navigation-note text-[var(--error)]">Record navigation unavailable. {error.message}</p>}
+    {missing && <p role="status" className="detail-navigation-note">This record is missing or no longer matches these filters. Return to the list to review the current results.</p>}
   </div>
 }
 

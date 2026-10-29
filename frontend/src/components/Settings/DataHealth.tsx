@@ -85,7 +85,7 @@ export function DataHealth({
                     onSource(s.id as 'roles' | 'users' | 'employees' | 'sod')
                   }
                 >
-                  Source details <ChevronRight size={14} />
+                  Review source <ChevronRight size={14} />
                 </Button>
               </article>
             ))}

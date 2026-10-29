@@ -1,3 +1,4 @@
+import { migrateTransactionFilters } from '@/lib/savedFilterMigration'
 import { Button } from './Button'
 import { Popover } from './Popover'
 import { useState } from 'react'
@@ -102,7 +103,8 @@ export function SavedFilters({
     }
     const safe: State = {},
       warnings: string[] = []
-    Object.entries(selected.filters).forEach(([key, value]) => {
+    const filters = view === 'roles' || view === 'users' ? migrateTransactionFilters(selected.filters) : selected.filters
+    Object.entries(filters).forEach(([key, value]) => {
       const current = state[key]
       if (
         current === undefined ||
@@ -110,10 +112,11 @@ export function SavedFilters({
         typeof current !== typeof value
       )
         warnings.push(key)
-      else safe[key] = value
+      else safe[key] = value as State[string]
     })
     const choices: Record<string, string[]> = {
       transactionMode: ['and', 'or'],
+      excludeMode: ['any', 'all'],
       assignmentBand: ['', '0', '1–5', '6–20', '21+'],
       finding: [
         '',

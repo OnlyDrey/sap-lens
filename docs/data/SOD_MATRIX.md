@@ -176,8 +176,7 @@ appendix and the document-integrity block.
 DOCX is editable. PDF uses bundled Unicode fonts and needs no Office installation. Both
 include organization metadata/logo when configured. Names and signature lines are not
 verified digital signatures; use an external signing solution. Timestamps are labelled UTC;
-dates use DD.MM.YYYY. The English template is complete; Norwegian headings are supported
-while supporting prose remains English. Unsupported PDF symbols fail explicitly (use DOCX).
+dates use DD.MM.YYYY. Reports are English only. Unsupported PDF symbols fail explicitly (use DOCX).
 Reports are bounded at 20,000 rows, an 8 MiB model and 32 MiB output. Exported reports are
 recorded in a private log; reports issued for review or approval protect their period from
 deletion. A missing frozen logo needs backup recovery rather than silently changing branding.

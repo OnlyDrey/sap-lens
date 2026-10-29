@@ -11,6 +11,8 @@ import { StatusCard, FilterPanel, ResultsToolbar } from '@/components/Shared/Inv
 import { useRef, useState, useEffect } from 'react'
 import { Copy, Download, Search, Users, Info, CheckCircle2, Database, Layers } from 'lucide-react'
 import { RoleCard } from '@/components/RoleList/RoleCard'
+import { ModuleBadge } from '@/components/Modules/ModuleBadge'
+import { RoleEntry } from '@/components/Shared/RoleEntry'
 import { Button, IconButton, ButtonGroup } from '@/components/Shared/Button'
 import {
   Input,
@@ -40,6 +42,8 @@ import {
 } from '@/components/Shared/Presentation'
 import { Select } from '@/components/Shared/Select'
 import { Combobox } from '@/components/Shared/Combobox'
+import { MultiSelectFilter } from '@/components/Shared/MultiSelectFilter'
+import { WindowsIcon } from '@/components/Shared/WindowsIcon'
 import { NorwegianDateInput } from '@/components/Shared/NorwegianDateInput'
 import {
   SavedFilters,
@@ -137,7 +141,8 @@ export function ComponentLibrary() {
     [cardPackage, setCardPackage] = useState(false),
     [offset, setOffset] = useState(0),
     [user, setUser] = useState('DEMO_ANALYST'),
-    [role, setRole] = useState('ZC:DEMO:VIEW')
+    [role, setRole] = useState('ZC:DEMO:VIEW'),
+    [areas, setAreas] = useState<string[]>(['E']);
   const [demoPath,setDemoPath]=useState('C:/synthetic/catalogue.csv'),[demoMapping,setDemoMapping]=useState('AGR_NAME'),[demoDates,setDemoDates]=useState({...emptyDates})
   const storage = useRef<FilterStorage>()
   if (!storage.current) storage.current = memoryStorage()
@@ -291,6 +296,9 @@ export function ComponentLibrary() {
               <option value="active">Active demo values</option>
             </Select>
           </FormField>
+          <FormField label="Demo multi-select filter">
+            <MultiSelectFilter label="Demo areas" values={areas} options={['A', 'E', 'N']} optionLabel={value => `Area ${value}`} onChange={setAreas} />
+          </FormField>
           <FormField label="Demo searchable role">
             <Combobox
               label="Demo searchable role"
@@ -421,6 +429,24 @@ export function ComponentLibrary() {
       </Card>}
       {(category==='all'||category==='sap')&&<Card>
         <h2>SAP components &amp; data display</h2>
+        <h3 className="settings-subheading">Module identity</h3>
+        <p className="ui-description">One shared badge: icon and abbreviation on the configured module color, in standard and compact sizes. Unknown roles are shown as unclassified, never guessed.</p>
+        <Toolbar aria-label="Module badge previews">
+          <ModuleBadge moduleId="FI" />
+          <ModuleBadge moduleId="MM" />
+          <ModuleBadge moduleId="SD" variant="compact" />
+          <ModuleBadge moduleId="CO" variant="compact" selected />
+          <ModuleBadge moduleId={null} showUnclassified />
+        </Toolbar>
+        <h3 className="settings-subheading">Platform mark</h3>
+        <p className="ui-description">Inline four-pane mark used beside the Windows Desktop settings heading; it inherits the text color.</p>
+        <Toolbar aria-label="Platform mark preview"><WindowsIcon size={24} /><WindowsIcon /></Toolbar>
+        <h3 className="settings-subheading">Role entry (row density)</h3>
+        <p className="ui-description">The shared role presentation used by cards, the access package and comparison: module, name above the copyable identifier, optional counts and actions.</p>
+        <div className="w-full min-w-0 max-w-sm rounded-card border border-line p-3">
+          <RoleEntry density="row" moduleCode="FI" title="Demo finance display role" identifier="ZC:DEMO:VIEW" tcodeCount={12} singleRoleCount={2}
+            actions={<IconButton label="Copy demo role" onClick={() => undefined}><Copy size={14} aria-hidden="true" /></IconButton>} />
+        </div>
         <h3 className="settings-subheading">Role card</h3>
         <p className="ui-description">Compare (Scale) sits left of Add to access package (Plus). Both are toggles whose label and pressed state change; nothing here is saved.</p>
         <div className="w-full min-w-0 max-w-sm">

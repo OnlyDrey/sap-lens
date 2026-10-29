@@ -8,6 +8,7 @@ import { FilterChip } from '@/components/Shared/FilterChip'
 import { Button, IconButton } from '@/components/Shared/Button'
 import { SAPUserSelector } from '@/components/Shared/SAPUserSelector'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
+import { RoleModuleBadge } from '@/components/Shared/RoleModuleBadge'
 import {
   Card,
   Toolbar,
@@ -167,6 +168,7 @@ function EvidenceCell({
               </div>
             ) : (
               <div key={i} className="comparison-evidence-item">
+                <RoleModuleBadge catalogueRoles={e.match_status==='exact'||e.match_status==='wildcard'?e.catalogue_roles:undefined}/>
                 <RoleIdentifier value={e.role_name} onOpen={e.catalogue_roles.length===1&&['exact','wildcard'].includes(e.match_status)?()=>onRole(e.catalogue_roles[0]):undefined} openLabel={`Open catalogue details for ${e.role_name}`}/>
                 <div className="assignment-status-control"><Popover label={`Assignment validity for ${e.role_name}`} trigger={<AssignmentStatus value={e.status}/>}><dl className="ui-metadata-list"><div><dt>Valid from</dt><dd>{formatDate(e.valid_from)}</dd></div><div><dt>Valid to</dt><dd>{formatDate(e.valid_to)}</dd></div><div><dt>Evaluated assignment status</dt><dd><AssignmentStatus value={e.status}/></dd></div></dl></Popover></div>
                 <p className="ui-description">SAP User Group: {e.user_group || 'Unknown'}</p>

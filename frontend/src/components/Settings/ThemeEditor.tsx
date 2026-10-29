@@ -9,7 +9,6 @@ import {
   themeTokens,
   paletteErrors,
   contrast,
-  isHex,
   onColor
 } from '@/lib/theme'
 
@@ -33,7 +32,6 @@ export function ThemeEditor({
   const [editing, setEditing] = useState<'dark' | 'light'>(
     draft.theme === 'light' ? 'light' : 'dark'
   )
-  const [colorKey,setColorKey]=useState<keyof ThemePalette>('primary')
   const colorKeys=Object.keys(labels) as (keyof ThemePalette)[]
   const [presetName, setPresetName] = useState('')
   const [nameError, setNameError] = useState('')
@@ -214,24 +212,18 @@ export function ThemeEditor({
           ))}
         </div>
       </div>
-      <section aria-label="Theme color settings" className="min-w-0 rounded-card border border-line p-3 space-y-3">
-        <ul className="theme-swatches" aria-label="Theme colors">
+      <section aria-label="Theme color settings" className="theme-color-section min-w-0 rounded-card border border-line p-3">
+        <div className="theme-color-grid" role="group" aria-label="Theme colors">
           {colorKeys.map((key) => (
-            <li key={key}>
-              <button type="button" className="theme-swatch" aria-pressed={colorKey === key} aria-label={`Edit ${labels[key]}, ${palette[key]}`} onClick={() => setColorKey(key)}>
-                <i style={{ background: isHex(palette[key]) ? palette[key] : 'transparent' }} aria-hidden="true" />
-                <span>{labels[key].replace(' color', '')}</span>
-                <code>{palette[key]}</code>
-              </button>
-            </li>
+            <ColorControl
+              key={key}
+              label={labels[key]}
+              value={palette[key]}
+              onChange={(value) => update({ [key]: value })}
+              onReset={() => update({ [key]: defaultThemeColors[editing][key] })}
+            />
           ))}
-        </ul>
-        <ColorControl
-          label={labels[colorKey]}
-          value={palette[colorKey]}
-          onChange={(value) => update({ [colorKey]: value })}
-          onReset={() => update({ [colorKey]: defaultThemeColors[editing][colorKey] })}
-        />
+        </div>
       </section>
       <div aria-live="polite">
         {errors.length ? (

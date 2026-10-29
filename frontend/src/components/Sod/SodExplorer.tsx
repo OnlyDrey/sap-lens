@@ -14,7 +14,8 @@ import { announceExport } from '@/lib/exportNotice'
 import { formatDate } from '@/lib/dateFormat'
 import { ConflictView } from './SodConflicts'
 import { SodPill } from '@/lib/sodAppearance'
-import { type FilterField, ContextBar, SodArea, CoverageNotice, SodFilters, LifecycleBadge, useSodContext, useSodFilters, useSodSubject } from './SodShared'
+import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
+import { type FilterField, ContextBar, SodArea, RoleCodeList, CoverageNotice, SodFilters, LifecycleBadge, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 
 type TableName = Exclude<SodExplorerTable, 'roles'>
 interface Row {
@@ -62,12 +63,38 @@ function Expandable({ id, label, summary, children, expanded, toggle }: { id: st
   )
 }
 
+/** Users behind one assigned role: grouped by SAP user group, one entry per distinct username, with the assignment intervals expandable. */
 function AssignedUsers({ role, context, filters }: { role: string; context: string; filters: Filters }) {
-  const params = scopeParams(context, { ...filters, role }, { limit: 25 }),
+  const params = scopeParams(context, { ...filters, role }, { limit: 200 }),
     result = useQuery({ queryKey: ['sod-explorer', 'access_list', 'assigned', params.toString()], queryFn: () => sod<Result>('/api/sod/explorer/access_list', params) })
   if (result.isError) return <p role="alert">Assigned users could not be loaded.</p>
   if (!result.data) return <p role="status">Loading assigned users…</p>
-  return <ul className="sod-assigned" aria-label={`Users with ${role}`}>{result.data.items.map((row) => <li key={`${row.user}:${row.id}`}>{row.user}{row.user_group ? ` (${row.user_group})` : ''} · {formatDate(row.valid_from)} → {formatDate(row.valid_to)}</li>)}{result.data.total > result.data.items.length && <li className="text-muted">+{result.data.total - result.data.items.length} more in Assignments</li>}</ul>
+  const groups = new Map<string, Map<string, Row[]>>()
+  for (const row of result.data.items) {
+    const group = row.user_group || 'No user group', users = groups.get(group) ?? new Map<string, Row[]>()
+    users.set(row.user!, [...(users.get(row.user!) ?? []), row])
+    groups.set(group, users)
+  }
+  const distinct = new Set(result.data.items.map((row) => row.user)).size
+  return (
+    <div className="sod-assigned-groups" role="group" aria-label={`Users with ${role}`}>
+      <p className="text-xs text-muted" role="status">{distinct} distinct user{distinct === 1 ? '' : 's'} in {groups.size} user group{groups.size === 1 ? '' : 's'}</p>
+      {[...groups].sort(([x], [y]) => x.localeCompare(y)).map(([group, users]) => (
+        <section key={group} aria-label={`User group ${group}`}>
+          <h4 className="text-xs font-semibold">{group} <span className="font-normal text-muted">({users.size})</span></h4>
+          <ul className="sod-assigned">{[...users].map(([user, rows]) => (
+            <li key={user}>
+              <RoleIdentifier value={user} label="SAP username" />
+              {rows.length === 1
+                ? <span className="text-xs text-muted"> {formatDate(rows[0].valid_from)} → {formatDate(rows[0].valid_to)}</span>
+                : <details className="text-xs"><summary>{rows.length} assignment intervals</summary><ul>{rows.map((row) => <li key={row.id}>{formatDate(row.valid_from)} → {formatDate(row.valid_to)}{row.interval_status ? ` · ${row.interval_status}` : ''}</li>)}</ul></details>}
+            </li>
+          ))}</ul>
+        </section>
+      ))}
+      {result.data.total > result.data.items.length && <p className="text-xs text-muted">Showing the first {result.data.items.length} of {result.data.total} assignment records.</p>}
+    </div>
+  )
 }
 
 function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: SodExplorerTable) => void }) {
@@ -115,7 +142,7 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
         {data.items.length ? <DataTable caption={LABELS[table]}>
           {table === 'user_risk' && <><thead><tr><th>SAP user</th><th>Risk</th><th>Activities</th><th>Evidence</th><th>Risk acceptance</th><th>Open</th></tr></thead>
             <tbody>{data.items.map((row) => { const id = `${row.user}:${row.risk_id}`; return <tr key={id}><td>{row.user}<p className="text-xs text-muted">{list(row.groups)}</p></td><td>{pills('risk', row.risk_id)}{row.category && <p><SodArea value={row.category} /></p>}</td><td>{pills('activity', row.activities)}</td>
-              <td><Expandable id={id} label={`${row.user} ${row.risk_id}`} expanded={expanded.has(id)} toggle={toggle} summary={`${Array.isArray(row.roles) ? row.roles.length : row.roles} roles`}><p className="sod-break">{list(row.roles)}</p></Expandable></td>
+              <td><Expandable id={id} label={`${row.user} ${row.risk_id}`} expanded={expanded.has(id)} toggle={toggle} summary={`${Array.isArray(row.roles) ? row.roles.length : row.roles} roles`}><RoleCodeList roles={row.roles as string[] | number} /></Expandable></td>
               <td><LifecycleBadge value={row.acceptance || 'Pending'} /></td>
               <td><Button onClick={() => setSelected({ user: row.user!, risk: row.risk_id })} aria-label={`Investigate ${row.user} ${row.risk_id}`}>Investigate</Button></td></tr> })}</tbody></>}
           {table === 'user_activity' && <><thead><tr><th>SAP user</th><th>Activity</th><th>Risks</th><th>Evidence</th><th>Review</th><th>Open</th></tr></thead>
@@ -123,10 +150,10 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
               <td><Expandable id={id} label={`${row.user} ${row.activity}`} expanded={expanded.has(id)} toggle={toggle} summary={`${String(row.roles)} role assignment${row.roles === 1 ? '' : 's'}`}><p>Transactions: {list(row.tcodes)}</p></Expandable>{row.duplicate && <StatusBadge tone="info">Overlap</StatusBadge>}</td><td><LifecycleBadge value={row.decision || 'Pending'} /></td>
               <td><Button onClick={() => setSelected({ user: row.user!, activity: row.activity })} aria-label={`Investigate ${row.user} ${row.activity}`}>Investigate</Button></td></tr> })}</tbody></>}
           {table === 'access_list' && <><thead><tr><th>SAP user</th><th>Role assignment</th><th>Validity</th><th>Activities / risks</th><th>Review</th><th>Open</th></tr></thead>
-            <tbody>{data.items.map((row) => <tr key={`${row.user}:${row.id}`}><td>{row.user}<p className="text-xs text-muted">{row.user_group}</p></td><td className="sod-break">{row.role}</td><td>{row.interval_status && <AssignmentStatus value={row.interval_status} />}<p>{formatDate(row.valid_from)} → {formatDate(row.valid_to)}</p></td><td>{pills('activity', row.activities)}{pills('risk', row.risks)}</td><td><LifecycleBadge value={row.decision || 'Pending'} /></td>
+            <tbody>{data.items.map((row) => <tr key={`${row.user}:${row.id}`}><td>{row.user}<p className="text-xs text-muted">{row.user_group}</p></td><td><RoleIdentifier value={row.role!} /></td><td>{row.interval_status && <AssignmentStatus value={row.interval_status} />}<p>{formatDate(row.valid_from)} → {formatDate(row.valid_to)}</p></td><td>{pills('activity', row.activities)}{pills('risk', row.risks)}</td><td><LifecycleBadge value={row.decision || 'Pending'} /></td>
               <td><Button onClick={() => setSelected({ user: row.user!, activity: Array.isArray(row.activities) ? row.activities[0] : undefined })} aria-label={`Investigate ${row.user} ${row.role}`}>Investigate</Button></td></tr>)}</tbody></>}
           {table === 'lookup' && <><thead><tr><th>Assigned role</th><th>Users</th><th>Activities</th><th>Risks</th><th>Trace</th></tr></thead>
-            <tbody>{data.items.map((row) => <tr key={row.role}><td className="sod-break">{row.role}<p className="text-xs text-muted">{list(row.catalogue_roles)}</p></td>
+            <tbody>{data.items.map((row) => <tr key={row.role}><td><RoleIdentifier value={row.role!} /><RoleCodeList roles={row.catalogue_roles as string[]} label="Catalogue roles" /></td>
               <td><Expandable id={row.role!} label={row.role!} expanded={expanded.has(row.role!)} toggle={toggle} summary={`${row.users} user${row.users === 1 ? '' : 's'}`}><AssignedUsers role={row.role!} context={context} filters={filters} /></Expandable></td>
               <td>{pills('activity', row.activities)}</td><td>{pills('risk', row.risks)}</td>
               <td><Button onClick={() => showUsers(row.role!)} aria-label={`Show users with ${row.role}`}>Show users</Button></td></tr>)}</tbody></>}

@@ -9,12 +9,20 @@ import { Select } from '@/components/Shared/Select'
 import { ContentTabs } from '@/components/Shared/Navigation'
 import { NorwegianDateInput, parseNorwegianDate } from '@/components/Shared/NorwegianDateInput'
 
-const sectionNames: Record<string, string> = { executive: 'Executive Summary', methodology: 'Scope & Methodology', sources: 'Data Sources & Evidence Limitations', risk_overview: 'Risk Overview',
-  activity_results: 'Activity Review Results', assignment_results: 'Role Assignment Review Results', risk_acceptance: 'Risk Acceptance Decisions', controls: 'Compensating Controls',
-  remediation: 'Outstanding Remediation', changes: 'Changes Since Previous Review', conclusion: 'Conclusion and Approval', appendices: 'Detailed Appendices' }
+const sectionNames: Record<string, string> = { executive: 'Executive Summary', methodology: 'Scope and Evaluation Period', risk_overview: 'Overall Findings and Risk Exposure',
+  activity_results: 'Review Progress: Activity Decisions', assignment_results: 'Review Progress: Role Assignment Decisions', risk_acceptance: 'Review Progress: Risk Acceptance Decisions',
+  controls: 'Compensating Controls and Conditions', outstanding: 'Outstanding Risks and Actions', remediation: 'Remediation Responsibilities and Status', sources: 'Evidence Freshness and Limitations',
+  changes: 'Changes Since Previous Review', conclusion: 'Conclusion and Approval', appendices: 'Technical Appendices' }
+/** What each status does and does not establish; names are typed locally and never authenticated. */
+const STATUS_HELP: Record<string, string> = {
+  Draft: 'Not reviewed or approved.',
+  Reviewed: 'A reviewer is named by the preparer. The name is not authenticated, so this is not an approval.',
+  Approved: 'The review period has a recorded approval and is frozen. Names remain locally entered and are not authenticated.',
+  'Externally signed': 'The preparer states the document was signed outside SAP Lens. SAP Lens cannot verify the signature.',
+}
 const groups = ['Remove assignment', 'Investigate assignment', 'Apply compensating control', 'Maintain access', 'No action required', 'Awaiting review']
 const FROZEN = ['Approved', 'Closed', 'Approved / closed']
-type Preview = { model_checksum: string; snapshot_checksum: string; status: string; sections: { key: string; title: string; paragraphs: string[]; tables: string[][][] }[]; limitation: string; row_count?: number }
+type Preview = { model_checksum: string; snapshot_checksum: string; status: string; status_statement?: string; sections: { key: string; title: string; paragraphs: string[]; tables: string[][][] }[]; limitation: string; row_count?: number }
 type PeriodItem = { id: string; name: string; state: string }
 const todayText = () => new Date().toLocaleDateString('nb-NO', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
@@ -24,7 +32,7 @@ export function SodReports() {
   return (
     <section className="grid min-w-0 gap-3" aria-label="SoD reports">
       <h2>SoD Reports</h2>
-      <EvidenceDisclosure title="Reports, approval and external signing">DOCX remains editable; PDF is a stable distribution format suitable for external signing. Report generation does not approve a review. Names and signature lines are not verified digital signatures. Approved periods stay frozen; choose an approved previous period for reproducible change analysis.</EvidenceDisclosure>
+      <EvidenceDisclosure title="Reports, approval and external signing">DOCX remains editable; PDF is a stable distribution format suitable for external signing. Reports are written in English for management readers, with transaction-level evidence in the technical appendices. Report generation does not approve a review. Draft, Reviewed, Approved and Externally signed describe the document only: names and signature lines are typed locally and are not verified digital signatures. Approved periods stay frozen; choose an approved previous period for reproducible change analysis.</EvidenceDisclosure>
       <ReportTabs items={items} />
     </section>
   )
@@ -56,14 +64,14 @@ function useExport() {
 }
 
 function FormalReport({ items }: { items: PeriodItem[] }) {
-  const [period, setPeriod] = useState(''), [title, setTitle] = useState('SoD Access Review'), [language, setLanguage] = useState('en'), [status, setStatus] = useState('Draft'),
+  const [period, setPeriod] = useState(''), [title, setTitle] = useState('SoD Access Review'), [status, setStatus] = useState('Draft'),
     [prepared, setPrepared] = useState(''), [reviewer, setReviewer] = useState(''), [approver, setApprover] = useState(''), [reviewerRole, setReviewerRole] = useState(''), [approverRole, setApproverRole] = useState(''),
     [version, setVersion] = useState('1.0'), [comments, setComments] = useState(''), [previous, setPrevious] = useState(''), [date, setDate] = useState(todayText), [sections, setSections] = useState(Object.keys(sectionNames)),
     [appendices, setAppendices] = useState(true), [preview, setPreview] = useState<Preview | null>(null), [previewKey, setPreviewKey] = useState('')
   const exporter = useExport()
   const selected = items.find((item) => item.id === period)
   const frozen = !!selected && FROZEN.includes(selected.state)
-  const options = { title, language, status, prepared_by: prepared, reviewer, approver, reviewer_role: reviewerRole, approver_role: approverRole, document_version: version, management_comments: comments,
+  const options = { title, status, prepared_by: prepared, reviewer, approver, reviewer_role: reviewerRole, approver_role: approverRole, document_version: version, management_comments: comments,
     previous_period_id: previous || null, report_date: parseNorwegianDate(date), sections, include_appendices: appendices }
   const key = JSON.stringify({ period_id: period, options }), active = previewKey === key ? preview : null
   const showPreview = async () => {
@@ -85,11 +93,10 @@ function FormalReport({ items }: { items: PeriodItem[] }) {
         <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <FormField label="Report period"><Select value={period} onChange={(event) => { setPeriod(event.target.value); setStatus('Draft') }}><option value="">Choose period</option>{items.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.state}</option>)}</Select></FormField>
           <FormField label="Report title"><Input value={title} maxLength={160} onChange={(event) => setTitle(event.target.value)} /></FormField>
-          <FormField label="Report status"><Select value={status} onChange={(event) => setStatus(event.target.value)}><option>Draft</option><option>For review</option>{frozen && <option>Approved snapshot</option>}</Select></FormField>
+          <FormField label="Report status"><Select value={status} onChange={(event) => setStatus(event.target.value)}><option>Draft</option><option>Reviewed</option>{frozen && <option>Approved</option>}{frozen && <option>Externally signed</option>}</Select><p className="ui-description">{STATUS_HELP[status]}</p></FormField>
         </div>
         <details className="sod-report-details"><summary>Document details</summary>
         <div className="grid min-w-0 gap-3 py-3 sm:grid-cols-2 xl:grid-cols-4">
-          <FormField label="Report language"><Select value={language} onChange={(event) => setLanguage(event.target.value)}><option value="en">English</option><option value="no">Norwegian headings / guidance</option></Select></FormField>
           {([['Prepared by', prepared, setPrepared], ['Report reviewer', reviewer, setReviewer], ['Reviewer role', reviewerRole, setReviewerRole], ['Report approver', approver, setApprover], ['Approver role', approverRole, setApproverRole], ['Document version', version, setVersion]] as [string, string, (value: string) => void][]).map(([label, value, set]) => (
             <FormField key={label} label={label}><Input value={value} maxLength={label === 'Document version' ? 80 : 120} onChange={(event) => set(event.target.value)} /></FormField>))}
           <NorwegianDateInput label="Report date" value={date} onChange={setDate} />
@@ -107,6 +114,7 @@ function FormalReport({ items }: { items: PeriodItem[] }) {
       {exporter.message && <p role="status" className="break-all">{exporter.message}</p>}
       {active && <Card aria-label="Structured report preview">
         <Toolbar><h3>{title}</h3><StatusBadge>{active.status}</StatusBadge></Toolbar>
+        {active.status_statement && <p>{active.status_statement}</p>}
         <p>{active.limitation}</p>
         <p className="break-all text-xs">Snapshot reference {active.snapshot_checksum.slice(0, 12)} · Report model reference {active.model_checksum.slice(0, 12)} (full values in the technical appendix and document integrity block)</p>
         {active.sections.map((section) => <details key={section.key}><summary>{section.title} · {section.tables.reduce((sum, table) => sum + Math.max(0, table.length - 1), 0)} table rows</summary>{section.paragraphs.map((text, index) => <p key={index} className="my-2 whitespace-pre-wrap">{text}</p>)}</details>)}
@@ -116,10 +124,10 @@ function FormalReport({ items }: { items: PeriodItem[] }) {
 }
 
 function RemediationReport({ items }: { items: PeriodItem[] }) {
-  const [context, setContext] = useState('current'), [language, setLanguage] = useState('en'), [prepared, setPrepared] = useState(''), [version, setVersion] = useState('1.0'), [date, setDate] = useState(todayText),
+  const [context, setContext] = useState('current'), [prepared, setPrepared] = useState(''), [version, setVersion] = useState('1.0'), [date, setDate] = useState(todayText),
     [title, setTitle] = useState('Access Remediation Report'), [recommended, setRecommended] = useState(groups), [preview, setPreview] = useState<Preview | null>(null), [previewKey, setPreviewKey] = useState('')
   const exporter = useExport()
-  const options = { title, language, prepared_by: prepared, document_version: version, report_date: parseNorwegianDate(date), recommended }
+  const options = { title, prepared_by: prepared, document_version: version, report_date: parseNorwegianDate(date), recommended }
   const key = JSON.stringify({ context, options }), active = previewKey === key ? preview : null
   const showPreview = async () => {
     exporter.setBusy(true)
@@ -145,7 +153,6 @@ function RemediationReport({ items }: { items: PeriodItem[] }) {
         <details className="sod-report-details"><summary>Document details</summary>
         <div className="grid min-w-0 gap-3 py-3 sm:grid-cols-2 xl:grid-cols-4">
           <FormField label="Report title"><Input value={title} maxLength={160} onChange={(event) => setTitle(event.target.value)} /></FormField>
-          <FormField label="Report language"><Select value={language} onChange={(event) => setLanguage(event.target.value)}><option value="en">English</option><option value="no">Norwegian headings</option></Select></FormField>
           <FormField label="Prepared by"><Input value={prepared} maxLength={120} onChange={(event) => setPrepared(event.target.value)} /></FormField>
           <FormField label="Document version"><Input value={version} maxLength={80} onChange={(event) => setVersion(event.target.value)} /></FormField>
           <NorwegianDateInput label="Report date" value={date} onChange={setDate} />

@@ -5,8 +5,9 @@ import {presentRoleDescription} from '@/lib/rolePresentation'
 import {RoleEntryHeader} from '@/components/Shared/RoleMetadata'
 import {TransactionFilter,useTransactionFilter} from '@/components/Shared/TransactionFilter'
 import {jaccard} from '@/lib/comparisonMetrics'
-import { ModuleIcon } from '@/components/Modules/ModuleIcon'
+import { ModuleBadge } from '@/components/Modules/ModuleBadge'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
+import { TransactionCount } from '@/components/Shared/TransactionCount'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft, Loader2, AlertTriangle, RefreshCw, GitCompare, Share2,
@@ -22,19 +23,10 @@ interface Props { roleNames: string[]; onBack: () => void }
 const lbl = (r:ComparisonRole) => presentRoleDescription(r.text,r.function_key?[r.function_key]:[]).description || r.agr_name
 
 function ModLabel({ r, center }: { r: ComparisonRole; center?: boolean }) {
-  const name = r.module_name ?? r.function_key ?? ''
-
-  if (!name) return null
-
+  if (!r.function_key) return null
   return (
     <div className={`flex items-center gap-1.5 ${center ? 'justify-center' : ''}`}>
-      <ModuleIcon moduleId={r.function_key} />
-      <span
-        className="text-xs font-semibold truncate"
-        style={{ color:'var(--text2)' }}
-      >
-        {name}
-      </span>
+      <ModuleBadge moduleId={r.function_key} />
     </div>
   )
 }
@@ -377,16 +369,10 @@ function ExclusiveColumn({role,rows,patterns}:{role:ComparisonRole;rows:SingleRo
         }}
       >
         <div className="flex items-start justify-between gap-2 mb-2">
-          <div className="min-w-0">
-            <ModLabel r={role} />
-            <p
-              className="text-sm font-black leading-snug mt-1.5"
-              style={{ color:'var(--text)' }}
-            >
-              {lbl(role)}
-            </p>
-          </div>
+          <ModLabel r={role} />
+          <TransactionCount count={role.tcode_count} />
         </div>
+        <p className="mb-2 text-sm font-black leading-snug" style={{ color:'var(--text)' }}>{lbl(role)}</p>
 
         <RoleIdentifier value={role.agr_name} moduleId={role.function_key}/>
 

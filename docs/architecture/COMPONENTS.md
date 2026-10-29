@@ -26,6 +26,9 @@ Paths below are relative to `frontend/src/components/`. The inventory covers reu
 | `Shared/NorwegianDateInput.tsx` | Assignment date controls, library | Existing localized portal calendar/manual entry, focus/keyboard behavior and maximum-date safety preserved |
 | `Shared/AssignmentDateFilters.tsx` | User/role/release assignment tables | Existing apply/cancel/date-bound semantics retained; chips now canonical |
 | `Shared/TransactionFilter.tsx` / useTransactionFilter | Role Lookup, User Directory/Details, library | Existing multi-code live/deferred state and AND/OR; operator group/chip reuse replaces repeated UI. This is the real multi-value selector showcased |
+| `Shared/MultiSelectFilter.tsx` | Release Area and Release Group filters, library | Searchable multi-select: a Combobox adds values, removable FilterChips show them; "All" clears. Values combine with OR, the caller combines filters with AND |
+| `Shared/PackageToggle.tsx`, `Shared/AccessPackageBar.tsx` | Role Lookup cards, Release Roles rows and Matrix cells, floating access package action | One round Plus/Check toggle and one floating package action for catalogue and release roles; the package store is shared and unlimited |
+| `Shared/WindowsIcon.tsx` | Windows Desktop settings heading, library | Generic four-pane inline mark in currentColor; no third-party artwork or dependency |
 | `Shared/FilterChip.tsx` | Transactions and assignment date filters | One removable-chip implementation, explicit removal label, existing focus restoration supplied by caller |
 | `Shared/ClearFilterButton.tsx` | Investigation pages/date controls | Canonical Button + filter-x icon; neutral reset styling, explicit accessible text |
 | `Shared/SavedFilters.tsx` | Users, roles, releases, review, comparison; memory-only library | Same versioned persistence/CRUD/compatibility logic, compact Popover. Existing page-level clears remain singular; menu-only clear available when needed |

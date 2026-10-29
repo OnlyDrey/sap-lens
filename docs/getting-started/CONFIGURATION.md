@@ -30,7 +30,7 @@ Organization name, platform (S/4HANA, ECC or Other/Custom), system ID, client, d
 
 ## Features and colors
 
-Features lists User–Role Mapping, Employee Directory and Segregation of Duties in the same order as the Data Sources tabs; each card shows the **Enabled** switch above its **Configure** action. SoD risk and activity colors use the same hexadecimal input as module colors, with validation, a preview and Reset.
+Features lists User–Role Mapping, Employee Directory and Segregation of Duties in the same order as the Data Sources tabs; each card shows the **Enabled** switch above its **Configure source** action, both aligned to the right edge of the card. SoD risk and activity colors use the same hexadecimal input as module colors, with validation, a preview and Reset.
 
 ## Storage and upgrades
 
@@ -58,7 +58,7 @@ Role catalogue and User Access have separate CSV Import Formats and local paths.
 ## Compact health information
 
 Health & Diagnostics shows service status, last successful refresh and whether
-application storage exists. Expand **Health details and refresh history** for
+application storage exists. **Data source health** shows one card per source: the source icon and name with an Enabled/Disabled badge at the far right, the load status, record count and last import, and a **Review source** action that opens the source tab. Source mode, snapshot availability, the last validated check and file availability are under the card's expandable **Technical details**, together with the locations and diagnostics dialog; a failed refresh is stated on the card. Expand **Health details and refresh history** for
 source counts, configuration versions and last failed refresh in this process.
 **Source locations and storage details** reveals local paths privately in the
 application. **Employee Directory technical details** explains its optional source,
@@ -121,7 +121,7 @@ Each source can be Static (manual replacement) or Dynamic (Global Refresh reread
 **Settings → Runtime & Scheduling** holds the scheduled refresh and, in the Windows Desktop application only, the tray options. The schedule is saved in the `refresh_schedule` object of the settings (`enabled`, `mode` daily or cron, `time` HH:MM, `cron`, `timezone`) with the normal Apply/Cancel and revision checks; its run history is kept separately in `refresh-schedule.json` so refreshes never change the settings revision. See [Scheduled refresh](../data/IMPORT_AND_REFRESH.md#scheduled-refresh).
 
 Windows Desktop background preferences are under **Settings → Runtime & Scheduling → Windows
-Desktop**, visible only through the native Windows capability. The local `desktop`
+Desktop** (marked with a four-pane window icon), visible only through the native Windows capability. The local `desktop`
 object contains `close_to_tray`, `run_at_signin` and `start_minimized`, all defaulting
 to false. Start minimized requires tray mode. Ordinary Apply/Cancel and revision
 checks apply; portable packages do not activate another machine's sign-in startup.
@@ -129,8 +129,9 @@ See [tray operation](../deployment/WINDOWS_DESKTOP.md#optional-system-tray-opera
 
 Appearance & Branding previews draft organization/system details and the same draft
 logo in both live and local previews. The six palette colors (including Secondary Color) are
-small adjacent swatch tiles; select one to edit it. Native picker, hex editing and per-color Reset
-remain available; Apply/Cancel retain their existing persistence behavior.
+editable controls in a responsive grid (five columns in a wide settings area, three or two on
+smaller ones, one on a phone), each with the native picker, HEX field and Reset. Apply/Cancel
+retain their existing persistence behavior.
 
 ## SoD review data
 

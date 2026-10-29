@@ -52,6 +52,19 @@ From the repository root (full list and risk-based selection:
   `node scripts/sync-lucide-catalog.mjs --check`, `git diff --check`,
   `npm audit --omit=dev`, `python -m pip check`, pip-audit per [CI](docs/development/CI.md).
 
+## DOM order, focus and reading sequence
+
+- Visual order must match DOM order; Tab order follows logical reading order. Do not use CSS
+  `order`, `flex-direction: *-reverse`, positive `tabindex` or absolute repositioning to make
+  the screen read differently from the document.
+- Responsive layouts may change columns and wrapping, never the reading or focus sequence.
+  Reordering configurable regions (for example dashboard cards) reorders the rendered
+  elements from a configuration list, not their CSS placement.
+- Focus rings use `--focus-width`/`--focus-offset` (a small visible gap). Keep them unclipped:
+  scrolling strips use padding and `scroll-padding`, inset rings only where a gap cannot fit.
+- Module identity is the shared `ModuleBadge` (icon and abbreviation on one surface); role
+  records use `RoleEntry`. Show a module only from catalogue evidence, never infer it.
+
 ## Git workflow
 
 - Develop on `work` (tracking `origin/work`). If a checkout is detached at `main`:

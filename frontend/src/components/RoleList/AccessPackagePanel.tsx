@@ -8,12 +8,14 @@ import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
 import { FormField, Input } from '@/components/Shared/Controls'
 import { EmptyState, ErrorState, LoadingState, StatusBadge } from '@/components/Shared/Presentation'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
+import { RoleEntry } from '@/components/Shared/RoleEntry'
+import { useRoleModules } from '@/hooks/useRoleModules'
 import { announceExport } from '@/lib/exportNotice'
 import { exportPackage, fetchNaming, previewPackage, useAccessPackage, type PackageRow } from '@/lib/accessPackage'
 
 const STATUS: Record<PackageRow['status'], { text: string; tone: 'success' | 'warning' | 'error' }> = {
   ok: { text: 'Ready', tone: 'success' }, needs_suffix: { text: 'Needs suffix', tone: 'warning' }, ambiguous: { text: 'Ambiguous source', tone: 'warning' },
-  invalid: { text: 'Invalid', tone: 'error' }, unknown_role: { text: 'Not in catalogue', tone: 'error' }, duplicate: { text: 'Duplicate name', tone: 'error' },
+  invalid: { text: 'Invalid', tone: 'error' }, unknown_role: { text: 'Not found in imported data', tone: 'error' }, duplicate: { text: 'Duplicate name', tone: 'error' },
 }
 const matchText = (row: PackageRow) => {
   const match = row.catalogue
@@ -24,9 +26,9 @@ const matchText = (row: PackageRow) => {
     : 'Not found in the imported catalogue'
 }
 
-/** Proposed access package: generated SAP role names for the collected catalogue roles. Names only; nothing is assigned or changed in SAP. */
+/** Proposed access package: generated SAP role names for catalogue roles (suffix applied) and release roles (exact names). Names only; nothing is assigned or changed in SAP. */
 export function AccessPackagePanel({ onClose }: { onClose: () => void }) {
-  const cart = useAccessPackage(), [busy, setBusy] = useState(false)
+  const cart = useAccessPackage(), [busy, setBusy] = useState(false), modules = useRoleModules()
   const naming = useQuery({ queryKey: ['role-naming'], queryFn: fetchNaming, staleTime: 60_000 })
   const key = JSON.stringify([cart.defaultSuffix, cart.items])
   const preview = useQuery({ queryKey: ['access-package', key], queryFn: () => previewPackage(cart), enabled: cart.items.length > 0, placeholderData: keepPreviousData })
@@ -55,10 +57,10 @@ export function AccessPackagePanel({ onClose }: { onClose: () => void }) {
         </FormField>
         <p className="ui-description">
           {naming.data?.suffixes.length ? `Suffixes found in the imported role names: ${naming.data.suffixes.map((item) => `${item.value} (${item.roles})`).join(', ')}. ` : 'No organizational suffix was found in the imported role names. '}
-          The suffix replaces a wildcard or the existing organizational suffix of each role. A role-specific suffix overrides the default; changing the default never changes it.
+          The suffix replaces a wildcard or the existing organizational suffix of each catalogue role. A role-specific suffix overrides the default; changing the default never changes it. Release roles keep their exact assigned names.
         </p>
       </section>
-      {!cart.items.length ? <EmptyState>The access package is empty. Use Add to access package on a role in Role Lookup.</EmptyState>
+      {!cart.items.length ? <EmptyState>The access package is empty. Use Add to access package on a role in Role Lookup or Release Roles.</EmptyState>
         : preview.isError ? <ErrorState error={preview.error} onRetry={() => void preview.refetch()} />
         : !preview.data ? <LoadingState />
         : <>
@@ -67,21 +69,26 @@ export function AccessPackagePanel({ onClose }: { onClose: () => void }) {
             {rows.map((row) => {
               const status = STATUS[row.status]
               return (
-                <li key={row.role} className="ui-list-row grid min-w-0 gap-2 p-3">
-                  <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-                    <RoleIdentifier value={row.role} label="source role" />
-                    <IconButton label={`Remove ${row.role} from access package`} onClick={() => cart.remove(row.role)}><Trash2 size={16} /></IconButton>
-                  </div>
-                  {row.description && <p className="ui-description">{row.description}</p>}
-                  <FormField label={`Suffix for ${row.role}`}>
-                    <Input value={cart.items.find((item) => item.role === row.role)?.suffix || ''} maxLength={16} placeholder={cart.defaultSuffix || 'Role suffix'} onChange={(event) => cart.setSuffix(row.role, event.target.value)} />
-                  </FormField>
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <StatusBadge tone={status.tone}>{status.text}</StatusBadge>
-                    {row.name ? <RoleIdentifier value={row.name} label="generated SAP role name" /> : <span className="text-xs text-muted">No name generated</span>}
-                  </div>
-                  {row.messages.map((message) => <p key={message} className="ui-description">{message}</p>)}
-                  {row.catalogue && <p className="ui-description">{matchText(row)}</p>}
+                <li key={row.role} className="ui-list-row package-row min-w-0 p-3">
+                  <RoleEntry density="row" moduleCode={row.source === 'release' ? undefined : modules.get(row.role) ?? undefined} title={row.description} identifier={row.role} identifierLabel={row.source === 'release' ? 'release role' : 'source role'}
+                    actions={<IconButton label={`Remove ${row.role} from access package`} onClick={() => cart.remove(row.role)}><Trash2 size={16} /></IconButton>}>
+                    <div className="package-row-fields">
+                      {row.source === 'release'
+                        ? <div className="package-generated"><span className="package-generated-label">Source</span><StatusBadge tone="info">Release role</StatusBadge></div>
+                        : <FormField label={`Suffix for ${row.role}`}>
+                          <Input value={cart.items.find((item) => item.role === row.role)?.suffix || ''} maxLength={16} placeholder={cart.defaultSuffix || 'Role suffix'} onChange={(event) => cart.setSuffix(row.role, event.target.value)} />
+                        </FormField>}
+                      <div className="package-generated">
+                        <span className="package-generated-label">Generated SAP role name</span>
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                          {row.name ? <RoleIdentifier value={row.name} label="generated SAP role name" /> : <span className="text-xs text-muted">No name generated</span>}
+                          <StatusBadge tone={status.tone}>{status.text}</StatusBadge>
+                        </div>
+                      </div>
+                    </div>
+                    {row.messages.map((message) => <p key={message} className="ui-description">{message}</p>)}
+                    {row.catalogue && <p className="ui-description">{matchText(row)}</p>}
+                  </RoleEntry>
                 </li>
               )
             })}

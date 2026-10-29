@@ -12,7 +12,8 @@ import { Button } from '@/components/Shared/Button'
 import { FilterLayout, FilterSection, PageToolbar, SortControl } from '@/components/Shared/FilterLayout'
 import { SavedFilters } from '@/components/Shared/SavedFilters'
 import { formatDate } from '@/lib/dateFormat'
-import { ModuleIcon } from '@/components/Modules/ModuleIcon'
+import { ModuleBadge } from '@/components/Modules/ModuleBadge'
+import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import { useModuleDefinitions } from '@/components/Modules/ModuleRegistry'
 
 export type Tone = 'neutral' | 'success' | 'warning' | 'error' | 'info'
@@ -229,10 +230,16 @@ export function CoverageNotice({ info }: { info?: ContextInfo }) {
 }
 
 /** Business area text from the SoD source; reuses the configured SAP module icon and color when it names a module. */
+/** Evidence roles: one copyable codeblock per line, never a comma-separated string. */
+export function RoleCodeList({ roles, label = 'Roles' }: { roles?: readonly string[] | number | null; label?: string }) {
+  if (!Array.isArray(roles)) return <span className="text-xs text-muted">{String(roles ?? 0)} {label.toLowerCase()}</span>
+  return <ul className="role-code-list" aria-label={label}>{roles.map((role) => <li key={role}><RoleIdentifier value={role} /></li>)}</ul>
+}
+
 export function SodArea({ value }: { value?: string | null }) {
   const modules = useModuleDefinitions()
   if (!value) return null
   const key = value.trim().toLowerCase()
   const module = Object.values(modules).find((item) => item.id.toLowerCase() === key || item.name.toLowerCase() === key)
-  return <span className="inline-flex items-center gap-1.5 text-xs text-muted">{module && <ModuleIcon moduleId={module.id} />}<span>{value}</span></span>
+  return <span className="inline-flex items-center gap-1.5 text-xs text-muted">{module && <ModuleBadge moduleId={module.id} variant="compact" />}<span>{value}</span></span>
 }

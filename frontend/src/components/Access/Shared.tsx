@@ -31,7 +31,7 @@ export function Pagination({
   return (
     <nav
       aria-label={label}
-      className="assignment-pagination grid w-full grid-cols-2 items-center justify-center gap-3 py-4 text-sm sm:flex sm:flex-wrap"
+      className="assignment-pagination grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center justify-center gap-3 py-4 text-sm"
     >
       <Button
         size="compact"
@@ -40,7 +40,7 @@ export function Pagination({
       >
         <ArrowLeft size={16} aria-hidden="true"/> Previous
       </Button>
-      <span className="order-first col-span-2 text-center sm:order-none">
+      <span className="text-center">
         {total
           ? `${offset + 1}–${Math.min(offset + limit, total)} of ${total}`
           : "0 records"}

@@ -75,7 +75,7 @@ export function SortControl({ label = 'Sort', value, options, descending, onChan
   label?: string; value: string; options: { value: string; label: string }[]; descending: boolean; onChange: (value: string) => void; onDescending: (value: boolean) => void
 }) {
   return (
-    <div className="sod-sort" role="group" aria-label={label}>
+    <div className="sod-sort" role="group" aria-label={`${label} order`}>
       <Select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</Select>
       <IconButton label={descending ? 'Descending order, switch to ascending' : 'Ascending order, switch to descending'} aria-pressed={descending} onClick={() => onDescending(!descending)}>
         {descending ? <ArrowUpAZ size={16} /> : <ArrowDownAZ size={16} />}

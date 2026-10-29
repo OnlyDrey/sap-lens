@@ -9,11 +9,12 @@ import { Card, ErrorState, EmptyState, LoadingState, StatusBadge, Toolbar } from
 import { Checkbox, FormField, Input } from '@/components/Shared/Controls'
 import { Select } from '@/components/Shared/Select'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
+import { RoleModuleBadge } from '@/components/Shared/RoleModuleBadge'
 import { AssignmentStatus } from '@/components/Shared/InvestigationNavigation'
 import { NorwegianDateInput, parseNorwegianDate } from '@/components/Shared/NorwegianDateInput'
 import { formatDate, formatTimestamp } from '@/lib/dateFormat'
 import { SodPill } from '@/lib/sodAppearance'
-import { AlertNote, invalidateSod, KIND_LABEL, LifecycleBadge } from './SodShared'
+import { AlertNote, invalidateSod, KIND_LABEL, LifecycleBadge, RoleCodeList } from './SodShared'
 import { ActionDialog } from './SodRemediation'
 
 type Kind = 'activity' | 'assignment' | 'acceptance'
@@ -66,7 +67,7 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
   const focus = (name: string, kind: 'activity' | 'risk') => (kind === 'activity' ? activity === name : risk === name)
   return (
     <SidePanel title={`${user}${risk ? ` · ${risk}` : activity ? ` · ${activity}` : ''}`} subtitle={data ? <>Potential conflict evidence, not effective authorization · evaluation {formatDate(data.as_of)}</> : undefined} onClose={onClose}
-      footer={data ? <><span className="text-xs" role="status">{done} of {total} reviews decided</span><Button variant="ghost" onClick={onClose}>Close</Button></> : undefined}>
+      footer={data ? <><span className="text-xs" role="status">{done} of {total} reviews decided</span></> : undefined}>
       {query.isError ? <ErrorState error={query.error} onRetry={() => void query.refetch()} /> : !data || !overview ? <LoadingState /> : <>
         <section className="sod-section" aria-label="Subject summary">
           <Toolbar>
@@ -85,7 +86,7 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
           onBatch={() => batch('activity', `Batch activity review (${picked.activity.length})`, activities.filter((row) => picked.activity.includes(row.key)).map((row) => item(row.key, row.activity, row.evidence_version)))}>
           {activities.map((row) => (
             <ReviewRow key={row.key} focused={focus(row.activity, 'activity')} label={row.activity} checked={picked.activity.includes(row.key)} onCheck={ok ? () => pick('activity', row.key) : undefined}
-              title={<SodPill kind="activity" value={row.activity} />} meta={<>{row.roles} role assignment{row.roles === 1 ? '' : 's'}{row.duplicate_coverage ? ' · overlapping coverage' : ''} · risks {row.risks.join(', ')}</>} status={row.decision} event={row.event}
+              compact title={<SodPill kind="activity" value={row.activity} />} summary={<><span className="id-pill-list" aria-label={`Risks supplied by ${row.activity}`}>{row.risks.map(risk => <SodPill key={risk} kind="risk" value={risk} />)}</span><span className="sod-meta whitespace-nowrap">{row.roles} role assignment{row.roles === 1 ? '' : 's'}{row.duplicate_coverage ? ' · overlapping coverage' : ''}</span></>} status={row.decision} event={row.event}
               actions={ok && <Button onClick={() => setForm({ kind: 'activity', heading: `Activity review · ${row.activity}`, items: [item(row.key, row.activity, row.evidence_version)] })} aria-label={`Review activity ${row.activity}`}><ClipboardCheck size={16} aria-hidden="true" />Review</Button>}
               history={<DecisionHistory kind="activity" context={context} keyId={row.key} label="Activity review history" />} />
           ))}
@@ -96,7 +97,7 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
           onBatch={() => batch('assignment', `Batch role assignment review (${picked.assignment.length})`, assignments.filter((row) => picked.assignment.includes(row.id)).map((row) => item(row.id, row.role, row.evidence_version)))}>
           {assignments.map((row) => (
             <ReviewRow key={row.id} label={row.role} checked={picked.assignment.includes(row.id)} onCheck={ok ? () => pick('assignment', row.id) : undefined}
-              title={<RoleIdentifier value={row.role} onOpen={() => change({ detailRole: row.catalogue_roles[0] || row.role })} openLabel={`Open catalogue role ${row.catalogue_roles[0] || row.role}`} />}
+              title={<><RoleModuleBadge catalogueRoles={row.catalogue_roles} /><RoleIdentifier value={row.role} onOpen={() => change({ detailRole: row.catalogue_roles[0] || row.role })} openLabel={`Open catalogue role ${row.catalogue_roles[0] || row.role}`} /></>}
               meta={<>{row.user_group || 'No user group'} · {row.interval_status && <AssignmentStatus value={row.interval_status} />} {formatDate(row.valid_from)} → {formatDate(row.valid_to)} · supplies {row.activities.join(', ')}</>} status={row.decision} event={row.event}
               actions={ok && <>
                 <Button onClick={() => setForm({ kind: 'assignment', heading: `Role assignment · ${row.role}`, decision: 'Keep', items: [item(row.id, row.role, row.evidence_version)] })} aria-label={`Keep ${row.role}`}>Keep</Button>
@@ -112,7 +113,7 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
           onBatch={() => batch('acceptance', `Batch risk acceptance (${picked.acceptance.length})`, risks.filter((row) => picked.acceptance.includes(row.finding_id)).map((row) => item(row.finding_id, row.risk_id, row.evidence_version)))}>
           {risks.map((row) => (
             <ReviewRow key={row.finding_id} focused={focus(row.risk_id, 'risk')} label={row.risk_id} checked={picked.acceptance.includes(row.finding_id)} onCheck={ok ? () => pick('acceptance', row.finding_id) : undefined}
-              title={<SodPill kind="risk" value={row.risk_id} />} meta={<>{row.display_name || row.source_text} · <span className="sod-meta">criticality {row.criticality}</span></>} status={row.acceptance} event={row.event}
+              title={<SodPill kind="risk" value={row.risk_id} />} meta={<>{row.display_name || row.source_text}</>} status={row.acceptance} event={row.event}
               actions={ok && <Button onClick={() => setForm({ kind: 'acceptance', heading: `Risk acceptance · ${row.risk_id}`, items: [item(row.finding_id, row.risk_id, row.evidence_version)] })} aria-label={`Decide risk acceptance ${row.risk_id}`}><ClipboardCheck size={16} aria-hidden="true" />Decide</Button>}
               history={<DecisionHistory kind="acceptance" context={context} keyId={row.finding_id} label="Risk acceptance history" />} />
           ))}
@@ -129,7 +130,7 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
             <p className="ui-description">Several remediation options can be valid. This is a what-if over a copy of the evidence; it never changes SAP or imported data, and a removal recommendation is not confirmed removal.</p>
             {data.impact.options.map((option) => (
               <Card key={option.slot}>
-                <p><strong>{option.slot === 'ACTVT1' ? 'Activity 1' : 'Activity 2'} ({option.activities.join(', ')})</strong>: remove all {option.assignments.length} supplying assignment(s) ({option.roles.join(', ')}) to {option.resolves_risk ? 'resolve this risk' : 'reduce evidence'}{option.also_resolves?.length ? `; also resolves ${option.also_resolves.join(', ')}` : ''}</p>
+                <p><strong>{option.slot === 'ACTVT1' ? 'Activity 1' : 'Activity 2'} ({option.activities.join(', ')})</strong>: remove all {option.assignments.length} supplying assignment(s) (<RoleCodeList roles={option.roles} />) to {option.resolves_risk ? 'resolve this risk' : 'reduce evidence'}{option.also_resolves?.length ? `; also resolves ${option.also_resolves.join(', ')}` : ''}</p>
                 {option.warnings.map((warning) => <AlertNote key={warning}>{warning}</AlertNote>)}
                 <Button onClick={() => { setSelection(option.assignments); void simulate(option.assignments) }}><FlaskConical size={16} aria-hidden="true" />Simulate this option</Button>
               </Card>
@@ -166,19 +167,31 @@ function ReviewSection({ title, kind, done, total, ok, picked, note, onBatch, ch
   )
 }
 
-function ReviewRow({ label, title, meta, status, event, actions, history, checked, onCheck, focused }: {
-  label: string; title: ReactNode; meta: ReactNode; status: string; event: DecisionEvent | null; actions?: ReactNode; history: ReactNode; checked: boolean; onCheck?: () => void; focused?: boolean
+function ReviewRow({ label, title, meta, summary, compact, status, event, actions, history, checked, onCheck, focused }: {
+  label: string; title: ReactNode; meta?: ReactNode; summary?: ReactNode; compact?: boolean; status: string; event: DecisionEvent | null; actions?: ReactNode; history: ReactNode; checked: boolean; onCheck?: () => void; focused?: boolean
 }) {
   return (
-    <li className="sod-review-row" data-focused={focused || undefined}>
-      <div className="sod-review-main">
-        {onCheck && <Checkbox checked={checked} onChange={onCheck} aria-label={`Select ${label}`}><span className="sr-only">Select</span></Checkbox>}
-        <span className="min-w-0">{title}</span>
-        <LifecycleBadge value={status} />
-      </div>
-      <p className="text-xs text-muted">{meta}</p>
+    <li className="sod-review-row" data-focused={focused || undefined} data-compact={compact || undefined}>
+      {compact ? (
+        <div className="sod-review-compact">
+          {onCheck && <Checkbox checked={checked} onChange={onCheck} aria-label={`Select ${label}`}><span className="sr-only">Select</span></Checkbox>}
+          <span className="min-w-0">{title}</span>
+          <LifecycleBadge value={status} />
+          {summary}
+          {actions && <div className="sod-review-actions sod-review-compact-actions">{actions}</div>}
+        </div>
+      ) : (
+        <>
+          <div className="sod-review-main">
+            {onCheck && <Checkbox checked={checked} onChange={onCheck} aria-label={`Select ${label}`}><span className="sr-only">Select</span></Checkbox>}
+            <span className="min-w-0">{title}</span>
+            <LifecycleBadge value={status} />
+          </div>
+          <p className="text-xs text-muted">{meta}</p>
+        </>
+      )}
       {event && <p className="text-xs text-muted">{event.decision} by {event.reviewer}, {formatTimestamp(event.timestamp)}: {event.justification}{event.controls ? ` Conditions: ${event.controls}` : ''}</p>}
-      {actions && <div className="sod-review-actions">{actions}</div>}
+      {!compact && actions && <div className="sod-review-actions">{actions}</div>}
       {history}
     </li>
   )
@@ -200,6 +213,7 @@ function ActivityBlock({ row, selection, toggle, impact, onRole }: {
             <li key={assignment.id} className="ui-list-row grid min-w-0 gap-2 p-3">
               <Toolbar>
                 <Checkbox checked={selection.includes(assignment.id)} onChange={() => toggle(assignment.id)} aria-label={`Include ${assignment.role} in what-if removal`}>Simulate</Checkbox>
+                <RoleModuleBadge catalogueRoles={assignment.catalogue_roles} />
                 <RoleIdentifier value={assignment.role} onOpen={() => onRole(assignment.catalogue_roles[0] || assignment.role)} openLabel={`Open catalogue role ${assignment.catalogue_roles[0] || assignment.role} (evidence)`} />
               </Toolbar>
               <p className="text-xs text-muted">{assignment.user_group || 'No user group'} · {assignment.interval_status && <AssignmentStatus value={assignment.interval_status} />} {formatDate(assignment.valid_from)} → {formatDate(assignment.valid_to)}</p>

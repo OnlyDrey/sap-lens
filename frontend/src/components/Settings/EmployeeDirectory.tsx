@@ -288,8 +288,8 @@ export function FeatureSettings({
               >
                 {!directory.data?'Checking operational status…':operational?'Operational':!savedEnabled?'Disabled in saved settings':key==='sod'&&!mappingSaved?'Requires User–Role Mapping':!available?'Data required':key==='sod'?'User access data required':'Identity enrichment unavailable'}
               </StatusBadge>
+              {saved.data&&enabled!==(saved.data.settings.features?.[key]??key==='user_role_mapping')&&<p role="status" className="ui-description">Pending change — choose Apply settings to save.</p>}
             </div>
-            {saved.data&&enabled!==(saved.data.settings.features?.[key]??key==='user_role_mapping')&&<p role="status" className="ui-description">Pending change — choose Apply settings to save.</p>}
             <div className="feature-controls">
               <Toggle
                 label={`${name} feature`}
@@ -318,7 +318,7 @@ export function FeatureSettings({
                 }
               >
                 <Settings2 size={15} aria-hidden="true" />
-                Configure {key === 'sod' ? 'SoD' : name}
+                Configure source
               </button>
             </div>
           </section>
