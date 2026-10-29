@@ -52,8 +52,10 @@ export function FilterLayout({ activeCount, toolbar, sidebar, children, label = 
         <aside id={id} ref={drawerRef} tabIndex={-1} hidden={!shown} aria-label={label} className="filter-sidebar" role={wide ? 'complementary' : 'dialog'} aria-modal={wide ? undefined : 'false'}>
           <header>
             <h2>{label}</h2>
-            {onClear && <Button size="compact" variant="ghost" className="filter-clear-all" disabled={clearDisabled} onClick={onClear}><FilterX size={14} aria-hidden="true" />Clear all filters</Button>}
-            <IconButton label={`Close ${label.toLowerCase()}`} onClick={close}><X size={16} /></IconButton>
+            <div className="filter-sidebar-actions">
+              {onClear && <Button size="compact" className="filter-clear-all" aria-label="Clear filters" title="Clear all filters in this view" disabled={clearDisabled} onClick={onClear}><FilterX size={14} aria-hidden="true" />Clear</Button>}
+              <IconButton label={`Close ${label.toLowerCase()}`} onClick={close}><X size={16} /></IconButton>
+            </div>
           </header>
           <div className="filter-sidebar-body">{sidebar}</div>
         </aside>

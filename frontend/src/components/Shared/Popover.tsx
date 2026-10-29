@@ -21,10 +21,12 @@ export function Popover({
   children,
   onOpenChange,
   preferredWidth=380,
+  triggerSize='default',
 }: {
   label: string
   trigger: ReactNode
   preferredWidth?:number
+  triggerSize?: 'default' | 'compact' | 'icon'
   onOpenChange?: (open: boolean) => void
   children: ReactNode | ((close: () => void) => ReactNode)
 }) {
@@ -109,6 +111,7 @@ export function Popover({
       <Button
         ref={anchor}
         variant="outline"
+        size={triggerSize}
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-controls={open ? id : undefined}

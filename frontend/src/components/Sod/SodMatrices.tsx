@@ -46,8 +46,8 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
   const columns = (data?.columns || []).map((column) => {
     const id = risk ? (column as RiskColumn).risk_id : (column as ActivityColumn).activity
     return risk
-      ? { id, label: id, node: <SodPill kind="risk" value={id} />, sub: `${column.users} users`, title: `${(column as RiskColumn).display_name || (column as RiskColumn).source_text || id} · criticality ${(column as RiskColumn).criticality}`, onFilter: () => setFilters({ ...filters, risk: id }) }
-      : { id, label: id, node: <SodPill kind="activity" value={id} />, sub: `${column.users} users`, title: `Activity ${id} · ${(column as ActivityColumn).risks.length} risks`, onFilter: () => setFilters({ ...filters, activity: id }) }
+      ? { id, label: id, node: <SodPill kind="risk" value={id} />, sub: `${column.users} users`, title: `${(column as RiskColumn).display_name || (column as RiskColumn).source_text || id} · criticality ${(column as RiskColumn).criticality}`, onFilter: () => setFilters({ ...filters, risk: '', risks: [id] }) }
+      : { id, label: id, node: <SodPill kind="activity" value={id} />, sub: `${column.users} users`, title: `Activity ${id} · ${(column as ActivityColumn).risks.length} risks`, onFilter: () => setFilters({ ...filters, activity: '', activities: [id] }) }
   })
   const cell = (row: string, column: string): MatrixCellView | null => {
     const entry = byUser.get(row)?.cells[column]
@@ -72,7 +72,7 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
   const open = (row: string, column: string) => {
     if (groupBy === 'group') {
       setGroupBy('user')
-      setFilters({ ...filters, group: row, ...(risk ? { risk: column } : { activity: column }) })
+      setFilters({ ...filters, group: '', groups: [row], ...(risk ? { risk: '', risks: [column] } : { activity: '', activities: [column] }) })
       return
     }
     setSelected(risk ? { user: row, risk: column } : { user: row, activity: column })
@@ -111,19 +111,31 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
             {(risk
               ? [['Users with conflicts', data.totals.users], ['Distinct user-risk findings', data.totals.user_risk ?? 0], ['Risks shown', data.totals.risks ?? 0]]
               : [['Users with activity evidence', data.totals.users], ['User-activity pairs', data.totals.user_activity ?? 0], ['Activities shown', data.totals.activities ?? 0]]
-            ).map(([label, value]) => <div className="sod-tile" key={label}><span>{label}</span><strong>{Number(value).toLocaleString()}</strong></div>)}
+            ).map(([label, value]) => <div className="sod-tile sod-tile-static" key={label}><span>{label}</span><strong>{Number(value).toLocaleString()}</strong></div>)}
             {legend.map((value) => {
               const filterName = risk ? 'acceptance' : 'activity_decision',
                 active = filters[filterName] === value,
-                view = lifecycleView(value)
+                view = lifecycleView(value),
+                count = data.status_counts?.[value] || 0
               return (
-                <div className="sod-tile" key={value} data-active={active || undefined} data-tone={(data.status_counts?.[value] || 0) === 0 ? undefined : value === 'Pending' || value === 'Outdated' ? 'warning' : value === 'Rejected' || value === 'Removal required' ? 'error' : undefined}>
-                  <button type="button" aria-pressed={active} onClick={() => setFilters({ ...filters, [filterName]: active ? '' : value })}>{view.text}{risk ? ' risks' : ' activities'}</button>
-                  <strong>{(data.status_counts?.[value] || 0).toLocaleString()}</strong>
-                </div>
+                <button type="button" className="sod-tile sod-tile-button" key={value} aria-pressed={active} data-active={active || undefined}
+                  data-tone={count === 0 ? undefined : value === 'Pending' || value === 'Outdated' ? 'warning' : value === 'Rejected' || value === 'Removal required' ? 'error' : undefined}
+                  onClick={() => setFilters({ ...filters, [filterName]: active ? '' : value })}>
+                  <span>{view.text}{risk ? ' risks' : ' activities'}</span>
+                  <strong>{count.toLocaleString()}</strong>
+                </button>
               )
             })}
-            {Object.entries((data as Risk).criticality || {}).map(([key, value]) => <div className="sod-tile" key={key}><span>Criticality {key}</span><strong>{value.user_risk.toLocaleString()}</strong><small>{value.users} users</small></div>)}
+            {Object.entries((data as Risk).criticality || {}).map(([key, value]) => {
+              const wanted = Array.isArray(filters.criticalities) ? filters.criticalities : [], active = wanted.includes(key)
+              return (
+                <button type="button" className="sod-tile sod-tile-button" key={key} aria-pressed={active} data-active={active || undefined}
+                  onClick={() => setFilters({ ...filters, criticality: '', criticalities: active ? wanted.filter((item) => item !== key) : [...wanted, key] })}>
+                  <span>Criticality {key}</span><strong>{value.user_risk.toLocaleString()}</strong><small>{value.users} users</small>
+                </button>
+              )
+            })}
+            {(filters[risk ? 'acceptance' : 'activity_decision'] || (Array.isArray(filters.criticalities) && filters.criticalities.length > 0)) && <Button size="compact" variant="ghost" onClick={() => setFilters({ ...filters, [risk ? 'acceptance' : 'activity_decision']: '', criticalities: [] })}>Reset tile filters</Button>}
           </section>
           <p className="ui-description">{risk ? 'Cells show the risk acceptance status and how many of the risk activities are reviewed (reviewed/total). Criticality and type are in the column tooltip and the investigation.' : 'Scope: activities that contribute to at least one potential conflict (both sides of an enabled, supported risk). Activities a role supplies beyond those are considered in Role Assignment Review. Cells show the activity review status and ×roles supplying it; ⧉ marks overlapping coverage.'}</p>
           <p className="ui-description">Totals count distinct users and distinct {risk ? 'user-risk' : 'user-activity'} pairs. {data.columns_truncated ? 'Showing the first 500 columns; narrow the filters. ' : ''}{groupBy === 'group' ? 'Cells show distinct users per group; select one to list them. ' : 'Select a cell to investigate and review. '}Detected conflicts are potential and derived from imported evidence.</p>
@@ -134,7 +146,7 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
                 selected={selected ? { row: selected.user, col: selected.risk || selected.activity || '' } : null} />
             : <EmptyState>No users match this scope. Results describe imported evidence only; incomplete source coverage cannot establish absence of access.</EmptyState>}
           <Pagination label="Matrix pages" offset={data.offset} total={data.total_rows} limit={data.limit} onChange={setOffset} pageSizes={PAGE_SIZES} onPageSize={setPageSize} />
-          {filters.risk || filters.activity || filters.group ? <Button variant="ghost" onClick={() => setFilters({ ...filters, risk: '', activity: '', group: '' })}>Show all risks, activities and groups</Button> : null}
+          {filters.risk || filters.activity || filters.group || ['risks', 'activities', 'groups'].some((name) => Array.isArray(filters[name]) && (filters[name] as string[]).length) ? <Button variant="ghost" onClick={() => setFilters({ ...filters, risk: '', activity: '', group: '', risks: [], activities: [], groups: [] })}>Show all risks, activities and groups</Button> : null}
         </>}
       </SodFilters>
     </section>

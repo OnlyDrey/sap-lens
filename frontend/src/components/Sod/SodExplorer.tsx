@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { downloadFile, scopeParams, sod, EXPORT_NAME, type AssignmentPick, type AssignmentSelection, type BulkAction, type ContextInfo, type Filters, type Lifecycle } from '@/api/sod'
 import { useHistoryValue, type SodExplorerTable } from '@/hooks/useViewHistory'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, ScanSearch } from 'lucide-react'
 import { Button } from '@/components/Shared/Button'
 import { ErrorState, DataTable, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
 import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
@@ -12,8 +12,6 @@ import { AssignmentStatus } from '@/components/Shared/InvestigationNavigation'
 import { PAGE_SIZES, Pagination } from '@/components/Access/Shared'
 import { BulkToolbar, PageCheckbox, RowCheckbox, useBulkSelection } from '@/components/Shared/BulkSelection'
 import { BulkReviewDialog } from './SodBulkReview'
-import { RoleEntry } from '@/components/Shared/RoleEntry'
-import { moduleOfRoles, useRoleModules } from '@/hooks/useRoleModules'
 import { announceExport } from '@/lib/exportNotice'
 import { formatDate } from '@/lib/dateFormat'
 import { ConflictView } from './SodConflicts'
@@ -27,7 +25,7 @@ interface Row {
   activity?: string; risks?: string[]; tcodes?: string[]; duplicate?: boolean; decision?: Lifecycle; id?: string; role?: string; valid_from?: string | null; valid_to?: string | null
   interval_status?: string | null; user_group?: string; users?: number; catalogue_roles?: string[]; suffix?: string; evidence_version?: string
 }
-interface Progress { total: number; completed: number; pending: number; investigating: number; outdated: number; attention: number }
+interface Progress { total: number; completed: number; pending: number; investigating: number; outdated: number; attention: number; removal: number }
 interface Result extends ContextInfo { items: Row[]; total: number; offset: number; limit: number; progress?: Progress }
 const COMMON: FilterField[] = ['username', 'risk', 'activity', 'role', 'role_suffix', 'tcode', 'validity']
 const FIELDS: Record<string, FilterField[]> = {
@@ -70,7 +68,7 @@ function Expandable({ id, label, summary, children, expanded, toggle }: { id: st
 
 /** Users behind one assigned role: grouped by SAP user group, one entry per distinct username, with the assignment intervals expandable. */
 function AssignedUsers({ role, context, filters }: { role: string; context: string; filters: Filters }) {
-  const params = scopeParams(context, { ...filters, role }, { limit: 200 }),
+  const params = scopeParams(context, { ...filters, role, roles: [] }, { limit: 200 }),
     result = useQuery({ queryKey: ['sod-explorer', 'access_list', 'assigned', params.toString()], queryFn: () => sod<Result>('/api/sod/explorer/access_list', params) })
   if (result.isError) return <p role="alert">Assigned users could not be loaded.</p>
   if (!result.data) return <p role="status">Loading assigned users…</p>
@@ -100,12 +98,6 @@ function AssignedUsers({ role, context, filters }: { role: string; context: stri
       {result.data.total > result.data.items.length && <p className="text-xs text-muted">Showing the first {result.data.items.length} of {result.data.total} assignment records.</p>}
     </div>
   )
-}
-
-/** Assigned role in the standard presentation: one module badge (from matched catalogue evidence only) above one copyable identifier. */
-function AssignedRole({ role, catalogueRoles }: { role: string; catalogueRoles?: string[] }) {
-  const code = moduleOfRoles(useRoleModules(), catalogueRoles)
-  return <RoleEntry density="compact" moduleCode={code} title="Assigned role" identifier={role} identifierLabel="assigned role" />
 }
 
 const pickKey = (pick: AssignmentPick) => pick.key
@@ -154,7 +146,7 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
   }
   const picks = [...selection.items.values()]
   const showUsers = (role: string) => {
-    setFiltersState({ ...filters, role })
+    setFiltersState({ ...filters, role: '', roles: [role] })
     onTable('access_list')
   }
   return (
@@ -173,12 +165,14 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
           <h2 className="text-base font-semibold">{data.total} {table === 'lookup' ? 'roles' : 'rows'}</h2>
         </Toolbar>
         {table === 'access_list' && data.progress && <section className="sod-tiles review-progress" aria-label="Role assignment review progress">
-          <div className="sod-tile"><span>In scope</span><strong>{data.progress.total.toLocaleString()}</strong></div>
-          <div className="sod-tile"><span>Completed (Keep or Remove)</span><strong>{data.progress.completed.toLocaleString()}</strong></div>
-          <div className="sod-tile"><span>Pending</span><strong>{data.progress.pending.toLocaleString()}</strong></div>
-          <div className="sod-tile"><span>Under investigation</span><strong>{data.progress.investigating.toLocaleString()}</strong></div>
-          <div className="sod-tile" data-tone={data.progress.outdated ? 'warning' : undefined}><span>Outdated, re-review</span><strong>{data.progress.outdated.toLocaleString()}</strong></div>
-          <div className="sod-tile" data-tone={data.progress.attention ? 'warning' : undefined}><span>Remaining to review</span><strong>{data.progress.attention.toLocaleString()}</strong></div>
+          {([['In scope', data.progress.total, 'all', ''], ['Completed (Keep or Remove)', data.progress.completed, 'reviewed', ''], ['Pending', data.progress.pending, 'pending', ''],
+            ['Under investigation', data.progress.investigating, 'investigating', ''], ['Needs review', data.progress.attention, '', ''], ['Removal recommended', data.progress.removal, 'all', 'Removal required']] as const).map(([label, count, status, decision]) => {
+            const active = (filters.review_status || '') === status && (typeof filters.assignment_decision === 'string' ? filters.assignment_decision : '') === decision
+            return <button type="button" key={label} className="sod-tile sod-tile-button" aria-pressed={active} data-active={active || undefined} data-tone={label === 'Needs review' && count ? 'warning' : undefined}
+              onClick={() => { setOffset(0); setFiltersState({ ...filters, review_status: active ? '' : status, assignment_decision: active ? '' : decision }) }}><span>{label}</span><strong>{count.toLocaleString()}</strong></button>
+          })}
+          <div className="sod-tile sod-tile-static" data-tone={data.progress.outdated ? 'warning' : undefined}><span>Outdated, re-review</span><strong>{data.progress.outdated.toLocaleString()}</strong></div>
+          {((filters.review_status || '') !== '' || filters.assignment_decision) && <Button size="compact" variant="ghost" onClick={() => { setOffset(0); setFiltersState({ ...filters, review_status: '', assignment_decision: '' }) }}>Reset tile filters</Button>}
         </section>}
         {table === 'access_list' && data.reviewable && <>
           {picks.length > 0
@@ -204,16 +198,15 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
             <tbody>{data.items.map((row) => { const id = `${row.user}:${row.activity}`; return <tr key={id}><td>{row.user}</td><td>{pills('activity', row.activity)}</td><td>{pills('risk', row.risks)}</td>
               <td><Expandable id={id} label={`${row.user} ${row.activity}`} expanded={expanded.has(id)} toggle={toggle} summary={`${String(row.roles)} role assignment${row.roles === 1 ? '' : 's'}`}><p>Transactions: {list(row.tcodes)}</p></Expandable>{row.duplicate && <StatusBadge tone="info">Overlap</StatusBadge>}</td><td><LifecycleBadge value={row.decision || 'Pending'} /></td>
               <td><Button onClick={() => setSelected({ user: row.user!, activity: row.activity })} aria-label={`Investigate ${row.user} ${row.activity}`}>Investigate</Button></td></tr> })}</tbody></>}
-          {table === 'access_list' && <><thead><tr><th className="col-select"><PageCheckbox label="Select all assignments on this page" selected={pageSelected} total={pageRows.length} onChange={(select) => select ? selection.add(pageRows.map(rowPick)) : selection.remove(pageRows.map((row) => row.id!))} /></th><th>SAP user</th><th>Role assignment</th><th>Validity</th><th>Risks</th><th>Activities</th><th>Review</th><th className="col-actions">Open</th></tr></thead>
+          {table === 'access_list' && <><thead><tr><th className="col-select"><PageCheckbox label="Select all assignments on this page" selected={pageSelected} total={pageRows.length} onChange={(select) => select ? selection.add(pageRows.map(rowPick)) : selection.remove(pageRows.map((row) => row.id!))} /></th><th>SAP user</th><th>Role assignment</th><th>Risks</th><th>Activities</th><th>Review</th><th className="col-actions">Open</th></tr></thead>
             <tbody>{data.items.map((row) => <tr key={`${row.user}:${row.id}`} data-selected={selection.has(row.id!) || undefined}>
               <td className="col-select"><RowCheckbox label={`Select assignment ${row.role} for ${row.user}`} checked={selection.has(row.id!)} onChange={() => selection.toggle(rowPick(row))} /></td>
-              <td>{row.user}<p className="text-xs text-muted whitespace-nowrap">SAP User Group: {row.user_group || 'Unknown'}</p></td>
-              <td><AssignedRole role={row.role!} catalogueRoles={row.catalogue_roles} /></td>
-              <td>{row.interval_status && <AssignmentStatus value={row.interval_status} />}<dl className="validity-dates"><div><dt>Valid from</dt><dd>{formatDate(row.valid_from)}</dd></div><div><dt>Valid to</dt><dd>{formatDate(row.valid_to)}</dd></div></dl></td>
+              <td><RoleIdentifier value={row.user!} label="SAP username" /></td>
+              <td><RoleIdentifier value={row.role!} label="assigned role" />{row.interval_status && row.interval_status !== 'active' && <p><AssignmentStatus value={row.interval_status} /></p>}</td>
               <td>{pills('risk', row.risks)}</td><td>{pills('activity', row.activities)}</td><td><LifecycleBadge value={row.decision || 'Pending'} /></td>
-              <td className="col-actions"><Button onClick={() => setSelected({ user: row.user!, activity: Array.isArray(row.activities) ? row.activities[0] : undefined })} aria-label={`Investigate ${row.user} ${row.role}`}>Investigate</Button></td></tr>)}</tbody></>}
+              <td className="col-actions"><Button size="compact" onClick={() => setSelected({ user: row.user!, activity: Array.isArray(row.activities) ? row.activities[0] : undefined })} aria-label={`Investigate ${row.user} ${row.role}`}><ScanSearch size={14} aria-hidden="true" />Investigate</Button></td></tr>)}</tbody></>}
           {table === 'lookup' && <><thead><tr><th>Assigned role</th><th>Users</th><th>Risks</th><th>Activities</th><th className="col-actions">Trace</th></tr></thead>
-            <tbody>{data.items.map((row) => <tr key={row.role}><td><AssignedRole role={row.role!} catalogueRoles={row.catalogue_roles} /></td>
+            <tbody>{data.items.map((row) => <tr key={row.role}><td><RoleIdentifier value={row.role!} label="assigned role" /></td>
               <td><Expandable id={row.role!} label={row.role!} expanded={expanded.has(row.role!)} toggle={toggle} summary={`${row.users} user${row.users === 1 ? '' : 's'}`}><AssignedUsers role={row.role!} context={context} filters={filters} /></Expandable></td>
               <td>{pills('risk', row.risks)}</td><td>{pills('activity', row.activities)}</td>
               <td className="col-actions"><Button onClick={() => showUsers(row.role!)} aria-label={`Show users with ${row.role}`}>Show users</Button></td></tr>)}</tbody></>}

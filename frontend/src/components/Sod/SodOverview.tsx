@@ -76,19 +76,20 @@ export function SodOverview() {
           </section>
         </section>}
       {g.available && <SodGroupHeatmap onOpen={(kind, patch) => go(kind === 'risk' ? 'risk-matrix' : 'activity-matrix', kind === 'risk' ? 'riskMatrix' : 'activityMatrix', patch)} />}
-      <div className="grid min-w-0 gap-4 lg:grid-cols-2">
+      <div className="grid min-w-0 items-start gap-4 lg:grid-cols-2">
         <Card className="content-start" aria-label="Review period progress">
           <SectionHeader title="Review period and approval" icon={<ClipboardCheck size={18} aria-hidden="true" />} />
           {g.latest_approval
             ? <p className="ui-description">Last approved: <strong>{g.latest_approval.name}</strong> ({g.latest_approval.state}) on {formatDate(g.latest_approval.approval_date)}, approver {g.latest_approval.approver} (self-reported).</p>
-            : <p className="ui-description">No period has been approved yet.</p>}
+            : !g.periods?.length && <div className="overview-empty" role="status"><StatusBadge tone="neutral">No approved period</StatusBadge><span className="ui-description">No review period is open either. Create one to capture a snapshot and record approval.</span></div>}
+          {!g.latest_approval && !!g.periods?.length && <p className="ui-description">No period has been approved yet.</p>}
           {g.periods?.length ? <ul className="overview-periods" aria-label="Open review periods">{g.periods.map((period) => (
             <li key={period.id}>
               <span className="overview-period-name">{period.name}</span>
               <StatusBadge>{period.state}</StatusBadge>
               <progress max={Math.max(period.total, 1)} value={period.decided} aria-label={`${period.name} decided ${period.decided} of ${period.total}`} />
               <span className="overview-period-count">{period.decided}/{period.total}{period.blocking ? ` · ${period.blocking} blocking approval` : ''}</span>
-            </li>))}</ul> : <p className="ui-description">No open review periods.</p>}
+            </li>))}</ul> : null}
           <Toolbar><Button onClick={() => go('periods')}>Open review periods</Button></Toolbar>
         </Card>
         <Card className="content-start" aria-label="Data freshness and coverage">

@@ -3,7 +3,9 @@ import { userHref } from '@/hooks/useViewHistory'
 import { ReviewFindings, type ReviewEvidence } from '@/components/Shared/ReviewFindings'
 import { PageHeader, MetadataList } from '@/components/Shared/Presentation'
 import { ClipboardCheck as PageIcon } from 'lucide-react'
-import { FilterTile, FilterPanel, ResultsToolbar } from '@/components/Shared/InvestigationPatterns'
+import { FilterTile } from '@/components/Shared/InvestigationPatterns'
+import { FilterLayout, FilterSection, PageToolbar, SortControl } from '@/components/Shared/FilterLayout'
+import { FormField } from '@/components/Shared/Controls'
 import { SearchInput } from '@/components/Shared/Controls'
 import { Button } from '@/components/Shared/Button'
 import { SavedFilters } from '@/components/Shared/SavedFilters'
@@ -14,7 +16,6 @@ import { ArrowUpRight, Download, Save } from 'lucide-react'
 import { apiRequest, applicationToken } from '@/api/client'
 import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
 import { AccountStatus } from '@/components/Shared/AccountStatus'
-import { ClearFilterButton } from '@/components/Shared/ClearFilterButton'
 import { FilterChip } from '@/components/Shared/FilterChip'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import { Select } from '@/components/Shared/Select'
@@ -71,6 +72,7 @@ interface Results {
   finding_labels: Record<string, string>
   review_states: string[]
 }
+const SORTS = [{ value: 'username', label: 'Username' }, { value: 'name', label: 'Name' }, { value: 'sap_validity', label: 'SAP validity' }, { value: 'lock_status', label: 'SAP lock status' }, { value: 'ad_status', label: 'AD status' }, { value: 'review_state', label: 'Review state' }, { value: 'priority', label: 'Priority' }]
 const matchLabel = (status: string) => ({matched:'Matched',duplicate_email:'Duplicate Email',missing_email:'Missing Email',ambiguous:'Ambiguous Match',unmatched:'Unmatched',disabled:'Disabled',unavailable:'Unavailable'} as Record<string,string>)[status] || status.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())
 const changeText = (change: PositionChange) => [
   change.fields.includes('department') && `Department ${change.previous_department} → ${change.current_department}`,
@@ -155,6 +157,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
     setRationale(row.decision?.rationale || '')
     setDecision(row.review_state)
   }
+  const clearAll = () => { setOffset(0); setSearch(''); setTerm(''); setFinding(''); setLicense(''); setState(''); setSort('username'); setDescending(false) }
   const queueParams = 'finding=position_change&sort=priority&limit=25'
   const queue = useQuery({
     queryKey: ['account-review', 'position-queue'],
@@ -361,119 +364,53 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
           {queue.data && queue.data.total > queue.data.items.length && <p className="ui-description">Showing {queue.data.items.length} of {queue.data.total}. Use the Review finding filter to see all.</p>}
         </section>
       )}
-      <SavedFilters showClear={false} view="review" state={{search,finding:finding||'',license,state,sort,descending}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(typeof s.finding==='string'&&['','any','stale','matched','reviewed','pending','position_change',...Object.keys(data?.finding_labels||{})].includes(s.finding))setFinding(s.finding);if(['','classified','exclude'].includes(String(s.license)))setLicense(String(s.license));if(['',...(data?.review_states||[])].includes(String(s.state)))setState(String(s.state));if(['username','name','sap_validity','lock_status','ad_status','review_state'].includes(String(s.sort)))setSort(String(s.sort));if(typeof s.descending==='boolean')setDescending(s.descending)}} clear={()=>{setSearch('');setFinding('');setLicense('');setState('');setSort('username');setDescending(false)}}/>
-      <FilterPanel label="Review filters" className="review-filters">
-        <Filter label="Search account reviews">
-          <SearchInput
-            className={inputClass}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </Filter>
-        <Filter label="Review finding">
-          <Select
-            className={inputClass}
-            aria-label="Review finding"
-            value={finding || ''}
-            onChange={(e) => setFinding(e.target.value)}
-          >
-            <option value="">All accounts</option>
-            <option value="any">Accounts requiring review</option>
-            <option value="matched">Reliably matched identities</option><option value="reviewed">Reviewed accounts</option><option value="pending">Pending reviews</option><option value="position_change">Position changes (department or job title)</option>
-            {Object.entries(data?.finding_labels || {}).map(([key, label]) => (
-              <option key={key} value={key}>
-                {label}
-              </option>
-            ))}
-            <option value="stale">Outdated reviews · changed evidence</option>
-          </Select>
-        </Filter>
-        <Filter label="License group classification">
-          <Select
-            className={inputClass}
-            aria-label="License group classification"
-            value={license}
-            onChange={(e) => setLicense(e.target.value)}
-          >
-            <option value="">All classifications</option>
-            <option value="classified">Configured unlicensed groups</option>
-            <option value="exclude">Exclude unlicensed groups</option>
-          </Select>
-        </Filter>
-        <Filter label="Review decision">
-          <Select
-            className={inputClass}
-            aria-label="Review decision"
-            value={state}
-            onChange={(e) => setState(e.target.value)}
-          >
-            <option value="">All decisions</option>
-            {data?.review_states.map((s) => (
-              <option key={s}>{s}</option>
-            ))}
-          </Select>
-        </Filter>
-
-        <div className="sort-control"><Filter label="Sort account reviews">
-          <Select
-            className={inputClass}
-            aria-label="Sort account reviews"
-            value={sort}
-            onChange={(e) => setSort(e.target.value)}
-          >
-            {[
-              'username',
-              'name',
-              'sap_validity',
-              'lock_status',
-              'ad_status',
-              'review_state',
-              'priority',
-            ].map((s) => (
-              <option key={s} value={s}>
-                {{username:'Username',name:'Name',sap_validity:'SAP Validity',lock_status:'Lock Status',ad_status:'AD Status',review_state:'Review State',priority:'Priority'}[s]}
-              </option>
-            ))}
-          </Select>
-        </Filter>
-        <label className="filter-toggle">
-          <input
-            type="checkbox"
-            checked={descending}
-            onChange={(e) => setDescending(e.target.checked)}
-          />
-          Descending
-        </label></div>
-        <ClearFilterButton
-          onClick={() => {
-            setOffset(0)
-            setSearch('')
-            setTerm('')
-            setFinding('')
-            setLicense('')
-            setState('')
-            setSort('username')
-            setDescending(false)
-          }}
-        >
-          Clear filters
-        </ClearFilterButton>
-
-      </FilterPanel>
+      <FilterLayout label="Filters" activeCount={[finding, license, state, search].filter(Boolean).length} onClear={clearAll} clearDisabled={!(finding || license || state || search) && sort === 'username' && !descending}
+        toolbar={<PageToolbar>
+          <SortControl label="Sort account reviews" value={sort} options={SORTS} descending={descending} onChange={setSort} onDescending={setDescending} />
+          <Button className="settings-secondary-button" disabled={busy || !data?.loaded} onClick={() => void exportCSV()}>
+            <Download size={16} />
+            Export review CSV
+          </Button>
+        </PageToolbar>}
+        sidebar={<div className="grid min-w-0 gap-3" role="search" aria-label="Review filters">
+          <FilterSection title="Saved Filters">
+            <SavedFilters showClear={false} view="review" state={{search,finding:finding||'',license,state,sort,descending}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(typeof s.finding==='string'&&['','any','stale','matched','reviewed','pending','position_change',...Object.keys(data?.finding_labels||{})].includes(s.finding))setFinding(s.finding);if(['','classified','exclude'].includes(String(s.license)))setLicense(String(s.license));if(['',...(data?.review_states||[])].includes(String(s.state)))setState(String(s.state));if(['username','name','sap_validity','lock_status','ad_status','review_state'].includes(String(s.sort)))setSort(String(s.sort));if(typeof s.descending==='boolean')setDescending(s.descending)}} clear={()=>{setSearch('');setFinding('');setLicense('');setState('');setSort('username');setDescending(false)}}/>
+          </FilterSection>
+          <FilterSection title="Search">
+            <SearchInput className={inputClass} aria-label="Search account reviews" placeholder="Search" value={search} onChange={(e) => setSearch(e.target.value)} onClear={() => setSearch('')} />
+          </FilterSection>
+          <FilterSection title="Review">
+            <FormField label="Review finding">
+              <Select className={inputClass} aria-label="Review finding" value={finding || ''} onChange={(e) => setFinding(e.target.value)}>
+                <option value="">All accounts</option>
+                <option value="any">Accounts requiring review</option>
+                <option value="matched">Reliably matched identities</option><option value="reviewed">Reviewed accounts</option><option value="pending">Pending reviews</option><option value="position_change">Position changes (department or job title)</option>
+                {Object.entries(data?.finding_labels || {}).map(([key, label]) => (<option key={key} value={key}>{label}</option>))}
+                <option value="stale">Outdated reviews · changed evidence</option>
+              </Select>
+            </FormField>
+            <FormField label="License group classification">
+              <Select className={inputClass} aria-label="License group classification" value={license} onChange={(e) => setLicense(e.target.value)}>
+                <option value="">All classifications</option>
+                <option value="classified">Configured unlicensed groups</option>
+                <option value="exclude">Exclude unlicensed groups</option>
+              </Select>
+            </FormField>
+            <FormField label="Review decision">
+              <Select className={inputClass} aria-label="Review decision" value={state} onChange={(e) => setState(e.target.value)}>
+                <option value="">All decisions</option>
+                {data?.review_states.map((s) => (<option key={s}>{s}</option>))}
+              </Select>
+            </FormField>
+          </FilterSection>
+        </div>}>
       {(finding || license || state || search) && <div className="active-filter-row" aria-label="Active review filters">
         {finding && <FilterChip removeLabel="Remove review finding filter" onRemove={() => setFinding('')}>Finding: {FINDING_NAMES[finding] || data?.finding_labels[finding] || finding}</FilterChip>}
         {license && <FilterChip removeLabel="Remove license classification filter" onRemove={() => setLicense('')}>{license === 'classified' ? 'Configured unlicensed groups' : 'Excluding unlicensed groups'}</FilterChip>}
         {state && <FilterChip removeLabel="Remove review decision filter" onRemove={() => setState('')}>Decision: {state}</FilterChip>}
         {search && <FilterChip removeLabel="Remove account search filter" onRemove={() => { setSearch(''); setTerm('') }}>Search: {search}</FilterChip>}
       </div>}
-      <ResultsToolbar><strong>{data?.total.toLocaleString() ?? '…'} accounts</strong>        <Button
-          className="settings-secondary-button"
-          disabled={busy || !data?.loaded}
-          onClick={() => void exportCSV()}
-        >
-          <Download size={16} />
-          Export review CSV
-        </Button></ResultsToolbar>
+      <div className="results-toolbar ui-toolbar"><strong>{data?.total.toLocaleString() ?? '…'} accounts</strong></div>
       <QueryState
         loading={result.isLoading || (dataLoading && !data?.loaded)}
         error={result.error}
@@ -592,6 +529,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
           />
         </>
       )}
+      </FilterLayout>
       {editing && (
         <Dialog title={`Review account · ${editing.username}`} onClose={closeEditor}><section
           className="review-dialog"

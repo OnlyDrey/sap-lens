@@ -1,3 +1,4 @@
+import { rememberedReviewer } from '@/lib/reviewer'
 import { useState } from 'react'
 import { announceExport } from '@/lib/exportNotice'
 import { useQuery } from '@tanstack/react-query'
@@ -65,7 +66,7 @@ function useExport() {
 
 function FormalReport({ items }: { items: PeriodItem[] }) {
   const [period, setPeriod] = useState(''), [title, setTitle] = useState('SoD Access Review'), [status, setStatus] = useState('Draft'),
-    [prepared, setPrepared] = useState(''), [reviewer, setReviewer] = useState(''), [approver, setApprover] = useState(''), [reviewerRole, setReviewerRole] = useState(''), [approverRole, setApproverRole] = useState(''),
+    [prepared, setPrepared] = useState(rememberedReviewer), [reviewer, setReviewer] = useState(''), [approver, setApprover] = useState(''), [reviewerRole, setReviewerRole] = useState(''), [approverRole, setApproverRole] = useState(''),
     [version, setVersion] = useState('1.0'), [comments, setComments] = useState(''), [previous, setPrevious] = useState(''), [date, setDate] = useState(todayText), [sections, setSections] = useState(Object.keys(sectionNames)),
     [appendices, setAppendices] = useState(true), [preview, setPreview] = useState<Preview | null>(null), [previewKey, setPreviewKey] = useState('')
   const exporter = useExport()
@@ -95,7 +96,7 @@ function FormalReport({ items }: { items: PeriodItem[] }) {
           <FormField label="Report title"><Input value={title} maxLength={160} onChange={(event) => setTitle(event.target.value)} /></FormField>
           <FormField label="Report status"><Select value={status} onChange={(event) => setStatus(event.target.value)}><option>Draft</option><option>Reviewed</option>{frozen && <option>Approved</option>}{frozen && <option>Externally signed</option>}</Select><p className="ui-description">{STATUS_HELP[status]}</p></FormField>
         </div>
-        <details className="sod-report-details"><summary>Document details</summary>
+        <details className="sod-report-details" open><summary>Document details</summary>
         <div className="grid min-w-0 gap-3 py-3 sm:grid-cols-2 xl:grid-cols-4">
           {([['Prepared by', prepared, setPrepared], ['Report reviewer', reviewer, setReviewer], ['Reviewer role', reviewerRole, setReviewerRole], ['Report approver', approver, setApprover], ['Approver role', approverRole, setApproverRole], ['Document version', version, setVersion]] as [string, string, (value: string) => void][]).map(([label, value, set]) => (
             <FormField key={label} label={label}><Input value={value} maxLength={label === 'Document version' ? 80 : 120} onChange={(event) => set(event.target.value)} /></FormField>))}
@@ -150,7 +151,7 @@ function RemediationReport({ items }: { items: PeriodItem[] }) {
           <FormField label="Evidence context"><Select value={context} onChange={(event) => setContext(event.target.value)}><option value="current">Current evidence</option>{items.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.state}</option>)}</Select></FormField>
         </div>
         <fieldset><legend>Included handling</legend><div className="grid gap-2 py-2 sm:grid-cols-2 xl:grid-cols-3">{groups.map((group) => <Checkbox key={group} checked={recommended.includes(group)} onChange={(event) => setRecommended((previousList) => (event.target.checked ? [...previousList, group] : previousList.filter((name) => name !== group)))}>{group}</Checkbox>)}</div></fieldset>
-        <details className="sod-report-details"><summary>Document details</summary>
+        <details className="sod-report-details" open><summary>Document details</summary>
         <div className="grid min-w-0 gap-3 py-3 sm:grid-cols-2 xl:grid-cols-4">
           <FormField label="Report title"><Input value={title} maxLength={160} onChange={(event) => setTitle(event.target.value)} /></FormField>
           <FormField label="Prepared by"><Input value={prepared} maxLength={120} onChange={(event) => setPrepared(event.target.value)} /></FormField>

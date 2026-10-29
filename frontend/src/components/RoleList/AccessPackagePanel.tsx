@@ -54,11 +54,15 @@ export function AccessPackagePanel({ onClose }: { onClose: () => void }) {
     <>
       <SidePanel className="package-panel" title="Proposed access package"
         subtitle={<>{cart.items.length} {cart.items.length === 1 ? 'role' : 'roles'} selected. Names only: nothing here assigns roles or changes SAP access.</>}
-        headerActions={<Button size="compact" variant="ghost" aria-label="Clear all roles" onClick={() => setConfirmClear(true)} disabled={!cart.items.length}><Trash2 size={14} aria-hidden="true" />Clear all</Button>}
+        headerActions={<Button size="compact" variant="ghost" onClick={() => setConfirmClear(true)} disabled={!cart.items.length}><Trash2 size={14} aria-hidden="true" />Clear package</Button>}
         footer={<div className="package-footer">
+          {!!cart.items.length && !!preview.data && (<p role="status" className="package-summary">
+              <span>{cart.items.length} {cart.items.length === 1 ? 'role' : 'roles'}</span>
+              <span className="package-summary-ok"><CheckCircle2 size={14} aria-hidden="true" />{names.length} valid {names.length === 1 ? 'name' : 'names'}</span>
+              {problems > 0 && <span className="package-summary-warn"><AlertTriangle size={14} aria-hidden="true" />{problems} need attention</span>}
+            </p>)}
           <Button onClick={() => void copyAll()} disabled={!names.length}><Copy size={16} aria-hidden="true" />Copy all names</Button>
           <ExportCSVButton loading={busy} disabled={!names.length} onClick={() => void download()} title="Exports the valid generated names, sorted, one row per name." />
-          <Button variant="ghost" onClick={() => setConfirmClear(true)} disabled={!cart.items.length}><Trash2 size={16} aria-hidden="true" />Clear package</Button>
         </div>}
         onClose={onClose}>
         <section className="package-config" aria-label="Package suffix">
@@ -78,11 +82,7 @@ export function AccessPackagePanel({ onClose }: { onClose: () => void }) {
           : preview.isError ? <ErrorState error={preview.error} onRetry={() => void preview.refetch()} />
           : !preview.data ? <LoadingState />
           : <>
-            <p role="status" className="package-summary">
-              <span>{cart.items.length} {cart.items.length === 1 ? 'role' : 'roles'}</span>
-              <span className="package-summary-ok"><CheckCircle2 size={14} aria-hidden="true" />{names.length} valid {names.length === 1 ? 'name' : 'names'}</span>
-              {problems > 0 && <span className="package-summary-warn"><AlertTriangle size={14} aria-hidden="true" />{problems} need attention</span>}
-            </p>
+
             <ul className="package-list" aria-label="Roles in the package">
               {rows.map((row) => {
                 const status = STATUS[row.status], release = row.source === 'release'

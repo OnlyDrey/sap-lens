@@ -61,7 +61,7 @@ export function RoleEntry({
   return (
     <div className={cn('role-entry', className)} data-density={level} data-selected={selected || undefined}>
       <div className="role-entry-head">
-        <ModuleBadge moduleId={resolved || presentation.area} showUnclassified={showUnclassified} selected={selected} />
+        <ModuleBadge moduleId={resolved || presentation.area} showUnclassified={showUnclassified} />
         <p className="role-entry-title" data-empty={!name || undefined}>{name || 'No description'}</p>
         {(actions || (countPlacement === 'top' && count)) && (
           <div className="role-entry-actions">{countPlacement === 'top' && count}{actions}</div>

@@ -11,7 +11,6 @@ import { useApplicationData } from '@/state/ApplicationData'
 import { TransactionFilterGroups, useTransactionFilter } from '@/components/Shared/TransactionFilter'
 import { ClearFilterButton } from '@/components/Shared/ClearFilterButton'
 import { ModuleBadge } from '@/components/Modules/ModuleBadge'
-import { onColor } from '@/lib/theme'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -314,7 +313,7 @@ export function RoleList({
                   ? {
                       backgroundColor:'var(--accent)',
                       color:'var(--on-accent)',
-                      borderColor:'var(--primary)'
+                      borderColor:'var(--accent)'
                     }
                   : {
                       backgroundColor:'var(--surface2)',
@@ -328,7 +327,6 @@ export function RoleList({
 
             {moduleGroups.map(([key, count]) => {
               const active = activeModules.includes(key)
-              const color = modules.find(m=>m.function_key===key)?.color || '#64748b'
               const full = moduleNames[key] ?? key
               const short =
                 full.length > 14
@@ -347,9 +345,9 @@ export function RoleList({
                   style={
                     active
                       ? {
-                          backgroundColor:color,
-                          color:onColor(color),
-                          borderColor:color
+                          backgroundColor:'var(--accent)',
+                          color:'var(--on-accent)',
+                          borderColor:'var(--accent)'
                         }
                       : {
                           backgroundColor:'var(--surface2)',
@@ -358,7 +356,7 @@ export function RoleList({
                         }
                   }
                 >
-                  <ModuleBadge moduleId={key} variant="compact" selected={active} />
+                  <ModuleBadge moduleId={key} variant="compact" />
                   {short}
 
                   <span className="opacity-60 font-medium">
@@ -476,7 +474,7 @@ export function RoleList({
             )}
 
             {isFiltering && (
-              <ClearFilterButton className="contextual-clear" onClick={clearAll}>Clear all filters</ClearFilterButton>
+              <ClearFilterButton className="contextual-clear" onClick={clearAll}>Clear filters</ClearFilterButton>
             )}
           </div>
         </div>

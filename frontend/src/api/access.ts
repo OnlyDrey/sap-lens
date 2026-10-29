@@ -4,6 +4,7 @@ export interface Assignment {
   username: string;
   role_name: string;
   role_description?: string;
+  display_name?: string;
   transaction_roles?: string[];
   user_group: string;
   scope: "business" | "release" | "other";

@@ -3,7 +3,9 @@ import { useQuery } from '@tanstack/react-query'
 import { downloadFile, scopeParams, sod, EXPORT_NAME, type ContextInfo, type UserQueueRow } from '@/api/sod'
 import { useHistoryValue } from '@/hooks/useViewHistory'
 import { Button } from '@/components/Shared/Button'
-import { ErrorState, DataTable, EmptyState, LoadingState, Toolbar } from '@/components/Shared/Presentation'
+import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
+import { ClipboardCheck } from 'lucide-react'
+import { ErrorState, DataTable, EmptyState, LoadingState } from '@/components/Shared/Presentation'
 import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
 import { ContentTabs } from '@/components/Shared/Navigation'
 import { Pagination } from '@/components/Access/Shared'
@@ -56,20 +58,20 @@ function Queue() {
         fields={['group', 'username', 'risk', 'activity', 'role', 'role_suffix', 'tcode', 'category', 'criticality', 'validity']}
         actions={<ExportCSVButton loading={busy} disabled={!data?.total} onClick={() => void exportCsv()} title="Exports every review item for the filtered users with its decision." />}>
       {result.isError ? <ErrorState error={result.error} onRetry={() => void result.refetch()} /> : !data ? <LoadingState /> : <>
-        <Toolbar aria-label="Review progress">
-          {PROGRESS.map(([value, label]) => <Button key={value} variant={progress === value ? 'primary' : 'secondary'} aria-pressed={progress === value} onClick={() => { reset(); setProgress(value) }}>{label}: {data.counts[value || 'all'] ?? 0}</Button>)}
-        </Toolbar>
+        <section className="sod-tiles" aria-label="Review progress">
+          {PROGRESS.map(([value, label]) => <button type="button" key={value} className="sod-tile sod-tile-button" aria-pressed={progress === value} data-active={progress === value || undefined} onClick={() => { reset(); setProgress(value) }}><span>{label}</span><strong>{(data.counts[value || 'all'] ?? 0).toLocaleString()}</strong></button>)}
+        </section>
         <p className="ui-description">One row per SAP user. Activity review, role assignment review and risk acceptance are independent decisions with their own progress. Open Review shows all three for the user.</p>
         {data.items.length ? <DataTable caption="SoD review work queue" tableClassName="sod-config-table">
           <thead><tr><th>SAP user</th><th>Progress</th><th>Activities</th><th>Role assignments</th><th>Risk acceptance</th><th>Open</th></tr></thead>
           <tbody>{data.items.map((row) => (
             <tr key={row.user}>
-              <td>{row.user}{row.removal > 0 && <p className="text-xs text-muted">{row.removal} removal recommended</p>}</td>
+              <td><RoleIdentifier value={row.user} label="SAP username" />{row.removal > 0 && <p className="text-xs text-muted">{row.removal} removal recommended</p>}</td>
               <td><progress max={Math.max(row.total, 1)} value={row.decided} aria-label={`${row.user} decided ${row.decided} of ${row.total}`} /> <span className="text-xs">{row.decided}/{row.total}</span></td>
               <td>{part(row.activity)}</td>
               <td>{part(row.assignment)}</td>
               <td>{part(row.acceptance)}</td>
-              <td><Button variant="primary" size="compact" onClick={() => setSubject({ user: row.user })} aria-label={`Open review for ${row.user}`}>Open Review</Button></td>
+              <td><Button variant="primary" size="compact" onClick={() => setSubject({ user: row.user })} aria-label={`Open review for ${row.user}`}><ClipboardCheck size={14} aria-hidden="true" />Open review</Button></td>
             </tr>))}</tbody>
         </DataTable> : <EmptyState>Nothing matches this queue scope. Results describe imported evidence only; missing sources are not proof of no conflict.</EmptyState>}
         <Pagination label="Queue pages" offset={data.offset} total={data.total} limit={data.limit} onChange={setOffset} />

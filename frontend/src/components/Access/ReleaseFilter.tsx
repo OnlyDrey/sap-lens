@@ -19,7 +19,7 @@ export function ReleaseFilter({ field, label, value, onChange, context }: { fiel
 }
 
 /** Multi-select over the same hierarchical option source; selected values never restrict their own options. */
-export function ReleaseMultiFilter({ field, label, values, onChange, context, optionLabel }: { field: 'release_area' | 'release_group'; label: string; values: string[]; onChange: (values: string[]) => void; context: Record<string, string | string[]>; optionLabel?: (value: string) => string }) {
+export function ReleaseMultiFilter({ field, label, values, onChange, context, optionLabel }: { field: 'release_area' | 'release_group' | 'strategy'; label: string; values: string[]; onChange: (values: string[]) => void; context: Record<string, string | string[]>; optionLabel?: (value: string) => string }) {
   const [search, setSearch] = useState(''), [term, setTerm] = useState('')
   useEffect(() => { const timer = setTimeout(() => setTerm(search), 180); return () => clearTimeout(timer) }, [search])
   const options = useQuery({ queryKey: ['release-options', field, context, term], queryFn: () => accessQuery<Options>('release-options', { ...context, field, search: term }), gcTime: 60_000 })

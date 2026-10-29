@@ -16,7 +16,7 @@ const MAX_COLUMNS = 25
 const SORTS = [{ value: 'name', label: 'SAP user group' }, { value: 'users', label: 'Distinct users' }, { value: 'items', label: 'Most risks or activities' }]
 
 /** Distinct users per SAP user group and risk (or activity) over current evidence; cells drill into the matrix for that group and item. */
-export function SodGroupHeatmap({ onOpen }: { onOpen: (kind: Kind, patch: Record<string, string>) => void }) {
+export function SodGroupHeatmap({ onOpen }: { onOpen: (kind: Kind, patch: Record<string, string | string[]>) => void }) {
   const [kind, setKind] = useState<Kind>('risk'), [sort, setSort] = useState('users'), [descending, setDescending] = useState(true), [busy, setBusy] = useState(false)
   const params = scopeParams('current', emptyFilters, { group_by: 'group', limit: 200 })
   const query = useQuery({ queryKey: ['sod-matrix', 'heatmap', kind, params.toString()], queryFn: () => sod<Heat>(`/api/sod/matrix/${kind}`, params) })
@@ -40,10 +40,10 @@ export function SodGroupHeatmap({ onOpen }: { onOpen: (kind: Kind, patch: Record
   }
   return (
     <section className="dashboard-section min-w-0 rounded-card bg-surface p-4" aria-label="SAP user group heatmap">
-      <SectionHeader title="Conflicts by SAP user group" icon={<Grid3x3 size={18} aria-hidden="true" />} />
-      <div className="page-toolbar-actions">
-        <ButtonGroup label="Heatmap columns" value={kind} onChange={(value) => setKind(value as Kind)} options={[{ value: 'risk', label: 'Risks' }, { value: 'activity', label: 'Activities' }]} />
-        <div className="page-toolbar-end">
+      <div className="sod-heatmap-bar">
+        <SectionHeader title="Conflicts by SAP user group" icon={<Grid3x3 size={18} aria-hidden="true" />} />
+        <div className="sod-heatmap-controls" role="toolbar" aria-label="Heatmap controls">
+          <ButtonGroup label="Heatmap columns" value={kind} onChange={(value) => setKind(value as Kind)} options={[{ value: 'risk', label: 'Risks' }, { value: 'activity', label: 'Activities' }]} />
           <SortControl label="Sort groups" value={sort} options={SORTS} descending={descending} onChange={setSort} onDescending={setDescending} />
           <ExportCSVButton loading={busy} disabled={!data?.rows.length} onClick={() => void exportCsv()} title={`Exports distinct users per SAP user group and ${risk ? 'risk' : 'activity'}.`} />
         </div>
@@ -65,7 +65,7 @@ export function SodGroupHeatmap({ onOpen }: { onOpen: (kind: Kind, patch: Record
                       const cell = row.cells[idOf(column)] as GroupCell | undefined
                       return <td key={idOf(column)}>{cell
                         ? <button type="button" className="sod-heat-cell" style={{ ['--heat' as string]: heat(cell.users) }} aria-label={`${cell.users} ${cell.users === 1 ? 'user' : 'users'} in group ${row.user} with ${idOf(column)}. Show these users.`}
-                            onClick={() => onOpen(kind, { group: row.user, [risk ? 'risk' : 'activity']: idOf(column) })}>{cell.users}</button>
+                            onClick={() => onOpen(kind, { groups: [row.user], [risk ? 'risks' : 'activities']: [idOf(column)] })}>{cell.users}</button>
                         : <span className="sod-heat-empty" aria-label="No users">·</span>}</td>
                     })}
                   </tr>

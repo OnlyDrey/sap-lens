@@ -8,7 +8,6 @@ import { FormField, SearchInput } from '@/components/Shared/Controls'
 import { Select } from '@/components/Shared/Select'
 import { Combobox } from '@/components/Shared/Combobox'
 import { MultiSelectFilter } from '@/components/Shared/MultiSelectFilter'
-import { ClearFilterButton } from '@/components/Shared/ClearFilterButton'
 import { Button } from '@/components/Shared/Button'
 import { FilterLayout, FilterSection, PageToolbar, SortControl } from '@/components/Shared/FilterLayout'
 import { SavedFilters } from '@/components/Shared/SavedFilters'
@@ -173,7 +172,7 @@ export function SodFilters({ view, filters, setFilters, fields, sorts, actions, 
     setFilters(next)
   }
   const list = (name: string) => (Array.isArray(filters[name]) ? (filters[name] as string[]) : [])
-  const MULTI: Record<string, string> = { username: 'usernames', role_suffix: 'role_suffixes' }
+  const MULTI: Record<string, string> = { username: 'usernames', role_suffix: 'role_suffixes', risk: 'risks', activity: 'activities', group: 'groups', role: 'roles', tcode: 'tcodes', category: 'categories', criticality: 'criticalities' }
   const isDefault = (name: string) => text(name) === (typeof defaults[name] === 'string' ? (defaults[name] as string) : '') && (!MULTI[name] || !list(MULTI[name]).length)
   const active = [...shown].filter((name) => !isDefault(name)).length + (text('search') ? 1 : 0)
   const field = (name: FilterField) => {
@@ -242,7 +241,7 @@ export function SodFilters({ view, filters, setFilters, fields, sorts, actions, 
     <PageToolbar>
       {sorts && <SortControl value={text('sort') || sorts[0].value} options={sorts} descending={filters.descending === true} onChange={(value) => update('sort', value)} onDescending={(value) => update('descending', value)} />}
       {actions}
-      <ClearFilterButton onClick={clear} disabled={!active && text('sort') === (typeof defaults.sort === 'string' ? defaults.sort : 'subject') && filters.descending !== true}>Reset</ClearFilterButton>
+
     </PageToolbar>
   )
   return <FilterLayout activeCount={active} sidebar={sidebar} toolbar={toolbar} onClear={clear} clearDisabled={!active && !text('search')}>{children}</FilterLayout>
