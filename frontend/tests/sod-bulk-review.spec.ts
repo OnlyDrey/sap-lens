@@ -329,3 +329,29 @@ test('the bulk toolbar stays usable with the filter sidebar open at 800 px and w
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
   }
 })
+
+test('multi-select and bulk selection are keyboard operable with visible focus', async ({ page }) => {
+  await openAssignments(page)
+  const box = page.getByRole('combobox', { name: 'Role suffix', exact: true })
+  await box.focus()
+  await expect(page.getByRole('listbox', { name: 'Role suffix options' })).toBeVisible()
+  await page.keyboard.press('ArrowDown') // CDK -> EMS
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('button', { name: 'Remove Role suffix EMS', exact: true })).toBeVisible()
+  await expect(page.getByRole('listbox', { name: 'Role suffix options' })).toBeVisible() // Enter toggles without closing
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('listbox', { name: 'Role suffix options' })).toHaveCount(0)
+  await expect(box).toBeFocused()
+  await expect.poll(() => roles(page)).toEqual(['ZC:MM:BUY:EMS'])
+  await expect(box).toHaveCSS('outline-style', 'solid')
+  // Row selection works with the keyboard and the toolbar actions are reachable in order.
+  const row = table(page).getByRole('checkbox', { name: /^Select assignment ZC:MM:BUY:EMS/ })
+  await row.focus(); await page.keyboard.press('Space')
+  await expect(toolbar(page)).toContainText('1 assignment selected')
+  await expect(row).toHaveCSS('outline-style', 'solid')
+  const names = ['Select all 1 matching', 'Clear selection', 'Keep', 'Investigate', 'Recommend removal']
+  await toolbar(page).getByRole('button').first().focus()
+  const seen: string[] = []
+  for (let step = 0; step < names.length; step++) { seen.push(await page.evaluate(() => (document.activeElement as HTMLElement).textContent?.trim() || '')); await page.keyboard.press('Tab') }
+  expect(seen).toEqual(names)
+})

@@ -982,3 +982,7 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 @media(max-width:700px){ .dashboard-workspace.sod-overview-cards { grid-template-columns:minmax(0,1fr); } }
 .dashboard-workspace.sod-overview-cards > .dashboard-section:first-child,.dashboard-workspace.sod-overview-cards > .dashboard-section:last-child,.dashboard-workspace.sod-overview-cards > .dashboard-section { grid-column:auto; }
 @media(max-width:700px){ .dashboard-workspace.sod-overview-cards > .dashboard-section { grid-column:1/-1; } }
+/* Role entries wrap their contextual actions below the title when the row is narrow instead of squeezing the description. */
+.role-entry-head { flex-wrap:wrap; }
+.role-entry-title { flex:1 1 8rem; min-width:min(8rem,100%); }
+.role-entry-actions { flex-wrap:wrap; justify-content:flex-end; }
