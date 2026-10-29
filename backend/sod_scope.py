@@ -101,20 +101,31 @@ def suffix_matches(role, wanted):
     return not wanted or governance.role_suffix(role or '').casefold() in wanted
 
 
+def many(q, single, plural):
+    """Requested values of one filter: the single value plus the multi-select list (OR within, AND with the other filters)."""
+    return [value for value in [q.get(single) or '', *(q.get(plural) or [])] if value]
+
+
+def any_match(value, wanted):
+    return not wanted or any(text_matches(value, item) for item in wanted)
+
+
 def _path_matches(finding, q):
     paths = [path for side in finding['evidence'].values() for path in side]
-    if q.get('role') and not any(text_matches(path.get('actual_assigned_role', ''), q['role']) for path in paths):
+    roles = many(q, 'role', 'roles')
+    if roles and not any(any_match(path.get('actual_assigned_role', ''), roles) for path in paths):
         return False
     wanted = wanted_suffixes(q)
     if wanted and not any(suffix_matches(path.get('actual_assigned_role', ''), wanted) for path in paths):
         return False
-    if q.get('activity') and not any(text_matches(path['activity'], q['activity']) for path in paths):
+    activities = many(q, 'activity', 'activities')
+    if activities and not any(any_match(path['activity'], activities) for path in paths):
         return False
     return True
 
 
 def assignment_filters_active(q):
-    return any(q.get(name) for name in ('role', 'role_suffix', 'role_suffixes', 'group', 'activity', 'tcode', 'assignment_decision')) or q.get('review_status') not in (None, '', 'all')
+    return any(q.get(name) for name in ('role', 'roles', 'role_suffix', 'role_suffixes', 'group', 'groups', 'activity', 'activities', 'tcode', 'tcodes', 'assignment_decision')) or q.get('review_status') not in (None, '', 'all')
 
 
 #: Review status filter of the assignment queue: lifecycle values each choice keeps. The default working view is 'attention'.
@@ -129,15 +140,17 @@ def allowed_assignments(model, state, q):
     for user, entry in model.items():
         ids = set()
         for aid, assignment in entry['assignments'].items():
-            if q.get('role') and not text_matches(assignment['role'], q['role']):
+            if not any_match(assignment['role'], many(q, 'role', 'roles')):
                 continue
             if not suffix_matches(assignment['role'], wanted):
                 continue
-            if q.get('group') and not text_matches(assignment['user_group'], q['group']):
+            if not any_match(assignment['user_group'], many(q, 'group', 'groups')):
                 continue
-            if q.get('activity') and not any(text_matches(name, q['activity']) for name in assignment['supplies']):
+            wanted_activities = many(q, 'activity', 'activities')
+            if wanted_activities and not any(any_match(name, wanted_activities) for name in assignment['supplies']):
                 continue
-            if q.get('tcode') and not any(text_matches(code, q['tcode']) for codes in assignment['supplies'].values() for code in codes):
+            wanted_codes = many(q, 'tcode', 'tcodes')
+            if wanted_codes and not any(any_match(code, wanted_codes) for codes in assignment['supplies'].values() for code in codes):
                 continue
             if q.get('assignment_decision') and state['assignment'][aid][0] != q['assignment_decision']:
                 continue

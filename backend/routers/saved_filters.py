@@ -40,14 +40,14 @@ def listing():
 @router.post('')
 def save(request:Saved):
     allowed={
-      'users':{'search','group','sort','descending','role','tcodes','transactionMode','transactionExclude','excludeTcodes','excludeMode','missingRoles','missingMode','expired','assignmentBand'},
+      'users':{'search','group','groups','roles','sort','descending','role','tcodes','transactionMode','transactionExclude','excludeTcodes','excludeMode','missingRoles','missingMode','expired','assignmentBand'},
       'roles':{'search','activeModules','transactionMode','transactionExclude','transactionOperator','tcodes','notTcodes','excludeTcodes','excludeMode','sortBy'},
-      'release':{'group','kind','releaseGroup','releaseAreas','releaseGroups','strategy','username','role','status','sort','descending','valid_from_min','valid_from_max','valid_to_min','valid_to_max','include_missing_end'},
+      'release':{'group','kind','releaseGroup','releaseAreas','releaseGroups','strategy','strategies','username','role','status','sort','descending','valid_from_min','valid_from_max','valid_to_min','valid_to_max','include_missing_end'},
       'review':{'search','finding','license','state','sort','descending'},
       'comparison':{'validity','kind','difference','search','area','sort','descending'}}
     for view in ('sod_users','sod_roles'):
-        allowed[view]={'search','risk','criticality','risk_type','category','username','group','composite_role','single_role','tcode','account_status','sort','descending','validity','as_of','selected_roles'}
-    matrix={'search','risk','criticality','risk_type','category','username','usernames','role_suffixes','group','composite_role','single_role','tcode','role','role_suffix','activity','account_status',
+        allowed[view]={'search','usernames','risks','criticalities','categories','groups','tcodes','risk','criticality','risk_type','category','username','group','composite_role','single_role','tcode','account_status','sort','descending','validity','as_of','selected_roles'}
+    matrix={'search','risk','criticality','risk_type','category','username','usernames','role_suffixes','risks','activities','groups','roles','tcodes','categories','criticalities','group','composite_role','single_role','tcode','role','role_suffix','activity','account_status',
             'activity_decision','assignment_decision','review_status','acceptance','validity','as_of','sort','descending','group_by','table','kind','status'}
     for view in ('sod_risk_matrix','sod_activity_matrix','sod_explorer','sod_queue'):
         allowed[view]=matrix

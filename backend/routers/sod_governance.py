@@ -32,6 +32,9 @@ def scope_query(context: str = Query('current', pattern=legacy.CONTEXT_PATTERN),
                 tcode: str = Query('', max_length=256), role: str = Query('', max_length=512), role_suffix: str = Query('', max_length=128),
                 activity: str = Query('', max_length=512),
                 usernames: list[str] = Query(default=[], max_length=100), role_suffixes: list[str] = Query(default=[], max_length=100),
+                risks: list[str] = Query(default=[], max_length=100), activities: list[str] = Query(default=[], max_length=100), groups: list[str] = Query(default=[], max_length=100),
+                roles: list[str] = Query(default=[], max_length=100), tcodes: list[str] = Query(default=[], max_length=100), categories: list[str] = Query(default=[], max_length=50),
+                criticalities: list[str] = Query(default=[], max_length=50),
                 account_status: Literal['', 'locked', 'unlocked', 'ad_disabled', 'ad_enabled', 'unknown'] = '',
                 activity_decision: Lifecycle = '', assignment_decision: Lifecycle = '', acceptance: Lifecycle = '',
                 review_status: Literal['', 'attention', 'pending', 'investigating', 'reviewed', 'all'] = '',
@@ -115,7 +118,8 @@ def option_values(model, field):
 @router.get('/filter-options')
 def filter_options(q: dict = Depends(scope_query), field: OPTION_FIELDS = 'risk', term: str = Query('', max_length=128), limit: int = Query(50, ge=1, le=200)):
     """Searchable predefined filter values taken from the imported SoD evidence of this context."""
-    own = {'username': ('username', 'usernames'), 'role_suffix': ('role_suffix', 'role_suffixes')}.get(field, (field,))
+    plural = {'username': 'usernames', 'role_suffix': 'role_suffixes', 'risk': 'risks', 'activity': 'activities', 'group': 'groups', 'role': 'roles', 'tcode': 'tcodes', 'category': 'categories', 'criticality': 'criticalities'}
+    own = (field, plural[field]) if field in plural else (field,)
     other = {name: ([] if isinstance(value, list) else '') if name in own else value for name, value in q.items()}
     neutral = {'context', 'validity', 'as_of', 'sort', 'descending'}
     if any(value for name, value in other.items() if name not in neutral):
@@ -159,7 +163,7 @@ def assignment_progress(q):
     _, rows = _explorer('access_list', dict(q, review_status=''))
     count = lambda *names: sum(row['decision'] in names for row in rows)
     return dict(total=len(rows), completed=count('Keep', 'Removal required'), pending=count('Pending'), investigating=count('Investigate'),
-                outdated=count('Outdated'), attention=count('Pending', 'Investigate', 'Outdated'))
+                outdated=count('Outdated'), attention=count('Pending', 'Investigate', 'Outdated'), removal=count('Removal required'))
 
 
 @router.get('/explorer/{table}')
@@ -315,7 +319,7 @@ def _status_match(item, status, awaiting):
 def _queue(q, kind, status):
     bundle, model, state, view = scope.scoped(q['context'], q)
     items = governance.queue_items(view, state)
-    if q['context'] == 'current' and bundle['reviewable'] and not any(q.get(name) for name in ('search', 'risk', 'username', 'usernames', 'role', 'role_suffix', 'role_suffixes', 'tcode', 'activity', 'group', 'criticality', 'category', 'assignment_decision', 'review_status')):
+    if q['context'] == 'current' and bundle['reviewable'] and not any(q.get(name) for name in ('search', 'risk', 'risks', 'username', 'usernames', 'role', 'roles', 'role_suffix', 'role_suffixes', 'tcode', 'tcodes', 'activity', 'activities', 'group', 'groups', 'criticality', 'criticalities', 'category', 'categories', 'assignment_decision', 'review_status')):
         known = dict(activity={item['key'] for entry in model.values() for item in entry['activities'].values()},
                      assignment={aid for entry in model.values() for aid in entry['assignments']},
                      acceptance={finding['finding_id'] for entry in model.values() for finding in entry['findings'].values()})

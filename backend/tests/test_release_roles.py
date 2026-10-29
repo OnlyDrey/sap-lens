@@ -75,6 +75,17 @@ class ReleaseRoleTests(unittest.TestCase):
         rows = {r['role_name']: r['release_area'] for r in self.get(base)['items']}
         self.assertEqual(rows['ZO:MM:M:PR_REL_ST_N1_N1:ALL'], 'N')
 
+    def test_multiple_strategies_use_or_and_combine_with_the_other_filters(self):
+        names = lambda query: {r['role_name'] for r in self.get('access/release-roles?status=all&' + query)['items']}
+        n1, n2 = names('strategies=N1'), names('strategies=N2')
+        self.assertTrue(n1 and n2 and not n1 & n2)
+        self.assertEqual(names('strategies=N1&strategies=N2'), n1 | n2)
+        self.assertEqual(names('strategies=N1&strategies=N2&document_type=PO'), {name for name in n1 | n2 if 'PO_REL' in name})
+        self.assertEqual(names('strategies=N9'), set())
+        users = self.get('access/release-assignments?status=all&strategies=N2&limit=100')
+        self.assertTrue(users['items'] and all(item['release']['release_strategy'] == 'N2' for item in users['items']) and all('display_name' in item for item in users['items']))
+        self.assertEqual(self.get('access/release-options?field=strategy&status=all&release_groups=E3')['items'], ['N2'])  # strategy options follow their parents, never their own selection
+
     def test_distinct_role_list_respects_filters_and_validity_and_excludes_catalogue_roles(self):
         every = self.get('access/release-roles?status=all')
         self.assertEqual(every['total'], 5)  # four parsed roles and one unparsed; the catalogue role is excluded

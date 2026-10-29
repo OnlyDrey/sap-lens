@@ -133,6 +133,19 @@ class UserAccessTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         return response.json()
 
+    def test_multiple_groups_and_roles_combine_with_or_within_and_and_between_filters(self):
+        names = lambda query: sorted(item["username"] for item in self.get("users?limit=100&" + query)["items"])
+        a_or_c = names("groups=GROUP_A&groups=GROUP_C")
+        self.assertEqual(a_or_c, sorted(set(names("groups=GROUP_A")) | set(names("groups=GROUP_C"))))
+        self.assertIn("DEMO_BETA", a_or_c)
+        self.assertNotIn("DEMO_DELTA", a_or_c)
+        self.assertEqual(names("group=GROUP_A&groups=GROUP_C"), a_or_c)  # the legacy single value joins the list
+        both_roles = names("roles=ZC:MM:BUY:ENP&roles=ZC:FI:VIEW:ENS")
+        self.assertEqual(both_roles, sorted(set(names("roles=ZC:MM:BUY:ENP")) | set(names("roles=ZC:FI:VIEW:ENS"))))
+        self.assertTrue({"DEMO_ALFA", "DEMO_DELTA"} <= set(both_roles))
+        # The group filter applies to the assignment evidence too: DEMO_ALFA holds ENP in GROUP_A only, DEMO_DELTA holds ENS in GROUP_B.
+        self.assertEqual(names("roles=ZC:MM:BUY:ENP&roles=ZC:FI:VIEW:ENS&groups=GROUP_B"), ["DEMO_DELTA"])
+
     def test_all_supported_roles_and_transaction_search_preserve_evidence(self):
         all_roles = self.get("users/DEMO_ALFA?scope=all&show_expired=true&limit=100")
         self.assertTrue(all(a["scope"] in {"business", "release"} for a in all_roles["items"]))
