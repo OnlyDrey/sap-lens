@@ -1,0 +1,250 @@
+{
+ "_comment": "Single source of truth for scripts/run-tests.py. Every backend module and browser spec belongs to exactly one feature (checked by backend/tests/test_test_profiles.py). Smoke selects the listed backend tests and browser tests tagged @smoke.",
+ "features": {
+  "dashboard": {
+   "description": "Dashboard metrics, drill-downs and SoD summary",
+   "backend": [],
+   "browser": [
+    "dashboard-user-transactions"
+   ]
+  },
+  "role-lookup": {
+   "description": "Role Lookup, catalogue and transaction filters, wildcard matching",
+   "backend": [
+    "test_search_matching",
+    "test_role_negative_tcode",
+    "test_investigation_filters"
+   ],
+   "browser": [
+    "consolidated-role-ui",
+    "investigation-filter-refinement",
+    "live-filters-polish",
+    "refinement-search-layout",
+    "stabilization"
+   ]
+  },
+  "role-comparison": {
+   "description": "Role comparison and similarity",
+   "backend": [
+    "test_investigation_tools"
+   ],
+   "browser": [
+    "refinement-27"
+   ]
+  },
+  "user-comparison": {
+   "description": "User comparison and investigation tools",
+   "backend": [],
+   "browser": [
+    "investigation-tools"
+   ]
+  },
+  "user-access": {
+   "description": "User Access, Release Roles, assignment evidence and exports",
+   "backend": [
+    "test_user_access",
+    "test_assignment_exports",
+    "test_ui_evidence"
+   ],
+   "browser": [
+    "access-investigation",
+    "data-aware-ux",
+    "global-navigation",
+    "refinement-round2",
+    "user-role-export"
+   ]
+  },
+  "access-package": {
+   "description": "Role cart, access package naming and users lacking roles",
+   "backend": [
+    "test_access_package",
+    "test_missing_roles"
+   ],
+   "browser": [
+    "access-package"
+   ]
+  },
+  "account-review": {
+   "description": "Account Review decisions and position-change priority review",
+   "backend": [
+    "test_account_review",
+    "test_position_changes"
+   ],
+   "browser": [
+    "account-review-refinement",
+    "position-changes"
+   ]
+  },
+  "employee-directory": {
+   "description": "Employee Directory import and enrichment",
+   "backend": [
+    "test_employee_directory"
+   ],
+   "browser": [
+    "employee-directory"
+   ]
+  },
+  "data-sources": {
+   "description": "CSV import, source lifecycle, refresh and snapshots",
+   "backend": [
+    "test_application",
+    "test_auto_import",
+    "test_csv_area_labels",
+    "test_csv_lifecycle",
+    "test_csv_profiles",
+    "test_example_datasets",
+    "test_loading_publication"
+   ],
+   "browser": [
+    "automatic-import",
+    "csv-lifecycle",
+    "loading-consolidation"
+   ]
+  },
+  "settings": {
+   "description": "Settings, modules, theme, scheduled refresh, maintenance",
+   "backend": [
+    "test_configuration",
+    "test_refresh_schedule",
+    "test_theme_and_diagnostics",
+    "test_maintenance"
+   ],
+   "browser": [
+    "enterprise",
+    "navigation-modules",
+    "scheduled-refresh",
+    "settings-refinement",
+    "settings-runtime-theme",
+    "ux"
+   ]
+  },
+  "sod": {
+   "description": "Segregation of Duties analysis, governance, periods and reports",
+   "backend": [
+    "test_sod_analysis",
+    "test_sod_analysis_api",
+    "test_sod_catalogue",
+    "test_sod_feature",
+    "test_sod_governance",
+    "test_sod_import",
+    "test_sod_integration",
+    "test_sod_lifecycle",
+    "test_sod_periods",
+    "test_sod_periods_v2",
+    "test_sod_report_branding",
+    "test_sod_reports",
+    "test_sod_reviews",
+    "test_sod_reviews_api",
+    "test_sod_saved_filters",
+    "test_sod_settings_integration"
+   ],
+   "browser": [
+    "sod-analysis",
+    "sod-catalogue",
+    "sod-export-ux",
+    "sod-feature",
+    "sod-filters-tiles",
+    "sod-governance",
+    "sod-integration",
+    "sod-layout",
+    "sod-overview-heatmap",
+    "sod-periods",
+    "sod-reports",
+    "sod-stability"
+   ]
+  },
+  "shared-ui": {
+   "description": "Shared components, navigation, accessibility, visual consistency",
+   "backend": [],
+   "browser": [
+    "a11y-audit",
+    "design-system",
+    "investigation-ux",
+    "navigation-a11y",
+    "refinement-completion",
+    "role-visuals",
+    "transaction-filter",
+    "ui-consistency",
+    "ui-polish-actions"
+   ]
+  },
+  "platform": {
+   "description": "Desktop and server runtime, process lifecycle, native bridge contracts",
+   "backend": [
+    "test_desktop",
+    "test_desktop_browser",
+    "test_desktop_installer",
+    "test_linux_lifecycle",
+    "test_server",
+    "test_windows_package",
+    "test_windows_tray",
+    "test_docker_management"
+   ],
+   "browser": [
+    "desktop",
+    "server-deployment"
+   ]
+  },
+  "deployment": {
+   "description": "Packaging, build metadata and release contracts",
+   "backend": [
+    "test_artifact_zip",
+    "test_build_report",
+    "test_build_version",
+    "test_deployment_contracts",
+    "test_deployment_packaging",
+    "test_deployment_release",
+    "test_local_build",
+    "test_local_deployments",
+    "test_release_automation"
+   ],
+   "browser": []
+  },
+  "repository": {
+   "description": "Documentation, workflow contracts, privacy and test-profile integrity",
+   "backend": [
+    "test_ci_report",
+    "test_documentation",
+    "test_repository_integrity",
+    "test_repository_privacy",
+    "test_test_profiles",
+    "test_workflows"
+   ],
+   "browser": []
+  }
+ },
+ "smoke": {
+  "backend": [
+   "test_application.ApplicationTests.test_first_run_and_persistence",
+   "test_application.ApplicationTests.test_bad_file_preserves_data_and_settings",
+   "test_application.ApplicationTests.test_browser_security_boundary",
+   "test_server.ServerTests.test_basic_boundary_guards_frontend_reads_writes_and_origins",
+   "test_csv_lifecycle.CsvLifecycleTests.test_full_replacement_removes_users_directory_records_and_indexes",
+   "test_csv_lifecycle.CsvLifecycleTests.test_independent_failure_keeps_old_users_and_rebinds_new_catalogue",
+   "test_user_access.MatcherTests.test_exact_then_most_specific_organizational_prefix",
+   "test_user_access.DateReleaseTests.test_sap_dates_open_end_and_unknown_bounds",
+   "test_user_access.UserAccessTests.test_all_supported_roles_and_transaction_search_preserve_evidence",
+   "test_user_access.UserAccessTests.test_role_and_transaction_reverse_lookup_deduplicates_users_preserves_evidence",
+   "test_access_package.PureRules.test_replaces_organizational_and_wildcard_suffixes",
+   "test_access_package.PackageApi.test_default_suffix_with_explicit_overrides_validation_and_catalogue_matches",
+   "test_account_review.AccountReviewTests.test_findings_keep_security_separate_from_license_classification",
+   "test_sod_governance.MatrixTests.test_risk_matrix_counts_distinct_users_and_user_risk_pairs",
+   "test_sod_governance.DecisionTests.test_activity_review_does_not_change_risk_detection_or_accept_risk",
+   "test_sod_governance.SecurityAndPrivacyTests.test_every_governance_route_requires_the_application_capability",
+   "test_repository_privacy.RepositoryPrivacyTests"
+  ],
+  "browser_tag": "@smoke"
+ },
+ "backend_seconds_hint": {
+  "test_sod_reports": 12.8,
+  "test_user_access": 12.1,
+  "test_sod_governance": 11.6,
+  "test_sod_periods_v2": 8.6,
+  "test_server": 5.4,
+  "test_desktop": 5.3,
+  "test_employee_directory": 4.2,
+  "test_account_review": 3.2,
+  "test_sod_report_branding": 3.0,
+  "test_investigation_tools": 2.9
+ }
+}
