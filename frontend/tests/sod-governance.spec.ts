@@ -224,7 +224,8 @@ test('remediation separates proposals from verification and keeps tracked action
   await expect(table).toContainText('Still present in current evidence')
   await expect(table).toContainText('Open')
   await expect(page.getByText('A proposed removal is not completed remediation', { exact: false })).toBeVisible()
-  const actions = (await (await request.get('/api/sod/remediation', { headers })).json()).actions
+  // Tracked actions are retained history shared across tests, so only this test's user is counted.
+  const actions = (await (await request.get('/api/sod/remediation', { headers })).json()).actions.filter((action: { user: string }) => action.user === names.a)
   expect(actions).toHaveLength(1)
   expect(actions[0].status).toBe('Open')
   const download = page.waitForEvent('download')

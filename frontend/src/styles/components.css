@@ -971,3 +971,14 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .health-source-grid .health-review-source { align-self:flex-start; margin-top:auto; }
 .health-coverage { display:grid; grid-template-columns:repeat(auto-fit,minmax(14rem,1fr)); gap:var(--space-2); margin:0; padding:0; list-style:none; }
 .health-coverage li { display:grid; gap:2px; padding:var(--space-2) var(--space-3); border:1px solid var(--border); border-radius:var(--radius-control); background:var(--surface2); }
+/* Identifier pills never break inside the identifier; long values are clipped with an ellipsis. */
+.id-pill { white-space:nowrap; max-width:100%; }
+.id-pill-text { white-space:nowrap; overflow-wrap:normal; }
+.id-pill-list { align-items:center; }
+/* SoD overview: Conflicts, Reviews and Remediation are three equal sections. */
+.dashboard-workspace.sod-overview-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--space-4); align-items:stretch; min-width:0; }
+.sod-overview-cards > .dashboard-section { min-width:0; }
+@media(max-width:1199px){ .dashboard-workspace.sod-overview-cards { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:700px){ .dashboard-workspace.sod-overview-cards { grid-template-columns:minmax(0,1fr); } }
+.dashboard-workspace.sod-overview-cards > .dashboard-section:first-child,.dashboard-workspace.sod-overview-cards > .dashboard-section:last-child,.dashboard-workspace.sod-overview-cards > .dashboard-section { grid-column:auto; }
+@media(max-width:700px){ .dashboard-workspace.sod-overview-cards > .dashboard-section { grid-column:1/-1; } }
