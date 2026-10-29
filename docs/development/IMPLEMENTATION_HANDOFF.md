@@ -57,6 +57,32 @@ standards and the Phase 6 regression). The original 36-point numbering was not r
 | No SAP write-back or source modification | Complete | source file hashes unchanged in the browser spec |
 | Role Assignment Review corrections (Phases 0 to 3) | Complete | `sod-assignment-decisions.spec.ts`, `test_sod_bulk_review` |
 
+## Consolidated refinement (second specification)
+
+| Area | Status | Notes |
+| --- | --- | --- |
+| 1.1 Sidebar Clear | Complete | Compact "Clear" with the filter-reset icon in the sidebar header, aligned with Close; toolbar twins removed (Role Lookup repeats it only while the sidebar is hidden) |
+| 1.2 Shared multi-select | Complete | `MultiSelectFilter`: open while toggling, checkboxes, search, Select all (scoped), Clear selection, chips, keyboard; used for SAP User Group, roles, roles to lack, Release Area, Group and Strategy, and the SoD scope fields |
+| 1.3 Active states | Complete | Selected, pressed and active states use the primary action color (`--accent`); module chips and the segmented control no longer use module or secondary colors; module badge hover ring removed |
+| 1.4 Capitalization | Partial | Sentence case applied to inconsistent table headers and sort labels; main navigation and feature names keep their established Title Case |
+| 1.5 Codeblocks and pills | Complete | Status pills min height 1.75 rem with centered content; Risk IDs use the risk pill (also in Role conflicts); usernames and roles are codeblocks in the SoD tables |
+| 2.1 Role cards | Complete | Description centered against the module badge; selected module filters use the primary color |
+| 2.2 Group and role multi-select | Complete | `groups` and `roles` on the user directory API (OR within, AND between); Missing ANY and ALL, transaction AND/OR and exclusion untouched |
+| 2.3, 2.4 Access Package | Complete | Header Clear package with confirmation (no footer duplicate), footer shows the valid/invalid summary, copy and export; Clear selection (comparison) never touches the package |
+| 3.1, 3.2 Account Review and Compare users | Complete | Shared sidebar with Saved Filters and Clear; sort and export in the toolbar; the same SAP user cannot be on both sides |
+| 3.3 Release Roles users | Complete | Users count opens a panel (codeblock, name, SAP User Group, status and validity, user details, export); Release Strategy is multi-select |
+| 4.1, 4.2 Overview | Complete | Heatmap controls on one wrapping row; compact empty review period card |
+| 4.3 Tiles | Complete | Filter tiles are buttons with primary active state, toggle, combine and Reset tile filters; informational tiles stay flat |
+| 4.4 to 4.7 Matrices and Access Explorer | Complete | Multi-select SoD filters (backend lists for risks, activities, groups, roles, transactions, areas, criticalities, usernames, suffixes); simplified Assignments and Roles tables with default active scope; Role conflicts risk pill |
+| 5.1 Reviewer session | Complete | Remembered for the session, reused by quick decisions, forms, bulk review and report preparation; changeable |
+| 5.2, 5.3 Assignment review rows and batch | Complete | Compact rows with Keep, Investigate, Remove icons and expand; Select all visible; batch confirmation by checkbox |
+| 5.4 Activity review | Partial | Existing compact rows kept; no further change |
+| 5.5 Work queue | Complete | Username codeblocks, tile filters, icon action |
+| 5.6 Review periods | Complete | Icons in the menu, trigger the same height as Open |
+| 5.7 Reports | Complete | Document details expanded by default |
+
+Not converted to multi-select: Release SAP User Group, username and role-name filters on the Release Roles page, and the Account Review finding, classification and decision selects (single-choice by design).
+
 ## Validation
 
 - Full regression on the final code (`python scripts/run-tests.py regression --jobs 3`, commit `751808f`): backend 769 tests, 3 skipped (PowerShell and
