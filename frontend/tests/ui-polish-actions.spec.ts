@@ -1,33 +1,14 @@
 import { test, expect, type Page } from '@playwright/test'
-import { seedGovernance, headers } from './sod-fixture'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
+import { seedGovernance } from './sod-fixture'
+import { headers, openSettings, seedSources, type SeededSources } from './support'
 
 const roles = `FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT
 MM,ZC:MM:BUY:ENP,Buyer plant,ZS:SH,MM - Shared purchasing,MIGO,Goods movement
 FI,ZC:FI:VIEW:ENP,Finance view,ZS:EX2,FI - Exclusive two,FB03,Display document
 `
-let directory: string
-test.beforeEach(async ({ request }) => {
-  await request.post('/api/configuration/reset', { headers })
-  directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-consistency-'))
-  const roleFile = path.join(directory, 'roles.csv')
-  writeFileSync(roleFile, roles)
-  const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
-  settings.data_csv_path = roleFile
-  expect((await request.post('/api/configuration', { headers, data: settings })).ok()).toBeTruthy()
-})
-test.afterEach(async ({ request }) => {
-  await request.post('/api/configuration/reset', { headers })
-  rmSync(directory, { recursive: true, force: true })
-})
-
-const openSettings = async (page: Page, tab: string) => {
-  await page.goto('/#session=browser-test-session')
-  await page.getByRole('button', { name: 'Open settings', exact: true }).click()
-  await page.getByRole('tab', { name: tab, exact: true }).click()
-}
+let seeded: SeededSources
+test.beforeEach(async ({ request }) => { seeded = await seedSources(request, { roles }) })
+test.afterEach(async () => { await seeded.cleanup() })
 
 test('role card actions: Compare (Scale) left of Add to access package (Plus), no cart icon', async ({ page }) => {
   await page.goto('/#session=browser-test-session')

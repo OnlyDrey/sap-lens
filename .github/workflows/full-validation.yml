@@ -41,7 +41,7 @@ jobs:
         run: python scripts/ci.py run powershell -- pwsh -NoProfile -File scripts/check-powershell.ps1
       - name: Run all backend and repository regressions with deprecations as errors
         id: backend
-        run: python scripts/ci.py run backend -- python -W error::DeprecationWarning -m unittest discover -s backend/tests -v
+        run: python scripts/ci.py run backend -- python scripts/run-tests.py regression --backend
       - name: Audit installed Python dependencies
         id: python_audit
         run: python scripts/ci.py run python_audit -- python -m pip_audit --vulnerability-service pypi --progress-spinner off
@@ -116,7 +116,7 @@ jobs:
         run: python scripts/ci.py run browser_setup -- node frontend/node_modules/playwright/cli.js install --with-deps chromium --only-shell
       - name: Run browser regression tests
         id: browser
-        run: python scripts/ci.py run browser -- npm --prefix frontend run test:browser -- --reporter=line,github
+        run: python scripts/ci.py run browser -- python scripts/run-tests.py regression --browser --no-build
       - name: Write validation summary
         if: always()
         env:

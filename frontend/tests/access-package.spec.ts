@@ -1,9 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { headers, goTo } from './support'
-let directory: string
+import { readFileSync } from 'node:fs'
+import { goTo, headers, seedSources, type SeededSources } from './support'
+let seeded: SeededSources
 const roles = `FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT
 MM,ZC:MM:BUY:ENP,Buyer plant,ZS:SH,MM - Shared purchasing,MIGO,Goods movement
 MM,ZC:MM:BUY:ENP,Buyer plant,ZS:EX1,MM - Exclusive one,ME21N,Create purchase order
@@ -20,19 +18,8 @@ U3,ZC:FI:VIEW:ENP,G2,20200101,99991231
 U3,ZC:MM:BUY:ENP,G2,20200101,99991231
 U4,ZC:SD:ORD:ENK,G2,20200101,99991231
 `
-test.beforeEach(async ({ request }) => {
-  await request.post('/api/configuration/reset', { headers })
-  directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-package-'))
-  const roleFile = path.join(directory, 'roles.csv'), userFile = path.join(directory, 'users.csv')
-  writeFileSync(roleFile, roles); writeFileSync(userFile, users)
-  const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
-  settings.data_csv_path = roleFile; settings.user_csv_path = userFile
-  expect((await request.post('/api/configuration', { headers, data: settings })).ok()).toBeTruthy()
-})
-test.afterEach(async ({ request }) => {
-  await request.post('/api/configuration/reset', { headers })
-  rmSync(directory, { recursive: true, force: true })
-})
+test.beforeEach(async ({ request }) => { seeded = await seedSources(request, { roles, users }) })
+test.afterEach(async () => { await seeded.cleanup() })
 
 const tile = (page: Page, title: string) => page.getByRole('article', { name: new RegExp(title) })
 

@@ -160,6 +160,8 @@ def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str
             if jobs > 1:
                 command.append(f'--shard={index + 1}/{jobs}')
             env = {**os.environ, 'SAP_LENS_BROWSER_TEST_PORT': str(BASE_PORT + index), 'PLAYWRIGHT_JSON_OUTPUT_NAME': str(report)}
+            if jobs == 1:  # a single process streams its progress live (CI logs, local feedback)
+                return subprocess.run(command + extra, cwd=FRONTEND, env=env).returncode, report, log
             with log.open('w', encoding='utf-8') as handle:
                 code = subprocess.run(command + extra, cwd=FRONTEND, env=env, stdout=handle, stderr=subprocess.STDOUT, text=True).returncode
             return code, report, log
@@ -171,7 +173,8 @@ def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str
             if not report.exists():
                 ok = False
                 merged['errors'] += 1
-                sys.stderr.write(log.read_text(encoding='utf-8', errors='replace')[-3000:])
+                if log.exists():
+                    sys.stderr.write(log.read_text(encoding='utf-8', errors='replace')[-3000:])
                 continue
             stats = json.loads(report.read_text(encoding='utf-8'))['stats']
             merged['shards'].append(round(stats['duration'] / 1000, 1))
@@ -180,8 +183,8 @@ def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str
             merged['skipped'] += [['browser test', 'skipped']] * stats['skipped']
             if code:
                 ok = False
-                text = log.read_text(encoding='utf-8', errors='replace')
-                sys.stderr.write(text[-6000:])
+                if log.exists():  # a single streamed process has already printed its own output
+                    sys.stderr.write(log.read_text(encoding='utf-8', errors='replace')[-6000:])
     merged.update(name=label, seconds=time.perf_counter() - started, ok=ok and not merged['failures'])
     print(f"\n{merged['tests'] - merged['failures']} passed ({merged['seconds']:.0f}s)" + (f", {merged['failures']} failed" if merged['failures'] else ''), flush=True)
     return merged
