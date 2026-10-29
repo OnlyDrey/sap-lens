@@ -40,9 +40,9 @@ def listing():
 @router.post('')
 def save(request:Saved):
     allowed={
-      'users':{'search','group','sort','descending','role','tcodes','transactionMode','transactionExclude','missingRoles','missingMode','expired','assignmentBand'},
-      'roles':{'search','activeModules','transactionMode','transactionExclude','transactionOperator','tcodes','notTcodes','sortBy'},
-      'release':{'group','kind','releaseGroup','strategy','username','role','status','sort','descending','valid_from_min','valid_from_max','valid_to_min','valid_to_max','include_missing_end'},
+      'users':{'search','group','sort','descending','role','tcodes','transactionMode','transactionExclude','excludeTcodes','excludeMode','missingRoles','missingMode','expired','assignmentBand'},
+      'roles':{'search','activeModules','transactionMode','transactionExclude','transactionOperator','tcodes','notTcodes','excludeTcodes','excludeMode','sortBy'},
+      'release':{'group','kind','releaseGroup','releaseAreas','releaseGroups','strategy','username','role','status','sort','descending','valid_from_min','valid_from_max','valid_to_min','valid_to_max','include_missing_end'},
       'review':{'search','finding','license','state','sort','descending'},
       'comparison':{'validity','kind','difference','search','area','sort','descending'}}
     for view in ('sod_users','sod_roles'):

@@ -2,14 +2,14 @@
 from search_matching import text_matches, search_fields
 
 from collections import defaultdict
-from csv_exports import assignment_response
+from csv_exports import assignment_response, role_list_response
 from datetime import date
 from typing import Literal
 from fastapi import APIRouter, HTTPException, Query, Depends
 from assignment_filters import assignment_dates, within_dates
 import cache
 from role_matching import normalize_role
-from transaction_filters import normalized_tcodes, matching_role_names, matching_codes
+from transaction_filters import normalized_tcodes, matching_role_names, matching_codes, legacy_groups
 from user_access import (
     assignment_view, current_role_count,
     interval_status,
@@ -17,6 +17,7 @@ from user_access import (
     sap_date,
     normalize_username,
     parse_release_role,
+    release_area,
 )
 
 def require_mapping():
@@ -123,6 +124,8 @@ def directory_filters(
     status: Status = "",
     show_expired: bool = False,
     exclude_transactions: bool = Query(False, description="Reverse the transaction filter across the user's eligible role assignments"),
+    exclude_tcodes: list[str] = Query(default=[], max_length=21, description="Exclude users by these transactions; combined with the include list"),
+    exclude_mode: Literal["any", "all"] = Query("any", description="any = drop users matching at least one; all = drop only users matching every one"),
     missing_roles: list[str] = Query(default=[], max_length=20, description="Catalogue roles the user must lack"),
     missing_mode: Literal["any", "all"] = Query("any", description="any = lacks at least one selected role; all = lacks every selected role"),
     sort: Literal[
@@ -136,7 +139,7 @@ def directory_filters(
     ] = "username",
     descending: bool = False,
 ):
-    return dict(assignment_band=assignment_band,search=search,group=group,role=role,tcode=tcode,tcodes=tcodes,transaction_mode=transaction_mode,status=status,show_expired=show_expired,exclude_transactions=exclude_transactions,missing_roles=missing_roles,missing_mode=missing_mode,sort=sort,descending=descending)
+    return dict(assignment_band=assignment_band,search=search,group=group,role=role,tcode=tcode,tcodes=tcodes,transaction_mode=transaction_mode,status=status,show_expired=show_expired,exclude_transactions=exclude_transactions,exclude_tcodes=exclude_tcodes,exclude_mode=exclude_mode,missing_roles=missing_roles,missing_mode=missing_mode,sort=sort,descending=descending)
 
 
 def missing_users(snapshot, roles, mode, group, status, show_expired, today):
@@ -163,9 +166,15 @@ def missing_users(snapshot, roles, mode, group, status, show_expired, today):
     return found
 
 
-def directory_selection(snapshot, *, search,group,role,tcode,tcodes,transaction_mode,status,show_expired,sort,descending,today=None,assignment_band="",exclude_transactions=False,missing_roles=(),missing_mode="any"):
+def directory_selection(snapshot, *, search,group,role,tcode,tcodes,transaction_mode,status,show_expired,sort,descending,today=None,assignment_band="",exclude_transactions=False,exclude_tcodes=(),exclude_mode="any",missing_roles=(),missing_mode="any"):
     state = snapshot.users
     wanted_codes = normalized_tcodes([tcode] + tcodes if tcode else tcodes)
+    include, include_mode, excluded, excluded_mode = legacy_groups(wanted_codes, transaction_mode, exclude_transactions)
+    explicit_excluded = normalized_tcodes(list(exclude_tcodes))
+    if explicit_excluded:  # an explicit exclusion group replaces the legacy switch
+        excluded, excluded_mode = explicit_excluded, exclude_mode
+        if exclude_transactions:
+            include, include_mode = (), 'all'
     candidates = matching_entries(state, role)
     evidence = defaultdict(list)
     for a in candidates:
@@ -175,20 +184,24 @@ def directory_selection(snapshot, *, search,group,role,tcode,tcodes,transaction_
             and (not group or group == a["user_group"])
         ):
             evidence[a["user_key"]].append(a)
-    if wanted_codes and snapshot.roles:
-        code_ids = {code: {a['id'] for actual in matching_codes(state.tcode_index,code) for name in state.tcode_index[actual] for a in state.role_index.get(name, [])} for code in wanted_codes}
+    if (include or excluded) and snapshot.roles:
+        code_ids = {code: {a['id'] for actual in matching_codes(state.tcode_index,code) for name in state.tcode_index[actual] for a in state.role_index.get(name, [])} for code in {*include, *excluded}}
         for key, entries in list(evidence.items()):
             matches = {code for code, ids in code_ids.items() if any(a['id'] in ids for a in entries)}
-            positive = len(matches) == len(wanted_codes) if transaction_mode == 'and' else bool(matches)
-            if exclude_transactions:
-                # Absence is only concluded from eligible assignments that are all mapped to catalogue roles; unmapped roles may hold any transaction.
-                if positive or not entries or any(a['match_status'] not in {'exact', 'wildcard'} for a in entries):
+            if include:
+                hit = matches & set(include)
+                if not (len(hit) == len(include) if include_mode == 'all' else bool(hit)):
                     del evidence[key]
-            elif not positive:
-                del evidence[key]
-            else:
-                evidence[key] = [a for a in entries if any(a['id'] in ids for ids in code_ids.values())]
-    elif wanted_codes and exclude_transactions:
+                    continue
+            if excluded:
+                hit = matches & set(excluded)
+                # Absence is only concluded from eligible assignments that are all mapped to catalogue roles; unmapped roles may hold any transaction.
+                if (len(hit) == len(excluded) if excluded_mode == 'all' else bool(hit)) or not entries or any(a['match_status'] not in {'exact', 'wildcard'} for a in entries):
+                    del evidence[key]
+                    continue
+            if include:
+                evidence[key] = [a for a in entries if any(a['id'] in code_ids[code] for code in include)]
+    elif excluded:
         evidence.clear()  # without a catalogue no transaction evidence exists, so absence cannot be concluded
     missing = missing_users(snapshot, missing_roles, missing_mode, group, status, show_expired, today) if missing_roles else None
     result = []
@@ -204,7 +217,7 @@ def directory_selection(snapshot, *, search,group,role,tcode,tcodes,transaction_
             if band!=assignment_band:continue
         if group and group not in user["groups"]:
             continue
-        if (role or (wanted_codes and (snapshot.roles or exclude_transactions)) or status) and key not in evidence:
+        if (role or (include and snapshot.roles) or excluded or status) and key not in evidence:
             continue
         if term and not search_fields(term, user["username"], *user["groups"], *user["emails"], *(" ".join(n) for n in user["names"])):
             continue
@@ -319,24 +332,28 @@ def user_detail(
 
 @router.get("/release-options")
 def release_options(
-    field: Literal["group", "document_type", "release_group", "strategy", "username", "role"],
+    field: Literal["group", "document_type", "release_area", "release_group", "strategy", "username", "role"],
     dates: dict = Depends(assignment_dates),
     search: str = Query("", max_length=512),
     selected: str = Query("", max_length=512),
     group: str = Query("", max_length=100),
     document_type: str = Query("", max_length=20),
     release_group: str = Query("", max_length=100),
+    release_areas: list[str] = Query(default=[], max_length=50),
+    release_groups: list[str] = Query(default=[], max_length=200),
     strategy: str = Query("", max_length=100),
     status: Literal["active", "expired", "future", "unknown", "all"] = "active",
     limit: int = Query(50, ge=1, le=100),
 ):
     """Hierarchical facets. A child never restricts its own or an ancestor's options.
 
-    Group -> document type -> release group -> strategy -> username / role.
+    Group -> document type -> release area -> release group -> strategy -> username / role.
+    Selected release areas narrow the release group options (OR within a list, AND between levels).
     Username and role are sibling substring filters, not mutual dependencies.
     Values are bounded in transit; all matching records contribute, not one page.
     """
-    rank = {"group": 0, "document_type": 1, "release_group": 2, "strategy": 3, "username": 4, "role": 4}[field]
+    rank = {"group": 0, "document_type": 1, "release_area": 2, "release_group": 3, "strategy": 4, "username": 5, "role": 5}[field]
+    areas, groups = _bounded(release_areas), _bounded(release_groups)
     values = set()
     for a in cache.get_snapshot().users.assignments:
         if a["scope"] != "release" or not within_dates(a, dates) or not relevant(a, "" if status == "all" else status, True):
@@ -345,9 +362,11 @@ def release_options(
         kind = release["document_type"] or "Unparsed"
         if rank > 0 and group and a["user_group"] != group: continue
         if rank > 1 and document_type and kind != document_type: continue
-        if rank > 2 and release_group and release["release_group"] != release_group: continue
-        if rank > 3 and strategy and release["release_strategy"] != strategy: continue
-        value = {"group": a["user_group"], "document_type": kind,
+        if rank > 2 and areas and release_area(release["release_group"]) not in areas: continue
+        if rank > 3 and groups and release["release_group"] not in groups: continue
+        if rank > 3 and release_group and release["release_group"] != release_group: continue
+        if rank > 4 and strategy and release["release_strategy"] != strategy: continue
+        value = {"group": a["user_group"], "document_type": kind, "release_area": release_area(release["release_group"]),
                  "release_group": release["release_group"], "strategy": release["release_strategy"],
                  "username": a["username"], "role": a["role_name"]}[field]
         if value: values.add(value)
@@ -363,6 +382,8 @@ def release_filters(dates:dict=Depends(assignment_dates),
     group: str = Query("", max_length=512),
     document_type: Literal["", "PR", "PO", "Unparsed"] = "",
     release_group: str = Query("", max_length=100),
+    release_areas: list[str] = Query(default=[], max_length=50),
+    release_groups: list[str] = Query(default=[], max_length=200),
     strategy: str = Query("", max_length=100),
     username: str = Query("", max_length=512),
     role: str = Query("", max_length=512),
@@ -376,10 +397,16 @@ def release_filters(dates:dict=Depends(assignment_dates),
     ] = "role_name",
     descending: bool = False,
 ):
-    return dict(dates=dates,group=group,document_type=document_type,release_group=release_group,strategy=strategy,username=username,role=role,status=status,sort=sort,descending=descending)
+    return dict(dates=dates,group=group,document_type=document_type,release_group=release_group,release_areas=release_areas,release_groups=release_groups,strategy=strategy,username=username,role=role,status=status,sort=sort,descending=descending)
 
 
-def filtered_release_assignments(snapshot, *, dates,group,document_type,release_group,strategy,username,role,status,sort,descending,today=None):
+def _bounded(values):
+    """Selected values are exact identifiers; blanks and over-long entries never match anything."""
+    return {value.strip().upper() for value in values if value.strip() and len(value) <= 100}
+
+
+def filtered_release_assignments(snapshot, *, dates,group,document_type,release_group,strategy,username,role,status,sort,descending,release_areas=(),release_groups=(),today=None):
+    areas, groups = _bounded(release_areas), _bounded(release_groups)
     for a in snapshot.users.assignments:
         if a["scope"] != "release" or not within_dates(a, dates):
             continue
@@ -390,6 +417,10 @@ def filtered_release_assignments(snapshot, *, dates,group,document_type,release_
             continue
         if release_group and r["release_group"] != release_group:
             continue
+        if areas and release_area(r["release_group"]) not in areas:
+            continue
+        if groups and r["release_group"] not in groups:
+            continue
         if strategy and r["release_strategy"] != strategy:
             continue
         if username and not text_matches(a["username"],username):
@@ -399,6 +430,39 @@ def filtered_release_assignments(snapshot, *, dates,group,document_type,release_
         if not relevant(a, "" if status == "all" else status, True, today):
             continue
         yield a
+
+
+def distinct_release_roles(snapshot, filters, today):
+    """One entry per technical role among assignments passing the filters (status and dates included)."""
+    roles = {}
+    for a in filtered_release_assignments(snapshot, **filters, today=today):
+        key = normalize_role(a["role_name"])
+        if key in roles:
+            continue
+        r = a["release"]
+        roles[key] = dict(role_name=a["role_name"], description=(getattr(snapshot.roles.get(a["role_name"]), "text", None) or ""), document_type=r["document_type"],
+                          release_group=r["release_group"], release_strategy=r["release_strategy"],
+                          release_area=release_area(r["release_group"]), parsed=bool(r["parsed"]))
+    return sorted(roles.values(), key=lambda role: (normalize_role(role["role_name"]), role["role_name"]))
+
+
+@router.get("/release-roles")
+def release_role_list(filters: dict = Depends(release_filters)):
+    """Distinct filtered technical roles for the bulk package action and copy; no paging so a bulk add is complete."""
+    snapshot = cache.get_snapshot()
+    if not snapshot.users.report:
+        raise HTTPException(409, "No validated User Access dataset is loaded.")
+    roles = distinct_release_roles(snapshot, filters, date.today())
+    return dict(items=roles, total=len(roles))
+
+
+@router.get("/exports/release-roles")
+def export_release_role_list(filters: dict = Depends(release_filters)):
+    snapshot = cache.get_snapshot()
+    if not snapshot.users.report:
+        raise HTTPException(409, "No validated User Access dataset is loaded.")
+    today = date.today()
+    return role_list_response(snapshot, distinct_release_roles(snapshot, filters, today), today)
 
 
 @router.get('/exports/releases')
@@ -420,6 +484,7 @@ def releases(filters:dict=Depends(release_filters),anchor:str=Query('',max_lengt
     sort,descending=filters["sort"],filters["descending"]
     buckets = defaultdict(list)
     cells = defaultdict(dict)
+    cell_roles = defaultdict(dict)
     for a in filtered_release_assignments(snapshot,**filters,today=today):
         r=a['release']
         buckets[normalize_role(a["role_name"])].append(a)
@@ -431,6 +496,7 @@ def releases(filters:dict=Depends(release_filters),anchor:str=Query('',max_lengt
                 r["release_strategy"],
             )
             cells[key][a["user_key"]] = True
+            cell_roles[key][normalize_role(a["role_name"])] = a["role_name"]
     rows = []
     for _, assignments in buckets.items():
         sample = assignments[0]
@@ -438,6 +504,7 @@ def releases(filters:dict=Depends(release_filters),anchor:str=Query('',max_lengt
             dict(
                 role_name=sample["role_name"],
                 **sample["release"],
+                release_area=release_area(sample["release"]["release_group"]),
                 assigned_users=len({a["user_key"] for a in assignments}),
                 assignment_count=len(assignments),
                 statuses=sorted(
@@ -476,6 +543,7 @@ def releases(filters:dict=Depends(release_filters),anchor:str=Query('',max_lengt
             release_group=r,
             release_strategy=s,
             user_count=len(users),
+            roles=sorted(cell_roles[(g, d, r, s)].values(), key=lambda name: (normalize_role(name), name)),
         )
         for (g, d, r, s), users in sorted(cells.items())
     ]

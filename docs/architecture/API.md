@@ -11,7 +11,7 @@ Desktop: the owned `http://127.0.0.1:<selected-port>` origin, preferring `18743`
 | GET | `/api/refresh-schedule` | Saved schedule, readable description, next runs, last run status and what the deployment requires |
 | POST | `/api/refresh-schedule/preview` | Explain an unsaved schedule draft (description and next runs, or the reason it is invalid); the schedule is saved with `POST /api/configuration` (`refresh_schedule`) |
 | GET | `/api/roles/naming` | Organizational suffixes detected in the imported role names |
-| POST | `/api/roles/package/preview` | Proposed access package: generated names, validation and catalogue matches for up to 200 roles (read-only) |
+| POST | `/api/roles/package/preview` | Proposed access package: generated names, validation and catalogue matches for any number of roles (read-only) |
 | POST | `/api/roles/package/export` | Package CSV (`sap-lens-access-package-DATE.csv`) of the valid generated names |
 | GET | `/api/roles/{agr_name}` | Role details with single roles and transactions |
 | GET | `/api/modules` | Distinct module labels |
@@ -98,9 +98,9 @@ re-resolved on refresh; an in-flight/failed query cannot expose stale actions.
 
 Authenticated, no-store release filter options from the current loaded User
 Access generation. `field` is required: `group`, `document_type`, `release_group`,
-`strategy`, `username` or `role`. Optional `search` and `selected` are bounded to
+`strategy`, `username` or `role` (plus `release_area`, the first character of the release group). Optional `search` and `selected` are bounded to
 512 characters; `limit` defaults to 50 and cannot exceed 100. Context parameters
-are `group`, `document_type`, `release_group`, `strategy` and assignment `status`
+are `group`, `document_type`, `release_group`, repeatable `release_areas` and `release_groups` (OR within a list, AND between filters; areas narrow the group options), `strategy` and assignment `status`
 (default `active`, also `all`, `expired`, `future`, `unknown`).
 
 Returns `items`, `total`, `has_more` and `selected_available`. The availability
@@ -193,6 +193,16 @@ before preserving the previous decision and atomically saving the new annotation
 GET `/api/account-review/history/{username}?offset=0&limit=25` returns bounded earlier
 decisions (maximum page size 100). Authentication and mapping-feature guards apply;
 this is private annotation history, not SAP modification history.
+
+### Release role list
+
+`GET /api/access/release-roles` (JSON, unpaged) and `GET /api/access/exports/release-roles` (CSV
+`sap-lens-release-role-list-review-DATE.csv`: ROLE_NAME, ROLE_DESCRIPTION, RELEASE_AREA, RELEASE_GROUP,
+RELEASE_STRATEGY, PR_PO) accept the `/api/access/releases` filters, including `release_areas` and
+`release_groups`, and return one entry per distinct technical role among the matching assignments.
+`/api/access/releases` rows carry `release_area` and each matrix cell lists its distinct `roles`.
+Package items accept `source: catalogue|release`; release items keep their exact names and are
+validated against the loaded User Access data.
 
 ### Filtered assignment CSV downloads
 

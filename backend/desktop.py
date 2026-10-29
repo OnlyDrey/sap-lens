@@ -34,6 +34,9 @@ def _save_csv_dialog(owner, token, filename, content, kind):
     if kind=='access' and re.fullmatch(r'sap-lens-(user-directory|release-roles)-review-\d{4}-\d{2}-\d{2}\.csv',filename):
         from csv_exports import ASSIGNMENT_HEADER
         header=ASSIGNMENT_HEADER
+    if kind=='access' and re.fullmatch(r'sap-lens-release-role-list-review-\d{4}-\d{2}-\d{2}\.csv',filename):
+        from csv_exports import ROLE_LIST_HEADER
+        header=ROLE_LIST_HEADER
     if kind == 'package':
         from routers.roles import PACKAGE_HEADER
         header = PACKAGE_HEADER

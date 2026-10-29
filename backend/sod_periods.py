@@ -163,6 +163,15 @@ def outstanding(period):
     result['blocking']=sum(result[kind].get(name,0) for kind in ('activity','acceptance') for name in ('Pending','Outdated'))
     return result
 
+def progress(period):
+    """Review progress of a period for the list: decided of total activities and risk acceptances, or None when unavailable."""
+    try:
+        if snapshot(period).get('model')!=2:return None
+        gaps=outstanding(period)
+    except Exception:return None
+    decided=sum(count for kind in ('activity','acceptance') for name,count in gaps[kind].items() if name not in {'Pending','Outdated'})
+    return dict(decided=decided,total=sum(count for kind in ('activity','acceptance') for count in gaps[kind].values()),blocking=gaps['blocking'])
+
 def details(identifier):
     with lock:
         index=read();period=find(index,identifier);saved=snapshot(period);current=overlaid(period,saved)

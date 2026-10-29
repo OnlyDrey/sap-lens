@@ -60,17 +60,40 @@ def propose(source, suffix, known, explicit=False):
     return None, 'ambiguous', f"The last segment '{last}' is not a known organizational suffix. Set an explicit suffix for this role to replace it."
 
 
-def preview(default_suffix, items, catalogue):
-    """items: [(role, override_suffix)]; catalogue: {agr_name: description}. Deterministic and order preserving."""
+def preview(default_suffix, items, catalogue, release_roles=None):
+    """items: [(role, override_suffix[, source])]; catalogue: {agr_name: description}. Deterministic and order preserving.
+
+    source 'release' marks an assigned technical release role (from User Access, not the catalogue). Its name is
+    kept exactly: the scope/suffix tokens of release roles are opaque, so no suffix is ever substituted and
+    catalogue wildcard rules never apply. release_roles is the set of normalized release role names known to the data.
+    """
     known = naming_evidence(catalogue)
+    release_roles = release_roles or set()
     matcher = RoleMatcher(list(catalogue))
     default = normalize_suffix(default_suffix)
     rows, seen = [], {}
-    for role, override in items:
+    for role, override, *rest in items:
+        if rest and rest[0] == 'release':
+            name = normalize_role(role)
+            row = dict(role=role, description=catalogue.get(role, ''), suffix='', suffix_source='none', name=None, status='ok',
+                       messages=[], catalogue=None, source='release')
+            rows.append(row)
+            if name not in release_roles:
+                row.update(status='unknown_role', messages=['The release role is not in the imported User Access data.'])
+            elif not NAME_PATTERN.match(name) or len(name) > MAX_ROLE_NAME:
+                row.update(status='invalid', messages=[f'The role name {name} is not a valid SAP role name (up to {MAX_ROLE_NAME} characters of A-Z, 0-9, _ : / . -).'])
+            else:
+                row['name'] = name
+                row['messages'].append('Release role names are kept exactly; no suffix is applied.')
+                if name in seen:
+                    row.update(status='duplicate', messages=row['messages'] + [f'Same name as {seen[name]}.'])
+                else:
+                    seen[name] = role
+            continue
         override = normalize_suffix(override)
         suffix = override or default
         row = dict(role=role, description=catalogue.get(role, ''), suffix=suffix, suffix_source='override' if override else 'default' if default else 'none',
-                   name=None, status='ok', messages=[], catalogue=None)
+                   name=None, status='ok', messages=[], catalogue=None, source='catalogue')
         rows.append(row)
         if role not in catalogue:
             row.update(status='unknown_role', messages=['The role is not in the imported catalogue.'])

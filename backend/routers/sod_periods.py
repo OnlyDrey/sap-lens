@@ -39,7 +39,7 @@ class Review(StrictModel):
 @router.get('')
 def listing(include_archived:bool=False):
     with store.lock:
-        index=store.read();return dict(revision=index.revision,items=[item.model_dump(mode='json') for item in index.items if include_archived or not item.deleted_at],deletions=[item.model_dump(mode='json') for item in index.deletions[-50:]])
+        index=store.read();return dict(revision=index.revision,items=[{**item.model_dump(mode='json'),'progress':None if item.deleted_at else store.progress(item)} for item in index.items if include_archived or not item.deleted_at],deletions=[item.model_dump(mode='json') for item in index.deletions[-50:]])
 @router.post('')
 def create(body:Create):return store.create(**body.model_dump())
 @router.get('/compare')

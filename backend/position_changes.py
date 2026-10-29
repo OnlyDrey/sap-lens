@@ -72,7 +72,9 @@ def detect(previous, current, detected_at):
             ad_username=record.get('SamAccountName', '').strip(), fields=changed,
             previous_department=before.get('Department', '').strip(), current_department=record.get('Department', '').strip(),
             previous_title=before.get('Title', '').strip(), current_title=record.get('Title', '').strip(),
-            detected_at=detected_at, source_generation=current.digest, previous_generation=previous.digest))
+            detected_at=detected_at, source_generation=current.digest, previous_generation=previous.digest,
+            # Import times of the two snapshots; the real date of the organizational change is unknown and lies between them.
+            previous_imported_at=getattr(previous, 'imported_at', '') or '', current_imported_at=getattr(current, 'imported_at', '') or ''))
     return sorted(events, key=lambda event: event['key']), notices
 
 

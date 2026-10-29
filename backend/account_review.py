@@ -101,7 +101,8 @@ def rows(state, directory, saved, groups, today=None, position=None):
                            needs_review=needs,
                            position_change=dict(id=change['id'], open=open_change, fields=change['fields'], previous_department=change['previous_department'],
                                                 current_department=change['current_department'], previous_title=change['previous_title'], current_title=change['current_title'],
-                                                detected_at=change['detected_at'], source_generation=change['source_generation']) if change else None,
+                                                detected_at=change['detected_at'], source_generation=change['source_generation'],
+                                                previous_imported_at=change.get('previous_imported_at') or None, current_imported_at=change.get('current_imported_at') or None) if change else None,
                            priority='High' if open_change else 'Normal' if needs else 'None', priority_order=0 if open_change else 1 if needs else 2))
     return result
 

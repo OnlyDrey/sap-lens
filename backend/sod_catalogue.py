@@ -218,14 +218,16 @@ def activity_catalogue(snapshot=None, settings=None, saved=None):
     for risk_id, risk in definitions.items():
         for slot in ('ACTVT1', 'ACTVT2'):
             for mapping in risk['activities'][slot]:
-                entry = found.setdefault(mapping['activity'], dict(risks=set(), tcodes=set(), current=False))
+                entry = found.setdefault(mapping['activity'], dict(risks=set(), tcodes=set(), texts={}, current=False))
                 entry['risks'].add(risk_id)
                 entry['tcodes'].add(mapping['tcode'])
+                if mapping.get('ttext'):
+                    entry['texts'].setdefault(mapping['tcode'], mapping['ttext'])
                 entry['current'] = entry['current'] or risk_id in current
     items = []
     for name, entry in sorted(found.items()):
         stored = saved.activities.get(name)
-        items.append(dict(activity=name, risks=sorted(entry['risks']), tcodes=sorted(entry['tcodes']), current=entry['current'],
+        items.append(dict(activity=name, risks=sorted(entry['risks']), tcodes=sorted(entry['tcodes']), mappings=[dict(tcode=code, ttext=entry['texts'].get(code, '')) for code in sorted(entry['tcodes'])], current=entry['current'],
                           local=(stored.metadata if stored else ActivityMetadata()).model_dump(), modified=stored.modified if stored else None))
     return dict(items=items, revision=saved.revision)
 
