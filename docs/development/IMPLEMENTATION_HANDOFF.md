@@ -59,11 +59,11 @@ standards and the Phase 6 regression). The original 36-point numbering was not r
 
 ## Validation
 
-- Full regression run (`python scripts/run-tests.py regression --jobs 3`): backend 769 tests, 3 skipped (PowerShell and PyInstaller
-  only), 0 failed; build with type check, docs, workflow, Lucide, whitespace and `pip check` passed; browser 501 tests with 1 failure
-  (`data-aware-ux` visual QA dark 800), which passed in 12 repeats and 24 repeats under CPU load. Its cause is not explained;
-  it is not classified as harmless. An earlier full run had 2 failures: `sod-governance:203` (test pollution from the bulk spec, fixed) and
-  `refinement-27:39` (an unawaited save in the spec, now polls).
+- Full regression on the final code (`python scripts/run-tests.py regression --jobs 3`, commit `751808f`): backend 769 tests, 3 skipped (PowerShell and
+  PyInstaller only), 0 failed; browser 501 tests, 0 failed; build with type check, docs, workflow, Lucide, whitespace and `pip check` passed.
+  The preceding full run had 1 browser failure (`data-aware-ux` visual QA dark 800) that passed in 12 repeats and in 24 repeats under CPU load
+  and did not recur; its cause is not explained and it is not classified as harmless. Earlier runs had `sod-governance:203` (test pollution from the bulk spec, fixed)
+  and `refinement-27:39` (an unawaited save in the spec, now polls). GitHub Fast Validation passed for `751808f`.
 - `npm audit --omit=dev`: 0 vulnerabilities. `pip-audit` on `backend/requirements.txt`: none.
 - Visual QA: screens loaded without horizontal page overflow in light and dark at 375, 800, 1280 and 1600 px (SoD Overview, Assignments, Remediation, Risk Matrix,
   Role Assignment Review panel, Account Review and dialog, Compare users, Release Roles, Role Lookup, Settings tabs). Screenshots were
