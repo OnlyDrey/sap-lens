@@ -126,6 +126,7 @@
    "backend": [
     "test_sod_analysis",
     "test_sod_analysis_api",
+    "test_sod_bulk_review",
     "test_sod_catalogue",
     "test_sod_feature",
     "test_sod_governance",
@@ -143,6 +144,7 @@
    ],
    "browser": [
     "sod-analysis",
+    "sod-bulk-review",
     "sod-catalogue",
     "sod-export-ux",
     "sod-feature",

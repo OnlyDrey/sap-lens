@@ -86,17 +86,59 @@ def revision():
         return decisions.read().revision
 
 
+def wanted_suffixes(q):
+    """Case-insensitive set of requested role suffix tokens (legacy single value plus the multi-select list); empty means no filter."""
+    values = [*(q.get('role_suffixes') or []), q.get('role_suffix') or '']
+    return {value.strip().casefold() for value in values if value.strip()}
+
+
+def wanted_users(q):
+    return {value.strip().casefold() for value in (q.get('usernames') or []) if value.strip()}
+
+
+def suffix_matches(role, wanted):
+    """Exact token comparison on the actual assigned role; never a substring or catalogue-pattern match."""
+    return not wanted or governance.role_suffix(role or '').casefold() in wanted
+
+
 def _path_matches(finding, q):
     paths = [path for side in finding['evidence'].values() for path in side]
     if q.get('role') and not any(text_matches(path.get('actual_assigned_role', ''), q['role']) for path in paths):
         return False
-    if q.get('role_suffix'):
-        wanted = q['role_suffix'].strip().casefold()
-        if not any(path.get('actual_assigned_role', '').casefold().endswith(wanted) for path in paths):
-            return False
+    wanted = wanted_suffixes(q)
+    if wanted and not any(suffix_matches(path.get('actual_assigned_role', ''), wanted) for path in paths):
+        return False
     if q.get('activity') and not any(text_matches(path['activity'], q['activity']) for path in paths):
         return False
     return True
+
+
+def assignment_filters_active(q):
+    return any(q.get(name) for name in ('role', 'role_suffix', 'role_suffixes', 'group', 'activity', 'tcode', 'assignment_decision'))
+
+
+def allowed_assignments(model, state, q):
+    """{user: assignment ids} passing every assignment-level filter, so lists show actual assigned roles and never siblings of a match."""
+    wanted = wanted_suffixes(q)
+    result = {}
+    for user, entry in model.items():
+        ids = set()
+        for aid, assignment in entry['assignments'].items():
+            if q.get('role') and not text_matches(assignment['role'], q['role']):
+                continue
+            if not suffix_matches(assignment['role'], wanted):
+                continue
+            if q.get('group') and not text_matches(assignment['user_group'], q['group']):
+                continue
+            if q.get('activity') and not any(text_matches(name, q['activity']) for name in assignment['supplies']):
+                continue
+            if q.get('tcode') and not any(text_matches(code, q['tcode']) for codes in assignment['supplies'].values() for code in codes):
+                continue
+            if q.get('assignment_decision') and state['assignment'][aid][0] != q['assignment_decision']:
+                continue
+            ids.add(aid)
+        result[user] = ids
+    return result
 
 
 def visible_cells(bundle, model, state, q):
@@ -104,7 +146,10 @@ def visible_cells(bundle, model, state, q):
     base = filtered({'users': [row for row in bundle['findings'] if row['subject'] in model and row['risk_id'] in model[row['subject']]['findings']]},
                     dict(q, kind='users', sort='subject', descending=False))  # row order belongs to the view, not this filter
     visible = {}
+    users = wanted_users(q)
     for finding in base:
+        if users and finding['subject'].casefold() not in users:
+            continue
         if not _path_matches(finding, q):
             continue
         entry = model[finding['subject']]
@@ -126,7 +171,7 @@ def scoped(context, q):
     model = model_for(bundle)
     observe(bundle, model)
     state = governance.states(model, latest_for(bundle))
-    view = governance.restrict(model, visible_cells(bundle, model, state, q))
+    view = governance.restrict(model, visible_cells(bundle, model, state, q), allowed_assignments(model, state, q) if assignment_filters_active(q) else None)
     return bundle, model, state, view
 
 

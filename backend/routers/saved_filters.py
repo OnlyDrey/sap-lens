@@ -27,7 +27,7 @@ class Saved(StrictModel):
         import json
         if len(json.dumps(value))>16000: raise ValueError('Filter definition is too large.')
         for k,v in value.items():
-            if len(k)>64 or not (isinstance(v,(str,bool,int)) or isinstance(v,list) and all(isinstance(x,str) and len(x)<=512 for x in v) and len(v)<=25): raise ValueError('Only bounded scalar filters or string lists are supported.')
+            if len(k)>64 or not (isinstance(v,(str,bool,int)) or isinstance(v,list) and all(isinstance(x,str) and len(x)<=512 for x in v) and len(v)<=100): raise ValueError('Only bounded scalar filters or string lists are supported.')
             if isinstance(v,str) and len(v)>512: raise ValueError('Filter text is too long.')
         return value
 
@@ -47,7 +47,7 @@ def save(request:Saved):
       'comparison':{'validity','kind','difference','search','area','sort','descending'}}
     for view in ('sod_users','sod_roles'):
         allowed[view]={'search','risk','criticality','risk_type','category','username','group','composite_role','single_role','tcode','account_status','sort','descending','validity','as_of','selected_roles'}
-    matrix={'search','risk','criticality','risk_type','category','username','group','composite_role','single_role','tcode','role','role_suffix','activity','account_status',
+    matrix={'search','risk','criticality','risk_type','category','username','usernames','role_suffixes','group','composite_role','single_role','tcode','role','role_suffix','activity','account_status',
             'activity_decision','assignment_decision','acceptance','validity','as_of','sort','descending','group_by','table','kind','status'}
     for view in ('sod_risk_matrix','sod_activity_matrix','sod_explorer','sod_queue'):
         allowed[view]=matrix

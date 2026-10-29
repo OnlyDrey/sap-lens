@@ -46,7 +46,8 @@ def accounts(search: str = Query('', max_length=256), finding: str = Query('', m
                    missing=sum('directory_match' in r['findings'] for r in items) if directory else None,
                    mismatch=sum('ad_disabled_open' in r['findings'] for r in items),
                    requiring_review=sum(r['needs_review'] for r in items), position_changes=sum(bool(r['position_change'] and r['position_change']['open']) for r in items), unlicensed=sum(r['unlicensed'] for r in items),
-                   reviewed=sum(bool(r['decision']) and r['review_state'] != 'Needs review' and not r['stale'] for r in items))
+                   reviewed=sum(bool(r['decision']) and r['review_state'] != 'Needs review' and not r['stale'] for r in items),
+                   pending=sum(not r['decision'] or r['review_state'] == 'Needs review' or r['stale'] for r in items))
     if not state.users.report: summary = {key: None for key in summary}
     term = search.strip()
     items = [r for r in items if (not term or search_fields(term,r['username'],r['name'],*r['groups']))

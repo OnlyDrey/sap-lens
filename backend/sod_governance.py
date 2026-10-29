@@ -142,14 +142,31 @@ def single_assignment_impact(entry, aid, decisions=None):
                 eliminates_all=result['eliminates_all'])
 
 
-def restrict(model, visible):
-    """View of ``model`` limited to visible (user, risk) cells; evidence versions and assignments stay complete."""
+def role_suffix(name):
+    """Organizational suffix token of an assigned role: the text after its last ':', '_' or '-' separator ('' without one)."""
+    cut = max(name.rfind(mark) for mark in ':_-')
+    return name[cut + 1:] if cut >= 0 else ''
+
+
+def shown(entry):
+    """Assignments of a (possibly restricted) user entry that pass the assignment-level filters; all of them when none apply."""
+    allowed = entry.get('visible_assignments')
+    return entry['assignments'] if allowed is None else {aid: item for aid, item in entry['assignments'].items() if aid in allowed}
+
+
+def restrict(model, visible, allowed=None):
+    """View of ``model`` limited to visible (user, risk) cells; evidence versions and assignments stay complete.
+
+    ``allowed`` maps user -> assignment ids that pass the assignment-level filters (role, suffix, group, activity,
+    transaction, assignment review). Lists of assignments (access list, role lookup, review queue, remediation)
+    show only those, while evidence and decisions keep using the complete assignment records.
+    """
     result = {}
     for user, entry in model.items():
         risks = visible.get(user)
         if not risks:
             continue
-        result[user] = dict(entry, findings={risk: item for risk, item in entry['findings'].items() if risk in risks},
+        result[user] = dict(entry, visible_assignments=None if allowed is None else allowed.get(user, set()), findings={risk: item for risk, item in entry['findings'].items() if risk in risks},
                             activities={name: dict(item, risks=item['risks'] & risks) for name, item in entry['activities'].items() if item['risks'] & risks})
     return result
 
@@ -241,22 +258,22 @@ def explorer_rows(table, model, state):
                 names = sorted(name for name, activity in entry['activities'].items() if risk_id in activity['risks'])
                 rows.append(dict(user=user, risk_id=risk_id, criticality=finding['criticality'], category=(finding.get('risk') or {}).get('business_category', ''),
                                  groups=sorted(entry['groups']), activities=names,
-                                 roles=sorted({entry['assignments'][aid]['role'] for name in names for aid in entry['activities'][name]['assignments']}),
+                                 roles=sorted({entry['assignments'][aid]['role'] for name in names for aid in entry['activities'][name]['assignments'] if aid in shown(entry)}),
                                  acceptance=state['acceptance'][finding['finding_id']][0], finding_id=finding['finding_id']))
         elif table == 'user_activity':
             for name, activity in sorted(entry['activities'].items()):
                 rows.append(dict(user=user, activity=name, risks=sorted(activity['risks']), tcodes=sorted(activity['tcodes']), roles=len(activity['assignments']),
                                  duplicate=len(activity['assignments']) > 1, decision=state['activity'][activity['key']][0], key=activity['key']))
         elif table == 'access_list':
-            for aid, assignment in sorted(entry['assignments'].items(), key=lambda pair: (pair[1]['role'], pair[0])):
-                rows.append(dict(user=user, id=aid, role=assignment['role'], valid_from=assignment['valid_from'], valid_to=assignment['valid_to'],
+            for aid, assignment in sorted(shown(entry).items(), key=lambda pair: (pair[1]['role'], pair[0])):
+                rows.append(dict(user=user, id=aid, role=assignment['role'], suffix=role_suffix(assignment['role']), evidence_version=assignment['evidence_version'], valid_from=assignment['valid_from'], valid_to=assignment['valid_to'],
                                  interval_status=assignment['interval_status'], user_group=assignment['user_group'],
                                  activities=sorted(assignment['supplies']), risks=sorted(assignment['risks']),
-                                 decision=state['assignment'][aid][0]))
+                                 catalogue_roles=sorted(assignment['catalogue_roles']), decision=state['assignment'][aid][0]))
     if table == 'lookup':
         roles = {}
         for user, entry in model.items():
-            for assignment in entry['assignments'].values():
+            for assignment in shown(entry).values():
                 role = roles.setdefault(assignment['role'], dict(role=assignment['role'], users=set(), activities=set(), risks=set(), catalogue_roles=set()))
                 role['users'].add(user)
                 role['activities'] |= set(assignment['supplies'])
@@ -275,7 +292,7 @@ def queue_items(model, state, context_info=None):
             lifecycle_name, event = state['activity'][activity['key']]
             items.append(dict(kind='activity', key=activity['key'], user=user, ref=name, risks=sorted(activity['risks']), lifecycle=lifecycle_name,
                               roles=len(activity['assignments']), event=event, evidence_version=activity['evidence_version']))
-        for aid, assignment in sorted(entry['assignments'].items()):
+        for aid, assignment in sorted(shown(entry).items()):
             lifecycle_name, event = state['assignment'][aid]
             items.append(dict(kind='assignment', key=aid, user=user, ref=assignment['role'], risks=sorted(assignment['risks']), lifecycle=lifecycle_name,
                               roles=len(assignment['supplies']), event=event, evidence_version=assignment['evidence_version']))
@@ -303,7 +320,7 @@ def remediation_rows(model, state, actions, verify, today=None, include_pending=
             tracked[action.assignment_id] = action
     rows, undecided = [], 0
     for user, entry in sorted(model.items()):
-        for aid, assignment in sorted(entry['assignments'].items(), key=lambda pair: (pair[1]['role'], pair[0])):
+        for aid, assignment in sorted(shown(entry).items(), key=lambda pair: (pair[1]['role'], pair[0])):
             a_state, a_event = state['assignment'][aid]
             for name in sorted(assignment['supplies']):
                 activity = entry['activities'].get(name)
@@ -330,7 +347,7 @@ def remediation_rows(model, state, actions, verify, today=None, include_pending=
                         continue
                     recommended, reason = 'Awaiting review', ''
                 action = tracked.get(aid) if recommended == 'Remove assignment' else None
-                rows.append(dict(user=user, activity=name, risks=risks, role=assignment['role'], assignment_id=aid, valid_from=assignment['valid_from'],
+                rows.append(dict(user=user, activity=name, risks=risks, role=assignment['role'], catalogue_roles=sorted(assignment['catalogue_roles']), assignment_id=aid, valid_from=assignment['valid_from'],
                                  valid_to=assignment['valid_to'], user_group=assignment['user_group'], activity_decision=c_state, assignment_decision=a_state,
                                  risk_acceptance=sorted(accept_states), recommended=recommended, reason=reason,
                                  controls=(c_event.controls if c_event and c_event.controls else next((e.controls for _, e in accept if e and e.controls), '')),

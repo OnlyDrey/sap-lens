@@ -31,6 +31,7 @@ def scope_query(context: str = Query('current', pattern=legacy.CONTEXT_PATTERN),
                 group: str = Query('', max_length=256), composite_role: str = Query('', max_length=512), single_role: str = Query('', max_length=512),
                 tcode: str = Query('', max_length=256), role: str = Query('', max_length=512), role_suffix: str = Query('', max_length=128),
                 activity: str = Query('', max_length=512),
+                usernames: list[str] = Query(default=[], max_length=100), role_suffixes: list[str] = Query(default=[], max_length=100),
                 account_status: Literal['', 'locked', 'unlocked', 'ad_disabled', 'ad_enabled', 'unknown'] = '',
                 activity_decision: Lifecycle = '', assignment_decision: Lifecycle = '', acceptance: Lifecycle = '',
                 sort: Literal['subject', 'findings'] = 'subject', descending: bool = False):
@@ -100,13 +101,11 @@ def option_values(model, field):
             for activity in entry['activities'].values():
                 values.update([activity['activity']] if field == 'activity' else activity['tcodes'])
         else:
-            for assignment in entry['assignments'].values():
+            for assignment in governance.shown(entry).values():
                 if field == 'role':
                     values.add(assignment['role'])
                 elif field == 'role_suffix':
-                    name = assignment['role']
-                    cut = max(name.rfind(mark) for mark in ':_-')
-                    values.add(name[cut + 1:] if cut >= 0 else '')
+                    values.add(governance.role_suffix(assignment['role']))
                 else:
                     values.update(assignment['catalogue_roles' if field == 'composite_role' else 'single_roles'])
     return sorted((value for value in values if value), key=lambda value: (value.casefold(), value))
@@ -115,8 +114,16 @@ def option_values(model, field):
 @router.get('/filter-options')
 def filter_options(q: dict = Depends(scope_query), field: OPTION_FIELDS = 'risk', term: str = Query('', max_length=128), limit: int = Query(50, ge=1, le=200)):
     """Searchable predefined filter values taken from the imported SoD evidence of this context."""
-    bundle = scope.load(q['context'], q['validity'], q['as_of'])
-    values = option_values(scope.model_for(bundle), field)
+    own = {'username': ('username', 'usernames'), 'role_suffix': ('role_suffix', 'role_suffixes')}.get(field, (field,))
+    other = {name: ([] if isinstance(value, list) else '') if name in own else value for name, value in q.items()}
+    neutral = {'context', 'validity', 'as_of', 'sort', 'descending'}
+    if any(value for name, value in other.items() if name not in neutral):
+        # Options follow the other active filters, so Select all acts on the values available in the current filter context.
+        bundle, _, _, view = scope.scoped(q['context'], dict(other, sort='subject', descending=False))
+        values = option_values(view, field)
+    else:
+        bundle = scope.load(q['context'], q['validity'], q['as_of'])
+        values = option_values(scope.model_for(bundle), field)
     needle = term.strip().casefold()
     if needle:
         values = [value for value in values if needle in value.casefold()]
@@ -298,7 +305,7 @@ def _status_match(item, status, awaiting):
 def _queue(q, kind, status):
     bundle, model, state, view = scope.scoped(q['context'], q)
     items = governance.queue_items(view, state)
-    if q['context'] == 'current' and bundle['reviewable'] and not any(q[name] for name in ('search', 'risk', 'username', 'role', 'activity', 'group', 'criticality', 'category')):
+    if q['context'] == 'current' and bundle['reviewable'] and not any(q.get(name) for name in ('search', 'risk', 'username', 'usernames', 'role', 'role_suffix', 'role_suffixes', 'tcode', 'activity', 'group', 'criticality', 'category', 'assignment_decision')):
         known = dict(activity={item['key'] for entry in model.values() for item in entry['activities'].values()},
                      assignment={aid for entry in model.values() for aid in entry['assignments']},
                      acceptance={finding['finding_id'] for entry in model.values() for finding in entry['findings'].values()})
@@ -465,6 +472,102 @@ def decide(kind: Literal['activity', 'assignment', 'acceptance'], body: Decision
         return record()
     except ValueError as error:
         raise HTTPException(422, str(error)) from None
+
+
+SELECTION_LIMIT = 5000
+
+
+@router.get('/explorer/access_list/selection')
+def assignment_selection(q: dict = Depends(scope_query)):
+    """Stable identifiers of every filtered assignment (all pages) for bulk review; the same dataset as rows, counts and CSV export."""
+    bundle, rows = _explorer('access_list', q)
+    items = [dict(key=row['id'], user=row['user'], ref=row['role'], suffix=row['suffix'], evidence_version=row['evidence_version'],
+                  decision=row['decision'], user_group=row['user_group']) for row in rows[:SELECTION_LIMIT]]
+    return dict(info(bundle), items=items, total=len(rows), truncated=len(rows) > SELECTION_LIMIT, limit=SELECTION_LIMIT)
+
+
+BULK_MAX = 1000
+
+
+class BulkAssignmentBody(StrictModel):
+    context: str = Field(default='current', pattern=legacy.CONTEXT_PATTERN)
+    expected_revision: int = Field(ge=0)
+    expected_generation: str = Field(pattern=r'^[a-f0-9]{64}$')
+    items: list[DecisionItem] = Field(min_length=1, max_length=BULK_MAX)
+    action: Literal['Keep', 'Remove', 'Investigate']
+    reviewer: str = Field(min_length=1, max_length=120)
+    justification: str = Field(min_length=1, max_length=4000)
+    replace_existing: bool = False
+
+
+@router.post('/decisions/assignment/bulk')
+def bulk_assignment_review(body: BulkAssignmentBody):
+    """Review many role assignments with the individual decision behavior: one event per assignment, own history, evidence checks.
+
+    Keep and Remove append assignment review events. Investigate tracks an Investigate assignment remediation action.
+    Assignments that already carry a decision are never replaced unless replace_existing is true. Nothing here changes SAP.
+    Each outcome is reported per assignment; success is only reported after the change is persisted.
+    """
+    bundle = scope.load(body.context)
+    if not bundle['reviewable']:
+        raise HTTPException(409, 'This context accepts no decisions. Frozen periods and non-current evidence are read-only.')
+    if bundle['generation'] != body.expected_generation:
+        raise HTTPException(409, 'SoD evidence changed. Reload before reviewing.')
+    if len({item.key for item in body.items}) != len(body.items):
+        raise HTTPException(422, 'Each assignment may be listed once.')
+    model = scope.model_for(bundle)
+    state = governance.states(model, scope.latest_for(bundle))
+    tracked = {item.assignment_id for item in scope.actions_for(bundle) if item.assignment_id and item.status != 'Cancelled' and item.recommended == 'Investigate assignment'}
+    ready, skipped, failed = [], [], []
+    for item in body.items:
+        located = _locate(model, 'assignment', item)
+        if located is None or located[1] != item.key:
+            failed.append(dict(key=item.key, user=item.user, ref=item.ref, reason='No longer supported by current evidence.'))
+            continue
+        _, key, version, evidence = located
+        if version != item.evidence_version:
+            failed.append(dict(key=item.key, user=item.user, ref=item.ref, reason='Evidence changed since the selection was made.'))
+            continue
+        if body.action == 'Investigate':
+            if key in tracked:
+                skipped.append(dict(key=item.key, user=item.user, ref=item.ref, reason='An open Investigate assignment action already exists.'))
+                continue
+        elif state['assignment'][key][0] != 'Pending' and not body.replace_existing:
+            skipped.append(dict(key=item.key, user=item.user, ref=item.ref, reason=f'Already reviewed ({state["assignment"][key][0]}); replacing needs explicit confirmation.'))
+            continue
+        ready.append(dict(key=key, user=item.user, ref=item.ref, evidence_version=version, evidence=evidence))
+    recorded, revision = [], body.expected_revision
+
+    def apply(chunk):
+        nonlocal revision
+        if body.action == 'Investigate':
+            for item in chunk:
+                result = decisions.save_action(body.context, dict(user=item['user'], assignment_id=item['key'], role=item['ref'], recommended='Investigate assignment',
+                                                                  reason=body.justification, owner='', due_date=None, status='Open', completion_evidence='',
+                                                                  activity='', risk_id=''), body.reviewer, revision)
+                revision = result['revision']
+        else:
+            revision = decisions.record('assignment', body.context, chunk, body.action, body.reviewer, body.justification, revision,
+                                        source_versions=bundle['versions'])['revision']
+    def run():
+        nonlocal failed
+        for start in range(0, len(ready), decisions.MAX_BATCH):
+            chunk = ready[start:start + decisions.MAX_BATCH]
+            try:
+                apply(chunk)
+                recorded.extend(item['key'] for item in chunk)
+            except HTTPException as error:
+                if error.status_code == 409 and not recorded and start == 0 and 'decisions changed' in str(error.detail):
+                    raise
+                failed.extend(dict(key=item['key'], user=item['user'], ref=item['ref'], reason=str(error.detail)) for item in chunk)
+            except ValueError as error:
+                failed.extend(dict(key=item['key'], user=item['user'], ref=item['ref'], reason=str(error)) for item in chunk)
+    if body.context == 'current':
+        with publication_guard(bundle['query'], body.expected_generation):
+            run()
+    else:
+        run()
+    return dict(action=body.action, recorded=recorded, skipped=skipped, failed=failed, revision=revision, reviewer_identity=decisions.IDENTITY_NOTICE)
 
 
 @router.get('/decisions/{kind}/history')
