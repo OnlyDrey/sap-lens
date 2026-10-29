@@ -113,7 +113,9 @@ test('Finance-style matrices are saved filters, isolated per matrix, renameable 
   await menu.getByLabel('Saved filter name', { exact: true }).fill('P2P matrix')
   await menu.getByRole('button', { name: 'Save as new', exact: true }).click()
   await expect(menu).toContainText('Saved filters updated.')
-  const stored = (await (await request.get('/api/saved-filters', { headers })).json()).items
+  // Saved filters are retained history shared with other specs: only this matrix view is compared.
+  const mine = async () => ((await (await request.get('/api/saved-filters', { headers })).json()).items as { name: string; view: string; filters: Record<string, unknown> }[]).filter((item) => item.view === 'sod_risk_matrix')
+  const stored = await mine()
   expect(stored.map((item: { name: string; view: string }) => [item.name, item.view])).toEqual([['P2P matrix', 'sod_risk_matrix']])
   expect(stored[0].filters.groups).toEqual(['P2P'])
   await menu.getByRole('button', { name: 'Clear filters', exact: true }).click()
@@ -136,10 +138,10 @@ test('Finance-style matrices are saved filters, isolated per matrix, renameable 
   await openSaved(page, 'sod_risk_matrix')
   await savedDialog(page, 'sod_risk_matrix').getByLabel('Saved filter name', { exact: true }).fill('P2P renamed')
   await savedDialog(page, 'sod_risk_matrix').getByRole('button', { name: 'Rename', exact: true }).click()
-  await expect.poll(async () => (await (await request.get('/api/saved-filters', { headers })).json()).items[0].name).toBe('P2P renamed')
+  await expect.poll(async () => (await mine())[0]?.name).toBe('P2P renamed')
   page.once('dialog', (dialog) => dialog.accept())
   await savedDialog(page, 'sod_risk_matrix').getByRole('button', { name: 'Delete', exact: true }).click()
-  await expect.poll(async () => (await (await request.get('/api/saved-filters', { headers })).json()).items.length).toBe(0)
+  await expect.poll(async () => (await mine()).length).toBe(0)
 })
 
 test('group aggregation lists distinct users per group and drills into the users', async ({ page }) => {
