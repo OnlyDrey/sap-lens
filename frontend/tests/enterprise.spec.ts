@@ -118,7 +118,7 @@ test('registry customization preserves custom mappings, CSV modules and transact
     await page.getByRole('button',{name:'Apply module changes',exact:true}).click()
     await page.getByRole('button',{name:'Apply settings',exact:true}).click()
     await expect(page.getByRole('region',{name:'SAP Lens settings',exact:true})).toBeHidden()
-    await expect(page.getByRole('article',{name:'DEMO_ROOT',exact:true})).toContainText('Synthetic accounting')
+    const badge=page.getByRole('article',{name:'DEMO_ROOT',exact:true}).locator('.module-badge');await expect(badge).toHaveAttribute('title','Synthetic accounting');await expect(badge).toContainText('FI');await expect(badge).toHaveCSS('--module-color','#123456')
     const registry=(await (await request.get('/api/registry/modules',{headers})).json()).modules
     expect(registry.find((m:{id:string})=>m.id==='FI').color).toBe('#123456')
     expect(registry.find((m:{id:string})=>m.id==='FI').icon).toBe('Layers')

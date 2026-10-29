@@ -155,6 +155,19 @@ class DeletionTests(PeriodV2Case):
         from csv_lifecycle import private_path
         self.assertFalse(private_path('snapshots', snapshot_id).exists())
 
+    def test_listing_reports_review_progress_without_counting_pending_work_as_done(self):
+        pid = self.new_period('Progress')
+        before = next(item for item in self.get('/api/sod/periods')['items'] if item['id'] == pid)['progress']
+        self.assertEqual((before['decided'], before['blocking'] > 0), (0, True))
+        self.assertGreater(before['total'], 0)
+        self.decide('activity', [self.activity_item('SYN_A', 'A', pid)], 'Approved', context=pid)
+        after = next(item for item in self.get('/api/sod/periods')['items'] if item['id'] == pid)['progress']
+        self.assertEqual((after['decided'], after['total']), (1, before['total']))
+        self.assertEqual(after['blocking'], before['blocking'] - 1)
+        self.decide_everything(pid)
+        done = next(item for item in self.get('/api/sod/periods')['items'] if item['id'] == pid)['progress']
+        self.assertEqual((done['decided'], done['blocking']), (done['total'], 0))
+
     def test_period_with_recorded_work_is_archived_not_destroyed(self):
         pid = self.new_period('In progress')
         self.decide('activity', [self.activity_item('SYN_A', 'A', pid)], 'Approved', context=pid)

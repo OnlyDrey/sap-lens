@@ -155,6 +155,20 @@ class MatrixTests(GovernanceCase):
         lookup = {row['role']: row['users'] for row in self.get('/api/sod/explorer/lookup')['items']}
         self.assertEqual(lookup['ROLE_A1'], 1)
 
+    def test_repeated_role_assignments_count_one_distinct_user_in_lookup_and_exports(self):
+        """Role evidence repeats a username only per assignment record; aggregation and export count distinct users."""
+        twin = user('ROLE_A1', 'ROLE_A1', 'ROLE_B', group='FIN')
+        twin['assignments'][1] = dict(twin['assignments'][1], valid_from='2021-01-01', valid_to='9999-12-31')
+        cache._cache = snapshot(extra_users={'SYN_TWIN': twin})
+        lookup = {row['role']: row['users'] for row in self.get('/api/sod/explorer/lookup')['items']}
+        self.assertEqual(lookup['ROLE_A1'], 2)  # SYN_A and SYN_TWIN once each; SYN_TWIN has two ROLE_A1 records
+        records = [row for row in self.get('/api/sod/explorer/access_list', username='SYN_TWIN')['items'] if row['role'] == 'ROLE_A1']
+        self.assertEqual(len(records), 2)  # each validity interval stays its own assignment record
+        self.assertEqual({row['user'] for row in records}, {'SYN_TWIN'})
+        exported = self.client.get('/api/sod/explorer/lookup/export', headers=H).text
+        self.assertIn('"ROLE_A1";"2"', exported.replace('\ufeff', ''))
+        self.assertEqual(self.risk_matrix()['totals']['users'], 3)
+
     def test_empty_scope_and_paging(self):
         empty = self.risk_matrix(username='NOBODY')
         self.assertEqual((empty['rows'], empty['totals']['users']), ([], 0))

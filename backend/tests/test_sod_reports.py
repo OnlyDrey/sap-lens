@@ -19,7 +19,7 @@ from test_sod_governance import snapshot
 from test_sod_periods_v2 import PeriodV2Case
 
 H = {'X-SAP-Lens': 'synthetic-governance-session'}
-SECTION_TITLES = reports.HEADINGS['en']
+SECTION_TITLES = reports.HEADINGS
 
 
 class ReportCase(PeriodV2Case):
@@ -109,7 +109,7 @@ class FormalReportTests(ReportCase):
             xml = archive.read('word/document.xml').decode()
         self.assertIn('Snapshot reference: ' + data['snapshot_checksum'][:12], xml)
         before_integrity = xml.split('Document integrity')[0]
-        self.assertNotIn(data['snapshot_checksum'], before_integrity.split('Detailed Appendices')[0])
+        self.assertNotIn(data['snapshot_checksum'], before_integrity.split('Technical Appendices')[0])
         appendix = next(section for section in data['sections'] if section['key'] == 'appendices')
         self.assertTrue(any(data['snapshot_checksum'] in str(table) for table in appendix['tables']))
 
@@ -125,16 +125,17 @@ class FormalReportTests(ReportCase):
                 path = Path(temp) / 'synthetic.pdf'
                 path.write_bytes(content)
                 result = subprocess.run(['pdftotext', str(path), '-'], capture_output=True, text=True, check=True).stdout
-                for needle in ('ÆØÅ', 'Executive Summary', 'Outstanding Remediation', 'Document integrity', 'img src='):
+                for needle in ('ÆØÅ', 'Executive Summary', 'Remediation Responsibilities and Status', 'Document integrity', 'img src='):
                     self.assertIn(needle, result)
 
     def test_approved_status_requires_a_frozen_period_and_recorded_identity(self):
         with self.assertRaises(HTTPException) as error:
-            self.model(status='Approved snapshot')
+            self.model(status='Approved')
         self.assertEqual(error.exception.status_code, 422)
         self.approve_period()
-        approved = self.model(status='Approved snapshot')
-        self.assertEqual(approved['status'], 'Approved snapshot')
+        approved = self.model(status='Approved')
+        self.assertEqual(approved['status'], 'Approved')
+        self.assertIn('not authenticated', approved['status_statement'])
         self.assertIn('Recorded period approval: Yes (Approved)', str(approved['sections']))
         with self.assertRaises(HTTPException) as error:
             self.model(reviewer='Someone Else')
@@ -142,12 +143,12 @@ class FormalReportTests(ReportCase):
 
     def test_approved_report_is_reproducible_after_live_evidence_and_decisions_change(self):
         self.approve_period()
-        first = self.model(status='Approved snapshot')
+        first = self.model(status='Approved')
         pdf = reports.render(first, 'pdf')
         cache._cache = snapshot()
         cache._cache.users.users.pop('SYN_A')
         self.decide('activity', [self.activity_item('SYN_B', 'A')], 'Remove')
-        second = self.model(status='Approved snapshot')
+        second = self.model(status='Approved')
         self.assertEqual(first['model_checksum'], second['model_checksum'])
         self.assertEqual(pdf, reports.render(second, 'pdf'))
 
@@ -158,11 +159,64 @@ class FormalReportTests(ReportCase):
         body = dict(period_id=self.pid, options=self.options.model_dump(mode='json'), expected_model=before)
         self.assertEqual(self.client.post('/api/sod/reports/pdf', json=body, headers=H).status_code, 409)
 
-    def test_norwegian_headings_and_optional_sections(self):
-        data = self.model(language='no', include_appendices=False, sections=['executive', 'conclusion'])
-        self.assertEqual([section['title'] for section in data['sections']], ['Sammendrag', 'Konklusjon og godkjenning'])
+    def test_report_is_english_only_and_sections_remain_selectable(self):
+        data = self.model(include_appendices=False, sections=['executive', 'conclusion'])
+        self.assertEqual([section['title'] for section in data['sections']], ['Executive Summary', 'Conclusion and Approval'])
+        self.assertEqual(data['language'], 'en')
         self.assertTrue(reports.render(data, 'pdf').startswith(b'%PDF'))
-        self.assertEqual(len(reports.HEADINGS['no']), len(SECTION_TITLES))
+        self.assertEqual(len(reports.HEADINGS), len(reports.SECTIONS))
+        self.assertNotIn('no', reports.Options.model_fields['language'].annotation.__args__)
+        with self.assertRaises(ValueError):
+            reports.Options(language='no')
+        self.assertNotIn('Sammendrag', str(reports.remediation_model(self.pid, reports.RemediationOptions())['sections']))
+
+    def test_management_reading_order_and_plain_language_front_matter(self):
+        self.mixed_decisions()
+        data = self.model()
+        titles = [section['title'] for section in data['sections']]
+        for earlier, later in [('Executive Summary', 'Scope and Evaluation Period'), ('Scope and Evaluation Period', 'Overall Findings and Risk Exposure'),
+                               ('Overall Findings and Risk Exposure', 'Review Progress: Activity Decisions'), ('Review Progress: Risk Acceptance Decisions', 'Outstanding Risks and Actions'),
+                               ('Outstanding Risks and Actions', 'Remediation Responsibilities and Status'), ('Remediation Responsibilities and Status', 'Evidence Freshness and Limitations'),
+                               ('Evidence Freshness and Limitations', 'Technical Appendices')]:
+            self.assertLess(titles.index(earlier), titles.index(later))
+        self.assertEqual(titles[-1], 'Technical Appendices')
+        by_key = {section['key']: section for section in data['sections']}
+        self.assertIn('segregation of duties', ' '.join(by_key['executive']['paragraphs']))
+        self.assertIn('Segregation of duties (SoD)', str(by_key['methodology']['tables'][0]))
+        self.assertIn('Risk decisions pending or outdated', str(by_key['outstanding']['tables']))
+        self.assertIn('review items have a recorded decision', ' '.join(by_key['executive']['paragraphs']))
+
+    def test_transaction_codes_stay_in_the_technical_appendices(self):
+        self.mixed_decisions()
+        data = self.model()
+        body = str([section for section in data['sections'] if section['key'] != 'appendices'])
+        appendix = str(next(section for section in data['sections'] if section['key'] == 'appendices'))
+        for code in ('X1', 'X2'):
+            self.assertNotIn("'" + code + "'", body)
+            self.assertIn(code, appendix)
+
+    def test_status_labels_distinguish_draft_reviewed_approved_and_external_signature(self):
+        statements = {}
+        for status in ('Draft', 'Reviewed'):
+            data = self.model(status=status, reviewer='Typed Name')
+            statements[status] = data['status_statement']
+            self.assertEqual(data['status'], status)
+        self.assertIn('does not authenticate', statements['Reviewed'])
+        self.assertIn('not been reviewed or approved', statements['Draft'])
+        self.assertEqual(reports.Options(status='For review').status, 'Reviewed')  # earlier clients keep working
+        self.assertEqual(reports.Options(status='Approved snapshot').status, 'Approved')
+        for status in ('Approved', 'Externally signed'):
+            with self.assertRaises(HTTPException) as error:
+                self.model(status=status)
+            self.assertEqual(error.exception.status_code, 422)
+        self.approve_period()
+        signed = self.model(status='Externally signed')
+        self.assertIn('cannot verify', signed['status_statement'])
+        self.assertNotEqual(signed['model_checksum'], self.model(status='Approved')['model_checksum'])
+        for kind in ('pdf', 'docx'):
+            self.assertTrue(reports.render(signed, kind))
+        with ZipFile(BytesIO(reports.render(signed, 'docx'))) as archive:
+            self.assertIn('Externally signed', archive.read('word/document.xml').decode())
 
     def test_legacy_period_report_states_what_was_not_recorded(self):
         legacy = periods.create('Legacy', date(2026, 1, 1), date(2026, 12, 31), date(2026, 10, 27), periods.read().revision, legacy=True)['period']['id']
@@ -186,7 +240,7 @@ class FormalReportTests(ReportCase):
         self.assertGreater(len(reports.render(data, 'docx')), 5000)
 
     def test_report_api_auth_content_types_integrity_headers_and_report_log(self):
-        body = dict(period_id=self.pid, options=self.options.model_copy(update=dict(status='For review')).model_dump(mode='json'))
+        body = dict(period_id=self.pid, options=self.options.model_copy(update=dict(status='Reviewed')).model_dump(mode='json'))
         self.assertEqual(self.client.post('/api/sod/reports/preview', json=body).status_code, 403)
         preview = self.client.post('/api/sod/reports/preview', json=body, headers=H)
         self.assertEqual(preview.status_code, 200, preview.text)

@@ -457,7 +457,7 @@ test('transaction investigation and browser Back retain comparison users and fil
     page.getByRole('heading', { name: 'User Access', exact: true }),
   ).toBeVisible()
   await expect(
-    page.getByRole('region', { name: 'User transaction filter' }),
+    page.getByRole('group', { name: 'Filter users by transaction', exact: true }),
   ).toContainText('ME23N')
   await page.goBack()
   await expect(

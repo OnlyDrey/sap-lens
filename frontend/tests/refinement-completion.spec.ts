@@ -2,7 +2,7 @@ import {test,expect,type Page,type TestInfo} from '@playwright/test'
 import {mkdtempSync,writeFileSync,rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import { headers, goTo } from './support'
+import { headers, goTo, openFilters, closeFilters } from './support'
 test.setTimeout(30_000)
 let directory:string
 const prefix='ZC:SYN:'+ 'LONG_INVESTIGATION_IDENTIFIER_'.repeat(6)
@@ -35,13 +35,13 @@ for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(
  await capture(page,info,'dashboard.png')
  await goTo(page,'User Access');const region=page.getByRole('region',{name:'User Access',exact:true})
  await expect(region.locator('.ui-page-title>svg')).toBeVisible()
- await region.getByRole('button',{name:/Saved filters/}).click()
+ await openFilters(page);await region.getByRole('button',{name:/Saved filters/}).click()
  const popup=page.getByRole('dialog',{name:'users saved filters',exact:true})
  const save=popup.getByRole('button',{name:'Save as new',exact:true}),clear=popup.getByRole('button',{name:'Clear filters',exact:true})
  const sa=(await save.boundingBox())!,cl=(await clear.boundingBox())!
  expect(Math.abs(sa.width-cl.width)).toBeLessThan(1);expect(Math.abs(sa.y-cl.y)).toBeLessThan(1);expect(cl.x-(sa.x+sa.width)).toBeGreaterThanOrEqual(7)
  expect(await popup.evaluate(el=>el.scrollHeight<=el.clientHeight+1)).toBeTruthy()
- await page.keyboard.press('Escape');await expect(region.getByRole('button',{name:/Saved filters/})).toBeFocused()
+ await page.keyboard.press('Escape');if(width>=1024)await expect(region.getByRole('button',{name:/Saved filters/})).toBeFocused();await closeFilters(page)
 
  await capture(page,info,'user-directory.png')
  await mode(page,'Account Review');const clearReview=(await page.locator('.review-filters').getByRole('button',{name:'Clear filters',exact:true}).boundingBox())!;expect(clearReview.height).toBeLessThan(50);await expect(page.locator('.review-filters').getByRole('button',{name:'Export review CSV',exact:true})).toHaveCount(0);await capture(page,info,'account-review.png')
@@ -95,7 +95,7 @@ test('single-role zebra surfaces remain unchanged on hover without inner roundin
  expect(primary).not.toBe(secondary);await expect(entries.nth(0)).toHaveCSS('border-radius','0px');await expect(entries.nth(1)).toHaveCSS('border-radius','0px')
  await entries.nth(0).hover();await expect(entries.nth(0)).toHaveCSS('background-color',primary)
  await entries.nth(1).hover();await expect(entries.nth(1)).toHaveCSS('background-color',secondary)
- await expect(entries.nth(0).locator('.role-entry-module .transaction-count')).toHaveText('1')
+ await expect(entries.nth(0).locator('.role-entry-top .transaction-count')).toHaveText('1')
 })
 test('large matrix contains scrolling, empty cells and high counts in both themes',async({page,request},info)=>{
  const cells=Array.from({length:200},(_,i)=>({document_type:'PR',user_group:'SYN_GROUP',release_group:`G${Math.floor(i/20)}`,release_strategy:String(i%20).padStart(2,'0'),user_count:i===0?99999:i+1})).filter((_,i)=>i!==1)

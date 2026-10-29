@@ -346,7 +346,7 @@ test('theme preview screenshot changes and cancel restores the original pixels',
   await expect(
     page.getByText('Configuration schema', { exact: true })
   ).toBeHidden()
-  await page.getByText('Technical details', { exact: true }).click()
+  await page.locator('details').filter({ has: page.getByText('Configuration schema') }).locator('> summary').click()
   await expect(
     page.getByText('Configuration schema', { exact: true })
   ).toBeVisible()

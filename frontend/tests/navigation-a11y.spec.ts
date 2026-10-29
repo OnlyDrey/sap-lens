@@ -111,22 +111,23 @@ const accessibleName = (page: Page) => page.evaluate(() => {
 })
 
 test.describe('User Directory keyboard order', () => {
-  const order = ['Search users', 'SAP User Group', 'Filter users by role', 'Show expired assignments', 'Filter users by transaction', 'Exclude matching transactions', 'Roles the user must lack', 'Sort users', 'Descending', 'Clear filters']
+  // Reading order = DOM order: page toolbar, then the filter sidebar (wide) or no sidebar stops (narrow drawer is closed), then the results.
+  const wide = ['Hide filters', 'Sort users', 'Ascending order, switch to descending', 'Clear filters', 'Close filters', 'Saved filters', 'SAP User Group', 'Filter users by role', 'Roles the user must lack', 'Filter users by transaction', 'Exclude users by transaction', 'Show expired assignments', 'Search users']
+  const narrow = ['Filters', 'Sort users', 'Ascending order, switch to descending', 'Clear filters', 'Search users']
   for (const width of [375, 800, 1280, 1600]) test(`Tab and Shift+Tab follow the reading order at ${width}`, async ({ page }) => {
+    const order = width >= 1024 ? wide : narrow
     await page.setViewportSize({ width, height: 900 })
     await page.goto('/#session=browser-test-session')
     await main(page).getByRole('link', { name: 'User Access', exact: true }).click()
-    const search = page.getByLabel('Search users', { exact: true })
-    await search.fill('DEMO')
+    await page.getByLabel('Search users', { exact: true }).fill('DEMO')
     await expect(page.getByRole('button', { name: 'Clear filters', exact: true })).toBeEnabled()
-    await search.focus()
+    await page.getByRole('toolbar', { name: 'Page actions' }).getByRole('button').first().focus()
     const forward = [await accessibleName(page)]
     for (let step = 1; step < order.length; step++) { await page.keyboard.press('Tab'); forward.push(await accessibleName(page)) }
     expect(forward).toEqual(order)
     const backward = [await accessibleName(page)]
     for (let step = 1; step < order.length; step++) { await page.keyboard.press('Shift+Tab'); backward.push(await accessibleName(page)) }
     expect(backward).toEqual([...order].reverse())
-    // Visual order agrees: each control starts at or after the previous one in column-then-row reading order.
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
   })
 

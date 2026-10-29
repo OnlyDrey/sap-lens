@@ -8,7 +8,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers, goTo } from './support'
+import { headers, goTo, openFilters, closeFilters } from './support'
 const fields =
   'Site;Name;SamAccountName;UserPrincipalName;Mail;Department;Title;Enabled;DistinguishedName;ManagerDN;ManagerName;ManagerSamAccountName;ManagerMail;ManagerDepartment;ManagerTitle;ManagerLookupStatus'.split(
     ';',
@@ -325,9 +325,9 @@ test('floating Norwegian calendar stays outside layout, handles maximum dates, E
 }) => {
   await page.goto('/#session=browser-test-session')
   await goTo(page, 'Release Roles')
-  const filters = page.locator('.release-filters')
+  const filters = page.getByRole('complementary', { name: 'Filters', exact: true })
   await expect(
-    filters.getByLabel('Sort release roles', { exact: true }),
+    page.getByLabel('Sort release roles', { exact: true }),
   ).toBeVisible()
   await expect(
     filters.getByRole('button', {
@@ -452,7 +452,8 @@ test('source snapshot recovery persists records after removal and reload with co
     .getByRole('tab', { name: 'Health & Diagnostics', exact: true })
     .click()
   const directorySource = page.getByRole('region', { name: 'Employee Directory CSV', exact: true })
-  await directorySource.getByRole('button', { name: 'Technical source details', exact: true }).click()
+  await directorySource.getByText('Technical details', { exact: true }).click()
+  await directorySource.getByRole('button', { name: 'Locations and diagnostics', exact: true }).click()
   const sourceDetails = page.getByRole('dialog', { name: 'Employee Directory CSV technical details', exact: true })
   await expect(sourceDetails).toBeVisible()
   await expect(sourceDetails.getByText('Configured file', { exact: true })).toBeVisible()
@@ -523,6 +524,7 @@ for (const theme of ['light', 'dark'])
       await shot('unified-profile')
       await goTo(page, 'Release Roles')
       await shot('release-compact')
+      await openFilters(page)
       await page
         .getByRole('button', { name: 'Assignment date filters', exact: true })
         .click()
@@ -549,6 +551,7 @@ for (const theme of ['light', 'dark'])
         animations: 'disabled',
       })
       await page.keyboard.press('Escape')
+      await closeFilters(page)
       await page
         .getByRole('button', { name: 'Open settings', exact: true })
         .click()
@@ -600,6 +603,7 @@ test('calendar reopening restores the selected day and Back dismisses its portal
 }) => {
   await page.goto('/#session=browser-test-session')
   await goTo(page, 'Release Roles')
+  await openFilters(page)
   await page
     .getByRole('button', { name: 'Assignment date filters', exact: true })
     .click()

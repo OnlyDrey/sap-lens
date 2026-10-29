@@ -64,20 +64,20 @@ test('catalogue AND/OR is exact across mapping rows; multi-area OR combines with
   await input.press('Enter')
   await expect(page.getByRole('article')).toHaveCount(2)
   await expect(
-    tx.getByRole('group', { name: 'Transaction matching' }),
+    tx.getByRole('group', { name: 'Filter catalogue by transaction matching' }),
   ).toHaveCount(0)
   await input.fill('ME21N')
   await input.press('Enter')
   await expect(page.getByRole('article')).toHaveCount(1)
   await expect(
-    tx.getByRole('button', { name: 'AND', exact: true }),
+    tx.getByRole('button', { name: 'ALL', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true')
   expect(
     await tx.evaluate(
       (el) =>
         !!(
           el
-            .querySelector('[aria-label="Transaction matching"]')!
+            .querySelector('[aria-label="Filter catalogue by transaction matching"]')!
             .compareDocumentPosition(el.querySelector('.transaction-chip')!) &
           Node.DOCUMENT_POSITION_FOLLOWING
         ),
@@ -88,7 +88,7 @@ test('catalogue AND/OR is exact across mapping rows; multi-area OR combines with
   await expect(
     tx.getByRole('button', { name: 'Remove transaction ME21N' }),
   ).toHaveCount(1)
-  await tx.getByRole('button', { name: 'OR', exact: true }).click()
+  await tx.getByRole('button', { name: 'ANY', exact: true }).click()
   await expect(page.getByRole('article')).toHaveCount(2)
   await areas.getByRole('button', { name: /^SD / }).click()
   await expect(page.getByRole('article')).toHaveCount(0)
@@ -374,10 +374,12 @@ for (const theme of ['light', 'dark'] as const)
         name: 'Filter catalogue by transaction',
         exact: true,
       })
+      if (width < 1024) await page.getByRole('button', { name: /^Filters/ }).click() // narrow screens use the filter drawer
       await tx.getByRole('textbox').fill('MIGO')
       await tx.getByRole('textbox').press('Enter')
       await tx.getByRole('textbox').fill('ME21N')
       await tx.getByRole('textbox').press('Enter')
+      if (width < 1024) await page.keyboard.press('Escape')
       await expect(page.getByRole('article')).toHaveCount(1)
       const areas = page.getByRole('group', { name: 'SAP areas', exact: true })
       await areas.getByRole('button', { name: /^MM / }).click()

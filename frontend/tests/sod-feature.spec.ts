@@ -37,7 +37,7 @@ test('a SoD source never enables the feature and a disabled workspace explains i
   await enableSod(request, false)
   const card = await features(page)
   await expect(card).toContainText('Disabled in saved settings')
-  await card.getByRole('button', { name: 'Configure SoD', exact: true }).click()
+  await card.getByRole('button', { name: 'Configure source', exact: true }).click()
   await expect(page.getByRole('tab', { name: 'SoD Matrix', exact: true })).toHaveAttribute('aria-selected', 'true')
   expect((await (await request.get('/api/sod/analysis', { headers })).json()).coverage.reason).toBe('sod_disabled')
 })

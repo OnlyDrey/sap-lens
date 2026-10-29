@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
-import { headers } from './support'
+import { headers, openFilters, closeFilters } from './support'
 let directory = ''
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
@@ -102,10 +102,12 @@ for (const theme of ['dark', 'light']) for (const width of [1280, 800]) {
     await nav.getByRole('link', { name: 'Release Roles', exact: true }).click()
     await page.getByRole('button',{name:'Table',exact:true}).click()
     await expect(page.getByRole('button', { name: 'Release role details', exact: true }).first()).toBeVisible()
+    await openFilters(page)
     const group = page.getByRole('combobox', { name: 'Release SAP User Group', exact: true })
     await group.click()
     await shot('release-combobox')
     await group.press('Escape')
+    await closeFilters(page)
     await shot('release-roles')
     const views = page.getByRole('group', { name: 'Release results view' })
     await views.getByRole('button', { name: 'Matrix', exact: true }).click()

@@ -87,7 +87,7 @@ test('package: default suffix, per-role override, validation, copy, CSV, persist
   await expect(panel.getByRole('combobox', { name: 'Package default suffix' })).toHaveValue('ENS')
   await panel.getByRole('button', { name: 'Clear package' }).click()
   await expect(panel).toContainText('The access package is empty')
-  await expect(page.getByRole('button', { name: 'Access package (0)' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Access package \(/ })).toHaveCount(0) // the floating action exists only while the package has roles
 })
 
 test('Users lacking roles: Missing ANY and Missing ALL with a clearly shown operator', async ({ page }) => {
@@ -126,10 +126,10 @@ test('comparison: shared single roles expand inside their tile and exclusive rol
   const after = await shared.boundingBox()
   expect(after!.width).toBeCloseTo(before!.width, 0)
   expect(after!.height).toBeGreaterThan(before!.height)
-  await expect(shared.locator('.role-entry-module')).toContainText('MM')
+  await expect(shared.locator('.role-entry-top')).toContainText('MM')
   const header = shared.locator('.role-entry-header')
   const order = await header.evaluate(node => [...node.children].map(child => child.className))
-  expect(order).toEqual(['role-entry-module', 'role-entry-description', 'role-entry-identifier'])
+  expect(order).toEqual(['role-entry-top', 'role-entry-description', 'role-entry-identifier'])
   const column = page.locator('.comparison-column').first()
   await expect(column.locator('.single-role-tile')).toHaveCount(0)
   const exclusive = column.locator('.single-role-row').first()

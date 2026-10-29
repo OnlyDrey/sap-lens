@@ -16,6 +16,7 @@
     "test_investigation_filters"
    ],
    "browser": [
+    "saved-filter-migration",
     "consolidated-role-ui",
     "investigation-filter-refinement",
     "live-filters-polish",
@@ -44,6 +45,7 @@
    "backend": [
     "test_user_access",
     "test_assignment_exports",
+    "test_release_roles",
     "test_ui_evidence"
    ],
    "browser": [
@@ -51,6 +53,7 @@
     "data-aware-ux",
     "global-navigation",
     "refinement-round2",
+    "release-roles",
     "user-role-export"
    ]
   },

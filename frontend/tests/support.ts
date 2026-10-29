@@ -1,4 +1,4 @@
-import type { APIRequestContext, Page } from '@playwright/test'
+import type { APIRequestContext, Locator, Page } from '@playwright/test'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -41,4 +41,24 @@ export async function seedSources(request: APIRequestContext, sources: { roles?:
   const saved = await request.post('/api/configuration', { headers, data: settings })
   if (!saved.ok()) throw new Error(`Seeding sources failed: ${saved.status()} ${await saved.text()}`)
   return { directory, cleanup: async () => { await resetConfiguration(request); rmSync(directory, { recursive: true, force: true }) } }
+}
+
+/** The sort direction toggle of SortControl: a pressed icon button instead of a checkbox. */
+export const sortDirection = (scope: Page | Locator) => scope.getByRole('button', { name: /^(Ascending|Descending) order/ })
+export async function setDescending(scope: Page | Locator, descending: boolean) {
+  const toggle = sortDirection(scope)
+  if ((await toggle.getAttribute('aria-pressed')) !== String(descending)) await toggle.click()
+}
+
+/** Wide screens show the filter sidebar; narrow ones (under 1024 px) use a drawer that has to be opened and closed. */
+export async function openFilters(page: Page) {
+  if (page.viewportSize()!.width >= 1024) return
+  const trigger = page.getByRole('button', { name: /^Filters/ })
+  if ((await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click()
+}
+export async function closeFilters(page: Page) {
+  if (page.viewportSize()!.width >= 1024) return
+  // The drawer covers the toolbar button with a backdrop; its own Close button is the reliable dismissal.
+  const close = page.getByRole('button', { name: 'Close filters', exact: true })
+  if (await close.isVisible()) await close.click()
 }

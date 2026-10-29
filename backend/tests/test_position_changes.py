@@ -48,6 +48,14 @@ class DetectionRules(unittest.TestCase):
         self.assertNotEqual(events[0]['source_generation'], events[0]['previous_generation'])
         self.assertEqual(events[0]['detected_at'], NOW)
 
+    def test_events_keep_both_snapshot_import_times_and_never_date_the_real_change(self):
+        before, after = directory(person('a@example.test')), directory(person('a@example.test', department='Procurement'))
+        before.imported_at, after.imported_at = '2026-10-01T08:00:00+00:00', '2026-10-20T08:00:00+00:00'
+        event = changes.detect(before, after, NOW)[0][0]
+        self.assertEqual((event['previous_imported_at'], event['current_imported_at']), ('2026-10-01T08:00:00+00:00', '2026-10-20T08:00:00+00:00'))
+        self.assertEqual(event['detected_at'], NOW)  # first detection, not the date of the organizational change
+        self.assertNotIn('changed_at', event)
+
     def test_manager_formatting_missing_values_and_new_employees_never_create_a_change(self):
         before = [person('a@example.test', ManagerName='Old Boss'), person('b@example.test'), person('c@example.test'), person('d@example.test', department='')]
         after = [person('a@example.test', ManagerName='New Boss'), person('b@example.test', department='  finance ', title='ACCOUNTANT'),

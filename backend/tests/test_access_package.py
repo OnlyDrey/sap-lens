@@ -98,9 +98,47 @@ class PackageApi(unittest.TestCase):
         self.assertEqual(rows[1], ['ZC:FI:VIEW:ENS', 'Description of ZC:FI:VIEW:ENP', 'ENS'])
         nothing = self.client.post('/api/roles/package/export', json=dict(default_suffix='', items=[dict(role='ZC:MM:BUY:ENP')]), headers=H)
         self.assertEqual(nothing.status_code, 422)
-        self.assertEqual(self.client.post('/api/roles/package/preview', json=dict(items=[dict(role='x')] * 201), headers=H).status_code, 422)
+        many = self.client.post('/api/roles/package/preview', json=dict(items=[dict(role=f'ZC:BULK:{n}') for n in range(450)]), headers=H)
+        self.assertEqual(many.status_code, 200)  # no application limit on the number of package roles
+        self.assertEqual(len(many.json()['items']), 450)
         self.assertEqual(self.client.post('/api/roles/package/preview', json=dict(items=[], extra=1), headers=H).status_code, 422)
         self.assertEqual(self.client.post('/api/roles/package/preview', json=dict(items=[])).status_code, 403)
+
+
+class MixedPackage(unittest.TestCase):
+    """Release roles join the package under their exact technical names; the catalogue rules never touch them."""
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(); self.root = Path(self.temp.name)
+        self.env = patch.dict(os.environ, {'SAP_LENS_CONFIG_DIR': str(self.root), 'DATA_CSV_PATH': ''})
+        self.env.start(); config.get_settings.cache_clear(); cache.clear_cache()
+        roles, users = self.root / 'roles.csv', self.root / 'users.csv'
+        roles.write_text(CATALOGUE)
+        users.write_text('USERNAME,ROLE_NAME,USER_GROUP,ROLE_VALID_FROM,ROLE_VALID_TO\nDEMO_ONE,ZO:MM:M:PR_REL_ST_E2_N1:ALL,G1,20200101,99991231\nDEMO_ONE,ZO:MM:M:PO_REL_ST_N1_N2:ENP,G1,20200101,99991231\n')
+        self.client = TestClient(create_app(session_token='1'), base_url='http://127.0.0.1:18743')
+        settings = config.get_settings().model_dump(); settings.update(data_csv_path=str(roles), user_csv_path=str(users))
+        self.client.post('/api/configuration', headers=H, json=settings).raise_for_status()
+
+    def tearDown(self):
+        cache.clear_cache(); config.get_settings.cache_clear(); self.env.stop(); self.temp.cleanup()
+
+    def post(self, path, items, default='ENS'):
+        return self.client.post('/api/roles/package/' + path, json=dict(default_suffix=default, items=items), headers=H)
+
+    def test_release_roles_keep_exact_names_next_to_suffix_replaced_catalogue_roles(self):
+        items = [dict(role='ZC:MM:BUY:ENP'), dict(role='ZO:MM:M:PR_REL_ST_E2_N1:ALL', source='release'), dict(role='ZO:MM:M:PO_REL_ST_N1_N2:ENP', source='release', suffix='XYZ')]
+        rows = self.post('preview', items).json()['items']
+        self.assertEqual([(r['name'], r['source'], r['status']) for r in rows], [('ZC:MM:BUY:ENS', 'catalogue', 'ok'), ('ZO:MM:M:PR_REL_ST_E2_N1:ALL', 'release', 'ok'), ('ZO:MM:M:PO_REL_ST_N1_N2:ENP', 'release', 'ok')])
+        self.assertEqual(rows[2]['suffix'], '')  # neither the default nor an override replaces a release suffix
+        exported = list(csv.reader(io.StringIO(self.post('export', items).text.lstrip('\ufeff')), delimiter=';'))
+        self.assertEqual([r[0] for r in exported[1:]], ['ZC:MM:BUY:ENS', 'ZO:MM:M:PO_REL_ST_N1_N2:ENP', 'ZO:MM:M:PR_REL_ST_E2_N1:ALL'])
+
+    def test_unknown_duplicate_and_wildcard_release_items_are_not_exported(self):
+        items = [dict(role='ZO:MM:M:PR_REL_ST_E2_N1:ALL', source='release'), dict(role='zo:mm:m:pr_rel_st_e2_n1:all', source='release'),
+                 dict(role='ZO:MM:M:PR_REL_ST_X9_N1:ALL', source='release'), dict(role='ZO:MM:M:*', source='release'), dict(role='ZC:MM:BUY:ENP', source='release')]
+        rows = self.post('preview', items).json()['items']
+        self.assertEqual([r['status'] for r in rows], ['ok', 'duplicate', 'unknown_role', 'unknown_role', 'unknown_role'])
+        self.assertEqual(self.post('preview', items).json()['exportable'], 1)
+        self.assertEqual(self.post('preview', [dict(role='X', source='other')]).status_code, 422)
 
 
 if __name__ == '__main__':

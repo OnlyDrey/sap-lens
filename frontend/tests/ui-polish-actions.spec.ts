@@ -35,7 +35,7 @@ test('role card actions: Compare (Scale) left of Add to access package (Plus), n
   // Hover scaling is a transform; the layout position must not move when the state changes.
   expect(await remove.evaluate(el => (el as HTMLElement).offsetLeft)).toBe(before)
   await remove.click()
-  await expect(page.getByRole('button', { name: 'Access package (0)' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Access package \(/ })).toHaveCount(0) // the floating action exists only while the package has roles
 })
 
 test('Settings navigation: active item is one filled rounded surface with no underline, in both themes', async ({ page }) => {

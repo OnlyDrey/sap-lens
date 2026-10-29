@@ -44,8 +44,8 @@ test('transaction search respects exact code, scope and status and opens catalog
   await expect(details).not.toContainText('associated transactions')
   await details.getByRole('button', { name: 'View role details: ZC:MM:BUY:EN*', exact: true }).first().click()
   await expect(page.getByRole('dialog')).toContainText('Purchasing evidence')
-  await expect(page.getByRole('dialog')).not.toContainText('Unclassified')
-  await expect(page.getByRole('dialog').locator('.single-role-heading .lucide-layers')).toHaveCount(1)
+  // A single role without catalogue module evidence gets the shared neutral badge, never an inferred module.
+  await expect(page.getByRole('dialog').locator('.single-role-heading .module-badge[title^="No module classification"]')).toHaveCount(1)
   await page.getByRole('button', { name: 'Expand single role ZD:BUY', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Investigate users with ME21N', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Close role details' }).click()

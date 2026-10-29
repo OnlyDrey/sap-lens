@@ -3,7 +3,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers, goTo } from './support'
+import { headers, goTo, setDescending, sortDirection, openFilters, closeFilters } from './support'
 let directory: string, roles: string, users: string
 const roleCSV =
   'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,TCODE\nMM,ZC:DEMO:A,Demo purchasing,ZS:A,MIGO\n'
@@ -254,11 +254,13 @@ for (const theme of ['light', 'dark'] as const)
       await expect(
         page.getByRole('link', { name: 'DEMO_ONE', exact: true }),
       ).toBeVisible()
-      const filter = page.locator('.directory-filter-grid')
-      const cols = await filter.evaluate(
-        (el) => getComputedStyle(el).gridTemplateColumns.split(' ').length,
-      )
-      expect(cols).toBe(width >= 1200 ? 5 : width >= 1100 ? 4 : width >= 640 ? 2 : 1)
+      // Wide screens show the filter sidebar beside the results; narrow ones keep it in a drawer behind the Filters button.
+      const sidebar = page.getByRole('complementary', { name: 'Filters', exact: true })
+      if (width >= 1024) await expect(sidebar).toBeVisible()
+      else {
+        await expect(sidebar).toBeHidden()
+        await expect(page.getByRole('button', { name: /^Filters/ })).toBeVisible()
+      }
       await page.evaluate(() => window.scrollTo(0, 0))
       await page.screenshot({
         path: info.outputPath('user-filters.png'),
@@ -297,6 +299,7 @@ for (const theme of ['light', 'dark'] as const)
         fullPage: true,
         animations: 'disabled',
       })
+      await openFilters(page)
       await page
         .getByRole('button', { name: 'Assignment date filters', exact: true })
         .click()
@@ -351,7 +354,7 @@ test('clear user filters resets all directory controls while evidence-only clear
   await page
     .getByRole('combobox', { name: 'Sort users', exact: true })
     .selectOption('email')
-  await page.getByLabel('Descending', { exact: true }).check()
+  await setDescending(page, true)
   await page
     .getByRole('textbox', { name: 'Filter users by transaction', exact: true })
     .fill('MIGO')
@@ -365,7 +368,7 @@ test('clear user filters resets all directory controls while evidence-only clear
   await expect(
     page.getByRole('combobox', { name: 'Sort users', exact: true }),
   ).toHaveValue('username')
-  await expect(page.getByLabel('Descending', { exact: true })).not.toBeChecked()
+  await expect(sortDirection(page)).toHaveAttribute('aria-pressed', 'false')
   await expect(
     page.getByRole('button', { name: 'Remove transaction MIGO', exact: true }),
   ).toHaveCount(0)

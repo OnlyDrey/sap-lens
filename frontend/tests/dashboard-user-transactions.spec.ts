@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers, goTo } from './support'
+import { headers, goTo, openFilters, closeFilters } from './support'
 let directory: string
 const roles =
   'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,TCODE\nMM,ZC:MM:A,Demo purchasing,ZS:A,MIGO\nFI,ZC:FI:B,Demo finance,ZS:B,ME21N\nSD,ZC:SD:C,Demo sales,ZS:C,VA03\n'
@@ -53,7 +53,7 @@ test('editable user T-codes use AND across assignments, OR, unique chips and sco
   await input.fill(' me21n ')
   await input.press('Enter')
   await expect(
-    page.getByRole('button', { name: 'AND', exact: true }),
+    page.getByRole('group', { name: 'Filter users by transaction matching', exact: true }).getByRole('button', { name: 'ALL', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true')
   await expect(
     page.getByRole('link', { name: 'DEMO_TWO', exact: true }),
@@ -66,7 +66,7 @@ test('editable user T-codes use AND across assignments, OR, unique chips and sco
   await expect(
     page.getByRole('button', { name: 'Remove transaction MIGO', exact: true }),
   ).toHaveCount(1)
-  await page.getByRole('button', { name: 'OR', exact: true }).click()
+  await page.getByRole('group', { name: 'Filter users by transaction matching', exact: true }).getByRole('button', { name: 'ANY', exact: true }).click()
   await expect(
     page.getByRole('link', { name: 'DEMO_TWO', exact: true }),
   ).toBeVisible()
@@ -78,12 +78,12 @@ test('editable user T-codes use AND across assignments, OR, unique chips and sco
   await page
     .getByRole('combobox', { name: 'Sort users', exact: true })
     .selectOption('email')
-  const summary = page.getByRole('region', {
-    name: 'User transaction filter',
+  const summary = page.getByRole('group', {
+    name: 'Filter users by transaction',
     exact: true,
   })
-  await expect(summary).toContainText('Transaction: MIGO')
-  await expect(summary).toContainText('Transaction: ME21N')
+  await expect(summary).toContainText('MIGO')
+  await expect(summary).toContainText('ME21N')
   await summary.getByRole('button', {name:'Remove transaction MIGO',exact:true}).click()
   await summary.getByRole('button', {name:'Remove transaction ME21N',exact:true}).click()
   await expect(summary.locator('.transaction-chip')).toHaveCount(0)
@@ -113,11 +113,11 @@ test('incoming transaction evidence seeds the same editable controls and survive
   await page
     .getByRole('button', { name: 'Investigate users with MIGO', exact: true })
     .click()
-  const summary = page.getByRole('region', {
-    name: 'User transaction filter',
+  const summary = page.getByRole('group', {
+    name: 'Filter users by transaction',
     exact: true,
   })
-  await expect(summary).toContainText('Transaction: MIGO')
+  await expect(summary).toContainText('MIGO')
   const input = summary.getByRole('textbox', {
     name: 'Filter users by transaction',
     exact: true,
@@ -228,30 +228,24 @@ for (const theme of ['light', 'dark'] as const)
         fullPage: true,
       })
       await goTo(page, 'Role Lookup')
-      const name = page.getByPlaceholder(
-          'Search roles by name or description...',
-        ),
-        tcode = page.getByRole('textbox', {
-          name: 'Filter catalogue by transaction',
-          exact: true,
-        })
-      const a = (await name.boundingBox())!,
-        b = (await tcode.boundingBox())!
+      // Filters live in the sidebar (wide) or drawer (narrow); the role search stays in the page body.
+      const name = page.getByPlaceholder('Search roles by name or description...'),
+        tcode = page.getByRole('textbox', { name: 'Filter catalogue by transaction', exact: true })
+      await openFilters(page)
+      await expect(tcode).toBeVisible()
+      const a = (await name.boundingBox())!, b = (await tcode.boundingBox())!
       expect(Math.abs(a.height - b.height)).toBeLessThanOrEqual(2)
-      if (width > 800) {
-        expect(Math.abs(a.y - b.y)).toBeLessThanOrEqual(2)
-        expect(a.width).toBeGreaterThan(b.width)
-      } else expect(b.y).toBeLessThan(a.y)
+      if (width >= 1024) expect(b.x + b.width).toBeLessThanOrEqual(a.x + 1) // sidebar before content, in DOM and visual order
       await tcode.fill('MIGO')
       await tcode.press('Enter')
       await tcode.fill('ME21N')
       await tcode.press('Enter')
-      await expect(
-        page.getByRole('button', { name: 'AND', exact: true }),
-      ).toHaveAttribute('aria-pressed', 'true')
+      const matching = page.getByRole('group', { name: 'Filter catalogue by transaction matching', exact: true })
+      await expect(matching.getByRole('button', { name: 'ALL', exact: true })).toHaveAttribute('aria-pressed', 'true')
       await expect(page.getByRole('article')).toHaveCount(0)
-      await page.getByRole('button', { name: 'OR', exact: true }).click()
+      await matching.getByRole('button', { name: 'ANY', exact: true }).click()
       await expect(page.getByRole('article')).toHaveCount(2)
+      await closeFilters(page)
       await page.screenshot({
         path: info.outputPath('compact-search.png'),
         fullPage: true,

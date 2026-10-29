@@ -66,7 +66,7 @@ test('release facets are data-driven, bounded, retain invalid choices and refres
   await select('Release role name','ZO:MM:M:PR_REL_ST_SH_N6:ALL')
   await expect(page.getByRole('button',{name:'Release role details',exact:true})).toHaveCount(1)
   await select('PR/PO','PO')
-  await expect(page.getByRole('combobox',{name:'Release Group',exact:true})).toHaveValue('SH')
+  await expect(page.getByRole('button',{name:'Remove Release Group SH',exact:true})).toBeVisible()
   await expect(page.getByText('No available value matches this filter', {exact:false}).first()).toBeVisible()
   await expect(page.getByText('No release assignments match.',{exact:false})).toBeVisible()
   await page.getByRole('button',{name:'Clear filters',exact:true}).click()

@@ -234,12 +234,15 @@ test('remediation separates proposals from verification and keeps tracked action
 
 test('access explorer traces user to role and back through the lookup', async ({ page }) => {
   await openSod(page, 'Access Explorer')
-  await expect(page.getByRole('table', { name: 'User risk table' })).not.toContainText('ROLE_A1, ROLE_A2, ROLE_B')
+  await expect(page.getByRole('table', { name: 'User risk table' }).locator('code', { hasText: /^ROLE_(A1|A2|B)$/ })).toHaveCount(0)
   await page.getByRole('button', { name: `Show evidence for ${names.a} R1`, exact: true }).click()
-  await expect(page.getByRole('table', { name: 'User risk table' })).toContainText('ROLE_A1, ROLE_A2, ROLE_B')
+  // Each evidence role is its own code block on its own line, never a comma-separated string.
+  const evidenceRoles = page.getByRole('table', { name: 'User risk table' }).locator('code', { hasText: /^ROLE_(A1|A2|B)$/ })
+  await expect(evidenceRoles).toHaveText(['ROLE_A1', 'ROLE_A2', 'ROLE_B'])
+  await expect(page.getByRole('table', { name: 'User risk table' })).not.toContainText('ROLE_A1, ROLE_A2')
   await page.getByRole('tab', { name: 'Roles', exact: true }).click()
   await page.getByRole('button', { name: 'Show evidence for ROLE_AB', exact: true }).click()
-  await expect(page.getByRole('list', { name: 'Users with ROLE_AB' })).toContainText(names.b)
+  await expect(page.getByRole('group', { name: 'Users with ROLE_AB' })).toContainText(names.b)
   await page.getByRole('button', { name: 'Show users with ROLE_AB', exact: true }).click()
   await expect(page.getByRole('tab', { name: 'Assignments', exact: true })).toHaveAttribute('aria-selected', 'true')
   const list = page.getByRole('table', { name: 'Access list' })

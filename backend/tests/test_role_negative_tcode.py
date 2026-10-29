@@ -160,5 +160,59 @@ class UserAccessSemanticsTests(TransactionFilterCase):
         self.assertEqual(bad.status_code, 422)
 
 
+
+class IndependentGroupTests(TransactionFilterCase):
+    """Include and exclude are separate lists: include ALL/ANY, exclude ANY/ALL, combined with AND between the groups."""
+    def test_role_exclude_any_and_all_without_an_include_group(self):
+        self.assertEqual(self.roles('exclude_tcodes=MIGO&exclude_tcodes=ME21N&exclude_mode=any'), {'D', 'C'})
+        self.assertEqual(self.roles('exclude_tcodes=MIGO&exclude_tcodes=ME21N&exclude_mode=all'), {'B', 'D', 'C'})
+        self.assertEqual(self.roles('exclude_tcodes=MIGO'), {'D', 'C'})  # ANY is the default
+        self.assertNotIn('E', self.roles('exclude_tcodes=MIGO'))  # a role without mappings is never returned by an exclusion
+
+    def test_role_include_all_or_any_combined_with_exclusion(self):
+        self.assertEqual(self.roles('tcodes=MIGO&tcodes=ME23N&transaction_mode=or&exclude_tcodes=ME21N&exclude_mode=any'), {'B', 'D'})
+        self.assertEqual(self.roles('tcodes=MIGO&tcodes=ME23N&transaction_mode=or&exclude_tcodes=ME21N&exclude_tcodes=MIGO&exclude_mode=all'), {'B', 'D'})  # only A holds both excluded codes
+        self.assertEqual(self.roles('tcodes=MIGO&exclude_tcodes=MIGO'), set())  # contradictory groups select nothing
+        self.assertEqual(self.roles('tcodes=MIGO&tcodes=ME21N&transaction_mode=and&exclude_tcodes=ME23N'), {'A'})
+        self.assertEqual(self.roles('exclude_tcodes=ME*&exclude_mode=any'), {'B', 'C'})  # wildcards behave as in the include group
+
+    def test_exclusion_never_changes_the_included_roles_matching_codes(self):
+        found = self.client.get('/api/roles?tcodes=MIGO&exclude_tcodes=ME21N', headers=H).json()
+        self.assertEqual({role['agr_name'] for role in found}, {'ZC:FI:B'})
+        self.assertEqual(found[0]['matching_tcodes'], ['MIGO'])
+
+    def test_exclusion_validation_is_bounded(self):
+        self.assertEqual(self.client.get('/api/roles?exclude_mode=some', headers=H).status_code, 422)
+        self.assertEqual(self.client.get('/api/roles?' + '&'.join('exclude_tcodes=T%d' % n for n in range(22)), headers=H).status_code, 422)
+        self.assertEqual(self.client.get('/api/access/users?exclude_mode=some', headers=H).status_code, 422)
+
+    def test_users_exclude_any_and_all_need_complete_mapped_evidence(self):
+        self.assertEqual(self.users('exclude_tcodes=MIGO&exclude_tcodes=VA03&exclude_mode=any'), set())  # every mapped user holds MIGO or VA03
+        self.assertEqual(self.users('exclude_tcodes=MIGO&exclude_tcodes=ME21N&exclude_mode=all'), {'U2', 'U3', 'U4'})
+        self.assertEqual(self.users('exclude_tcodes=MIGO&exclude_tcodes=ME21N&exclude_mode=any'), {'U3', 'U4'})
+        for unknown in ('U5', 'U6', 'U7'):
+            self.assertNotIn(unknown, self.users('exclude_tcodes=MIGO'))  # unmapped or ineligible assignments never prove absence
+
+    def test_users_include_and_exclude_combine_and_match_the_export(self):
+        queries = ('tcodes=VA03&exclude_tcodes=ME23N', 'tcodes=MIGO&tcodes=VA03&transaction_mode=or&exclude_tcodes=ME21N&exclude_mode=any',
+                   'tcodes=MIGO&exclude_tcodes=ME21N&exclude_tcodes=MIGO&exclude_mode=all', 'exclude_tcodes=MIGO&exclude_mode=any')
+        self.assertEqual(self.users(queries[0]), {'U3'})
+        self.assertEqual(self.users(queries[1]), {'U2', 'U3', 'U4'})  # U1 holds ME21N and drops out
+        self.assertEqual(self.users(queries[2]), {'U2'})  # U1 holds both excluded codes, U2 only MIGO
+        for query in queries:
+            self.assertEqual({row['USERNAME'] for row in self.export(query)}, self.users(query), query)
+
+    def test_explicit_exclude_group_overrides_the_earlier_single_list_switch(self):
+        self.assertEqual(self.roles('tcodes=MIGO&exclude_matching=true&exclude_tcodes=VA03'), self.roles('exclude_tcodes=VA03'))
+        self.assertEqual(self.roles('tcodes=MIGO&exclude_matching=true'), {'D', 'C'})  # earlier saved links keep their meaning
+
+    def test_saved_filters_accept_the_independent_groups(self):
+        body = {'name': 'Independent', 'view': 'users', 'filters': {'tcodes': ['MIGO'], 'transactionMode': 'or', 'excludeTcodes': ['ME21N'], 'excludeMode': 'all'}}
+        saved = self.client.post('/api/saved-filters', headers=H, json=body)
+        self.assertEqual(saved.status_code, 200, saved.text)
+        self.assertEqual(saved.json()['filters']['excludeMode'], 'all')
+        roles = self.client.post('/api/saved-filters', headers=H, json=dict(body, view='roles', name='Roles'))
+        self.assertEqual(roles.status_code, 200, roles.text)
+
 if __name__ == '__main__':
     unittest.main()

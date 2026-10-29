@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
-import { headers } from './support'
+import { headers, setDescending, sortDirection } from './support'
 let directory = '', source = '', rows: string[] = []
 const csv = () => 'USERNAME,ROLE_NAME,USER_GROUP,FIRST_NAME,ROLE_VALID_FROM,ROLE_VALID_TO\n' + rows.join('\n') + '\n'
 const user = (n: number) => `DEMO_${String(n).padStart(3, '0')}`
@@ -43,7 +43,7 @@ for (const descending of [false, true]) test(`user global navigation crosses bou
   const group = list.getByRole('combobox', { name: 'SAP User Group', exact: true })
   await group.fill('GROUP_KEEP'); await group.press('Escape')
   await list.getByRole('combobox', { name: 'Sort users', exact: true }).selectOption('first_name')
-  if (descending) await list.getByLabel('Descending', { exact: true }).check()
+  if (descending) await setDescending(list, true)
   await (await filteredResponse).finished()
   await expect(list.getByRole('status').filter({ hasText: 'Loading local records' })).toHaveCount(0)
   const before = descending ? 75 : 49, after = descending ? 74 : 50
@@ -95,7 +95,7 @@ test('complete release list preserves descending tie order and returns focus to 
   const group = list.getByRole('combobox', { name: 'Release SAP User Group', exact: true })
   await group.fill('GROUP_KEEP'); await group.press('Escape')
   await list.getByRole('combobox', { name: 'Sort release roles', exact: true }).selectOption('assigned_users')
-  await list.getByLabel('Descending', { exact: true }).check()
+  await setDescending(list, true)
   await expect(list.getByRole('navigation',{name:'Release role pages'})).toHaveCount(0)
   await expect(list.getByRole('button',{name:'Release role details',exact:true})).toHaveCount(125)
   await list.getByRole('button', { name: 'Release role details', exact: true }).filter({ hasText: role(25) }).click()
@@ -106,7 +106,7 @@ test('complete release list preserves descending tie order and returns focus to 
   await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(role(24))
   await page.getByRole('button', { name: 'Back to Release Roles', exact: true }).click()
   await expect(list.getByRole('button',{name:'Release role details',exact:true})).toHaveCount(125)
-  await expect(list.getByLabel('Descending', { exact: true })).toBeChecked()
+  await expect(sortDirection(list)).toHaveAttribute('aria-pressed', 'true')
   await expect(list.getByRole('button', { name: 'Release role details', exact: true }).filter({ hasText: role(25) })).toBeFocused()
 })
 

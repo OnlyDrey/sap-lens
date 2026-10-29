@@ -55,6 +55,9 @@ test('Windows tray settings live in the runtime section, only for the Windows De
   const section = await open(page)
   const tray = page.getByRole('region', { name: 'Windows Desktop background operation', exact: true })
   await expect(tray).toContainText('apply only to the Windows Desktop application')
+  const heading = tray.getByRole('heading', { name: 'Windows Desktop', exact: true })
+  await expect(heading.locator('svg[aria-hidden="true"]')).toHaveCount(1) // four-pane mark beside the heading; decorative
+  expect(await heading.locator('svg path').count()).toBe(4)
   await expect(section.getByText('Where it runs')).toBeVisible()
   await page.getByRole('tab', { name: 'About SAP Lens', exact: true }).click()
   await expect(tray).toHaveCount(0)

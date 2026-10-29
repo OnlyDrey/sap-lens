@@ -99,8 +99,8 @@ test("user to role to transactions and reverse role or transaction investigation
     .getByRole("button", { name: "Investigate users with ME23N", exact: true })
     .click();
   await expect(
-    page.getByRole("region", { name: "User Access", exact: true }),
-  ).toContainText("Transaction: ME23N");
+    page.getByRole("button", { name: "Remove transaction ME23N", exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByRole("link", { name: "DEMO_ALFA", exact: true }),
   ).toHaveCount(1);
@@ -433,9 +433,9 @@ for (const theme of ['light', 'dark'] as const) for (const width of [1280, 600])
       await expand.press('Enter')
       await expect(expand).toHaveAttribute('aria-expanded', 'true')
       const description = entry.locator('.role-entry-description'), identifier = entry.locator('.single-role-heading-main .role-identifier')
-      const metadataBox = (await entry.locator('.role-entry-module').boundingBox())!, descriptionBox = (await description.boundingBox())!, identifierBox = (await identifier.boundingBox())!
-      expect(metadataBox.x + metadataBox.width).toBeLessThanOrEqual(descriptionBox.x + 1)
-      expect(identifierBox.y).toBeGreaterThanOrEqual(metadataBox.y + metadataBox.height - 1)
+      const metadataBox = (await entry.locator('.role-entry-top').boundingBox())!, descriptionBox = (await description.boundingBox())!, identifierBox = (await identifier.boundingBox())!
+      expect(descriptionBox.y).toBeGreaterThanOrEqual(metadataBox.y + metadataBox.height - 1)
+      expect(identifierBox.y).toBeGreaterThanOrEqual(descriptionBox.y + descriptionBox.height - 1)
       const headingBox = (await entry.locator('.single-role-heading').boundingBox())!
       expect(identifierBox.x + identifierBox.width).toBeLessThanOrEqual(headingBox.x + headingBox.width)
       await expect(description).not.toHaveCSS('text-overflow', 'ellipsis')
@@ -460,7 +460,9 @@ for (const theme of ['light', 'dark'] as const) for (const width of [1280, 600])
       await expect(investigate).toHaveCSS('outline-style', 'solid')
       await page.screenshot({ path: info.outputPath(`transactions-${code}.png`), fullPage: true })
       await table.getByRole('button', { name: `Investigate users with ${code}`, exact: true }).press('Enter')
-      await expect(page.getByRole('region', { name: 'User Access', exact: true })).toContainText(`Transaction: ${code}`)
+      // Wide screens show the chip in the sidebar; narrow screens keep it in the closed filter drawer, flagged by the active count.
+      if (page.viewportSize()!.width >= 1024) await expect(page.getByRole('button', { name: `Remove transaction ${code}`, exact: true })).toBeVisible()
+      else await expect(page.getByRole('button', { name: /^Filters/ })).toContainText('1')
       await expect(page.getByRole('link', { name: 'DEMO_ALFA', exact: true })).toBeVisible()
     }
   })

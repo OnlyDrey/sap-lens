@@ -42,12 +42,12 @@ async function openUser(page: Page) {
 test('description area labels remain separate from canonical classification', async ({ page, request }) => {
   const dialog = await openRole(page)
   const entry = dialog.locator('.single-role-entry').filter({ has: page.getByRole('button', { name: 'Expand single role ZD:MATERIAL', exact: true }) })
-  await expect(entry.locator('.role-entry-module .evidence-badge')).toHaveText('CA')
+  await expect(entry.locator('.role-entry-top .module-badge-label')).toHaveText('CA')
   await expect(entry.locator('.role-entry-description')).toHaveText('Master Data - Materials Display & Reporting')
   await expect(entry.locator('.single-role-description')).toHaveCount(0)
-  const meta = (await entry.locator('.role-entry-module').boundingBox())!, text = (await entry.locator('.role-entry-description').boundingBox())!, code = (await entry.locator('.role-identifier').boundingBox())!
-  expect(meta.x + meta.width).toBeLessThanOrEqual(text.x + 1)
-  expect(code.y).toBeGreaterThanOrEqual(meta.y + meta.height - 1)
+  const meta = (await entry.locator('.role-entry-top').boundingBox())!, text = (await entry.locator('.role-entry-description').boundingBox())!, code = (await entry.locator('.role-identifier').boundingBox())!
+  expect(text.y).toBeGreaterThanOrEqual(meta.y + meta.height - 1) // module identity, then the description
+  expect(code.y).toBeGreaterThanOrEqual(text.y + text.height - 1) // identifier below the description
   const heading = (await entry.locator('.single-role-heading').boundingBox())!
   expect(code.x + code.width).toBeLessThanOrEqual(heading.x + heading.width)
   await expect(dialog.locator('.role-entry-description').filter({ hasText: 'ZZZ - Source description' })).toBeVisible()
@@ -56,7 +56,7 @@ test('description area labels remain separate from canonical classification', as
   expect(response.ok()).toBeTruthy()
   const data=await response.json()
   expect(data.function_key).toBe('BC')
-  await expect(dialog.locator('.role-detail-header .evidence-badge').filter({hasText:/^BC$/})).toHaveText('BC')
+  await expect(dialog.locator('.role-detail-header .module-badge-label').filter({hasText:/^BC$/})).toHaveText('BC')
   expect(data.single_roles.find((s: { child_agr: string }) => s.child_agr === 'ZD:MATERIAL').function_key).toBe('UNCLASSIFIED')
   expect(data.single_roles.find((s: { child_agr: string }) => s.child_agr === 'ZD:MATERIAL').child_agr_text).toBe('CA - Master Data - Materials Display & Reporting')
 })
@@ -83,7 +83,7 @@ test('sidebar searches collapsed mappings exactly, expands every match and resto
   await expect(search.getByRole('button', { name: 'Search', exact: true })).toHaveCount(0)
   await expect(dialog.getByRole('button', { name: 'Investigate users with ZZ_DEMO', exact: true })).toBeVisible()
   await dialog.getByRole('button', { name: 'Investigate users with ZZ_DEMO', exact: true }).click()
-  await expect(page.getByText('Transaction: ZZ_DEMO', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Remove transaction ZZ_DEMO', exact: true })).toBeVisible()
 })
 test('role change resets sidebar search, provenance distinguishes missing descriptions and mappings', async ({ page }) => {
   let dialog = await openRole(page)

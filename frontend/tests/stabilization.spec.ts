@@ -33,7 +33,7 @@ test('sidebar wildcard filters rows as well as roles and restores the original c
  await page.goto('/#session=browser-test-session');await page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('link',{name:'Role Lookup',exact:true}).click();await page.getByRole('button',{name:'View details for Synthetic Alpha',exact:true}).click()
  const dialog=page.getByRole('dialog'),input=dialog.getByRole('textbox',{name:'Find transaction code',exact:true})
  const shared=dialog.locator('.single-role-entry').filter({has:page.getByRole('button',{name:'Expand single role ZS:SYN:SHARED',exact:true})})
- await expect(shared.locator('.role-entry-description')).toHaveText('Batch Input Management');await expect(shared.getByText('BC',{exact:true})).toBeVisible()
+ await expect(shared.locator('.role-entry-description')).toHaveText('Batch Input Management');await expect(shared.locator('.module-badge-label')).toHaveText('BC')
  const source=await(await request.get('/api/roles/'+encodeURIComponent('ZC:SYN:A'),{headers})).json();expect(source.single_roles.find((row:any)=>row.child_agr==='ZS:SYN:SHARED').child_agr_text).toBe('BC - Batch Input Management')
  await input.fill('so*');await expect(dialog.locator('.single-role-entry:visible')).toHaveCount(1);await expect(shared.locator('tbody tr')).toHaveCount(2);await expect(shared.locator('tbody')).not.toContainText('SM35');await expect(shared).toContainText('2 matching')
  await input.fill('SOST');await expect(shared.locator('tbody tr')).toHaveCount(1)
@@ -74,23 +74,28 @@ test('review validity stays status-only and Release Roles retains the chosen vie
  const row=page.getByRole('row').filter({has:page.getByRole('link', { name: 'SYN_VIEW',exact:true})});await expect(row).toBeVisible();await expect(row.locator('.review-account-dates')).toHaveCount(0);await expect(row.locator('td').nth(3)).toContainText('Valid')
  await nav.getByRole('link',{name:'Release Roles',exact:true}).click();const group=page.getByRole('group',{name:'Release results view',exact:true});await expect(group.getByRole('button').first()).toHaveText('Matrix');await expect(group.getByRole('button',{name:'Matrix',exact:true})).toHaveAttribute('aria-pressed','true');await group.getByRole('button',{name:'Table',exact:true}).click();await page.getByRole('combobox',{name:'Release assignment status',exact:true}).selectOption('all');await expect(group.getByRole('button',{name:'Table',exact:true})).toHaveAttribute('aria-pressed','true')
 })
-test('theme color swatches show every color together and edit, reset and sync draft logos',async({page,request})=>{
+test('theme colors are an editable grid that shows every color together and edits, resets and syncs draft logos',async({page,request})=>{
+ await page.setViewportSize({width:1600,height:1000})
  await page.goto('/#session=browser-test-session');await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:'Appearance & Branding',exact:true}).click()
- const colors=page.getByRole('region',{name:'Theme color settings',exact:true}),swatches=colors.getByRole('list',{name:'Theme colors',exact:true})
+ const colors=page.getByRole('region',{name:'Theme color settings',exact:true}),grid=colors.getByRole('group',{name:'Theme colors',exact:true})
  await colors.scrollIntoViewIfNeeded()
  const names=['Primary color','Accent color','Secondary color','Application background','Surface / card background','Primary text color']
- await expect(swatches.getByRole('button')).toHaveCount(6)
- const boxes=await swatches.getByRole('button').evaluateAll(nodes=>nodes.map(node=>{const box=node.getBoundingClientRect();return {top:Math.round(box.top),inView:box.top<innerHeight&&box.bottom>0,width:box.width}}))
- expect(boxes.every(box=>box.width<200)).toBeTruthy()
- for(const name of names){await swatches.getByRole('button',{name:new RegExp(`^Edit ${name.replace(/[/]/g,'\\/')},`)}).click();await expect(colors.getByLabel(name,{exact:true})).toBeVisible()}
+ for(const name of names)await expect(grid.getByLabel(name,{exact:true})).toBeVisible()
+ await expect(grid.getByRole('button',{name:/^Reset /})).toHaveCount(6)
+ const columns=async()=>grid.getByLabel(/ visual selection$/).evaluateAll(nodes=>new Set(nodes.map(node=>Math.round(node.getBoundingClientRect().left))).size)
+ expect(await columns()).toBe(5) // five columns on wide screens
+ await page.setViewportSize({width:800,height:1000});await expect.poll(columns).toBeGreaterThanOrEqual(2);await expect.poll(columns).toBeLessThanOrEqual(3)
+ await page.setViewportSize({width:375,height:900});await expect.poll(columns).toBe(1)
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
  const before=(await(await request.get('/api/configuration',{headers})).json()).settings
- await swatches.getByRole('button',{name:/^Edit Surface/}).click()
  const value=colors.getByLabel('Surface / card background',{exact:true}),original=await value.inputValue()
- await value.fill('#123456');await expect(swatches.getByRole('button',{name:/^Edit Surface/})).toContainText('#123456')
+ await value.fill('#123456');await expect(value).toHaveValue('#123456')
  await colors.getByRole('button',{name:'Reset Surface / card background',exact:true}).click();await expect(value).toHaveValue(original)
- await swatches.getByRole('button',{name:/^Edit Secondary/}).click();await colors.getByLabel('Secondary color',{exact:true}).fill('#cccccc')
+ await colors.getByLabel('Secondary color',{exact:true}).fill('#cccccc')
  await expect(page.getByText(/secondary color .* needs at least 4.5:1/)).toBeVisible()
  await colors.getByRole('button',{name:'Reset Secondary color',exact:true}).click();await expect(page.getByText(/WCAG AA text contrast passes/)).toBeVisible()
+ await colors.getByLabel('Primary color',{exact:true}).fill('not-a-color');await expect(colors.getByLabel('Primary color',{exact:true})).toHaveAttribute('aria-invalid','true')
+ await colors.getByRole('button',{name:'Reset Primary color',exact:true}).click()
  const live=page.getByAltText('Header logo preview',{exact:true}),local=page.getByAltText('Selected header logo preview',{exact:true});await local.scrollIntoViewIfNeeded();await expect(local).toBeVisible();expect(await local.getAttribute('src')).toBe(await live.getAttribute('src'));expect((await(await request.get('/api/configuration',{headers})).json()).settings.theme_colors).toEqual(before.theme_colors)
 })
 for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`stabilization visual ${theme} ${width}`,async({page,request},info)=>{

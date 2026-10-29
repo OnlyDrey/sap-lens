@@ -12,11 +12,16 @@ async function open(page: Page, tab: string) {
 for (const width of [375, 1280]) test(`feature cards put the Enabled switch above Configure at ${width}`, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 })
   await open(page, 'Features')
-  for (const [name, configure] of [['User–Role Mapping', 'Configure User–Role Mapping'], ['Employee Directory', 'Configure Employee Directory'], ['Segregation of Duties', 'Configure SoD']]) {
+  for (const name of ['User–Role Mapping', 'Employee Directory', 'Segregation of Duties']) {
+    const configure = 'Configure source'
     const card = page.getByRole('region', { name: `${name} feature settings`, exact: true })
     const toggle = await card.getByRole('switch', { name: `${name} feature` }).boundingBox(), button = await card.getByRole('button', { name: configure }).boundingBox()
     expect(toggle!.y + toggle!.height, name).toBeLessThanOrEqual(button!.y + 1)
     const controls = await card.locator('.feature-controls').boundingBox()
+    // Enabled and Configure share the right edge of the card's content box.
+    const edge = await card.evaluate(node => node.getBoundingClientRect().right - parseFloat(getComputedStyle(node).paddingRight))
+    expect(Math.abs(toggle!.x + toggle!.width - edge), name + ' toggle').toBeLessThanOrEqual(2)
+    expect(Math.abs(button!.x + button!.width - edge), name + ' configure').toBeLessThanOrEqual(2)
     expect(controls!.y, name).toBeLessThanOrEqual(toggle!.y + 1)
     expect(controls!.y + controls!.height, name).toBeGreaterThanOrEqual(button!.y + button!.height - 1)
   }
@@ -41,11 +46,22 @@ test('data source health cards use two columns where space permits and every act
   await expect(cards).toHaveCount(4)
   const lefts = await cards.evaluateAll(nodes => [...new Set(nodes.map(node => Math.round(node.getBoundingClientRect().left)))])
   expect(lefts).toHaveLength(2)
-  for (const [source, tab] of [['Role Catalogue', 'Role Catalogue'], ['User Access', 'User Access'], ['Employee Directory', 'Employee Directory'], ['SoD Matrix', 'SoD Matrix']]) {
-    await page.getByRole('button', { name: `Review ${source} source`, exact: true }).click()
+  for (const tab of ['Role Catalogue', 'User Access', 'Employee Directory', 'SoD Matrix']) {
+    const card = page.getByRole('region', { name: `${tab} CSV`, exact: true })
+    await expect(card.getByRole('button', { name: 'Review source', exact: true })).toHaveCount(1)
+    await expect(card.getByText('Technical details', { exact: true })).toBeVisible()
+    await expect(card.getByText('Records', { exact: true })).toBeVisible()
+    await card.getByRole('button', { name: 'Review source', exact: true }).click()
     await expect(page.getByRole('tab', { name: tab, exact: true })).toHaveAttribute('aria-selected', 'true')
     await page.getByRole('tab', { name: 'Health & Diagnostics', exact: true }).click()
   }
+  // Optional features show Enabled/Disabled at the far right of the card header; essentials stay visible while technical facts are expandable.
+  const sod = page.getByRole('region', { name: 'SoD Matrix CSV', exact: true })
+  await expect(sod.locator('details')).not.toHaveAttribute('open', '')
+  await sod.getByText('Technical details', { exact: true }).click()
+  await expect(sod.getByText('Last validated source check')).toBeVisible()
+  const header = await sod.locator('.source-health-header').boundingBox(), badge = await sod.locator('.source-health-header .evidence-badge').boundingBox()
+  expect(Math.abs(header!.x + header!.width - (badge!.x + badge!.width))).toBeLessThanOrEqual(2)
   await page.setViewportSize({ width: 375, height: 900 })
   const narrow = await cards.evaluateAll(nodes => [...new Set(nodes.map(node => Math.round(node.getBoundingClientRect().left)))])
   expect(narrow).toHaveLength(1)
@@ -55,7 +71,7 @@ test('Secondary Color is configurable, validated for contrast and used by second
   await open(page, 'Appearance & Branding')
   const colors = page.getByRole('region', { name: 'Theme color settings', exact: true })
   const preview = page.getByLabel('Theme live preview').getByRole('button', { name: 'Secondary action' })
-  const secondary = async (value: string) => { await colors.getByRole('button', { name: /^Edit Secondary/ }).click(); await colors.getByLabel('Secondary color', { exact: true }).fill(value) }
+  const secondary = async (value: string) => { await colors.getByLabel('Secondary color', { exact: true }).fill(value) }
   await expect(preview).toHaveCSS('background-color', 'rgb(42, 49, 86)')
   await secondary('#334466')
   await expect(preview).toHaveCSS('background-color', 'rgb(51, 68, 102)')

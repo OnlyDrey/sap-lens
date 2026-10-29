@@ -364,7 +364,7 @@ test('explicit import, independent feature toggles, retained data and Diagnostic
   await page.getByRole('button',{name:'Open settings',exact:true}).click()
   await page.getByRole('tab',{name:'Health & Diagnostics',exact:true}).click()
   await page.getByText('Source locations and storage details',{exact:true}).click()
-  await page.getByRole('region',{name:'Employee Directory CSV',exact:true}).getByRole('button',{name:'Technical source details',exact:true}).click()
+  const directoryCard=page.getByRole('region',{name:'Employee Directory CSV',exact:true});await directoryCard.getByText('Technical details',{exact:true}).click();await directoryCard.getByRole('button',{name:'Locations and diagnostics',exact:true}).click()
   await expect(page.getByRole('region',{name:'Employee Directory diagnostics'})).toContainText('Enable User–Role Mapping')
   await page.keyboard.press('Escape')
   await page.getByRole('tab',{name:'Features',exact:true}).click()
