@@ -47,7 +47,7 @@ jobs:
         run: python scripts/ci.py run workflow_lint -- python scripts/ci.py lint
       - name: Run backend and repository regressions with deprecations as errors
         id: backend
-        run: python scripts/ci.py run backend -- python -W error::DeprecationWarning -m unittest discover -s backend/tests -v
+        run: python scripts/ci.py run backend -- python scripts/run-tests.py regression --backend
       - name: Install frontend dependencies
         id: npm_install
         run: python scripts/ci.py run npm_install -- npm --prefix frontend ci --no-audit --no-fund

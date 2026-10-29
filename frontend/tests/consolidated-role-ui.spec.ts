@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers } from './support'
 let directory: string
 const pattern = 'ZC:BC:DEMO:*'
 const catalogue = 'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT\n' +
@@ -29,34 +29,35 @@ test.beforeEach(async ({ request }) => {
 test.afterEach(async ({ request }) => { await request.post('/api/configuration/reset', { headers }); rmSync(directory, { recursive: true, force: true }) })
 async function openRole(page: Page, role = pattern) {
   await page.goto('/#session=browser-test-session')
-  await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Role Lookup',exact:true}).click()
+  await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'Role Lookup',exact:true}).click()
   await page.getByRole('button', { name: `View details for ${role === pattern ? 'Investigation example' : role === 'ZC:BC:SECOND:*' ? 'Second example' : role}`, exact: true }).click()
   return page.getByRole('dialog')
 }
 async function openUser(page: Page) {
   await page.goto('/#session=browser-test-session')
-  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'User Access', exact: true }).click()
-  await page.getByRole('button', { name: 'DEMO_REVIEW', exact: true }).click()
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'User Access', exact: true }).click()
+  await page.getByRole('link', { name: 'DEMO_REVIEW', exact: true }).click()
   return page.getByRole('region', { name: 'User details', exact: true })
 }
 test('description area labels remain separate from canonical classification', async ({ page, request }) => {
   const dialog = await openRole(page)
   const entry = dialog.locator('.single-role-entry').filter({ has: page.getByRole('button', { name: 'Expand single role ZD:MATERIAL', exact: true }) })
-  await expect(entry.locator('.role-module-metadata .evidence-badge')).toHaveText('CA')
-  await expect(entry.locator('.role-metadata-title')).toHaveText('Master Data - Materials Display & Reporting')
+  await expect(entry.locator('.role-entry-head .module-badge-label')).toHaveText('CA')
+  await expect(entry.locator('.role-entry-title')).toHaveText('Master Data - Materials Display & Reporting')
   await expect(entry.locator('.single-role-description')).toHaveCount(0)
-  const meta = (await entry.locator('.role-module-metadata').boundingBox())!, code = (await entry.locator('.role-identifier').boundingBox())!
-  expect(meta.x + meta.width).toBeLessThanOrEqual(code.x + 1)
-  expect(meta.y + meta.height / 2).toBeCloseTo(code.y + code.height / 2, 0)
+  const meta = (await entry.locator('.role-entry-head').boundingBox())!, text = (await entry.locator('.role-entry-title').boundingBox())!, code = (await entry.locator('.role-identifier').boundingBox())!
+  expect(text.y).toBeGreaterThanOrEqual(meta.y - 1) // module identity and description share line 1
+  expect(text.y + text.height).toBeLessThanOrEqual(meta.y + meta.height + 1)
+  expect(code.y).toBeGreaterThanOrEqual(meta.y + meta.height - 1) // identifier on line 2
   const heading = (await entry.locator('.single-role-heading').boundingBox())!
   expect(code.x + code.width).toBeLessThanOrEqual(heading.x + heading.width)
-  await expect(dialog.locator('.role-metadata-title').filter({ hasText: 'ZZZ - Source description' })).toBeVisible()
-  await expect(dialog.locator('.role-metadata-title').filter({ hasText: 'Unclassified' })).toHaveCount(1)
+  await expect(dialog.locator('.role-entry-title').filter({ hasText: 'ZZZ - Source description' })).toBeVisible()
+  await expect(dialog.locator('.role-entry-title').filter({ hasText: 'Unclassified' })).toHaveCount(1)
   const response = await request.get(`/api/roles/${encodeURIComponent(pattern)}`, { headers })
   expect(response.ok()).toBeTruthy()
   const data=await response.json()
   expect(data.function_key).toBe('BC')
-  await expect(dialog.locator('.role-detail-header .evidence-badge').filter({hasText:/^BC$/})).toHaveText('BC')
+  await expect(dialog.locator('.role-detail-header .module-badge-label').filter({hasText:/^BC$/})).toHaveText('BC')
   expect(data.single_roles.find((s: { child_agr: string }) => s.child_agr === 'ZD:MATERIAL').function_key).toBe('UNCLASSIFIED')
   expect(data.single_roles.find((s: { child_agr: string }) => s.child_agr === 'ZD:MATERIAL').child_agr_text).toBe('CA - Master Data - Materials Display & Reporting')
 })
@@ -83,7 +84,7 @@ test('sidebar searches collapsed mappings exactly, expands every match and resto
   await expect(search.getByRole('button', { name: 'Search', exact: true })).toHaveCount(0)
   await expect(dialog.getByRole('button', { name: 'Investigate users with ZZ_DEMO', exact: true })).toBeVisible()
   await dialog.getByRole('button', { name: 'Investigate users with ZZ_DEMO', exact: true }).click()
-  await expect(page.getByText('Transaction: ZZ_DEMO', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Remove transaction ZZ_DEMO', exact: true })).toBeVisible()
 })
 test('role change resets sidebar search, provenance distinguishes missing descriptions and mappings', async ({ page }) => {
   let dialog = await openRole(page)

@@ -8,6 +8,11 @@ Desktop: the owned `http://127.0.0.1:<selected-port>` origin, preferring `18743`
 | GET | `/api/settings` | Current file location, latest safe load error and loading flag |
 | POST | `/api/settings` | Validate/load an absolute CSV path and atomically save its location |
 | GET | `/api/roles` | Role summaries; optional `function_key`, `search`, `tcode` parameters |
+| GET | `/api/refresh-schedule` | Saved schedule, readable description, next runs, last run status and what the deployment requires |
+| POST | `/api/refresh-schedule/preview` | Explain an unsaved schedule draft (description and next runs, or the reason it is invalid); the schedule is saved with `POST /api/configuration` (`refresh_schedule`) |
+| GET | `/api/roles/naming` | Organizational suffixes detected in the imported role names |
+| POST | `/api/roles/package/preview` | Proposed access package: generated names, validation and catalogue matches for any number of roles (read-only) |
+| POST | `/api/roles/package/export` | Package CSV (`sap-lens-access-package-DATE.csv`) of the valid generated names |
 | GET | `/api/roles/{agr_name}` | Role details with single roles and transactions |
 | GET | `/api/modules` | Distinct module labels |
 | POST | `/api/compare` | Compare two to five distinct roles |
@@ -65,6 +70,10 @@ Native additions `close_application`, `open_logs` and `export_diagnostics` requi
 
 ## Global user/release record navigation
 
+`GET /api/account-review` accepts `finding=position_change` and `sort=priority`; rows carry `position_change` and `priority`, and the summary `position_changes`.
+
+`GET /api/access/users` also accepts `missing_roles` (repeatable, up to 20 catalogue roles) with `missing_mode=any|all` to list users lacking at least one or every role; the export follows the same filters.
+
 `GET /api/access/users` and `GET /api/access/releases` accept optional `anchor`
 (maximum 512 characters). Supply the same filters, `sort` and `descending` as the
 originating list, plus `limit=1&offset=0`. The authenticated navigation response
@@ -89,9 +98,9 @@ re-resolved on refresh; an in-flight/failed query cannot expose stale actions.
 
 Authenticated, no-store release filter options from the current loaded User
 Access generation. `field` is required: `group`, `document_type`, `release_group`,
-`strategy`, `username` or `role`. Optional `search` and `selected` are bounded to
+`strategy`, `username` or `role` (plus `release_area`, the first character of the release group). Optional `search` and `selected` are bounded to
 512 characters; `limit` defaults to 50 and cannot exceed 100. Context parameters
-are `group`, `document_type`, `release_group`, `strategy` and assignment `status`
+are `group`, `document_type`, `release_group`, repeatable `release_areas` and `release_groups` (OR within a list, AND between filters; areas narrow the group options), `strategy` and assignment `status`
 (default `active`, also `all`, `expired`, `future`, `unknown`).
 
 Returns `items`, `total`, `has_more` and `selected_available`. The availability
@@ -185,6 +194,16 @@ GET `/api/account-review/history/{username}?offset=0&limit=25` returns bounded e
 decisions (maximum page size 100). Authentication and mapping-feature guards apply;
 this is private annotation history, not SAP modification history.
 
+### Release role list
+
+`GET /api/access/release-roles` (JSON, unpaged) and `GET /api/access/exports/release-roles` (CSV
+`sap-lens-release-role-list-review-DATE.csv`: ROLE_NAME, ROLE_DESCRIPTION, RELEASE_AREA, RELEASE_GROUP,
+RELEASE_STRATEGY, PR_PO) accept the `/api/access/releases` filters, including `release_areas` and
+`release_groups`, and return one entry per distinct technical role among the matching assignments.
+`/api/access/releases` rows carry `release_area` and each matrix cell lists its distinct `roles`.
+Package items accept `source: catalogue|release`; release items keep their exact names and are
+validated against the loaded User Access data.
+
 ### Filtered assignment CSV downloads
 
 `GET /api/access/exports/users` accepts the same validated directory query filters
@@ -240,3 +259,42 @@ filtered role summaries from one captured snapshot, with offset zero. The defaul
 remains paged for compatible callers; anchor-based detail traversal retains its
 existing pagination/navigation behavior. This option changes presentation scope,
 not assignment filtering, sorting or CSV export interpretation.
+
+## SoD API
+
+All routes require the same session/origin protection as other `/api` routes and return
+no-store responses. Review routes take a `context` (`current`, or a period id) and the shared
+filter parameters (`search`, `group`, `risk`, `activity`, `role`, `role_suffix`, `tcode`,
+`category`, `criticality`, `validity`, `acceptance`, `activity_decision`,
+`assignment_decision`, `sort`). Mutations carry the expected revision, evidence generation and
+per-item evidence version; a stale value returns a conflict instead of overwriting.
+Evidence and exports are bounded; see [SoD architecture](SOD.md) and the
+[SoD reference](../data/SOD_MATRIX.md).
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| POST | `/api/data-sources/sod/{select,preview}` | Validated SoD matrix selection and snapshot preview (shared source lifecycle) |
+| GET | `/api/sod/overview` | Catalogue counts plus a `governance` block: conflicts, decisions, remediation, open period progress, changes since the last refresh |
+| GET | `/api/sod/catalogue`, `/catalogue/export` | Filtered risks with local guidance; CSV |
+| POST | `/api/sod/catalogue/{risk_id}`, `/catalogue/bulk` | Edit local metadata (English text, color); confirmed bulk enablement |
+| GET/POST | `/api/sod/catalogue-activities`, `/catalogue-activities/{activity}` | Activities derived from the import with local English-only metadata; optimistic `expected_revision` |
+| GET | `/api/sod/appearance` | Display names and colors for risk and activity pills |
+| GET | `/api/sod/queue/users` | One row per SAP user with per-review-type progress |
+| GET/PUT/DELETE | `/api/sod/reports/branding` | Report-only logo (PNG/JPEG, validated and re-encoded) |
+| GET | `/api/sod/matrix/{risk,activity}` | User-by-risk and user-by-activity matrices, paged rows, `group_by=group`, distinct totals and `status_counts` (cells per review status over the whole filtered matrix) |
+| GET | `/api/sod/matrix/{risk,activity}/group-export` | Long-format CSV of the SAP user group heatmap (`sap-lens-sod-group-{risk,activity}-heatmap-DATE.csv`), honoring the shared filters |
+| GET | `/api/sod/filter-options` | Searchable predefined filter values (`field`, `term`, `limit`) from the imported evidence of the context; unaffected by the other filters |
+| GET | `/api/sod/explorer/{user_risk,user_activity,access_list,lookup}` and `/export` | Explorer tables and filtered CSV |
+| GET | `/api/sod/subject` | Investigation workspace: risk, activities, contributing assignments, decisions, removal impact, and an `overview` of all the user's activities, assignments and risks |
+| POST | `/api/sod/simulate` | Read-only what-if removal of assignments for one user |
+| GET | `/api/sod/queue`, `/queue/export` | Review work queue (`kind`, `status`) with status counts; CSV |
+| POST | `/api/sod/decisions/{activity,assignment,acceptance}` | Record one decision for explicitly listed items (max 100) |
+| GET | `/api/sod/decisions/{kind}/history`, `/evidence` | Event history and the evidence retained with an event |
+| GET | `/api/sod/remediation`, `/remediation/export` | Recommended handling per assignment, tracked actions with verification; CSV |
+| POST | `/api/sod/remediation/actions` | Create or update a tracked action (completion needs evidence) |
+| GET / POST | `/api/sod/periods`, `/{id}`, `/compare` | List (optionally archived), create, read snapshot, compare two periods with decision changes |
+| POST | `/api/sod/periods/{id}/{transition,recapture}` | Workflow change with gates, approval separation and rejection reason; explicit open-period recapture |
+| GET / POST | `/api/sod/periods/{id}/deletion-impact`, `/delete` | Impact preview; delete or archive with typed name and recorded actor |
+| POST | `/api/sod/reports/{preview,docx,pdf}` | Formal review report; `expected_model` rejects changed evidence |
+| POST | `/api/sod/reports/remediation/{preview,csv,docx,pdf}` | Access remediation report for `current` or a period |
+| GET / POST | `/api/sod/analysis`, `/evidence`, `/export`, `/api/sod/reviews/*` | Original evidence investigation and legacy risk decisions (retained for compatibility) |

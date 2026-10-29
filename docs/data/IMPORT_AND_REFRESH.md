@@ -2,7 +2,7 @@
 
 ## Sources and compatibility
 
-SAP Lens has three independent local CSV sources: Role Catalogue, User–Role Mapping and Employee Directory. Role catalogue and user assignments default to **Dynamic**, preserving the existing refresh behavior. Employee Directory defaults to **Static**, retaining snapshots until explicit replacement. Older schema-3 settings receive these additive defaults without losing feature preferences, profiles or paths.
+SAP Lens has four independent local CSV sources: Role Catalogue, User–Role Mapping, Employee Directory and the [SoD Matrix](SOD_MATRIX.md). Role catalogue and user assignments default to **Dynamic**, preserving the existing refresh behavior. Employee Directory and the SoD Matrix default to **Static**, retaining snapshots until explicit replacement. Older schema-3 settings receive these additive defaults without losing feature preferences, profiles or paths.
 
 Settings → Data Sources offers a source mode selector. Use the existing **Apply settings** action to persist mode changes; no second Save action is needed. Changing a mode does not delete imported records. Existing CSV mappings, delimiter/encoding controls and validation remain authoritative.
 
@@ -53,6 +53,22 @@ Data Sources and Health & Diagnostics expose five recent private operation repor
 
 Reports contain personal data and stay local. Diagnostic exports contain only allowlisted aggregate status; they exclude report identities, record details, source paths and employee data. Normal logs never include imported record values. Older reports are removed by retention; corrupt/unavailable reports produce an explicit recovery state.
 
+## Scheduled refresh
+
+**Settings → Runtime & Scheduling** can run the same refresh automatically. The backend schedules it, so no browser tab has to be open, and every run is the normal refresh: Dynamic sources are re-read, Static sources are not, a changed source is validated before it replaces the previous one, and any failure keeps the previously validated data.
+
+- **Schedule.** Enable it, then choose a daily time (HH:MM, 24-hour) or an advanced five-field cron expression (`minute hour day-of-month month day-of-week`; lists, ranges, steps and `JAN`/`MON` names; Sunday is 0 or 7; day-of-month and weekday are OR-ed like standard cron). Runs must be at least 5 minutes apart. The page explains the schedule in words and lists the next runs before you apply it.
+- **Time zone.** Local time (the computer or server), UTC, or an IANA name such as Europe/Oslo when the operating system has the time zone database (Windows Desktop may offer only Local time and UTC). A local time skipped by a spring-forward change is skipped; a repeated hour runs once.
+- **Safety.** One process owns the data store, so a schedule cannot run twice, and a scheduled run is skipped when another load or refresh is already running. A slot missed while the application was not running is skipped, never replayed; editing the schedule starts it fresh from that moment.
+- **Status.** Next run, last attempted run, last successful run, last failure (and failures in a row) and the last outcome (succeeded, partly failed, failed, skipped) are shown in Settings and summarized, without paths, in the diagnostics export. Failure messages are generic; details stay in the refresh history.
+
+| Deployment | When scheduled refresh runs |
+| --- | --- |
+| Windows Desktop | Only while SAP Lens is running, in its window or in the system tray |
+| Windows Service | Continuously while the service runs; no sign-in or browser needed |
+| Linux Docker | Continuously while the container runs |
+| Linux native / systemd | Continuously while the unit runs |
+
 ## Feature dependencies
 
 1. User–Role Mapping enables SAP assignment investigations.
@@ -65,7 +81,7 @@ The older `operational_status` directory API field remains a compatibility descr
 
 ## Employee import and preview
 
-For all three sources, selecting a file automatically reads, validates, stages and
+For all four sources, selecting a file automatically reads, validates, stages and
 activates a complete non-empty dataset. There is no separate normal-flow Validate,
 Confirm or Import action. Native Browse activates the selected server-visible file;
 browser uploads activate a private Static source. Entering a path activates on Enter

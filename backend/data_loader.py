@@ -47,7 +47,7 @@ class DataLoader:
             settings = settings.model_copy(deep=True)
             settings.data_csv_path = path
         operation = operation or ('import' if persist or configuration is not None else 'startup')
-        attempted_paths = {'roles': path if path is not None else settings.data_csv_path, 'users': settings.user_csv_path, 'employees': settings.employee_csv_path}
+        attempted_paths = {'roles': path if path is not None else settings.data_csv_path, 'users': settings.user_csv_path, 'employees': settings.employee_csv_path, 'sod': settings.sod_csv_path}
         self.loading=True
         self.progress={'stage':'Reading file','source':force[0] if len(force)==1 else None}
         self._generation+=1
@@ -76,7 +76,7 @@ class DataLoader:
             else:
                 self.last_report = report
                 failures = [r for r in (report or {}).get('sources', []) if r['status'] == 'failed']
-                self.source_attempts = {r['source']: {'path': {'roles': settings.data_csv_path, 'users': settings.user_csv_path, 'employees': settings.employee_csv_path}[r['source']], 'error': r['category']} for r in failures}
+                self.source_attempts = {r['source']: {'path': {'roles': settings.data_csv_path, 'users': settings.user_csv_path, 'employees': settings.employee_csv_path, 'sod': settings.sod_csv_path}[r['source']], 'error': r['category']} for r in failures}
                 if failures:
                     from datetime import datetime, timezone
                     self.last_failed_load = datetime.now(timezone.utc).isoformat()

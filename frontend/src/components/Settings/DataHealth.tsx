@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Activity, ChevronRight } from 'lucide-react'
 import { apiRequest } from '@/api/client'
 import { Pagination, QueryState } from '@/components/Access/Shared'
-import { useViewHistory } from '@/hooks/useViewHistory'
+import { useViewHistory, userHref } from '@/hooks/useViewHistory'
 interface Health {
   import_totals: Record<
     string,
@@ -51,7 +51,7 @@ interface Health {
 export function DataHealth({
   onSource,
 }: {
-  onSource: (s: 'roles' | 'users' | 'employees') => void
+  onSource: (s: 'roles' | 'users' | 'employees' | 'sod') => void
 }) {
   const [finding, setFinding] = useState(''),
     [offset, setOffset] = useState(0),
@@ -80,24 +80,29 @@ export function DataHealth({
                 <h3 className="font-semibold">{s.name}</h3>
                 {sourceEvidence.data?.sources.find(source=>source.id===s.id)?<SourceHealthSummary compact source={sourceEvidence.data.sources.find(source=>source.id===s.id)!}/>:<p>{s.available?'Validated data available':'Not loaded'} · {s.records??'—'} records · {s.snapshot}</p>}
                 <Button
-                  className="settings-secondary-button"
+                  size="compact"
+                  className="health-review-source"
                   onClick={() =>
-                    onSource(s.id as 'roles' | 'users' | 'employees')
+                    onSource(s.id as 'roles' | 'users' | 'employees' | 'sod')
                   }
                 >
-                  Source details <ChevronRight size={14} />
+                  Review source <ChevronRight size={14} />
                 </Button>
               </article>
             ))}
           </div>
-          {data.coverage.map((c) => (
-            <p key={c.label} className="text-sm">
-              <strong>{c.label}</strong>:{' '}
-              {c.numerator === null
-                ? 'Unavailable'
-                : `${c.numerator} / ${c.denominator} — ${c.percent === null ? 'No eligible records' : c.percent + '%'}`}
-            </p>
-          ))}
+          <ul className="health-coverage" aria-label="Coverage">
+            {data.coverage.map((c) => (
+              <li key={c.label}>
+                <span className="text-xs text-muted">{c.label}</span>
+                <strong>
+                  {c.numerator === null
+                    ? 'Unavailable'
+                    : `${c.numerator} / ${c.denominator} — ${c.percent === null ? 'No eligible records' : c.percent + '%'}`}
+                </strong>
+              </li>
+            ))}
+          </ul>
           {data.directory_coverage_reason && (
             <p className="text-sm">
               Directory coverage: {data.directory_coverage_reason}
@@ -158,25 +163,37 @@ export function DataHealth({
                         <td>{r.identifier}</td>
                         <td>{r.source}</td>
                         <td>
-                          <button
-                            className="text-link"
-                            onClick={() =>
-                              r.destination === 'user'
-                                ? change({
-                                    settings: false,
-                                    page: 'users',
-                                    accessMode: 'directory',
-                                    user: r.username || r.identifier,
-                                  })
-                                : change({
-                                    settings: false,
-                                    page: 'roles',
-                                    detailRole: r.identifier,
-                                  })
-                            }
-                          >
-                            {r.username || 'Open role'}
-                          </button>
+                          {r.destination === 'user' ? (
+                            <a
+                              className="text-link"
+                              href={userHref(r.username || r.identifier)}
+                              onClick={(event) => {
+                                if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+                                event.preventDefault()
+                                change({
+                                  settings: false,
+                                  page: 'users',
+                                  accessMode: 'directory',
+                                  user: r.username || r.identifier,
+                                })
+                              }}
+                            >
+                              {r.username || r.identifier}
+                            </a>
+                          ) : (
+                            <button
+                              className="text-link"
+                              onClick={() =>
+                                change({
+                                  settings: false,
+                                  page: 'roles',
+                                  detailRole: r.identifier,
+                                })
+                              }
+                            >
+                              Open role
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}

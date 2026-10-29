@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from config import atomic_write, config_dir
 from user_access import interval_status, sap_date
 from employee_directory import sap_email_owners, match_sap_identity
+from position_changes import normalize_text
 
 lock = threading.RLock()
 MAX_BYTES = 20 * 1024 * 1024
@@ -57,8 +58,9 @@ def decisions():
         raise HTTPException(409, 'Review annotations could not be read. Original storage is retained; review local application storage before recovery.') from None
 
 
-def rows(state, directory, saved, groups, today=None):
+def rows(state, directory, saved, groups, today=None, position=None):
     today = today or date.today()
+    position = position or {}
     configured = {g.strip().casefold() for g in groups}
     result = []
     owners = sap_email_owners(state.users.users.values())
@@ -87,12 +89,21 @@ def rows(state, directory, saved, groups, today=None):
         stored = saved.get(digest(user['username'].strip().upper()))
         stale = bool(stored and (stored.get('absent_since') or stored['evidence_version'] != (version if stored.get('evidence_schema')==2 else legacy_version)))
         decision = {k:v for k,v in stored.items() if k!='history'} if stored else None
+        change = position.get(normalize_text(employee['email'])) if employee and match['status'] == 'matched' and employee.get('email') else None
+        # A decision recorded after the change reviews it; reusing the Account Review decision avoids a second record.
+        open_change = bool(change and (not stored or datetime.fromisoformat(stored['timestamp']) < datetime.fromisoformat(change['detected_at'])))
+        needs = bool(findings or stale or open_change)
         result.append(dict(username=user['username'], name=' / '.join(' '.join(n).strip() for n in user['names'] if any(n)),
                            groups=user['groups'], sap_validity=valid, lock_status=locked, ad_status=ad,
                            match_status=match['status'], findings=findings, unlicensed=unlicensed,
                            evidence_version=version, identity_version=identity, evidence=dict(accounts=user['accounts'][:25],account_total=len(user['accounts']),assignment_records=len(user['assignments']),sap_emails=user['emails'][:5],directory_email=employee.get('email') if employee else None), decision=decision, history_count=len(stored.get('history',[])) if stored else 0, stale=stale,
-                           review_state='Needs review' if not decision or stale else decision['state'],
-                           needs_review=bool(findings or stale)))
+                           review_state='Needs review' if not decision or stale or open_change else decision['state'],
+                           needs_review=needs,
+                           position_change=dict(id=change['id'], open=open_change, fields=change['fields'], previous_department=change['previous_department'],
+                                                current_department=change['current_department'], previous_title=change['previous_title'], current_title=change['current_title'],
+                                                detected_at=change['detected_at'], source_generation=change['source_generation'],
+                                                previous_imported_at=change.get('previous_imported_at') or None, current_imported_at=change.get('current_imported_at') or None) if change else None,
+                           priority='High' if open_change else 'Normal' if needs else 'None', priority_order=0 if open_change else 1 if needs else 2))
     return result
 
 
@@ -135,12 +146,19 @@ def record_missing_users(state):
 _cached = None
 
 
-def cached_rows(state, directory, saved, groups, today):
+def cached_rows(state, directory, saved, groups, today, position=None):
     """One bounded publication cache; page/export reads do not re-hash every assignment."""
     global _cached
-    key = (state.last_loaded, directory.digest if directory else None, digest(saved), tuple(groups), today)
+    key = (state.last_loaded, directory.digest if directory else None, digest(saved), tuple(groups), today, tuple(sorted(position or {})) , tuple(event['id'] for event in (position or {}).values()))
     with lock:
         if _cached is None or _cached[0] != key:
             # Cache derived rows only; do not retain a second full SAP snapshot.
-            _cached = (key, rows(state, directory, saved, groups, today))
+            _cached = (key, rows(state, directory, saved, groups, today, position))
         return _cached[1]
+
+
+def current_rows(state, directory, saved, groups, today):
+    """Review rows including recent employee position changes; the one place that combines them."""
+    from position_changes import latest_recent, read
+    position = latest_recent(read()['events'], today) if directory else {}
+    return cached_rows(state, directory, saved, groups, today, position), position

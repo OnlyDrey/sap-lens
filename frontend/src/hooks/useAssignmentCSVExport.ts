@@ -1,8 +1,9 @@
 import {useEffect,useRef,useState} from 'react'
 import {applicationToken} from '@/api/client'
+import { announceExport } from '@/lib/exportNotice'
 type Filters=Record<string,string|number|boolean|string[]>
 /** The server owns selection and one snapshot/day. The browser owns cancellation/save. */
-export function useAssignmentCSVExport(view:'users'|'releases',filters:Filters,revision?:string,asOf?:string) {
+export function useAssignmentCSVExport(view:'users'|'releases'|'release-roles',filters:Filters,revision?:string,asOf?:string) {
  const key=JSON.stringify([view,filters,revision,asOf]),current=useRef(key),controller=useRef<AbortController|null>(null)
  current.current=key
  const [busy,setBusy]=useState(false),[message,setMessage]=useState(''),[failed,setFailed]=useState(false)
@@ -16,7 +17,7 @@ export function useAssignmentCSVExport(view:'users'|'releases',filters:Filters,r
    if(!response.ok)throw Error('Assignment export could not be created. Refresh the view and check source availability.')
    if(revision&&response.headers.get('X-SAP-Lens-Data-Revision')!==revision)throw Error('Source data changed. Refresh before exporting.')
    if(asOf&&response.headers.get('X-SAP-Lens-As-Of')!==asOf)throw Error('Assignment validity date changed. Refresh before exporting.')
-   const filename=response.headers.get('Content-Disposition')?.match(/filename="(sap-lens-(?:user-directory|release-roles)-review-\d{4}-\d{2}-\d{2}\.csv)"/)?.[1]
+   const filename=response.headers.get('Content-Disposition')?.match(/filename="(sap-lens-(?:user-directory|release-roles|release-role-list)-review-\d{4}-\d{2}-\d{2}\.csv)"/)?.[1]
    if(!filename||!response.headers.get('Content-Type')?.startsWith('text/csv'))throw Error('Assignment export response is invalid.')
    const reader=response.body?.getReader();if(!reader)throw Error('Export stream is unavailable.')
    const decoder=new TextDecoder('utf-8',{fatal:true}),parts:string[]=[];let bytes=0
@@ -26,8 +27,8 @@ export function useAssignmentCSVExport(view:'users'|'releases',filters:Filters,r
    let saved=true
    if(window.pywebview){if(!window.pywebview.api.save_user_access_csv)throw Error('Update the desktop application for assignment export.');saved=await window.pywebview.api.save_user_access_csv(applicationToken(),filename,content)}
    else{const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
-   if(current.current===started)setMessage(saved?`${Number(response.headers.get('X-SAP-Lens-Assignment-Count')||0).toLocaleString()} assignments exported.`:'Export cancelled.')
-  }catch(error){if(current.current===started){setFailed(true);setMessage(active.signal.aborted?'Export cancelled because the view changed.':error instanceof Error?error.message:'Export failed.')}}
+   if(current.current===started)announceExport(saved?{kind:'success',message:view==='release-roles'?`${Number(response.headers.get('X-SAP-Lens-Role-Count')||0).toLocaleString()} release roles exported.`:`${Number(response.headers.get('X-SAP-Lens-Assignment-Count')||0).toLocaleString()} assignments exported.`}:{kind:'info',message:'Export cancelled.'})
+  }catch(error){if(current.current===started){setFailed(true);announceExport({kind:'error',message:active.signal.aborted?'Export cancelled because the view changed.':error instanceof Error?error.message:'Export failed.'})}}
   finally{if(controller.current===active){controller.current=null;setBusy(false)}}
  }
  return {busy,message,failed,download}

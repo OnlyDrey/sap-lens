@@ -2,14 +2,14 @@ import { bootstrapDocument } from './bootstrap-fixture'
 import { contrast, onColor, themePresets, themeTokens, paletteErrors } from '../src/lib/theme'
 import { test, expect } from '@playwright/test'
 import path from 'node:path'
-const headers={'X-SAP-Lens':'browser-test-session'}
+import { headers } from './support'
 test.beforeEach(async({request})=>{expect((await request.post('/api/configuration/reset',{headers})).ok()).toBeTruthy()})
 const settings=(page:import('@playwright/test').Page)=>page.getByRole('region',{name:'SAP Lens settings',exact:true})
 
 test('full-window navigation preserves draft and main analysis state and warns before discard',async({page,request})=>{
  await request.post('/api/settings',{headers,data:{data_csv_path:path.resolve('tests/fixtures/synthetic.csv')}})
  await page.goto('/#session=browser-test-session')
-  await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Role Lookup',exact:true}).click()
+  await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'Role Lookup',exact:true}).click()
  await page.getByRole('article').first().getByRole('button',{name:'Add to comparison',exact:true}).click()
  await page.getByRole('button',{name:'Open settings'}).click()
  await page.getByRole('tab',{name:'Organization & SAP System'}).click()

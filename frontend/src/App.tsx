@@ -1,6 +1,8 @@
+import {SodWorkspace} from '@/components/Sod/SodWorkspace'
 import {applicationToken} from '@/api/client'
 import { MainNavigation, MainNavigationItem } from '@/components/Shared/Navigation'
-import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
+import { pageHref, useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
+import { DISCARD_PROMPT, settingsDirty } from '@/lib/settingsGuard'
 import { useState, useCallback, useRef, useLayoutEffect, useEffect } from 'react'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import { RoleList } from '@/components/RoleList/RoleList'
@@ -9,16 +11,22 @@ import { ComparisonView } from '@/components/RoleComparison/ComparisonView'
 import { MappingAvailability } from '@/components/Access/MappingAvailability'
 import { UserAccess } from '@/components/Access/UserAccess'
 import { ReleaseRoles } from '@/components/Access/ReleaseRoles'
-import { Search, Users, FileCheck2, LayoutDashboard } from 'lucide-react'
+import { Search, Users, FileCheck2, LayoutDashboard, ShieldCheck } from 'lucide-react'
 import { Dashboard } from '@/components/Dashboard'
 import { useTheme } from '@/hooks/useTheme'
+import { useQuery } from '@tanstack/react-query'
+import { fetchConfiguration } from '@/api/configuration'
 
 export function App() {
   const { isDark, toggle } = useTheme()
   const [page] = useHistoryValue('page')
+  const [settingsOpen] = useHistoryValue('settings')
   const [kpiNavigation] = useHistoryValue('kpiNavigation')
   const [catalogueArea] = useHistoryValue('catalogueArea')
   const { change } = useViewHistory()
+  const configuration = useQuery({ queryKey: ['configuration'], queryFn: fetchConfiguration })
+  // Unknown (still loading or unreadable) keeps the entry; only an explicit saved "off" hides it.
+  const sodEnabled = configuration.data?.settings.features?.sod !== false
   useEffect(()=>{
     const open=()=>{if(window.pywebview?.api.desktop_runtime)change({settings:true})}
     const ready=()=>{void window.pywebview?.api.desktop_frontend_ready?.(applicationToken()).catch(()=>{})}
@@ -28,7 +36,9 @@ export function App() {
   },[change])
   const [visited, setVisited] = useState(() => new Set([page]))
   const scrollPositions = useRef<Record<string, number>>({})
-  const navigate = (next: 'dashboard'|'roles'|'users'|'releases') => { scrollPositions.current[page] = window.scrollY; setVisited(previous => new Set([...previous, next])); change({page:next, detailRole:null}) }
+  const navigate = (next: 'dashboard'|'roles'|'users'|'releases'|'sod') => { scrollPositions.current[page] = window.scrollY; setVisited(previous => new Set([...previous, next])); change({page:next, detailRole:null, settings:false}) }
+  /** Settings stay open until the destination is confirmed when they hold unsaved edits. */
+  const go = (next: 'dashboard'|'roles'|'users'|'releases'|'sod') => { if (settingsDirty() && !window.confirm(DISCARD_PROMPT)) return; navigate(next) }
   useLayoutEffect(() => { setVisited(previous => new Set([...previous, page])); window.scrollTo(0, scrollPositions.current[page] || 0) }, [page])
   const [userContext] = useHistoryValue('userContext')
   const [selectedUser] = useHistoryValue('user')
@@ -61,7 +71,7 @@ export function App() {
     <AppLayout
       navigation={<>
       <MainNavigation>
-        {([['dashboard','Dashboard',LayoutDashboard],['roles','Role Lookup',Search],['users','User Access',Users],['releases','Release Roles',FileCheck2]] as const).map(([key,label,Icon])=><MainNavigationItem key={key} label={label} icon={<Icon size={17} aria-hidden="true"/>} active={page===key} onClick={()=>navigate(key)}/>)}
+        {([['dashboard','Dashboard',LayoutDashboard],['roles','Role Lookup',Search],['users','User Access',Users],['releases','Release Roles',FileCheck2],['sod','SoD',ShieldCheck]] as const).filter(([key])=>key!=='sod'||sodEnabled).map(([key,label,Icon])=><MainNavigationItem key={key} label={label} icon={<Icon size={17} aria-hidden="true"/>} active={page===key&&!settingsOpen} href={pageHref(key)} onNavigate={()=>go(key)}/>)}
       </MainNavigation>
       </>}
       onDataChanged={() => {
@@ -73,6 +83,7 @@ export function App() {
       isDark={isDark}
       onToggleTheme={toggle}>
       {page === 'dashboard' && <Dashboard/>}
+      {page === 'sod' && <SodWorkspace/>}
       {visited.has('roles') && <div className={page==='roles'?'':'hidden'}>
       {showComparison
         ? <ComparisonView roleNames={selectedRoles} onBack={() => setShowComparison(false)} />
@@ -88,7 +99,7 @@ export function App() {
       </div>}
       {visited.has('users') && <div hidden={page!=='users'}><MappingAvailability><UserAccess key={`${JSON.stringify(userContext)}:${kpiNavigation?.users || 0}`} initialUser={selectedUser} initialRole={userContext.role} initialTcode={userContext.tcode} onRole={setDetailRole} onRelease={investigateRelease}/></MappingAvailability></div>}
       {visited.has('releases') && <div hidden={page!=='releases'}><MappingAvailability><ReleaseRoles key={`${releaseContext}:${kpiNavigation?.releases || 0}`} initialRole={releaseDrill?.role || ''} onUser={user=>investigateUsers({user})}/></MappingAvailability></div>}
-      <RoleDetailPanel navigation={page === 'roles' && detailRole ? catalogueNavigation : undefined} parent={page === 'users' ? 'User Access' : page === 'releases' ? 'Release Roles' : 'Role Lookup'} roleName={detailRole} onClose={() => setDetailRole(null)} onUsers={role=>investigateUsers({role})} onTcodeUsers={tcode=>investigateUsers({tcode})}/>
+      <RoleDetailPanel navigation={page === 'roles' && detailRole ? catalogueNavigation : undefined} parent={page === 'sod' ? 'SoD' : page === 'users' ? 'User Access' : page === 'releases' ? 'Release Roles' : 'Role Lookup'} roleName={detailRole} onClose={() => setDetailRole(null)} onUsers={role=>investigateUsers({role})} onTcodeUsers={tcode=>investigateUsers({tcode})}/>
     </AppLayout>
   )
 }

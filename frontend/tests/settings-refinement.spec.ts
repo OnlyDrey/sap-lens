@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers } from './support'
 test.beforeEach(async ({ request }) => {
   expect(
     (await request.post('/api/configuration/reset', { headers })).ok()
@@ -23,7 +23,7 @@ test('shared navigation and dropdown geometry retain keyboard access', async ({
   })
   await tab.click()
   await expect(tab).toHaveCSS('border-top-width','0px')
-  await expect(tab).toHaveCSS('border-bottom-width','2px')
+  await expect(tab).toHaveCSS('border-bottom-width','0px')
   await tab.focus()
   await page.keyboard.press('ArrowDown')
   await expect(
@@ -346,7 +346,7 @@ test('theme preview screenshot changes and cancel restores the original pixels',
   await expect(
     page.getByText('Configuration schema', { exact: true })
   ).toBeHidden()
-  await page.getByText('Technical details', { exact: true }).click()
+  await page.locator('details').filter({ has: page.getByText('Configuration schema') }).locator('> summary').click()
   await expect(
     page.getByText('Configuration schema', { exact: true })
   ).toBeVisible()

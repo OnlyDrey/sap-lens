@@ -11,6 +11,7 @@ import {
   UsersRound,
   Settings2,
   BookUser,
+  ShieldCheck,
   Save, ArrowLeft, ArrowRight,
 } from 'lucide-react'
 import { apiRequest } from '@/api/client'
@@ -210,7 +211,7 @@ export function FeatureSettings({
 }: {
   draft: Configuration
   onChange: (value: Configuration) => void
-  onConfigure: (source: 'employees' | 'users') => void
+  onConfigure: (source: 'employees' | 'users' | 'sod') => void
 }) {
   const [groupText, setGroupText] = useState(
     (draft.unlicensed_user_groups || ['UNLICENSED']).join(', '),
@@ -224,6 +225,10 @@ export function FeatureSettings({
   const directory = useQuery({
     queryKey: ['employee-status'],
     queryFn: () => apiRequest<DirectoryStatus>('/api/employees/status'),
+  })
+  const sodSource = useQuery({
+    queryKey: ['sod-catalogue-source'],
+    queryFn: () => apiRequest<{ source: { loaded: boolean; risks: number; records: number } }>('/api/sod/catalogue?limit=1'),
   })
   return (
     <div className="space-y-3">
@@ -243,11 +248,20 @@ export function FeatureSettings({
             'Keep local employee and manager records available independently of SAP matching.',
             directory.data?.loaded,
           ],
+          [
+            'sod',
+            'Segregation of Duties',
+            ShieldCheck,
+            'Analyze potential SoD conflicts, review them and report on them. Turning it on is always a manual choice; importing a matrix never enables it.',
+            sodSource.data ? sodSource.data.source.loaded : undefined,
+          ],
         ] as const
       ).map(([key, name, Icon, description, available]) => {
-        const enabled = draft.features?.[key] ?? key === 'user_role_mapping'
-        const savedEnabled=saved.data?.settings.features?.[key]??key==='user_role_mapping'
-        const operational=key==='employee_directory'?directory.data?.operational_status==='ready':!!directory.data?.user_mapping_available
+        const defaults: Record<string, boolean> = { user_role_mapping: true, employee_directory: false, sod: false }
+        const enabled = draft.features?.[key] ?? defaults[key]
+        const savedEnabled=saved.data?.settings.features?.[key]??defaults[key]
+        const mappingSaved=saved.data?.settings.features?.user_role_mapping??true
+        const operational=key==='employee_directory'?directory.data?.operational_status==='ready':key==='sod'?!!sodSource.data?.source.loaded&&mappingSaved&&savedEnabled&&!!directory.data?.mapping_data_available:!!directory.data?.user_mapping_available
         return (
           <section
             key={key}
@@ -272,38 +286,41 @@ export function FeatureSettings({
               <StatusBadge
                 tone={operational?'success':!savedEnabled?'neutral':'warning'}
               >
-                {!directory.data?'Checking operational status…':operational?'Operational':!savedEnabled?'Disabled in saved settings':!available?'Data required':'Identity enrichment unavailable'}
+                {!directory.data?'Checking operational status…':operational?'Operational':!savedEnabled?'Disabled in saved settings':key==='sod'&&!mappingSaved?'Requires User–Role Mapping':!available?'Data required':key==='sod'?'User access data required':'Identity enrichment unavailable'}
               </StatusBadge>
+              {saved.data&&enabled!==(saved.data.settings.features?.[key]??key==='user_role_mapping')&&<p role="status" className="ui-description">Pending change — choose Apply settings to save.</p>}
             </div>
-            {saved.data&&enabled!==(saved.data.settings.features?.[key]??key==='user_role_mapping')&&<p role="status" className="ui-description">Pending change — choose Apply settings to save.</p>}
-            <Toggle
-              label={`${name} feature`}
-              checked={enabled}
-              onChange={(next) =>
-                onChange({
-                  ...draft,
-                  features: {
-                    employee_directory:
-                      draft.features?.employee_directory ?? false,
-                    user_role_mapping:
-                      draft.features?.user_role_mapping ?? true,
-                    [key]: next,
-                  },
-                })
-              }
-            />
-            <button
-              type="button"
-              className="settings-secondary-button"
-              onClick={() =>
-                onConfigure(
-                  key === 'employee_directory' ? 'employees' : 'users',
-                )
-              }
-            >
-              <Settings2 size={15} aria-hidden="true" />
-              Configure {name}
-            </button>
+            <div className="feature-controls">
+              <Toggle
+                label={`${name} feature`}
+                checked={enabled}
+                onChange={(next) =>
+                  onChange({
+                    ...draft,
+                    features: {
+                      employee_directory:
+                        draft.features?.employee_directory ?? false,
+                      user_role_mapping:
+                        draft.features?.user_role_mapping ?? true,
+                      sod: draft.features?.sod ?? false,
+                      [key]: next,
+                    },
+                  })
+                }
+              />
+              <button
+                type="button"
+                className="settings-secondary-button"
+                onClick={() =>
+                  onConfigure(
+                    key === 'employee_directory' ? 'employees' : key === 'sod' ? 'sod' : 'users',
+                  )
+                }
+              >
+                <Settings2 size={15} aria-hidden="true" />
+                Configure source
+              </button>
+            </div>
           </section>
         )
       })}
@@ -349,7 +366,7 @@ export function FeatureSettings({
         </div>
         <Button onClick={() => onConfigure('employees')}>
           <Settings2 size={16} />
-          Configure identity sources
+          Configure source
         </Button>
       </section>
       <label className="flex flex-col gap-1 text-sm">

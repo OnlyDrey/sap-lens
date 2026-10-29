@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers, goTo } from './support'
 let directory: string
 async function library(page: Page) {
   await page.getByRole('button', { name: 'Open settings', exact: true }).click()
@@ -12,12 +12,6 @@ async function library(page: Page) {
   await expect(
     page.getByRole('heading', { name: 'Component Library', exact: true }),
   ).toBeVisible()
-}
-async function nav(page: Page, name: string) {
-  await page
-    .getByRole('navigation', { name: 'Main navigation', exact: true })
-    .getByRole('button', { name, exact: true })
-    .click()
 }
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
@@ -75,7 +69,7 @@ test('compact navbar has labeled icon utilities, focus tooltips and refresh feed
   await expect(
     page.getByText('All data is up to date', { exact: true }),
   ).toBeVisible()
-  await nav(page, 'Dashboard')
+  await goTo(page, 'Dashboard')
   await expect(
     page.getByText('Last successful refresh:', { exact: false }),
   ).toBeVisible()
@@ -84,7 +78,7 @@ test('secondary navigation uses actual routes, preserves query strings and suppo
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   const secondary = page.getByRole('navigation', {
     name: 'User Access view',
     exact: true,
@@ -121,7 +115,7 @@ test('Account Review keeps investigation controls across secondary navigation an
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   const secondary = page.getByRole('navigation', {
     name: 'User Access view',
     exact: true,
@@ -143,7 +137,7 @@ test('Account Review keeps investigation controls across secondary navigation an
   await expect(
     page.getByLabel('Sort account reviews', { exact: true }),
   ).toHaveValue('name')
-  await nav(page, 'Dashboard')
+  await goTo(page, 'Dashboard')
   await page
     .getByRole('button', { name: 'Accounts requiring review', exact: true })
     .click()
@@ -164,8 +158,8 @@ test('role content tabs have keyboard semantics and associated assignment panel'
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'User Access')
-  await page.getByRole('button', { name: 'DEMO_A', exact: true }).click()
+  await goTo(page, 'User Access')
+  await page.getByRole('link', { name: 'DEMO_A', exact: true }).click()
   const tabs = page.getByRole('tablist', {
     name: 'User role sections',
     exact: true,
@@ -227,7 +221,7 @@ test('component library previews are isolated, interactive and use canonical com
     preview.getByRole('textbox', { name: 'Demo text', exact: true }),
   ).toHaveAttribute('aria-invalid', 'true')
   await preview.getByRole('tab', { name: /Business demo roles/ }).press('Enter')
-  await expect(preview.getByRole('tabpanel',{name:'Business demo roles 1',exact:true})).toContainText('business')
+  await expect(preview.getByRole('tabpanel',{name:'Business demo roles',exact:true})).toContainText('business')
   const popoverTrigger = preview.getByRole('button', {
     name: 'Open demo popover',
     exact: true,
@@ -295,7 +289,7 @@ test('saved filters portal handles keyboard, outside dismissal and neutral clear
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   const bar = page.locator(
       'div.saved-filter-toolbar[aria-label="users saved filters"]',
     ),
@@ -351,7 +345,7 @@ for (const theme of ['light', 'dark'])
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
       for (const button of await page
         .getByRole('navigation', { name: 'Main navigation', exact: true })
-        .getByRole('button')
+        .getByRole('link')
         .all())
         await expect(button.locator('span')).toBeVisible()
       await library(page)
@@ -379,7 +373,7 @@ for (const theme of ['light', 'dark'])
       await page
         .getByRole('button', { name: 'Back to SAP Lens', exact: true })
         .click()
-      await nav(page, 'User Access')
+      await goTo(page, 'User Access')
       await page
         .getByRole('navigation', { name: 'User Access view' })
         .getByRole('link', { name: 'Compare users', exact: true })
@@ -478,3 +472,31 @@ for(const theme of ['light','dark']) for(const width of [375,800,1280])
   expect(await search.evaluate(el=>parseFloat(getComputedStyle(el).paddingLeft))).toBeGreaterThanOrEqual(36)
   await page.screenshot({path:info.outputPath('sap-modules.png')})
  })
+
+test('library matrix grid and side panel are isolated, keyboard operable and never rely on color alone', async ({ page, request }) => {
+  await page.goto('/#session=browser-test-session')
+  await library(page)
+  const writes: string[] = []
+  page.on('request', (r) => { if (r.method() !== 'GET') writes.push(r.method() + ' ' + new URL(r.url()).pathname) })
+  const preview = page.getByRole('region', { name: 'Matrix grid preview', exact: true })
+  const cell = preview.getByRole('button', { name: 'r1, c1: approved' })
+  await expect(cell).toContainText('Approved')
+  await expect(preview.getByRole('button', { name: 'r1, c2: pending' })).toContainText('Pending')
+  await cell.focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(preview.getByRole('button', { name: 'r1, c2: pending' })).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await expect(preview.getByRole('button', { name: 'r2, c1: approved' })).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(preview.getByRole('status')).toHaveText('Selected r2/c1')
+  const trigger = page.getByRole('button', { name: 'Open demo side panel', exact: true })
+  await trigger.click()
+  const panel = page.getByRole('dialog', { name: 'Isolated side panel', exact: true })
+  await expect(panel).toBeFocused()
+  await expect(preview).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(panel).toHaveCount(0)
+  await expect(trigger).toBeFocused()
+  expect(writes).toEqual([])
+  expect((await (await request.get('/api/saved-filters', { headers })).json()).items).toEqual([])
+})

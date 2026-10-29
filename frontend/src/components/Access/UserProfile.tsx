@@ -117,6 +117,7 @@ export function UserProfile({ user }: { user: UserDetail }) {
             <ManagerSummary
               employee={employee}
               manager={match.data?.manager_sap}
+              currentUser={user.username}
             />
           </>
         ) : (

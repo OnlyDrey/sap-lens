@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers } from './support'
 let directory: string
 const business = 'ZC:MM:BUY:ENP', release = 'ZO:MM:M:PR_REL_ST_SH_N6:ALL'
 test.beforeEach(async ({ request }) => {
@@ -27,8 +27,8 @@ test.beforeEach(async ({ request }) => {
 test.afterEach(async ({ request }) => { await request.post('/api/configuration/reset', { headers }); rmSync(directory, { recursive: true, force: true }) })
 async function openUser(page: import('@playwright/test').Page) {
   await page.goto('/#session=browser-test-session')
-  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'User Access', exact: true }).click()
-  await page.getByRole('button', { name: 'DEMO_EXPORT', exact: true }).click()
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'User Access', exact: true }).click()
+  await page.getByRole('link', { name: 'DEMO_EXPORT', exact: true }).click()
 }
 test('transaction search respects exact code, scope and status and opens catalogue evidence', async ({ page }) => {
   await openUser(page)
@@ -44,8 +44,8 @@ test('transaction search respects exact code, scope and status and opens catalog
   await expect(details).not.toContainText('associated transactions')
   await details.getByRole('button', { name: 'View role details: ZC:MM:BUY:EN*', exact: true }).first().click()
   await expect(page.getByRole('dialog')).toContainText('Purchasing evidence')
-  await expect(page.getByRole('dialog')).not.toContainText('Unclassified')
-  await expect(page.getByRole('dialog').locator('.single-role-heading .lucide-layers')).toHaveCount(1)
+  // A single role without catalogue module evidence gets the shared neutral badge, never an inferred module.
+  await expect(page.getByRole('dialog').locator('.single-role-heading .module-badge[title^="No module classification"]')).toHaveCount(1)
   await page.getByRole('button', { name: 'Expand single role ZD:BUY', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Investigate users with ME21N', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Close role details' }).click()
@@ -97,20 +97,20 @@ for (const theme of ['light', 'dark']) for (const width of [800, 1280]) test(`se
   settings.theme = theme; await request.post('/api/configuration', { headers, data: settings })
   await page.setViewportSize({ width, height: 900 })
   await page.goto('/#session=browser-test-session')
-  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'User Access', exact: true }).click()
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'User Access', exact: true }).click()
   await expect(page.getByRole('columnheader', { name: 'User status', exact: true })).toBeVisible()
   await expect(page.getByRole('columnheader', { name: 'Lock status', exact: true })).toBeVisible()
-  const locked = page.getByRole('row').filter({ has: page.getByRole('button', { name: 'DEMO_LOCKED', exact: true }) })
+  const locked = page.getByRole('row').filter({ has: page.getByRole('link', { name: 'DEMO_LOCKED', exact: true }) })
   await expect(locked.locator('.lock-status')).toHaveText('Locked')
   await expect(locked.locator('.lock-status svg')).toHaveClass(/lucide-lock-keyhole/)
-  const unlocked = page.getByRole('row').filter({ has: page.getByRole('button', { name: 'DEMO_UNLOCKED', exact: true }) })
+  const unlocked = page.getByRole('row').filter({ has: page.getByRole('link', { name: 'DEMO_UNLOCKED', exact: true }) })
   await expect(unlocked.locator('.lock-status')).toHaveText('Unlocked')
   await expect(unlocked.locator('.lock-status svg')).toHaveClass(/lucide-lock-open/)
-  const unknown = page.getByRole('row').filter({ has: page.getByRole('button', { name: 'DEMO_EXPORT', exact: true }) })
+  const unknown = page.getByRole('row').filter({ has: page.getByRole('link', { name: 'DEMO_EXPORT', exact: true }) })
   await expect(unknown.locator('.lock-status')).toHaveText('Unknown')
   await expect(unknown.locator('.evidence-success svg')).toHaveClass(/lucide-circle-check/)
   for (const [username, icon] of [['DEMO_FUTURE', 'circle-x'], ['DEMO_EXPIRED', 'circle-x'], ['DEMO_UNKNOWN', 'circle-help']]) {
-    const row = page.getByRole('row').filter({ has: page.getByRole('button', { name: username, exact: true }) })
+    const row = page.getByRole('row').filter({ has: page.getByRole('link', { name: username, exact: true }) })
     await expect(row.locator(`td[aria-label="Account validity"] .evidence-badge svg.lucide-${icon}`)).toBeVisible()
   }
   const appearance = await locked.locator('.lock-status').evaluate(element => {
@@ -121,7 +121,7 @@ for (const theme of ['light', 'dark']) for (const width of [800, 1280]) test(`se
   expect(appearance.border).toBe('0px'); expect(appearance.centered).toBe(true)
   await locked.locator('.lock-status').scrollIntoViewIfNeeded()
   await page.screenshot({ path: info.outputPath('directory.png'), fullPage: true })
-  await page.getByRole('button', { name: 'DEMO_EXPORT', exact: true }).click()
+  await page.getByRole('link', { name: 'DEMO_EXPORT', exact: true }).click()
   await expect(page.getByRole('region', { name: 'Account Status', exact: true }).locator('.lock-status')).toHaveText('Unknown')
   await page.getByRole('tab', { name: 'All roles', exact: true }).click()
   await page.getByRole('textbox', { name: 'Find roles by transaction' }).fill('ME21N')
@@ -143,7 +143,7 @@ test('changed source generation aborts export rather than downloading mixed page
     await route.fulfill({ response, json: { ...json, data_revision: 'different-import' } })
   })
   await page.getByRole('button', { name: 'Export CSV', exact: true }).click()
-  await expect(page.getByRole('status').filter({ hasText: 'Source data changed.' })).toBeVisible()
+  await expect(page.getByRole('alert').filter({ hasText: 'Source data changed.' })).toBeVisible()
   expect(downloaded).toBe(false)
   await page.getByRole('textbox', { name: 'Find roles by transaction' }).fill('NO_SUCH_TRANSACTION')
   await expect(page.getByRole('button', { name: 'Search', exact: true })).toHaveCount(0)
@@ -159,6 +159,6 @@ test('desktop cancellation and unavailable bridge provide feedback without brows
   await expect(page.getByRole('status').filter({ hasText: 'Export cancelled.' })).toBeVisible()
   await page.evaluate(() => { delete window.pywebview!.api.save_user_access_csv })
   await page.getByRole('button', { name: 'Export CSV', exact: true }).click()
-  await expect(page.getByRole('status').filter({ hasText: 'Update the desktop application.' })).toBeVisible()
+  await expect(page.getByRole('alert').filter({ hasText: 'Update the desktop application.' })).toBeVisible()
   expect(downloaded).toBe(false)
 })

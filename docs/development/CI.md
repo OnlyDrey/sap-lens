@@ -51,20 +51,20 @@ required merely to skip one explicitly authorized push.
 
 | Workflow / file | Exact triggers | Jobs and responsibility |
 | --- | --- | --- |
-| Fast Validation / `.github/workflows/validate.yml` | Every push (including all branches/tags); every pull_request with no branch/path filters | Backend & Frontend: all existing backend/repository tests, deprecations as errors, pip consistency, workflow contracts/actionlint and frontend type checks |
+| Fast Validation / `.github/workflows/validate.yml` | Every push (including all branches/tags); every pull_request with no branch/path filters | Backend & Frontend: all backend/repository tests through `scripts/run-tests.py regression --backend` (parallel processes, deprecations as errors), pip consistency, workflow contracts/actionlint and frontend type checks |
 | Build Deployment Packages / `.github/workflows/build-deployments.yml` | workflow_dispatch only; platform selector and All | Shared Validation & Frontend, followed by independent Desktop, Service, Docker and native packaging jobs |
 | Full Validation / `.github/workflows/full-validation.yml` | pull_request targeting main only; no push/manual/tag/release trigger | Backend & Repository and Frontend & Browser run independently in parallel |
 | Build Windows Application / `.github/workflows/build-windows.yml` | workflow_dispatch only; caller selects branch/ref | Optional Reserve Release Version job before Windows Build & Verification; optional dependent Publish Verified Windows Release job for explicit beta/stable mode |
 
 Full Backend installs test, build and audit requirements, checks dependencies,
-runs the entire backend suite (including the real synthetic PyInstaller archive
+runs the entire backend suite through the same runner (including the real synthetic PyInstaller archive
 fixture), workflow validation, repository integrity/privacy, PowerShell parsing
 and static safety guards, and audits the installed Python environment. Audit
 tooling shares this disposable Linux validation environment; it is never used
 to package an application. Windows audit tooling remains outside its isolated
 package environment and audits the complete installed Windows dependency set.
 
-Fast retains the previous full unittest discovery policy. As in the measured
+Fast keeps the full backend policy (every module, run in parallel processes by the [test runner](TESTING.md)). As in the measured
 baseline, the build-only real PyInstaller fixture is skipped when PyInstaller is
 not installed; this is visible in the report. Full and Windows install it and
 exercise that fixture. No existing tests are removed. New tests cover workflow
@@ -73,7 +73,9 @@ raw ZIP tampering/member/extraction safety. Deprecations fail backend validation
 
 Full Frontend installs runtime Python dependencies for the synthetic browser
 server, runs npm ci once, type checking, icon-catalog validation, one production
-build, a production npm audit and the complete browser regression suite. Canonical
+build, a production npm audit and the complete browser regression suite through
+`scripts/run-tests.py regression --browser --no-build` (independent Playwright processes with their own
+servers; one process on small runners). Canonical
 `npm run build` retains its own TypeScript check; the explicit type-check step
 provides earlier failure visibility. No second Vite compilation occurs. Browser
 workers, zero retries, test deadlines and application code remain unchanged.

@@ -24,12 +24,35 @@ def _save_csv_dialog(owner, token, filename, content, kind):
         raise ValueError('Application request is not authorized.')
     import re
     pattern = (r'sap-lens-refresh-changes-report-\d{4}-\d{2}-\d{2}\.csv' if kind == 'changes' else r'sap-lens-[A-Za-z0-9_-]{1,100}-[a-z]+-\d{4}-\d{2}-\d{2}\.csv')
+    if kind == 'package':
+        pattern = r'sap-lens-access-package-\d{4}-\d{2}-\d{2}\.csv'
+    if kind == 'sod':
+        pattern = r'sap-lens-sod-((users|roles)-findings|reviews|actions|catalogue|explorer-(user-risk|user-activity|access-list|lookup)|group-(risk|activity)-heatmap|review-queue|access-remediation)-\d{4}-\d{2}-\d{2}\.csv'
     if not isinstance(filename, str) or not re.fullmatch(pattern, filename):
         raise ValueError('Invalid CSV export filename.')
     header = ('\ufeff"Timestamp","Source","Change","Identifier","Field","Before","After"\r\n' if kind == 'changes' else '\ufeff"Username","User group",')
     if kind=='access' and re.fullmatch(r'sap-lens-(user-directory|release-roles)-review-\d{4}-\d{2}-\d{2}\.csv',filename):
         from csv_exports import ASSIGNMENT_HEADER
         header=ASSIGNMENT_HEADER
+    if kind=='access' and re.fullmatch(r'sap-lens-release-role-list-review-\d{4}-\d{2}-\d{2}\.csv',filename):
+        from csv_exports import ROLE_LIST_HEADER
+        header=ROLE_LIST_HEADER
+    if kind == 'package':
+        from routers.roles import PACKAGE_HEADER
+        header = PACKAGE_HEADER
+    if kind == 'sod':
+        if filename.startswith('sap-lens-sod-catalogue-'):
+            from routers.sod import CATALOGUE_HEADER
+            header=CATALOGUE_HEADER
+        elif filename.startswith(('sap-lens-sod-reviews-', 'sap-lens-sod-actions-')):
+            from routers.sod_reviews import REVIEW_HEADER
+            header = REVIEW_HEADER
+        elif filename.startswith(('sap-lens-sod-explorer-', 'sap-lens-sod-group-', 'sap-lens-sod-review-queue-', 'sap-lens-sod-access-remediation-')):
+            from routers.sod_governance import native_csv_header
+            header = native_csv_header(filename)
+        else:
+            from routers.sod_analysis import EXPORT_HEADER
+            header = EXPORT_HEADER
     if not isinstance(content, str) or not content.startswith(header):
         raise ValueError('Invalid CSV export content.')
     if len(content) > 32 * 1024 * 1024:
@@ -52,6 +75,41 @@ def _save_csv_dialog(owner, token, filename, content, kind):
         return True
     finally:
         owner._picker_lock.release()
+
+
+def _save_document_dialog(owner,token,filename,encoded):
+    """Fixed SoD report formats only; never accepts a server filesystem path."""
+    import base64
+    import re
+    from io import BytesIO
+    from zipfile import ZipFile,BadZipFile
+    if not isinstance(token,str) or not hmac.compare_digest(token.encode(),owner._token.encode()):raise ValueError('Application request is not authorized.')
+    if not isinstance(filename,str) or not re.fullmatch(r'sap-lens-(sod-report-[a-f0-9]{32}|access-remediation-(current|[a-f0-9]{32}))-\d{4}-\d{2}-\d{2}\.(pdf|docx)',filename):raise ValueError('Invalid report filename.')
+    if not isinstance(encoded,str) or len(encoded)>45*1024*1024:raise ValueError('Report exceeds its size limit.')
+    try:payload=base64.b64decode(encoded,validate=True)
+    except (ValueError,TypeError):raise ValueError('Invalid report content.') from None
+    if len(payload)>32*1024*1024:raise ValueError('Report exceeds 32 MiB.')
+    extension=Path(filename).suffix
+    if extension=='.pdf':
+        if not payload.startswith(b'%PDF-') or not payload.rstrip().endswith(b'%%EOF'):raise ValueError('Invalid PDF report.')
+    else:
+        try:
+            with ZipFile(BytesIO(payload)) as archive:
+                entries=archive.infolist();names=set(archive.namelist())
+                if len(entries)>500 or sum(entry.file_size for entry in entries)>64*1024*1024 or not {'[Content_Types].xml','word/document.xml','_rels/.rels'}<=names:raise ValueError()
+                if any(name.startswith('/') or '\\' in name or '..' in name.split('/') or any(part in name.lower() for part in ('vbaproject','embeddings/','customui/')) for name in names):raise ValueError()
+                if b'macroEnabled' in archive.read('[Content_Types].xml') or any(b'TargetMode="External"' in archive.read(name) for name in names if name.endswith('.rels')):raise ValueError()
+        except (ValueError,BadZipFile,KeyError):raise ValueError('Invalid editable DOCX report.') from None
+    if not owner._window or not owner._picker_lock.acquire(blocking=False):return False
+    try:
+        import webview
+        files=owner._window.create_file_dialog(webview.FileDialog.SAVE,save_filename=filename,file_types=(('PDF files (*.pdf)' if extension=='.pdf' else 'Word documents (*.docx)'),))
+        if not files:return False
+        path=Path(files[0])
+        if not path.is_absolute() or path.suffix.lower()!=extension or path.is_symlink():raise ValueError('Choose an absolute matching report destination.')
+        from config import atomic_write
+        atomic_write(path,payload);return True
+    finally:owner._picker_lock.release()
 
 
 class AppLogFilter(logging.Filter):
@@ -182,6 +240,15 @@ class NativeDialogs:
 
     def save_user_access_csv(self, token: str, filename: str, content: str):
         return _save_csv_dialog(self, token, filename, content, 'access')
+
+    def save_sod_document(self, token, filename, content_base64):
+        return _save_document_dialog(self, token, filename, content_base64)
+
+    def save_sod_csv(self, token: str, filename: str, content: str):
+        return _save_csv_dialog(self, token, filename, content, 'sod')
+
+    def save_role_package_csv(self, token: str, filename: str, content: str):
+        return _save_csv_dialog(self, token, filename, content, 'package')
 
     def save_refresh_changes_csv(self, token: str, filename: str, content: str):
         return _save_csv_dialog(self, token, filename, content, 'changes')

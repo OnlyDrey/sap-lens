@@ -868,3 +868,14 @@ and record the version/source identity and each result:
 
 Automated smoke tests cover important lifecycle/security behavior; the interactive
 checks above establish OS integration that browser mocks cannot establish.
+
+### SoD report resources
+
+The pinned backend runtime includes office-free DOCX/PDF generation. Windows
+packaging collects python-docx templates, ReportLab font data and the license
+metadata for python-docx, ReportLab, lxml and charset-normalizer. ReportLab's
+bundled Bitstream Vera license remains included with its fonts. Docker and native
+wheelhouse installations obtain the same resources from the pinned wheels; no
+Word, LibreOffice or target-machine React build is required. Resource collection,
+Linux rendering and Windows wheel availability have local checks. Packaged
+Windows rendering and native Save-dialog acceptance still require Windows testing.

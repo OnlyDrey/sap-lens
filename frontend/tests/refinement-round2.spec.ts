@@ -3,15 +3,14 @@ import {mkdtempSync,writeFileSync,readFileSync,rmSync} from 'node:fs'
 import {randomUUID} from 'node:crypto'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
+import { headers, goTo } from './support'
 test.setTimeout(45_000)
-const headers={'X-SAP-Lens':'browser-test-session'}
 const columns='Site;Name;SamAccountName;UserPrincipalName;Mail;Department;Title;Enabled;DistinguishedName;ManagerDN;ManagerName;ManagerSamAccountName;ManagerMail;ManagerDepartment;ManagerTitle;ManagerLookupStatus'
 let root:string,users:string,roles:string,userA:string,userB:string
 const settings=async(request:APIRequestContext)=>(await(await request.get('/api/configuration',{headers})).json()).settings
-async function nav(page:Page,name:string){await page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('button',{name,exact:true}).click()}
 async function mode(page:Page,name:string){await page.getByRole('navigation',{name:'User Access view',exact:true}).getByRole('link',{name,exact:true}).click()}
-async function openUser(page:Page){await nav(page,'User Access');await page.getByRole('button',{name:userA,exact:true}).click();return page.getByRole('region',{name:'User details',exact:true})}
-async function review(page:Page){await nav(page,'User Access');await mode(page,'Account Review');const row=page.getByRole('row').filter({has:page.getByRole('button',{name:userA,exact:true})});await row.getByRole('button',{name:'Needs review',exact:true}).click();return page.getByRole('dialog',{name:`Review account · ${userA}`,exact:true})}
+async function openUser(page:Page){await goTo(page,'User Access');await page.getByRole('link',{name:userA,exact:true}).click();return page.getByRole('region',{name:'User details',exact:true})}
+async function review(page:Page){await goTo(page,'User Access');await mode(page,'Account Review');const row=page.getByRole('row').filter({has:page.getByRole('link',{name:userA,exact:true})});await row.getByRole('button',{name:'Needs review',exact:true}).click();return page.getByRole('dialog',{name:`Review account · ${userA}`,exact:true})}
 test.beforeEach(async({request})=>{
  await request.post('/api/configuration/reset',{headers});root=mkdtempSync(path.join(tmpdir(),'sap-lens-round2-'));const suffix=randomUUID().slice(0,8).toUpperCase();userA=`SYN_A_${suffix}`;userB=`SYN_B_${suffix}`
  roles=path.join(root,'roles.csv');users=path.join(root,'users.csv');const directory=path.join(root,'directory.csv')
@@ -28,8 +27,8 @@ test('tasks 15–16: assignment AND/OR and export use the same scope without rep
  await page.addInitScript(()=>{(window as any).exported='';(window as any).pywebview={api:{save_user_access_csv:async(_token:string,_name:string,text:string)=>{(window as any).exported=text;return true}}}})
  await page.goto('/#session=browser-test-session');const detail=await openUser(page)
  const input=detail.getByRole('textbox',{name:'Find roles by transaction',exact:true});await input.fill('MIGO');await input.press('Enter');await input.fill('ME23N');await input.press('Enter')
- await expect(detail.getByText('1 matching assignments',{exact:true})).toBeVisible();await expect(detail.getByRole('button',{name:'AND',exact:true})).toHaveAttribute('aria-pressed','true')
- await detail.getByRole('button',{name:'OR',exact:true}).click();await expect(detail.getByText('2 matching assignments',{exact:true})).toBeVisible()
+ await expect(detail.getByText('1 matching assignments',{exact:true})).toBeVisible();await expect(detail.getByRole('button',{name:'ALL',exact:true})).toHaveAttribute('aria-pressed','true')
+ await detail.getByRole('button',{name:'ANY',exact:true}).click();await expect(detail.getByText('2 matching assignments',{exact:true})).toBeVisible()
  await detail.getByLabel('Assignment status',{exact:true}).selectOption('all');await expect(detail.getByText('3 matching assignments',{exact:true})).toBeVisible()
  await expect(detail.getByRole('region',{name:'Transaction search evidence',exact:true})).toHaveCount(0);await expect(detail.getByText('Catalogue coverage may be incomplete',{exact:true})).toBeVisible()
  await detail.getByRole('button',{name:'Export CSV',exact:true}).click();await expect.poll(()=>page.evaluate(()=>(window as any).exported)).toContain('Ålpha')
@@ -46,8 +45,8 @@ test('tasks 19–21: shared source evidence, interactive feature pill and techni
  await page.getByRole('button',{name:'Apply settings',exact:true}).click();expect((await settings(request)).features.employee_directory).toBe(false)
  await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:'Health & Diagnostics',exact:true}).click()
  for(const name of ['Role Catalogue CSV','User Access CSV','Employee Directory CSV']){
-  const card=page.getByRole('region',{name,exact:true});await expect(card.locator('.source-health-summary .ui-metadata-list>div')).toHaveCount(4)
-  const trigger=card.getByRole('button',{name:'Technical source details',exact:true});await trigger.click();const dialog=page.getByRole('dialog',{name:`${name} technical details`,exact:true});await expect(dialog.getByText('Configured file',{exact:true})).toBeVisible();await page.keyboard.press('Escape');await expect(trigger).toBeFocused()
+  const card=page.getByRole('region',{name,exact:true});await expect(card.locator('.source-essentials .ui-metadata-list>div')).toHaveCount(2);await card.getByText('Technical details',{exact:true}).click();await expect(card.locator('details .ui-metadata-list>div')).toHaveCount(4)
+  const trigger=card.getByRole('button',{name:'Locations and diagnostics',exact:true});await trigger.click();const dialog=page.getByRole('dialog',{name:`${name} technical details`,exact:true});await expect(dialog.getByText('Configured file',{exact:true})).toBeVisible();await page.keyboard.press('Escape');await expect(trigger).toBeFocused()
  }
 })
 test('tasks 22–26: dashboard uses observed distributions, review population and navigable areas',async({page,request})=>{
@@ -63,7 +62,7 @@ test('tasks 24 and 28: review findings precede decisions, saves retain real hist
  await dialog.getByLabel('Reviewer',{exact:true}).fill('Synthetic reviewer');await dialog.getByLabel('Rationale',{exact:true}).fill('Reviewing current source evidence')
  page.once('dialog',d=>d.dismiss());await page.keyboard.press('Escape');await expect(dialog).toBeVisible()
  await dialog.getByRole('button',{name:'Save review decision',exact:true}).click();await expect(dialog).toBeHidden()
- const row=page.getByRole('row').filter({has:page.getByRole('button',{name:userA,exact:true})});await row.getByRole('button',{name:'Needs review',exact:true}).click();dialog=page.getByRole('dialog',{name:`Review account · ${userA}`,exact:true})
+ const row=page.getByRole('row').filter({has:page.getByRole('link',{name:userA,exact:true})});await row.getByRole('button',{name:'Needs review',exact:true}).click();dialog=page.getByRole('dialog',{name:`Review account · ${userA}`,exact:true})
  await dialog.getByLabel('Decision',{exact:true}).selectOption('Investigating');await dialog.getByRole('button',{name:'Save review decision',exact:true}).click();await expect(dialog).toBeHidden()
  const history=await(await request.get(`/api/account-review/history/${userA}`,{headers})).json();expect(history.total).toBe(1)
  await row.getByRole('button',{name:'Investigating',exact:true}).click();await expect(page.getByRole('region',{name:'Review history',exact:true})).toContainText('Needs review');await page.keyboard.press('Escape')
@@ -79,8 +78,8 @@ for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(
  await page.screenshot({path:info.outputPath('dashboard.png'),fullPage:true});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
  const risk=(await page.getByRole('region',{name:'Access & Risk',exact:true}).boundingBox())!,health=(await page.getByRole('region',{name:'Directory & Data Health',exact:true}).boundingBox())!;if(width>=800){expect(Math.abs(risk.y-health.y)).toBeLessThan(2);expect(health.x).toBeGreaterThan(risk.x)}else expect(health.y).toBeGreaterThan(risk.y)
  const detail=await openUser(page);await detail.getByRole('button',{name:'Directory matching details · Matched',exact:true}).click();await page.getByRole('dialog',{name:'Directory matching details',exact:true}).screenshot({path:info.outputPath('directory-match.png')});await page.keyboard.press('Escape')
- await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:'Health & Diagnostics',exact:true}).click();await page.getByRole('region',{name:'Role Catalogue CSV',exact:true}).getByRole('button',{name:'Technical source details',exact:true}).click();await page.getByRole('dialog',{name:'Role Catalogue CSV technical details',exact:true}).screenshot({path:info.outputPath('source-details.png')});await page.keyboard.press('Escape');await page.getByRole('tab',{name:'Features',exact:true}).click();await page.screenshot({path:info.outputPath('feature-pills.png')});await page.getByRole('button',{name:'Back to SAP Lens',exact:true}).click()
- await nav(page,'User Access');const back=page.getByRole('button',{name:'Back to users',exact:true});if(await back.count())await back.click();await mode(page,'Account Review');const row=page.getByRole('row').filter({has:page.getByRole('button',{name:userA,exact:true})});await row.getByRole('button',{name:'Needs review',exact:true}).click();const modal=page.getByRole('dialog',{name:`Review account · ${userA}`,exact:true});const box=(await modal.boundingBox())!;expect(box.width).toBeLessThanOrEqual(width-16);expect(box.y).toBeGreaterThanOrEqual(7);expect(box.y+box.height).toBeLessThanOrEqual(993);await page.screenshot({path:info.outputPath('review-dialog.png')})
+ await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:'Health & Diagnostics',exact:true}).click();await page.getByRole('region',{name:'Role Catalogue CSV',exact:true}).getByText('Technical details',{exact:true}).click();await page.getByRole('region',{name:'Role Catalogue CSV',exact:true}).getByRole('button',{name:'Locations and diagnostics',exact:true}).click();await page.getByRole('dialog',{name:'Role Catalogue CSV technical details',exact:true}).screenshot({path:info.outputPath('source-details.png')});await page.keyboard.press('Escape');await page.getByRole('tab',{name:'Features',exact:true}).click();await page.screenshot({path:info.outputPath('feature-pills.png')});await page.getByRole('button',{name:'Back to SAP Lens',exact:true}).click()
+ await goTo(page,'User Access');const back=page.getByRole('button',{name:'Back to users',exact:true});if(await back.count())await back.click();await mode(page,'Account Review');const row=page.getByRole('row').filter({has:page.getByRole('link',{name:userA,exact:true})});await row.getByRole('button',{name:'Needs review',exact:true}).click();const modal=page.getByRole('dialog',{name:`Review account · ${userA}`,exact:true});const box=(await modal.boundingBox())!;expect(box.width).toBeLessThanOrEqual(width-16);expect(box.y).toBeGreaterThanOrEqual(7);expect(box.y+box.height).toBeLessThanOrEqual(993);await page.screenshot({path:info.outputPath('review-dialog.png')})
 })
 
 for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`task 30 first-open date position ${theme} ${width}`,async({page,request},info)=>{
@@ -128,20 +127,19 @@ async function downloadAssignments(page:Page){
  return {rows,text:bytes.toString('utf8'),filename:file.suggestedFilename()}
 }
 test('task 31 directory exports all assignments for filtered users with explicit matches',async({page,request})=>{
- await prepareAssignmentExport(request);await page.goto('/#session=browser-test-session');await nav(page,'User Access')
+ await prepareAssignmentExport(request);await page.goto('/#session=browser-test-session');await goTo(page,'User Access')
  await page.getByLabel('Search users',{exact:true}).fill(userA)
  const group=page.getByRole('combobox',{name:'SAP User Group',exact:true});await group.click();await group.fill('SYN_GROUP');await page.getByRole('option',{name:'SYN_GROUP',exact:true}).click()
  const role=page.getByRole('combobox',{name:'Filter users by role',exact:true});await role.click();await role.fill('ZC:SYN:B');await page.getByRole('option').filter({hasText:'ZC:SYN:B'}).first().click()
  await page.getByRole('textbox',{name:'Filter users by transaction',exact:true}).fill('MIGO')
  await expect(page.getByRole('button',{name:'Export CSV',exact:true})).toBeEnabled();const file=await downloadAssignments(page)
- expect(file.rows).toHaveLength(7);expect(new Set(file.rows.map(row=>row.USERNAME))).toEqual(new Set([userA]));expect(file.rows.filter(row=>row.MATCHED_FILTER==='Yes')).toHaveLength(1)
- expect(file.rows.find(row=>row.ROLE_NAME==='ZC:SYN:B'&&row.ASSIGNMENT_STATUS==='Expired')?.MATCHED_FILTER).toBe('No')
- expect(file.rows.find(row=>row.ROLE_NAME.includes('PO_REL'))?.MATCHED_FILTER).toBe('No')
+ expect(file.rows).toHaveLength(5);expect(file.rows.some(row=>row.ASSIGNMENT_STATUS==='Expired')).toBe(false);expect(new Set(file.rows.map(row=>row.USERNAME))).toEqual(new Set([userA]));expect(file.rows.filter(row=>row.MATCHED_FILTER==='Yes')).toHaveLength(1)
+  expect(file.rows.find(row=>row.ROLE_NAME.includes('PO_REL'))?.MATCHED_FILTER).toBe('No')
  await page.getByLabel('Show expired assignments',{exact:true}).check();const expired=await downloadAssignments(page);expect(expired.rows).toHaveLength(7);expect(expired.rows.filter(row=>row.MATCHED_FILTER==='Yes')).toHaveLength(2)
  await page.getByLabel('Search users',{exact:true}).fill('NO_SYNTHETIC_MATCH');await expect(page.getByRole('button',{name:'Export CSV',exact:true})).toBeDisabled()
 })
 test('task 31 release Table and Matrix export identical filtered intervals',async({page,request})=>{
- await prepareAssignmentExport(request);await page.goto('/#session=browser-test-session');await nav(page,'Release Roles');await page.getByRole('button',{name:'Table',exact:true}).click()
+ await prepareAssignmentExport(request);await page.goto('/#session=browser-test-session');await goTo(page,'Release Roles');await page.getByRole('button',{name:'Table',exact:true}).click()
  const pr=page.getByRole('combobox',{name:'PR/PO',exact:true});await pr.click();await pr.fill('PR');await page.getByRole('option',{name:'PR',exact:true}).click()
  await page.getByLabel('Release assignment status',{exact:true}).selectOption('all')
  await expect(page.getByRole('button',{name:'Export CSV',exact:true})).toBeEnabled();const table=await downloadAssignments(page);expect(table.rows).toHaveLength(3)
@@ -151,30 +149,30 @@ test('task 31 release Table and Matrix export identical filtered intervals',asyn
 })
 test('task 31 export includes users beyond visible pagination',async({page,request})=>{
  writeFileSync(users,readFileSync(users,'utf8')+Array.from({length:125},(_,i)=>`PAGE_${String(i).padStart(3,'0')},ZC:SYN:B,SYN_PAGE,Synthetic,Page,,20000101,99991231,0,20000101,99991231\n`).join(''));await request.post('/api/refresh',{headers})
- await page.goto('/#session=browser-test-session');await nav(page,'User Access');await page.getByLabel('Search users',{exact:true}).fill('PAGE_');await expect(page.locator('.user-directory-table tbody tr')).toHaveCount(50)
+ await page.goto('/#session=browser-test-session');await goTo(page,'User Access');await page.getByLabel('Search users',{exact:true}).fill('PAGE_');await expect(page.locator('.user-directory-table tbody tr')).toHaveCount(50)
  const file=await downloadAssignments(page);expect(file.rows).toHaveLength(125);expect(new Set(file.rows.map(row=>row.USERNAME)).size).toBe(125)
 })
 test('task 31 desktop save uses existing capability and semicolon contract',async({page,request})=>{
  await prepareAssignmentExport(request);await page.addInitScript(()=>{(window as any).assignmentExports=[];(window as any).pywebview={api:{save_user_access_csv:async(token:string,filename:string,content:string)=>{(window as any).assignmentExports.push({token,filename,content});return true}}}})
- await page.goto('/#session=browser-test-session');await nav(page,'User Access');await page.getByRole('button',{name:'Export CSV',exact:true}).click();await expect.poll(()=>page.evaluate(()=>(window as any).assignmentExports.length)).toBe(1)
- await nav(page,'Release Roles');await page.getByRole('button',{name:'Export CSV',exact:true}).click();await expect.poll(()=>page.evaluate(()=>(window as any).assignmentExports.length)).toBe(2)
+ await page.goto('/#session=browser-test-session');await goTo(page,'User Access');await page.getByRole('button',{name:'Export CSV',exact:true}).click();await expect.poll(()=>page.evaluate(()=>(window as any).assignmentExports.length)).toBe(1)
+ await goTo(page,'Release Roles');await page.getByRole('button',{name:'Export CSV',exact:true}).click();await expect.poll(()=>page.evaluate(()=>(window as any).assignmentExports.length)).toBe(2)
  const calls=await page.evaluate(()=>(window as any).assignmentExports);expect(calls.every((item:any)=>item.token==='browser-test-session'&&item.content.startsWith('\ufeff"USERNAME";"FIRST_NAME";'))).toBeTruthy();expect(calls[0].filename).toContain('user-directory');expect(calls[1].filename).toContain('release-roles')
 })
 
 test('task 31 stale export metadata is rejected before a download',async({page})=>{
  let downloads=0;page.on('download',()=>downloads++)
  await page.route('**/api/access/exports/users?**',async route=>{const response=await route.fetch();await route.fulfill({response,headers:{...response.headers(),'x-sap-lens-data-revision':'synthetic-stale'}})})
- await page.goto('/#session=browser-test-session');await nav(page,'User Access');await page.getByRole('button',{name:'Export CSV',exact:true}).click();await expect(page.getByRole('alert')).toContainText('Source data changed');expect(downloads).toBe(0)
+ await page.goto('/#session=browser-test-session');await goTo(page,'User Access');await page.getByRole('button',{name:'Export CSV',exact:true}).click();await expect(page.getByRole('alert')).toContainText('Source data changed');expect(downloads).toBe(0)
 })
 test('task 31 filter changes cancel an in-flight export',async({page})=>{
  let release!:()=>void,arrived!:()=>void;const gate=new Promise<void>(resolve=>release=resolve),requested=new Promise<void>(resolve=>arrived=resolve);let downloads=0
  page.on('download',()=>downloads++);await page.route('**/api/access/exports/users?**',async route=>{const response=await route.fetch();arrived();await gate;await route.fulfill({response})})
- await page.goto('/#session=browser-test-session');await nav(page,'User Access');await page.getByRole('button',{name:'Export CSV',exact:true}).click();await requested
+ await page.goto('/#session=browser-test-session');await goTo(page,'User Access');await page.getByRole('button',{name:'Export CSV',exact:true}).click();await requested
  await page.getByLabel('Search users',{exact:true}).fill('NO_SYNTHETIC_RESULT');await expect(page.locator('.user-directory-table tbody tr')).toHaveCount(0);release()
  await expect(page.getByRole('button',{name:'Export CSV',exact:true})).not.toHaveAttribute('aria-busy','true');expect(downloads).toBe(0)
 })
 for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`task 31 export toolbars ${theme} ${width}`,async({page,request},info)=>{
- await prepareAssignmentExport(request);const config=await settings(request);config.theme=theme;await request.post('/api/configuration',{headers,data:config});await page.setViewportSize({width,height:1000});await page.goto('/#session=browser-test-session');await nav(page,'User Access')
+ await prepareAssignmentExport(request);const config=await settings(request);config.theme=theme;await request.post('/api/configuration',{headers,data:config});await page.setViewportSize({width,height:1000});await page.goto('/#session=browser-test-session');await goTo(page,'User Access')
  const action=page.getByRole('button',{name:'Export CSV',exact:true});await expect(action).toBeEnabled();await page.locator('.results-toolbar:visible').screenshot({path:info.outputPath('directory-export-toolbar.png')});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
- await nav(page,'Release Roles');await expect(action).toBeEnabled();await page.locator('.results-toolbar:visible').screenshot({path:info.outputPath('release-export-toolbar.png')});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
+ await goTo(page,'Release Roles');await expect(action).toBeEnabled();await page.locator('.results-toolbar:visible').screenshot({path:info.outputPath('release-export-toolbar.png')});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
 })

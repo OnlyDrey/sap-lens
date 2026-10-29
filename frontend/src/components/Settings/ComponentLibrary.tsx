@@ -9,7 +9,10 @@ import { SourceHealthSummary } from './SourceStatus'
 import { AssignmentDateFilters, emptyDates } from '@/components/Shared/AssignmentDateFilters'
 import { StatusCard, FilterPanel, ResultsToolbar } from '@/components/Shared/InvestigationPatterns'
 import { useRef, useState, useEffect } from 'react'
-import { Copy, Download, Search, Users, Info } from 'lucide-react'
+import { Copy, Download, Search, Users, Info, CheckCircle2, Database, Layers, MoreHorizontal } from 'lucide-react'
+import { RoleCard } from '@/components/RoleList/RoleCard'
+import { ModuleBadge } from '@/components/Modules/ModuleBadge'
+import { RoleEntry } from '@/components/Shared/RoleEntry'
 import { Button, IconButton, ButtonGroup } from '@/components/Shared/Button'
 import {
   Input,
@@ -21,11 +24,12 @@ import {
 import {
   MainNavigation,
   MainNavigationItem,
-  SecondaryNavigation,
   ContentTabs,
 } from '@/components/Shared/Navigation'
 import { Popover } from '@/components/Shared/Popover'
 import { Dialog } from '@/components/Shared/Dialog'
+import { SidePanel } from '@/components/Shared/SidePanel'
+import { MatrixGrid } from '@/components/Shared/MatrixGrid'
 import {
   Card,
   Toolbar,
@@ -37,6 +41,8 @@ import {
 } from '@/components/Shared/Presentation'
 import { Select } from '@/components/Shared/Select'
 import { Combobox } from '@/components/Shared/Combobox'
+import { MultiSelectFilter } from '@/components/Shared/MultiSelectFilter'
+import { WindowsIcon } from '@/components/Shared/WindowsIcon'
 import { NorwegianDateInput } from '@/components/Shared/NorwegianDateInput'
 import {
   SavedFilters,
@@ -53,7 +59,8 @@ import {
 import { ClearFilterButton } from '@/components/Shared/ClearFilterButton'
 import { Notification } from '@/components/Shared/Notification'
 import { SAPUserSelector } from '@/components/Shared/SAPUserSelector'
-import { Pagination, dates } from '@/components/Access/Shared'
+import { PAGE_SIZES, Pagination, dates } from '@/components/Access/Shared'
+import { BulkToolbar } from '@/components/Shared/BulkSelection'
 import type { UserRow } from '@/api/access'
 const demoUsers: UserRow[] = [
   {
@@ -118,6 +125,8 @@ export function ComponentLibrary() {
   const categories=[['all','All components'],['buttons','Buttons & Actions'],['navigation','Navigation & Tabs'],['forms','Forms & Inputs'],['filters','Filters & Search'],['status','Status & Feedback'],['dialogs','Dialogs & Popovers'],['data','Tables & Data Display'],['sap','SAP-Specific Components']]
   const [text, setText] = useState(''),
     [dialogOpen, setDialogOpen] = useState(false),
+    [panelOpen, setPanelOpen] = useState(false),
+    [matrixPick, setMatrixPick] = useState(''),
     [select, setSelect] = useState('all'),
     [check, setCheck] = useState(false),
     [toggle, setToggle] = useState(false),
@@ -127,9 +136,15 @@ export function ComponentLibrary() {
     [feedback, setFeedback] = useState(''),
     [section, setSection] = useState('directory'),
     [tab, setTab] = useState('all'),
+    [settingsItem, setSettingsItem] = useState('Data Sources'),
+    [cardCompare, setCardCompare] = useState(false),
+    [cardPackage, setCardPackage] = useState(false),
     [offset, setOffset] = useState(0),
+    [demoOffset, setDemoOffset] = useState(0),
+    [demoSize, setDemoSize] = useState(10),
     [user, setUser] = useState('DEMO_ANALYST'),
-    [role, setRole] = useState('ZC:DEMO:VIEW')
+    [role, setRole] = useState('ZC:DEMO:VIEW'),
+    [areas, setAreas] = useState<string[]>(['E']);
   const [demoPath,setDemoPath]=useState('C:/synthetic/catalogue.csv'),[demoMapping,setDemoMapping]=useState('AGR_NAME'),[demoDates,setDemoDates]=useState({...emptyDates})
   const storage = useRef<FilterStorage>()
   if (!storage.current) storage.current = memoryStorage()
@@ -186,7 +201,7 @@ export function ComponentLibrary() {
         <h2>Navigation &amp; content</h2>
         <p className="ui-description">
           Major destinations, related pages and content switching have distinct
-          semantics. Tabs use arrows/Home/End and an underline indicator without a baseline border. Native selects use the shared control dimensions and explicit labels; platform menus remain native.
+          semantics. The primary bar navigates; the tab and secondary-link style below is one design (underline indicator, keyboard focus as a bold underline) used for both content tabs and related-page links. Tabs use arrows/Home/End. Native selects use the shared control dimensions and explicit labels; platform menus remain native.
         </p>
         <div
           style={{
@@ -199,38 +214,38 @@ export function ComponentLibrary() {
               label="Lookup preview"
               icon={<Search size={16} />}
               active={section === 'directory'}
-              onClick={() => setSection('directory')}
+              href="#component-library-directory"
+              onNavigate={() => setSection('directory')}
             />
             <MainNavigationItem
               label="Review preview"
               icon={<Users size={16} />}
               active={section === 'review'}
-              onClick={() => setSection('review')}
+              href="#component-library-review"
+              onNavigate={() => setSection('review')}
             />
           </MainNavigation>
         </div>
-        <SecondaryNavigation
-          label="Secondary navigation preview"
-          items={['directory', 'review'].map((value) => ({
-            value,
-            label:
-              value === 'directory' ? 'Directory preview' : 'Review preview',
-            href: '#/user-access',
-            active: section === value,
-            onSelect: () => setSection(value),
-          }))}
-        />
         <ContentTabs
           label="Content tabs preview"
           value={tab}
           items={[
-            { value: 'all', label: 'All demo roles', count: 2 },
-            { value: 'business', label: 'Business demo roles', count: 1 },
+            { value: 'all', label: 'All demo roles' },
+            { value: 'business', label: 'Business demo roles' },
           ]}
           onChange={setTab}
         >
           <p className="text-sm">Selected content: {tab}</p>
         </ContentTabs>
+        <h3 className="settings-subheading">Settings navigation</h3>
+        <p className="ui-description">Vertical sidebar items: one filled rounded surface for the selected item, a separate focus outline, no underline. Used only for Settings sections.</p>
+        <div role="tablist" aria-label="Settings navigation preview" aria-orientation="vertical" className="grid max-w-xs gap-1">
+          {([['Data Sources', Database], ['SAP Modules', Layers]] as const).map(([label, Icon]) => (
+            <button key={label} type="button" role="tab" aria-selected={settingsItem === label} tabIndex={settingsItem === label ? 0 : -1} className={`settings-nav-item ${settingsItem === label ? 'active' : ''}`} onClick={() => setSettingsItem(label)}>
+              <Icon size={19} aria-hidden="true" /><span>{label}</span>
+            </button>
+          ))}
+        </div>
       </Card>}
       {(category==='all'||category==='sap')&&<Card><PageHeader title="Page header preview" icon={<LayoutDashboard size={22} aria-hidden="true"/>}/><MetadataList items={[{label:'Records',value:'2'},{label:'Last validated source check',value:'Not checked · Static source'}]}/><TransactionCount count={12}/><ExportCSVButton disabled title="Isolated preview; no records are exported."/><h2>Import and source controls</h2><p className="ui-description">Real import components with isolated synthetic state. In Data Sources, selection automatically validates and imports a complete dataset. This isolated preview only selects a demo string; no files, settings or datasets are changed.</p><SourceFileField label="Demo source file" value={demoPath} onChange={setDemoPath} native onBrowse={()=>setDemoPath('C:/synthetic/replacement.csv')} browseLabel="Browse demo source"/><div className="demo-grid"><MappingField field="AGR_NAME" label="Demo role name" required value={demoMapping} columns={['AGR_NAME','ROLE_NAME']} onChange={setDemoMapping}/><SourceHealthSummary source={{id:'roles',mode:'static',loaded:true,loading:false,error:null,records:2,last_successful_load:'2026-01-01T12:00:00Z',snapshot_available:true}}/></div><ImportPreview fileName="synthetic.csv" metrics={[{label:'Records',value:2}]} samples={[{AGR_NAME:'ZC:DEMO',TCODE:'MIGO'},{AGR_NAME:'ZC:EXAMPLE',TCODE:'ME23N'}]} warnings={['Example warning: an optional description was not supplied.']}/></Card>}
       {(category==='all'||category==='data')&&<Card><SectionHeader title="Investigation evidence" icon={<Info size={18}/>}/><ReviewFindings row={{sap_validity:'Valid',lock_status:'Unlocked',ad_status:'Unknown',match_status:'missing_email',findings:['directory_match'],stale:false}} labels={{directory_match:'Missing directory match'}}/><ChangeRecordDetails change={{source:'employees',source_name:'Synthetic directory',type:'modified',identifier:'SYNTHETIC_RECORD',fields:[{field:'Title',before:'Example analyst',after:'Example reviewer'}],before:{Name:'Synthetic Example'},after:{Name:'Synthetic Example'}}}/></Card>}
@@ -271,6 +286,9 @@ export function ComponentLibrary() {
               <option value="all">All demo values</option>
               <option value="active">Active demo values</option>
             </Select>
+          </FormField>
+          <FormField label="Demo multi-select filter">
+            <MultiSelectFilter label="Demo areas" values={areas} options={['A', 'E', 'N']} optionLabel={value => `Area ${value}`} onChange={setAreas} />
           </FormField>
           <FormField label="Demo searchable role">
             <Combobox
@@ -354,7 +372,13 @@ export function ComponentLibrary() {
             </>
           )}
         </Popover>
-        <Button onClick={() => setDialogOpen(true)}>Open demo dialog</Button></Toolbar>
+        <Button onClick={() => setDialogOpen(true)}>Open demo dialog</Button><Button onClick={() => setPanelOpen(true)}>Open demo side panel</Button></Toolbar>
+        {panelOpen && (
+          <SidePanel title="Isolated side panel" subtitle="Docked, non-modal detail" onClose={() => setPanelOpen(false)}>
+            <p>The side panel keeps the list behind it in place. Escape closes it and restores focus to the trigger.</p>
+            <Input aria-label="Demo side panel input" />
+          </SidePanel>
+        )}
         {dialogOpen && (
           <Dialog
             title="Isolated component dialog"
@@ -367,6 +391,15 @@ export function ComponentLibrary() {
             <Input aria-label="Demo dialog input" />
           </Dialog>
         )}
+      </Card>}
+      {(category==='all'||category==='data')&&<Card aria-label="Matrix grid preview">
+        <h2>Matrix grid</h2>
+        <p className="ui-description">Sticky header and first column, arrow-key navigation, and status shown by icon and text, never color alone.</p>
+        <MatrixGrid caption="Demo matrix" rowLabel="Demo row" columns={[{id:'c1',label:'C1',sub:'2 rows'},{id:'c2',label:'C2',sub:'1 row'},{id:'c3',label:'C3',sub:'0 rows'}]}
+          rows={[{id:'r1',label:'DEMO_ROW_1',sub:'Group A'},{id:'r2',label:'DEMO_ROW_2',sub:'Group B'}]}
+          cell={(row,column)=>row==='r1'&&column==='c1'||row==='r1'&&column==='c2'||row==='r2'&&column==='c1'?{icon:<CheckCircle2 size={14}/>,tone:column==='c1'?'success':'warning',text:column==='c1'?'Approved':'Pending',sub:'demo',label:`${row}, ${column}: ${column==='c1'?'approved':'pending'}`}:null}
+          onSelect={(row,column)=>setMatrixPick(`${row}/${column}`)}/>
+        <p role="status">{matrixPick?`Selected ${matrixPick}`:'No cell selected'}</p>
       </Card>}
       {(category==='all'||category==='status')&&<Card>
         <h2>Status &amp; feedback</h2>
@@ -387,6 +420,36 @@ export function ComponentLibrary() {
       </Card>}
       {(category==='all'||category==='sap')&&<Card>
         <h2>SAP components &amp; data display</h2>
+        <h3 className="settings-subheading">Module identity</h3>
+        <p className="ui-description">One shared badge: icon and abbreviation on the configured module color, in standard and compact sizes. Unknown roles are shown as unclassified, never guessed.</p>
+        <Toolbar aria-label="Module badge previews">
+          <ModuleBadge moduleId="FI" />
+          <ModuleBadge moduleId="MM" />
+          <ModuleBadge moduleId="SD" variant="compact" />
+          <ModuleBadge moduleId="CO" variant="compact" selected />
+          <ModuleBadge moduleId={null} showUnclassified />
+        </Toolbar>
+        <h3 className="settings-subheading">Platform mark</h3>
+        <p className="ui-description">Inline four-pane mark used beside the Windows Desktop settings heading; it inherits the text color.</p>
+        <Toolbar aria-label="Platform mark preview"><WindowsIcon size={24} /><WindowsIcon /></Toolbar>
+        <h3 className="settings-subheading">Role entry (row density)</h3>
+        <p className="ui-description">The shared role presentation used by cards, the access package and comparison: module, name above the copyable identifier, optional counts and actions.</p>
+        <div className="w-full min-w-0 max-w-sm rounded-card border border-line p-3">
+          <RoleEntry density="row" moduleCode="FI" title="Demo finance display role" identifier="ZC:DEMO:VIEW" tcodeCount={12} singleRoleCount={2}
+            actions={<IconButton label="Copy demo role" onClick={() => undefined}><Copy size={14} aria-hidden="true" /></IconButton>} />
+        </div>
+        <h3 className="settings-subheading">Role card</h3>
+        <p className="ui-description">Compare (Scale) sits left of Add to access package (Plus). Both are toggles whose label and pressed state change; nothing here is saved.</p>
+        <div className="w-full min-w-0 max-w-sm">
+          <RoleCard
+            role={{ agr_name: 'ZC:DEMO:VIEW', text: 'Demo finance display role', function_key: 'FI', module_name: 'Financial Accounting', tcode_count: 12, single_role_count: 2 }}
+            isSelected={cardCompare}
+            onSelect={() => setCardCompare(value => !value)}
+            inCart={cardPackage}
+            onCart={() => setCardPackage(value => !value)}
+            onClick={() => undefined}
+          />
+        </div>
         <SAPUserSelector
           label="Demo SAP user"
           value={user}
@@ -446,6 +509,22 @@ export function ComponentLibrary() {
           limit={2}
           onChange={setOffset}
         />
+      </Card>}
+      {(category==='all'||category==='data')&&<Card aria-label="Selection and bulk actions preview">
+        <SectionHeader title="Selection, page sizes and row actions" icon={<Info size={18}/>}/>
+        <p className="ui-description">Bulk selection works on stable identifiers; the toolbar states how many items are affected and where they are. Page sizes and row action menus are shared by every list.</p>
+        <BulkToolbar label="Demo bulk toolbar" summary="2 demo assignments selected" scope="1 on this page · 1 on other pages · 12 match the current filters">
+          <Button size="compact">Select all 12 matching</Button><Button size="compact">Clear selection</Button><Button size="compact">Keep</Button><Button size="compact">Investigate</Button><Button size="compact" variant="destructive">Recommend removal</Button>
+        </BulkToolbar>
+        <Pagination label="Demo sized pagination" offset={demoOffset} total={60} limit={demoSize} onChange={setDemoOffset} pageSizes={PAGE_SIZES} onPageSize={(size)=>{setDemoSize(size);setDemoOffset(0)}}/>
+        <Toolbar>
+          <Popover label="Demo row actions" preferredWidth={300} trigger={<span className="relative inline-flex"><MoreHorizontal size={16} aria-hidden="true"/><span className="sr-only">Demo row actions</span></span>}>{close=><div className="action-menu" role="group" aria-label="Demo row actions menu">
+            <Button variant="ghost" onClick={close}>Open</Button>
+            <Button variant="ghost" disabled>Compare with…</Button>
+            <p className="ui-description action-menu-note">Create a second item to compare against.</p>
+            <hr className="action-menu-separator" aria-hidden="true"/>
+            <Button variant="ghost" className="action-menu-destructive" onClick={close}>Delete…</Button></div>}</Popover>
+        </Toolbar>
       </Card>}
       </ContentTabs>
     </div>

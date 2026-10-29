@@ -3,8 +3,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, unlinkSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-
-const headers = {'X-SAP-Lens':'browser-test-session'}
+import { headers } from './support'
 test.beforeEach(async ({request}) => { expect((await request.post('/api/configuration/reset',{headers})).ok()).toBeTruthy() })
 
 test('system identity, private logo storage, persisted theme and portable backup/restore',async ({page}) => {
@@ -107,7 +106,7 @@ test('registry customization preserves custom mappings, CSV modules and transact
     settings.import_profiles.find((p:{id:string})=>p.id===settings.active_import).mapping={FUNCTION_KEY:'Module',AGR_NAME:'Role',CHILD_AGR:'Child',PARENT_AGR:'Parent',Effective_Role:'Effective',TCODE:'Transaction'}
     expect((await request.post('/api/configuration',{headers,data:settings})).ok()).toBeTruthy()
     await page.goto('/#session=browser-test-session')
-    await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Role Lookup',exact:true}).click()
+    await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'Role Lookup',exact:true}).click()
 
     await page.getByRole('button',{name:'Open settings'}).click()
     await page.getByRole('tab',{name:'SAP Modules'}).click()
@@ -119,7 +118,7 @@ test('registry customization preserves custom mappings, CSV modules and transact
     await page.getByRole('button',{name:'Apply module changes',exact:true}).click()
     await page.getByRole('button',{name:'Apply settings',exact:true}).click()
     await expect(page.getByRole('region',{name:'SAP Lens settings',exact:true})).toBeHidden()
-    await expect(page.getByRole('article',{name:'DEMO_ROOT',exact:true})).toContainText('Synthetic accounting')
+    const badge=page.getByRole('article',{name:'DEMO_ROOT',exact:true}).locator('.module-badge');await expect(badge).toHaveAttribute('title','Synthetic accounting');await expect(badge).toContainText('FI');await expect(badge).toHaveCSS('--module-color','#123456')
     const registry=(await (await request.get('/api/registry/modules',{headers})).json()).modules
     expect(registry.find((m:{id:string})=>m.id==='FI').color).toBe('#123456')
     expect(registry.find((m:{id:string})=>m.id==='FI').icon).toBe('Layers')
@@ -141,7 +140,7 @@ test('large catalogs render bounded pages and retain cross-page comparisons',asy
   try {
     expect((await request.post('/api/settings',{headers,data:{data_csv_path:file}})).ok()).toBeTruthy()
     await page.goto('/#session=browser-test-session')
-    await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Role Lookup',exact:true}).click()
+    await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'Role Lookup',exact:true}).click()
     const cards=page.getByRole('main').locator('article')
     await expect(cards).toHaveCount(100)
     await expect(cards.first()).toBeInViewport()

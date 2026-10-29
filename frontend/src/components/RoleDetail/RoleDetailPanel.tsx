@@ -1,9 +1,8 @@
 import {matchingTransactions,transactionMatches} from '@/lib/searchMatching'
-import { TransactionCount } from '@/components/Shared/TransactionCount'
 import { Button } from '@/components/Shared/Button'
 import { useApplicationData } from '@/state/ApplicationData'
 import { DetailNavigation } from "@/components/Shared/InvestigationNavigation"
-import { RoleMetadata } from '@/components/Shared/RoleMetadata'
+import { RoleEntryHeader, RoleMetadata } from '@/components/Shared/RoleMetadata'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { X, ChevronDown, ChevronRight, AlertTriangle, Loader2, Layers, Zap, Users, ArrowRight, ArrowLeft } from 'lucide-react'
@@ -27,8 +26,7 @@ const SingleRoleRow = memo(function SingleRoleRow({ sr, onTcodeUsers, transactio
           {open ? <ChevronDown size={14} aria-hidden="true"/> : <ChevronRight size={14} aria-hidden="true"/>}
         </button>
         <div className="single-role-heading-main">
-          <RoleMetadata code={sr.function_key} name={sr.module_name} description={sr.child_agr_text}><TransactionCount count={sr.tcodes.length}/>{searching&&<span className="text-xs text-muted">{rows.length} matching</span>}</RoleMetadata>
-          <RoleIdentifier value={sr.child_agr} />
+          <RoleEntryHeader code={sr.function_key} name={sr.module_name} description={sr.child_agr_text} tcodeCount={sr.tcodes.length} identifier={sr.child_agr}>{searching&&<span className="text-xs text-muted">{rows.length} matching</span>}</RoleEntryHeader>
           {sr.assignment_kind === 'direct' && <span className="single-role-assignment">Direct assignment</span>}
           {sr.assignment_kind === 'effective' && <span className="single-role-assignment">Effective-role assignment</span>}
         </div>
@@ -82,10 +80,10 @@ export function RoleDetailPanel({ roleName, onClose, onUsers, onTcodeUsers, pare
           style={{ backgroundColor: 'var(--primary)', color:'var(--on-primary)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
           <div className="role-detail-heading-content min-w-0 flex-1">
             <nav aria-label="Breadcrumb" className="mb-2"><Button variant="ghost" size="compact" className="detail-back-action" onClick={onClose}><ArrowLeft size={16} aria-hidden="true"/>Back to {parent === 'User Access' ? 'users' : parent}</Button></nav>
-            <div className="role-detail-description"><p className="text-base font-black text-current leading-snug break-words">
+            <div className="role-detail-description"><RoleMetadata code={role?.function_key} name={role?.module_name}/>
+            <p className="text-base font-black text-current leading-snug break-words">
               {cleanTitle(role?.text ?? null)}
-            </p>
-            <RoleMetadata code={role?.function_key} name={role?.module_name}/></div>
+            </p></div>
             <div className="role-detail-identifier"><RoleIdentifier value={roleName}/></div>
           </div>
           <button aria-label="Close role details" onClick={onClose}

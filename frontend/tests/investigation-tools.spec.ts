@@ -2,13 +2,8 @@ import { test, expect, type Locator, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers, goTo } from './support'
 let root: string
-const nav = async (page: Page, name: string) =>
-  page
-    .getByRole('navigation', { name: 'Main navigation' })
-    .getByRole('button', { name, exact: true })
-    .click()
 const mode = async (page: Page, name: string) =>
   page
     .getByRole('navigation', { name: 'User Access view', exact: true })
@@ -24,7 +19,7 @@ async function openSaved(page: Page, view: string) {
       .click()
 }
 async function comparison(page: Page) {
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   await mode(page, 'Compare users')
 }
 async function choose(page: Page, label: string, query: string) {
@@ -85,12 +80,12 @@ test.afterEach(async ({ request }) => {
   rmSync(root, { recursive: true, force: true })
 })
 
-test('comparison entry from details retains User A and original comparison on Back', async ({
+test('comparison entry from details retains User A and original comparison on Back', { tag: '@smoke' }, async ({
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'User Access')
-  await page.getByRole('button', { name: 'DEMO_A', exact: true }).click()
+  await goTo(page, 'User Access')
+  await page.getByRole('link', { name: 'DEMO_A', exact: true }).click()
   await page.getByRole('button', { name: 'Compare users', exact: true }).click()
   await expect(
     page.getByRole('combobox', { name: 'User A', exact: true }),
@@ -276,7 +271,7 @@ test('saved filters save load rename update delete and survive page reload', asy
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   const viewForBar = 'users'
   const bar = saved(page, 'users')
   await page.getByLabel('Search users', { exact: true }).fill('Alpha')
@@ -316,12 +311,12 @@ test('saved filters save load rename update delete and survive page reload', asy
   await expect(page.getByLabel('Search users', { exact: true })).toHaveValue(
     'Beta',
   )
-  await nav(page, 'Role Lookup')
+  await goTo(page, 'Role Lookup')
   await openSaved(page, 'roles')
   await expect(
     saved(page, 'roles').getByRole('option', { name: 'Renamed', exact: true }),
   ).toHaveCount(0)
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   await openSaved(page, viewForBar)
   page.once('dialog', (d) => d.accept())
   await bar.getByRole('button', { name: 'Delete', exact: true }).click()
@@ -343,7 +338,7 @@ test('unsupported saved values warn without overwriting original definition', as
   })
   expect(item.ok()).toBeTruthy()
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   const viewForBar = 'users'
   const bar = saved(page, 'users')
   await openSaved(page, viewForBar)
@@ -373,7 +368,7 @@ test('Data Health coverage and drilldown navigate to existing records', async ({
   ).toBeVisible()
   await page.getByText('Data Health & Coverage', { exact: true }).click()
   await expect(
-    page.locator('p').filter({
+    page.locator('li').filter({
       hasText: 'Business/release assignment records mapped to catalogue',
     }),
   ).toContainText('4 / 6 — 66.7%')
@@ -385,7 +380,7 @@ test('Data Health coverage and drilldown navigate to existing records', async ({
   })
   await expect(drill).toContainText('ZC:OLD')
   await drill
-    .getByRole('button', { name: 'DEMO_A', exact: true })
+    .getByRole('link', { name: 'DEMO_A', exact: true })
     .first()
     .click()
   await expect(
@@ -396,14 +391,15 @@ test('Account Review retains stale filter and includes evidence versions in expo
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   await mode(page, 'Account Review')
   await expect(
     page.getByText('Outdated reviews', { exact: true }),
   ).toBeVisible()
   await page
-    .getByRole('button', { name: 'Review changed evidence', exact: true })
+    .getByRole('button', { name: /^Outdated reviews/ })
     .click()
+  await expect(page.getByRole('button', { name: 'Remove review finding filter', exact: true })).toBeVisible()
   await expect(page.getByLabel('Review finding', { exact: true })).toHaveValue(
     'stale',
   )
@@ -462,7 +458,7 @@ test('transaction investigation and browser Back retain comparison users and fil
     page.getByRole('heading', { name: 'User Access', exact: true }),
   ).toBeVisible()
   await expect(
-    page.getByRole('region', { name: 'User transaction filter' }),
+    page.getByRole('group', { name: 'Filter users by transaction', exact: true }),
   ).toContainText('ME23N')
   await page.goBack()
   await expect(
@@ -573,7 +569,7 @@ test('Role Lookup saved filters restore multi-transaction and sorting controls',
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'Role Lookup')
+  await goTo(page, 'Role Lookup')
   const viewForBar = 'roles'
   const bar = saved(page, 'roles'),
     transaction = page.getByRole('textbox', {
@@ -627,7 +623,7 @@ test('future saved schema remains unavailable without crashing or replacing stor
     })
   })
   await page.goto('/#session=browser-test-session')
-  await nav(page, 'User Access')
+  await goTo(page, 'User Access')
   const viewForBar = 'users'
   const bar = saved(page, 'users')
   await openSaved(page, viewForBar)
@@ -693,16 +689,16 @@ for (const theme of ['light', 'dark'])
 
 test('directory role description selection and removable chips preserve unrelated controls', async ({page}) => {
   await page.goto('/#session=browser-test-session')
-  await nav(page,'User Access')
+  await goTo(page,'User Access')
   await page.getByLabel('Search users',{exact:true}).fill('DEMO_')
   await page.getByLabel('Sort users',{exact:true}).selectOption('email')
   const role = page.getByRole('combobox',{name:'Filter users by role',exact:true})
   await role.fill('Materials')
   await page.getByRole('option').filter({hasText:'ZC:ONLY_A'}).click()
-  await expect(page.getByRole('button',{name:'DEMO_A',exact:true})).toBeVisible()
-  await expect(page.getByRole('button',{name:'DEMO_B',exact:true})).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'DEMO_A',exact:true})).toBeVisible()
+  await expect(page.getByRole('link', { name: 'DEMO_B',exact:true})).toHaveCount(0)
   await page.getByRole('button',{name:'Remove role filter',exact:true}).click()
-  await expect(page.getByRole('button',{name:'DEMO_B',exact:true})).toBeVisible()
+  await expect(page.getByRole('link', { name: 'DEMO_B',exact:true})).toBeVisible()
   await expect(page.getByLabel('Search users',{exact:true})).toHaveValue('DEMO_')
   await expect(page.getByLabel('Sort users',{exact:true})).toHaveValue('email')
   await page.getByRole('button',{name:'Clear filters',exact:true}).click()

@@ -17,7 +17,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 import cache
 from config import get_settings
 from data_loader import DataLoader
-from routers import comparison, modules, roles, access, employees, dashboard, account_review, user_comparison, data_health, saved_filters, data_sources
+from routers import comparison, modules, roles, access, employees, dashboard, account_review, user_comparison, data_health, saved_filters, data_sources, sod, sod_analysis, sod_reviews, sod_periods, sod_reports, sod_governance
 from request_limits import RequestBodyLimit
 from version import VERSION, BUILD_INFO
 from configuration_routes import configuration_router
@@ -36,6 +36,8 @@ def create_app(origin: str | None = None, session_token: str | None = None,
     if server is None and server_mode():
         server = ServerSettings.from_env()
     loader = DataLoader()
+    from scheduler import Scheduler
+    scheduler = Scheduler(loader)
     allowed_origins = [server.origin] if server else [origin] if origin else get_settings().cors_origins
     if not server and any(not _is_loopback_origin(value) for value in allowed_origins):
         raise ValueError('Only explicit HTTP loopback origins are supported.')
@@ -53,12 +55,16 @@ def create_app(origin: str | None = None, session_token: str | None = None,
             with suppress(HTTPException):
                 await loader.load()
 
+        scheduled = asyncio.create_task(scheduler.loop())
         task = None
-        if get_settings().data_csv_path or get_settings().user_csv_path or get_settings().employee_csv_path or get_settings().employee_snapshot_id:
+        if get_settings().data_csv_path or get_settings().user_csv_path or get_settings().employee_csv_path or get_settings().employee_snapshot_id or get_settings().sod_csv_path:
             task = asyncio.create_task(initial_load())
         else:
             loader.error = 'Choose a SAP role catalogue or user access CSV in Settings.'
         yield
+        scheduled.cancel()
+        with suppress(asyncio.CancelledError):
+            await scheduled
         if task:
             task.cancel()
             with suppress(asyncio.CancelledError):
@@ -67,6 +73,13 @@ def create_app(origin: str | None = None, session_token: str | None = None,
     app = FastAPI(title='SAP Lens API', version=VERSION, lifespan=lifespan,
                   docs_url=None, redoc_url=None)
     app.state.loader = loader
+
+    @app.exception_handler(Exception)
+    async def unexpected_failure(request: Request, error: Exception):
+        # Always answer API failures as JSON so clients never have to parse a plain-text page; details stay in logs.
+        import logging
+        logging.getLogger('sap-lens').error('Unhandled %s on %s', type(error).__name__, request.url.path)
+        return JSONResponse({'detail': 'The operation failed unexpectedly. Retry, and check the application logs if it persists.'}, status_code=500)
     app.state.deployment = server
     app.add_middleware(RequestBodyLimit)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(server.hosts) if server else ['127.0.0.1', 'localhost'])
@@ -119,6 +132,9 @@ def create_app(origin: str | None = None, session_token: str | None = None,
         return response
 
     app.include_router(configuration_router(loader, desktop_preferences=desktop_preferences))
+    from routers.refresh_schedule import refresh_schedule_router
+    app.include_router(refresh_schedule_router(scheduler, server))
+    app.state.scheduler = scheduler
     app.include_router(roles.router)
     app.include_router(access.router)
     app.include_router(employees.router)
@@ -128,6 +144,12 @@ def create_app(origin: str | None = None, session_token: str | None = None,
     app.include_router(data_health.router)
     app.include_router(saved_filters.router)
     app.include_router(data_sources.router)
+    app.include_router(sod.router)
+    app.include_router(sod_analysis.router)
+    app.include_router(sod_reviews.router)
+    app.include_router(sod_periods.router)
+    app.include_router(sod_reports.router)
+    app.include_router(sod_governance.router)
     if server:
         from server_uploads import upload_router
         app.include_router(upload_router(server))

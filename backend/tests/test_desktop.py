@@ -342,6 +342,87 @@ class DesktopTests(unittest.TestCase):
             self.assertTrue(bridge.save_user_access_csv('synthetic-capability',name,content));self.assertEqual(target.read_bytes(),content.encode('utf-8'))
         with self.assertRaises(ValueError):bridge.save_user_access_csv('synthetic-capability','sap-lens-unrelated-review-2026-10-26.csv',content)
 
+    def test_role_package_export_uses_the_native_save_contract(self):
+        from routers.roles import PACKAGE_HEADER
+        bridge=desktop.NativeDialogs('synthetic-capability');bridge._window=self.window
+        target=self.root/'Synthetic package.csv';self.window.create_file_dialog.return_value=[str(target)]
+        name='sap-lens-access-package-2026-10-28.csv';content=PACKAGE_HEADER+'"ZC:MM:BUY:ENS";"Synthetic";"ENS"\r\n'
+        with self.assertRaises(ValueError):bridge.save_role_package_csv('wrong',name,content)
+        with self.assertRaises(ValueError):bridge.save_role_package_csv('synthetic-capability',name,'unrelated header')
+        with self.assertRaises(ValueError):bridge.save_role_package_csv('synthetic-capability','sap-lens-sod-explorer-user-risk-2026-10-28.csv',content)
+        self.assertTrue(bridge.save_role_package_csv('synthetic-capability',name,content));self.assertEqual(target.read_bytes(),content.encode('utf-8'))
+
+    def test_sod_group_heatmap_export_uses_the_native_save_contract(self):
+        from routers.sod_governance import HEATMAP_COLUMNS, csv_header
+        bridge=desktop.NativeDialogs('synthetic-capability');bridge._window=self.window
+        target=self.root/'Synthetic heatmap.csv';self.window.create_file_dialog.return_value=[str(target)]
+        name='sap-lens-sod-group-risk-heatmap-2026-10-28.csv';content=csv_header(HEATMAP_COLUMNS['risk'])+'"FIN";"R1";"1";"1"\r\n'
+        with self.assertRaises(ValueError):bridge.save_sod_csv('synthetic-capability',name,'unrelated header')
+        with self.assertRaises(ValueError):bridge.save_sod_csv('synthetic-capability','sap-lens-sod-group-other-heatmap-2026-10-28.csv',content)
+        self.assertTrue(bridge.save_sod_csv('synthetic-capability',name,content));self.assertEqual(target.read_bytes(),content.encode('utf-8'))
+
+    def test_sod_export_native_contract_keeps_capability_header_and_destination_guards(self):
+        from routers.sod_analysis import EXPORT_HEADER
+        bridge=desktop.NativeDialogs('synthetic-capability');bridge._window=self.window
+        content=EXPORT_HEADER+'"Synthetic evidence"\r\n'
+        target=self.root/'Synthetic SoD export.csv';self.window.create_file_dialog.return_value=[str(target)]
+        for kind in ('users','roles'):
+            name=f'sap-lens-sod-{kind}-findings-2026-10-27.csv'
+            with self.assertRaises(ValueError):bridge.save_sod_csv('wrong',name,content)
+            with self.assertRaises(ValueError):bridge.save_sod_csv('synthetic-capability','../'+name,content)
+            with self.assertRaises(ValueError):bridge.save_sod_csv('synthetic-capability',name,'unrelated header')
+            self.assertTrue(bridge.save_sod_csv('synthetic-capability',name,content))
+            self.assertEqual(target.read_bytes(),content.encode('utf-8'))
+            with self.assertRaises(ValueError):bridge.save_user_access_csv('synthetic-capability',name,content)
+        from routers.sod import CATALOGUE_HEADER
+        catalogue_name='sap-lens-sod-catalogue-2026-10-27.csv'
+        self.assertTrue(bridge.save_sod_csv('synthetic-capability',catalogue_name,CATALOGUE_HEADER))
+        self.assertEqual(target.read_bytes(),CATALOGUE_HEADER.encode('utf-8'))
+        with self.assertRaises(ValueError):bridge.save_sod_csv('synthetic-capability',catalogue_name,content)
+        self.window.create_file_dialog.return_value=None
+        self.assertFalse(bridge.save_sod_csv('synthetic-capability',name,content))
+        with self.assertRaises(ValueError):bridge.save_sod_csv('synthetic-capability','sap-lens-sod-arbitrary-findings-2026-10-27.csv',content)
+
+    def test_sod_governance_exports_use_fixed_native_names_and_headers(self):
+        import base64
+        from routers.sod_governance import native_csv_header
+        bridge=desktop.NativeDialogs('synthetic-capability');bridge._window=self.window
+        target=self.root/'Synthetic governance export.csv';self.window.create_file_dialog.return_value=[str(target)]
+        for stem in ('explorer-user-risk','explorer-user-activity','explorer-access-list','explorer-lookup','review-queue','access-remediation'):
+            name=f'sap-lens-sod-{stem}-2026-10-27.csv';header=native_csv_header(name)
+            self.assertTrue(header.startswith('\ufeff"'))
+            self.assertTrue(bridge.save_sod_csv('synthetic-capability',name,header+'"Synthetic"\r\n'))
+            with self.assertRaises(ValueError):bridge.save_sod_csv('synthetic-capability',name,'\ufeff"Other"\r\n')
+        self.assertIsNone(native_csv_header('sap-lens-sod-explorer-other-2026-10-27.csv'))
+        with self.assertRaises(ValueError):bridge.save_sod_csv('synthetic-capability','sap-lens-sod-explorer-other-2026-10-27.csv','x')
+        with self.assertRaises(ValueError):bridge.save_sod_csv('synthetic-capability','../sap-lens-sod-review-queue-2026-10-27.csv',native_csv_header('sap-lens-sod-review-queue-2026-10-27.csv'))
+        payload=b'%PDF-1.4\nSynthetic remediation\n%%EOF';encoded=base64.b64encode(payload).decode()
+        self.window.create_file_dialog.return_value=[str(self.root/'Synthetic remediation.pdf')]
+        for context in ('current','b'*32):
+            self.assertTrue(bridge.save_sod_document('synthetic-capability',f'sap-lens-access-remediation-{context}-2026-10-27.pdf',encoded))
+        with self.assertRaises(ValueError):bridge.save_sod_document('synthetic-capability','sap-lens-access-remediation-other-2026-10-27.pdf',encoded)
+
+    def test_sod_document_save_keeps_fixed_formats_and_capability_boundary(self):
+        import base64
+        from io import BytesIO
+        from zipfile import ZipFile
+        bridge=desktop.NativeDialogs('synthetic-capability');bridge._window=self.window
+        for kind,payload in [('pdf',b'%PDF-1.4\nSynthetic report\n%%EOF')]:
+            name='sap-lens-sod-report-'+'a'*32+'-2026-10-27.'+kind
+            encoded=base64.b64encode(payload).decode();target=self.root/('synthetic.'+kind);self.window.create_file_dialog.return_value=[str(target)]
+            with self.assertRaises(ValueError):bridge.save_sod_document('wrong',name,encoded)
+            with self.assertRaises(ValueError):bridge.save_sod_document('synthetic-capability','../'+name,encoded)
+            with self.assertRaises(ValueError):bridge.save_sod_document('synthetic-capability',name,base64.b64encode(b'invalid').decode())
+            self.assertTrue(bridge.save_sod_document('synthetic-capability',name,encoded));self.assertEqual(target.read_bytes(),payload)
+            self.window.create_file_dialog.return_value=None;self.assertFalse(bridge.save_sod_document('synthetic-capability',name,encoded))
+        stream=BytesIO()
+        with ZipFile(stream,'w') as archive:
+            archive.writestr('[Content_Types].xml','<Types/>');archive.writestr('word/document.xml','<document/>');archive.writestr('_rels/.rels','<Relationships/>')
+        name='sap-lens-sod-report-'+'a'*32+'-2026-10-27.docx';target=self.root/'synthetic.docx';self.window.create_file_dialog.return_value=[str(target)]
+        self.assertTrue(bridge.save_sod_document('synthetic-capability',name,base64.b64encode(stream.getvalue()).decode()))
+        with ZipFile(stream,'a') as archive:archive.writestr('word/vbaProject.bin',b'invalid macro')
+        with self.assertRaises(ValueError):bridge.save_sod_document('synthetic-capability',name,base64.b64encode(stream.getvalue()).decode())
+
     def test_change_report_save_reuses_guarded_dialog_with_its_own_csv_contract(self):
         bridge=desktop.NativeDialogs('synthetic-capability');bridge._window=self.window
         filename='sap-lens-refresh-changes-report-2026-10-23.csv'

@@ -58,6 +58,22 @@ class ThemeAndDiagnosticsTests(unittest.TestCase):
         settings['theme_colors']['custom_presets']=[preset,{**preset,'name':'synthetic'}]
         with self.assertRaises(ValidationError):AppConfig.model_validate(settings)
 
+    def test_secondary_color_defaults_validates_and_migrates_legacy_palettes(self):
+        defaults=AppConfig().theme_colors
+        self.assertEqual((defaults.dark.secondary,defaults.light.secondary),('#2a3156','#e1e5f2'))
+        for mode in (defaults.dark,defaults.light):self.assertGreaterEqual(contrast(mode.text,mode.secondary),4.5)
+        legacy={k:v for k,v in defaults.light.model_dump().items() if k!='secondary'}
+        migrated=ThemePalette(**legacy)
+        self.assertGreaterEqual(contrast(migrated.text,migrated.secondary),4.5)
+        self.assertNotEqual(migrated.secondary,legacy['surface'])
+        old=AppConfig().model_dump()
+        for mode in ('dark','light'):old['theme_colors'][mode].pop('secondary')
+        old['theme_colors']['custom_presets']=[{'name':'Legacy preset','mode':'light','colors':legacy}]
+        loaded=AppConfig.model_validate(old)
+        self.assertEqual(loaded.theme_colors.custom_presets[0].colors.secondary,migrated.secondary)
+        for bad in ('#f1f5f9','#c0c0c0','red'):
+            with self.assertRaises(ValidationError):ThemePalette(secondary=bad)  # text on secondary must stay readable
+
     def test_invalid_palette_api_keeps_saved_configuration(self):
         with TestClient(create_app(),base_url='http://127.0.0.1:18743') as client:
             settings=client.get('/api/configuration').json()['settings']

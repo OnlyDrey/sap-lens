@@ -8,8 +8,7 @@ import {
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers } from './support'
 const columns =
   'Site;Name;SamAccountName;UserPrincipalName;Mail;Department;Title;Enabled;DistinguishedName;ManagerDN;ManagerName;ManagerSamAccountName;ManagerMail;ManagerDepartment;ManagerTitle;ManagerLookupStatus'
 let root: string, roles: string, users: string, directory: string

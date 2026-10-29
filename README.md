@@ -26,8 +26,9 @@
 
 SAP Lens is a local-first SAP investigation and access-review application. Browse
 roles and transaction mappings, investigate user/release assignments, compare
-users, enrich identities with optional Employee Directory data, and record Account
-Review decisions. Role-derived transaction coverage is investigation evidence,
+users, enrich identities with optional Employee Directory data, record Account
+Review decisions, and investigate and review potential Segregation of Duties
+conflicts with frozen periods and DOCX/PDF reports. Role-derived transaction coverage is investigation evidence,
 not proof of effective authorization or license consumption. No direct SAP connection
 or third-party data-upload service is required.
 
@@ -51,8 +52,8 @@ see the [validation matrix](docs/deployment/README.md#validation-status).
 ## Find your guide
 
 - [Build packages](docs/deployment/BUILD.md): Actions selections, versions, local commands, prerequisites and outputs.
-- [Features](docs/features/README.md): investigation, comparisons, review and Saved Filters.
-- [Data & CSV](docs/data/README.md): three independent sources, formats, replacement and persistence.
+- [Features](docs/features/README.md): investigation, comparisons, review, [SoD](docs/features/SOD.md) and Saved Filters.
+- [Data & CSV](docs/data/README.md): four independent sources, formats, replacement and persistence.
 - [Configuration](docs/getting-started/CONFIGURATION.md): settings, storage and recovery.
 - [Development & Testing](docs/development/README.md): source-mode execution without an EXE and validation.
 - [Architecture](docs/architecture/README.md): runtime, API, security and shared components.

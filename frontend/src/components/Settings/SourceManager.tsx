@@ -16,19 +16,19 @@ import {SourceMode} from './SourceMode'
 import {SourceDetailsDialog,SourceHealthSummary,useSourceEvidence} from './SourceStatus'
 import {DirectoryPreview} from './DirectoryPreview'
 
-const names={roles:'Role Catalogue',users:'User Access',employees:'Employee Directory'}
+const names={roles:'Role Catalogue',users:'User Access',employees:'Employee Directory',sod:'SoD Matrix'}
 export function SourceManager({source,draft,onMode,onActivated,onClear,onFeatures,inputRef,onCandidate,candidatePath}:{
  source:CSVSource;draft:Configuration;onMode:(mode:'static'|'dynamic')=>void;onActivated:(result:SourceActivation)=>void;
  onClear:()=>Promise<void>;onFeatures:()=>void;onCandidate:(path:string)=>void;candidatePath?:string;inputRef?:Ref<HTMLInputElement>
 }) {
- const savedPath=source==='roles'?draft.data_csv_path:source==='users'?draft.user_csv_path:draft.employee_csv_path||''
+ const savedPath=source==='roles'?draft.data_csv_path:source==='users'?draft.user_csv_path:source==='sod'?draft.sod_csv_path||'':draft.employee_csv_path||''
  const [path,setPath]=useState(candidatePath??savedPath),[picking,setPicking]=useState(false),[pending,setPending]=useState(false),[feedback,setFeedback]=useState(''),[error,setError]=useState('')
  const [preview,setPreview]=useState(false),[technical,setTechnical]=useState(false),[changes,setChanges]=useState(false)
  const lastAttempt=useRef(savedPath),mounted=useRef(true)
  const {loading,activateSource,importPhase,report}=useApplicationData(),evidence=useSourceEvidence(source)
  const history=useQuery({queryKey:['refresh-history'],queryFn:()=>apiRequest<{items:(Omit<RefreshSummary,'sources'>&{sources?:RefreshSummary['sources']})[]}>('/api/data-sources/history')})
  const latest=report?.id?report:history.data?.items[0]?{...history.data.items[0],sources:history.data.items[0].sources||[]}:null
- const busy=picking||pending||loading,mode=draft.source_modes?.[source]||(source==='employees'?'static':'dynamic')
+ const busy=picking||pending||loading,mode=draft.source_modes?.[source]||(source==='employees'||source==='sod'?'static':'dynamic')
  useEffect(()=>{setPath(candidatePath??savedPath);lastAttempt.current=candidatePath??savedPath},[savedPath,source])
  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[])
  const activate=async(selected:string,selectedMode=mode)=>{
@@ -47,7 +47,7 @@ export function SourceManager({source,draft,onMode,onActivated,onClear,onFeature
   <h2 className="settings-subheading">Source file</h2>
   <p className="ui-description">Selecting a file automatically validates and imports the complete dataset. Invalid or empty files never replace active data. Cancel settings does not undo a completed import.</p>
   <BrowserSourceUpload source={source} disabled={busy} onUploaded={selected=>activate(selected,'static')}/>
-  <SourceFileField label={source==='roles'?'CSV file location':source==='users'?'User CSV file location':'Employee Directory CSV location'} value={path} onChange={value=>{setPath(value);onCandidate(value)}} inputRef={inputRef} disabled={busy} native={!!window.pywebview?.api.choose_csv} browseLabel={source==='roles'?'Browse for CSV…':source==='users'?'Browse for user CSV…':'Browse employee CSV'} placeholder="Absolute local or server-visible CSV path" onCommit={force=>{if(force||path.trim()!==lastAttempt.current)void activate(path)}} onBrowse={()=>{
+  <SourceFileField label={source==='roles'?'CSV file location':source==='users'?'User CSV file location':source==='sod'?'SoD Matrix CSV location':'Employee Directory CSV location'} value={path} onChange={value=>{setPath(value);onCandidate(value)}} inputRef={inputRef} disabled={busy} native={!!window.pywebview?.api.choose_csv} browseLabel={source==='roles'?'Browse for CSV…':source==='users'?'Browse for user CSV…':source==='sod'?'Browse SoD CSV':'Browse employee CSV'} placeholder="Absolute local or server-visible CSV path" onCommit={force=>{if(force||path.trim()!==lastAttempt.current)void activate(path)}} onBrowse={()=>{
    setPicking(true);setError('');void window.pywebview?.api.choose_csv(applicationToken()).then(selected=>selected?activate(selected):undefined).catch(()=>setError('The native file dialog could not open. Enter an absolute CSV path and press Enter.')).finally(()=>{if(mounted.current)setPicking(false)})
   }}/>
   <SourceMode value={mode} disabled={busy} onChange={onMode}/>

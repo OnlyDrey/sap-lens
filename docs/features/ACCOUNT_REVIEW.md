@@ -60,6 +60,14 @@ local evaluation date, avoiding mixed-date results around midnight. User Details
 retains the mounted review's filters, sort and pagination on Back. Review drill-down
 does not invent Previous/Next positions from the independent User Directory order.
 
+## Position changes
+
+When a replacement Employee Directory is imported, SAP Lens compares it with the previous validated snapshot and records a **position change** when an employee's **Department** or **Job title** differs. Employees are matched by their unique e-mail address and then attributed to a SAP user only through the existing reliable directory match. The previous and current values, detection time, source generation and affected fields are kept as private evidence (`position-changes.json`, never copied SAP rows).
+
+These never count as a change: manager-only differences, spacing or capitalization differences, a missing old or new value, employees new to the directory, duplicate or ambiguous e-mail addresses, and a replacement with far fewer records or a mostly empty Department/Title column (a notice is stored instead). The first import is a baseline. Changes older than 90 days drop out.
+
+An open position change raises that account's **priority** to High and shows it as **Needs review**. The **Position changes · priority review** table at the top of Account Review lists SAP username (linked to the user), employee, previous and current department and title, detection date, review status, priority and a Review action. It uses the normal review dialog: a decision saved after the detection closes the change, so there is no second decision record and the history is shared. Changing the Review finding filter to *Position changes* or sorting by *Priority* gives the same list in the main table. Dashboard shows **Users requiring review — Position changes**, separate from SoD conflicts and other account findings. A position change is a reason to review, not evidence that access is inappropriate.
+
 ## Unlicensed group classification
 
 Configure comma-separated group values under **Settings → Features → Unlicensed
@@ -166,3 +174,7 @@ No automated findings describes the supported checks, not review completion or c
 
 The SAP Validity table cell shows the status badge only. Validity intervals remain
 in the source evidence, CSV export and User Details; the calculation is unchanged.
+
+## Overview tiles and review dialog
+
+The overview groups compact tiles under Account status, Review findings and Review progress (SAP accounts, AD disabled / SAP valid and unlocked, missing or ambiguous directory matches, accounts requiring review, position changes, classified unlicensed, reviewed, outdated, pending). A tile applies its filter to the list directly; the active filter appears as a removable chip. The review dialog is divided into SAP identity and organizational context, Position changes (previous and current side by side; the real change time stays unknown), Current findings and evidence, Investigation actions, Review decision and Previous decisions. Decisions remain local annotations.

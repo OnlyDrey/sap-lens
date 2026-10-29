@@ -2,7 +2,7 @@ import {test,expect} from '@playwright/test'
 import {mkdtempSync,writeFileSync,rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-const headers={'X-SAP-Lens':'browser-test-session'}
+import { headers } from './support'
 let directory:string
 const areas=['MM','FI','SD','BC','PP','QM','PM']
 test.beforeEach(async({request})=>{
@@ -28,7 +28,7 @@ for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(
  await expect(page.getByRole('button',{name:'Investigate users with 0 currently valid roles',exact:true})).toHaveCount(0)
  const last=await page.locator('.dashboard-workspace > :last-child').getAttribute('aria-label');expect(last).toBe('Configuration')
  await page.screenshot({path:info.outputPath(`dashboard-${theme}-${width}.png`),fullPage:true})
- await page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('button',{name:'User Access',exact:true}).click()
+ await page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('link',{name:'User Access',exact:true}).click()
  const link=page.getByRole('navigation',{name:'User Access view',exact:true}).getByRole('link',{name:'User directory',exact:true}),box=(await link.boundingBox())!
  await link.hover();await expect(link).toHaveCSS('text-decoration-line','none');await expect(link).toHaveCSS('border-top-width','0px');expect((await link.boundingBox())!.height).toBe(box.height)
  await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:'Organization & SAP System',exact:true}).click()

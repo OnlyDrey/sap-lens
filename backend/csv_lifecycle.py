@@ -17,7 +17,7 @@ from config import ensure_content_file, config_dir, get_settings, save_configura
 from config_models import FIELDS, USER_FIELDS, SourceSnapshot, RefreshMetadata
 from employee_directory import HEADERS, Directory, store, persist_directory
 
-NAMES = {'roles': 'Role Catalogue', 'users': 'User–Role Mapping', 'employees': 'Employee Directory'}
+NAMES = {'roles': 'Role Catalogue', 'users': 'User–Role Mapping', 'employees': 'Employee Directory', 'sod': 'SoD Matrix'}
 MAX_PRIVATE_BYTES = 256 * 1024 * 1024
 
 
@@ -55,7 +55,11 @@ def read_private(kind, identity):
 
 def read_source(source, reference):
     saved = read_private('snapshots', reference.snapshot)
-    fields = set(FIELDS if source == 'roles' else USER_FIELDS)
+    if source == 'sod':
+        from sod_import import HEADERS
+        fields = set(HEADERS)
+    else:
+        fields = set(FIELDS if source == 'roles' else USER_FIELDS)
     rows = saved.get('records')
     if saved.get('source') != source or not isinstance(rows, list) or len(rows) > 1_000_000:
         raise ValueError('Invalid source snapshot.')
@@ -73,6 +77,8 @@ def record_key(source, row):
         # reported as add/remove evidence rather than guessed modifications.
         value = row.get('DistinguishedName') or row.get('SamAccountName')
         return ('dn' if row.get('DistinguishedName') else 'sam', value.strip().casefold()) if value else None
+    if source == 'sod':
+        return tuple(row.get(k, '') for k in ('RISK', 'ACTIVITY_SLOT', 'ACTIVITY', 'TCODE'))
     keys = ['AGR_NAME', 'CHILD_AGR', 'PARENT_AGR', 'Effective_Role', 'TCODE'] if source == 'roles' else ['USERNAME', 'ROLE_NAME', 'USER_GROUP']
     return tuple(row.get(k, '').strip().upper() for k in keys)
 
@@ -128,6 +134,23 @@ def diff_records(source, before, after, include_changes=True):
                 identity_note='Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.')
 
 
+def sod_risk_changes(before, after):
+    """Definition-level changes; bounded identifiers supplement complete row evidence."""
+    old = {risk['risk_id']: risk for risk in before}
+    new = {risk['risk_id']: risk for risk in after}
+    common = sorted(old.keys() & new.keys())
+    changes = {
+        'added_risks': sorted(new.keys() - old.keys()),
+        'removed_risks': sorted(old.keys() - new.keys()),
+        'changed_risks': [key for key in common if old[key] != new[key]],
+        'changed_criticality': [key for key in common if old[key]['criticality'] != new[key]['criticality']],
+        'changed_source_descriptions': [key for key in common if old[key]['source_text'] != new[key]['source_text']],
+        'changed_activities': [key for key in common if any(old[key][field] != new[key][field] for field in ('activity1', 'activity2'))],
+        'changed_transaction_mappings': [key for key in common if old[key]['activities'] != new[key]['activities']],
+    }
+    return {key: {'total':len(values), 'risk_ids':values[:100], 'truncated':len(values)>100} for key,values in changes.items()}
+
+
 def error_result(error):
     if isinstance(error, FileNotFoundError):
         category, message = 'missing', 'The configured CSV is missing. Reconnect the share or choose an existing file.'
@@ -168,20 +191,23 @@ def restore(settings):
     state = cache._CacheState()
     imported = []
     errors = set()
-    for source in ('roles', 'users'):
+    for source in ('roles', 'users', 'sod'):
         ref = settings.data_lifecycle.sources.get(source)
-        path = settings.data_csv_path if source == 'roles' else settings.user_csv_path
+        path = {'roles':settings.data_csv_path, 'users':settings.user_csv_path, 'sod':settings.sod_csv_path}[source]
         if not ref or ref.path != path:
             continue
         try:
             rows, report = read_source(source, ref)
-            if source == 'roles':
+            if source == 'sod':
+                from sod_import import build_sod
+                state.sod = build_sod(rows, report)
+            elif source == 'roles':
                 state = cache._build_catalog(path, settings, records=rows, report=report)
             else:
                 profile = next(p for p in settings.user_import_profiles if p.id == settings.active_user_import)
                 state.users = cache.build_users(path, profile, state.roles, records=rows, report=report)
             state.loaded_sources[source] = path
-            imported.append(datetime.fromisoformat(ref.imported_at))
+            if source != 'sod': imported.append(datetime.fromisoformat(ref.imported_at))
         except (OSError, ValueError, KeyError, TypeError):
             # Refresh records a safe source-specific failure if its live source
             # cannot recover. An invalid snapshot is never activated.
@@ -223,15 +249,19 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
         current = get_settings()
         for source, fields in [('roles', ('data_csv_path', 'import_profiles', 'active_import')),
                                ('users', ('user_csv_path', 'user_import_profiles', 'active_user_import')),
-                               ('employees', ('employee_csv_path',))]:
+                               ('employees', ('employee_csv_path',)),
+                               ('sod', ('sod_csv_path',))]:
             if any(getattr(settings, key) != getattr(current, key) for key in fields): forced.add(source)
         if old.source_records and settings.module_overrides != current.module_overrides:
             state = cache._build_catalog(settings.data_csv_path, settings, records=old.source_records, report=old.import_report)
-            state.users, state.loaded_sources = old.users, dict(old.loaded_sources)
+            state.users, state.loaded_sources, state.sod = old.users, dict(old.loaded_sources), old.sod
             changed = True
-    for source in ('roles', 'users', 'employees'):
-        path = {'roles': settings.data_csv_path, 'users': settings.user_csv_path, 'employees': settings.employee_csv_path}[source]
-        enabled = source == 'roles' or getattr(settings.features, 'user_role_mapping' if source == 'users' else 'employee_directory')
+    sources = ['roles', 'users', 'employees']
+    if settings.sod_csv_path or old.sod or 'sod' in settings.data_lifecycle.sources or 'sod' in forced:
+        sources.append('sod')
+    for source in sources:
+        path = {'roles': settings.data_csv_path, 'users': settings.user_csv_path, 'employees': settings.employee_csv_path, 'sod': settings.sod_csv_path}[source]
+        enabled = source == 'roles' or getattr(settings.features, {'users': 'user_role_mapping', 'sod': 'sod'}.get(source, 'employee_directory'))
         mode = getattr(settings.source_modes, source)
         result = dict(source=source, name=NAMES[source], mode=mode, checked_at=stamp)
         if mode == 'static' and source in getattr(old, 'restore_errors', set()) and source not in forced:
@@ -256,6 +286,10 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
                 profile = next(p for p in settings.user_import_profiles if p.id == settings.active_user_import)
                 candidate = cache.build_users(path, profile, state.roles)
                 before, after = old.users.source_records, candidate.source_records
+            elif source == 'sod':
+                from sod_import import parse_sod
+                candidate = parse_sod(path)
+                before, after = old.sod.get('records', []), candidate['records']
             else:
                 from employee_directory import parse_directory
                 candidate = parse_directory(path)
@@ -270,14 +304,21 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
             delta = diff_records(source, before, after)
             has_changes = bool(delta['added'] or delta['removed'] or delta['modified'])
             result.update(status='updated' if has_changes else 'unchanged', records=len(after), **delta)
+            if source == 'sod':
+                result['risk_change_summary'] = sod_risk_changes(old.sod.get('risks', []), candidate['risks'])
             phase = 'stage'
             announce('Importing',source)
             if source != 'employees':
                 existing = settings.data_lifecycle.sources.get(source)
                 if has_changes or source in forced or not existing or existing.path != path:
                     identity = write_private('snapshots', dict(version=1, source=source, records=after,
-                                                               report=candidate.import_report if source == 'roles' else candidate.report))
+                                                               report=candidate.import_report if source == 'roles' else candidate['report'] if source == 'sod' else candidate.report))
+                    new_sod_version = source == 'sod' and (has_changes or not old.sod) and not any(item.snapshot == identity for item in settings.data_lifecycle.sod_history)
+                    if new_sod_version and len(settings.data_lifecycle.sod_history) >= 1000:
+                        raise ValueError('SoD source history is full. Preserve a backup and review storage before importing another version.')
                     settings.data_lifecycle.sources[source] = SourceSnapshot(snapshot=identity, path=path, imported_at=stamp, checked_at=stamp)
+                    if new_sod_version:
+                        settings.data_lifecycle.sod_history.append(settings.data_lifecycle.sources[source].model_copy(deep=True))
                 else:
                     existing.checked_at = stamp
             elif has_changes or source in forced or not settings.employee_snapshot_id:
@@ -287,11 +328,14 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
             # immutable durable inputs have been staged successfully.
             if source == 'roles':
                 candidate.users = state.users
+                candidate.sod = state.sod
                 candidate.loaded_sources = dict(state.loaded_sources)
                 if not has_changes and old.last_loaded: candidate.last_loaded = old.last_loaded
                 state = candidate
             elif source == 'users':
                 state.users = candidate
+            elif source == 'sod':
+                state.sod = candidate
             else:
                 directory = candidate if has_changes or source in forced or not previous_directory else previous_directory
             if source != 'employees': state.loaded_sources[source] = path
@@ -302,7 +346,7 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
                 error.sap_lens_source = source
                 raise
             result.update(error_result(error))
-            result['previous_preserved'] = bool(old.import_report if source == 'roles' else old.users.report if source == 'users' else previous_directory)
+            result['previous_preserved'] = bool(old.import_report if source == 'roles' else old.users.report if source == 'users' else old.sod if source == 'sod' else previous_directory)
             if phase == 'stage':
                 result.update(category='storage', message='The validated source could not be staged in private local storage.',
                               recovery='Check free space and permissions on the SAP Lens application-data directory, then retry.')
@@ -310,7 +354,7 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
     # Source removal is explicit configuration, never inferred from a failed read.
     if operation == 'import' or not settings.data_csv_path or not settings.user_csv_path:
         if not settings.data_csv_path and (state.loaded_sources.get('roles') or 'roles' in settings.data_lifecycle.sources):
-            state = cache._CacheState(users=state.users, loaded_sources={k:v for k,v in state.loaded_sources.items() if k != 'roles'})
+            state = cache._CacheState(users=state.users, sod=state.sod, loaded_sources={k:v for k,v in state.loaded_sources.items() if k != 'roles'})
             settings.data_lifecycle.sources.pop('roles', None)
             sap_cleared = True
             changed = True
@@ -321,6 +365,11 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
             settings.data_lifecycle.sources.pop('users', None)
             sap_cleared = True
             changed = True
+    if not settings.sod_csv_path and (state.sod or 'sod' in settings.data_lifecycle.sources):
+        state.sod = {}
+        state.loaded_sources.pop('sod', None)
+        settings.data_lifecycle.sources.pop('sod', None)
+        changed = True
     announce('Updating dependent views')
     # Always rebuild user-derived indexes against the final catalogue. Replacing
     # either dataset can remove mappings, wildcard matches and transaction links.
@@ -378,6 +427,9 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
                 store.error = store.import_error = None
         from account_review import record_missing_users
         record_missing_users(state)
+        if previous_directory is not None and directory is not None and directory is not previous_directory:
+            from position_changes import record_safely
+            record_safely(previous_directory, directory)
         for identity in old_reports:
             if identity not in settings.data_lifecycle.history:
                 try: private_path('reports', identity).unlink(missing_ok=True)

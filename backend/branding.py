@@ -9,13 +9,13 @@ from config import atomic_write, config_dir
 MAX_IMAGE_BYTES = 2_000_000
 
 
-def sanitize_image(data: bytes) -> bytes:
-    if len(data) > MAX_IMAGE_BYTES: raise ValueError('Logo must be at most 2 MB.')
+def sanitize_image(data: bytes, formats=frozenset({'PNG','JPEG','WEBP'}), max_bytes: int = MAX_IMAGE_BYTES, min_side: int = 1) -> bytes:
+    if len(data) > max_bytes: raise ValueError(f'Logo must be at most {max_bytes // 1_000_000 if max_bytes >= 1_000_000 else max_bytes // 1000} {"MB" if max_bytes >= 1_000_000 else "KB"}.')
     try:
         with Image.open(BytesIO(data)) as image:
-            if image.format not in {'PNG','JPEG','WEBP'}: raise ValueError('Use PNG, JPEG or WebP; SVG is not accepted.')
-            if image.width > 4096 or image.height > 4096 or image.width < 1 or image.height < 1:
-                raise ValueError('Logo dimensions must be between 1 and 4096 pixels.')
+            if image.format not in formats: raise ValueError('Use PNG, JPEG or WebP; SVG is not accepted.' if 'WEBP' in formats else 'Use a PNG or JPEG image; SVG and WebP are not accepted.')
+            if image.width > 4096 or image.height > 4096 or image.width < min_side or image.height < min_side:
+                raise ValueError(f'Logo dimensions must be between {min_side} and 4096 pixels.')
             if getattr(image,'n_frames',1) != 1: raise ValueError('Animated logos are not accepted.')
             image.load()
             clean = image.convert('RGBA')

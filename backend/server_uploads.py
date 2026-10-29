@@ -13,7 +13,7 @@ def upload_router(settings):
 
     @router.post('/{source}')
     async def upload(source:str, request:Request):
-        if source not in {'roles','users','employees'}: raise HTTPException(404,'Unknown source.')
+        if source not in {'roles','users','employees','sod'}: raise HTTPException(404,'Unknown source.')
         try: name=unquote(request.headers.get('x-upload-filename',''),errors='strict')
         except UnicodeError: raise HTTPException(400,'Choose a valid UTF-8 CSV filename.') from None
         if not name or len(name)>200 or not name.lower().endswith('.csv') or any(c in name for c in '/\\\x00<>:"|?*') or '..' in name or any(ord(c)<32 for c in name):
@@ -23,7 +23,7 @@ def upload_router(settings):
         directory.mkdir(parents=True,exist_ok=True,mode=0o700)
         async with lock:
             current=get_settings()
-            referenced={Path(v).resolve() for v in (current.data_csv_path,current.user_csv_path,current.employee_csv_path) if v}
+            referenced={Path(v).resolve() for v in (current.data_csv_path,current.user_csv_path,current.employee_csv_path,current.sod_csv_path) if v}
             pending=[p for p in directory.glob('*.csv') if p.resolve() not in referenced]
             # Bounded staging. Active source paths are never deleted here.
             for stale in sorted(pending,key=lambda p:p.stat().st_mtime)[:-2]: stale.unlink()

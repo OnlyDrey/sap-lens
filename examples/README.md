@@ -1,6 +1,6 @@
 # Synthetic investigation examples
 
-These three linked CSVs are generated entirely from invented identifiers and
+These linked CSVs are generated entirely from invented identifiers and
 reserved `example.org` email addresses. They are not anonymized company exports.
 Do not infer production naming rules or authorization from these examples.
 Nothing is imported automatically or included in deployment packages.
@@ -9,13 +9,14 @@ Nothing is imported automatically or included in deployment packages.
 | --- | --- | --- | --- |
 | Role Catalogue | [role-catalogue.example.csv](role-catalogue.example.csv) | UTF-8 BOM / comma | 371 rows, 130 catalogue identifiers |
 | User–Role Mapping | [user-access.example.csv](user-access.example.csv) | UTF-8 BOM / comma | 273 rows, 70 users |
+| SoD Matrix | [sod-matrix.example.csv](sod-matrix.example.csv) | UTF-8 / comma | 4 rows, 2 synthetic risks |
 | Employee Directory | [employee-directory.example.csv](employee-directory.example.csv) | UTF-8 BOM / semicolon | 75 directory records |
 
 ## Try an investigation
 
 Use an isolated test configuration, not an existing production installation.
-Under Settings → Data Sources, select and validate each corresponding CSV, inspect
-its preview and explicitly confirm import. Enable User–Role Mapping and Employee
+Under Settings → Data Sources, select each corresponding CSV. Complete validation
+and import run automatically; preview remains available for inspection. Enable User–Role Mapping and Employee
 Directory under Features. Static mode retains validated snapshots independently of
 the original file; Dynamic mode refreshes the configured server-visible path.
 See [CSV lifecycle](../docs/data/IMPORT_AND_REFRESH.md) and
@@ -47,8 +48,10 @@ See [access schema](../docs/data/CSV_SCHEMAS.md) and
 [directory schema](../docs/data/EMPLOYEE_DIRECTORY.md). Regenerate deterministically
 from the repository root with `python scripts/generate-examples.py`. The generator
 never reads local configuration or source exports. Automated regression tests
-import all three sources through the real APIs and verify snapshot restoration in
-a fresh process after removing the source files.
+import the role, user and directory examples through the real APIs and verify snapshot
+restoration in a fresh process after removing the source files. A separate test
+parses the SoD matrix with the production importer and checks its policy support,
+catalogue T-code links and privacy boundaries.
 
 ## Compatibility examples
 
@@ -58,3 +61,8 @@ columns demonstrate relationship provenance.
 [synthetic-profile.sap-lens.json](synthetic-profile.sap-lens.json) is a schema-2
 compatibility example, not an active classification preset. Legacy rules are
 archived without execution; it contains no source paths or raw records.
+
+The optional synthetic SoD matrix maps public example T-codes from the catalogue.
+TYPE S uses the documented two-sided evaluation policy; C/H remain raw source
+criticality labels, not an inferred severity dictionary. These invented activity
+pairs demonstrate evidence flow and are not production risk recommendations.

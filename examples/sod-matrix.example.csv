@@ -1,0 +1,5 @@
+RISK,CRITICITY,TYPE,TEXT,ACTVT1,ACTVT2,ACTIVITY_SLOT,ACTIVITY,TCODE,TTEXT
+SYN01,H,S,Synthetic purchasing activity pair,SYN_A,SYN_B,ACTVT1,SYN_A,ME21N,Public SAP transaction example
+SYN01,H,S,Synthetic purchasing activity pair,SYN_A,SYN_B,ACTVT2,SYN_B,ME23N,Public SAP transaction example
+SYN02,C,S,Synthetic procurement activity pair,SYN_C,SYN_D,ACTVT1,SYN_C,ME51N,Public SAP transaction example
+SYN02,C,S,Synthetic procurement activity pair,SYN_C,SYN_D,ACTVT2,SYN_D,ME21N,Public SAP transaction example

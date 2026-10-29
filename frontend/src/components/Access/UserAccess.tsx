@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/Shared/Presentation'
 import { UsersRound as PageIcon } from 'lucide-react'
 import { useRoles } from '@/hooks/useRoles'
 import { FilterChip } from '@/components/Shared/FilterChip'
-import { Button } from '@/components/Shared/Button'
+import { Button, ButtonGroup } from '@/components/Shared/Button'
 import { SecondaryNavigation, ContentTabs } from '@/components/Shared/Navigation'
 import { UserComparison, type ComparisonContext } from './UserComparison'
 import { SavedFilters } from '@/components/Shared/SavedFilters'
@@ -13,11 +13,13 @@ import { AccountStatus } from '@/components/Shared/AccountStatus'
 import { useApplicationData } from '@/state/ApplicationData'
 import { AssignmentDateFilters, emptyDates, dateParams, datesActive } from '@/components/Shared/AssignmentDateFilters'
 import { UserProfile } from './UserProfile'
-import { TransactionFilter, useTransactionFilter } from '@/components/Shared/TransactionFilter';
+import { TransactionFilter, TransactionFilterGroups, useTransactionFilter } from '@/components/Shared/TransactionFilter';
+import { FilterLayout, FilterSection, PageToolbar, SortControl } from '@/components/Shared/FilterLayout';
 import { ClearFilterButton } from '@/components/Shared/ClearFilterButton';
 import { Select } from '@/components/Shared/Select';
 import { formatDate } from '@/lib/dateFormat';
 import { exportAssignments } from '@/lib/accessExport';
+import { announceExport } from '@/lib/exportNotice'
 import { ArrowRight, Download } from 'lucide-react';
 import { useHistoryValue, useViewHistory, userAccessHref } from '@/hooks/useViewHistory';
 import { useRecordNavigation, type RecordNavigationState } from "@/hooks/useRecordNavigation";
@@ -33,6 +35,8 @@ import {
   type Assignment,
 } from "@/api/access";
 import { RoleIdentifier } from "@/components/Shared/RoleIdentifier";
+import { RoleModuleBadge } from "@/components/Shared/RoleModuleBadge";
+import { userHref } from '@/hooks/useViewHistory';
 import {
   dates,
   EvidenceNote,
@@ -42,6 +46,11 @@ import {
   QueryState,
 } from "./Shared";
 
+const USER_SORTS = [
+  { value: 'username', label: 'Username' }, { value: 'group', label: 'User group' }, { value: 'first_name', label: 'First name' },
+  { value: 'last_name', label: 'Last name' }, { value: 'email', label: 'Email' }, { value: 'account_status', label: 'Account status' },
+  { value: 'relevant_roles', label: 'Relevant role count' },
+]
 export function UserAccess({
   initialUser,
   initialRole = "",
@@ -67,23 +76,32 @@ export function UserAccess({
   const listScroll = useRef(0);
   const originUser = useRef(initialUser || "");
   const restoreList = useRef(false);
-  const openUser = (username: string) => { listScroll.current = window.scrollY; originUser.current = username; setSelected(username) };
+  const openUser = (username: string) => { listScroll.current = window.scrollY; originUser.current = username; changeView({ user: username, userTrail: [] }) };
   const [search, setSearch] = useState(""),
     [sort, setSort] = useState("username"),
     [descending, setDescending] = useState(false);
   const [group, setGroup] = useState(""),
     [offset, setOffset] = useState(0),
     [selected, setSelected] = useHistoryValue('user');
+  const { change: changeView } = useViewHistory();
   const [role, setRole] = useState(initialRole),
     [expired, setExpired] = useState(false);
   const [roleSearch, setRoleSearch] = useState(''), [roleTerm, setRoleTerm] = useState('')
   useEffect(() => { const timer = setTimeout(() => setRoleTerm(roleSearch), 200); return () => clearTimeout(timer) }, [roleSearch])
   const roleOptions = useRoles(undefined, roleTerm)
+  const [missingRoles, setMissingRoles] = useState<string[]>([]), [missingMode, setMissingMode] = useState<'any' | 'all'>('any')
+  const [missingSearch, setMissingSearch] = useState(''), [missingTerm, setMissingTerm] = useState('')
+  useEffect(() => { const timer = setTimeout(() => setMissingTerm(missingSearch), 200); return () => clearTimeout(timer) }, [missingSearch])
+  const missingOptions = useRoles(undefined, missingTerm)
   const directoryTransaction = useTransactionFilter()
   const [transactionMode,setTransactionMode] = useState<'and'|'or'>('and')
+  const excludeTransaction = useTransactionFilter()
+  const [excludeMode,setExcludeMode] = useState<'any'|'all'>('any')
+  const transactionGroups = { include: directoryTransaction, includeMode: transactionMode, setIncludeMode: setTransactionMode, exclude: excludeTransaction, excludeMode, setExcludeMode }
+  const activeFilterCount = [group, role, expired, assignmentBand, missingRoles.length, directoryTransaction.codes.length, excludeTransaction.codes.length].filter(Boolean).length
   useEffect(()=>{ directoryTransaction.setChips(initialTcode ? [initialTcode.trim().toUpperCase()] : []) },[initialTcode])
   useEffect(()=>{ if (!directoryTransaction.codes.length) setTransactionMode('and') },[directoryTransaction.key])
-  const clearEvidence = () => {setRole(''); directoryTransaction.clear(); setTransactionMode('and')}
+  const clearEvidence = () => {setRole(''); directoryTransaction.clear(); setTransactionMode('and'); excludeTransaction.clear(); setExcludeMode('any'); setMissingRoles([]); setMissingMode('any')}
   const [term, setTerm] = useState("");
   useEffect(() => {
     const t = setTimeout(() => setTerm(search), 250);
@@ -91,8 +109,8 @@ export function UserAccess({
   }, [search]);
   useEffect(() => {
     setOffset(0);
-  }, [term, group, sort, descending, role, directoryTransaction.deferredKey, transactionMode, expired, assignmentBand]);
-  const filters = { assignment_band:assignmentBand, search: term, group, sort, descending, role, tcodes: directoryTransaction.deferredCodes, transaction_mode: transactionMode, show_expired: expired };
+  }, [term, group, sort, descending, role, directoryTransaction.deferredKey, transactionMode, excludeTransaction.deferredKey, excludeMode, missingRoles, missingMode, expired, assignmentBand]);
+  const filters = { assignment_band:assignmentBand, search: term, group, sort, descending, role, tcodes: directoryTransaction.deferredCodes, transaction_mode: transactionMode, exclude_tcodes: excludeTransaction.deferredCodes, exclude_mode: excludeMode, missing_roles: missingRoles, missing_mode: missingMode, show_expired: expired };
   const navigation = useRecordNavigation('users', filters, selected, setSelected);
   const result = useQuery({
     queryKey: [
@@ -104,6 +122,10 @@ export function UserAccess({
       role,
       directoryTransaction.deferredCodes,
       transactionMode,
+      excludeTransaction.deferredCodes,
+      excludeMode,
+      missingRoles,
+      missingMode,
       offset,
       expired,
     ],
@@ -138,19 +160,58 @@ export function UserAccess({
       <UserDetails
         username={selected}
         onCompare={()=>{setCompareInitial(selected);setSelected('');setAccessMode('compare')}}
-        onBack={() => { restoreList.current = true; setSelected("") }}
+        onBack={() => { restoreList.current = true; changeView({ user: '', userTrail: [] }) }}
         onRole={onRole}
         onRelease={onRelease}
         navigation={navigation}
       />
     );
+  const clearAll=()=>{setAssignmentBand('');setSearch('');setGroup('');setSort('username');setDescending(false);setRole('');directoryTransaction.clear();setTransactionMode('and');excludeTransaction.clear();setExcludeMode('any');setExpired(false);setTerm('');setMissingRoles([]);setMissingMode('any');clearEvidence()}
+  const clearDisabled=!activeFilterCount&&!search&&!role&&!group&&!expired&&!missingRoles.length&&sort==='username'&&!descending
   return (
     <section aria-label="User Access" className="space-y-4">
       {modeButtons}<PageHeader title="User Access" icon={<PageIcon size={22} aria-hidden="true"/>}/>
       <EvidenceNote />
-      <SavedFilters showClear={false} view="users" state={{assignmentBand,search,group,sort,descending,role,tcodes:directoryTransaction.codes,transactionMode,expired}} apply={s=>{setAssignmentBand(typeof s.assignmentBand==='string'?s.assignmentBand:'');if(typeof s.search==='string')setSearch(s.search);if(typeof s.group==='string')setGroup(s.group);if(typeof s.sort==='string'&&['username','group','first_name','last_name','email','account_status','relevant_roles'].includes(s.sort))setSort(s.sort);if(typeof s.descending==='boolean')setDescending(s.descending);if(typeof s.role==='string')setRole(s.role);if(Array.isArray(s.tcodes)){directoryTransaction.setInput('');directoryTransaction.setChips(s.tcodes)};if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(typeof s.expired==='boolean')setExpired(s.expired)}} clear={()=>{setAssignmentBand('');setSearch('');setGroup('');setSort('username');setDescending(false);setRole('');directoryTransaction.clear();setTransactionMode('and');setExpired(false)}}/>
 
-      <div className="investigation-filters user-filters"><fieldset><legend>User directory</legend><div className="directory-filter-grid">
+      <FilterLayout label="Filters" activeCount={activeFilterCount} onClear={clearAll} clearDisabled={clearDisabled}
+        toolbar={<PageToolbar>
+          <SortControl label="Sort users" value={sort} options={USER_SORTS} descending={descending} onChange={setSort} onDescending={setDescending} />
+          <ClearFilterButton disabled={clearDisabled} onClick={clearAll}>Clear filters</ClearFilterButton>
+        </PageToolbar>}
+        sidebar={<div className="grid min-w-0 gap-3" role="search" aria-label="User filters">
+          <FilterSection title="Saved Filters">
+            <SavedFilters showClear={false} view="users" state={{assignmentBand,search,group,sort,descending,role,tcodes:directoryTransaction.codes,transactionMode,excludeTcodes:excludeTransaction.codes,excludeMode,missingRoles,missingMode,expired}} apply={s=>{setMissingRoles(Array.isArray(s.missingRoles)?s.missingRoles.filter((name:unknown):name is string=>typeof name==='string').slice(0,20):[]);setMissingMode(s.missingMode==='all'?'all':'any');setAssignmentBand(typeof s.assignmentBand==='string'?s.assignmentBand:'');if(typeof s.search==='string')setSearch(s.search);if(typeof s.group==='string')setGroup(s.group);if(typeof s.sort==='string'&&['username','group','first_name','last_name','email','account_status','relevant_roles'].includes(s.sort))setSort(s.sort);if(typeof s.descending==='boolean')setDescending(s.descending);if(typeof s.role==='string')setRole(s.role);if(Array.isArray(s.tcodes)){directoryTransaction.setInput('');directoryTransaction.setChips(s.tcodes)};if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(Array.isArray(s.excludeTcodes)){excludeTransaction.setInput('');excludeTransaction.setChips(s.excludeTcodes)}else excludeTransaction.clear();setExcludeMode(s.excludeMode==='all'?'all':'any');if(typeof s.expired==='boolean')setExpired(s.expired)}} clear={clearAll}/>
+          </FilterSection>
+          <FilterSection title="Users">
+        <Filter label="SAP User Group">
+          <Combobox label="SAP User Group" value={group} options={result.data?.groups || []} onChange={setGroup} placeholder="All groups; type a group to filter"/>
+        </Filter>
+        <Filter label="Filter users by role">
+          <Combobox label="Filter users by role" value={role} options={(roleOptions.data || []).slice(0,100).map(item=>item.agr_name)} onChange={setRole} onSearch={setRoleSearch} serverFiltered loading={roleOptions.isFetching} hasMore={(roleOptions.data?.length||0)>100} optionLabel={value=>{const item=roleOptions.data?.find(item=>item.agr_name===value);return item?.text ? `${value} · ${item.text}` : value}} placeholder="Role name or description"/>
+        </Filter>
+          </FilterSection>
+          <FilterSection title="Missing roles">
+      <section className="directory-missing grid min-w-0 gap-2" aria-label="Users lacking roles">
+        <Filter label="Roles the user must lack">
+          <Combobox label="Roles the user must lack" value="" options={(missingOptions.data || []).slice(0,100).map(item=>item.agr_name).filter(name=>!missingRoles.includes(name))} onChange={name=>{if(name&&!missingRoles.includes(name)&&missingRoles.length<20)setMissingRoles([...missingRoles,name])}} onSearch={setMissingSearch} allowCustom={false} serverFiltered loading={missingOptions.isFetching} hasMore={(missingOptions.data?.length||0)>100} placeholder="Add a catalogue role to find users lacking it"/>
+        </Filter>
+        {missingRoles.length>0&&<>
+          <div className="flex flex-wrap items-center gap-2">
+            <ButtonGroup label="Missing role operator" value={missingMode} onChange={value=>setMissingMode(value==='all'?'all':'any')} options={[{value:'any',label:'Missing ANY'},{value:'all',label:'Missing ALL'}]}/>
+            {missingRoles.map(name=><FilterChip key={name} removeLabel={`Remove missing role ${name}`} onRemove={()=>setMissingRoles(missingRoles.filter(value=>value!==name))}>Lacks: {name}</FilterChip>)}
+          </div>
+          <p className="transaction-help text-xs text-[var(--muted)]" role="status">{missingMode==='all'?'Missing ALL: users lacking every selected role.':'Missing ANY: users lacking at least one selected role.'} Only users whose current assignments are all mapped to catalogue roles are listed; missing or unmapped evidence is never read as missing access.</p>
+        </>}
+      </section>
+          </FilterSection>
+          <FilterSection title="Transactions">
+            <TransactionFilterGroups subject="users" groups={transactionGroups} includeLabel="Filter users by transaction" excludeLabel="Exclude users by transaction" />
+          </FilterSection>
+          <FilterSection title="Assignments">
+            <label className="filter-toggle"><input type="checkbox" checked={expired} onChange={(e) => setExpired(e.target.checked)} />Show expired assignments</label>
+          </FilterSection>
+        </div>}>
+      <div className="grid min-w-0 gap-4">
         <Filter label="Search users">
           <input
             className={inputClass}
@@ -160,56 +221,6 @@ export function UserAccess({
             placeholder="Username, name, email or group"
           />
         </Filter>
-        <Filter label="SAP User Group">
-          <Combobox label="SAP User Group" value={group} options={result.data?.groups || []} onChange={setGroup} placeholder="All groups; type a group to filter"/>
-        </Filter>
-        <Filter label="Filter users by role">
-          <Combobox label="Filter users by role" value={role} options={(roleOptions.data || []).slice(0,100).map(item=>item.agr_name)} onChange={setRole} onSearch={setRoleSearch} serverFiltered loading={roleOptions.isFetching} hasMore={(roleOptions.data?.length||0)>100} optionLabel={value=>{const item=roleOptions.data?.find(item=>item.agr_name===value);return item?.text ? `${value} · ${item.text}` : value}} placeholder="Role name or description"/>
-        </Filter>
-        <div className="directory-sort"><Filter label="Sort users">
-          <Select aria-label="Sort users"
-            className={inputClass}
-            value={sort}
-            onChange={(e) => setSort(e.target.value)}
-          >
-            {[
-              ["username", "Username"],
-              ["group", "User group"],
-              ["first_name", "First name"],
-              ["last_name", "Last name"],
-              ["email", "Email"],
-              ["account_status", "Account status"],
-              ["relevant_roles", "Relevant role count"],
-            ].map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
-              </option>
-            ))}
-          </Select>
-        </Filter>
-        <label className="filter-toggle">
-          <input
-            type="checkbox"
-            checked={descending}
-            onChange={(e) => setDescending(e.target.checked)}
-          />
-          Descending
-        </label>
-        </div>
-      <section className="directory-transaction" aria-label="User transaction filter">
-        <TransactionFilter label="Filter users by transaction" filter={directoryTransaction} mode={transactionMode} onModeChange={setTransactionMode} showClear={false} chipPrefix="Transaction: "/>
-
-      </section>
-        <label className="filter-toggle directory-expired">
-          <input
-            type="checkbox"
-            checked={expired}
-            onChange={(e) => setExpired(e.target.checked)}
-          />
-          Show expired assignments
-        </label>
-        <ClearFilterButton className="directory-clear" disabled={!assignmentBand && !search && !group && sort==='username' && !descending && !expired && !role && !directoryTransaction.codes.length} onClick={()=>{setAssignmentBand('');setSearch('');setTerm('');setGroup('');setSort('username');setDescending(false);setExpired(false);clearEvidence()}}>Clear filters</ClearFilterButton>
-      </div></fieldset></div>
       {(assignmentBand || role || group || search || expired) && <div className="active-filter-row" aria-label="Active user filters">
         {assignmentBand&&<FilterChip removeLabel="Remove assignment count filter" onRemove={()=>setAssignmentBand('')}>{assignmentBand} currently valid roles</FilterChip>}
         {expired && <FilterChip removeLabel="Remove expired assignment filter" onRemove={()=>setExpired(false)}>Include Expired Assignments</FilterChip>}
@@ -233,8 +244,7 @@ export function UserAccess({
       {result.data && (
         <>
           <div className="results-toolbar"><h2 className="text-base font-semibold">User directory <span className="text-sm font-normal text-[var(--muted)]">{result.data.total.toLocaleString()} {result.data.total === 1 ? 'user' : 'users'}</span></h2><ExportCSVButton loading={assignmentExport.busy} disabled={dataLoading||result.isFetching||search!==term||directoryTransaction.settling||!result.data.export_assignments} title="Exports every imported assignment for all matching users, across pages. MATCHED_FILTER marks assignments contributing to the active filters; expired and other assignments remain included." onClick={()=>void assignmentExport.download()}/></div>
-          <p className="ui-description">Export scope: all {result.data.export_assignments?.toLocaleString()??'available'} imported assignments for matching users, including expired and other roles. MATCHED_FILTER identifies assignment-level matches.</p>
-          {assignmentExport.message&&<p role={assignmentExport.failed?'alert':'status'}>{assignmentExport.message}</p>}
+          <p className="ui-description">Export scope: all {result.data.export_assignments?.toLocaleString()??'available'} imported assignments for matching users, including other roles{expired?' and expired assignments':'; expired assignments are excluded while Show expired assignments is off'}. MATCHED_FILTER identifies assignment-level matches.</p>
           <div className="access-table user-directory-table">
             <table>
               <thead>
@@ -266,6 +276,7 @@ export function UserAccess({
                         value={user.username}
                         label="username"
                         onOpen={() => openUser(user.username)}
+                        href={userHref(user.username)}
                         openLabel={user.username}
                         openButtonProps={{ 'data-user': user.username }}
                       />
@@ -294,6 +305,8 @@ export function UserAccess({
           />
         </>
       )}
+      </div>
+      </FilterLayout>
     </section>
   );
 }
@@ -315,7 +328,6 @@ function UserDetails({
 }) {
   const {loading:dataLoading}=useApplicationData();
   const [exporting, setExporting] = useState(false);
-  const [exportMessage, setExportMessage] = useState('');
   const [assignmentDates, setAssignmentDates] = useState({ ...emptyDates });
   const dateKey = JSON.stringify(assignmentDates);
   const transaction = useTransactionFilter(username);
@@ -329,7 +341,7 @@ function UserDetails({
     [nameOffset, setNameOffset] = useState(0),
     [emailOffset, setEmailOffset] = useState(0);
   useEffect(() => { setOffset(0) }, [scope, status, username, transaction.key, transactionMode, dateKey]);
-  useEffect(() => { exportGeneration.current++; setExportMessage(''); return () => { exportGeneration.current++ } }, [username, scope, status, transaction.key, transactionMode, dateKey]);
+  useEffect(() => { exportGeneration.current++;  return () => { exportGeneration.current++ } }, [username, scope, status, transaction.key, transactionMode, dateKey]);
 
   useEffect(() => { setAssignmentDates({ ...emptyDates }); setTransactionMode('and'); setAccountOffset(0); setNameOffset(0); setEmailOffset(0) }, [username]);
   const result = useQuery({
@@ -362,9 +374,11 @@ function UserDetails({
       }),
   });
   const user = result.isError ? undefined : result.data;
+  const { view: historyView, change } = useViewHistory(),
+    trail = (historyView.userTrail || []).filter((name) => name !== username);
   return (
     <section aria-label="User details" className="space-y-4">
-      <DetailNavigation parent="User Access" current={username} onBack={onBack} {...navigation}/>
+      <DetailNavigation parent="User Access" current={username} onBack={onBack} previousUser={trail.length ? { name: trail[trail.length - 1], onBack: () => change({ user: trail[trail.length - 1], userTrail: trail.slice(0, -1) }) } : undefined} {...navigation}/>
       <div className="flex flex-wrap items-center gap-3"><h1 className="text-xl font-semibold">User details</h1><Button className="settings-secondary-button" onClick={onCompare}>Compare users</Button></div>
       <QueryState loading={result.isLoading || (dataLoading && !result.data)} error={dataLoading && !result.data ? null : result.error} />
       {user && (
@@ -429,16 +443,15 @@ function UserDetails({
           <AssignmentDateFilters value={assignmentDates} onChange={setAssignmentDates}/>
             <Button type="button" className="settings-secondary-button user-export-button" title="Exports every assignment matching the selected role view, validity, date bounds and transaction matching mode." disabled={exporting || result.isFetching || transaction.settling || !user.total} onClick={async () => {
               const generation = exportGeneration.current;
-              setExporting(true); setExportMessage('Preparing CSV…');
+              setExporting(true);
               try { const saved = await exportAssignments(user, scope, status, () => generation === exportGeneration.current, transactionCodes, dateParams(assignmentDates), transactionMode);
-                if (generation === exportGeneration.current) setExportMessage(saved ? 'CSV exported.' : 'Export cancelled.');
-              } catch (error) { if (generation === exportGeneration.current) setExportMessage(error instanceof Error ? error.message : 'CSV export failed.'); }
+                if (generation === exportGeneration.current) announceExport(saved ? { kind: 'success', message: 'CSV exported.' } : { kind: 'info', message: 'Export cancelled.' });
+              } catch (error) { if (generation === exportGeneration.current) announceExport({ kind: 'error', message: error instanceof Error ? error.message : 'CSV export failed.' }); }
               finally { setExporting(false); }
             }}><Download size={15} aria-hidden="true"/>{exporting ? 'Exporting…' : 'Export CSV'}</Button>
           </form>
           <div className="assignment-results-summary"><strong>{user.total.toLocaleString()} matching assignments</strong><span className="ui-description">Validity evaluated on {formatDate(user.as_of)}.</span></div>
           {transactionCodes.length > 0 && (!user.mapping_available || Boolean(user.unmapped_assignments)) && <details className="compact-evidence-warning"><summary>Catalogue coverage may be incomplete</summary><p>{user.mapping_available ? `${user.unmapped_assignments} assignment records have unresolved or unavailable catalogue mappings.` : 'No role catalogue is loaded.'} Transaction coverage is role-derived evidence, not effective SAP authorization.</p></details>}
-          <p role="status">{exportMessage}</p>
           <div className="access-table user-assignment-table" role="region" aria-label="User role assignments" tabIndex={0}>
             <table>
               <thead>
@@ -497,7 +510,10 @@ function AssignmentRow({
   return (
     <tr>
       <td>
-        <RoleIdentifier value={a.role_name} />
+        <div className="grid min-w-0 gap-1">
+          {!releaseView && <RoleModuleBadge catalogueRoles={a.match_status === "exact" || a.match_status === "wildcard" ? a.catalogue_roles : undefined} />}
+          <RoleIdentifier value={a.role_name} />
+        </div>
       </td>
       {releaseView ? <><td>{a.release?.document_type || 'Unparsed'}</td><td>{a.release?.release_group || '—'}</td><td>{a.release?.release_strategy || '—'}</td></> : <td className="assignment-description">{a.role_description||'Description unavailable'}</td>}
       <td className="assignment-date">{formatDate(a.valid_from)}</td><td className="assignment-date">{formatDate(a.valid_to)}</td>

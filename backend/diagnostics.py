@@ -26,14 +26,20 @@ def diagnostics_snapshot(loader=None, private=False):
     from deployment import server_mode
     result['deployment_mode'] = 'server' if server_mode() else 'desktop'
     result['last_failed_load'] = result['last_failed_load'] or settings.data_lifecycle.last_failed_refresh
+    from scheduler import read_state
+    schedule_state = read_state()
+    result['scheduled_refresh'] = dict(enabled=settings.refresh_schedule.enabled, mode=settings.refresh_schedule.mode, timezone=settings.refresh_schedule.timezone,
+                                       last_attempt=schedule_state['last_attempt'], last_success=schedule_state['last_success'], last_failure=schedule_state['last_failure'],
+                                       last_status=schedule_state['last_status'], consecutive_failures=schedule_state['consecutive_failures'])
     sources = []
     for key, name, path, count, report in [
         ('roles', 'Role Catalogue CSV', settings.data_csv_path, len(state.roles), state.import_report),
         ('users', 'User Access CSV', settings.user_csv_path, len(state.users.users), state.users.report),
+        ('sod', 'SoD Matrix CSV', settings.sod_csv_path, len(state.sod.get('records', [])), state.sod.get('report', {})),
     ]:
         loaded_path = state.loaded_sources.get(key, '')
         attempt = getattr(loader, 'source_attempts', {}).get(key, {}) if loader else {}
-        source = dict(enabled=settings.features.user_role_mapping if key == 'users' else True, id=key, name=name, configured=bool(path), loaded=bool(loaded_path),
+        source = dict(enabled=settings.features.user_role_mapping if key == 'users' else settings.features.sod if key == 'sod' else True, id=key, name=name, configured=bool(path), loaded=bool(loaded_path),
                       records=count, assignments=state.users.report.get('assignments', 0) if key == 'users' else report.get('transaction_assignments', 0),
                       last_successful_load=state.last_loaded.isoformat() if loaded_path and state.last_loaded else None,
                       availability=attempt.get('error') if attempt.get('path') == path and path else 'available_at_last_load' if loaded_path and loaded_path == path else 'not_checked',

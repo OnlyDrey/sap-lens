@@ -64,6 +64,7 @@ export interface UserDetail extends UserRow {
 }
 export interface ReleaseRow extends ReleaseInfo {
   role_name: string;
+  release_area: string | null;
   assigned_users: number;
   assignment_count: number;
   statuses: string[];
@@ -77,7 +78,9 @@ export interface Cell {
   release_group: string;
   release_strategy: string;
   user_count: number;
+  roles: string[];
 }
+export interface ReleaseRoleListItem { role_name: string; description: string; document_type: string | null; release_group: string | null; release_strategy: string | null; release_area: string | null; parsed: boolean }
 export interface Page<T> {
   data_revision?:string;
   export_assignments?:number;

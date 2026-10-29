@@ -1,12 +1,16 @@
 import {textMatches} from '@/lib/searchMatching'
 import { PageHeader } from '@/components/Shared/Presentation'
 import { Search as PageIcon } from 'lucide-react'
+import { FilterLayout, FilterSection } from '@/components/Shared/FilterLayout'
+import { AccessPackagePanel } from './AccessPackagePanel'
+import { AccessPackageBar } from '@/components/Shared/AccessPackageBar'
+import { useAccessPackage } from '@/lib/accessPackage'
 import { SearchInput } from '@/components/Shared/Controls'
 import { SavedFilters } from '@/components/Shared/SavedFilters'
 import { useApplicationData } from '@/state/ApplicationData'
-import { TransactionFilter, useTransactionFilter } from '@/components/Shared/TransactionFilter'
+import { TransactionFilterGroups, useTransactionFilter } from '@/components/Shared/TransactionFilter'
 import { ClearFilterButton } from '@/components/Shared/ClearFilterButton'
-import { ModuleIcon } from '@/components/Modules/ModuleIcon'
+import { ModuleBadge } from '@/components/Modules/ModuleBadge'
 import { onColor } from '@/lib/theme'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -20,7 +24,7 @@ import { RoleCard } from './RoleCard'
 import type { RoleSummary } from '@/api/types'
 import { apiRequest } from '@/api/client'
 
-const fetchExactRoles = (codes: string[], mode: 'and' | 'or') => apiRequest<RoleSummary[]>(`/api/roles?${new URLSearchParams([...codes.map(code => ['tcodes', code]), ['transaction_mode', mode]])}`)
+const fetchExactRoles = (include: string[], mode: 'and' | 'or', exclude: string[], excludeMode: 'any' | 'all') => apiRequest<RoleSummary[]>(`/api/roles?${new URLSearchParams([...include.map(code => ['tcodes', code]), ['transaction_mode', mode], ...exclude.map(code => ['exclude_tcodes', code]), ['exclude_mode', excludeMode]])}`)
 
 interface Props {
   initialArea?:string
@@ -154,10 +158,16 @@ export function RoleList({
 }: Props) {
   const {loading:dataLoading}=useApplicationData()
   const [page,setPage] = useState(0)
+  const cart = useAccessPackage()
+  const [packageOpen,setPackageOpen] = useState(false)
   const transaction = useTransactionFilter()
+  const excludeTransaction = useTransactionFilter()
+  const [excludeMode, setExcludeMode] = useState<'any' | 'all'>('any')
   const [search, setSearch] = useState('')
   const [activeModules, setActiveModules] = useState<string[]>(initialArea?[initialArea]:[])
   const [transactionMode, setTransactionMode] = useState<'and' | 'or'>('and')
+  const transactionGroups = { include: transaction, includeMode: transactionMode, setIncludeMode: setTransactionMode, exclude: excludeTransaction, excludeMode, setExcludeMode }
+  const transactionActive = transaction.codes.length > 0 || excludeTransaction.codes.length > 0
   const [sortBy, setSortBy] = useState<SortKey>('name-asc')
   const [sortOpen, setSortOpen] = useState(false)
 
@@ -174,12 +184,12 @@ export function RoleList({
   } = useRoles()
 
   const exactTransactions = useQuery({
-    queryKey: ['roles', 'exact-transactions', transaction.deferredCodes, transactionMode],
-    queryFn: () => fetchExactRoles(transaction.deferredCodes, transactionMode),
-    enabled: transaction.deferredCodes.length > 0,
+    queryKey: ['roles', 'exact-transactions', transaction.deferredCodes, transactionMode, excludeTransaction.deferredCodes, excludeMode],
+    queryFn: () => fetchExactRoles(transaction.deferredCodes, transactionMode, excludeTransaction.deferredCodes, excludeMode),
+    enabled: transaction.deferredCodes.length > 0 || excludeTransaction.deferredCodes.length > 0,
     staleTime: 120_000,
   })
-  const tcodeLoading = exactTransactions.isFetching || transaction.settling
+  const tcodeLoading = exactTransactions.isFetching || transaction.settling || excludeTransaction.settling
   const moduleNames = useMemo(
     () => Object.assign(Object.create(null),Object.fromEntries(
       modules.map(m => [m.function_key, m.module_name])
@@ -217,7 +227,7 @@ export function RoleList({
       )
     }
 
-    if (transaction.deferredCodes.length) {
+    if (transaction.deferredCodes.length || excludeTransaction.deferredCodes.length) {
       const matches = new Map((exactTransactions.data || []).map(role => [role.agr_name, role]))
       results = results.filter(role => matches.has(role.agr_name)).map(role => ({ ...role, matching_tcodes: matches.get(role.agr_name)?.matching_tcodes }))
     }
@@ -226,20 +236,21 @@ export function RoleList({
     allRolesRaw,
     debSearch,
     activeModules,
-    sortBy, transaction.key, transaction.deferredCodes, exactTransactions.data
+    sortBy, transaction.key, transaction.deferredCodes, excludeTransaction.deferredCodes, exactTransactions.data
   ])
 
-  useEffect(()=>setPage(0),[debSearch,activeModules,sortBy,transaction.key,transactionMode])
+  useEffect(()=>setPage(0),[debSearch,activeModules,sortBy,transaction.key,transactionMode,excludeTransaction.key,excludeMode])
   const pageCount=Math.max(1,Math.ceil(visible.length/100))
   const currentPage=Math.min(page,pageCount-1)
 
   const isFiltering =
     !!debSearch.trim() ||
-    activeModules.length > 0 || transaction.codes.length > 0 || sortBy !== 'name-asc'
+    activeModules.length > 0 || transactionActive || sortBy !== 'name-asc'
 
   useEffect(() => { if (!isLoading && !isError) onFilteredRoles?.(visible.map(role => role.agr_name)) }, [visible, onFilteredRoles, isLoading, isError])
 
   useEffect(() => { if (!transaction.codes.length) setTransactionMode('and') }, [transaction.codes.length])
+  useEffect(() => { if (!excludeTransaction.codes.length) setExcludeMode('any') }, [excludeTransaction.codes.length])
 
   const currentLabel =
     SORT_OPTIONS.find(o => o.key === sortBy)?.label ?? 'Sort'
@@ -249,10 +260,21 @@ export function RoleList({
     [selectedRoles, onSelectRole]
   )
 
+  const clearAll = () => { setSearch(''); setActiveModules([]); transaction.clear(); excludeTransaction.clear(); setTransactionMode('and'); setExcludeMode('any'); setSortBy('name-asc') }
   return (
-    <div className="flex flex-col gap-4" role="region" aria-label="Role catalogue investigation" aria-busy={isLoading||search!==debSearch||transaction.settling||exactTransactions.isFetching}>
+    <div className="flex flex-col gap-4" role="region" aria-label="Role catalogue investigation" aria-busy={isLoading||search!==debSearch||transaction.settling||excludeTransaction.settling||exactTransactions.isFetching}>
       <PageHeader title="Role Lookup" icon={<PageIcon size={22} aria-hidden="true"/>}/>
-      <SavedFilters showClear={false} view="roles" state={{search,activeModules,transactionMode,tcodes:transaction.codes,sortBy}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(Array.isArray(s.activeModules))setActiveModules(s.activeModules);if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(Array.isArray(s.tcodes)){transaction.setInput('');transaction.setChips(s.tcodes)};if(SORT_OPTIONS.some(o=>o.key===s.sortBy))setSortBy(s.sortBy as SortKey)}} clear={()=>{setSearch('');setActiveModules([]);setTransactionMode('and');transaction.clear();setSortBy('name-asc')}}/>
+      {packageOpen&&<AccessPackagePanel onClose={()=>setPackageOpen(false)}/>}
+      <FilterLayout label="Filters" onClear={clearAll} clearDisabled={!isFiltering && sortBy === 'name-asc'} activeCount={[transaction.codes.length, excludeTransaction.codes.length].filter(Boolean).length}
+        sidebar={<div className="grid min-w-0 gap-3" role="search" aria-label="Role filters">
+          <FilterSection title="Saved Filters">
+  <SavedFilters showClear={false} view="roles" state={{search,activeModules,transactionMode,tcodes:transaction.codes,excludeTcodes:excludeTransaction.codes,excludeMode,sortBy}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(Array.isArray(s.activeModules))setActiveModules(s.activeModules);if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(Array.isArray(s.tcodes)){transaction.setInput('');transaction.setChips(s.tcodes)};if(Array.isArray(s.excludeTcodes)){excludeTransaction.setInput('');excludeTransaction.setChips(s.excludeTcodes)}else excludeTransaction.clear();setExcludeMode(s.excludeMode==='all'?'all':'any');if(SORT_OPTIONS.some(o=>o.key===s.sortBy))setSortBy(s.sortBy as SortKey)}} clear={clearAll}/>
+          </FilterSection>
+          <FilterSection title="Transactions">
+            <TransactionFilterGroups subject="roles" groups={transactionGroups} includeLabel="Filter catalogue by transaction" excludeLabel="Exclude roles by transaction" />
+          </FilterSection>
+        </div>}>
+      <div className="flex min-w-0 flex-col gap-4">
       <div
         className="catalogue-search-controls rounded-2xl border px-4 py-3 gap-3 "
         style={{
@@ -260,12 +282,10 @@ export function RoleList({
           borderColor:'var(--border)'
         }}
       >
-        <TransactionFilter compact label="Filter catalogue by transaction" filter={transaction} mode={transactionMode} onModeChange={setTransactionMode} showClear={false}/>
-        {transaction.codes.length > 0 && <p className="text-xs text-[var(--muted)]">Transaction code/pattern filters match {transactionMode === 'and' ? 'every selected code (AND)' : 'any selected code (OR)'}, combined with text and module filters (AND). Roles without supplied mappings are excluded; source completeness cannot be established.</p>}
         {exactTransactions.isError && transaction.codes.length > 0 && <p role="alert">Transaction filtering failed. {exactTransactions.error.message}</p>}
         <div className="catalogue-role-search flex gap-2">
           <div className="relative flex-1">
-            <SearchInput value={search} onChange={event=>setSearch(event.target.value)} placeholder="Search roles by name or description..."/>
+            <SearchInput aria-label="Search roles by name or description" value={search} onChange={event=>setSearch(event.target.value)} placeholder="Search roles by name or description..."/>
 
 
             {search && (
@@ -338,8 +358,8 @@ export function RoleList({
                         }
                   }
                 >
-                  <ModuleIcon moduleId={key} selected={active} />
-                  {key} &ndash; {short}
+                  <ModuleBadge moduleId={key} variant="compact" selected={active} />
+                  {short}
 
                   <span className="opacity-60 font-medium">
                     ({count})
@@ -456,7 +476,7 @@ export function RoleList({
             )}
 
             {isFiltering && (
-              <ClearFilterButton onClick={() => { setSearch(''); setActiveModules([]); transaction.clear(); setTransactionMode('and'); setSortBy('name-asc') }}>Clear all filters</ClearFilterButton>
+              <ClearFilterButton className="contextual-clear" onClick={clearAll}>Clear all filters</ClearFilterButton>
             )}
           </div>
         </div>
@@ -493,7 +513,7 @@ export function RoleList({
       )}
 
       {(isLoading || (dataLoading && !allRolesRaw.length)) && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="role-card-grid">
           {Array.from({ length: 8 }).map((_, i) => (
             <Skeleton key={i} />
           ))}
@@ -525,13 +545,15 @@ export function RoleList({
             </div>
           )
           : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="role-card-grid">
               {visible.slice(currentPage*100,(currentPage+1)*100).map(r => (
                 <RoleCard
                   key={r.agr_name}
                   role={r}
                   isSelected={selectedRoles.includes(r.agr_name)}
                   onSelect={onSelectRole}
+                  inCart={cart.has(r.agr_name)}
+                  onCart={name => (cart.has(name) ? cart.remove(name) : cart.add(name))}
                   onClick={onViewDetail}
                 />
               ))}
@@ -545,9 +567,14 @@ export function RoleList({
         <button className="border rounded-lg px-3 py-2 disabled:opacity-40" disabled={currentPage===pageCount-1} onClick={()=>setPage(currentPage+1)}>Next page</button>
       </nav>}
 
+      </div>
+      </FilterLayout>
+      {(cart.items.length > 0 || selectedRoles.length >= 2) && (
+      <div className="floating-action-stack">
+      <AccessPackageBar onOpen={() => setPackageOpen(true)} />
       {selectedRoles.length >= 2 && (
         <div
-          className="comparison-selection-bar fixed bottom-8 left-1/2 -translate-x-1/2 z-40 flex flex-wrap items-center gap-4 rounded-2xl  border px-6 py-3.5"
+          className="comparison-selection-bar floating-bar"
           style={{
             backgroundColor:'var(--surface)',
             borderColor:'var(--border)'
@@ -588,6 +615,8 @@ export function RoleList({
 
           <ClearFilterButton onClick={clearSel}>Clear selection</ClearFilterButton>
         </div>
+      )}
+      </div>
       )}
     </div>
   )

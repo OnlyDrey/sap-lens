@@ -1,6 +1,7 @@
 import { Button } from '@/components/Shared/Button'
 import { FormField, controlClass } from '@/components/Shared/Controls'
 import { LoadingState } from '@/components/Shared/Presentation'
+import { Select } from '@/components/Shared/Select'
 import { formatDate } from '@/lib/dateFormat';
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import type { ReactNode } from "react";
@@ -14,25 +15,44 @@ export function Filter({
 }) {
   return <FormField label={label}>{children}</FormField>;
 }
+export const PAGE_SIZES = [10, 20, 50, 100] as const
+/**
+ * Shared pager. Without `pageSizes` it is the plain Previous/Next control. With `pageSizes` it also offers a rows-per-page
+ * selector (10, 20, 50 or 100); callers reset or clamp the offset when the size or the filters change.
+ */
 export function Pagination({
   offset,
   total,
   limit = 50,
   onChange,
   label,
+  pageSizes,
+  onPageSize,
 }: {
   offset: number;
   total: number;
   limit?: number;
   onChange: (n: number) => void;
   label: string;
+  pageSizes?: readonly number[];
+  onPageSize?: (size: number) => void;
 }) {
-  if (total <= limit) return null;
+  const sizable = !!pageSizes && !!onPageSize
+  if (total <= (sizable ? Math.min(...pageSizes!) : limit)) return null;
   return (
     <nav
       aria-label={label}
-      className="assignment-pagination grid w-full grid-cols-2 items-center justify-center gap-3 py-4 text-sm sm:flex sm:flex-wrap"
+      className="assignment-pagination ui-pagination"
+      data-sizable={sizable || undefined}
     >
+      {sizable && (
+        <label className="ui-pagination-size">
+          <span>Rows per page</span>
+          <Select aria-label={`${label}: rows per page`} value={String(limit)} onChange={(event) => onPageSize!(Number(event.target.value))}>
+            {pageSizes!.map((size) => <option key={size} value={size}>{size}</option>)}
+          </Select>
+        </label>
+      )}
       <Button
         size="compact"
         disabled={offset === 0}
@@ -40,7 +60,7 @@ export function Pagination({
       >
         <ArrowLeft size={16} aria-hidden="true"/> Previous
       </Button>
-      <span className="order-first col-span-2 text-center sm:order-none">
+      <span className="ui-pagination-range" role="status">
         {total
           ? `${offset + 1}–${Math.min(offset + limit, total)} of ${total}`
           : "0 records"}

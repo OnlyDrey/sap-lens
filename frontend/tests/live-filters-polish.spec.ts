@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { formatDate, formatTimestamp } from '../src/lib/dateFormat'
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers, setDescending, sortDirection } from './support'
 let directory: string
 const catalogue = 'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT\nMM,ZC:MM:BUY:*,Purchasing,ZS:BUY,MM - Purchasing - Display,MIGO,Goods movement\nMM,ZC:MM:BUY:*,Purchasing,ZS:BUY,MM - Purchasing - Display,ME21N,Create purchase order\nSD,ZC:SD:VIEW:*,Sales,ZS:VIEW,SD - Sales - Display,VA03,Display sales order\nSD,ZC:SD:VIEW:*,Sales,ZS:VIEW,SD - Sales - Display,ME21N,Create purchase order\nFI,ZC:FI:EMPTY,No mappings,ZS:EMPTY,Missing exported mappings,,\n'
 test.beforeEach(async ({ request }) => {
@@ -26,8 +26,8 @@ test.beforeEach(async ({ request }) => {
 test.afterEach(async ({ request }) => { await request.post('/api/configuration/reset', { headers }); rmSync(directory, { recursive: true, force: true }) })
 async function user(page: Page) {
   await page.goto('/#session=browser-test-session')
-  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'User Access', exact: true }).click()
-  await page.getByRole('button', { name: 'DEMO_ALPHA', exact: true }).click()
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'User Access', exact: true }).click()
+  await page.getByRole('link', { name: 'DEMO_ALPHA', exact: true }).click()
   return page.getByRole('region', { name: 'User details', exact: true })
 }
 test('live multi-code user filtering, chips, duplicate prevention, Backspace and CSV respect OR and other filters', async ({ page }) => {
@@ -40,7 +40,7 @@ test('live multi-code user filtering, chips, duplicate prevention, Backspace and
   await input.fill('MIGO'); await input.press('Enter')
   await expect(filter.getByRole('button', { name: 'Remove transaction MIGO' })).toHaveCount(1)
   await input.fill('va03')
-  await filter.getByRole('button',{name:'OR',exact:true}).click()
+  await filter.getByRole('button',{name:'ANY',exact:true}).click()
   await expect(detail.getByRole('row')).toHaveCount(3)
   const pending = page.waitForEvent('download')
   await detail.getByRole('button', { name: 'Export CSV', exact: true }).click()
@@ -60,7 +60,7 @@ test('live multi-code user filtering, chips, duplicate prevention, Backspace and
 })
 test('sidebar multi-code chips search collapsed mappings and reset on role changes', async ({ page }) => {
   await page.goto('/#session=browser-test-session')
-  await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Role Lookup',exact:true}).click()
+  await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'Role Lookup',exact:true}).click()
   await page.getByRole('button', { name: 'View details for Purchasing', exact: true }).click()
   const dialog = page.getByRole('dialog'), filter = dialog.getByRole('group', { name: 'Find transaction code', exact: true }), input = filter.getByRole('textbox')
   await input.fill('MIGO'); await input.press('Enter'); await input.fill('ME21N')
@@ -76,17 +76,17 @@ test('sidebar multi-code chips search collapsed mappings and reset on role chang
 })
 test('catalogue exact OR filtering combines with text/modules, preserves selections and action isolation', async ({ page }) => {
   await page.goto('/#session=browser-test-session')
-  await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Role Lookup',exact:true}).click()
+  await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'Role Lookup',exact:true}).click()
   await page.getByRole('button', { name: 'Add to comparison', exact: true }).first().click()
   await page.getByRole('button', { name: 'Add to comparison', exact: true }).first().click()
   const filter = page.getByRole('group', { name: 'Filter catalogue by transaction', exact: true }), input = filter.getByRole('textbox')
   await input.fill('MIG')
   await expect(page.getByRole('article')).toHaveCount(0)
   await input.fill('MIGO'); await input.press('Enter'); await input.fill('VA03')
-  await filter.getByRole('button', { name: 'OR', exact: true }).click()
+  await filter.getByRole('button', { name: 'ANY', exact: true }).click()
   await expect(page.getByRole('article')).toHaveCount(2)
   await expect(page.getByText('roles selected', { exact: false })).toBeVisible()
-  await page.getByRole('button', { name: 'MM – Materials Mgmt', exact: false }).click()
+  await page.getByRole('button', { name: /MM\s+Materials Mgmt/ }).click()
   await expect(page.getByRole('article')).toHaveCount(1)
   await filter.getByRole('button', { name: 'Remove transaction MIGO', exact: true }).click(); await input.fill('')
   await expect(page.getByRole('article')).toHaveCount(1)
@@ -99,18 +99,18 @@ test('catalogue exact OR filtering combines with text/modules, preserves selecti
 })
 test('evidence summary clear preserves directory search, group, sorting and expired toggle', async ({ page }) => {
   await page.goto('/#session=browser-test-session')
-  await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Role Lookup',exact:true}).click()
+  await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'Role Lookup',exact:true}).click()
   await page.getByRole('button', { name: 'View details for Purchasing', exact: true }).click()
   await page.getByRole('button', { name: 'Expand single role ZS:BUY', exact: true }).click()
   await page.getByRole('button', { name: 'Investigate users with MIGO', exact: true }).click()
-  const directory = page.getByRole('region', { name: 'User Access', exact: true }), summary = directory.getByRole('region', { name: 'User transaction filter' })
-  await expect(summary).toContainText('Transaction: MIGO')
+  const directory = page.getByRole('region', { name: 'User Access', exact: true }), summary = directory.getByRole('group', { name: 'Filter users by transaction', exact: true })
+  await expect(summary).toContainText('MIGO')
   await expect(summary.getByRole('button',{name:'Remove transaction MIGO',exact:true})).toBeVisible()
   await directory.getByLabel('Search users', { exact: true }).fill('DEMO_')
   const group = directory.getByRole('combobox', { name: 'SAP User Group', exact: true })
   await group.fill('G1'); await group.press('Enter')
   await directory.getByLabel('Sort users', { exact: true }).selectOption('last_name')
-  await directory.getByLabel('Descending', { exact: true }).check()
+  await setDescending(directory, true)
   await directory.getByLabel('Show expired assignments', { exact: true }).check()
   const clear = summary.getByRole('button', { name: 'Remove transaction MIGO', exact: true })
   await expect(clear.locator('.lucide-x')).toBeVisible()
@@ -122,9 +122,9 @@ test('evidence summary clear preserves directory search, group, sorting and expi
   await expect(directory.getByLabel('Search users', { exact: true })).toHaveValue('DEMO_')
   await expect(group).toHaveValue('G1')
   await expect(directory.getByLabel('Sort users', { exact: true })).toHaveValue('last_name')
-  await expect(directory.getByLabel('Descending', { exact: true })).toBeChecked()
+  await expect(sortDirection(directory)).toHaveAttribute('aria-pressed', 'true')
   await expect(directory.getByLabel('Show expired assignments', { exact: true })).toBeChecked()
-  await expect(directory.getByRole('button', { name: 'DEMO_BETA', exact: true })).toBeVisible()
+  await expect(directory.getByRole('link', { name: 'DEMO_BETA', exact: true })).toBeVisible()
 })
 test('Norwegian date utilities preserve SAP dates and local/offset time semantics', () => {
   const previous = process.env.TZ
@@ -174,22 +174,26 @@ for (const theme of ['light', 'dark']) for (const width of [800, 1280]) test(`li
   const padding = await select.evaluate(element => parseFloat(getComputedStyle(element).paddingRight))
   expect(padding).toBeGreaterThanOrEqual(40)
   await filter.getByRole('textbox').fill('MIGO'); await filter.getByRole('textbox').press('Enter'); await filter.getByRole('textbox').fill('VA03')
-  await filter.getByRole('button',{name:'OR',exact:true}).click()
+  await filter.getByRole('button',{name:'ANY',exact:true}).click()
   await expect(detail.getByRole('row')).toHaveCount(3)
   await expect(detail).toContainText('01.01.2020'); await expect(detail).toContainText('31.12.9999')
   await page.screenshot({ path: info.outputPath('user-live-filters.png'), fullPage: true })
   await detail.getByRole('button', { name: 'View role details: ZC:MM:BUY:*' }).click()
   await page.getByRole('button', { name: 'Expand single role ZS:BUY', exact: true }).click()
   await page.getByRole('button', { name: 'Investigate users with MIGO', exact: true }).click()
-  const summary = page.getByRole('region', { name: 'User transaction filter' })
+  const narrow = width < 1024 // narrow screens keep the filters in a drawer
+  if (narrow) await page.getByRole('button', { name: /^Filters/ }).click()
+  const summary = page.getByRole('group', { name: 'Filter users by transaction', exact: true })
   const box = (await summary.boundingBox())!; expect(box.x + box.width).toBeLessThanOrEqual(width)
+  if (narrow) await page.keyboard.press('Escape')
   await page.screenshot({ path: info.outputPath('active-evidence.png'), fullPage: true })
-  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Role Lookup', exact: true }).click()
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Role Lookup', exact: true }).click()
   await page.getByRole('button', { name: 'Add to comparison', exact: true }).first().click()
   await page.getByRole('button', { name: 'Add to comparison', exact: true }).first().click()
   const catalogueFilter = page.getByRole('group', { name: 'Filter catalogue by transaction', exact: true })
+  if (narrow) await page.getByRole('button', { name: /^Filters/ }).click()
   await catalogueFilter.getByRole('textbox').fill('MIGO'); await catalogueFilter.getByRole('textbox').press('Enter'); await catalogueFilter.getByRole('textbox').fill('VA03')
-  await catalogueFilter.getByRole('button', { name: 'OR', exact: true }).click()
+  await catalogueFilter.getByRole('button', { name: 'ANY', exact: true }).click()
   await expect(page.getByRole('article')).toHaveCount(2)
   // The compact grid uses display:contents for the semantic group. Measure the
   // actual input-to-chips extent rather than an intentionally boxless wrapper.
@@ -197,6 +201,7 @@ for (const theme of ['light', 'dark']) for (const width of [800, 1280]) test(`li
   const chipsBox = (await catalogueFilter.locator('.transaction-chips').boundingBox())!
   expect(chipsBox.y).toBeGreaterThanOrEqual(inputBox.y + inputBox.height)
   expect(chipsBox.y + chipsBox.height - inputBox.y).toBeLessThan(150)
+  if (narrow) await page.keyboard.press('Escape')
   await page.screenshot({ path: info.outputPath('role-lookup-buttons.png'), fullPage: true })
   await page.getByRole('button', { name: 'View details for Purchasing', exact: true }).click()
   const panel = page.getByRole('dialog'), codes = panel.getByRole('group', { name: 'Find transaction code', exact: true })

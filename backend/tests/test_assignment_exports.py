@@ -39,14 +39,23 @@ class AssignmentExports(unittest.TestCase):
   self.assertEqual(response.headers['x-sap-lens-data-revision'],cache.get_snapshot().last_loaded.isoformat())
   return response,rows
  def test_matching_users_export_all_roles_and_intervals_with_explicit_filter_contribution(self):
-  _,rows=self.export('users','?group=G1&tcodes=MIGO&search=%C3%85se')
-  self.assertEqual(len(rows),8);self.assertEqual({r['USERNAME'] for r in rows},{'SYN_A'})
+  _,hidden=self.export('users','?group=G1&tcodes=MIGO&search=%C3%85se')
+  self.assertEqual(len(hidden),6);self.assertNotIn('Expired',{r['ASSIGNMENT_STATUS'] for r in hidden})
+  rows=hidden;self.assertEqual({r['USERNAME'] for r in rows},{'SYN_A'})
   self.assertEqual(sum(r['MATCHED_FILTER']=='Yes' for r in rows),2)
-  expired=next(r for r in rows if r['ROLE_NAME']=='ZC:SYN:B' and r['ASSIGNMENT_STATUS']=='Expired')
-  self.assertEqual(expired['MATCHED_FILTER'],'No');self.assertEqual(expired['ROLE_VALID_TO'],'01.01.2002')
+  _,shown=self.export('users','?group=G1&tcodes=MIGO&search=%C3%85se&show_expired=true')
+  self.assertEqual(len(shown),8)
+  expired=next(r for r in shown if r['ROLE_NAME']=='ZC:SYN:B' and r['ASSIGNMENT_STATUS']=='Expired')
+  self.assertEqual(expired['ROLE_VALID_TO'],'01.01.2002')
   self.assertIn('ZC:SYN:W:ENP',{r['ROLE_NAME'] for r in rows});self.assertIn('ZD:SYN:TECH',{r['ROLE_NAME'] for r in rows})
   self.assertEqual(rows[0]['FIRST_NAME'],'Åse; "Example"');self.assertEqual(rows[0]['LAST_NAME'],"'=SYNTHETIC()")
   self.assertEqual(cache.get_snapshot().users.users['SYN_A']['names'][0][1],'=SYNTHETIC()')
+ def test_expired_assignments_follow_the_show_expired_toggle_in_listing_count_and_export(self):
+  count=lambda query:self.client.get('/api/access/users'+query,headers=H).json()['export_assignments']
+  _,off=self.export('users','?search=SYN_A');_,on=self.export('users','?search=SYN_A&show_expired=true');_,explicit=self.export('users','?search=SYN_A&status=expired')
+  self.assertEqual((len(off),len(on)),(6,8));self.assertTrue(all(r['ASSIGNMENT_STATUS']!='Expired' for r in off));self.assertEqual(sum(r['ASSIGNMENT_STATUS']=='Expired' for r in on),2)
+  self.assertTrue(any(r['ASSIGNMENT_STATUS']=='Expired' for r in explicit))
+  self.assertEqual((count('?search=SYN_A'),count('?search=SYN_A&show_expired=true')),(6,8))
  def test_role_group_and_expired_filters_share_directory_membership(self):
   _,rows=self.export('users','?role=ZC:SYN:B&group=G1&show_expired=true')
   self.assertEqual(len(rows),8);matched=[r for r in rows if r['MATCHED_FILTER']=='Yes'];self.assertEqual(len(matched),2)
@@ -87,7 +96,7 @@ class AssignmentExports(unittest.TestCase):
    if not changed: cache.clear_cache();changed=True
    return original(value)
   with patch('csv_exports.spreadsheet_cell',side_effect=replace_once):
-   response=self.client.get('/api/access/exports/users?search=SYN_A',headers=H)
+   response=self.client.get('/api/access/exports/users?search=SYN_A&show_expired=true',headers=H)
   self.assertEqual(response.status_code,200);self.assertEqual(response.headers['x-sap-lens-data-revision'],previous)
   rows=list(csv.DictReader(io.StringIO(response.content.decode('utf-8-sig')),delimiter=';'));self.assertEqual(len(rows),8)
   self.assertEqual({row['USERNAME'] for row in rows},{'SYN_A'})

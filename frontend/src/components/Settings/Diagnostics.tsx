@@ -1,4 +1,5 @@
-import { SourceHealthSummary, SourceDetailsDialog } from './SourceStatus'
+import { SourceEssentials, SourceTechnicalFacts, SourceDetailsDialog } from './SourceStatus'
+import { StatusBadge } from '@/components/Shared/Presentation'
 import { StatusCard } from '@/components/Shared/InvestigationPatterns'
 import { RefreshHistory } from '@/components/Shared/RefreshReport'
 import { Button } from '@/components/Shared/Button'
@@ -6,8 +7,9 @@ import { DirectoryDiagnostics } from './EmployeeDirectory'
 import { formatTimestamp } from '@/lib/dateFormat'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Activity, Download, FileText, FolderOpen } from 'lucide-react'
+import { Activity, BookUser, Download, FileText, FolderOpen, Library, ShieldCheck, UsersRound, Eye } from 'lucide-react'
 import { apiRequest, applicationToken } from '@/api/client'
+const SOURCE_ICONS: Record<string, React.ReactNode> = { roles: <Library size={18} aria-hidden="true"/>, users: <UsersRound size={18} aria-hidden="true"/>, employees: <BookUser size={18} aria-hidden="true"/>, sod: <ShieldCheck size={18} aria-hidden="true"/> }
 interface DataSource {
   last_checked?: string|null
   mode?: string
@@ -68,7 +70,7 @@ export function Diagnostics({
   onEmployeeFeatures,
   onSource,
 }: {
-  onSource?: (source: 'roles' | 'users' | 'employees') => void
+  onSource?: (source: 'roles' | 'users' | 'employees' | 'sod') => void
   native: boolean
   onEmployeeFeatures?: () => void
   onEmployeeSettings?: () => void
@@ -173,26 +175,23 @@ export function Diagnostics({
         <div className="diagnostic-source-grid">
           {query.data?.sources.map((source) => (
             <section
-              className="settings-card space-y-3"
+              className="settings-card source-health-card"
               key={source.id}
               aria-label={source.name}
             >
-              <h3 className="font-semibold">{source.name}</h3>
-              <SourceHealthSummary source={source}/>
-              <Button
-                onClick={() =>
-                  onSource?.(source.id as 'roles' | 'users' | 'employees')
-                }
-              >
-                Review{' '}
-                {source.id === 'employees'
-                  ? 'Employee Directory'
-                  : source.id === 'users'
-                    ? 'User Access'
-                    : 'Role Catalogue'}{' '}
-                source
-              </Button>
-              <Button onClick={()=>setDetail(source)}><FileText size={16} aria-hidden="true"/>Technical source details</Button>
+              <header className="source-health-header">
+                <h3 className="font-semibold">{SOURCE_ICONS[source.id] || <FileText size={18} aria-hidden="true"/>}{source.name}</h3>
+                {source.enabled !== undefined && <StatusBadge tone={source.enabled ? 'success' : 'neutral'}>{source.enabled ? 'Enabled' : 'Disabled'}</StatusBadge>}
+              </header>
+              <SourceEssentials source={source}/>
+              <details className="settings-advanced">
+                <summary>Technical details</summary>
+                <SourceTechnicalFacts source={source}/>
+                <Button onClick={()=>setDetail(source)}><FileText size={16} aria-hidden="true"/>Locations and diagnostics</Button>
+              </details>
+              <div className="source-health-actions">
+                <Button onClick={() => onSource?.(source.id as 'roles' | 'users' | 'employees' | 'sod')}><Eye size={16} aria-hidden="true"/>Review source</Button>
+              </div>
             </section>
           ))}
         </div>

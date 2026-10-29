@@ -8,6 +8,9 @@ open a user for SAP identity, Account Status and Organization. SAP CSV is author
 for SAP name/email. Optional [Employee Directory](../data/EMPLOYEE_DIRECTORY.md)
 enriches title, department, AD status and an unambiguously resolved manager link.
 Manager navigation uses exact normalized email, not AD username or name guesses.
+A SAP user has a shareable route, `#/user-access/user/<username>`; manager links keep a trail and
+User Details offers **Back to previous user**. The directory match status reads
+"Directory match" followed by a status badge.
 
 User validity, SAP lock and AD state are independent. Missing/conflicting evidence
 is Unknown, never implicitly Valid/Unlocked/Enabled. The profile shows source
@@ -33,6 +36,10 @@ never automatically mean active. Account validity/lock does not alter assignment
 [Assignment date controls](FILTERS.md#assignment-dates-and-tables) belong above the
 assignment table and do not filter the profile. Missing ends differ from the real
 SAP maximum 31.12.9999. Display is DD.MM.YYYY; API/export comparisons use date-only ISO.
+
+## Users lacking roles
+
+**Roles the user must lack** selects up to 20 catalogue roles. The operator is always shown: **Missing ANY** lists users who lack at least one selected role, **Missing ALL** users who lack every selected role. With transactions, the **Exclude matching transactions** checkbox gives the same two readings (AND is Missing ANY, OR is Missing ALL). Only current, eligible assignments count (expired ones follow **Show expired assignments**), and only users whose assignments are all mapped to catalogue roles are listed; a user with no assignment evidence or an unmapped role is never reported as lacking access. The filter combines with the other directory filters, Saved Filters and the CSV export.
 
 ## Investigation and export
 
@@ -66,11 +73,16 @@ independent of assignment filters.
 
 ## Directory assignment CSV export
 
+The transaction filter has an **Exclude matching transactions** checkbox shared with Role Lookup (see
+[Role Lookup](ROLE_LOOKUP.md#exclude-matching-transactions)); the export follows the same selection.
+
 **Export CSV** beside the result count exports every imported assignment for every
 user matching the current directory filters, across all pages. User search, SAP
 User Group, role search, selected transactions, AND/OR mode and assignment-validity
 settings select the users using the same logic as the directory. The export then
-includes their other assignments and expired/future intervals too. `MATCHED_FILTER`
+includes their other assignments and future intervals too. Expired assignments are excluded while
+**Show expired assignments** is off (the result count and the exported row count follow the same rule); turn it on, or
+filter by expired status, to include them. `MATCHED_FILTER`
 is Yes only for assignment evidence contributing to the active selection; No
 does not imply invalid or unauthorized access. AND transaction matching retains
 the directory's existing aggregate role-evidence semantics.

@@ -51,6 +51,12 @@ def interval_status(start, end, today=None):
     return "active"
 
 
+def release_area(release_group):
+    """Release Area = first character of the Release Group (E2 -> E). Missing or malformed groups have no area."""
+    value = (release_group or '').strip().upper()
+    return value[0] if value and re.fullmatch(r'[A-Z0-9]+', value) else None
+
+
 def parse_release_role(value):
     # MM, PR/PO_REL_ST and group/strategy positions are confirmed. No meaning is
     # assigned to the surrounding opaque scope/suffix tokens (e.g. M and ALL).

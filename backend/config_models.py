@@ -75,15 +75,27 @@ class UserImportProfile(ImportProfile):
 class ThemePalette(StrictModel):
     primary: str = Field(default='#1a003b', pattern=r'^#[0-9a-fA-F]{6}$')
     accent: str = Field(default='#7c85d4', pattern=r'^#[0-9a-fA-F]{6}$')
+    secondary: str = Field(default='#2a3156', pattern=r'^#[0-9a-fA-F]{6}$')
     background: str = Field(default='#0d0d1a', pattern=r'^#[0-9a-fA-F]{6}$')
     surface: str = Field(default='#111827', pattern=r'^#[0-9a-fA-F]{6}$')
     text: str = Field(default='#f1f5f9', pattern=r'^#[0-9a-fA-F]{6}$')
+
+    @model_validator(mode='before')
+    @classmethod
+    def legacy_secondary(cls, value):
+        # Palettes saved before Secondary Color existed get a readable tint instead of failing to load.
+        if isinstance(value, dict) and 'secondary' not in value:
+            from theme_colors import derive_secondary
+            value = {**value, 'secondary': derive_secondary(value)}
+        return value
 
     @model_validator(mode='after')
     def readable_text(self):
         from theme_colors import contrast
         if min(contrast(self.text, self.background), contrast(self.text, self.surface)) < 4.5:
             raise ValueError('Primary text must meet WCAG AA contrast (4.5:1) against both application and card backgrounds.')
+        if contrast(self.text, self.secondary) < 4.5:
+            raise ValueError('Primary text must meet WCAG AA contrast (4.5:1) against the secondary color used by secondary buttons and selected controls.')
         return self
 
 
@@ -95,7 +107,7 @@ class ThemePreset(StrictModel):
 
 class ThemeColors(StrictModel):
     dark: ThemePalette = Field(default_factory=ThemePalette)
-    light: ThemePalette = Field(default_factory=lambda: ThemePalette(primary='#182c53', accent='#515793', background='#f0f2f7', surface='#ffffff', text='#182c53'))
+    light: ThemePalette = Field(default_factory=lambda: ThemePalette(primary='#182c53', accent='#515793', secondary='#e1e5f2', background='#f0f2f7', surface='#ffffff', text='#182c53'))
     custom_presets: list[ThemePreset] = Field(default_factory=list, max_length=20)
 
     @model_validator(mode='after')
@@ -109,12 +121,14 @@ class ThemeColors(StrictModel):
 class FeatureSettings(StrictModel):
     user_role_mapping: bool = True
     employee_directory: bool = False
+    sod: bool = False
 
 
 class SourceModes(StrictModel):
     roles: Literal['static', 'dynamic'] = 'dynamic'
     users: Literal['static', 'dynamic'] = 'dynamic'
     employees: Literal['static', 'dynamic'] = 'static'
+    sod: Literal['static', 'dynamic'] = 'static'
 
 
 class SourceSnapshot(StrictModel):
@@ -128,18 +142,19 @@ class RefreshMetadata(StrictModel):
     timestamp: str = Field(max_length=40)
     operation: Literal['startup', 'import', 'refresh']
     status: Literal['changed', 'unchanged', 'partial', 'failed']
-    checked: int = Field(ge=0, le=3)
-    updated: int = Field(ge=0, le=3)
-    unchanged: int = Field(ge=0, le=3)
-    failed: int = Field(ge=0, le=3)
-    skipped: int = Field(ge=0, le=3)
+    checked: int = Field(ge=0, le=4)
+    updated: int = Field(ge=0, le=4)
+    unchanged: int = Field(ge=0, le=4)
+    failed: int = Field(ge=0, le=4)
+    skipped: int = Field(ge=0, le=4)
 
 
 class DataLifecycle(StrictModel):
+    sod_history: list[SourceSnapshot] = Field(default_factory=list, max_length=1000)
     history_metadata: dict[str, RefreshMetadata] = Field(default_factory=dict, max_length=5)
     last_successful_refresh: str | None = Field(default=None, max_length=40)
     last_failed_refresh: str | None = Field(default=None, max_length=40)
-    sources: dict[Literal['roles', 'users'], SourceSnapshot] = Field(default_factory=dict, max_length=2)
+    sources: dict[Literal['roles', 'users', 'sod'], SourceSnapshot] = Field(default_factory=dict, max_length=3)
     history: list[str] = Field(default_factory=list, max_length=5)
 
     @field_validator('history')
@@ -169,8 +184,29 @@ class DesktopPreferences(StrictModel):
         return self
 
 
+class RefreshSchedule(StrictModel):
+    """Scheduled background refresh; the daily time or the cron expression applies depending on the mode."""
+    enabled: bool = False
+    mode: Literal['daily', 'cron'] = 'daily'
+    time: str = Field(default='06:00', max_length=5)
+    cron: str = Field(default='0 6 * * *', max_length=100)
+    timezone: str = Field(default='local', max_length=64, pattern=r'^(local|UTC|[A-Za-z0-9_+\-]{1,32}(/[A-Za-z0-9_+\-]{1,32}){0,2})$')
+
+    @property
+    def expression(self):
+        import cron_schedule as schedule
+        return schedule.daily_cron(self.time) if self.mode == 'daily' else self.cron.strip()
+
+    @model_validator(mode='after')
+    def readable_schedule(self):
+        import cron_schedule as schedule
+        schedule.parse_cron(self.expression)
+        return self
+
+
 class AppConfig(StrictModel):
     desktop: DesktopPreferences = Field(default_factory=DesktopPreferences)
+    refresh_schedule: RefreshSchedule = Field(default_factory=RefreshSchedule)
     source_modes: SourceModes = Field(default_factory=SourceModes)
     data_lifecycle: DataLifecycle = Field(default_factory=DataLifecycle)
     unlicensed_user_groups: list[str] = Field(default_factory=lambda: ['UNLICENSED'], max_length=100)
@@ -185,6 +221,7 @@ class AppConfig(StrictModel):
 
     employee_snapshot_id: str | None = Field(default=None, pattern=r'^[a-f0-9]{64}$')
     employee_csv_path: str = Field(default='', max_length=4096)
+    sod_csv_path: str = Field(default='', max_length=4096)
     features: FeatureSettings = Field(default_factory=FeatureSettings)
     schema_version: Literal[3] = 3
     user_csv_path: str = Field(default='', max_length=4096)
@@ -208,6 +245,14 @@ class AppConfig(StrictModel):
         if not isinstance(value, dict): return value
         value = dict(value)
         if value.get('schema_version', 3) == 2: value['schema_version'] = 3
+        # SoD becomes a manual feature. Installations that already use a SoD source keep working; a source never enables it later.
+        features = value.get('features')
+        if not isinstance(features, dict) or 'sod' not in features:
+            lifecycle = value.get('data_lifecycle')
+            sources = lifecycle.get('sources', {}) if isinstance(lifecycle, dict) else getattr(lifecycle, 'sources', {})
+            existing = bool(value.get('sod_csv_path') or 'sod' in (sources or {}))
+            if isinstance(features, dict) or features is None:
+                value['features'] = {**(features or {}), 'sod': existing}
         archived = {key: value.pop(key) for key in ('classification_profiles', 'active_classification') if key in value}
         if archived: value['legacy_classification'] = archived
         # Deleting an active custom preset safely restores the source's built-in default.

@@ -1,0 +1,227 @@
+import { useState, type ReactNode } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { downloadFile, scopeParams, sod, EXPORT_NAME, type AssignmentPick, type AssignmentSelection, type BulkAction, type ContextInfo, type Filters, type Lifecycle } from '@/api/sod'
+import { useHistoryValue, type SodExplorerTable } from '@/hooks/useViewHistory'
+import { ChevronDown, ChevronRight } from 'lucide-react'
+import { Button } from '@/components/Shared/Button'
+import { ErrorState, DataTable, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
+import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
+import { ContentTabs } from '@/components/Shared/Navigation'
+import { Select } from '@/components/Shared/Select'
+import { AssignmentStatus } from '@/components/Shared/InvestigationNavigation'
+import { PAGE_SIZES, Pagination } from '@/components/Access/Shared'
+import { BulkToolbar, PageCheckbox, RowCheckbox, useBulkSelection } from '@/components/Shared/BulkSelection'
+import { BulkReviewDialog } from './SodBulkReview'
+import { RoleEntry } from '@/components/Shared/RoleEntry'
+import { moduleOfRoles, useRoleModules } from '@/hooks/useRoleModules'
+import { announceExport } from '@/lib/exportNotice'
+import { formatDate } from '@/lib/dateFormat'
+import { ConflictView } from './SodConflicts'
+import { SodPill } from '@/lib/sodAppearance'
+import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
+import { type FilterField, reviewStatusParam, ContextBar, SodArea, RoleCodeList, CoverageNotice, SodFilters, LifecycleBadge, useSodContext, useSodFilters, useSodSubject } from './SodShared'
+
+type TableName = Exclude<SodExplorerTable, 'roles'>
+interface Row {
+  user?: string; risk_id?: string; criticality?: string; category?: string; groups?: string[]; activities?: string[] | string; roles?: string[] | number; acceptance?: Lifecycle
+  activity?: string; risks?: string[]; tcodes?: string[]; duplicate?: boolean; decision?: Lifecycle; id?: string; role?: string; valid_from?: string | null; valid_to?: string | null
+  interval_status?: string | null; user_group?: string; users?: number; catalogue_roles?: string[]; suffix?: string; evidence_version?: string
+}
+interface Progress { total: number; completed: number; pending: number; investigating: number; outdated: number; attention: number }
+interface Result extends ContextInfo { items: Row[]; total: number; offset: number; limit: number; progress?: Progress }
+const COMMON: FilterField[] = ['username', 'risk', 'activity', 'role', 'role_suffix', 'tcode', 'validity']
+const FIELDS: Record<string, FilterField[]> = {
+  user_risk: [...COMMON, 'group', 'category', 'criticality', 'activity_decision', 'assignment_decision', 'acceptance'],
+  user_activity: [...COMMON, 'group', 'category', 'criticality', 'activity_decision', 'assignment_decision'],
+  access_list: [...COMMON, 'group', 'review_status', 'assignment_decision'],
+  lookup: COMMON,
+}
+const LABELS: Record<TableName, string> = { user_risk: 'User risk table', user_activity: 'User activity table', access_list: 'Access list', lookup: 'User & role lookup' }
+const pills = (kind: 'risk' | 'activity', value?: string[] | string) => <span className="id-pill-list">{(Array.isArray(value) ? value : value ? [value] : []).map((item) => <SodPill key={item} kind={kind} value={item} />)}</span>
+const list = (value?: string[] | string | number) => (Array.isArray(value) ? value.join(', ') : String(value ?? ''))
+
+const TABS: { value: string; label: string }[] = [
+  { value: 'user_risk', label: 'Users' }, { value: 'access_list', label: 'Assignments' }, { value: 'lookup', label: 'Roles' }, { value: 'roles', label: 'Role conflicts' },
+]
+
+/** Users (grouped by risk or activity), Assignments and Roles replace four near-duplicate tables; catalogue Role conflicts stay a distinct mode. */
+export function SodExplorer() {
+  const [table, setTable] = useHistoryValue('sodExplorer'),
+    current = table || 'user_risk',
+    tab = current === 'user_activity' ? 'user_risk' : current
+  return (
+    <ContentTabs label="Access Explorer views" value={tab} onChange={(value) => setTable(value as SodExplorerTable)} items={TABS}>
+      {current === 'roles' ? <ConflictView key="roles" kind="roles" /> : <ExplorerTable key={current} table={current} onTable={(value) => setTable(value)} />}
+    </ContentTabs>
+  )
+}
+
+/** Compact row with an expandable evidence line; the toggle keeps the table scannable while preserving traceability. */
+function Expandable({ id, label, summary, children, expanded, toggle }: { id: string; label: string; summary: ReactNode; children: ReactNode; expanded: boolean; toggle: (id: string) => void }) {
+  return (
+    <div className="sod-expandable">
+      <button type="button" className="sod-expand-toggle" aria-expanded={expanded} aria-label={`${expanded ? 'Hide' : 'Show'} evidence for ${label}`} onClick={() => toggle(id)}>
+        {expanded ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}{summary}
+      </button>
+      {expanded && <div className="sod-expandable-body">{children}</div>}
+    </div>
+  )
+}
+
+/** Users behind one assigned role: grouped by SAP user group, one entry per distinct username, with the assignment intervals expandable. */
+function AssignedUsers({ role, context, filters }: { role: string; context: string; filters: Filters }) {
+  const params = scopeParams(context, { ...filters, role }, { limit: 200 }),
+    result = useQuery({ queryKey: ['sod-explorer', 'access_list', 'assigned', params.toString()], queryFn: () => sod<Result>('/api/sod/explorer/access_list', params) })
+  if (result.isError) return <p role="alert">Assigned users could not be loaded.</p>
+  if (!result.data) return <p role="status">Loading assigned users…</p>
+  const groups = new Map<string, Map<string, Row[]>>()
+  for (const row of result.data.items) {
+    const group = row.user_group || 'No user group', users = groups.get(group) ?? new Map<string, Row[]>()
+    users.set(row.user!, [...(users.get(row.user!) ?? []), row])
+    groups.set(group, users)
+  }
+  const distinct = new Set(result.data.items.map((row) => row.user)).size
+  return (
+    <div className="sod-assigned-groups" role="group" aria-label={`Users with ${role}`}>
+      <p className="text-xs text-muted" role="status">{distinct} distinct user{distinct === 1 ? '' : 's'} in {groups.size} user group{groups.size === 1 ? '' : 's'}</p>
+      {[...groups].sort(([x], [y]) => x.localeCompare(y)).map(([group, users]) => (
+        <section key={group} aria-label={`User group ${group}`}>
+          <h4 className="text-xs font-semibold">{group} <span className="font-normal text-muted">({users.size})</span></h4>
+          <ul className="sod-assigned">{[...users].map(([user, rows]) => (
+            <li key={user}>
+              <RoleIdentifier value={user} label="SAP username" />
+              {rows.length === 1
+                ? <span className="text-xs text-muted"> {formatDate(rows[0].valid_from)} → {formatDate(rows[0].valid_to)}</span>
+                : <details className="text-xs"><summary>{rows.length} assignment intervals</summary><ul>{rows.map((row) => <li key={row.id}>{formatDate(row.valid_from)} → {formatDate(row.valid_to)}{row.interval_status ? ` · ${row.interval_status}` : ''}</li>)}</ul></details>}
+            </li>
+          ))}</ul>
+        </section>
+      ))}
+      {result.data.total > result.data.items.length && <p className="text-xs text-muted">Showing the first {result.data.items.length} of {result.data.total} assignment records.</p>}
+    </div>
+  )
+}
+
+/** Assigned role in the standard presentation: one module badge (from matched catalogue evidence only) above one copyable identifier. */
+function AssignedRole({ role, catalogueRoles }: { role: string; catalogueRoles?: string[] }) {
+  const code = moduleOfRoles(useRoleModules(), catalogueRoles)
+  return <RoleEntry density="compact" moduleCode={code} title="Assigned role" identifier={role} identifierLabel="assigned role" />
+}
+
+const pickKey = (pick: AssignmentPick) => pick.key
+
+function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: SodExplorerTable) => void }) {
+  const [context] = useSodContext(),
+    [filters, setFiltersState] = useSodFilters('explorer'),
+    [offset, setOffset] = useState(0),
+    [, setSelected] = useSodSubject(),
+    [busy, setBusy] = useState(false),
+    [expanded, setExpanded] = useState<Set<string>>(new Set()),
+    [pageSize, setPageSizeState] = useState(50),
+    [dialog, setDialog] = useState<BulkAction | null>(null),
+    [gathering, setGathering] = useState(false),
+    [gatherNote, setGatherNote] = useState('')
+  const selection = useBulkSelection<AssignmentPick>(pickKey)
+  const setPageSize = (value: number) => { setPageSizeState(value); setOffset(0) }
+  const toggle = (id: string) => setExpanded((previous) => { const next = new Set(previous); if (next.has(id)) next.delete(id); else next.add(id); return next })
+  const queue: Record<string, string> = table === 'access_list' ? { review_status: reviewStatusParam(filters) } : {}
+  const params = scopeParams(context, filters, { offset, limit: pageSize, ...queue })
+  const result = useQuery({ queryKey: ['sod-explorer', table, params.toString()], queryFn: () => sod<Result>(`/api/sod/explorer/${table}`, params) })
+  const data = result.data
+  const download = async (path: string, namePattern: RegExp, extra: Record<string, string> = {}) => {
+    setBusy(true)
+    try {
+      const name = await downloadFile(path, { params: scopeParams(context, filters, { ...queue, ...extra }), namePattern, kind: 'csv' })
+      announceExport(name ? { kind: 'success', message: `Exported ${name}.` } : { kind: 'info', message: 'Export cancelled.' })
+    } catch (cause) {
+      announceExport({ kind: 'error', message: cause instanceof Error ? cause.message : 'Export failed.' })
+    } finally {
+      setBusy(false)
+    }
+  }
+  const rowPick = (row: Row): AssignmentPick => ({ key: row.id!, user: row.user!, ref: row.role!, suffix: row.suffix || '', evidence_version: row.evidence_version!, decision: row.decision || 'Pending', user_group: row.user_group || '' })
+  const pageRows = table === 'access_list' && data ? data.items : []
+  const pageSelected = pageRows.filter((row) => selection.has(row.id!)).length
+  const selectAllMatching = async () => {
+    setGathering(true); setGatherNote('')
+    try {
+      const all = await sod<AssignmentSelection>('/api/sod/explorer/access_list/selection', scopeParams(context, filters, queue))
+      selection.add(all.items)
+      setGatherNote(all.truncated ? `Only the first ${all.limit.toLocaleString()} of ${all.total.toLocaleString()} matching assignments were selected. Narrow the filters to cover the rest.` : `Selected all ${all.total.toLocaleString()} matching assignments.`)
+    } catch (cause) {
+      setGatherNote(cause instanceof Error ? cause.message : 'The matching assignments could not be loaded. The selection is unchanged.')
+    } finally { setGathering(false) }
+  }
+  const picks = [...selection.items.values()]
+  const showUsers = (role: string) => {
+    setFiltersState({ ...filters, role })
+    onTable('access_list')
+  }
+  return (
+    <section className="grid min-w-0 gap-4" aria-label={LABELS[table]}>
+      <ContextBar info={data} />
+      <CoverageNotice info={data} />
+      <SodFilters view="sod_explorer" filters={filters} setFilters={(value) => { setOffset(0); setFiltersState(value) }} fields={FIELDS[table]}
+        sorts={[{ value: 'subject', label: 'Name' }]}
+        actions={<>
+          {(table === 'user_risk' || table === 'user_activity') && <Select aria-label="Group users by" value={table} onChange={(event) => onTable(event.target.value as SodExplorerTable)}><option value="user_risk">Grouped by risk</option><option value="user_activity">Grouped by activity</option></Select>}
+          <ExportCSVButton loading={busy} disabled={!data?.total} onClick={() => void download(`/api/sod/explorer/${table}/export`, EXPORT_NAME)} title="Exports every filtered row across pages." />
+          {table === 'user_risk' && context === 'current' && <Button disabled={busy || !data?.total} variant="outline" onClick={() => void download('/api/sod/analysis/export', /^sap-lens-sod-users-findings-\d{4}-\d{2}-\d{2}\.csv$/, { kind: 'users' })}>Export evidence CSV</Button>}
+        </>}>
+      {result.isError ? <ErrorState error={result.error} onRetry={() => void result.refetch()} /> : !data ? <LoadingState /> : <>
+        <Toolbar>
+          <h2 className="text-base font-semibold">{data.total} {table === 'lookup' ? 'roles' : 'rows'}</h2>
+        </Toolbar>
+        {table === 'access_list' && data.progress && <section className="sod-tiles review-progress" aria-label="Role assignment review progress">
+          <div className="sod-tile"><span>In scope</span><strong>{data.progress.total.toLocaleString()}</strong></div>
+          <div className="sod-tile"><span>Completed (Keep or Remove)</span><strong>{data.progress.completed.toLocaleString()}</strong></div>
+          <div className="sod-tile"><span>Pending</span><strong>{data.progress.pending.toLocaleString()}</strong></div>
+          <div className="sod-tile"><span>Under investigation</span><strong>{data.progress.investigating.toLocaleString()}</strong></div>
+          <div className="sod-tile" data-tone={data.progress.outdated ? 'warning' : undefined}><span>Outdated, re-review</span><strong>{data.progress.outdated.toLocaleString()}</strong></div>
+          <div className="sod-tile" data-tone={data.progress.attention ? 'warning' : undefined}><span>Remaining to review</span><strong>{data.progress.attention.toLocaleString()}</strong></div>
+        </section>}
+        {table === 'access_list' && data.reviewable && <>
+          {picks.length > 0
+            ? <BulkToolbar label="Bulk assignment review" summary={`${picks.length.toLocaleString()} ${picks.length === 1 ? 'assignment' : 'assignments'} selected`}
+              scope={`${pageSelected} on this page · ${picks.length - pageSelected} on other pages or outside the current filters · ${data.total.toLocaleString()} match the current filters`}>
+              <Button size="compact" disabled={gathering || !data.total} onClick={() => void selectAllMatching()}>Select all {data.total.toLocaleString()} matching</Button>
+              <Button size="compact" onClick={() => { selection.clear(); setGatherNote('') }}>Clear selection</Button>
+              <Button size="compact" disabled={!picks.length} onClick={() => setDialog('Keep')}>Keep</Button>
+              <Button size="compact" disabled={!picks.length} onClick={() => setDialog('Investigate')}>Investigate</Button>
+              <Button size="compact" variant="destructive" disabled={!picks.length} onClick={() => setDialog('Remove')}>Recommend removal</Button>
+            </BulkToolbar>
+            : <p className="ui-description">Select assignments with the checkboxes, or <Button size="compact" variant="ghost" disabled={gathering || !data.total} onClick={() => void selectAllMatching()}>select all {data.total.toLocaleString()} matching</Button> to review them together. Reviews record decisions only; nothing changes in SAP.</p>}
+          {gatherNote && <p role="status" className="ui-description">{gatherNote}</p>}
+        </>}
+        <p className="ui-description">Trace User → Risk → Activity → Transaction → Role → Assignment. Select a row to investigate; from the lookup, show the users behind a role.</p>
+        {data.items.length ? <DataTable caption={LABELS[table]}>
+          {table === 'user_risk' && <><thead><tr><th>SAP user</th><th>Risk</th><th>Activities</th><th>Evidence</th><th>Risk acceptance</th><th>Open</th></tr></thead>
+            <tbody>{data.items.map((row) => { const id = `${row.user}:${row.risk_id}`; return <tr key={id}><td>{row.user}<p className="text-xs text-muted">{list(row.groups)}</p></td><td>{pills('risk', row.risk_id)}{row.category && <p><SodArea value={row.category} /></p>}</td><td>{pills('activity', row.activities)}</td>
+              <td><Expandable id={id} label={`${row.user} ${row.risk_id}`} expanded={expanded.has(id)} toggle={toggle} summary={`${Array.isArray(row.roles) ? row.roles.length : row.roles} roles`}><RoleCodeList roles={row.roles as string[] | number} /></Expandable></td>
+              <td><LifecycleBadge value={row.acceptance || 'Pending'} /></td>
+              <td><Button onClick={() => setSelected({ user: row.user!, risk: row.risk_id })} aria-label={`Investigate ${row.user} ${row.risk_id}`}>Investigate</Button></td></tr> })}</tbody></>}
+          {table === 'user_activity' && <><thead><tr><th>SAP user</th><th>Activity</th><th>Risks</th><th>Evidence</th><th>Review</th><th>Open</th></tr></thead>
+            <tbody>{data.items.map((row) => { const id = `${row.user}:${row.activity}`; return <tr key={id}><td>{row.user}</td><td>{pills('activity', row.activity)}</td><td>{pills('risk', row.risks)}</td>
+              <td><Expandable id={id} label={`${row.user} ${row.activity}`} expanded={expanded.has(id)} toggle={toggle} summary={`${String(row.roles)} role assignment${row.roles === 1 ? '' : 's'}`}><p>Transactions: {list(row.tcodes)}</p></Expandable>{row.duplicate && <StatusBadge tone="info">Overlap</StatusBadge>}</td><td><LifecycleBadge value={row.decision || 'Pending'} /></td>
+              <td><Button onClick={() => setSelected({ user: row.user!, activity: row.activity })} aria-label={`Investigate ${row.user} ${row.activity}`}>Investigate</Button></td></tr> })}</tbody></>}
+          {table === 'access_list' && <><thead><tr><th className="col-select"><PageCheckbox label="Select all assignments on this page" selected={pageSelected} total={pageRows.length} onChange={(select) => select ? selection.add(pageRows.map(rowPick)) : selection.remove(pageRows.map((row) => row.id!))} /></th><th>SAP user</th><th>Role assignment</th><th>Validity</th><th>Risks</th><th>Activities</th><th>Review</th><th className="col-actions">Open</th></tr></thead>
+            <tbody>{data.items.map((row) => <tr key={`${row.user}:${row.id}`} data-selected={selection.has(row.id!) || undefined}>
+              <td className="col-select"><RowCheckbox label={`Select assignment ${row.role} for ${row.user}`} checked={selection.has(row.id!)} onChange={() => selection.toggle(rowPick(row))} /></td>
+              <td>{row.user}<p className="text-xs text-muted whitespace-nowrap">SAP User Group: {row.user_group || 'Unknown'}</p></td>
+              <td><AssignedRole role={row.role!} catalogueRoles={row.catalogue_roles} /></td>
+              <td>{row.interval_status && <AssignmentStatus value={row.interval_status} />}<dl className="validity-dates"><div><dt>Valid from</dt><dd>{formatDate(row.valid_from)}</dd></div><div><dt>Valid to</dt><dd>{formatDate(row.valid_to)}</dd></div></dl></td>
+              <td>{pills('risk', row.risks)}</td><td>{pills('activity', row.activities)}</td><td><LifecycleBadge value={row.decision || 'Pending'} /></td>
+              <td className="col-actions"><Button onClick={() => setSelected({ user: row.user!, activity: Array.isArray(row.activities) ? row.activities[0] : undefined })} aria-label={`Investigate ${row.user} ${row.role}`}>Investigate</Button></td></tr>)}</tbody></>}
+          {table === 'lookup' && <><thead><tr><th>Assigned role</th><th>Users</th><th>Risks</th><th>Activities</th><th className="col-actions">Trace</th></tr></thead>
+            <tbody>{data.items.map((row) => <tr key={row.role}><td><AssignedRole role={row.role!} catalogueRoles={row.catalogue_roles} /></td>
+              <td><Expandable id={row.role!} label={row.role!} expanded={expanded.has(row.role!)} toggle={toggle} summary={`${row.users} user${row.users === 1 ? '' : 's'}`}><AssignedUsers role={row.role!} context={context} filters={filters} /></Expandable></td>
+              <td>{pills('risk', row.risks)}</td><td>{pills('activity', row.activities)}</td>
+              <td className="col-actions"><Button onClick={() => showUsers(row.role!)} aria-label={`Show users with ${row.role}`}>Show users</Button></td></tr>)}</tbody></>}
+        </DataTable> : <EmptyState>No rows match this scope. Results describe imported evidence only; incomplete source coverage cannot establish absence of access.</EmptyState>}
+        <Pagination label="Explorer pages" offset={data.offset} total={data.total} limit={data.limit} onChange={setOffset} pageSizes={PAGE_SIZES} onPageSize={setPageSize} />
+        {dialog && <BulkReviewDialog action={dialog} picks={picks} info={data} onClose={() => setDialog(null)} onApplied={(recorded) => { selection.remove(recorded); setGatherNote('') }} />}
+      </>}
+      </SodFilters>
+    </section>
+  )
+}

@@ -2,18 +2,25 @@ import {ExportCSVButton} from '@/components/Shared/ExportCSVButton'
 import {useAssignmentCSVExport} from '@/hooks/useAssignmentCSVExport'
 import { PageHeader } from '@/components/Shared/Presentation'
 import { FileCheck2 as PageIcon } from 'lucide-react'
-import { ButtonGroup } from '@/components/Shared/Button'
+import { Button, ButtonGroup } from '@/components/Shared/Button'
 import { SavedFilters } from '@/components/Shared/SavedFilters'
+import { FilterLayout, FilterSection, PageToolbar, SortControl } from '@/components/Shared/FilterLayout'
+import { AccessPackageBar } from '@/components/Shared/AccessPackageBar'
+import { PackageToggle } from '@/components/Shared/PackageToggle'
+import { Dialog } from '@/components/Shared/Dialog'
+import { AccessPackagePanel } from '@/components/RoleList/AccessPackagePanel'
+import { useAccessPackage } from '@/lib/accessPackage'
+import { announceExport } from '@/lib/exportNotice'
 import { useApplicationData } from '@/state/ApplicationData'
 import { formatDate } from '@/lib/dateFormat'
 import { AssignmentDateFilters, emptyDates, dateParams, datesActive, type AssignmentDates } from '@/components/Shared/AssignmentDateFilters'
 import { ClearFilterButton } from '@/components/Shared/ClearFilterButton'
 import { Select } from '@/components/Shared/Select';
 import { useHistoryValue, type ReleaseDrill } from '@/hooks/useViewHistory';
-import { List, Grid3X3 } from 'lucide-react';
+import { List, Grid3X3, Plus, Check, Copy, Download } from 'lucide-react';
 import { useRecordNavigation, type RecordNavigationState } from "@/hooks/useRecordNavigation";
 import { DetailNavigation, AssignmentStatus, DetailButton } from "@/components/Shared/InvestigationNavigation";
-import { ReleaseFilter } from "./ReleaseFilter";
+import { ReleaseFilter, ReleaseMultiFilter } from "./ReleaseFilter";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -23,6 +30,7 @@ import {
   type Page,
   type ReleasePage,
   type ReleaseInfo,
+  type ReleaseRoleListItem,
 } from "@/api/access";
 import { RoleIdentifier } from "@/components/Shared/RoleIdentifier";
 import {
@@ -31,10 +39,22 @@ import {
   Filter,
   inputClass,
   Pagination,
+  PAGE_SIZES,
   QueryState,
 } from "./Shared";
 
 type Drill = ReleaseDrill;
+export const RELEASE_SORTS = [
+  { value: 'role_name', label: 'Role name' }, { value: 'document_type', label: 'PR/PO' }, { value: 'release_group', label: 'Release Group' },
+  { value: 'release_strategy', label: 'Release Strategy' }, { value: 'assigned_users', label: 'Assigned users' },
+]
+const STATUS_OPTIONS = [['active', 'Currently valid'], ['all', 'All, including expired / future / unknown'], ['expired', 'Expired'], ['future', 'Future'], ['unknown', 'Unknown validity']]
+/** More roles than this need an explicit confirmation before a bulk add. */
+export const BULK_CONFIRM_THRESHOLD = 500
+const textList = (value: unknown) => Array.isArray(value) ? [...new Set(value.filter((item): item is string => typeof item === 'string' && item.trim() !== '' && item.length <= 100))].slice(0, 50) : []
+/** Release Area = first character of the Release Group (E2 -> E); null for missing or malformed groups. */
+export const releaseAreaOf = (group: string | null | undefined) => /^[A-Za-z0-9]+$/.test(group?.trim() || '') ? group!.trim()[0].toUpperCase() : null
+
 export function ReleaseRoles({
   initialRole = "",
   onUser,
@@ -43,6 +63,9 @@ export function ReleaseRoles({
   onUser: (name: string) => void;
 }) {
   const {loading:dataLoading}=useApplicationData();
+  const cart = useAccessPackage();
+  const [packageOpen, setPackageOpen] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false), [confirmBulk, setConfirmBulk] = useState<ReleaseRoleListItem[] | null>(null);
   const [assignmentDates, setAssignmentDates] = useState({ ...emptyDates });
   const dateKey = JSON.stringify(assignmentDates);
   const listScroll = useRef(0);
@@ -51,7 +74,8 @@ export function ReleaseRoles({
   const openDrill = (value: Drill) => { listScroll.current = window.scrollY; originRole.current = value.role || ""; originFocus.current = document.activeElement?.getAttribute("aria-label") || ""; setDrill(value) };
   const [group, setGroup] = useState(""),
     [kind, setKind] = useState(""),
-    [releaseGroup, setReleaseGroup] = useState(""),
+    [releaseAreas, setReleaseAreas] = useState<string[]>([]),
+    [releaseGroups, setReleaseGroups] = useState<string[]>([]),
     [strategy, setStrategy] = useState("");
   const [username, setUsername] = useState(""),
     [role, setRole] = useState(""),
@@ -62,46 +86,29 @@ export function ReleaseRoles({
     [matrixOffset, setMatrixOffset] = useState(0),
     [compareGroups, setCompareGroups] = useState(false),
     [offset, setOffset] = useState(0),
+    [pageSize, setPageSize] = useState(20),
     [drill, setDrill] = useHistoryValue('release');
   const [query, setQuery] = useState({ username: "", role: "" });
   useEffect(() => {
     const t = setTimeout(() => setQuery(previous => previous.username === username && previous.role === role ? previous : { username, role }), 250);
     return () => clearTimeout(t);
   }, [username, role]);
+  const areaKey = releaseAreas.join(','), groupKey = releaseGroups.join(',');
   useEffect(() => {
     setOffset(0);
     setMatrixOffset(0);
-  }, [
-    group,
-    kind,
-    releaseGroup,
-    strategy,
-    query,
-    status,
-    sort,
-    descending,
-    compareGroups, dateKey,
-  ]);
-  const filters = { ...dateParams(assignmentDates), group, document_type: kind, release_group: releaseGroup, strategy, ...query, status, group_by_user_group: compareGroups, sort, descending };
+  }, [group, kind, areaKey, groupKey, strategy, query, status, sort, descending, compareGroups, dateKey, pageSize]);
+  // Release Groups outside the selected areas can no longer match; drop them so the filter never hides a contradiction.
+  const changeAreas = (areas: string[]) => {
+    setReleaseAreas(areas);
+    if (areas.length) setReleaseGroups(previous => { const kept = previous.filter(value => areas.includes(releaseAreaOf(value) || '')); return kept.length === previous.length ? previous : kept });
+  };
+  const filters = { ...dateParams(assignmentDates), group, document_type: kind, release_areas: releaseAreas, release_groups: releaseGroups, strategy, ...query, status, group_by_user_group: compareGroups, sort, descending };
   const navigation = useRecordNavigation('releases', { ...filters, status: drill?.status || status }, drill?.role || '', name => setDrill(previous => previous ? { ...previous, role: name } : previous));
   const result = useQuery({
-    queryKey: [
-      "release-roles",
-      assignmentDates,
-      group,
-      kind,
-      releaseGroup,
-      strategy,
-      query,
-      status,
-      compareGroups,
-      sort,
-      descending,
-      offset,
-      matrixOffset, matrix,
-    ],
+    queryKey: ["release-roles", assignmentDates, group, kind, areaKey, groupKey, strategy, query, status, compareGroups, sort, descending, offset, matrixOffset, matrix, pageSize],
     queryFn: () =>
-      accessQuery<ReleasePage>("releases", { ...filters, offset, matrix_offset: matrixOffset, matrix_complete:matrix, list_complete:true }),
+      accessQuery<ReleasePage>("releases", { ...filters, offset: matrix ? 0 : offset, limit: pageSize, matrix_offset: matrixOffset, matrix_complete:matrix, list_complete:false }),
   });
   useEffect(() => {
     if (!result.data || result.isFetching) return;
@@ -112,6 +119,35 @@ export function ReleaseRoles({
   }, [result.data, result.isFetching, offset, matrixOffset]);
   const {group_by_user_group:_grouping,...exportFilters}=filters
   const assignmentExport=useAssignmentCSVExport('releases',exportFilters,result.data?.data_revision,result.data?.as_of)
+  const roleListExport=useAssignmentCSVExport('release-roles',exportFilters,result.data?.data_revision,result.data?.as_of)
+  const settled = !dataLoading && !result.isFetching && username === query.username && role === query.role
+  /** Distinct technical roles for the current filters, complete across pages. */
+  const filteredRoles = async () => {
+    const response = await accessQuery<{ items: ReleaseRoleListItem[]; total: number }>('release-roles', exportFilters)
+    return response.items
+  }
+  const bulk = async (action: (roles: ReleaseRoleListItem[]) => void | Promise<void>) => {
+    setBulkBusy(true)
+    try { await action(await filteredRoles()) }
+    catch (error) { announceExport({ kind: 'error', message: error instanceof Error ? error.message : 'The filtered release roles could not be loaded.' }) }
+    finally { setBulkBusy(false) }
+  }
+  const addRoles = (roles: ReleaseRoleListItem[]) => {
+    const { added, existing } = cart.addMany(roles.map(item => item.role_name), 'release')
+    announceExport({ kind: 'success', message: `Added ${added.toLocaleString()} release ${added === 1 ? 'role' : 'roles'} to the access package; ${existing.toLocaleString()} already selected.` })
+  }
+  const addFiltered = () => void bulk(roles => {
+    if (!roles.length) return announceExport({ kind: 'info', message: 'No release roles match the current filters.' })
+    if (roles.length > BULK_CONFIRM_THRESHOLD) return setConfirmBulk(roles)
+    addRoles(roles)
+  })
+  const copyNames = () => void bulk(async roles => {
+    if (!roles.length) return announceExport({ kind: 'info', message: 'No release roles match the current filters.' })
+    try { await navigator.clipboard.writeText(roles.map(item => item.role_name).join('\n')); announceExport({ kind: 'success', message: `Copied ${roles.length.toLocaleString()} release role ${roles.length === 1 ? 'name' : 'names'}.` }) }
+    catch { announceExport({ kind: 'error', message: 'Copy failed. Export the role list instead.' }) }
+  })
+  const activeFilterCount = [group, kind, strategy, username, role].filter(Boolean).length + (releaseAreas.length ? 1 : 0) + (releaseGroups.length ? 1 : 0) + (status !== 'active' ? 1 : 0) + (datesActive(assignmentDates) ? 1 : 0);
+  const clearAll = () => { setGroup(''); setKind(''); setReleaseAreas([]); setReleaseGroups([]); setStrategy(''); setUsername(''); setRole(''); setStatus('active'); setSort('role_name'); setDescending(false); setAssignmentDates({ ...emptyDates }) };
   if (drill)
     return (
       <ReleaseDetail
@@ -136,6 +172,7 @@ export function ReleaseRoles({
       release_group: cell.release_group,
       strategy: cell.release_strategy,
     });
+  const context = { ...dateParams(assignmentDates), status };
   return (
     <section aria-label="Release Roles" className="space-y-4">
       <PageHeader title="Release Roles" icon={<PageIcon size={22} aria-hidden="true"/>}/>
@@ -144,83 +181,54 @@ export function ReleaseRoles({
         naming tokens; no release-authority meaning is assumed.
       </p>
       <EvidenceNote />
-      <SavedFilters showClear={false} view="release" state={{group,kind,releaseGroup,strategy,username,role,status,sort,descending,...assignmentDates}} apply={s=>{for(const [k,set] of Object.entries({group:setGroup,kind:setKind,releaseGroup:setReleaseGroup,strategy:setStrategy,username:setUsername,role:setRole}))if(typeof s[k]==='string')set(s[k] as string);if(['active','expired','future','unknown','all'].includes(String(s.status)))setStatus(String(s.status));if(['role_name','assigned_users','document_type','release_group','release_strategy'].includes(String(s.sort)))setSort(String(s.sort));if(typeof s.descending==='boolean')setDescending(s.descending);setAssignmentDates(previous=>Object.fromEntries(Object.entries(previous).map(([k,v])=>[k,typeof s[k]===typeof v?s[k]:v])) as typeof previous)}} clear={()=>{setGroup('');setKind('');setReleaseGroup('');setStrategy('');setUsername('');setRole('');setStatus('active');setSort('role_name');setDescending(false);setAssignmentDates({...emptyDates})}}/>
-
-      <div className="investigation-filters release-filters">
-        <fieldset><legend className="sr-only">Release classification</legend><div className="filter-grid">
-        <ReleaseFilter field="group" label="Release SAP User Group" value={group} onChange={setGroup} context={{ ...dateParams(assignmentDates), status }}/>
-        <ReleaseFilter field="document_type" label="PR/PO" value={kind} onChange={setKind} context={{ ...dateParams(assignmentDates), group, status }}/>
-        <ReleaseFilter field="release_group" label="Release Group" value={releaseGroup} onChange={setReleaseGroup} context={{ ...dateParams(assignmentDates), group, document_type:kind, status }}/>
-        <ReleaseFilter field="strategy" label="Release Strategy" value={strategy} onChange={setStrategy} context={{ ...dateParams(assignmentDates), group, document_type:kind, release_group:releaseGroup, status }}/>
-        </div></fieldset>
-        <fieldset><legend className="sr-only">Assignment</legend><div className="filter-grid">
-        <ReleaseFilter field="username" label="Release username" value={username} onChange={setUsername} context={{ ...dateParams(assignmentDates), group, document_type:kind, release_group:releaseGroup, strategy, status }}/>
-        <ReleaseFilter field="role" label="Release role name" value={role} onChange={setRole} context={{ ...dateParams(assignmentDates), group, document_type:kind, release_group:releaseGroup, strategy, status }}/>
-        <Filter label="Release assignment status">
-          <Select
-            className={inputClass}
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-          >
-            {[
-              ["active", "Currently valid"],
-              ["all", "All, including expired / future / unknown"],
-              ["expired", "Expired"],
-              ["future", "Future"],
-              ["unknown", "Unknown validity"],
-            ].map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
-              </option>
-            ))}
-          </Select>
-        </Filter>
-
-<div className="release-sort">
-        <Filter label="Sort release roles">
-          <Select aria-label="Sort release roles"
-            className={inputClass}
-            value={sort}
-            onChange={(e) => setSort(e.target.value)}
-          >
-            {[
-              ["role_name", "Role name"],
-              ["document_type", "PR/PO"],
-              ["release_group", "Release Group"],
-              ["release_strategy", "Release Strategy"],
-              ["assigned_users", "Assigned users"],
-            ].map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
-              </option>
-            ))}
-          </Select>
-        </Filter>
-        <label className="filter-toggle">
-          <input
-            type="checkbox"
-            checked={descending}
-            onChange={(e) => setDescending(e.target.checked)}
-          />
-          Descending
-        </label>
-</div>
-        <AssignmentDateFilters value={assignmentDates} onChange={setAssignmentDates}/>
-        </div></fieldset>
-
-      </div>
-      {(group || kind || releaseGroup || strategy || username || role || status !== 'active' || datesActive(assignmentDates) || descending || sort !== 'role_name') && <ClearFilterButton onClick={() => { setGroup(''); setKind(''); setReleaseGroup(''); setStrategy(''); setUsername(''); setRole(''); setStatus('active'); setAssignmentDates({ ...emptyDates }); setSort('role_name'); setDescending(false) }}>Clear filters</ClearFilterButton>}
+      <FilterLayout label="Filters" activeCount={activeFilterCount} onClear={clearAll} clearDisabled={!activeFilterCount}
+        toolbar={<PageToolbar lead={<ButtonGroup label="Release results view" value={matrix?'matrix':'table'} onChange={value=>setMatrix(value==='matrix')} options={[{value:'matrix',label:'Matrix',icon:<Grid3X3 size={16} aria-hidden="true"/>},{value:'table',label:'Table',icon:<List size={16} aria-hidden="true"/>}]}/>}>
+          <SortControl label="Sort release roles" value={sort} options={RELEASE_SORTS} descending={descending} onChange={setSort} onDescending={setDescending} />
+          <ClearFilterButton disabled={!activeFilterCount && sort === 'role_name' && !descending} onClick={clearAll}>Clear filters</ClearFilterButton>
+        </PageToolbar>}
+        sidebar={<div className="grid min-w-0 gap-3" role="search" aria-label="Release role filters">
+          <FilterSection title="Saved Filters">
+            <SavedFilters showClear={false} view="release" state={{group,kind,releaseAreas,releaseGroups,strategy,username,role,status,sort,descending,...assignmentDates}}
+              apply={s=>{
+                if(typeof s.group==='string')setGroup(s.group);if(typeof s.kind==='string')setKind(s.kind);if(typeof s.strategy==='string')setStrategy(s.strategy);
+                if(typeof s.username==='string')setUsername(s.username);if(typeof s.role==='string')setRole(s.role);
+                setReleaseAreas(textList(s.releaseAreas).map(value=>value.toUpperCase()));
+                // Filters saved before multi-select stored one Release Group string.
+                setReleaseGroups(Array.isArray(s.releaseGroups)?textList(s.releaseGroups):typeof s.releaseGroup==='string'&&s.releaseGroup?[s.releaseGroup]:[]);
+                if(['active','expired','future','unknown','all'].includes(String(s.status)))setStatus(String(s.status));
+                if(RELEASE_SORTS.some(option=>option.value===s.sort))setSort(String(s.sort));if(typeof s.descending==='boolean')setDescending(s.descending);
+                setAssignmentDates(previous=>Object.fromEntries(Object.entries(previous).map(([k,v])=>[k,typeof s[k]===typeof v?s[k]:v])) as typeof previous)}}
+              clear={clearAll}/>
+          </FilterSection>
+          <FilterSection title="Release classification">
+            <ReleaseFilter field="group" label="Release SAP User Group" value={group} onChange={setGroup} context={context}/>
+            <ReleaseFilter field="document_type" label="PR/PO" value={kind} onChange={setKind} context={{ ...context, group }}/>
+            <ReleaseMultiFilter field="release_area" label="Release Area" values={releaseAreas} onChange={changeAreas} context={{ ...context, group, document_type:kind }}/>
+            <ReleaseMultiFilter field="release_group" label="Release Group" values={releaseGroups} onChange={setReleaseGroups} context={{ ...context, group, document_type:kind, release_areas:releaseAreas }}/>
+            <ReleaseFilter field="strategy" label="Release Strategy" value={strategy} onChange={setStrategy} context={{ ...context, group, document_type:kind, release_areas:releaseAreas, release_groups:releaseGroups }}/>
+          </FilterSection>
+          <FilterSection title="Assignment">
+            <ReleaseFilter field="username" label="Release username" value={username} onChange={setUsername} context={{ ...context, group, document_type:kind, release_areas:releaseAreas, release_groups:releaseGroups, strategy }}/>
+            <ReleaseFilter field="role" label="Release role name" value={role} onChange={setRole} context={{ ...context, group, document_type:kind, release_areas:releaseAreas, release_groups:releaseGroups, strategy }}/>
+            <Filter label="Release assignment status">
+              <Select className={inputClass} value={status} onChange={(e) => setStatus(e.target.value)}>
+                {STATUS_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </Select>
+            </Filter>
+            <AssignmentDateFilters value={assignmentDates} onChange={setAssignmentDates}/>
+          </FilterSection>
+        </div>}>
+      <div className="grid min-w-0 gap-4">
       <div className="results-toolbar">
         <h2>Release assignments <span>{result.data?.total.toLocaleString() ?? '…'} {result.data?.total === 1 ? 'role' : 'roles'}</span></h2>
-
-
         <ExportCSVButton loading={assignmentExport.busy} disabled={dataLoading||result.isFetching||!result.data?.export_assignments||username!==query.username||role!==query.role} title="Exports every release assignment matching these filters and date bounds, across pages. Table and Matrix use the same assignment set." onClick={()=>void assignmentExport.download()}/>
-        <ButtonGroup label="Release results view" value={matrix?'matrix':'table'} onChange={value=>setMatrix(value==='matrix')} options={[{value:'matrix',label:'Matrix',icon:<Grid3X3 size={16} aria-hidden="true"/>},{value:'table',label:'Table',icon:<List size={16} aria-hidden="true"/>}]}/>
-
-
       </div>
       <p className="ui-description">Export scope: {result.data?.export_assignments?.toLocaleString()??'…'} matching user–release-role assignments across all pages; identical in Table and Matrix.</p>
-      {assignmentExport.message&&<p role={assignmentExport.failed?'alert':'status'}>{assignmentExport.message}</p>}
+      <div className="release-bulk-actions" role="group" aria-label="Filtered release role actions">
+        <Button onClick={addFiltered} disabled={!settled || bulkBusy || !result.data?.total} title="Adds every distinct release role matching the filters, across pages, to the access package."><Plus size={16} aria-hidden="true"/>Add filtered roles</Button>
+        <Button onClick={copyNames} disabled={!settled || bulkBusy || !result.data?.total} title="Copies the distinct filtered release role names, one per line."><Copy size={16} aria-hidden="true"/>Copy role names</Button>
+        <Button loading={roleListExport.busy} onClick={()=>void roleListExport.download()} disabled={!settled || !result.data?.total} title="Exports the distinct filtered release roles (name, description, area, group, strategy, PR/PO). Assignment export is separate."><Download size={16} aria-hidden="true"/>Export role list</Button>
+      </div>
       <div className="release-secondary-toolbar">
         {matrix && (
           <label className="filter-toggle">
@@ -250,43 +258,52 @@ export function ReleaseRoles({
           </>
         ) : (
           <>
-            <div className="access-table release-directory-table" role="region" aria-label="Release role results" tabIndex={0}>
+            <div className="access-table release-directory-table" role="region" aria-label="Release role results" tabIndex={0} data-density="compact">
               <table>
                 <thead>
                   <tr>
-                    <th>PR/PO</th>
-                    <th>Release Group</th>
-                    <th>Release Strategy</th>
                     <th>Role name</th>
-                    <th>Assigned users</th>
+                    <th>PR/PO</th>
+                    <th>Area</th>
+                    <th>Group</th>
+                    <th>Strategy</th>
+                    <th data-align="end">Users</th>
                     <th>Assignment validity</th>
+                    <th className="col-actions">Package</th>
                   </tr>
                 </thead>
                 <tbody>
                   {result.data.items.map((r) => (
                     <tr key={r.role_name}>
-                      <td>{r.document_type || "Unparsed"}</td>
-                      <td>{r.release_group || "—"}</td>
-                      <td>{r.release_strategy || "—"}</td>
                       <td>
                         <RoleIdentifier value={r.role_name} openLabel="Release role details" onOpen={() => openDrill({ role: r.role_name, group, username: query.username })}/>
                       </td>
-                      <td>
-                        {r.assigned_users} {r.assigned_users === 1 ? "user" : "users"} · {r.assignment_count} {r.assignment_count === 1 ? "record" : "records"}
+                      <td>{r.document_type || "Unparsed"}</td>
+                      <td>{r.release_area || "—"}</td>
+                      <td>{r.release_group || "—"}</td>
+                      <td>{r.release_strategy || "—"}</td>
+                      <td data-align="end" title={`${r.assignment_count} assignment ${r.assignment_count === 1 ? "record" : "records"}`}>
+                        <strong>{r.assigned_users}</strong>
+                        <span className="release-record-count">{r.assignment_count} {r.assignment_count === 1 ? "record" : "records"}</span>
                       </td>
                       <td>
-                        <div className="flex flex-wrap gap-1">{r.statuses.map(status => <AssignmentStatus key={status} value={status}/>)}</div>
-                        <span className="validity-evidence text-sm text-[var(--muted)]">
-                          Observed range: {dates(r.valid_from, r.valid_to)}
-                          {r.missing_dates ? " · Missing dates present" : ""};
-                          inspect individual intervals.
-                        </span>
+                        <div className="release-validity">
+                          {r.statuses.map(status => <AssignmentStatus key={status} value={status}/>)}
+                          <span className="validity-evidence">{dates(r.valid_from, r.valid_to)}{r.missing_dates ? " · Missing dates present" : ""}</span>
+                        </div>
+                      </td>
+                      <td className="col-actions">
+                        <PackageToggle active={cart.has(r.role_name)} label={cart.has(r.role_name) ? `Remove ${r.role_name} from access package` : `Add ${r.role_name} to access package`}
+                          onToggle={() => cart.has(r.role_name) ? cart.remove(r.role_name) : cart.add(r.role_name, 'release')}>
+                          {cart.has(r.role_name) ? <Check className="w-3.5 h-3.5" strokeWidth={3} /> : <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />}
+                        </PackageToggle>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+            <Pagination label="Release role pages" offset={offset} total={result.data.total} limit={pageSize} onChange={setOffset} pageSizes={PAGE_SIZES} onPageSize={setPageSize} />
             {result.data.total === 0 && (
               <p>
                 No release assignments match. Unknown or future validity is
@@ -296,6 +313,14 @@ export function ReleaseRoles({
 
           </>
         ))}
+      </div>
+      </FilterLayout>
+      {packageOpen && <AccessPackagePanel onClose={() => setPackageOpen(false)} />}
+      {cart.items.length > 0 && <div className="floating-action-stack"><AccessPackageBar onOpen={() => setPackageOpen(true)} /></div>}
+      {confirmBulk && <Dialog title="Add many release roles?" onClose={() => setConfirmBulk(null)}
+        footer={<><Button variant="ghost" onClick={() => setConfirmBulk(null)}>Cancel</Button><Button variant="primary" onClick={() => { addRoles(confirmBulk); setConfirmBulk(null) }}>Add {confirmBulk.length.toLocaleString()} roles</Button></>}>
+        <p>The current filters match {confirmBulk.length.toLocaleString()} distinct release roles. All of them will be added to the access package; roles already in the package are kept once.</p>
+      </Dialog>}
     </section>
   );
 }

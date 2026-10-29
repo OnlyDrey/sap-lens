@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers } from './support'
 let directory: string
 const roles =
   'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT\nMM,ZC:MM:A,Alpha purchasing,ZS:A1,MM - Purchasing,MIGO,Goods movement\nMM,ZC:MM:A,Alpha purchasing,ZS:A2,MM - Purchasing,ME21N,Create purchase order\nFI,ZC:FI:B,Beta finance,ZS:B,FI - Finance,MIGO,Goods movement\nSD,ZC:SD:C,Gamma sales,ZS:C,SD - Sales,VA03,Display sales\n'
@@ -34,13 +34,13 @@ async function go(page: Page, view = 'Role Lookup') {
   await page.goto('/#session=browser-test-session')
   await page
     .getByRole('navigation', { name: 'Main navigation' })
-    .getByRole('button', { name: view, exact: true })
+    .getByRole('link', { name: view, exact: true })
     .click()
   if(view==='Release Roles')await page.getByRole('button',{name:'Table',exact:true}).click()
 }
 async function user(page: Page) {
   await go(page, 'User Access')
-  await page.getByRole('button', { name: 'DEMO_ONE', exact: true }).click()
+  await page.getByRole('link', { name: 'DEMO_ONE', exact: true }).click()
   return page.getByRole('region', { name: 'User details', exact: true })
 }
 async function openDates(page: Page) {
@@ -64,20 +64,20 @@ test('catalogue AND/OR is exact across mapping rows; multi-area OR combines with
   await input.press('Enter')
   await expect(page.getByRole('article')).toHaveCount(2)
   await expect(
-    tx.getByRole('group', { name: 'Transaction matching' }),
+    tx.getByRole('group', { name: 'Filter catalogue by transaction matching' }),
   ).toHaveCount(0)
   await input.fill('ME21N')
   await input.press('Enter')
   await expect(page.getByRole('article')).toHaveCount(1)
   await expect(
-    tx.getByRole('button', { name: 'AND', exact: true }),
+    tx.getByRole('button', { name: 'ALL', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true')
   expect(
     await tx.evaluate(
       (el) =>
         !!(
           el
-            .querySelector('[aria-label="Transaction matching"]')!
+            .querySelector('[aria-label="Filter catalogue by transaction matching"]')!
             .compareDocumentPosition(el.querySelector('.transaction-chip')!) &
           Node.DOCUMENT_POSITION_FOLLOWING
         ),
@@ -88,7 +88,7 @@ test('catalogue AND/OR is exact across mapping rows; multi-area OR combines with
   await expect(
     tx.getByRole('button', { name: 'Remove transaction ME21N' }),
   ).toHaveCount(1)
-  await tx.getByRole('button', { name: 'OR', exact: true }).click()
+  await tx.getByRole('button', { name: 'ANY', exact: true }).click()
   await expect(page.getByRole('article')).toHaveCount(2)
   await areas.getByRole('button', { name: /^SD / }).click()
   await expect(page.getByRole('article')).toHaveCount(0)
@@ -118,7 +118,7 @@ test('catalogue AND/OR is exact across mapping rows; multi-area OR combines with
   )
   await expect(
     page.getByRole('button', { name: 'Clear all filters', exact: true }),
-  ).toHaveCount(0)
+  ).toBeDisabled()
 })
 
 test('one catalogue reset covers live-only transaction, text, areas, mode and sorting without clearing comparisons', async ({
@@ -374,10 +374,12 @@ for (const theme of ['light', 'dark'] as const)
         name: 'Filter catalogue by transaction',
         exact: true,
       })
+      if (width < 1024) await page.getByRole('button', { name: /^Filters/ }).click() // narrow screens use the filter drawer
       await tx.getByRole('textbox').fill('MIGO')
       await tx.getByRole('textbox').press('Enter')
       await tx.getByRole('textbox').fill('ME21N')
       await tx.getByRole('textbox').press('Enter')
+      if (width < 1024) await page.keyboard.press('Escape')
       await expect(page.getByRole('article')).toHaveCount(1)
       const areas = page.getByRole('group', { name: 'SAP areas', exact: true })
       await areas.getByRole('button', { name: /^MM / }).click()
@@ -389,9 +391,9 @@ for (const theme of ['light', 'dark'] as const)
       })
       await page
         .getByRole('navigation', { name: 'Main navigation' })
-        .getByRole('button', { name: 'User Access', exact: true })
+        .getByRole('link', { name: 'User Access', exact: true })
         .click()
-      await page.getByRole('button', { name: 'DEMO_ONE', exact: true }).click()
+      await page.getByRole('link', { name: 'DEMO_ONE', exact: true }).click()
       await page
         .getByRole('tab', { name: 'Release Roles — ZO:*', exact: true })
         .click()

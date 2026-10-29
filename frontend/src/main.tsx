@@ -8,9 +8,11 @@ import { StartupGate } from './components/Layout/StartupGate'
 import { App } from './App'
 import './index.css'
 import './styles/components.css'
+import { ApiError } from './api/client'
+import { installFocusReveal } from './lib/focusVisibility'
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 5 * 60 * 1000, retry: 2 } },
+  defaultOptions: { queries: { staleTime: 5 * 60 * 1000, retry: (count, error) => count < 2 && !(error instanceof ApiError && error.kind === 'client') } },
 })
 const rootElement = document.getElementById('root')
 if (!rootElement) throw new Error('Root element #root not found')
@@ -26,6 +28,7 @@ skipLink.addEventListener('click', event => { event.preventDefault(); const main
 document.body.insertBefore(skipLink, rootElement)
 
 initializeViewHistory()
+installFocusReveal()
 
 createRoot(rootElement).render(
   <StrictMode>

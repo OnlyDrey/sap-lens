@@ -8,9 +8,10 @@ module preferences and theme colors retain their existing schema and behavior.
 | General | Organization & SAP System | Organization identity and SAP system/client description |
 | General | Appearance & Branding | Themes, colors, local logo and appearance |
 | Data & Modules | Data Sources | Role Catalogue, User Access, Employee Directory; mappings, validation, imports and recovery |
-| Data & Modules | SAP Modules | Enabled areas, labels, icons, colors and filter preferences |
+| Data & Modules | SAP Modules | Module search, enabled areas, labels, icons and colors used throughout the application |
 | Application | Features | Optional capabilities and account-review group classification |
 | Application | Health & Diagnostics | Backend/storage status, refresh history, actionable recovery and safe export |
+| Application | Runtime & Scheduling | Scheduled refresh; Windows Desktop tray and sign-in options (Windows Desktop only) |
 | Application | About SAP Lens | Version, build and runtime information |
 
 Employee Directory remains a Data Sources subsection, not another top-level page.
@@ -26,6 +27,10 @@ links open the relevant Data Sources subsection directly.
 Employee Directory is an optional third CSV source; see [Employee Directory](../data/EMPLOYEE_DIRECTORY.md). Defaults describe one dataset/system; no multi-system infrastructure is introduced.
 
 Organization name, platform (S/4HANA, ECC or Other/Custom), system ID, client, description and footer are editable. The configured organization name is the primary header heading; an empty name uses SAP Lens. Windows and repository branding remain SAP Lens. Module display overrides preserve stable SAP area IDs; custom business-domain configuration has been retired. Theme supports System, Light and Dark, defaults to Dark, and persists independent color palettes and custom presets. See [desktop workspace and theme colors](../architecture/APPEARANCE.md).
+
+## Features and colors
+
+Features lists User–Role Mapping, Employee Directory and Segregation of Duties in the same order as the Data Sources tabs; each card shows the **Enabled** switch above its **Configure source** action, both aligned to the right edge of the card. SoD risk and activity colors use the same hexadecimal input as module colors, with validation, a preview and Reset.
 
 ## Storage and upgrades
 
@@ -53,7 +58,7 @@ Role catalogue and User Access have separate CSV Import Formats and local paths.
 ## Compact health information
 
 Health & Diagnostics shows service status, last successful refresh and whether
-application storage exists. Expand **Health details and refresh history** for
+application storage exists. **Data source health** shows one card per source: the source icon and name with an Enabled/Disabled badge at the far right, the load status, record count and last import, and a **Review source** action that opens the source tab. Source mode, snapshot availability, the last validated check and file availability are under the card's expandable **Technical details**, together with the locations and diagnostics dialog; a failed refresh is stated on the card. Expand **Health details and refresh history** for
 source counts, configuration versions and last failed refresh in this process.
 **Source locations and storage details** reveals local paths privately in the
 application. **Employee Directory technical details** explains its optional source,
@@ -90,8 +95,8 @@ still requires native validation; these tests do not establish share availabilit
 ## Safe diagnostic export
 
 Diagnostic JSON contains allowlisted versions, status, counts and refresh times.
-It excludes CSV paths/contents, organization/employee identities, review annotations,
-credentials and routine logs. Full source paths appear only in the protected local
+It excludes CSV paths/contents, organization/employee identities, review annotations
+and SoD decisions, periods and remediation actions, credentials and routine logs. Full source paths appear only in the protected local
 UI. Account Review CSV export is a separate explicit export containing identity
 and review information; do not confuse it with the redacted support report.
 
@@ -110,15 +115,28 @@ Settings → APPLICATION → Component Library contains interactive previews of 
 
 Each source can be Static (manual replacement) or Dynamic (Global Refresh rereads its configured path). Role/user sources default to Dynamic; Employee Directory defaults to Static. Validated observations now have durable local snapshots, separate from original CSV availability. See [CSV data lifecycle](../data/IMPORT_AND_REFRESH.md) for replacement semantics, recovery, feature dependencies, preview and private change/error reports.
 
-Windows Desktop background preferences are under **Settings → About SAP Lens → Windows
-Desktop**, visible only through the native Windows capability. The local `desktop`
+## Scheduled refresh and runtime
+
+
+**Settings → Runtime & Scheduling** holds the scheduled refresh and, in the Windows Desktop application only, the tray options. The schedule is saved in the `refresh_schedule` object of the settings (`enabled`, `mode` daily or cron, `time` HH:MM, `cron`, `timezone`) with the normal Apply/Cancel and revision checks; its run history is kept separately in `refresh-schedule.json` so refreshes never change the settings revision. See [Scheduled refresh](../data/IMPORT_AND_REFRESH.md#scheduled-refresh).
+
+Windows Desktop background preferences are under **Settings → Runtime & Scheduling → Windows
+Desktop** (marked with a four-pane window icon), visible only through the native Windows capability. The local `desktop`
 object contains `close_to_tray`, `run_at_signin` and `start_minimized`, all defaulting
 to false. Start minimized requires tray mode. Ordinary Apply/Cancel and revision
 checks apply; portable packages do not activate another machine's sign-in startup.
 See [tray operation](../deployment/WINDOWS_DESKTOP.md#optional-system-tray-operation).
 
 Appearance & Branding previews draft organization/system details and the same draft
-logo in both live and local previews. The five palette properties use a compact
-horizontal carousel: Previous/Next, keyboard focus, or Arrow/Home/End on the
-focused Color properties region. Native picker, hex editing and per-property Reset
-remain available; Apply/Cancel retain their existing persistence behavior.
+logo in both live and local previews. The six palette colors (including Secondary Color) are
+editable controls in a responsive grid (five columns in a wide settings area, three or two on
+smaller ones, one on a phone), each with the native picker, HEX field and Reset. Apply/Cancel
+retain their existing persistence behavior.
+
+## SoD review data
+
+SoD decisions, review periods, remediation actions, the report log and their immutable
+snapshots are private application data (see [SoD architecture](../architecture/SOD.md#stores-private-atomically-written-backed-up-with-the-application-data)).
+They are not part of portable configuration or diagnostic exports. Include them in private
+backups; restoring only part of them can leave a period snapshot or retained decision
+evidence unavailable, which SAP Lens reports instead of silently changing history.

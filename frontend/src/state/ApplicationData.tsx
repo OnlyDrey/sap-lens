@@ -13,6 +13,11 @@ import { fetchConfiguration } from '@/api/configuration'
 import { refreshData } from '@/api/client'
 import type { RefreshSummary } from '@/components/Shared/RefreshReport'
 
+/** Source snapshot identity is separate from the SAP refresh timestamp. */
+function datasetRevision(data:Awaited<ReturnType<typeof fetchConfiguration>>) {
+ const sources=data.settings.data_lifecycle?.sources as Record<string,{snapshot?:string}>|undefined
+ return JSON.stringify([data.data_revision??data.analysis,...['roles','users','sod'].map(source=>sources?.[source]?.snapshot||null),data.settings.employee_snapshot_id||null])
+}
 const Context = createContext<{
   loading: boolean
   importPhase:string|null
@@ -62,7 +67,7 @@ export function ApplicationDataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const data = configuration.data
     if (!data) return
-    const revision = data.data_revision ?? JSON.stringify(data.analysis)
+    const revision = datasetRevision(data)
     if (observed.current === null && data.loading) observed.current = revision
     if (!data.loading) void synchronize(revision)
   }, [configuration.data, synchronize])
@@ -78,8 +83,8 @@ export function ApplicationDataProvider({ children }: { children: ReactNode }) {
         queryFn: fetchConfiguration,
         staleTime: 0,
       })
-      await synchronize(data.data_revision ?? JSON.stringify(data.analysis))
-      await qc.invalidateQueries({predicate:q=>['dashboard','diagnostics','refresh-history','employee-status','data-health'].includes(String(q.queryKey[0]))})
+      await synchronize(datasetRevision(data))
+      await qc.invalidateQueries({predicate:q=>['dashboard','diagnostics','refresh-history','employee-status','data-health'].includes(String(q.queryKey[0]))||String(q.queryKey[0]).startsWith('sod')})
     } finally {
       running.current = false
       setRefreshing(false)
@@ -94,7 +99,7 @@ export function ApplicationDataProvider({ children }: { children: ReactNode }) {
       const result=await selectSource(source,selection)
       setImportPhase('Updating dependent views')
       const data=await qc.fetchQuery({queryKey:['configuration'],queryFn:fetchConfiguration,staleTime:0})
-      const revision=data.data_revision??JSON.stringify(data.analysis)
+      const revision=datasetRevision(data)
       // Directory-only publications intentionally retain the SAP generation.
       if(observed.current===revision)await qc.invalidateQueries({predicate:isDatasetQuery})
       else await synchronize(revision)

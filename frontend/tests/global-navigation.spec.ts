@@ -2,12 +2,12 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers, setDescending, sortDirection } from './support'
 let directory = '', source = '', rows: string[] = []
 const csv = () => 'USERNAME,ROLE_NAME,USER_GROUP,FIRST_NAME,ROLE_VALID_FROM,ROLE_VALID_TO\n' + rows.join('\n') + '\n'
 const user = (n: number) => `DEMO_${String(n).padStart(3, '0')}`
 const role = (n: number) => `ZO:MM:M:PR_REL_ST_G${String(n).padStart(3, '0')}_N6:ALL`
-const destination = async(page: Page, name: string) => {await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name, exact: true }).click();if(name==='Release Roles')await page.getByRole('button',{name:'Table',exact:true}).click()}
+const destination = async(page: Page, name: string) => {await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name, exact: true }).click();if(name==='Release Roles')await page.getByRole('button',{name:'Table',exact:true}).click()}
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
   directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-global-nav-'))
@@ -43,14 +43,14 @@ for (const descending of [false, true]) test(`user global navigation crosses bou
   const group = list.getByRole('combobox', { name: 'SAP User Group', exact: true })
   await group.fill('GROUP_KEEP'); await group.press('Escape')
   await list.getByRole('combobox', { name: 'Sort users', exact: true }).selectOption('first_name')
-  if (descending) await list.getByLabel('Descending', { exact: true }).check()
+  if (descending) await setDescending(list, true)
   await (await filteredResponse).finished()
   await expect(list.getByRole('status').filter({ hasText: 'Loading local records' })).toHaveCount(0)
   const before = descending ? 75 : 49, after = descending ? 74 : 50
-  const selected = list.getByRole('button', { name: user(before), exact: true })
+  const selected = list.getByRole('link', { name: user(before), exact: true })
   await page.evaluate(username => {
     const capture = (event: MouseEvent) => {
-      if ((event.target as Element).closest<HTMLButtonElement>('[data-user]')?.dataset.user !== username) return
+      if ((event.target as Element).closest<HTMLElement>('[data-user]')?.dataset.user !== username) return
       ;(window as Window & { originScroll?: number }).originScroll = window.scrollY
       document.removeEventListener('click', capture, true)
     }
@@ -73,7 +73,7 @@ for (const descending of [false, true]) test(`user global navigation crosses bou
   await expect.poll(async () => Math.abs(await page.evaluate(() => window.scrollY) - scroll)).toBeLessThan(5)
   await expect(list.getByLabel('Search users', { exact: true })).toHaveValue('DEMO_')
   await expect(group).toHaveValue('GROUP_KEEP')
-  await list.getByRole('button', { name: user(descending ? 124 : 0), exact: true }).click()
+  await list.getByRole('link', { name: user(descending ? 124 : 0), exact: true }).click()
   await expect(navigation).toContainText('1 of 125')
   await expect(navigation.getByRole('button', { name: 'Previous', exact: true })).toBeDisabled()
   await page.getByRole('button', { name: 'Back to users', exact: true }).click()
@@ -82,7 +82,7 @@ for (const descending of [false, true]) test(`user global navigation crosses bou
   await expect(pages).toContainText('51–100 of 125')
   await pages.getByRole('button', { name: 'Next', exact: true }).click()
   await expect(pages).toContainText('101–125 of 125')
-  await list.getByRole('button', { name: user(descending ? 0 : 124), exact: true }).click()
+  await list.getByRole('link', { name: user(descending ? 0 : 124), exact: true }).click()
   await expect(navigation).toContainText('125 of 125')
   await expect(navigation.getByRole('button', { name: 'Next', exact: true })).toBeDisabled()
   expect(lookups.length).toBeGreaterThan(1)
@@ -95,9 +95,11 @@ test('complete release list preserves descending tie order and returns focus to 
   const group = list.getByRole('combobox', { name: 'Release SAP User Group', exact: true })
   await group.fill('GROUP_KEEP'); await group.press('Escape')
   await list.getByRole('combobox', { name: 'Sort release roles', exact: true }).selectOption('assigned_users')
-  await list.getByLabel('Descending', { exact: true }).check()
-  await expect(list.getByRole('navigation',{name:'Release role pages'})).toHaveCount(0)
-  await expect(list.getByRole('button',{name:'Release role details',exact:true})).toHaveCount(125)
+  await setDescending(list, true)
+  const pager = list.getByRole('navigation',{name:'Release role pages'})
+  await pager.getByRole('combobox',{name:'Release role pages: rows per page'}).selectOption('100')
+  await expect(pager.getByRole('status')).toHaveText('1–100 of 125')
+  await expect(list.getByRole('button',{name:'Release role details',exact:true})).toHaveCount(100)
   await list.getByRole('button', { name: 'Release role details', exact: true }).filter({ hasText: role(25) }).click()
   const navigation = page.getByRole('navigation', { name: 'Detail records' })
   await expect(navigation).toContainText('100 of 125')
@@ -105,13 +107,14 @@ test('complete release list preserves descending tie order and returns focus to 
   await expect(navigation).toContainText('101 of 125')
   await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(role(24))
   await page.getByRole('button', { name: 'Back to Release Roles', exact: true }).click()
-  await expect(list.getByRole('button',{name:'Release role details',exact:true})).toHaveCount(125)
-  await expect(list.getByLabel('Descending', { exact: true })).toBeChecked()
+  await expect(list.getByRole('button',{name:'Release role details',exact:true})).toHaveCount(100)
+  await expect(sortDirection(list)).toHaveAttribute('aria-pressed', 'true')
   await expect(list.getByRole('button', { name: 'Release role details', exact: true }).filter({ hasText: role(25) })).toBeFocused()
 })
 
 test('direct user and release investigations locate global position and handle removal after refresh', async ({ page, request }) => {
   await page.goto('/#session=browser-test-session'); await destination(page, 'Release Roles')
+  await page.getByRole('combobox', { name: 'Release role pages: rows per page' }).selectOption('100')
   await page.getByRole('button', { name: 'Release role details', exact: true }).filter({ hasText: role(50) }).click()
   await page.getByRole('region', { name: 'Release role details', exact: true }).getByRole('button', { name: `Open user ${user(50)}`, exact: true }).click()
   const navigation = page.getByRole('navigation', { name: 'Detail records' })
@@ -130,7 +133,7 @@ test('direct user and release investigations locate global position and handle r
   await expect(navigation).toHaveCount(0)
   await expect(page.getByRole('alert').filter({ hasText: 'User not found' })).toBeVisible({ timeout: 15000 })
   await page.getByRole('button', { name: 'Back to users', exact: true }).click()
-  await expect(page.getByRole('button', { name: user(50), exact: true })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: user(50), exact: true })).toHaveCount(0)
   expect((await request.get('/api/access/users?anchor=DEMO_050&limit=1', { headers })).ok()).toBeTruthy()
 })
 
@@ -144,7 +147,7 @@ test('a removed last-page record disables traversal and clamps an obsolete origi
   await expect(pages).toContainText('51–100 of 125')
   await pages.getByRole('button', { name: 'Next', exact: true }).click()
   await expect(pages).toContainText('101–125 of 125')
-  await list.getByRole('button', { name: user(124), exact: true }).click()
+  await list.getByRole('link', { name: user(124), exact: true }).click()
   await expect(page.getByRole('navigation', { name: 'Detail records' })).toContainText('125 of 125')
   rows = rows.filter(row => row.startsWith(user(0) + ','))
   writeFileSync(source, csv())
@@ -153,5 +156,5 @@ test('a removed last-page record disables traversal and clamps an obsolete origi
   await expect(page.getByRole('navigation', { name: 'Detail records' })).toHaveCount(0)
   await page.getByRole('button', { name: 'Back to users', exact: true }).click()
   await expect(pages).toHaveCount(0) // single-page evidence has no pager
-  await expect(list.getByRole('button', { name: user(0), exact: true })).toBeVisible()
+  await expect(list.getByRole('link', { name: user(0), exact: true })).toBeVisible()
 })

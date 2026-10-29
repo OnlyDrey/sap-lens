@@ -4,9 +4,9 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { bootstrapDocument } from './bootstrap-fixture'
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers } from './support'
 let directory = '', userSource = ''
-const navigate = (page: Page, name: string) => page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name, exact:true }).click()
+const navigate = (page: Page, name: string) => page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name, exact:true }).click()
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
   directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-data-aware-'))
@@ -31,7 +31,7 @@ test('Back and Forward preserve meaningful views and detail state without reload
   await expect(page.locator('#main-content')).toBeFocused()
   expect(page.url()).toBe(routeBeforeSkip)
   await page.getByLabel('Search users', { exact:true }).fill('DEMO_OTHER')
-  await page.getByRole('button', { name:'DEMO_OTHER', exact:true }).click()
+  await page.getByRole('link', { name: 'DEMO_OTHER', exact:true }).click()
   const detail = page.getByRole('region', { name:'User details', exact:true })
   await expect(detail.locator('.profile-identity-header')).toContainText('Sample Other')
   await expect(detail.getByText('Unlocked', {exact:true})).toHaveCount(1)
@@ -42,7 +42,7 @@ test('Back and Forward preserve meaningful views and detail state without reload
   await expect(detail.locator('details').filter({ hasText: 'User validity and account evidence' })).toHaveCount(0)
   await page.goBack()
   await expect(page.getByLabel('Search users', {exact:true})).toHaveValue('DEMO_OTHER')
-  await expect(page.getByRole('button', {name:'DEMO_OTHER',exact:true})).toBeVisible()
+  await expect(page.getByRole('link', { name: 'DEMO_OTHER',exact:true})).toBeVisible()
   await page.goForward()
   await expect(detail).toBeVisible()
   await navigate(page, 'Release Roles')
@@ -66,7 +66,7 @@ test('release facets are data-driven, bounded, retain invalid choices and refres
   await select('Release role name','ZO:MM:M:PR_REL_ST_SH_N6:ALL')
   await expect(page.getByRole('button',{name:'Release role details',exact:true})).toHaveCount(1)
   await select('PR/PO','PO')
-  await expect(page.getByRole('combobox',{name:'Release Group',exact:true})).toHaveValue('SH')
+  await expect(page.getByRole('button',{name:'Remove Release Group SH',exact:true})).toBeVisible()
   await expect(page.getByText('No available value matches this filter', {exact:false}).first()).toBeVisible()
   await expect(page.getByText('No release assignments match.',{exact:false})).toBeVisible()
   await page.getByRole('button',{name:'Clear filters',exact:true}).click()
@@ -118,7 +118,7 @@ for (const theme of ['dark','light']) for (const width of [1280,800]) test(`data
   await page.setViewportSize({width,height:900})
   await page.goto('/#session=browser-test-session')
   const shot = async (name:string) => { expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBeTruthy(); await page.screenshot({path:info.outputPath(`${name}.png`),fullPage:true}) }
-  await navigate(page,'User Access'); await page.getByRole('button',{name:'DEMO_OTHER',exact:true}).click()
+  await navigate(page,'User Access'); await page.getByRole('link', { name: 'DEMO_OTHER',exact:true}).click()
   await expect(page.getByRole('region',{name:'Account Status',exact:true})).toBeVisible()
   await shot('user-two-column')
   await page.getByRole('button',{name:'Open settings',exact:true}).click()
@@ -166,7 +166,7 @@ test('bootstrap handoff replaces its history entry and never reappears at the fi
   await expect(page.getByRole('navigation',{name:'Main navigation'})).toBeVisible()
   expect(await page.evaluate(()=>history.length)).toBe(bootstrapLength + 1) // one app boundary, no added bootstrap entry
   await navigate(page,'User Access'); await page.goBack()
-  await expect(page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Dashboard',exact:true})).toHaveAttribute('aria-current','page')
+  await expect(page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'Dashboard',exact:true})).toHaveAttribute('aria-current','page')
   await page.goBack()
   await expect.poll(()=>page.evaluate(()=>Boolean(history.state?.sapLensView && !history.state?.sapLensBoundary))).toBeTruthy()
   await expect(page.getByRole('navigation',{name:'Main navigation'})).toBeVisible()

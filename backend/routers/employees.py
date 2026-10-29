@@ -128,6 +128,7 @@ async def import_directory(request: ImportRequest):
         if settings.revision != request.revision:
             raise HTTPException(409, 'Settings changed. Reload before importing.')
         previous_id = settings.employee_snapshot_id
+        previous_directory = cache.get_snapshot().directory if cache.get_snapshot().directory_bound else store.directory
         staged_id = None
         try:
             staged_id = persist_directory(directory)
@@ -149,6 +150,8 @@ async def import_directory(request: ImportRequest):
         published = cache.with_directory(cache.get_snapshot(), directory, request.path, staged_id)
         # Directory-only publication leaves SAP assignment revision unchanged.
         cache._cache = published
+    from position_changes import record_safely
+    record_safely(previous_directory, directory)
     result = directory_status(private=True)
     if previous_id and previous_id != staged_id:
         try: discard_snapshot(previous_id)

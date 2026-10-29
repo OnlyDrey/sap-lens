@@ -5,6 +5,14 @@ Dashboard is the default landing page, available from the main navigation and at
 still work, and an existing detail history entry remains meaningful. No historical trends are inferred
 from a single import. Data stays on the configured SAP Lens instance; desktop defaults to loopback.
 
+## Segregation of Duties summary
+
+When the SoD feature is enabled, a **Segregation of Duties** section shows users with potential conflicts, user-risk findings, pending reviews and open or overdue remediation actions, each opening the matching [SoD](SOD.md) view. If analysis is unavailable the section says why. The counts are potential transaction-derived conflicts, not effective authorization.
+
+## Position changes metric
+
+**Users requiring review — Position changes** counts Account Review accounts with an unreviewed Department or Job title change between Employee Directory imports. It opens Account Review filtered to those accounts and is separate from SoD conflicts and the other account findings.
+
 ## Startup, refresh and navigation
 
 Configured SAP sources initialize in the backend lifespan, independently of which
@@ -124,7 +132,7 @@ assignment evidence. See [Account Review](ACCOUNT_REVIEW.md).
 The icon-led shared header introduces SAP Overview's four primary metrics. Access
 & Risk uses compact investigation rows rather than another equal-sized card grid;
 Directory & Data Health keeps identity counts and the coverage progress together.
-Data Sources & Configuration includes all three independent sources with their
+Data Sources & Configuration includes all four independent sources (including the SoD Matrix) with their
 feature/availability state and actual last successful refresh. Counts and KPI
 navigation retain their existing backend definitions. Lifecycle totals are
 informational evidence, not automatically a security-risk finding.

@@ -1,8 +1,6 @@
-import {Button} from '@/components/Shared/Button'
-import {ChevronLeft,ChevronRight} from 'lucide-react'
 import { controlClass } from '@/components/Shared/Controls'
 import { SettingsSelect, ColorControl } from './Controls'
-import { useRef, useState, type CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { Building2, Layers, Palette, Shield, Save } from 'lucide-react'
 import type { Configuration, ThemePalette } from '@/api/configuration'
 import {
@@ -17,6 +15,7 @@ import {
 const labels: Record<keyof ThemePalette, string> = {
   primary: 'Primary color',
   accent: 'Accent color',
+  secondary: 'Secondary color',
   background: 'Application background',
   surface: 'Surface / card background',
   text: 'Primary text color'
@@ -33,14 +32,7 @@ export function ThemeEditor({
   const [editing, setEditing] = useState<'dark' | 'light'>(
     draft.theme === 'light' ? 'light' : 'dark'
   )
-  const colorViewport=useRef<HTMLDivElement>(null)
-  const [colorIndex,setColorIndex]=useState(0)
   const colorKeys=Object.keys(labels) as (keyof ThemePalette)[]
-  const showColor=(index:number)=>{
-    const next=Math.max(0,Math.min(colorKeys.length-1,index)),viewport=colorViewport.current
-    setColorIndex(next)
-    if(viewport){const slide=viewport.children[next] as HTMLElement;viewport.scrollTo({left:viewport.scrollLeft+slide.getBoundingClientRect().left-viewport.getBoundingClientRect().left,behavior:'auto'})}
-  }
   const [presetName, setPresetName] = useState('')
   const [nameError, setNameError] = useState('')
   const colors = draft.theme_colors || defaultThemeColors
@@ -140,13 +132,16 @@ export function ThemeEditor({
                 <p className="text-xs mt-2">DEMO:READ · 12 transactions</p>
                 <button
                   type="button"
-                  className="mt-4 rounded-lg px-3 py-2 text-xs font-semibold"
+                  className="mt-4 mr-2 rounded-lg px-3 py-2 text-xs font-semibold"
                   style={{
                     backgroundColor: palette.accent,
                     color: onColor(palette.accent)
                   }}
                 >
                   View role
+                </button>
+                <button type="button" className="ui-button mt-4">
+                  Secondary action
                 </button>
               </div>
               <p className="text-xs mt-3 flex gap-2 items-center">
@@ -206,7 +201,7 @@ export function ThemeEditor({
               }}
             >
               <span className="theme-palette" aria-hidden="true">
-                {[p.colors.background, p.colors.primary, p.colors.accent].map(
+                {[p.colors.background, p.colors.primary, p.colors.accent, p.colors.secondary].map(
                   (color, i) => (
                     <i key={i} style={{ background: color }} />
                   )
@@ -217,13 +212,17 @@ export function ThemeEditor({
           ))}
         </div>
       </div>
-      <section aria-label="Theme color settings" aria-roledescription="carousel" className="min-w-0 rounded-card border border-line p-3">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <p role="status" className="text-sm">{colorIndex+1} / {colorKeys.length} · {labels[colorKeys[colorIndex]]}</p>
-          <div className="flex gap-2"><Button size="compact" aria-label="Previous color property" disabled={colorIndex===0} onClick={()=>showColor(colorIndex-1)}><ChevronLeft size={16}/></Button><Button size="compact" aria-label="Next color property" disabled={colorIndex===colorKeys.length-1} onClick={()=>showColor(colorIndex+1)}><ChevronRight size={16}/></Button></div>
-        </div>
-        <div ref={colorViewport} tabIndex={0} aria-label="Color properties" className="flex min-w-0 snap-x snap-mandatory overflow-x-auto" onScroll={event=>{const el=event.currentTarget;if(el.clientWidth)setColorIndex(Math.max(0,Math.min(colorKeys.length-1,Math.round(el.scrollLeft/el.clientWidth))))}} onKeyDown={event=>{if(event.target!==event.currentTarget)return;const next=event.key==='ArrowRight'?colorIndex+1:event.key==='ArrowLeft'?colorIndex-1:event.key==='Home'?0:event.key==='End'?colorKeys.length-1:null;if(next!==null){event.preventDefault();showColor(next)}}}>
-          {colorKeys.map((key,index)=><div key={key} role="group" aria-roledescription="slide" aria-label={`${index+1} of ${colorKeys.length}: ${labels[key]}`} className="min-w-0 basis-full flex-none snap-start p-1" onFocusCapture={()=>showColor(index)}><ColorControl id={`theme-${key}`} label={labels[key]} value={palette[key]} onChange={value=>update({[key]:value})} onReset={()=>update({[key]:defaultThemeColors[editing][key]})}/></div>)}
+      <section aria-label="Theme color settings" className="theme-color-section min-w-0 rounded-card border border-line p-3">
+        <div className="theme-color-grid" role="group" aria-label="Theme colors">
+          {colorKeys.map((key) => (
+            <ColorControl
+              key={key}
+              label={labels[key]}
+              value={palette[key]}
+              onChange={(value) => update({ [key]: value })}
+              onReset={() => update({ [key]: defaultThemeColors[editing][key] })}
+            />
+          ))}
         </div>
       </section>
       <div aria-live="polite">

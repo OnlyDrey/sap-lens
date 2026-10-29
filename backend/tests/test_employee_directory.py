@@ -117,6 +117,19 @@ class EmployeeDirectoryTests(unittest.TestCase):
         self.assertEqual(self.request('import', digest=preview['digest']).status_code, 409)
         self.assertIsNone(store.directory)
 
+    def test_replacement_records_position_changes_but_the_first_import_and_manager_changes_do_not(self):
+        import position_changes
+        rows = lambda **extra: [{'Name': 'Demo Employee', 'Mail': 'employee@example.test', 'Department': 'Finance', 'Title': 'Accountant', 'ManagerMail': 'manager@example.test', **extra},
+                                {'Name': 'Demo Manager', 'Mail': 'manager@example.test', 'Department': 'Board', 'Title': 'Director'}]
+        self.write(rows()); self.import_data()
+        self.assertEqual(position_changes.read()['events'], [])  # the first import is only a baseline
+        self.write(rows(ManagerMail='other@example.test', ManagerName='Other')); self.import_data()
+        self.assertEqual(position_changes.read()['events'], [])  # manager-only change
+        self.write(rows(Department='Procurement')); self.import_data()
+        events = position_changes.read()['events']
+        self.assertEqual([(e['email'], e['fields'], e['previous_department'], e['current_department']) for e in events], [('employee@example.test', ['department'], 'Finance', 'Procurement')])
+        self.assertEqual(events[0]['source_generation'], store.directory.digest)
+
     def test_atomic_failed_replacement_and_stale_settings_preserve_previous(self):
         self.import_data(); previous = store.directory
         self.path.write_text('invalid', encoding='utf-8')

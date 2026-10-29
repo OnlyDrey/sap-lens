@@ -8,7 +8,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowUpRight, UserRoundX } from 'lucide-react'
 import { apiRequest } from '@/api/client'
 import type { Employee } from '@/components/Shared/EmployeeInformation'
-import { useViewHistory } from '@/hooks/useViewHistory'
+import { userHref, useViewHistory } from '@/hooks/useViewHistory'
 
 export interface EmployeeMatch {
   status: string
@@ -32,11 +32,13 @@ export function useEmployeeMatch(username: string) {
 export function ManagerSummary({
   employee,
   manager,
+  currentUser,
 }: {
   employee: Employee
   manager: EmployeeMatch['manager_sap']
+  currentUser?: string
 }) {
-  const { change } = useViewHistory()
+  const { view, change } = useViewHistory()
   const status =
     (
       {
@@ -64,17 +66,23 @@ export function ManagerSummary({
     <section aria-label="Reports to" className="profile-manager">
       <h3>Reports to</h3>
       {manager?.status === 'matched' && manager.username ? (
-        <button
+        <a
           className="manager-identity"
+          href={userHref(manager.username)}
           aria-label="View SAP user"
-          onClick={() => change({ page: 'users', user: manager.username! })}
+          onClick={(event) => {
+            if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return
+            event.preventDefault()
+            // Route-based: Back returns to the previous user and the trail powers the visible "Back to previous user" action.
+            change({ page: 'users', accessMode: 'directory', user: manager.username!, userTrail: [...(view.userTrail || []), ...(currentUser ? [currentUser] : [])] })
+          }}
         >
           {identity}
           <span className="text-xs">
             View SAP user{' '}
             <ArrowUpRight size={14} aria-hidden="true" className="inline" />
           </span>
-        </button>
+        </a>
       ) : (
         <div className="manager-identity">
           {identity}
@@ -93,5 +101,5 @@ export function DirectoryMatchDetails({match}:{match?:EmployeeMatch}) {
  const {change}=useViewHistory(),evidence=match?.diagnostics
  const [open,setOpen]=useState(false)
  const status=match?.status==='matched'?'Matched':match?.status?.includes('ambiguous')||match?.status?.includes('duplicate')?'Ambiguous':match?.status==='unmatched'?'Unmatched':match?.status?.includes('missing')?'Missing':'Unavailable'
- return <><Button onClick={()=>setOpen(true)} aria-label={`Directory matching details · ${status}`}><Info size={16} aria-hidden="true"/>Directory match · <StatusBadge tone={status==='Matched'?'success':['Ambiguous','Unmatched'].includes(status)?'warning':'neutral'}>{status}</StatusBadge></Button>{open&&<Dialog title="Directory matching details" onClose={()=>setOpen(false)}><div className="space-y-3">{!evidence?<p>Directory matching evidence is unavailable. Check that Employee Directory and User–Role Mapping are enabled with valid imported data.</p>:<><p>{evidence.explanation}</p><p className="ui-description">Affected SAP identity: {evidence.sap_username} · SAP source: {evidence.sap_source}</p><p className="ui-description">Source: {evidence.source} · {evidence.source_file} · Matching method: {evidence.matching_method}</p>{match?.employee?.account_status==='Unknown'&&<p>AD status is unknown because the imported Enabled value is missing or unsupported. It is not interpreted as enabled or disabled.</p>}{evidence.candidate_count>0&&<><p>{evidence.candidate_count} candidate source records. IDs apply to the current directory snapshot; they are not physical CSV line numbers.</p><DataTable caption="Directory matching source records"><thead><tr><th>Record ID</th><th>Name</th><th>Email</th><th>AD username</th><th>AD status</th></tr></thead><tbody>{evidence.candidates.map(row=><tr key={row.id}><td>{row.id}</td><td>{row.name||'Not provided'}</td><td>{row.email||'Missing'}</td><td>{row.username||'Missing'}</td><td>{row.account_status}</td></tr>)}</tbody></DataTable>{evidence.candidate_count>evidence.candidates.length&&<p>Showing the first {evidence.candidates.length} records. Inspect Data Sources to review all conflicts.</p>}</>}<Button onClick={()=>{setOpen(false);change({settings:true,settingsTarget:'employees'})}}>Inspect Employee Directory source</Button><p className="ui-description">Correct conflicting source records and revalidate. Imported evidence is retained; no local identity override or silent deduplication is performed.</p></>}</div></Dialog>}</>
+ return <><Button onClick={()=>setOpen(true)} aria-label={`Directory matching details · ${status}`}><Info size={16} aria-hidden="true"/><span>Directory match</span><StatusBadge tone={status==='Matched'?'success':['Ambiguous','Unmatched'].includes(status)?'warning':'neutral'}>{status}</StatusBadge></Button>{open&&<Dialog title="Directory matching details" onClose={()=>setOpen(false)}><div className="space-y-3">{!evidence?<p>Directory matching evidence is unavailable. Check that Employee Directory and User–Role Mapping are enabled with valid imported data.</p>:<><p>{evidence.explanation}</p><p className="ui-description">Affected SAP identity: {evidence.sap_username} · SAP source: {evidence.sap_source}</p><p className="ui-description">Source: {evidence.source} · {evidence.source_file} · Matching method: {evidence.matching_method}</p>{match?.employee?.account_status==='Unknown'&&<p>AD status is unknown because the imported Enabled value is missing or unsupported. It is not interpreted as enabled or disabled.</p>}{evidence.candidate_count>0&&<><p>{evidence.candidate_count} candidate source records. IDs apply to the current directory snapshot; they are not physical CSV line numbers.</p><DataTable caption="Directory matching source records"><thead><tr><th>Record ID</th><th>Name</th><th>Email</th><th>AD username</th><th>AD status</th></tr></thead><tbody>{evidence.candidates.map(row=><tr key={row.id}><td>{row.id}</td><td>{row.name||'Not provided'}</td><td>{row.email||'Missing'}</td><td>{row.username||'Missing'}</td><td>{row.account_status}</td></tr>)}</tbody></DataTable>{evidence.candidate_count>evidence.candidates.length&&<p>Showing the first {evidence.candidates.length} records. Inspect Data Sources to review all conflicts.</p>}</>}<Button onClick={()=>{setOpen(false);change({settings:true,settingsTarget:'employees'})}}>Inspect Employee Directory source</Button><p className="ui-description">Correct conflicting source records and revalidate. Imported evidence is retained; no local identity override or silent deduplication is performed.</p></>}</div></Dialog>}</>
 }

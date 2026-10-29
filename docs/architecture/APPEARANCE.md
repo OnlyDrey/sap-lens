@@ -20,12 +20,13 @@ Successful migration notices use neutral/success styling and can be dismissed fo
 
 The default is Dark. Light, Dark and System are persisted; System follows the Windows/WebView media preference and responds to changes while running. Light and Dark have independent palettes, so System can follow appearance without overwriting either.
 
-Five editable colors define each palette:
+Six editable colors define each palette:
 
 | Control | Purpose |
 | --- | --- |
 | Primary color | Header, footer and primary panels |
-| Accent color | Buttons, selection and accents |
+| Accent color | Primary actions, links and accents |
+| Secondary color | Secondary buttons and selected controls (pressed toggles, current list rows) |
 | Application background | Workspace canvas |
 | Surface / card background | Cards, forms and sidebar |
 | Primary text color | Main readable text |
@@ -34,9 +35,9 @@ Semantic CSS tokens derive secondary surfaces, hover states, borders, foreground
 
 Presets: SAP Lens Default, Midnight Blue, Corporate Blue, Neutral Dark and Light. Select a preset to copy it into the draft. Save up to 20 uniquely named custom presets; remove them under Manage custom presets. Names are local user configuration, never repository defaults.
 
-Visual pickers, six-digit HEX fields, previews and individual Reset actions are available. The preview represents the header, navigation, role card, buttons and icons without changing the running dashboard. Cancel restores the saved configuration. Applying saves the complete draft, including custom presets.
+All six colors appear together as a responsive grid of editable controls (five columns when the settings area is at least 62rem wide, three from 44rem, two from 28rem, otherwise one); each uses the visual picker, the six-digit HEX field and Reset for that color's default for the edited mode. Presets show their colors in the same way. Previews are available. The preview represents the header, navigation, role card, buttons and icons without changing the running dashboard. Cancel restores the saved configuration. Applying saves the complete draft, including custom presets.
 
-Primary text must have WCAG AA contrast of at least 4.5:1 against both the application and card backgrounds, in both saved palettes. Invalid HEX and low contrast show inline feedback and disable saving; backend validation also rejects them without replacing saved settings. This checks configured primary text pairs, not a complete accessibility certification of every rendered combination. Focus and button foregrounds adapt automatically. Always review the preview for your actual display and module palette.
+Primary text must have WCAG AA contrast of at least 4.5:1 against the application background, the card background and the secondary color, in both saved palettes. Palettes saved before Secondary Color existed receive a readable tint of their accent color when they load. Semantic success, warning, error and information colors are never taken from the secondary color. Invalid HEX and low contrast show inline feedback and disable saving; backend validation also rejects them without replacing saved settings. This checks configured primary text pairs, not a complete accessibility certification of every rendered combination. Focus and button foregrounds adapt automatically. Always review the preview for your actual display and module palette.
 
 ## Persistence and portability
 

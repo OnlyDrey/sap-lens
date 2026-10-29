@@ -2,6 +2,7 @@ import {useQuery} from '@tanstack/react-query'
 import {applicationToken} from '@/api/client'
 import {Toggle,Checkbox} from '@/components/Shared/Controls'
 import type {Configuration} from '@/api/configuration'
+import {WindowsIcon} from '@/components/Shared/WindowsIcon'
 
 /** Native capability detection; no registry/window APIs in browser or server modes. */
 export function DesktopOptions({draft,onChange}:{draft:Configuration;onChange:(value:Configuration)=>void}) {
@@ -11,7 +12,8 @@ export function DesktopOptions({draft,onChange}:{draft:Configuration;onChange:(v
  const value=draft.desktop||{close_to_tray:false,run_at_signin:false,start_minimized:false}
  const patch=(update:Partial<typeof value>)=>onChange({...draft,desktop:{...value,...update}})
  return <section className="settings-card space-y-3" aria-label="Windows Desktop background operation">
-  <h2 className="settings-subheading">Windows Desktop</h2>
+  <h2 className="settings-subheading"><WindowsIcon/>Windows Desktop</h2>
+  <p className="ui-description">These options apply only to the Windows Desktop application. The Windows Service, Docker and Linux deployments have no window or tray.</p>
   <Toggle label="Minimize to System Tray on Close" checked={value.close_to_tray} onChange={enabled=>patch({close_to_tray:enabled,...(!enabled?{start_minimized:false}:{})})}/>
   <p className="ui-description">Closing hides the window only when the tray icon and backend are ready. Use Exit SAP Lens in the tray menu to stop the application.</p>
   <Checkbox checked={value.run_at_signin} disabled={!runtime.data.startup_supported&&!value.run_at_signin} onChange={event=>patch({run_at_signin:event.target.checked})}>Start SAP Lens at Windows sign-in</Checkbox>

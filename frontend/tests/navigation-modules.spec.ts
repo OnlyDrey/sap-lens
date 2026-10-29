@@ -3,8 +3,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-
-const headers = { 'X-SAP-Lens': 'browser-test-session' }
+import { headers } from './support'
 const sections = ['Organization & SAP System', 'Data Sources', 'SAP Modules', 'Appearance & Branding', 'Health & Diagnostics']
 test.beforeEach(async ({ request }) => {
   expect((await request.post('/api/configuration/reset', { headers })).ok()).toBeTruthy()
@@ -56,7 +55,7 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(tab).toHaveCSS('box-shadow', 'none')
     await expect(tab).toHaveCSS('border-left-width', '0px')
     await tab.press('ArrowDown')
-    await page.getByRole('tab', { name: 'Features', exact: true }).press('ArrowUp')
+    await page.getByRole('tab', { name: 'SoD Risk Configuration', exact: true }).press('ArrowUp')
     await expect(tab).toBeFocused()
     await expect(tab).toHaveCSS('outline-style', 'solid')
     const colors = await page.locator('.module-list-row').evaluateAll((rows) => {

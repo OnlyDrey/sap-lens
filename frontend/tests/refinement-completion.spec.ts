@@ -2,15 +2,14 @@ import {test,expect,type Page,type TestInfo} from '@playwright/test'
 import {mkdtempSync,writeFileSync,rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
+import { headers, goTo, openFilters, closeFilters } from './support'
 test.setTimeout(30_000)
-const headers={'X-SAP-Lens':'browser-test-session'}
 let directory:string
 const prefix='ZC:SYN:'+ 'LONG_INVESTIGATION_IDENTIFIER_'.repeat(6)
 const pattern=prefix+':*',actual=prefix+':ENP'
 const child='ZS:SYN:'+ 'SOURCE_RELATIONSHIP_'.repeat(6)
 const release='ZO:MM:M:PR_REL_ST_SH_N6:ALL'
 async function capture(page:Page,info:TestInfo,name:string){await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:info.outputPath(name),fullPage:true})}
-async function nav(page:Page,name:string){await page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('button',{name,exact:true}).click()}
 async function mode(page:Page,name:string){await page.getByRole('navigation',{name:'User Access view',exact:true}).getByRole('link',{name,exact:true}).click()}
 async function choose(page:Page,label:string,value:string){const input=page.getByRole('combobox',{name:label,exact:true});await input.click();await input.fill(value);await page.getByRole('option').filter({hasText:value}).first().click()}
 test.beforeEach(async({request})=>{
@@ -34,21 +33,21 @@ for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(
  await expect(dashboard.getByRole('button',{name:'Role assignment records',exact:true})).toContainText('7')
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
  await capture(page,info,'dashboard.png')
- await nav(page,'User Access');const region=page.getByRole('region',{name:'User Access',exact:true})
+ await goTo(page,'User Access');const region=page.getByRole('region',{name:'User Access',exact:true})
  await expect(region.locator('.ui-page-title>svg')).toBeVisible()
- await region.getByRole('button',{name:/Saved filters/}).click()
+ await openFilters(page);await region.getByRole('button',{name:/Saved filters/}).click()
  const popup=page.getByRole('dialog',{name:'users saved filters',exact:true})
  const save=popup.getByRole('button',{name:'Save as new',exact:true}),clear=popup.getByRole('button',{name:'Clear filters',exact:true})
  const sa=(await save.boundingBox())!,cl=(await clear.boundingBox())!
  expect(Math.abs(sa.width-cl.width)).toBeLessThan(1);expect(Math.abs(sa.y-cl.y)).toBeLessThan(1);expect(cl.x-(sa.x+sa.width)).toBeGreaterThanOrEqual(7)
  expect(await popup.evaluate(el=>el.scrollHeight<=el.clientHeight+1)).toBeTruthy()
- await page.keyboard.press('Escape');await expect(region.getByRole('button',{name:/Saved filters/})).toBeFocused()
+ await page.keyboard.press('Escape');if(width>=1024)await expect(region.getByRole('button',{name:/Saved filters/})).toBeFocused();await closeFilters(page)
 
  await capture(page,info,'user-directory.png')
  await mode(page,'Account Review');const clearReview=(await page.locator('.review-filters').getByRole('button',{name:'Clear filters',exact:true}).boundingBox())!;expect(clearReview.height).toBeLessThan(50);await expect(page.locator('.review-filters').getByRole('button',{name:'Export review CSV',exact:true})).toHaveCount(0);await capture(page,info,'account-review.png')
  await mode(page,'Compare users');await choose(page,'User A','SYN_A');await choose(page,'User B','SYN_B');await page.getByLabel('Assignment validity',{exact:true}).selectOption('all');await expect(page.getByRole('table',{name:'User comparison evidence',exact:true})).toContainText(actual);await capture(page,info,'comparison.png')
- await nav(page,'Role Lookup');await page.getByRole('button',{name:'View details for Synthetic purchasing investigation',exact:true}).click();const detail=page.getByRole('dialog',{name:`Role details: ${pattern}`,exact:true});await expect(detail.getByRole('button',{name:`Copy role identifier ${child}`,exact:true})).toBeVisible();await capture(page,info,'role-details.png');await detail.getByRole('button',{name:'Close role details',exact:true}).click()
- await nav(page,'Release Roles');await page.getByRole('button',{name:'Matrix',exact:true}).click();await expect(page.getByRole('button',{name:'Investigate PR SH N6: 2 users',exact:true})).toBeVisible();await capture(page,info,'release-matrix.png')
+ await goTo(page,'Role Lookup');await page.getByRole('button',{name:'View details for Synthetic purchasing investigation',exact:true}).click();const detail=page.getByRole('dialog',{name:`Role details: ${pattern}`,exact:true});await expect(detail.getByRole('button',{name:`Copy role identifier ${child}`,exact:true})).toBeVisible();await capture(page,info,'role-details.png');await detail.getByRole('button',{name:'Close role details',exact:true}).click()
+ await goTo(page,'Release Roles');await page.getByRole('button',{name:'Matrix',exact:true}).click();await expect(page.getByRole('button',{name:'Investigate PR SH N6: 2 users',exact:true})).toBeVisible();await capture(page,info,'release-matrix.png')
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
  await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:'Component Library',exact:true}).click();await page.getByRole('tab',{name:'All components',exact:true}).click()
  const preview=page.getByRole('region',{name:'Import preview',exact:true});await preview.getByRole('searchbox',{name:'Search validated preview'}).fill('me23n');await expect(preview.getByRole('row')).toHaveCount(2)
@@ -58,19 +57,19 @@ for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(
  await capture(page,info,'component-library.png')
 })
 test('inline long-role comparison preserves all validity evidence and swap identities',async({page},info)=>{
- await page.goto('/#session=browser-test-session');await nav(page,'User Access');await mode(page,'Compare users')
+ await page.goto('/#session=browser-test-session');await goTo(page,'User Access');await mode(page,'Compare users')
  await choose(page,'User A','SYN_A');await choose(page,'User B','SYN_B');await page.getByLabel('Assignment validity',{exact:true}).selectOption('all')
  const table=page.getByRole('table',{name:'User comparison evidence',exact:true})
  const row=table.getByRole('row').filter({has:page.getByRole('cell').filter({hasText:actual})}).first()
  await expect(table).toContainText(actual);await expect(table.getByText('Wildcard match',{exact:true})).toHaveCount(0)
  for(const text of ['Active assignment','Expired assignment','Future assignment','Unknown validity'])await expect(table.getByText(text,{exact:true}).first()).toBeVisible()
- await expect(table.getByRole('button',{name:`Copy role identifier ${actual}`,exact:true})).toHaveCount(6)
+ await expect(table.getByRole('button',{name:`Copy role identifier ${actual}`,exact:true})).toHaveCount(1) // the compared role is shown once; its evidence rows no longer repeat it
  await expect(row).toBeVisible();await expect(page.getByRole('button',{name:'Swap users',exact:true})).toBeVisible();await page.getByRole('button',{name:'Swap users',exact:true}).click()
  await expect(page.getByRole('combobox',{name:'User A',exact:true})).toHaveValue('SYN_B');await expect(page.getByRole('combobox',{name:'User B',exact:true})).toHaveValue('SYN_A')
  await capture(page,info,'inline-evidence.png')
 })
 test('release matrix preserves distinct counts with compact keyboard-accessible cells',async({page},info)=>{
- await page.goto('/#session=browser-test-session');await nav(page,'Release Roles');await page.getByRole('button',{name:'Matrix',exact:true}).click()
+ await page.goto('/#session=browser-test-session');await goTo(page,'Release Roles');await page.getByRole('button',{name:'Matrix',exact:true}).click()
  const matrix=page.getByRole('table',{name:'PR release matrix',exact:true})
  await expect(matrix.getByRole('columnheader',{name:'N6',exact:true})).toBeVisible()
  const cell=matrix.getByRole('button',{name:'Investigate PR SH N6: 2 users',exact:true});await expect(cell).toBeVisible()
@@ -90,20 +89,20 @@ test('validated user preview searches response-only identity fields without chan
 })
 
 test('single-role zebra surfaces remain unchanged on hover without inner rounding',async({page})=>{
- await page.goto('/#session=browser-test-session');await nav(page,'Role Lookup');await page.getByRole('button',{name:'View details for Synthetic purchasing investigation',exact:true}).click()
+ await page.goto('/#session=browser-test-session');await goTo(page,'Role Lookup');await page.getByRole('button',{name:'View details for Synthetic purchasing investigation',exact:true}).click()
  const entries=page.getByRole('dialog',{name:`Role details: ${pattern}`,exact:true}).locator('.single-role-entry')
  const primary=await entries.nth(0).evaluate(el=>getComputedStyle(el).backgroundColor),secondary=await entries.nth(1).evaluate(el=>getComputedStyle(el).backgroundColor)
  expect(primary).not.toBe(secondary);await expect(entries.nth(0)).toHaveCSS('border-radius','0px');await expect(entries.nth(1)).toHaveCSS('border-radius','0px')
  await entries.nth(0).hover();await expect(entries.nth(0)).toHaveCSS('background-color',primary)
  await entries.nth(1).hover();await expect(entries.nth(1)).toHaveCSS('background-color',secondary)
- await expect(entries.nth(0).locator('.role-module-metadata .transaction-count')).toHaveText('1')
+ await expect(entries.nth(0).locator('.role-entry-head .transaction-count')).toHaveText('1')
 })
 test('large matrix contains scrolling, empty cells and high counts in both themes',async({page,request},info)=>{
  const cells=Array.from({length:200},(_,i)=>({document_type:'PR',user_group:'SYN_GROUP',release_group:`G${Math.floor(i/20)}`,release_strategy:String(i%20).padStart(2,'0'),user_count:i===0?99999:i+1})).filter((_,i)=>i!==1)
  await page.route(url=>url.pathname==='/api/access/releases',route=>route.fulfill({json:{items:[],total:0,offset:0,limit:50,loaded:true,groups:['SYN_GROUP'],matrix_total:cells.length,matrix_offset:0,matrix:cells}}))
  for(const theme of ['light','dark']){
   const settings=(await(await request.get('/api/configuration',{headers})).json()).settings;settings.theme=theme;await request.post('/api/configuration',{headers,data:settings})
-  await page.setViewportSize({width:375,height:1000});await page.goto('/#session=browser-test-session');await nav(page,'Release Roles');await page.getByRole('button',{name:'Matrix',exact:true}).click()
+  await page.setViewportSize({width:375,height:1000});await page.goto('/#session=browser-test-session');await goTo(page,'Release Roles');await page.getByRole('button',{name:'Matrix',exact:true}).click()
   const matrix=page.getByRole('region',{name:'PR release matrix scroll area',exact:true});await expect(matrix.getByRole('button')).toHaveCount(199)
   await expect(matrix.getByRole('button',{name:'Investigate PR G0 00: 99999 users',exact:true})).toBeVisible();await expect(matrix.locator('td[data-intensity="3"]')).toHaveCount(1)
   expect(await matrix.evaluate(el=>el.scrollWidth>el.clientWidth)).toBeTruthy();await matrix.focus();await page.keyboard.press('ArrowRight');await expect.poll(()=>matrix.evaluate(el=>el.scrollLeft)).toBeGreaterThan(0)
@@ -112,15 +111,15 @@ test('large matrix contains scrolling, empty cells and high counts in both theme
 })
 
 test('compact evidence retains exact dates, horizontal identifiers and keyboard popover focus',async({page},info)=>{
- await page.setViewportSize({width:1280,height:1000});await page.goto('/#session=browser-test-session');await nav(page,'User Access');await mode(page,'Compare users')
+ await page.setViewportSize({width:1280,height:1000});await page.goto('/#session=browser-test-session');await goTo(page,'User Access');await mode(page,'Compare users')
  await choose(page,'User A','SYN_A');await choose(page,'User B','SYN_B');await page.getByLabel('Assignment validity',{exact:true}).selectOption('all')
  const panel=page.getByRole('region',{name:'Comparison filters',exact:true})
  await expect(panel.getByRole('button',{name:'Clear filters',exact:true})).toBeVisible()
  const table=page.getByRole('table',{name:'User comparison evidence',exact:true});expect((await table.getByRole('columnheader').first().boundingBox())!.width).toBeLessThan(400)
  expect(await panel.getByRole('button',{name:/Saved filters/}).count()).toBe(0)
  const evidence=page.locator('.comparison-evidence-item').filter({has:page.getByRole('button',{name:'Active assignment',exact:true})}).first()
- const code=evidence.locator('.role-identifier code').first();await expect(code).toHaveCSS('white-space','nowrap');expect(await code.evaluate(el=>el.scrollWidth>el.clientWidth)).toBeTruthy()
- await evidence.locator('.role-identifier-link').focus();await page.keyboard.press('ArrowRight');await expect.poll(()=>code.evaluate(el=>el.scrollLeft)).toBeGreaterThan(0)
+ const code=page.locator('.comparison-table .role-entry .role-identifier code').first();await expect(code).toBeVisible();expect(await code.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBeTruthy() // identifiers wrap instead of scrolling
+ await expect(evidence.locator('.role-identifier code')).toHaveCount(0) // the compared role is not repeated inside its own evidence
  const active=evidence.getByRole('button',{name:'Active assignment',exact:true});await active.click()
  const popup=page.getByRole('dialog',{name:`Assignment validity for ${actual}`,exact:true})
  await expect(popup).toContainText('01.01.2000');await expect(popup).toContainText('31.12.9999');await popup.screenshot({path:info.outputPath('assignment-popover.png')});await page.keyboard.press('Escape');await expect(active).toBeFocused()
@@ -129,7 +128,7 @@ test('compact evidence retains exact dates, horizontal identifiers and keyboard 
 test('PR and PO matrices share a content-sized row and stack at tablet width',async({page})=>{
  const matrix=['PR','PO'].map(document_type=>({document_type,user_group:'SYN_GROUP',release_group:'SH',release_strategy:'N6',user_count:2}))
  await page.route(url=>url.pathname==='/api/access/releases',route=>route.fulfill({json:{items:[],total:0,offset:0,limit:50,loaded:true,groups:['SYN_GROUP'],matrix_total:2,matrix_offset:0,matrix}}))
- await page.setViewportSize({width:1600,height:1000});await page.goto('/#session=browser-test-session');await nav(page,'Release Roles');await page.getByRole('button',{name:'Matrix',exact:true}).click()
+ await page.setViewportSize({width:1600,height:1000});await page.goto('/#session=browser-test-session');await goTo(page,'Release Roles');await page.getByRole('button',{name:'Matrix',exact:true}).click()
  const pr=page.getByRole('table',{name:'PR release matrix',exact:true}),po=page.getByRole('table',{name:'PO release matrix',exact:true})
  const a=(await pr.boundingBox())!,b=(await po.boundingBox())!;expect(Math.abs(a.y-b.y)).toBeLessThan(2);expect(b.x).toBeGreaterThan(a.x+a.width)
  await page.setViewportSize({width:800,height:1000});expect((await po.boundingBox())!.y).toBeGreaterThan((await pr.boundingBox())!.y+a.height)

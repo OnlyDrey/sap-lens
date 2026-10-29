@@ -26,6 +26,11 @@ Paths below are relative to `frontend/src/components/`. The inventory covers reu
 | `Shared/NorwegianDateInput.tsx` | Assignment date controls, library | Existing localized portal calendar/manual entry, focus/keyboard behavior and maximum-date safety preserved |
 | `Shared/AssignmentDateFilters.tsx` | User/role/release assignment tables | Existing apply/cancel/date-bound semantics retained; chips now canonical |
 | `Shared/TransactionFilter.tsx` / useTransactionFilter | Role Lookup, User Directory/Details, library | Existing multi-code live/deferred state and AND/OR; operator group/chip reuse replaces repeated UI. This is the real multi-value selector showcased |
+| `Shared/MultiSelectFilter.tsx` | Release Area and Release Group, SoD SAP username and Role suffix, library | Searchable multi-select combobox whose list stays open while options are toggled (outside click, Escape, Tab or Close dismiss it); Select all acts on the listed options and states its scope, Clear selection and removable chips; selections survive searching. Values combine with OR, the caller combines filters with AND |
+| `Shared/BulkSelection.tsx` | SoD Access Explorer Assignments, library | `useBulkSelection` keeps an explicit snapshot keyed by stable identifiers; `RowCheckbox`, `PageCheckbox` (indeterminate) and the `BulkToolbar` with count and scope. DOM order equals reading order; the toolbar wraps |
+| `Shared/RoleEntry.tsx`, `RoleIdentifier.tsx`, `ConfirmDialog.tsx` | Role Lookup, Single Roles, Access Package, comparison, Release Roles, SoD lists, library | One role presentation (module badge, description, wrapping copyable identifier; compact, standard, detailed); confirmation dialog whose button names the action |
+| `Shared/PackageToggle.tsx`, `Shared/AccessPackageBar.tsx` | Role Lookup cards, Release Roles rows and Matrix cells, floating access package action | One round Plus/Check toggle and one floating package action for catalogue and release roles; the package store is shared and unlimited |
+| `Shared/WindowsIcon.tsx` | Windows Desktop settings heading, library | Generic four-pane inline mark in currentColor; no third-party artwork or dependency |
 | `Shared/FilterChip.tsx` | Transactions and assignment date filters | One removable-chip implementation, explicit removal label, existing focus restoration supplied by caller |
 | `Shared/ClearFilterButton.tsx` | Investigation pages/date controls | Canonical Button + filter-x icon; neutral reset styling, explicit accessible text |
 | `Shared/SavedFilters.tsx` | Users, roles, releases, review, comparison; memory-only library | Same versioned persistence/CRUD/compatibility logic, compact Popover. Existing page-level clears remain singular; menu-only clear available when needed |
@@ -155,7 +160,7 @@ DirectoryMatchDetails, source technical details, ReviewFindings and ChangeRecord
 reuse that owner instead of large inline editors. Their private evidence remains in
 authenticated application responses; it is not copied into diagnostics exports.
 
-SourceHealthSummary is canonical for all three sources, including Employee Directory;
+SourceHealthSummary is canonical for all four sources, including Employee Directory and the SoD Matrix;
 SourceStatusSummary reads the shared diagnostics query to keep persisted mode, loaded
 state, activation, snapshot and validation evidence aligned. Source configuration
 navigation is separate from the technical details modal.
@@ -234,4 +239,24 @@ from one snapshot; assignment-detail and other table pagination remain unchanged
 
 Appearance & Branding previews draft organization, system, logo and palette at full
 content width without saving them. Native Windows Desktop preferences are under
-About SAP Lens and still use the parent settings draft/Apply/Cancel lifecycle.
+Runtime & Scheduling (with the scheduled refresh) and still use the parent settings draft/Apply/Cancel lifecycle.
+
+## SoD matrix and side panel
+
+`MatrixGrid` (`Shared/MatrixGrid.tsx`) renders a sticky-header matrix with a fixed first
+column. Cells are real buttons in a roving-focus grid: arrow keys move between detected cells
+(to the nearest one in sparse rows), Home/End jump along a row, Enter opens. Status is shown
+by icon, text and tone together, never color alone. Above 48 columns only a window of columns
+renders, with scrolling and keyboard focus kept consistent. The scroll region is its own
+containing block so wide matrices never widen the page.
+
+`SidePanel` (`Shared/SidePanel.tsx`) is a docked, non-modal detail panel: the list or matrix
+behind it keeps its scroll position and filters, Escape closes it and focus returns to the
+trigger, and it is full width below 800 px. Use `Dialog` for modal confirmations. Both
+components have isolated Component Library previews and are used by the SoD views.
+
+## SoD filter layout (Phase 2)
+
+- `Shared/FilterLayout`: `FilterLayout` (collapsible left sidebar from 1024 px, overlay drawer below; sidebar open state is a per-viewer convenience in `localStorage`, filter values stay in view history), `FilterSection`, `PageToolbar`, `SortControl`.
+- `Sod/SodShared.SodFilters` replaces the old `FilterBar`: each page passes only the filter fields it can act on. Saved Filters sit at the top of the sidebar; applying one clears values for fields the page does not show so hidden filters never narrow results. Search, sort, view options, CSV export and Reset share one toolbar.
+- `Shared/IdPill`: compact risk/activity identifier pill. The identifier text always carries the meaning; the optional `color` (validated `#rrggbb`) only tints it.

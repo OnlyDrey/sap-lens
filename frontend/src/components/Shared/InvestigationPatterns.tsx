@@ -12,3 +12,7 @@ export function ResultsToolbar({children}:{children:ReactNode}) {return <div cla
 export function PreviewStatus({validated,inspecting}:{validated:boolean;inspecting?:boolean}) {
  return <StatusBadge tone={inspecting?'info':validated?'success':'neutral'}>{inspecting?'Inspecting selected file…':validated?'Preview validated':'Not yet validated'}</StatusBadge>
 }
+/** Compact, clickable summary count that applies a filter to the list below it. */
+export function FilterTile({label,value,tone='neutral',active,onClick}:{label:string;value:ReactNode;tone?:'neutral'|'warning';active:boolean;onClick:()=>void}) {
+ return <button type="button" className="filter-tile" data-tone={tone} aria-pressed={active} onClick={onClick}><span className="filter-tile-label">{label}</span><strong>{value}</strong></button>
+}

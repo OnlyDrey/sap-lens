@@ -14,6 +14,7 @@ import config
 from config_models import FIELDS,USER_FIELDS
 from employee_directory import HEADERS
 from role_matching import RoleMatcher
+from sod_import import parse_sod
 from user_access import parse_release_role
 import test_employee_directory as employee_tests
 H=employee_tests.H
@@ -41,6 +42,15 @@ class ExampleDatasetTests(unittest.TestCase):
             self.assertFalse(re.search(r'\b(?:ENP|ENO|ENK|ENS|SCOM)\b',text))
             domains=re.findall(r'\b[A-Za-z0-9._%+-]+@([A-Za-z0-9.-]+\.[A-Za-z]{2,})',text)
             self.assertTrue(all(domain.lower() in {'example.org','example.com','example.net'} for domain in domains))
+
+    def test_sod_matrix_example_parses_with_supported_two_sided_policy_and_catalogue_tcodes(self):
+        path=ROOT/'examples'/'sod-matrix.example.csv';parsed=parse_sod(path)
+        self.assertEqual((parsed['report']['unique_records'],len(parsed['risks'])),(4,2))
+        self.assertTrue(all(risk['supported'] and risk['evaluation_policy']=='sod-two-sided-v1' for risk in parsed['risks']))
+        self.assertTrue(all(risk['risk_id'].startswith('SYN') for risk in parsed['risks']))
+        catalogue={row['TCODE'] for row in self.rows('role-catalogue.example.csv')}
+        self.assertTrue({row['TCODE'] for row in parsed['records']}<=catalogue)
+        text=path.read_text(encoding='utf-8-sig');self.assertNotRegex(text,r'@|[A-Za-z]:\\|/home/|/Users/')
 
     def test_real_import_investigations_and_fresh_process_snapshot_recovery(self):
         fixture=employee_tests.EmployeeDirectoryTests();fixture.setUp();self.addCleanup(fixture.tearDown)
