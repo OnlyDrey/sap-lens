@@ -46,7 +46,7 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
     [action, setAction] = useState<null | { assignment: AssignmentRow }>(null),
     [quickReviewer, setQuickReviewer] = useState(rememberedReviewer),
     [quickRationale, setQuickRationale] = useState(''),
-    [quickBusy, setQuickBusy] = useState(''),
+    [quickBusy, setQuickBusy] = useState<Set<string>>(new Set()),
     [quickError, setQuickError] = useState(''),
     formRef = useRef<HTMLDivElement>(null)
   const params = scopeParams(context, emptyFilters, { user, ...(risk ? { risk } : {}), ...(activity ? { activity } : {}) })
@@ -58,20 +58,38 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
     setError('')
     try { setSimulation(await sodPost('/api/sod/simulate', { context, user, removed })) } catch (cause) { setError(cause instanceof Error ? cause.message : 'Simulation failed.') }
   }
-  /** One-click review: persisted through the same decision endpoint as the form; the row changes only after the server confirms. */
-  const quickDecide = async (row: OverviewAssignment, decision: 'Keep' | 'Remove') => {
-    if (!data) return
+  /** One-click review. Each assignment is decided on its own: requests run one after another, so each reads the revision the previous
+   * save produced, and the row changes only after the server confirmed it. A busy marker belongs to one row, never to the panel. */
+  const queue = useRef<Promise<void>>(Promise.resolve())
+  const quickDecide = (row: OverviewAssignment, decision: 'Keep' | 'Remove') => {
     setQuickError('')
     if (!quickReviewer.trim()) { setQuickError('Enter a reviewer name above before recording a decision. It is self-reported and stored with each decision.'); return }
-    setQuickBusy(row.id)
-    try {
-      await sodPost('/api/sod/decisions/assignment', { context: data.context, expected_revision: data.revision, expected_generation: data.generation, items: [item(row.id, row.role, row.evidence_version)],
-        decision, reviewer: quickReviewer.trim(), approver: '', justification: quickRationale.trim() || QUICK_RATIONALE, controls: '', expires: null })
-      try { sessionStorage.setItem(reviewerKey, quickReviewer.trim()) } catch { /* optional convenience */ }
-      await invalidateSod(qc)
-    } catch (cause) {
-      setQuickError(`${decision === 'Keep' ? 'Keep' : 'Removal recommendation'} for ${row.role} was not saved. ${cause instanceof Error ? cause.message : 'Try again.'}`)
-    } finally { setQuickBusy('') }
+    setQuickBusy((previous) => new Set(previous).add(row.id))
+    const reviewer = quickReviewer.trim(), justification = quickRationale.trim() || QUICK_RATIONALE
+    const save = async () => {
+      try {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const current = qc.getQueryData<Subject>(['sod-subject', params.toString()]) ?? data
+          if (!current) return
+          try {
+            await sodPost('/api/sod/decisions/assignment', { context: current.context, expected_revision: current.revision, expected_generation: current.generation, items: [item(row.id, row.role, row.evidence_version)],
+              decision, reviewer, approver: '', justification, controls: '', expires: null })
+            break
+          } catch (cause) {
+            // Another save moved the shared revision: reload it once and retry this one assignment.
+            if (attempt === 0 && cause instanceof Error && /decisions changed/i.test(cause.message)) { await invalidateSod(qc); continue }
+            throw cause
+          }
+        }
+        try { sessionStorage.setItem(reviewerKey, reviewer) } catch { /* optional convenience */ }
+        await invalidateSod(qc)
+      } catch (cause) {
+        setQuickError(`${decision === 'Keep' ? 'Keep' : 'Removal recommendation'} for ${row.role} was not saved. ${cause instanceof Error ? cause.message : 'Try again.'}`)
+      } finally {
+        setQuickBusy((previous) => { const next = new Set(previous); next.delete(row.id); return next })
+      }
+    }
+    queue.current = queue.current.then(save)
   }
   const toggle = (id: string) => { setSimulation(null); setSelection((previous) => (previous.includes(id) ? previous.filter((value) => value !== id) : [...previous, id])) }
   const pick = (kind: Kind, key: string) => setPicked((previous) => ({ ...previous, [kind]: previous[kind].includes(key) ? previous[kind].filter((value) => value !== key) : [...previous[kind], key] }))
@@ -123,8 +141,8 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
           </div>}
           {quickError && <p role="alert" className="text-[var(--error)]">{quickError}</p>}
           {assignments.map((row) => (
-            <AssignmentReviewRow key={row.id} row={row} ok={ok} checked={picked.assignment.includes(row.id)} onCheck={() => pick('assignment', row.id)} busy={quickBusy === row.id}
-              onDecide={(decision) => void quickDecide(row, decision)} onOpenRole={() => change({ detailRole: row.catalogue_roles[0] || row.role })}
+            <AssignmentReviewRow key={row.id} row={row} ok={ok} checked={picked.assignment.includes(row.id)} onCheck={() => pick('assignment', row.id)} busy={quickBusy.has(row.id)}
+              onDecide={(decision) => quickDecide(row, decision)} onOpenRole={() => change({ detailRole: row.catalogue_roles[0] || row.role })}
               onTrack={row.decision === 'Removal required' ? () => setAction({ assignment: { id: row.id, role: row.role, valid_from: row.valid_from, valid_to: row.valid_to, user_group: row.user_group, interval_status: row.interval_status, tcodes: [], other_activities: row.activities, risks: row.risks, catalogue_roles: row.catalogue_roles, evidence_version: row.evidence_version, decision: row.decision, event: row.event } }) : undefined}
               history={<DecisionHistory kind="assignment" context={context} keyId={row.id} label="Assignment review history" />} />
           ))}

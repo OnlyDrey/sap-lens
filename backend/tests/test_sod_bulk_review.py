@@ -213,5 +213,56 @@ class BulkReviewTests(BulkCase):
         self.assertIn(self.client.get('/api/sod/explorer/access_list/selection').status_code, (401, 403))
 
 
+class IndependentDecisionTests(BulkCase):
+    """Every role assignment keeps its own decision; decisions of one user's other assignments, bulk runs and history never mix."""
+
+    def one(self, key_filter, decision, reviewer='Reviewer One', status=200, **extra):
+        item = next(item for item in self.picked(usernames=['U1']) if item['ref'] == key_filter)
+        view = self.get('/api/sod/matrix/risk')
+        body = dict(context='current', expected_revision=view['revision'], expected_generation=view['generation'], items=[item], decision=decision,
+                    reviewer=reviewer, justification=f'{decision} {key_filter}')
+        body.update(extra)
+        return item, self.post('/api/sod/decisions/assignment', body, status)
+
+    def decisions_of(self, user_name='U1'):
+        return {row['role']: row['decision'] for row in self.listing(usernames=[user_name])['items']}
+
+    def test_assignments_of_one_user_hold_different_decisions_at_once(self):
+        self.one('ZC:MM:BUY:CDK', 'Keep')
+        self.one('ZC:MM:BUY:EMS', 'Remove')
+        self.assertEqual(self.decisions_of(), {'ZC:MM:BUY:CDK': 'Keep', 'ZC:MM:BUY:EMS': 'Removal required', 'ZC:MM:SEL:CDK': 'Pending'})
+        self.one('ZC:MM:SEL:CDK', 'Keep')
+        self.assertEqual(self.decisions_of(), {'ZC:MM:BUY:CDK': 'Keep', 'ZC:MM:BUY:EMS': 'Removal required', 'ZC:MM:SEL:CDK': 'Keep'})
+
+    def test_changing_one_decision_leaves_the_others_and_their_history_alone(self):
+        keep, _ = self.one('ZC:MM:BUY:CDK', 'Keep', reviewer='Alice')
+        remove, _ = self.one('ZC:MM:BUY:EMS', 'Remove', reviewer='Bob')
+        self.one('ZC:MM:BUY:CDK', 'Remove', reviewer='Carol')
+        self.assertEqual(self.decisions_of()['ZC:MM:BUY:EMS'], 'Removal required')
+        self.assertEqual(self.decisions_of()['ZC:MM:BUY:CDK'], 'Removal required')
+        first = self.get('/api/sod/decisions/assignment/history', key=keep['key'])['items']
+        second = self.get('/api/sod/decisions/assignment/history', key=remove['key'])['items']
+        self.assertEqual([(event['reviewer'], event['decision']) for event in first], [('Carol', 'Remove'), ('Alice', 'Keep')])
+        self.assertEqual([(event['reviewer'], event['decision']) for event in second], [('Bob', 'Remove')])
+        self.assertTrue(all(event['key'] == keep['key'] for event in first))
+
+    def test_a_decision_is_keyed_by_assignment_not_by_username(self):
+        self.one('ZC:MM:BUY:CDK', 'Keep')
+        other = {row['role']: row['decision'] for row in self.listing(usernames=['U4'])['items']}
+        self.assertEqual(set(other.values()), {'Pending'})
+        self.assertEqual(sorted(row['decision'] for row in self.listing(role_suffix='CDK')['items']), ['Keep', 'Pending'])  # the other CDK assignment of the same user
+
+    def test_bulk_review_leaves_unrelated_individual_decisions_untouched(self):
+        self.one('ZC:MM:BUY:EMS', 'Remove', reviewer='Bob')
+        before = self.decisions_of()
+        result = self.bulk(self.picked(role_suffix='CDK'), 'Keep')
+        self.assertEqual(len(result['recorded']), 2)
+        after = self.decisions_of()
+        self.assertEqual(after['ZC:MM:BUY:EMS'], before['ZC:MM:BUY:EMS'])
+        self.assertEqual({role_name: value for role_name, value in after.items() if role_name.endswith(':CDK')}, {'ZC:MM:BUY:CDK': 'Keep', 'ZC:MM:SEL:CDK': 'Keep'})
+        ems = next(item for item in self.picked(usernames=['U1']) if item['ref'] == 'ZC:MM:BUY:EMS')
+        self.assertEqual(len(self.get('/api/sod/decisions/assignment/history', key=ems['key'])['items']), 1)
+
+
 if __name__ == '__main__':
     unittest.main()

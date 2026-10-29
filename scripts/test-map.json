@@ -144,6 +144,7 @@
    ],
    "browser": [
     "sod-analysis",
+    "sod-assignment-decisions",
     "sod-bulk-review",
     "sod-catalogue",
     "sod-export-ux",
