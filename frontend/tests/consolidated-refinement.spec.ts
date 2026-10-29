@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { goTo, openFilters, pickMulti, seedSources, type SeededSources } from './support'
+import { goTo, headers, openFilters, pickMulti, seedSources, type SeededSources } from './support'
 import { cleanup, createPeriod, names, openSod, seedGovernance } from './sod-fixture'
 
 const roles = `FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT
@@ -114,7 +114,7 @@ test.describe('SoD views', () => {
   test.beforeEach(async ({ request }) => { directory = await seedGovernance(request) })
   test.afterEach(async ({ request }) => { await cleanup(request, directory) })
 
-  test('overview: heatmap controls share one row and the empty review period card stays compact', async ({ page }) => {
+  test('overview: heatmap controls share one row and the empty review period card stays compact', async ({ page, request }) => {
     await page.setViewportSize({ width: 1440, height: 1000 })
     await openSod(page)
     const bar = page.getByRole('toolbar', { name: 'Heatmap controls' })
@@ -123,8 +123,12 @@ test.describe('SoD views', () => {
     expect(Math.abs((box!.y + box!.height / 2) - (head!.y + head!.height / 2))).toBeLessThan(40) // one row with the title
     for (const name of ['Risks', 'Activities']) await expect(bar.getByRole('button', { name, exact: true })).toBeVisible()
     const card = page.getByRole('region', { name: 'Review period progress' }).or(page.locator('[aria-label="Review period progress"]'))
-    await expect(card).toContainText('No approved period')
-    expect((await card.boundingBox())!.height).toBeLessThan(260)
+    // Review periods are retained history, so the empty state is only expected while no period exists.
+    const periods = (await (await request.get('/api/sod/periods', { headers })).json()).items as { deleted_at?: string | null }[]
+    if (!periods.some((period) => !period.deleted_at)) {
+      await expect(card).toContainText('No approved period')
+      expect((await card.boundingBox())!.height).toBeLessThan(260)
+    }
     await page.setViewportSize({ width: 375, height: 900 })
     expect(await overflow(page)).toBeTruthy()
   })

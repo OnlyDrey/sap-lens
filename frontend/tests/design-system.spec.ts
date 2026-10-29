@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers, goTo } from './support'
+import { headers, goTo, openFilters } from './support'
 let directory: string
 async function library(page: Page) {
   await page.getByRole('button', { name: 'Open settings', exact: true }).click()
@@ -398,6 +398,7 @@ for (const theme of ['light', 'dark'])
         path: info.outputPath('comparison.png'),
         fullPage: true,
       })
+      await openFilters(page)
       await page
         .locator(
           'div.saved-filter-toolbar[aria-label="comparison saved filters"]',
