@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
-import { headers, setDescending, sortDirection } from './support'
+import { headers, setDescending, sortDirection, pickMulti } from './support'
 let directory = '', source = '', rows: string[] = []
 const csv = () => 'USERNAME,ROLE_NAME,USER_GROUP,FIRST_NAME,ROLE_VALID_FROM,ROLE_VALID_TO\n' + rows.join('\n') + '\n'
 const user = (n: number) => `DEMO_${String(n).padStart(3, '0')}`
@@ -37,11 +37,10 @@ for (const descending of [false, true]) test(`user global navigation crosses bou
   const list = page.getByRole('region', { name: 'User Access', exact: true })
   const filteredResponse = page.waitForResponse(response => {
     const url = new URL(response.url())
-    return url.pathname === '/api/access/users' && !url.searchParams.has('anchor') && url.searchParams.get('search') === 'DEMO_' && url.searchParams.get('group') === 'GROUP_KEEP' && url.searchParams.get('sort') === 'first_name' && url.searchParams.get('descending') === String(descending)
+    return url.pathname === '/api/access/users' && !url.searchParams.has('anchor') && url.searchParams.get('search') === 'DEMO_' && url.searchParams.getAll('groups').join() === 'GROUP_KEEP' && url.searchParams.get('sort') === 'first_name' && url.searchParams.get('descending') === String(descending)
   })
   await list.getByLabel('Search users', { exact: true }).fill('DEMO_')
-  const group = list.getByRole('combobox', { name: 'SAP User Group', exact: true })
-  await group.fill('GROUP_KEEP'); await group.press('Escape')
+  await pickMulti(list, 'SAP User Group', 'GROUP_KEEP', page)
   await list.getByRole('combobox', { name: 'Sort users', exact: true }).selectOption('first_name')
   if (descending) await setDescending(list, true)
   await (await filteredResponse).finished()
@@ -72,7 +71,7 @@ for (const descending of [false, true]) test(`user global navigation crosses bou
   await expect(selected).toBeFocused()
   await expect.poll(async () => Math.abs(await page.evaluate(() => window.scrollY) - scroll)).toBeLessThan(5)
   await expect(list.getByLabel('Search users', { exact: true })).toHaveValue('DEMO_')
-  await expect(group).toHaveValue('GROUP_KEEP')
+  await expect(list.getByRole('button', { name: 'Remove SAP User Group GROUP_KEEP', exact: true })).toBeVisible()
   await list.getByRole('link', { name: user(descending ? 124 : 0), exact: true }).click()
   await expect(navigation).toContainText('1 of 125')
   await expect(navigation.getByRole('button', { name: 'Previous', exact: true })).toBeDisabled()
@@ -86,7 +85,7 @@ for (const descending of [false, true]) test(`user global navigation crosses bou
   await expect(navigation).toContainText('125 of 125')
   await expect(navigation.getByRole('button', { name: 'Next', exact: true })).toBeDisabled()
   expect(lookups.length).toBeGreaterThan(1)
-  expect(lookups.every(url => url.searchParams.get('search') === 'DEMO_' && url.searchParams.get('limit') === '1' && url.searchParams.get('group') === 'GROUP_KEEP' && url.searchParams.get('sort') === 'first_name' && url.searchParams.get('descending') === String(descending))).toBeTruthy()
+  expect(lookups.every(url => url.searchParams.get('search') === 'DEMO_' && url.searchParams.get('limit') === '1' && url.searchParams.getAll('groups').join() === 'GROUP_KEEP' && url.searchParams.get('sort') === 'first_name' && url.searchParams.get('descending') === String(descending))).toBeTruthy()
 })
 
 test('complete release list preserves descending tie order and returns focus to the origin', async ({ page }) => {
@@ -140,8 +139,7 @@ test('direct user and release investigations locate global position and handle r
 test('a removed last-page record disables traversal and clamps an obsolete origin page', async ({ page }) => {
   await page.goto('/#session=browser-test-session'); await destination(page, 'User Access')
   const list = page.getByRole('region', { name: 'User Access', exact: true })
-  const group = list.getByRole('combobox', { name: 'SAP User Group', exact: true })
-  await group.fill('GROUP_KEEP'); await group.press('Escape')
+  await pickMulti(list, 'SAP User Group', 'GROUP_KEEP', page)
   const pages = page.getByRole('navigation', { name: 'User pages' })
   await pages.getByRole('button', { name: 'Next', exact: true }).click()
   await expect(pages).toContainText('51–100 of 125')

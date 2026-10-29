@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { formatDate, formatTimestamp } from '../src/lib/dateFormat'
-import { headers, setDescending, sortDirection } from './support'
+import { headers, setDescending, sortDirection, pickMulti } from './support'
 let directory: string
 const catalogue = 'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT\nMM,ZC:MM:BUY:*,Purchasing,ZS:BUY,MM - Purchasing - Display,MIGO,Goods movement\nMM,ZC:MM:BUY:*,Purchasing,ZS:BUY,MM - Purchasing - Display,ME21N,Create purchase order\nSD,ZC:SD:VIEW:*,Sales,ZS:VIEW,SD - Sales - Display,VA03,Display sales order\nSD,ZC:SD:VIEW:*,Sales,ZS:VIEW,SD - Sales - Display,ME21N,Create purchase order\nFI,ZC:FI:EMPTY,No mappings,ZS:EMPTY,Missing exported mappings,,\n'
 test.beforeEach(async ({ request }) => {
@@ -107,8 +107,7 @@ test('evidence summary clear preserves directory search, group, sorting and expi
   await expect(summary).toContainText('MIGO')
   await expect(summary.getByRole('button',{name:'Remove transaction MIGO',exact:true})).toBeVisible()
   await directory.getByLabel('Search users', { exact: true }).fill('DEMO_')
-  const group = directory.getByRole('combobox', { name: 'SAP User Group', exact: true })
-  await group.fill('G1'); await group.press('Enter')
+  await pickMulti(directory, 'SAP User Group', 'G1', page)
   await directory.getByLabel('Sort users', { exact: true }).selectOption('last_name')
   await setDescending(directory, true)
   await directory.getByLabel('Show expired assignments', { exact: true }).check()
@@ -120,7 +119,7 @@ test('evidence summary clear preserves directory search, group, sorting and expi
   await page.keyboard.press('Enter')
   await expect(summary.locator('.transaction-chip')).toHaveCount(0)
   await expect(directory.getByLabel('Search users', { exact: true })).toHaveValue('DEMO_')
-  await expect(group).toHaveValue('G1')
+  await expect(directory.getByRole('button', { name: 'Remove SAP User Group G1', exact: true })).toBeVisible()
   await expect(directory.getByLabel('Sort users', { exact: true })).toHaveValue('last_name')
   await expect(sortDirection(directory)).toHaveAttribute('aria-pressed', 'true')
   await expect(directory.getByLabel('Show expired assignments', { exact: true })).toBeChecked()

@@ -178,3 +178,5 @@ in the source evidence, CSV export and User Details; the calculation is unchange
 ## Overview tiles and review dialog
 
 The overview groups compact tiles under Account status, Review findings and Review progress (SAP accounts, AD disabled / SAP valid and unlocked, missing or ambiguous directory matches, accounts requiring review, position changes, classified unlicensed, reviewed, outdated, pending). A tile applies its filter to the list directly; the active filter appears as a removable chip. The review dialog is divided into SAP identity and organizational context, Position changes (previous and current side by side; the real change time stays unknown), Current findings and evidence, Investigation actions, Review decision and Previous decisions. Decisions remain local annotations.
+
+Account Review and [Compare users](COMPARE_USERS.md) filter in the shared sidebar (search, review finding, license classification and decision, or validity, section and SAP area), with Saved Filters, one Clear action, and sort and export in the toolbar. The same SAP user cannot be selected on both sides of a comparison.

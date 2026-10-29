@@ -49,7 +49,7 @@ async function openAssignments(page: Page, width = 1440) {
   await expect(page.getByRole('table', { name: 'Access list' })).toBeVisible()
 }
 const table = (page: Page) => page.getByRole('table', { name: 'Access list' })
-const roles = async (page: Page) => (await table(page).locator('tbody tr .role-identifier code').allInnerTexts()).map((text) => text.replace(/\s+/g, '')).sort()
+const roles = async (page: Page) => (await table(page).locator('tbody tr td:nth-child(3) .role-identifier code').allInnerTexts()).map((text) => text.replace(/\s+/g, '')).sort()
 const pick = async (page: Page, label: string, option: string) => {
   const box = page.getByRole('combobox', { name: label, exact: true })
   await box.click(); await box.fill(option)

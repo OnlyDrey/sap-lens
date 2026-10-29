@@ -2,7 +2,7 @@ import { test, expect, type Locator, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers, goTo } from './support'
+import { headers, goTo, setDescending, sortDirection } from './support'
 let root: string
 const mode = async (page: Page, name: string) =>
   page
@@ -200,14 +200,14 @@ test('comparison metrics filter results, sorting persists and inline evidence pr
     .click()
   await expect(table.locator('tbody>tr')).toHaveCount(2)
   await page.getByLabel('Sort comparison', { exact: true }).selectOption('a')
-  await page.getByLabel('Descending', { exact: true }).check()
+  await setDescending(page, true)
   await expect(table.locator('tbody>tr').first()).toContainText('ZC:SHARED:ENP')
   const evidence = page.getByRole('cell', {
     name: 'User A evidence for ZC:SHARED:ENP',
     exact: true,
   })
   await expect(evidence).toBeVisible()
-  await expect(table.getByRole('columnheader')).toHaveText(['Role / Transaction','Difference','User A Evidence','User B Evidence'])
+  await expect(table.getByRole('columnheader')).toHaveText(['Role / transaction','Difference','User A evidence','User B evidence'])
   await expect(table.locator('details')).toHaveCount(0)
   await expectIntervals(page,evidence,['01.01.2000 → 31.12.9999','01.01.2001 → 31.12.9999'])
   await page.getByRole('button', { name: 'Open User A', exact: true }).click()
@@ -215,9 +215,7 @@ test('comparison metrics filter results, sorting persists and inline evidence pr
   await expect(page.getByLabel('Sort comparison', { exact: true })).toHaveValue(
     'a',
   )
-  await expect(
-    page.getByLabel('Descending', { exact: true }),
-  ).toBeChecked()
+  await expect(sortDirection(page)).toHaveAttribute('aria-pressed', 'true')
   await openSaved(page, 'comparison')
   const menu = saved(page, 'comparison')
   await menu
@@ -229,18 +227,16 @@ test('comparison metrics filter results, sorting persists and inline evidence pr
   await page
     .getByLabel('Sort comparison', { exact: true })
     .selectOption('identifier')
-  await page.getByLabel('Descending', { exact: true }).uncheck()
+  await setDescending(page, false)
   await openSaved(page, 'comparison')
   await expect(menu.getByRole('combobox',{name:'Saved filter',exact:true})).toHaveAttribute('aria-expanded','false')
   await expect(menu.getByRole('button',{name:'Clear filters',exact:true})).toBeVisible()
-  await expect(page.getByRole('region',{name:'Comparison filters',exact:true}).getByRole('button',{name:'Clear filters',exact:true})).toHaveCount(1)
+  await expect(page.getByRole('complementary',{name:'Filters'}).locator('header').getByRole('button',{name:'Clear filters',exact:true})).toHaveCount(1)
   await menu.getByRole('button', { name: 'Load', exact: true }).click()
   await expect(page.getByLabel('Sort comparison', { exact: true })).toHaveValue(
     'a',
   )
-  await expect(
-    page.getByLabel('Descending', { exact: true }),
-  ).toBeChecked()
+  await expect(sortDirection(page)).toHaveAttribute('aria-pressed', 'true')
   await expect(menu).toContainText('Saved filter applied to the current data.')
   await page.keyboard.press('Escape')
   await expect(
@@ -585,7 +581,9 @@ test('Role Lookup saved filters restore multi-transaction and sorting controls',
   await bar.getByRole('button', { name: 'Save as new', exact: true }).click()
   await expect(bar).toContainText('Saved filters updated.')
   await page
-    .getByRole('button', { name: 'Clear all filters', exact: true })
+    .getByRole('complementary', { name: 'Filters' })
+    .locator('header')
+    .getByRole('button', { name: 'Clear filters', exact: true })
     .click()
   await transaction.fill('OTHER')
   await openSaved(page, viewForBar)
@@ -695,9 +693,10 @@ test('directory role description selection and removable chips preserve unrelate
   const role = page.getByRole('combobox',{name:'Filter users by role',exact:true})
   await role.fill('Materials')
   await page.getByRole('option').filter({hasText:'ZC:ONLY_A'}).click()
+  await role.press('Escape')
   await expect(page.getByRole('link', { name: 'DEMO_A',exact:true})).toBeVisible()
   await expect(page.getByRole('link', { name: 'DEMO_B',exact:true})).toHaveCount(0)
-  await page.getByRole('button',{name:'Remove role filter',exact:true}).click()
+  await page.getByRole('button',{name:'Remove role filter ZC:ONLY_A',exact:true}).click()
   await expect(page.getByRole('link', { name: 'DEMO_B',exact:true})).toBeVisible()
   await expect(page.getByLabel('Search users',{exact:true})).toHaveValue('DEMO_')
   await expect(page.getByLabel('Sort users',{exact:true})).toHaveValue('email')

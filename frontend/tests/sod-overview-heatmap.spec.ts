@@ -32,8 +32,8 @@ test('heatmap sorts groups, drills into the matrix for that group and risk, and 
   await region.getByRole('row', { name: /^FIN\b/ }).getByRole('button', { name: /with R2/ }).click()
   await expect(page).toHaveURL(/#\/sod\/risk-matrix/)
   const sidebar = page.getByRole('complementary', { name: 'Filters', exact: true })
-  await expect(sidebar.getByRole('combobox', { name: 'SAP user group', exact: true })).toHaveValue('FIN')
-  await expect(sidebar.getByRole('combobox', { name: 'Risk ID', exact: true })).toHaveValue('R2')
+  await expect(sidebar.getByRole('button', { name: 'Remove SAP user group FIN', exact: true })).toBeVisible()
+  await expect(sidebar.getByRole('button', { name: 'Remove Risk ID R2', exact: true })).toBeVisible()
 })
 
 test('Dashboard summarizes SoD when enabled and opens the matching SoD view', async ({ page }) => {

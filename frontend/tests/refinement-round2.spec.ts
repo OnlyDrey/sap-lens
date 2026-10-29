@@ -129,8 +129,8 @@ async function downloadAssignments(page:Page){
 test('task 31 directory exports all assignments for filtered users with explicit matches',async({page,request})=>{
  await prepareAssignmentExport(request);await page.goto('/#session=browser-test-session');await goTo(page,'User Access')
  await page.getByLabel('Search users',{exact:true}).fill(userA)
- const group=page.getByRole('combobox',{name:'SAP User Group',exact:true});await group.click();await group.fill('SYN_GROUP');await page.getByRole('option',{name:'SYN_GROUP',exact:true}).click()
- const role=page.getByRole('combobox',{name:'Filter users by role',exact:true});await role.click();await role.fill('ZC:SYN:B');await page.getByRole('option').filter({hasText:'ZC:SYN:B'}).first().click()
+ const group=page.getByRole('combobox',{name:'SAP User Group',exact:true});await group.click();await group.fill('SYN_GROUP');await page.getByRole('option',{name:'SYN_GROUP',exact:true}).click();await group.press('Escape')
+ const role=page.getByRole('combobox',{name:'Filter users by role',exact:true});await role.click();await role.fill('ZC:SYN:B');await page.getByRole('option').filter({hasText:'ZC:SYN:B'}).first().click();await role.press('Escape')
  await page.getByRole('textbox',{name:'Filter users by transaction',exact:true}).fill('MIGO')
  await expect(page.getByRole('button',{name:'Export CSV',exact:true})).toBeEnabled();const file=await downloadAssignments(page)
  expect(file.rows).toHaveLength(5);expect(file.rows.some(row=>row.ASSIGNMENT_STATUS==='Expired')).toBe(false);expect(new Set(file.rows.map(row=>row.USERNAME))).toEqual(new Set([userA]));expect(file.rows.filter(row=>row.MATCHED_FILTER==='Yes')).toHaveLength(1)

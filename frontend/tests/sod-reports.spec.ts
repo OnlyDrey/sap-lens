@@ -11,7 +11,7 @@ test('formal report previews every section from one frozen model and exports PDF
  for(const name of ['Approved','Externally signed'])await expect(page.getByRole('option',{name,exact:true})).toHaveCount(0) // only a frozen period can carry these labels
  await expect(page.getByRole('combobox',{name:'Report status',exact:true}).locator('option')).toHaveText(['Draft','Reviewed'])
  await page.getByRole('combobox',{name:'Report status',exact:true}).selectOption('Reviewed');await expect(page.getByText('The name is not authenticated, so this is not an approval.',{exact:false})).toBeVisible()
- await page.getByText('Document details',{exact:true}).click();await expect(page.getByLabel('Report language',{exact:true})).toHaveCount(0)
+ await expect(page.getByLabel('Report language',{exact:true})).toHaveCount(0)
  await expect(page.getByRole('button',{name:'Export PDF',exact:true})).toBeDisabled()
  await page.getByRole('button',{name:'Preview report',exact:true}).click();const preview=page.getByRole('region',{name:'Structured report preview',exact:true})
  for(const title of sections)await expect(preview.locator('summary').filter({hasText:title})).toHaveCount(1)

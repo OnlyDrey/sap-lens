@@ -15,11 +15,11 @@ test('search and every filter live in the sidebar; the toolbar keeps sort, expor
     await expect(toolbar.getByRole('searchbox')).toHaveCount(0)
     await expect(toolbar.getByRole('combobox', { name: 'Sort', exact: true })).toBeVisible()
     await expect(toolbar.getByRole('button', { name: /Export CSV/ })).toBeVisible()
-    await expect(toolbar.locator('.clear-filter-button', { hasText: 'Reset' })).toBeVisible()
+    await expect(sidebar.getByRole('button', { name: 'Clear filters', exact: true })).toBeVisible()
   }
 })
 
-test('filter fields suggest values from the imported evidence and still accept typed text', async ({ page }) => {
+test('multi-select filter fields suggest values from the imported evidence, search them and keep selections', async ({ page }) => {
   await openSod(page, 'Risk Matrix')
   const sidebar = page.getByRole('complementary', { name: 'Filters', exact: true })
   const risk = sidebar.getByRole('combobox', { name: 'Risk ID', exact: true })
@@ -30,16 +30,18 @@ test('filter fields suggest values from the imported evidence and still accept t
   await risk.fill('R2')
   await expect(options.getByRole('option', { name: 'R1', exact: true })).toHaveCount(0)
   await options.getByRole('option', { name: 'R2', exact: true }).click()
-  await expect(risk).toHaveValue('R2')
+  await expect(options).toBeVisible()
+  await expect(sidebar.getByRole('button', { name: 'Remove Risk ID R2', exact: true })).toBeVisible()
   await expect(page.getByRole('table', { name: /User by risk matrix/ }).getByRole('columnheader', { name: /Filter to R1/ })).toHaveCount(0)
   await risk.fill('not-in-data')
-  await expect(risk).toHaveValue('not-in-data')
+  await expect(page.getByText('No matching values.')).toBeVisible()
+  await expect(sidebar.getByRole('button', { name: 'Remove Risk ID R2', exact: true })).toBeVisible() // searching never drops a selection
 })
 
 test('matrix tiles count every review status over the whole filtered matrix and toggle the status filter', async ({ page }) => {
   await openSod(page, 'Risk Matrix')
   const tiles = page.getByRole('region', { name: 'Risk matrix figures' })
-  const pending = tiles.locator('.sod-tile', { has: page.getByRole('button', { name: 'Pending risks' }) })
+  const pending = tiles.getByRole('button', { name: 'Pending risks' })
   await expect(pending.locator('strong')).toHaveText('3')
   for (const label of ['Accepted risks', 'Rejected risks', 'Outdated risks']) await expect(tiles.getByRole('button', { name: label })).toBeVisible()
   await tiles.getByRole('button', { name: 'Accepted risks' }).click()
@@ -75,5 +77,5 @@ test('Role Conflicts uses the shared filter sidebar and toolbar', async ({ page 
   const toolbar = page.getByRole('toolbar', { name: 'Page actions' })
   await expect(toolbar.getByRole('combobox', { name: 'Sort', exact: true })).toBeVisible()
   await expect(toolbar.getByRole('button', { name: /Export CSV/ })).toBeVisible()
-  await expect(toolbar.getByRole('button', { name: 'Reset', exact: true })).toBeVisible()
+  await expect(sidebar.getByRole('button', { name: 'Clear filters', exact: true })).toBeVisible()
 })

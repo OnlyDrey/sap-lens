@@ -8,7 +8,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers, goTo, openFilters, closeFilters } from './support'
+import { headers, goTo, openFilters, closeFilters, setDescending, sortDirection } from './support'
 const fields =
   'Site;Name;SamAccountName;UserPrincipalName;Mail;Department;Title;Enabled;DistinguishedName;ManagerDN;ManagerName;ManagerSamAccountName;ManagerMail;ManagerDepartment;ManagerTitle;ManagerLookupStatus'.split(
     ';',
@@ -207,7 +207,7 @@ test('review findings, license filter, local decision persistence and spreadshee
   await page
     .getByLabel('Sort account reviews', { exact: true })
     .selectOption('ad_status')
-  await page.getByLabel('Descending', { exact: true }).check()
+  await setDescending(page, true)
   const download = page.waitForEvent('download')
   await page
     .getByRole('button', { name: 'Export review CSV', exact: true })
@@ -266,7 +266,7 @@ test('review findings, license filter, local decision persistence and spreadshee
   await expect(
     page.getByLabel('Sort account reviews', { exact: true }),
   ).toHaveValue('ad_status')
-  await expect(page.getByLabel('Descending', { exact: true })).toBeChecked()
+  await expect(sortDirection(page)).toHaveAttribute('aria-pressed', 'true')
   const revision = (
     await (await request.get('/api/account-review', { headers })).json()
   ).data_revision
@@ -505,6 +505,7 @@ for (const theme of ['light', 'dark'])
           exact: true,
         }),
       ).toContainText('DEMO_OPEN')
+      await openFilters(page)
       await expect(
         page.getByRole('combobox', { name: 'Review finding', exact: true }),
       ).toHaveCSS(
@@ -514,6 +515,7 @@ for (const theme of ['light', 'dark'])
           .evaluate((el) => getComputedStyle(el).backgroundColor),
       )
       await shot('account-review')
+      await closeFilters(page)
       await page
         .getByRole('region', { name: 'Account review results', exact: true })
         .getByRole('link', { name: 'DEMO_OPEN', exact: true })

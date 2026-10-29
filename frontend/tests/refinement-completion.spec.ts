@@ -44,8 +44,8 @@ for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(
  await page.keyboard.press('Escape');if(width>=1024)await expect(region.getByRole('button',{name:/Saved filters/})).toBeFocused();await closeFilters(page)
 
  await capture(page,info,'user-directory.png')
- await mode(page,'Account Review');const clearReview=(await page.locator('.review-filters').getByRole('button',{name:'Clear filters',exact:true}).boundingBox())!;expect(clearReview.height).toBeLessThan(50);await expect(page.locator('.review-filters').getByRole('button',{name:'Export review CSV',exact:true})).toHaveCount(0);await capture(page,info,'account-review.png')
- await mode(page,'Compare users');await choose(page,'User A','SYN_A');await choose(page,'User B','SYN_B');await page.getByLabel('Assignment validity',{exact:true}).selectOption('all');await expect(page.getByRole('table',{name:'User comparison evidence',exact:true})).toContainText(actual);await capture(page,info,'comparison.png')
+ await mode(page,'Account Review');await openFilters(page);const clearReview=(await page.locator('.filter-sidebar header').getByRole('button',{name:'Clear filters',exact:true}).boundingBox())!;expect(clearReview.height).toBeLessThan(50);await closeFilters(page);await capture(page,info,'account-review.png')
+ await mode(page,'Compare users');await choose(page,'User A','SYN_A');await choose(page,'User B','SYN_B');await openFilters(page);await page.getByLabel('Assignment validity',{exact:true}).selectOption('all');await closeFilters(page);await expect(page.getByRole('table',{name:'User comparison evidence',exact:true})).toContainText(actual);await capture(page,info,'comparison.png')
  await goTo(page,'Role Lookup');await page.getByRole('button',{name:'View details for Synthetic purchasing investigation',exact:true}).click();const detail=page.getByRole('dialog',{name:`Role details: ${pattern}`,exact:true});await expect(detail.getByRole('button',{name:`Copy role identifier ${child}`,exact:true})).toBeVisible();await capture(page,info,'role-details.png');await detail.getByRole('button',{name:'Close role details',exact:true}).click()
  await goTo(page,'Release Roles');await page.getByRole('button',{name:'Matrix',exact:true}).click();await expect(page.getByRole('button',{name:'Investigate PR SH N6: 2 users',exact:true})).toBeVisible();await capture(page,info,'release-matrix.png')
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
@@ -113,10 +113,10 @@ test('large matrix contains scrolling, empty cells and high counts in both theme
 test('compact evidence retains exact dates, horizontal identifiers and keyboard popover focus',async({page},info)=>{
  await page.setViewportSize({width:1280,height:1000});await page.goto('/#session=browser-test-session');await goTo(page,'User Access');await mode(page,'Compare users')
  await choose(page,'User A','SYN_A');await choose(page,'User B','SYN_B');await page.getByLabel('Assignment validity',{exact:true}).selectOption('all')
- const panel=page.getByRole('region',{name:'Comparison filters',exact:true})
+ const panel=page.getByRole('complementary',{name:'Filters',exact:true})
  await expect(panel.getByRole('button',{name:'Clear filters',exact:true})).toBeVisible()
  const table=page.getByRole('table',{name:'User comparison evidence',exact:true});expect((await table.getByRole('columnheader').first().boundingBox())!.width).toBeLessThan(400)
- expect(await panel.getByRole('button',{name:/Saved filters/}).count()).toBe(0)
+ await expect(panel.getByRole('button',{name:/Saved filters/})).toHaveCount(1)
  const evidence=page.locator('.comparison-evidence-item').filter({has:page.getByRole('button',{name:'Active assignment',exact:true})}).first()
  const code=page.locator('.comparison-table .role-entry .role-identifier code').first();await expect(code).toBeVisible();expect(await code.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBeTruthy() // identifiers wrap instead of scrolling
  await expect(evidence.locator('.role-identifier code')).toHaveCount(0) // the compared role is not repeated inside its own evidence

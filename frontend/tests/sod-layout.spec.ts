@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { cleanup, createPeriod, headers, openSod, seedGovernance, wideMatrix } from './sod-fixture'
+import { pickMulti } from './support'
 
 let directory: string
 test.beforeEach(async ({ request }) => { directory = await seedGovernance(request, 'static') })
@@ -13,14 +14,14 @@ test('wide screens show a collapsible filter sidebar that keeps filter state and
   const sidebar = page.getByRole('complementary', { name: 'Filters', exact: true })
   await expect(sidebar).toBeVisible()
   await expect(sidebar.locator('legend').first()).toHaveText('Saved Filters')
-  await sidebar.getByRole('combobox', { name: 'Risk ID', exact: true }).fill('R1')
+  await pickMulti(sidebar, 'Risk ID', 'R1', page)
   await page.getByRole('button', { name: /^Hide filters/ }).click()
   await expect(sidebar).toBeHidden()
   await page.getByRole('button', { name: /^Filters/ }).click()
-  await expect(sidebar.getByRole('combobox', { name: 'Risk ID', exact: true })).toHaveValue('R1')
+  await expect(sidebar.getByRole('button', { name: 'Remove Risk ID R1', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: /^Hide filters/ })).toContainText('1')
-  await page.getByRole('button', { name: 'Reset', exact: true }).click()
-  await expect(sidebar.getByRole('combobox', { name: 'Risk ID', exact: true })).toHaveValue('')
+  await sidebar.getByRole('button', { name: 'Clear filters', exact: true }).click()
+  await expect(sidebar.getByRole('button', { name: 'Remove Risk ID R1', exact: true })).toHaveCount(0)
 })
 
 test('every SoD page has the same toolbar and only the filters it needs', async ({ page }) => {
@@ -28,7 +29,7 @@ test('every SoD page has the same toolbar and only the filters it needs', async 
   for (const view of views) {
     await openSod(page, view)
     await expect(page.getByRole('searchbox', { name: 'Search SoD data', exact: true })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Reset', exact: true })).toBeVisible()
+    await expect(page.getByRole('complementary', { name: 'Filters', exact: true }).getByRole('button', { name: 'Clear filters', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: /Export CSV/ }).first()).toBeVisible()
     await expect(page.getByRole('complementary', { name: 'Filters', exact: true })).toBeVisible()
   }
@@ -49,7 +50,7 @@ for (const width of [375, 800]) test(`narrow screens use a drawer without horizo
   await page.getByRole('button', { name: /^Filters/ }).click()
   const drawer = page.getByRole('dialog', { name: 'Filters', exact: true })
   await expect(drawer).toBeVisible()
-  await drawer.getByLabel('Risk ID', { exact: true }).fill('R1')
+  await pickMulti(drawer, 'Risk ID', 'R1', page)
   await page.keyboard.press('Escape')
   await expect(drawer).toBeHidden()
   await expect(page.getByRole('button', { name: /^Filters/ })).toContainText('1')

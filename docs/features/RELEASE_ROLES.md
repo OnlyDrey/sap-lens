@@ -94,3 +94,7 @@ not confirmed effective release authorization.
 ## Matrix, Table and pagination
 
 The Matrix keeps counts, filters and drill-down but offers no Add to access package control; the Table keeps the package action column. The Table is paged server side with 10, 20, 50 or 100 rows (default 20); changing a filter or the page size returns to the first page. Release Area values show only the letter. Area and Group stay multi-selects with OR within a filter and AND between filters. The assignment CSV export and the role-list export keep their separate scopes.
+
+## Users of a release role
+
+The Users count of a table row is a button that opens a panel with the users holding that role: SAP username codeblock, name when the user source has one, SAP User Group, assignment status and validity, a link to the user details and an export of the same assignments. The panel follows the list's validity scope and filters. Release Strategy is a multi-select like Release Area and Release Group.
