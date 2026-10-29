@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ClipboardCheck, FlaskConical, History, Wrench } from 'lucide-react'
-import { emptyFilters, scopeParams, sod, sodPost, type ActivityDetail, type AssignmentRow, type DecisionEvent, type Subject } from '@/api/sod'
+import { Check, ClipboardCheck, FlaskConical, History, Trash2, Wrench } from 'lucide-react'
+import { emptyFilters, scopeParams, sod, sodPost, type ActivityDetail, type AssignmentRow, type DecisionEvent, type OverviewAssignment, type Subject } from '@/api/sod'
 import { useViewHistory, userHref } from '@/hooks/useViewHistory'
 import { SidePanel } from '@/components/Shared/SidePanel'
-import { Button } from '@/components/Shared/Button'
+import { Button, IconButton } from '@/components/Shared/Button'
+import { RoleEntry } from '@/components/Shared/RoleEntry'
+import { moduleOfRoles, useRoleModules } from '@/hooks/useRoleModules'
 import { Card, ErrorState, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
 import { Checkbox, FormField, Input } from '@/components/Shared/Controls'
 import { Select } from '@/components/Shared/Select'
@@ -25,6 +27,7 @@ const OPTIONS: Record<Kind, { value: string; label: string }[]> = {
   assignment: [{ value: 'Keep', label: 'Keep this role assignment' }, { value: 'Remove', label: 'Remove this role assignment' }, { value: 'Pending', label: 'Reset to pending' }],
   acceptance: [{ value: 'Accepted', label: 'Accept the risk' }, { value: 'Rejected', label: 'Reject the risk' }, { value: 'Pending', label: 'Reset to pending' }],
 }
+const QUICK_RATIONALE = 'Reviewed in Role Assignment Review'
 const reviewerKey = 'sap-lens-sod-reviewer'
 const rememberedReviewer = () => { try { return sessionStorage.getItem(reviewerKey) || '' } catch { return '' } }
 
@@ -41,6 +44,10 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
     [simulation, setSimulation] = useState<null | { before: string[]; after: string[]; resolved: string[]; lost_activities: string[]; warnings: string[]; eliminates_all: boolean }>(null),
     [error, setError] = useState(''),
     [action, setAction] = useState<null | { assignment: AssignmentRow }>(null),
+    [quickReviewer, setQuickReviewer] = useState(rememberedReviewer),
+    [quickRationale, setQuickRationale] = useState(''),
+    [quickBusy, setQuickBusy] = useState(''),
+    [quickError, setQuickError] = useState(''),
     formRef = useRef<HTMLDivElement>(null)
   const params = scopeParams(context, emptyFilters, { user, ...(risk ? { risk } : {}), ...(activity ? { activity } : {}) })
   const query = useQuery({ queryKey: ['sod-subject', params.toString()], queryFn: () => sod<Subject>('/api/sod/subject', params) })
@@ -50,6 +57,21 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
   const simulate = async (removed: string[]) => {
     setError('')
     try { setSimulation(await sodPost('/api/sod/simulate', { context, user, removed })) } catch (cause) { setError(cause instanceof Error ? cause.message : 'Simulation failed.') }
+  }
+  /** One-click review: persisted through the same decision endpoint as the form; the row changes only after the server confirms. */
+  const quickDecide = async (row: OverviewAssignment, decision: 'Keep' | 'Remove') => {
+    if (!data) return
+    setQuickError('')
+    if (!quickReviewer.trim()) { setQuickError('Enter a reviewer name above before recording a decision. It is self-reported and stored with each decision.'); return }
+    setQuickBusy(row.id)
+    try {
+      await sodPost('/api/sod/decisions/assignment', { context: data.context, expected_revision: data.revision, expected_generation: data.generation, items: [item(row.id, row.role, row.evidence_version)],
+        decision, reviewer: quickReviewer.trim(), approver: '', justification: quickRationale.trim() || QUICK_RATIONALE, controls: '', expires: null })
+      try { sessionStorage.setItem(reviewerKey, quickReviewer.trim()) } catch { /* optional convenience */ }
+      await invalidateSod(qc)
+    } catch (cause) {
+      setQuickError(`${decision === 'Keep' ? 'Keep' : 'Removal recommendation'} for ${row.role} was not saved. ${cause instanceof Error ? cause.message : 'Try again.'}`)
+    } finally { setQuickBusy('') }
   }
   const toggle = (id: string) => { setSimulation(null); setSelection((previous) => (previous.includes(id) ? previous.filter((value) => value !== id) : [...previous, id])) }
   const pick = (kind: Kind, key: string) => setPicked((previous) => ({ ...previous, [kind]: previous[kind].includes(key) ? previous[kind].filter((value) => value !== key) : [...previous[kind], key] }))
@@ -95,15 +117,15 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
         <ReviewSection title="Role Assignment Review" kind="assignment" done={progressOf(assignments)} total={assignments.length} ok={ok} picked={picked.assignment}
           note="Reviewed with the other activities each role supplies, so one assignment can serve several approved activities."
           onBatch={() => batch('assignment', `Batch role assignment review (${picked.assignment.length})`, assignments.filter((row) => picked.assignment.includes(row.id)).map((row) => item(row.id, row.role, row.evidence_version)))}>
+          {ok && assignments.length > 0 && <div className="quick-review-identity" role="group" aria-label="Quick review details">
+            <FormField label="Reviewer (self-reported)"><Input value={quickReviewer} maxLength={120} placeholder="Your name" onChange={(event) => setQuickReviewer(event.target.value)} /></FormField>
+            <FormField label="Rationale (optional)"><Input value={quickRationale} maxLength={400} placeholder={QUICK_RATIONALE} onChange={(event) => setQuickRationale(event.target.value)} /></FormField>
+          </div>}
+          {quickError && <p role="alert" className="text-[var(--error)]">{quickError}</p>}
           {assignments.map((row) => (
-            <ReviewRow key={row.id} label={row.role} checked={picked.assignment.includes(row.id)} onCheck={ok ? () => pick('assignment', row.id) : undefined}
-              title={<><RoleModuleBadge catalogueRoles={row.catalogue_roles} /><RoleIdentifier value={row.role} onOpen={() => change({ detailRole: row.catalogue_roles[0] || row.role })} openLabel={`Open catalogue role ${row.catalogue_roles[0] || row.role}`} /></>}
-              meta={<>{row.user_group || 'No user group'} · {row.interval_status && <AssignmentStatus value={row.interval_status} />} {formatDate(row.valid_from)} → {formatDate(row.valid_to)} · supplies {row.activities.join(', ')}</>} status={row.decision} event={row.event}
-              actions={ok && <>
-                <Button onClick={() => setForm({ kind: 'assignment', heading: `Role assignment · ${row.role}`, decision: 'Keep', items: [item(row.id, row.role, row.evidence_version)] })} aria-label={`Keep ${row.role}`}>Keep</Button>
-                <Button onClick={() => setForm({ kind: 'assignment', heading: `Role assignment · ${row.role}`, decision: 'Remove', items: [item(row.id, row.role, row.evidence_version)] })} aria-label={`Remove ${row.role}`}>Remove</Button>
-                {row.decision === 'Removal required' && <Button onClick={() => setAction({ assignment: { id: row.id, role: row.role, valid_from: row.valid_from, valid_to: row.valid_to, user_group: row.user_group, interval_status: row.interval_status, tcodes: [], other_activities: row.activities, risks: row.risks, catalogue_roles: row.catalogue_roles, evidence_version: row.evidence_version, decision: row.decision, event: row.event } })}>Track action</Button>}
-              </>}
+            <AssignmentReviewRow key={row.id} row={row} ok={ok} checked={picked.assignment.includes(row.id)} onCheck={() => pick('assignment', row.id)} busy={quickBusy === row.id}
+              onDecide={(decision) => void quickDecide(row, decision)} onOpenRole={() => change({ detailRole: row.catalogue_roles[0] || row.role })}
+              onTrack={row.decision === 'Removal required' ? () => setAction({ assignment: { id: row.id, role: row.role, valid_from: row.valid_from, valid_to: row.valid_to, user_group: row.user_group, interval_status: row.interval_status, tcodes: [], other_activities: row.activities, risks: row.risks, catalogue_roles: row.catalogue_roles, evidence_version: row.evidence_version, decision: row.decision, event: row.event } }) : undefined}
               history={<DecisionHistory kind="assignment" context={context} keyId={row.id} label="Assignment review history" />} />
           ))}
         </ReviewSection>
@@ -164,6 +186,36 @@ function ReviewSection({ title, kind, done, total, ok, picked, note, onBatch, ch
       {note && <p className="ui-description">{note}</p>}
       {total === 0 ? <p className="ui-description">Nothing to review in this section.</p> : <ul className="sod-review-list" aria-label={`${title} items`}>{children}</ul>}
     </section>
+  )
+}
+
+/** Role assignment: module, copyable identifier, validity, SAP User Group, activities supplied and review status, with compact icon decisions on the right. */
+function AssignmentReviewRow({ row, ok, checked, onCheck, busy, onDecide, onOpenRole, onTrack, history }: { row: OverviewAssignment; ok: boolean; checked: boolean; onCheck: () => void; busy: boolean; onDecide: (decision: 'Keep' | 'Remove') => void; onOpenRole: () => void; onTrack?: () => void; history: ReactNode }) {
+  const code = moduleOfRoles(useRoleModules(), row.catalogue_roles), kept = row.decision === 'Keep', removed = row.decision === 'Removal required'
+  return (
+    <li className="sod-review-row sod-assignment-row">
+      <div className="sod-assignment-line">
+        {ok && <Checkbox checked={checked} onChange={onCheck} aria-label={`Select ${row.role}`}><span className="sr-only">Select</span></Checkbox>}
+        <RoleEntry density="compact" moduleCode={code} title="Assigned role" identifier={row.role} identifierSlot={<RoleIdentifier value={row.role} onOpen={onOpenRole} openLabel={`Open catalogue role ${row.catalogue_roles[0] || row.role}`} />}
+          actions={<>
+            <LifecycleBadge value={row.decision} />
+            {onTrack && <Button size="compact" onClick={onTrack}>Track action</Button>}
+            {ok && <span className="sod-decision-icons" role="group" aria-label={`Decision for ${row.role}`}>
+              <IconButton label={`Keep ${row.role}`} tooltip="Keep this role assignment" variant={kept ? 'primary' : 'secondary'} aria-pressed={kept} loading={busy} disabled={busy} onClick={() => onDecide('Keep')}><Check size={16} aria-hidden="true" /></IconButton>
+              <IconButton label={`Remove ${row.role}`} tooltip="Recommend removing this role assignment (no change in SAP)" variant={removed ? 'destructive' : 'secondary'} aria-pressed={removed} loading={busy} disabled={busy} onClick={() => onDecide('Remove')}><Trash2 size={16} aria-hidden="true" /></IconButton>
+            </span>}
+          </>}
+          meta={<>
+            <span className="whitespace-nowrap">SAP User Group: {row.user_group || 'Unknown'}</span>
+            {row.interval_status && <AssignmentStatus value={row.interval_status} />}
+            <span className="whitespace-nowrap">Valid from {formatDate(row.valid_from)} to {formatDate(row.valid_to)}</span>
+          </>}>
+          <span className="id-pill-list" aria-label={`Activities supplied by ${row.role}`}>{row.activities.map((name) => <SodPill key={name} kind="activity" value={name} />)}</span>
+        </RoleEntry>
+      </div>
+      {row.event && <p className="text-xs text-muted">{row.event.decision === 'Remove' ? 'Removal recommended' : row.event.decision} by {row.event.reviewer}, {formatTimestamp(row.event.timestamp)}: {row.event.justification}</p>}
+      {history}
+    </li>
   )
 }
 

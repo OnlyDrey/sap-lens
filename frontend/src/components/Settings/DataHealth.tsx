@@ -80,7 +80,8 @@ export function DataHealth({
                 <h3 className="font-semibold">{s.name}</h3>
                 {sourceEvidence.data?.sources.find(source=>source.id===s.id)?<SourceHealthSummary compact source={sourceEvidence.data.sources.find(source=>source.id===s.id)!}/>:<p>{s.available?'Validated data available':'Not loaded'} · {s.records??'—'} records · {s.snapshot}</p>}
                 <Button
-                  className="settings-secondary-button"
+                  size="compact"
+                  className="health-review-source"
                   onClick={() =>
                     onSource(s.id as 'roles' | 'users' | 'employees' | 'sod')
                   }
@@ -90,14 +91,18 @@ export function DataHealth({
               </article>
             ))}
           </div>
-          {data.coverage.map((c) => (
-            <p key={c.label} className="text-sm">
-              <strong>{c.label}</strong>:{' '}
-              {c.numerator === null
-                ? 'Unavailable'
-                : `${c.numerator} / ${c.denominator} — ${c.percent === null ? 'No eligible records' : c.percent + '%'}`}
-            </p>
-          ))}
+          <ul className="health-coverage" aria-label="Coverage">
+            {data.coverage.map((c) => (
+              <li key={c.label}>
+                <span className="text-xs text-muted">{c.label}</span>
+                <strong>
+                  {c.numerator === null
+                    ? 'Unavailable'
+                    : `${c.numerator} / ${c.denominator} — ${c.percent === null ? 'No eligible records' : c.percent + '%'}`}
+                </strong>
+              </li>
+            ))}
+          </ul>
           {data.directory_coverage_reason && (
             <p className="text-sm">
               Directory coverage: {data.directory_coverage_reason}

@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { ArrowDownAZ, ArrowUpAZ, PanelLeftClose, PanelLeftOpen, SlidersHorizontal, X } from 'lucide-react'
+import { ArrowDownAZ, ArrowUpAZ, FilterX, PanelLeftClose, PanelLeftOpen, SlidersHorizontal, X } from 'lucide-react'
 import { Button, IconButton } from './Button'
 import { Select } from './Select'
 
@@ -19,7 +19,7 @@ function useWide() {
 }
 
 /** Collapsible left filter sidebar on wide screens, an overlay drawer on narrow ones. Filter state belongs to the caller, so hiding never resets it. */
-export function FilterLayout({ activeCount, toolbar, sidebar, children, label = 'Filters' }: { activeCount: number; toolbar?: ReactNode; sidebar: ReactNode; children: ReactNode; label?: string }) {
+export function FilterLayout({ activeCount, toolbar, sidebar, children, label = 'Filters', onClear, clearDisabled = false }: { activeCount: number; toolbar?: ReactNode; sidebar: ReactNode; children: ReactNode; label?: string; onClear?: () => void; clearDisabled?: boolean }) {
   const wide = useWide(),
     id = useId(),
     [open, setOpen] = useState(() => { try { return localStorage.getItem(storageKey) !== 'closed' } catch { return true } }),
@@ -52,6 +52,7 @@ export function FilterLayout({ activeCount, toolbar, sidebar, children, label = 
         <aside id={id} ref={drawerRef} tabIndex={-1} hidden={!shown} aria-label={label} className="filter-sidebar" role={wide ? 'complementary' : 'dialog'} aria-modal={wide ? undefined : 'false'}>
           <header>
             <h2>{label}</h2>
+            {onClear && <Button size="compact" variant="ghost" className="filter-clear-all" disabled={clearDisabled} onClick={onClear}><FilterX size={14} aria-hidden="true" />Clear all filters</Button>}
             <IconButton label={`Close ${label.toLowerCase()}`} onClick={close}><X size={16} /></IconButton>
           </header>
           <div className="filter-sidebar-body">{sidebar}</div>

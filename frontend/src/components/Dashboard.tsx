@@ -223,7 +223,7 @@ export function Dashboard() {
   const renderSod = () => {
     if (!(sodEnabled && sodSummary.data)) return null
             const g=sodSummary.data.governance,pending=(g.activities?.Pending||0)+(g.activities?.Outdated||0)+(g.acceptance?.Pending||0)+(g.acceptance?.Outdated||0)
-            return <section aria-label="Segregation of Duties" className="dashboard-section col-span-full min-w-0 rounded-card bg-surface p-4">
+            return <section aria-label="Segregation of Duties" className="dashboard-section min-w-0 rounded-card bg-surface p-4">
               <SectionHeader title="Segregation of Duties" icon={<ShieldAlert size={18}/>}/>
               {g.available
                 ? <div className="dashboard-metrics dashboard-secondary-metrics">

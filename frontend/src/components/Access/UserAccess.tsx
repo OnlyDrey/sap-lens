@@ -166,19 +166,21 @@ export function UserAccess({
         navigation={navigation}
       />
     );
+  const clearAll=()=>{setAssignmentBand('');setSearch('');setGroup('');setSort('username');setDescending(false);setRole('');directoryTransaction.clear();setTransactionMode('and');excludeTransaction.clear();setExcludeMode('any');setExpired(false);setTerm('');setMissingRoles([]);setMissingMode('any');clearEvidence()}
+  const clearDisabled=!activeFilterCount&&!search&&!role&&!group&&!expired&&!missingRoles.length&&sort==='username'&&!descending
   return (
     <section aria-label="User Access" className="space-y-4">
       {modeButtons}<PageHeader title="User Access" icon={<PageIcon size={22} aria-hidden="true"/>}/>
       <EvidenceNote />
 
-      <FilterLayout label="Filters" activeCount={activeFilterCount}
+      <FilterLayout label="Filters" activeCount={activeFilterCount} onClear={clearAll} clearDisabled={clearDisabled}
         toolbar={<PageToolbar>
           <SortControl label="Sort users" value={sort} options={USER_SORTS} descending={descending} onChange={setSort} onDescending={setDescending} />
-          <ClearFilterButton disabled={!activeFilterCount && !search && sort==='username' && !descending} onClick={()=>{setAssignmentBand('');setSearch('');setTerm('');setGroup('');setSort('username');setDescending(false);setExpired(false);clearEvidence()}}>Clear filters</ClearFilterButton>
+          <ClearFilterButton disabled={clearDisabled} onClick={clearAll}>Clear filters</ClearFilterButton>
         </PageToolbar>}
         sidebar={<div className="grid min-w-0 gap-3" role="search" aria-label="User filters">
           <FilterSection title="Saved Filters">
-            <SavedFilters showClear={false} view="users" state={{assignmentBand,search,group,sort,descending,role,tcodes:directoryTransaction.codes,transactionMode,excludeTcodes:excludeTransaction.codes,excludeMode,missingRoles,missingMode,expired}} apply={s=>{setMissingRoles(Array.isArray(s.missingRoles)?s.missingRoles.filter((name:unknown):name is string=>typeof name==='string').slice(0,20):[]);setMissingMode(s.missingMode==='all'?'all':'any');setAssignmentBand(typeof s.assignmentBand==='string'?s.assignmentBand:'');if(typeof s.search==='string')setSearch(s.search);if(typeof s.group==='string')setGroup(s.group);if(typeof s.sort==='string'&&['username','group','first_name','last_name','email','account_status','relevant_roles'].includes(s.sort))setSort(s.sort);if(typeof s.descending==='boolean')setDescending(s.descending);if(typeof s.role==='string')setRole(s.role);if(Array.isArray(s.tcodes)){directoryTransaction.setInput('');directoryTransaction.setChips(s.tcodes)};if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(Array.isArray(s.excludeTcodes)){excludeTransaction.setInput('');excludeTransaction.setChips(s.excludeTcodes)}else excludeTransaction.clear();setExcludeMode(s.excludeMode==='all'?'all':'any');if(typeof s.expired==='boolean')setExpired(s.expired)}} clear={()=>{setAssignmentBand('');setSearch('');setGroup('');setSort('username');setDescending(false);setRole('');directoryTransaction.clear();setTransactionMode('and');excludeTransaction.clear();setExcludeMode('any');setExpired(false)}}/>
+            <SavedFilters showClear={false} view="users" state={{assignmentBand,search,group,sort,descending,role,tcodes:directoryTransaction.codes,transactionMode,excludeTcodes:excludeTransaction.codes,excludeMode,missingRoles,missingMode,expired}} apply={s=>{setMissingRoles(Array.isArray(s.missingRoles)?s.missingRoles.filter((name:unknown):name is string=>typeof name==='string').slice(0,20):[]);setMissingMode(s.missingMode==='all'?'all':'any');setAssignmentBand(typeof s.assignmentBand==='string'?s.assignmentBand:'');if(typeof s.search==='string')setSearch(s.search);if(typeof s.group==='string')setGroup(s.group);if(typeof s.sort==='string'&&['username','group','first_name','last_name','email','account_status','relevant_roles'].includes(s.sort))setSort(s.sort);if(typeof s.descending==='boolean')setDescending(s.descending);if(typeof s.role==='string')setRole(s.role);if(Array.isArray(s.tcodes)){directoryTransaction.setInput('');directoryTransaction.setChips(s.tcodes)};if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(Array.isArray(s.excludeTcodes)){excludeTransaction.setInput('');excludeTransaction.setChips(s.excludeTcodes)}else excludeTransaction.clear();setExcludeMode(s.excludeMode==='all'?'all':'any');if(typeof s.expired==='boolean')setExpired(s.expired)}} clear={clearAll}/>
           </FilterSection>
           <FilterSection title="Users">
         <Filter label="SAP User Group">

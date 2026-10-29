@@ -552,7 +552,7 @@ export function ComparisonView({ roleNames, onBack }: Props) {
             </div>
 
             <div
-              className="grid min-w-0 grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3"
+              className="masonry-columns"
             >
               {selectRows(data.shared_single_roles).length === 0
                 ? (

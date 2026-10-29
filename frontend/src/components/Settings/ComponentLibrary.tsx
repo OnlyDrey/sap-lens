@@ -9,7 +9,7 @@ import { SourceHealthSummary } from './SourceStatus'
 import { AssignmentDateFilters, emptyDates } from '@/components/Shared/AssignmentDateFilters'
 import { StatusCard, FilterPanel, ResultsToolbar } from '@/components/Shared/InvestigationPatterns'
 import { useRef, useState, useEffect } from 'react'
-import { Copy, Download, Search, Users, Info, CheckCircle2, Database, Layers } from 'lucide-react'
+import { Copy, Download, Search, Users, Info, CheckCircle2, Database, Layers, MoreHorizontal } from 'lucide-react'
 import { RoleCard } from '@/components/RoleList/RoleCard'
 import { ModuleBadge } from '@/components/Modules/ModuleBadge'
 import { RoleEntry } from '@/components/Shared/RoleEntry'
@@ -24,7 +24,6 @@ import {
 import {
   MainNavigation,
   MainNavigationItem,
-  SecondaryNavigation,
   ContentTabs,
 } from '@/components/Shared/Navigation'
 import { Popover } from '@/components/Shared/Popover'
@@ -60,7 +59,8 @@ import {
 import { ClearFilterButton } from '@/components/Shared/ClearFilterButton'
 import { Notification } from '@/components/Shared/Notification'
 import { SAPUserSelector } from '@/components/Shared/SAPUserSelector'
-import { Pagination, dates } from '@/components/Access/Shared'
+import { PAGE_SIZES, Pagination, dates } from '@/components/Access/Shared'
+import { BulkToolbar } from '@/components/Shared/BulkSelection'
 import type { UserRow } from '@/api/access'
 const demoUsers: UserRow[] = [
   {
@@ -140,6 +140,8 @@ export function ComponentLibrary() {
     [cardCompare, setCardCompare] = useState(false),
     [cardPackage, setCardPackage] = useState(false),
     [offset, setOffset] = useState(0),
+    [demoOffset, setDemoOffset] = useState(0),
+    [demoSize, setDemoSize] = useState(10),
     [user, setUser] = useState('DEMO_ANALYST'),
     [role, setRole] = useState('ZC:DEMO:VIEW'),
     [areas, setAreas] = useState<string[]>(['E']);
@@ -199,7 +201,7 @@ export function ComponentLibrary() {
         <h2>Navigation &amp; content</h2>
         <p className="ui-description">
           Major destinations, related pages and content switching have distinct
-          semantics. Tabs use arrows/Home/End and an underline indicator without a baseline border. Native selects use the shared control dimensions and explicit labels; platform menus remain native.
+          semantics. The primary bar navigates; the tab and secondary-link style below is one design (underline indicator, keyboard focus as a bold underline) used for both content tabs and related-page links. Tabs use arrows/Home/End. Native selects use the shared control dimensions and explicit labels; platform menus remain native.
         </p>
         <div
           style={{
@@ -224,17 +226,6 @@ export function ComponentLibrary() {
             />
           </MainNavigation>
         </div>
-        <SecondaryNavigation
-          label="Secondary navigation preview"
-          items={['directory', 'review'].map((value) => ({
-            value,
-            label:
-              value === 'directory' ? 'Directory preview' : 'Review preview',
-            href: '#/user-access',
-            active: section === value,
-            onSelect: () => setSection(value),
-          }))}
-        />
         <ContentTabs
           label="Content tabs preview"
           value={tab}
@@ -518,6 +509,22 @@ export function ComponentLibrary() {
           limit={2}
           onChange={setOffset}
         />
+      </Card>}
+      {(category==='all'||category==='data')&&<Card aria-label="Selection and bulk actions preview">
+        <SectionHeader title="Selection, page sizes and row actions" icon={<Info size={18}/>}/>
+        <p className="ui-description">Bulk selection works on stable identifiers; the toolbar states how many items are affected and where they are. Page sizes and row action menus are shared by every list.</p>
+        <BulkToolbar label="Demo bulk toolbar" summary="2 demo assignments selected" scope="1 on this page · 1 on other pages · 12 match the current filters">
+          <Button size="compact">Select all 12 matching</Button><Button size="compact">Clear selection</Button><Button size="compact">Keep</Button><Button size="compact">Investigate</Button><Button size="compact" variant="destructive">Recommend removal</Button>
+        </BulkToolbar>
+        <Pagination label="Demo sized pagination" offset={demoOffset} total={60} limit={demoSize} onChange={setDemoOffset} pageSizes={PAGE_SIZES} onPageSize={(size)=>{setDemoSize(size);setDemoOffset(0)}}/>
+        <Toolbar>
+          <Popover label="Demo row actions" preferredWidth={300} trigger={<span className="relative inline-flex"><MoreHorizontal size={16} aria-hidden="true"/><span className="sr-only">Demo row actions</span></span>}>{close=><div className="action-menu" role="group" aria-label="Demo row actions menu">
+            <Button variant="ghost" onClick={close}>Open</Button>
+            <Button variant="ghost" disabled>Compare with…</Button>
+            <p className="ui-description action-menu-note">Create a second item to compare against.</p>
+            <hr className="action-menu-separator" aria-hidden="true"/>
+            <Button variant="ghost" className="action-menu-destructive" onClick={close}>Delete…</Button></div>}</Popover>
+        </Toolbar>
       </Card>}
       </ContentTabs>
     </div>

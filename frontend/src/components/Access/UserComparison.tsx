@@ -9,6 +9,10 @@ import { Button, IconButton } from '@/components/Shared/Button'
 import { SAPUserSelector } from '@/components/Shared/SAPUserSelector'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import { RoleModuleBadge } from '@/components/Shared/RoleModuleBadge'
+import { RoleEntry } from '@/components/Shared/RoleEntry'
+import { presentRoleDescription } from '@/lib/rolePresentation'
+import { useModuleDefinitions } from '@/components/Modules/ModuleRegistry'
+import { moduleOfRoles, useRoleModules } from '@/hooks/useRoleModules'
 import {
   Card,
   Toolbar,
@@ -96,6 +100,14 @@ function UserSelector({
     </>
   )
 }
+/** Standard role presentation for the compared role: module badge, description, copyable identifier. Module comes from matched catalogue evidence only. */
+function ComparisonRole({ row }: { row: Row }) {
+  const modules = useRoleModules(), areas = Object.keys(useModuleDefinitions())
+  const first = [...row.a, ...row.b].find((item): item is Assignment => typeof item !== 'string')
+  const code = first && ['exact', 'wildcard'].includes(first.match_status) ? moduleOfRoles(modules, first.catalogue_roles) : undefined
+  const description = presentRoleDescription(row.description, areas).description
+  return <RoleEntry density="compact" moduleCode={code} showUnclassified title={description || (code ? '' : 'Unclassified role')} identifier={row.identifier} />
+}
 function EvidenceCell({
   row,
   side,
@@ -168,10 +180,10 @@ function EvidenceCell({
               </div>
             ) : (
               <div key={i} className="comparison-evidence-item">
-                <RoleModuleBadge catalogueRoles={e.match_status==='exact'||e.match_status==='wildcard'?e.catalogue_roles:undefined}/>
-                <RoleIdentifier value={e.role_name} onOpen={e.catalogue_roles.length===1&&['exact','wildcard'].includes(e.match_status)?()=>onRole(e.catalogue_roles[0]):undefined} openLabel={`Open catalogue details for ${e.role_name}`}/>
+                {e.role_name!==row.identifier&&<><RoleModuleBadge catalogueRoles={e.match_status==='exact'||e.match_status==='wildcard'?e.catalogue_roles:undefined}/>
+                <RoleIdentifier value={e.role_name} onOpen={e.catalogue_roles.length===1&&['exact','wildcard'].includes(e.match_status)?()=>onRole(e.catalogue_roles[0]):undefined} openLabel={`Open catalogue details for ${e.role_name}`}/></>}
                 <div className="assignment-status-control"><Popover label={`Assignment validity for ${e.role_name}`} trigger={<AssignmentStatus value={e.status}/>}><dl className="ui-metadata-list"><div><dt>Valid from</dt><dd>{formatDate(e.valid_from)}</dd></div><div><dt>Valid to</dt><dd>{formatDate(e.valid_to)}</dd></div><div><dt>Evaluated assignment status</dt><dd><AssignmentStatus value={e.status}/></dd></div></dl></Popover></div>
-                <p className="ui-description">SAP User Group: {e.user_group || 'Unknown'}</p>
+                <p className="ui-description whitespace-nowrap">SAP User Group: {e.user_group || 'Unknown'}</p>
 
               </div>
             ),
@@ -719,17 +731,14 @@ export function UserComparison({
                 <tr key={row.identifier}>
                   <td>
                     {kind === 'roles' ? (
-                      <RoleIdentifier value={row.identifier} />
+                      <ComparisonRole row={row} />
                     ) : (
-                      <button
-                        className="text-link"
-                        onClick={() => onTransaction(row.identifier)}
-                      >
-                        {row.identifier}
-                      </button>
+                      <>
+                        <p className="comparison-row-title">{row.description || 'Transaction'}</p>
+                        <button className="text-link" onClick={() => onTransaction(row.identifier)}>{row.identifier}</button>
+                        {!!row.areas.length && <small>{row.areas.join(' · ')}</small>}
+                      </>
                     )}
-                    <p>{row.description}</p>
-                    <small>{row.areas.join(' · ')}</small>
                   </td>
                   <td>
                     <span className="evidence-difference" data-difference={row.difference}>{row.difference === 'shared'

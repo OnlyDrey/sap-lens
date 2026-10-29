@@ -7,7 +7,7 @@ import { ErrorState, EmptyState, LoadingState } from '@/components/Shared/Presen
 import { Select } from '@/components/Shared/Select'
 import { Button } from '@/components/Shared/Button'
 import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
-import { Pagination } from '@/components/Access/Shared'
+import { PAGE_SIZES, Pagination } from '@/components/Access/Shared'
 import { announceExport } from '@/lib/exportNotice'
 import { SodPill } from '@/lib/sodAppearance'
 import { ContextBar, CoverageNotice, SodFilters, lifecycleView, useSodContext, useSodFilters, useSodSubject } from './SodShared'
@@ -15,6 +15,8 @@ import { ContextBar, CoverageNotice, SodFilters, lifecycleView, useSodContext, u
 type Risk = MatrixResult<RiskColumn, RiskCell>
 type Activity = MatrixResult<ActivityColumn, ActivityCell>
 const PAGE = 50
+/** Matrix page size survives leaving the matrix within the session. */
+const sizeMemory: Record<string, number> = {}
 /** Page and row grouping survive leaving the matrix (a role page, Back) within the session. */
 const memory: Record<string, { offset: number; groupBy: 'user' | 'group' }> = {}
 
@@ -27,14 +29,16 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
     [groupBy, setGroupByState] = useState<'user' | 'group'>(memory[kind]?.groupBy || 'user'),
     [offset, setOffsetState] = useState(memory[kind]?.offset || 0),
     [selected, setSelected] = useSodSubject(),
-    [busy, setBusy] = useState(false)
+    [busy, setBusy] = useState(false),
+    [pageSize, setPageSizeState] = useState(sizeMemory[kind] || PAGE)
+  const setPageSize = (value: number) => { sizeMemory[kind] = value; setPageSizeState(value); setOffset(0) }
   const setOffset = (value: number) => { memory[kind] = { offset: value, groupBy }; setOffsetState(value) }
   const setGroupBy = (value: 'user' | 'group') => { memory[kind] = { offset: 0, groupBy: value }; setGroupByState(value) }
   const setFilters = (value: Filters) => {
     setOffset(0)
     setFiltersState(value)
   }
-  const params = scopeParams(context, filters, { group_by: groupBy, offset, limit: PAGE })
+  const params = scopeParams(context, filters, { group_by: groupBy, offset, limit: pageSize })
   const result = useQuery({ queryKey: ['sod-matrix', kind, params.toString()], queryFn: () => sod<Risk | Activity>(`/api/sod/matrix/${kind}`, params) })
   const data = result.data
   const byUser = new Map((data?.rows || []).map((row) => [row.user, row]))
@@ -129,7 +133,7 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
                 cell={cell} onSelect={open} onRow={groupBy === 'user' ? (row) => setSelected({ user: row }) : undefined}
                 selected={selected ? { row: selected.user, col: selected.risk || selected.activity || '' } : null} />
             : <EmptyState>No users match this scope. Results describe imported evidence only; incomplete source coverage cannot establish absence of access.</EmptyState>}
-          <Pagination label="Matrix pages" offset={data.offset} total={data.total_rows} limit={data.limit} onChange={setOffset} />
+          <Pagination label="Matrix pages" offset={data.offset} total={data.total_rows} limit={data.limit} onChange={setOffset} pageSizes={PAGE_SIZES} onPageSize={setPageSize} />
           {filters.risk || filters.activity || filters.group ? <Button variant="ghost" onClick={() => setFilters({ ...filters, risk: '', activity: '', group: '' })}>Show all risks, activities and groups</Button> : null}
         </>}
       </SodFilters>

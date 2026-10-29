@@ -88,22 +88,33 @@ export function EvidenceDisclosure({
     </details>
   )
 }
+/**
+ * The shared table surface: a keyboard-focusable scroll region with the standard header, density and zebra rows.
+ * `sticky` pins the header inside a height-bounded region; `density="compact"` tightens the rows.
+ * Cells opt into `data-align="end"` for numbers and `className="col-actions"` for a right-aligned action column.
+ */
 export function DataTable({
   caption,
   children,
   tableClassName = '',
   regionLabel,
+  sticky = false,
+  density = 'standard',
 }: {
   caption: string
   children: ReactNode
   tableClassName?: string
   regionLabel?: string
+  sticky?: boolean
+  density?: 'standard' | 'compact'
 }) {
   return (
     <div
       className="access-table"
       tabIndex={0}
       role="region"
+      data-sticky={sticky || undefined}
+      data-density={density}
       aria-label={regionLabel || `Scrollable ${caption}`}
     >
       <table className={tableClassName}>

@@ -1,12 +1,13 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { keepPreviousData, useQuery, type QueryClient } from '@tanstack/react-query'
 import { AlertTriangle, CheckCircle2, CircleDashed, CircleDot, History, Lock, RefreshCw, ShieldCheck, ShieldX, UserMinus } from 'lucide-react'
-import { sod, emptyFilters, type ContextInfo, type Filters, type Lifecycle } from '@/api/sod'
+import { sod, scopeParams, emptyFilters, type ContextInfo, type Filters, type Lifecycle } from '@/api/sod'
 import { useHistoryValue, useViewHistory, type SodFilterState } from '@/hooks/useViewHistory'
 import { Card, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
 import { FormField, SearchInput } from '@/components/Shared/Controls'
 import { Select } from '@/components/Shared/Select'
 import { Combobox } from '@/components/Shared/Combobox'
+import { MultiSelectFilter } from '@/components/Shared/MultiSelectFilter'
 import { ClearFilterButton } from '@/components/Shared/ClearFilterButton'
 import { Button } from '@/components/Shared/Button'
 import { FilterLayout, FilterSection, PageToolbar, SortControl } from '@/components/Shared/FilterLayout'
@@ -131,6 +132,27 @@ function OptionField({ name, label, max, value, onChange, filters }: { name: str
   )
 }
 
+/** Multi-select over the evidence values of one field; the options follow the other active filters so Select all acts on the values available in the current filter context. */
+function MultiOptionField({ field, listName, label, values, onChange, filters }: { field: string; listName: string; label: string; values: string[]; onChange: (values: string[]) => void; filters: Filters }) {
+  const [context] = useSodContext()
+  const [term, setTerm] = useState('')
+  const others = scopeParams(context, { ...filters, [field]: '', [listName]: [] })
+  others.set('field', field); others.set('term', term); others.set('limit', '200')
+  const options = useQuery({
+    queryKey: ['sod-filter-options', field, others.toString()],
+    queryFn: () => sod<{ items: string[]; total: number }>('/api/sod/filter-options', others),
+    placeholderData: keepPreviousData,
+    staleTime: 15_000,
+  })
+  const items = options.data?.items || []
+  return (
+    <FormField label={label}>
+      <MultiSelectFilter label={label} values={values} options={items} onChange={onChange} onSearch={setTerm} loading={options.isFetching && !options.data}
+        hasMore={(options.data?.total || 0) > items.length} scope="within the other active filters" />
+    </FormField>
+  )
+}
+
 /** Filters relevant to the page. The sidebar owns search and every filter; the toolbar keeps only sort, direction, actions and Reset. Hidden fields are cleared when a Saved Filter is applied so they cannot silently narrow results. */
 export function SodFilters({ view, filters, setFilters, fields, sorts, actions, children, defaults = emptyFilters, searchLabel = 'Search SoD data', extra, onReset }: {
   view: string; filters: Filters; setFilters: (value: Filters) => void; fields: FilterField[]; sorts?: { value: string; label: string }[]; actions?: ReactNode; children: ReactNode
@@ -143,10 +165,12 @@ export function SodFilters({ view, filters, setFilters, fields, sorts, actions, 
   const apply = (value: Record<string, unknown>) => {
     onReset?.()
     const next = { ...defaults, ...value } as Filters
-    for (const name of Object.keys(FIELD_LABELS).concat(Object.keys(DECISION_LABELS), ['validity', 'account_status'])) if (!shown.has(name)) next[name] = defaults[name] ?? ''
+    for (const name of Object.keys(FIELD_LABELS).concat(Object.keys(DECISION_LABELS), ['validity', 'account_status'])) if (!shown.has(name)) { next[name] = defaults[name] ?? ''; if (MULTI[name]) next[MULTI[name]] = [] }
     setFilters(next)
   }
-  const isDefault = (name: string) => text(name) === (typeof defaults[name] === 'string' ? (defaults[name] as string) : '')
+  const list = (name: string) => (Array.isArray(filters[name]) ? (filters[name] as string[]) : [])
+  const MULTI: Record<string, string> = { username: 'usernames', role_suffix: 'role_suffixes' }
+  const isDefault = (name: string) => text(name) === (typeof defaults[name] === 'string' ? (defaults[name] as string) : '') && (!MULTI[name] || !list(MULTI[name]).length)
   const active = [...shown].filter((name) => !isDefault(name)).length + (text('search') ? 1 : 0)
   const field = (name: FilterField) => {
     if (name === 'validity') return (
@@ -181,6 +205,7 @@ export function SodFilters({ view, filters, setFilters, fields, sorts, actions, 
       </FormField>
     )
     const [label, max] = FIELD_LABELS[name]
+    if (MULTI[name]) return <MultiOptionField key={name} field={name} listName={MULTI[name]} label={label} values={list(MULTI[name])} onChange={(values) => setFilters({ ...filters, [name]: '', [MULTI[name]]: values })} filters={filters} />
     return <OptionField key={name} name={name} label={label} max={max} value={text(name)} onChange={(value) => update(name, value)} filters={filters} />
   }
   const sidebar = (
@@ -205,7 +230,7 @@ export function SodFilters({ view, filters, setFilters, fields, sorts, actions, 
       <ClearFilterButton onClick={clear} disabled={!active && text('sort') === (typeof defaults.sort === 'string' ? defaults.sort : 'subject') && filters.descending !== true}>Reset</ClearFilterButton>
     </PageToolbar>
   )
-  return <FilterLayout activeCount={active} sidebar={sidebar} toolbar={toolbar}>{children}</FilterLayout>
+  return <FilterLayout activeCount={active} sidebar={sidebar} toolbar={toolbar} onClear={clear} clearDisabled={!active && !text('search')}>{children}</FilterLayout>
 }
 
 export function AlertNote({ children }: { children: ReactNode }) {

@@ -78,20 +78,28 @@ export function SodOverview() {
       {g.available && <SodGroupHeatmap onOpen={(kind, patch) => go(kind === 'risk' ? 'risk-matrix' : 'activity-matrix', kind === 'risk' ? 'riskMatrix' : 'activityMatrix', patch)} />}
       <div className="grid min-w-0 gap-4 lg:grid-cols-2">
         <Card className="content-start" aria-label="Review period progress">
-          <h3 className="text-base font-semibold">Review period and approval</h3>
-          {g.latest_approval ? <p className="ui-description">Last approved: {g.latest_approval.name} ({g.latest_approval.state}) on {formatDate(g.latest_approval.approval_date)}, approver {g.latest_approval.approver} (self-reported).</p> : <p className="ui-description">No period has been approved yet.</p>}
-          {g.periods?.length ? <ul className="grid gap-2">{g.periods.map((period) => (
-            <li key={period.id} className="flex flex-wrap items-center justify-between gap-2">
-              <span>{period.name}</span>
-              <span><StatusBadge>{period.state}</StatusBadge> <progress className="align-middle" max={Math.max(period.total, 1)} value={period.decided} aria-label={`${period.name} decided ${period.decided} of ${period.total}`} /> {period.decided}/{period.total}{period.blocking ? ` · ${period.blocking} blocking approval` : ''}</span>
+          <SectionHeader title="Review period and approval" icon={<ClipboardCheck size={18} aria-hidden="true" />} />
+          {g.latest_approval
+            ? <p className="ui-description">Last approved: <strong>{g.latest_approval.name}</strong> ({g.latest_approval.state}) on {formatDate(g.latest_approval.approval_date)}, approver {g.latest_approval.approver} (self-reported).</p>
+            : <p className="ui-description">No period has been approved yet.</p>}
+          {g.periods?.length ? <ul className="overview-periods" aria-label="Open review periods">{g.periods.map((period) => (
+            <li key={period.id}>
+              <span className="overview-period-name">{period.name}</span>
+              <StatusBadge>{period.state}</StatusBadge>
+              <progress max={Math.max(period.total, 1)} value={period.decided} aria-label={`${period.name} decided ${period.decided} of ${period.total}`} />
+              <span className="overview-period-count">{period.decided}/{period.total}{period.blocking ? ` · ${period.blocking} blocking approval` : ''}</span>
             </li>))}</ul> : <p className="ui-description">No open review periods.</p>}
           <Toolbar><Button onClick={() => go('periods')}>Open review periods</Button></Toolbar>
         </Card>
         <Card className="content-start" aria-label="Data freshness and coverage">
-          <h3 className="text-base font-semibold">Evidence freshness and coverage</h3>
-          <p>{g.change ? (g.change.unavailable ? 'A source refresh was detected; the change summary is unavailable because the baseline is too large.' : `Since the previous refresh: ${g.change.new} newly detected and ${g.change.no_longer_detected} no longer detected user-risk findings (${g.change.previous_total} → ${g.change.total}).`) : 'No earlier refresh baseline yet. Changes appear after the next source refresh.'}</p>
-          <p className="ui-description">Evaluation date {g.as_of ? formatDate(g.as_of) : '—'} · SoD matrix imported {formatTimestamp(source.imported_at)}, checked {formatTimestamp(source.checked_at)}</p>
-          <p className="ui-description">{coverage.status === 'available' ? `${coverage.mapped_assignment_records ?? 0} of ${coverage.eligible_assignment_records ?? 0} eligible assignment records matched to the catalogue (${coverage.unmapped_assignment_records ?? 0} unmatched).` : 'Evidence coverage is incomplete.'}</p>
+          <SectionHeader title="Evidence freshness and coverage" icon={<ShieldCheck size={18} aria-hidden="true" />} />
+          <dl className="overview-facts">
+            <div><dt>Evaluation date</dt><dd>{g.as_of ? formatDate(g.as_of) : '—'}</dd></div>
+            <div><dt>SoD matrix imported</dt><dd>{formatTimestamp(source.imported_at)}</dd></div>
+            <div><dt>Last checked</dt><dd>{formatTimestamp(source.checked_at)}</dd></div>
+            <div><dt>Since the previous refresh</dt><dd>{g.change ? (g.change.unavailable ? 'Change summary unavailable (baseline too large)' : `${g.change.new} newly detected · ${g.change.no_longer_detected} no longer detected (${g.change.previous_total} → ${g.change.total} user-risk findings)`) : 'No earlier baseline yet'}</dd></div>
+            <div><dt>Catalogue coverage</dt><dd>{coverage.status === 'available' ? `${coverage.mapped_assignment_records ?? 0} of ${coverage.eligible_assignment_records ?? 0} eligible assignment records matched (${coverage.unmapped_assignment_records ?? 0} unmatched)` : 'Incomplete'}</dd></div>
+          </dl>
           <p className="ui-description">Potential transaction-derived conflicts, not effective authorization. Review decisions never change what is detected. Criticality labels keep their source values. Risk definitions are maintained in Settings.</p>
           <Toolbar><Button onClick={() => change({ settings: true, settingsTarget: 'sod' })}>Configure risks in Settings</Button></Toolbar>
         </Card>

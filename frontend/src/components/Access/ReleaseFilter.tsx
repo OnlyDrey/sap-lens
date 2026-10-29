@@ -26,7 +26,7 @@ export function ReleaseMultiFilter({ field, label, values, onChange, context, op
   // Complete option lists only: a truncated list cannot prove that a retained choice is missing.
   const unavailable = options.data && !options.isFetching && !options.data.has_more && !term ? values.filter(value => !options.data!.items.includes(value)) : []
   return <Filter label={label}>
-    <MultiSelectFilter label={label} values={values} options={options.data?.items || []} onChange={onChange} onSearch={setSearch} loading={options.isFetching} hasMore={options.data?.has_more} optionLabel={optionLabel}/>
+    <MultiSelectFilter label={label} values={values} options={options.data?.items || []} onChange={onChange} onSearch={setSearch} loading={options.isFetching} hasMore={options.data?.has_more} optionLabel={optionLabel} scope="within the other active release filters"/>
     {options.isError && <span role="status" className="text-xs text-[var(--warning)]">Options unavailable. Existing filter retained.</span>}
     {unavailable.length > 0 && <span role="status" className="text-xs text-[var(--warning)]">No available value matches {unavailable.join(', ')} in the current context. Remove it or change the other filters.</span>}
   </Filter>

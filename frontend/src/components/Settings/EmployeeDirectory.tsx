@@ -366,7 +366,7 @@ export function FeatureSettings({
         </div>
         <Button onClick={() => onConfigure('employees')}>
           <Settings2 size={16} />
-          Configure identity sources
+          Configure source
         </Button>
       </section>
       <label className="flex flex-col gap-1 text-sm">

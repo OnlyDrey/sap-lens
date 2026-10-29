@@ -33,33 +33,37 @@ export function ScheduledRefresh({ draft, onChange }: { draft: Configuration; on
   const pending = saved && JSON.stringify(saved) !== JSON.stringify(value)
   return (
     <section className="settings-card space-y-3" aria-label="Scheduled refresh">
-      <h2 className="settings-subheading flex items-center gap-2"><Clock size={18} aria-hidden="true" />Scheduled refresh</h2>
+      <div className="schedule-header">
+        <h2 className="settings-subheading flex items-center gap-2"><Clock size={18} aria-hidden="true" />Scheduled refresh</h2>
+        <Toggle label="Enable scheduled refresh" checked={value.enabled} onChange={(enabled) => patch({ enabled })} />
+      </div>
       <p className="ui-description">
         Refreshes the configured dynamic sources in the background, with the same checks as Refresh. Static sources are not re-read, and a failed refresh keeps the previously validated data.
       </p>
-      <Toggle label="Enable scheduled refresh" checked={value.enabled} onChange={(enabled) => patch({ enabled })} />
       <ButtonGroup label="Schedule type" value={value.mode} onChange={(mode) => patch({ mode: mode === 'cron' ? 'cron' : 'daily' })} options={[{ value: 'daily', label: 'Daily' }, { value: 'cron', label: 'Advanced (cron)' }]} />
-      {value.mode === 'daily'
-        ? <FormField label="Daily time"><Input type="time" step={60} value={value.time} onChange={(event) => patch({ time: event.target.value })} /></FormField>
-        : <FormField label="Cron expression"><Input value={value.cron} maxLength={100} spellCheck={false} placeholder="0 6 * * 1-5" onChange={(event) => patch({ cron: event.target.value })} /></FormField>}
+      <div className="schedule-grid">
+        {value.mode === 'daily'
+          ? <FormField label="Daily time"><Input type="time" step={60} value={value.time} onChange={(event) => patch({ time: event.target.value })} /></FormField>
+          : <FormField label="Cron expression"><Input value={value.cron} maxLength={100} spellCheck={false} placeholder="0 6 * * 1-5" onChange={(event) => patch({ cron: event.target.value })} /></FormField>}
+        <FormField label="Time zone">
+          <Combobox label="Time zone" value={value.timezone} options={zones()} optionLabel={zoneLabel} onChange={(timezone) => patch({ timezone: timezone || 'local' })} clearLabel="Local time" placeholder="Local time" maxLength={64} />
+        </FormField>
+      </div>
       {value.mode === 'cron' && <p className="ui-description">Five fields: minute hour day-of-month month day-of-week. Lists (1,15), ranges (1-5), steps (*/15) and names (MON, JAN) are supported. Runs must be at least 5 minutes apart.</p>}
-      <FormField label="Time zone">
-        <Combobox label="Time zone" value={value.timezone} options={zones()} optionLabel={zoneLabel} onChange={(timezone) => patch({ timezone: timezone || 'local' })} clearLabel="Local time" placeholder="Local time" maxLength={64} />
-      </FormField>
       {preview.data && (preview.data.valid
-        ? <div role="status" className="grid gap-1">
+        ? <div role="status" className="schedule-summary grid gap-1">
             <p><strong>{preview.data.description}</strong></p>
             <p className="ui-description">Next runs: {preview.data.next_runs.slice(0, 3).map((run) => formatTimestamp(run)).join(' · ')}</p>
           </div>
         : <p role="alert" className="text-[var(--error)]">{preview.data.error}</p>)}
       {pending && <p className="ui-description" role="status">Apply settings to save this schedule.</p>}
-      <dl className="grid gap-1 sm:grid-cols-2" aria-label="Scheduled refresh status">
-        <div><dt className="text-xs text-muted">Next run</dt><dd>{saved?.enabled && status.data?.next_run ? formatTimestamp(status.data.next_run) : saved?.enabled ? 'Not scheduled' : 'Disabled'}</dd></div>
-        <div><dt className="text-xs text-muted">Last attempted run</dt><dd>{formatTimestamp(state?.last_attempt, 'Never')}</dd></div>
-        <div><dt className="text-xs text-muted">Last successful run</dt><dd>{formatTimestamp(state?.last_success, 'Never')}</dd></div>
-        <div><dt className="text-xs text-muted">Last failure</dt><dd>{formatTimestamp(state?.last_failure, 'None')}{state?.consecutive_failures ? ` · ${state.consecutive_failures} in a row` : ''}</dd></div>
+      <dl className="schedule-facts" aria-label="Scheduled refresh status">
+        <div><dt>Next run</dt><dd>{saved?.enabled && status.data?.next_run ? formatTimestamp(status.data.next_run) : saved?.enabled ? 'Not scheduled' : 'Disabled'}</dd></div>
+        <div><dt>Last attempted run</dt><dd>{formatTimestamp(state?.last_attempt, 'Never')}</dd></div>
+        <div><dt>Last successful run</dt><dd>{formatTimestamp(state?.last_success, 'Never')}</dd></div>
+        <div><dt>Last failure</dt><dd>{formatTimestamp(state?.last_failure, 'None')}{state?.consecutive_failures ? ` · ${state.consecutive_failures} in a row` : ''}</dd></div>
       </dl>
-      {state?.last_status && <p><StatusBadge tone={STATUS[state.last_status]}>{STATUS_TEXT[state.last_status]}</StatusBadge> {state.last_message}</p>}
+      {state?.last_status && <p className="flex flex-wrap items-center gap-2"><span className="text-xs text-muted">Current status</span><StatusBadge tone={STATUS[state.last_status]}>{STATUS_TEXT[state.last_status]}</StatusBadge> {state.last_message}</p>}
       {status.data?.error && <p role="alert" className="text-[var(--error)]">The saved schedule is not usable: {status.data.error}</p>}
       <details>
         <summary>Where it runs</summary>

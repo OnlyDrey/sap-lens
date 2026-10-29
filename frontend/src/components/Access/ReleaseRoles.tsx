@@ -39,6 +39,7 @@ import {
   Filter,
   inputClass,
   Pagination,
+  PAGE_SIZES,
   QueryState,
 } from "./Shared";
 
@@ -85,6 +86,7 @@ export function ReleaseRoles({
     [matrixOffset, setMatrixOffset] = useState(0),
     [compareGroups, setCompareGroups] = useState(false),
     [offset, setOffset] = useState(0),
+    [pageSize, setPageSize] = useState(20),
     [drill, setDrill] = useHistoryValue('release');
   const [query, setQuery] = useState({ username: "", role: "" });
   useEffect(() => {
@@ -95,7 +97,7 @@ export function ReleaseRoles({
   useEffect(() => {
     setOffset(0);
     setMatrixOffset(0);
-  }, [group, kind, areaKey, groupKey, strategy, query, status, sort, descending, compareGroups, dateKey]);
+  }, [group, kind, areaKey, groupKey, strategy, query, status, sort, descending, compareGroups, dateKey, pageSize]);
   // Release Groups outside the selected areas can no longer match; drop them so the filter never hides a contradiction.
   const changeAreas = (areas: string[]) => {
     setReleaseAreas(areas);
@@ -104,9 +106,9 @@ export function ReleaseRoles({
   const filters = { ...dateParams(assignmentDates), group, document_type: kind, release_areas: releaseAreas, release_groups: releaseGroups, strategy, ...query, status, group_by_user_group: compareGroups, sort, descending };
   const navigation = useRecordNavigation('releases', { ...filters, status: drill?.status || status }, drill?.role || '', name => setDrill(previous => previous ? { ...previous, role: name } : previous));
   const result = useQuery({
-    queryKey: ["release-roles", assignmentDates, group, kind, areaKey, groupKey, strategy, query, status, compareGroups, sort, descending, offset, matrixOffset, matrix],
+    queryKey: ["release-roles", assignmentDates, group, kind, areaKey, groupKey, strategy, query, status, compareGroups, sort, descending, offset, matrixOffset, matrix, pageSize],
     queryFn: () =>
-      accessQuery<ReleasePage>("releases", { ...filters, offset, matrix_offset: matrixOffset, matrix_complete:matrix, list_complete:true }),
+      accessQuery<ReleasePage>("releases", { ...filters, offset: matrix ? 0 : offset, limit: pageSize, matrix_offset: matrixOffset, matrix_complete:matrix, list_complete:false }),
   });
   useEffect(() => {
     if (!result.data || result.isFetching) return;
@@ -179,7 +181,7 @@ export function ReleaseRoles({
         naming tokens; no release-authority meaning is assumed.
       </p>
       <EvidenceNote />
-      <FilterLayout label="Filters" activeCount={activeFilterCount}
+      <FilterLayout label="Filters" activeCount={activeFilterCount} onClear={clearAll} clearDisabled={!activeFilterCount}
         toolbar={<PageToolbar lead={<ButtonGroup label="Release results view" value={matrix?'matrix':'table'} onChange={value=>setMatrix(value==='matrix')} options={[{value:'matrix',label:'Matrix',icon:<Grid3X3 size={16} aria-hidden="true"/>},{value:'table',label:'Table',icon:<List size={16} aria-hidden="true"/>}]}/>}>
           <SortControl label="Sort release roles" value={sort} options={RELEASE_SORTS} descending={descending} onChange={setSort} onDescending={setDescending} />
           <ClearFilterButton disabled={!activeFilterCount && sort === 'role_name' && !descending} onClick={clearAll}>Clear filters</ClearFilterButton>
@@ -201,7 +203,7 @@ export function ReleaseRoles({
           <FilterSection title="Release classification">
             <ReleaseFilter field="group" label="Release SAP User Group" value={group} onChange={setGroup} context={context}/>
             <ReleaseFilter field="document_type" label="PR/PO" value={kind} onChange={setKind} context={{ ...context, group }}/>
-            <ReleaseMultiFilter field="release_area" label="Release Area" values={releaseAreas} onChange={changeAreas} context={{ ...context, group, document_type:kind }} optionLabel={value=>`Area ${value}`}/>
+            <ReleaseMultiFilter field="release_area" label="Release Area" values={releaseAreas} onChange={changeAreas} context={{ ...context, group, document_type:kind }}/>
             <ReleaseMultiFilter field="release_group" label="Release Group" values={releaseGroups} onChange={setReleaseGroups} context={{ ...context, group, document_type:kind, release_areas:releaseAreas }}/>
             <ReleaseFilter field="strategy" label="Release Strategy" value={strategy} onChange={setStrategy} context={{ ...context, group, document_type:kind, release_areas:releaseAreas, release_groups:releaseGroups }}/>
           </FilterSection>
@@ -251,49 +253,46 @@ export function ReleaseRoles({
               onCell={drillCell}
               compare={compareGroups}
               partial={result.data.matrix_total>result.data.matrix.length}
-              inPackage={cart.has}
-              onToggle={roles => roles.every(cart.has) ? roles.forEach(cart.remove) : cart.addMany(roles, 'release')}
             />
 
           </>
         ) : (
           <>
-            <div className="access-table release-directory-table" role="region" aria-label="Release role results" tabIndex={0}>
+            <div className="access-table release-directory-table" role="region" aria-label="Release role results" tabIndex={0} data-density="compact">
               <table>
                 <thead>
                   <tr>
-                    <th>PR/PO</th>
-                    <th>Release Area</th>
-                    <th>Release Group</th>
-                    <th>Release Strategy</th>
                     <th>Role name</th>
-                    <th>Assigned users</th>
+                    <th>PR/PO</th>
+                    <th>Area</th>
+                    <th>Group</th>
+                    <th>Strategy</th>
+                    <th data-align="end">Users</th>
                     <th>Assignment validity</th>
-                    <th>Access package</th>
+                    <th className="col-actions">Package</th>
                   </tr>
                 </thead>
                 <tbody>
                   {result.data.items.map((r) => (
                     <tr key={r.role_name}>
+                      <td>
+                        <RoleIdentifier value={r.role_name} openLabel="Release role details" onOpen={() => openDrill({ role: r.role_name, group, username: query.username })}/>
+                      </td>
                       <td>{r.document_type || "Unparsed"}</td>
                       <td>{r.release_area || "—"}</td>
                       <td>{r.release_group || "—"}</td>
                       <td>{r.release_strategy || "—"}</td>
-                      <td>
-                        <RoleIdentifier value={r.role_name} openLabel="Release role details" onOpen={() => openDrill({ role: r.role_name, group, username: query.username })}/>
+                      <td data-align="end" title={`${r.assignment_count} assignment ${r.assignment_count === 1 ? "record" : "records"}`}>
+                        <strong>{r.assigned_users}</strong>
+                        <span className="release-record-count">{r.assignment_count} {r.assignment_count === 1 ? "record" : "records"}</span>
                       </td>
                       <td>
-                        {r.assigned_users} {r.assigned_users === 1 ? "user" : "users"} · {r.assignment_count} {r.assignment_count === 1 ? "record" : "records"}
+                        <div className="release-validity">
+                          {r.statuses.map(status => <AssignmentStatus key={status} value={status}/>)}
+                          <span className="validity-evidence">{dates(r.valid_from, r.valid_to)}{r.missing_dates ? " · Missing dates present" : ""}</span>
+                        </div>
                       </td>
-                      <td>
-                        <div className="flex flex-wrap gap-1">{r.statuses.map(status => <AssignmentStatus key={status} value={status}/>)}</div>
-                        <span className="validity-evidence text-sm text-[var(--muted)]">
-                          Observed range: {dates(r.valid_from, r.valid_to)}
-                          {r.missing_dates ? " · Missing dates present" : ""};
-                          inspect individual intervals.
-                        </span>
-                      </td>
-                      <td>
+                      <td className="col-actions">
                         <PackageToggle active={cart.has(r.role_name)} label={cart.has(r.role_name) ? `Remove ${r.role_name} from access package` : `Add ${r.role_name} to access package`}
                           onToggle={() => cart.has(r.role_name) ? cart.remove(r.role_name) : cart.add(r.role_name, 'release')}>
                           {cart.has(r.role_name) ? <Check className="w-3.5 h-3.5" strokeWidth={3} /> : <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />}
@@ -304,6 +303,7 @@ export function ReleaseRoles({
                 </tbody>
               </table>
             </div>
+            <Pagination label="Release role pages" offset={offset} total={result.data.total} limit={pageSize} onChange={setOffset} pageSizes={PAGE_SIZES} onPageSize={setPageSize} />
             {result.data.total === 0 && (
               <p>
                 No release assignments match. Unknown or future validity is
@@ -330,15 +330,11 @@ function ReleaseMatrix({
   onCell,
   compare,
   partial,
-  inPackage,
-  onToggle,
 }: {
   cells: Cell[];
   onCell: (c: Cell) => void;
   compare: boolean;
   partial: boolean;
-  inPackage: (role: string) => boolean;
-  onToggle: (roles: string[]) => void;
 }) {
   if (!cells.length)
     return (
@@ -390,16 +386,12 @@ function ReleaseMatrix({
                           return (
                             <td key={s} data-intensity={!cell?undefined:cell.user_count===0?0:Math.ceil(3*cell.user_count/maximum)}>
                               {cell ? (
-                                <div className="release-matrix-cell">
                                 <DetailButton
                                   aria-label={`Investigate ${compare ? (group || "Unknown group") + " " : ""}${kind} ${r} ${s}: ${cell.user_count} users`}
                                   onClick={() => onCell(cell)}
                                 >
                                   {cell.user_count}
                                 </DetailButton>
-                                {(cell.roles || []).length > 0 && (() => { const roles = cell.roles, all = roles.every(inPackage), label = `${all ? "Remove" : "Add"} ${roles.length} release ${roles.length === 1 ? "role" : "roles"} for ${compare ? (group || "Unknown group") + " " : ""}${kind} ${r} ${s} ${all ? "from" : "to"} access package`;
-                                  return <PackageToggle active={all} label={label} onToggle={() => onToggle(roles)}>{all ? <Check className="w-3.5 h-3.5" strokeWidth={3} /> : <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />}</PackageToggle> })()}
-                                </div>
                               ) : partial ? (
                                 "—"
                               ) : (

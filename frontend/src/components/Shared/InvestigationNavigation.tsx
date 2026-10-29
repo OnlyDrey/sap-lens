@@ -17,11 +17,11 @@ export function DetailNavigation({ parent, current, onBack, previousUser, index 
   const noun = parent === 'User Access' ? 'user' : parent === 'Release Roles' ? 'release role' : 'record'
   return <div className="detail-navigation">
     {showBreadcrumb&&<nav aria-label="Breadcrumb" className="detail-breadcrumb">
-      <Button variant="ghost" size="compact" className="detail-back-action" onClick={onBack}><ArrowLeft size={16} aria-hidden="true"/>Back to {parent === 'User Access' ? 'users' : parent}</Button>
+      <Button size="compact" className="detail-back-button" onClick={onBack}><ArrowLeft size={16} aria-hidden="true"/>Back to {parent === 'User Access' ? 'users' : parent}</Button>
       <ChevronRight size={14} aria-hidden="true" className="shrink-0"/>
       <span ref={focus} tabIndex={-1} aria-current="page" className="truncate font-semibold" title={current}>{current}</span>
     </nav>}
-    {previousUser && <Button variant="ghost" size="compact" className="detail-back-action detail-return" aria-label={`Back to previous user: ${previousUser.name}`} onClick={previousUser.onBack}><Undo2 size={14} aria-hidden="true"/>Return to {previousUser.name}</Button>}
+    {previousUser && <Button size="compact" className="detail-return-button" aria-label={`Back to previous user: ${previousUser.name}`} onClick={previousUser.onBack}><Undo2 size={14} aria-hidden="true"/>Return to previous user <strong>{previousUser.name}</strong></Button>}
     {index >= 0 && total > 0 && <nav aria-label="Detail records" className="detail-record-controls">
       <IconButton variant="ghost" label="Previous" tooltip={`Previous ${noun} in filtered results`} disabled={!onPrevious || index === 0} onClick={onPrevious}><ChevronLeft size={16} aria-hidden="true"/></IconButton>
       <span className="whitespace-nowrap">{index + 1} of {total}<span className="sr-only"> in filtered results</span></span>

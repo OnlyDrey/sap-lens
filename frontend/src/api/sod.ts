@@ -95,9 +95,10 @@ export interface AssignmentImpact {
   warnings: string[]
   eliminates_all: boolean
 }
+export interface OverviewAssignment { id: string; role: string; decision: Lifecycle; event: DecisionEvent | null; evidence_version: string; risks: string[]; activities: string[]; valid_from: string | null; valid_to: string | null; interval_status: string | null; user_group: string; catalogue_roles: string[] }
 export interface SubjectOverview {
   activities: { activity: string; key: string; decision: Lifecycle; event: DecisionEvent | null; evidence_version: string; risks: string[]; tcodes: string[]; roles: number; duplicate_coverage: boolean }[]
-  assignments: { id: string; role: string; decision: Lifecycle; event: DecisionEvent | null; evidence_version: string; risks: string[]; activities: string[]; valid_from: string | null; valid_to: string | null; interval_status: string | null; user_group: string; catalogue_roles: string[] }[]
+  assignments: OverviewAssignment[]
   risks: { risk_id: string; criticality: string; display_name: string; source_text: string; finding_id: string; evidence_version: string; acceptance: Lifecycle; event: DecisionEvent | null }[]
 }
 export interface UserQueueRow {
@@ -142,8 +143,11 @@ export interface QueueItem {
 const SCALAR_KEYS = ['search', 'risk', 'criticality', 'risk_type', 'category', 'username', 'group', 'composite_role', 'single_role', 'tcode', 'role', 'role_suffix', 'activity', 'account_status',
   'activity_decision', 'assignment_decision', 'acceptance', 'validity', 'as_of', 'sort']
 
+/** Exact multi-select values: OR within the list, AND with every other filter. */
+const MULTI_KEYS = ['usernames', 'role_suffixes']
+
 export const emptyFilters: Filters = {
-  search: '', risk: '', criticality: '', category: '', username: '', group: '', role: '', role_suffix: '', activity: '', tcode: '', account_status: '',
+  search: '', risk: '', criticality: '', category: '', username: '', usernames: [], role_suffixes: [], group: '', role: '', role_suffix: '', activity: '', tcode: '', account_status: '',
   activity_decision: '', assignment_decision: '', acceptance: '', validity: 'active', as_of: '', sort: 'subject', descending: false,
 }
 
@@ -154,6 +158,10 @@ export function scopeParams(context: string, filters: Filters, extra: Record<str
     if (typeof value === 'string' && value !== '') params.set(key, value)
   }
   if (filters.descending === true) params.set('descending', 'true')
+  for (const key of MULTI_KEYS) {
+    const value = filters[key]
+    if (Array.isArray(value)) for (const item of value) params.append(key, item)
+  }
   for (const [key, value] of Object.entries(extra)) if (value !== '') params.set(key, String(value))
   return params
 }
@@ -226,3 +234,18 @@ export async function downloadFile(path: string, options: { method?: 'GET' | 'PO
 
 export const EXPORT_NAME = /^sap-lens-sod-(explorer-(user-risk|user-activity|access-list|lookup)|group-(risk|activity)-heatmap|review-queue|access-remediation)-\d{4}-\d{2}-\d{2}\.csv$/
 export const REPORT_NAME = /^sap-lens-(sod-report-[a-f0-9]{32}|access-remediation-(current|[a-f0-9]{32}))-\d{4}-\d{2}-\d{2}\.(pdf|docx|csv)$/
+
+/** One filtered assignment, identified by its stable assignment id and carrying the evidence version the review is bound to. */
+export interface AssignmentPick {
+  key: string
+  user: string
+  ref: string
+  suffix: string
+  evidence_version: string
+  decision: Lifecycle
+  user_group: string
+}
+export interface AssignmentSelection extends ContextInfo { items: AssignmentPick[]; total: number; truncated: boolean; limit: number }
+export type BulkAction = 'Keep' | 'Remove' | 'Investigate'
+export interface BulkOutcome { key: string; user: string; ref: string; reason: string }
+export interface BulkResult { action: BulkAction; recorded: string[]; skipped: BulkOutcome[]; failed: BulkOutcome[]; revision: number }

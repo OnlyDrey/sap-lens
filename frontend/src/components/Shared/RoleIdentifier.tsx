@@ -1,5 +1,8 @@
-import { useEffect, useRef, useState, type ButtonHTMLAttributes } from 'react'
+import { Fragment, useEffect, useRef, useState, type ButtonHTMLAttributes } from 'react'
 import { Check, Copy, ArrowUpRight } from 'lucide-react'
+
+/** Optional line-break opportunities after ':' '_' '-' '.' '/'; wbr adds no character, so selection and copy keep the exact identifier. */
+export const identifierFragments = (value: string) => value.split(/(?<=[:_\-./])/).map((part, index) => <Fragment key={index}>{index > 0 && <wbr />}{part}</Fragment>)
 
 interface RoleIdentifierProps {
   moduleId?: string | null
@@ -22,10 +25,9 @@ export function RoleIdentifier({ moduleId: _moduleId, value, label = 'role ident
       data-np
       data-copied={message === 'Copied'}
       onClick={(e) => e.stopPropagation()}
-      onKeyDown={event=>{if((event.key==='ArrowRight'||event.key==='ArrowLeft')&&(event.target instanceof HTMLElement)&&(event.target.tagName==='CODE'||event.target.closest('.role-identifier-link'))){event.currentTarget.querySelector('code')?.scrollBy({left:event.key==='ArrowRight'?60:-60});event.preventDefault()}}}
     >
-      {onOpen && href ? <a href={href} className="role-identifier-link" aria-label={openLabel || `Open ${value}`} data-user={openButtonProps?.['data-user']} onClick={(event) => { if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return; event.preventDefault(); onOpen() }}><code title={value} tabIndex={-1}>{value}</code><ArrowUpRight size={14} aria-hidden="true" className="shrink-0"/></a>
-        : onOpen ? <button {...openButtonProps} type="button" className="role-identifier-link" aria-label={openLabel || `Open ${value}`} onClick={onOpen}><code title={value} tabIndex={-1}>{value}</code><ArrowUpRight size={14} aria-hidden="true" className="shrink-0"/></button> : <code title={value} tabIndex={-1}>{value}</code>}
+      {onOpen && href ? <a href={href} className="role-identifier-link" aria-label={openLabel || `Open ${value}`} data-user={openButtonProps?.['data-user']} onClick={(event) => { if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return; event.preventDefault(); onOpen() }}><code title={value}>{identifierFragments(value)}</code><ArrowUpRight size={14} aria-hidden="true" className="shrink-0"/></a>
+        : onOpen ? <button {...openButtonProps} type="button" className="role-identifier-link" aria-label={openLabel || `Open ${value}`} onClick={onOpen}><code title={value}>{identifierFragments(value)}</code><ArrowUpRight size={14} aria-hidden="true" className="shrink-0"/></button> : <code title={value}>{identifierFragments(value)}</code>}
       <button
         type="button"
         aria-label={`Copy ${label} ${value}`}

@@ -40,7 +40,7 @@ export function SecondaryNavigation({
       {items.map((item) => (
         <a
           key={item.value}
-          className="inline-flex min-h-control items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-sm text-secondary no-underline hover:border-content hover:text-content focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus aria-[current=page]:border-action aria-[current=page]:text-content aria-[current=page]:font-semibold"
+          className="inline-flex min-h-control items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-sm text-secondary no-underline hover:border-content hover:text-content aria-[current=page]:border-action aria-[current=page]:text-content aria-[current=page]:font-semibold"
           href={item.href}
           aria-current={item.active ? 'page' : undefined}
           onClick={(event) => {
@@ -92,7 +92,7 @@ export function ContentTabList({
           type="button"
           key={item.value}
           id={`${idPrefix}-${item.value}`}
-          className="inline-flex min-h-control items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-sm text-secondary hover:border-content hover:text-content focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus aria-selected:border-action aria-selected:text-content aria-selected:font-semibold"
+          className="inline-flex min-h-control items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-sm text-secondary hover:border-content hover:text-content aria-selected:border-action aria-selected:text-content aria-selected:font-semibold"
           role="tab"
           aria-controls={panelId(item.value)}
           aria-selected={value === item.value}
