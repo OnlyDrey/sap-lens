@@ -196,3 +196,60 @@ class RestartReliabilityTests(unittest.TestCase):
             self.assertEqual(client.post('/api/refresh',headers=H).status_code,200)
             self.assertIsNone(client.get('/api/configuration',headers=H).json()['error'])
             self.assertEqual(self.metrics(client)['roles']['value'],1)
+
+
+SOD_HEADER = 'RISK,CRITICITY,TYPE,TEXT,ACTVT1,ACTVT2,ACTIVITY_SLOT,ACTIVITY,TCODE,TTEXT\n'
+SOD_ROWS = 'R1,H,S,Synthetic,A,B,ACTVT1,A,X1,Syn\nR1,H,S,Synthetic,A,B,ACTVT2,B,X2,Syn\n'
+
+
+class SodRestartTests(unittest.TestCase):
+    """SoD analysis is derived from restored data; the Dashboard summary must not depend on visiting a SoD page."""
+    tearDown=LoadingPublicationTests.tearDown;client=LoadingPublicationTests.client;wait_ready=LoadingPublicationTests.wait_ready
+    restart=RestartReliabilityTests.restart
+    def setUp(self):
+        LoadingPublicationTests.setUp(self)
+        self.sod=self.root/'sod.csv'
+        self.write_sources()
+    def write_sources(self):
+        self.roles.write_text('AGR_NAME,TEXT,CHILD_AGR,TCODE\nROLE_A,Synthetic,ZS:A,X1\nROLE_B,Synthetic,ZS:B,X2\n')
+        self.users.write_text('USERNAME,ROLE_NAME,USER_GROUP,ROLE_VALID_FROM,ROLE_VALID_TO\nU1,ROLE_A,G,20000101,99991231\nU1,ROLE_B,G,20000101,99991231\n')
+        self.sod.write_text(SOD_HEADER+SOD_ROWS)
+    def persist_sod(self,static):
+        import csv_lifecycle
+        s=config.get_settings().model_copy(deep=True)
+        s.data_csv_path,s.user_csv_path,s.sod_csv_path=str(self.roles),str(self.users),str(self.sod);s.features.sod=True
+        config.save_configuration(s,s.revision);csv_lifecycle.load(force=('roles','users','sod'))
+        if static:
+            s=config.get_settings().model_copy(deep=True);s.source_modes.roles=s.source_modes.users=s.source_modes.sod='static'
+            config.save_configuration(s,s.revision)
+            for path in (self.roles,self.users,self.sod):path.unlink()
+    def governance(self,client):return client.get('/api/sod/overview',headers=H).json()['governance']
+
+    def check_restart_cycle(self,static):
+        self.persist_sod(static);values=[]
+        for _ in range(2):  # restart, then restart again
+            self.restart()
+            with self.client() as client:
+                self.wait_ready(client)
+                first=self.governance(client)  # the Dashboard's only SoD request: no SoD page has been opened
+                self.assertTrue(first['available'],first);self.assertEqual((first['users_with_conflicts'],first['user_risk_findings']),(1,1))
+                client.get('/api/sod/analysis',headers=H,params={'kind':'users'})  # what a SoD page requests
+                again=self.governance(client);values.append((first['users_with_conflicts'],first['user_risk_findings']))
+                self.assertEqual((again['users_with_conflicts'],again['user_risk_findings']),values[-1])
+        self.assertEqual(values[0],values[1])
+
+    def test_static_sod_summary_is_available_after_every_restart_without_visiting_a_sod_page(self):
+        self.check_restart_cycle(True)
+
+    def test_dynamic_sod_summary_is_available_after_every_restart_without_visiting_a_sod_page(self):
+        self.check_restart_cycle(False)
+
+    def test_unavailable_state_names_the_missing_input_and_mapping_disabled_is_reported(self):
+        self.persist_sod(False);self.restart();self.sod.unlink()
+        s=config.get_settings().model_copy(deep=True);s.sod_csv_path='';config.save_configuration(s,s.revision);cache.clear_cache();config.get_settings.cache_clear()
+        with self.client() as client:
+            self.wait_ready(client)
+            value=self.governance(client)
+            self.assertFalse(value['available']);self.assertEqual(value['reason'],'required_source_unavailable');self.assertEqual(value['missing'],['sod'])
+            s=config.get_settings().model_copy(deep=True);s.features.user_role_mapping=False;config.save_configuration(s,s.revision)
+            self.assertEqual(self.governance(client)['reason'],'mapping_disabled')

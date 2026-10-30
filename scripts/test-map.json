@@ -158,7 +158,8 @@
     "sod-overview-heatmap",
     "sod-periods",
     "sod-reports",
-    "sod-stability"
+    "sod-stability",
+    "sod-dashboard-startup"
    ]
   },
   "shared-ui": {

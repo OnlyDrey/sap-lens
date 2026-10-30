@@ -146,7 +146,7 @@ def governance_overview():
     import sod_periods as periods
     import sod_scope as scope
     bundle=scope.load('current')
-    if bundle['coverage']['status']!='available':return dict(available=False,reason=bundle['coverage'].get('reason'))
+    if bundle['coverage']['status']!='available':return dict(available=False,reason=bundle['coverage'].get('reason'),missing=bundle['coverage'].get('missing',[]))
     model=scope.model_for(bundle);change=scope.observe(bundle,model);state=governance.states(model,scope.latest_for(bundle))
     def tally(kind):
         result={}

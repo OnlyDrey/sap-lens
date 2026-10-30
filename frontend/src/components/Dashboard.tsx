@@ -4,7 +4,7 @@ import {useModules} from '@/hooks/useModules'
 import {ModuleBadge} from '@/components/Modules/ModuleBadge'
 import {useSourceEvidence} from '@/components/Settings/SourceStatus'
 import { PageHeader, SectionHeader, StatusBadge } from '@/components/Shared/Presentation'
-import { AlertTriangle, Loader2, CircleDashed, LayoutDashboard, ShieldAlert, ShieldCheck, HeartPulse, BarChart3, SlidersHorizontal, UsersRound as ConflictUsers } from 'lucide-react'
+import { RefreshCw, AlertTriangle, Loader2, CircleDashed, LayoutDashboard, ShieldAlert, ShieldCheck, HeartPulse, BarChart3, SlidersHorizontal, UsersRound as ConflictUsers } from 'lucide-react'
 import { formatTimestamp } from '@/lib/dateFormat'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -54,7 +54,7 @@ function DataLifecycleStatus({ state, validatedAt, warning, onConfigure }: { sta
     <div className="dashboard-status" data-state={state} role="status">
       <Database size={18} aria-hidden="true" />
       <p><strong>No SAP source is configured yet.</strong> Connect a role catalogue and a user access export to see metrics; nothing is shown as zero until data exists.</p>
-      <Button size="compact" onClick={onConfigure}>Configure data sources</Button>
+      <Button size="compact" onClick={onConfigure}><Database size={14} aria-hidden="true"/>Configure data sources</Button>
     </div>
   )
   const text: Record<Exclude<Lifecycle, 'no-source'>, string> = {
@@ -97,7 +97,7 @@ export function Dashboard() {
   const sourceEvidence=useSourceEvidence('roles')
   const configuration=useQuery({queryKey:['configuration'],queryFn:fetchConfiguration})
   const sodEnabled=configuration.data?.settings.features?.sod===true
-  const sodSummary=useQuery({queryKey:['sod-overview'],enabled:sodEnabled,queryFn:()=>apiRequest<{governance:{available:boolean;reason?:string|null;users_with_conflicts?:number;user_risk_findings?:number;activities?:Record<string,number>;acceptance?:Record<string,number>;remediation?:{open_actions:number;overdue:number}}}>('/api/sod/overview')})
+  const sodSummary=useQuery({queryKey:['sod-overview'],enabled:sodEnabled,queryFn:()=>apiRequest<{governance:{available:boolean;reason?:string|null;missing?:string[];users_with_conflicts?:number;user_risk_findings?:number;activities?:Record<string,number>;acceptance?:Record<string,number>;remediation?:{open_actions:number;overdue:number}}}>('/api/sod/overview')})
   const openSod=(sodView:'overview'|'risk-matrix'|'activity-matrix'|'reviews')=>change({page:'sod',sodView,settings:false,detailRole:null})
   const query = useQuery({
     queryKey: ['dashboard'],
@@ -235,10 +235,23 @@ export function Dashboard() {
     ), { tip: <><p>The percentage is the share of SAP users matched to the Employee Directory. It describes directory matching quality only, not the health of other data sources or any SAP authorization.</p><p>{MATCH_HEALTH_LEGEND} The percentage is always shown as text.</p><p>Position changes are independent of matching and never change the percentage.</p></> })
   }
   /** Segregation of Duties: shown only when the feature is enabled; never zero-filled when the analysis is unavailable. */
+  /** Segregation of Duties: loading, failed, unavailable (with its real cause) and ready are different states; none is inferred from another. */
   const renderSod = () => {
-    if (!(sodEnabled && sodSummary.data)) return null
-    const g = sodSummary.data.governance, pending = (g.activities?.Pending || 0) + (g.activities?.Outdated || 0) + (g.acceptance?.Pending || 0) + (g.acceptance?.Outdated || 0)
-    return card('Segregation of Duties', <ShieldAlert size={18}/>, g.available ? (
+    if (!sodEnabled) return null
+    const note = 'Potential transaction-derived conflicts, not effective SAP authorization.'
+    const g = sodSummary.data?.governance
+    if (sodSummary.isError && !g) return card('Segregation of Duties', <ShieldAlert size={18}/>, (
+      <div className="dashboard-card-state" role="alert">
+        <p className="text-sm">SoD analysis could not be loaded.</p>
+        <Button size="compact" onClick={() => void sodSummary.refetch()}><RefreshCw size={14} aria-hidden="true"/>Try again</Button>
+      </div>
+    ), { note })
+    // Persisted data is still being restored, or the analysis has not answered yet: a temporary state, never a missing-data verdict.
+    if (!g || (!g.available && loading)) return card('Segregation of Duties', <ShieldAlert size={18}/>, (
+      <p className="dashboard-card-state ui-description" role="status"><Loader2 size={14} className="animate-spin" aria-hidden="true"/>Preparing SoD analysis…</p>
+    ), { note })
+    const pending = (g.activities?.Pending || 0) + (g.activities?.Outdated || 0) + (g.acceptance?.Pending || 0) + (g.acceptance?.Outdated || 0)
+    if (g.available) return card('Segregation of Duties', <ShieldAlert size={18}/>, (
       <InfoList label="Segregation of Duties">
         <InfoRow icon={<ConflictUsers size={16} aria-hidden="true"/>} label="Users with potential conflicts" value={(g.users_with_conflicts ?? 0).toLocaleString()} tone={g.users_with_conflicts ? 'warning' : 'neutral'} onClick={() => openSod('risk-matrix')} navigates data={{ metric: 'sod_conflicts' }}/>
         <InfoRow icon={<ShieldAlert size={16} aria-hidden="true"/>} label="User-risk findings" value={(g.user_risk_findings ?? 0).toLocaleString()} onClick={() => openSod('risk-matrix')} navigates/>
@@ -246,9 +259,17 @@ export function Dashboard() {
         <InfoRow icon={<ShieldCheck size={16} aria-hidden="true"/>} label="Open remediation actions" value={(g.remediation?.open_actions ?? 0).toLocaleString()} onClick={() => openSod('reviews')} navigates/>
         <InfoRow icon={<AlertTriangle size={16} aria-hidden="true"/>} label="Overdue remediation actions" value={(g.remediation?.overdue ?? 0).toLocaleString()} tone={g.remediation?.overdue ? 'error' : 'neutral'} onClick={() => openSod('reviews')} navigates/>
       </InfoList>
-    ) : (
-      <p className="text-sm text-[var(--muted)]">SoD analysis is not available ({g.reason === 'mapping_disabled' ? 'User–Role Mapping is disabled' : 'a supported SoD matrix and validated role catalogue are required'}). <Button variant="ghost" onClick={() => change({ settings: true, settingsTarget: 'sod' })}>Open SoD source</Button></p>
-    ), { note: 'Potential transaction-derived conflicts, not effective SAP authorization.' })
+    ), { note })
+    const names: Record<string, { label: string; target: 'roles' | 'users' | 'sod' }> = { roles: { label: 'Role Catalogue', target: 'roles' }, users: { label: 'User Access', target: 'users' }, sod: { label: 'SoD matrix', target: 'sod' } }
+    const missing = (g.missing ?? []).filter(key => names[key]), first = names[missing[0] ?? 'sod']
+    const cause = g.reason === 'mapping_disabled' ? 'User–Role Mapping is disabled.' : g.reason === 'sod_disabled' ? 'The SoD feature is disabled.'
+      : missing.length ? `The ${missing.map(key => names[key].label).join(', ')} ${missing.length === 1 ? 'is' : 'are'} not loaded.` : 'A supported SoD matrix and a validated role catalogue are required.'
+    return card('Segregation of Duties', <ShieldAlert size={18}/>, (
+      <div className="dashboard-card-state">
+        <p className="text-sm text-[var(--muted)]">SoD analysis is not available. {cause}</p>
+        {g.reason !== 'sod_disabled' && <Button size="compact" onClick={() => change({ settings: true, settingsTarget: first.target })}><Database size={14} aria-hidden="true"/>Open {first.label === 'SoD matrix' ? 'SoD' : first.label} source</Button>}
+      </div>
+    ), { note })
   }
   const renderRoleDistribution = (d: DashboardData) => {
     const entries = d.role_distribution ? Object.entries(d.role_distribution).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])) : []
