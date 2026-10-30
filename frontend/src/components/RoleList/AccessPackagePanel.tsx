@@ -53,8 +53,8 @@ export function AccessPackagePanel({ onClose }: { onClose: () => void }) {
   return (
     <>
       <SidePanel className="package-panel" title="Proposed access package"
-        subtitle={<>{cart.items.length} {cart.items.length === 1 ? 'role' : 'roles'} selected. Names only: nothing here assigns roles or changes SAP access.</>}
-        headerActions={<Button size="compact" variant="ghost" onClick={() => setConfirmClear(true)} disabled={!cart.items.length}><Trash2 size={14} aria-hidden="true" />Clear package</Button>}
+        subtitle={<>{cart.items.length} {cart.items.length === 1 ? 'role' : 'roles'} selected. Names only: nothing is assigned or changed in SAP.</>}
+        headerActions={<Button size="compact" variant="ghost" aria-label="Clear package" onClick={() => setConfirmClear(true)} disabled={!cart.items.length}><Trash2 size={14} aria-hidden="true" /><span className="package-clear-label">Clear package</span></Button>}
         footer={<div className="package-footer">
           {!!cart.items.length && !!preview.data && (<p role="status" className="package-summary">
               <span>{cart.items.length} {cart.items.length === 1 ? 'role' : 'roles'}</span>
@@ -76,7 +76,7 @@ export function AccessPackagePanel({ onClose }: { onClose: () => void }) {
               {suffixes.slice(0, 8).map((item) => <button key={item.value} type="button" className="package-suffix-chip" aria-pressed={cart.defaultSuffix === item.value} onClick={() => cart.setDefault(item.value)}>{item.value}<span>{item.roles}</span></button>)}
             </div>
           )}
-          <p className="ui-description">The suffix replaces a wildcard or the existing organizational suffix of each catalogue role. A role-specific suffix overrides the default; changing the default never changes it. Release roles keep their exact assigned names.</p>
+          <p className="ui-description">The suffix replaces a wildcard or the organizational suffix of each catalogue role. A role suffix overrides the default. Release roles keep their exact names.</p>
         </section>
         {!cart.items.length ? <EmptyState>The access package is empty. Use Add to access package on a role in Role Lookup or Release Roles.</EmptyState>
           : preview.isError ? <ErrorState error={preview.error} onRetry={() => void preview.refetch()} />
@@ -104,7 +104,7 @@ export function AccessPackagePanel({ onClose }: { onClose: () => void }) {
                           </div>
                         </div>
                       </div>
-                      {row.messages.map((message) => <p key={message} className="package-message">{message}</p>)}
+                      {row.status !== 'needs_suffix' && row.messages.map((message) => <p key={message} className="package-message">{message}</p>)}
                       {row.catalogue && <p className="package-message">{matchText(row)}</p>}
                     </RoleEntry>
                   </li>

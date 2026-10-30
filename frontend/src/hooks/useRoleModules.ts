@@ -14,3 +14,9 @@ export function moduleOfRoles(modules: Map<string, string | null>, names: readon
   const [only] = found
   return found.size === 1 && only && only !== 'UNCLASSIFIED' ? only : undefined
 }
+
+/** Catalogue description per role name, from the same cached list. Roles without catalogue evidence have none. */
+export function useRoleDescriptions() {
+  const roles = useRoles()
+  return useMemo(() => new Map((roles.data ?? []).map(role => [role.agr_name, role.text || ''] as const)), [roles.data])
+}

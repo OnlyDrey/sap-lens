@@ -116,3 +116,46 @@ for (const width of [375, 800]) test(`the review workspace is usable without hor
   await expect(panel.getByRole('button', { name: 'Save decision', exact: true })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
 })
+
+test('Activity Review and Role Assignment Review rows are single-line with icon actions and keep evidence behind an expand control', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await openSod(page, 'Reviews')
+  await page.getByRole('button', { name: /^Open review for / }).first().click()
+  const panel = page.getByRole('dialog', { name: /^SYN_/ })
+  const activities = panel.getByRole('region', { name: 'Activity Review', exact: true })
+  const row = activities.getByRole('listitem').filter({ has: page.getByRole('button', { name: 'Review activity A', exact: true }) })
+  // Identity, status, risk pills, role coverage, decision action and expand control share one line.
+  const review = row.getByRole('button', { name: 'Review activity A', exact: true }), expand = row.getByRole('button', { name: 'Show details for A', exact: true })
+  await expect(review.locator('svg')).toHaveCount(1)
+  await expect(row).toContainText('role assignment')
+  const [reviewBox, expandBox, rowBox] = [await review.boundingBox(), await expand.boundingBox(), await row.boundingBox()]
+  expect(Math.abs(reviewBox!.y - expandBox!.y)).toBeLessThan(4)
+  expect(reviewBox!.height).toBeGreaterThanOrEqual(24)
+  expect(rowBox!.height).toBeLessThan(80)
+  // Evidence and history are behind the expand control.
+  await expect(row.getByText('Activity review history')).toHaveCount(0)
+  await expand.click()
+  await expect(row.getByText('No decision recorded for this item yet.')).toBeVisible()
+  await expect(row.getByText('Activity review history')).toBeVisible()
+  await row.getByRole('button', { name: 'Hide details for A', exact: true }).click()
+  await expect(row.getByText('Activity review history')).toHaveCount(0)
+  // Role assignment rows show the catalogue description next to the role identifier without opening the evidence.
+  const assignments = panel.getByRole('region', { name: 'Role Assignment Review', exact: true })
+  await expect(assignments.getByRole('listitem').first().locator('.sod-assignment-description')).toContainText('Synt')
+  await expect(assignments.getByText('SAP User Group')).toHaveCount(0)
+})
+
+test('an expanded Role Assignment Review row keeps its status and decision icons inside the panel at 375px', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 })
+  await openSod(page, 'Reviews')
+  await page.getByRole('button', { name: /^Open review for / }).first().click()
+  const panel = page.getByRole('dialog', { name: /^SYN_/ })
+  const row = panel.getByRole('region', { name: 'Role Assignment Review', exact: true }).getByRole('listitem').first()
+  await row.getByRole('button', { name: /^Show details for / }).click()
+  await expect(row.getByRole('group', { name: /^Evidence for / })).toBeVisible()
+  const panelBox = await panel.boundingBox()
+  for (const control of await row.getByRole('button').all()) {
+    const box = await control.boundingBox()
+    expect(box!.x + box!.width, await control.getAttribute('aria-label') ?? 'control').toBeLessThanOrEqual(panelBox!.x + panelBox!.width + 1)
+  }
+})

@@ -1,3 +1,6 @@
+import { useRoleDescriptions } from '@/hooks/useRoleModules'
+import { useModuleDefinitions } from '@/components/Modules/ModuleRegistry'
+import { presentRoleDescription } from '@/lib/rolePresentation'
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, ChevronDown, ChevronUp, ClipboardCheck, FlaskConical, History, Search, Trash2, Wrench } from 'lucide-react'
@@ -93,6 +96,8 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
   const pick = (kind: Kind, key: string) => setPicked((previous) => ({ ...previous, [kind]: previous[kind].includes(key) ? previous[kind].filter((value) => value !== key) : [...previous[kind], key] }))
   const item = (key: string, ref: string, version: string): Item => ({ key, user, ref, evidence_version: version })
   const overview = data?.overview
+  const roleTexts = useRoleDescriptions(), areaCodes = Object.keys(useModuleDefinitions())
+  const describe = (names: string[]) => { for (const name of names) { const text = roleTexts.get(name); if (text) return presentRoleDescription(text, areaCodes).description } return undefined }
   const tcodesOf = new Map<string, string[]>()
   for (const block of data?.activities || []) for (const entry of block.assignments) tcodesOf.set(entry.id, [...new Set([...(tcodesOf.get(entry.id) || []), ...entry.tcodes])].sort())
   // A matrix cell opens only that user-risk or user-activity and the evidence behind it; the user row opens everything.
@@ -126,8 +131,8 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
           onBatch={() => batch('activity', `Batch activity review (${picked.activity.length})`, activities.filter((row) => picked.activity.includes(row.key)).map((row) => item(row.key, row.activity, row.evidence_version)))}>
           {activities.map((row) => (
             <ReviewRow key={row.key} focused={focus(row.activity, 'activity')} label={row.activity} checked={picked.activity.includes(row.key)} onCheck={ok ? () => pick('activity', row.key) : undefined}
-              compact title={<SodPill kind="activity" value={row.activity} />} summary={<><span className="id-pill-list" aria-label={`Risks supplied by ${row.activity}`}>{row.risks.map(risk => <SodPill key={risk} kind="risk" value={risk} />)}</span><span className="sod-meta whitespace-nowrap">{row.roles} role assignment{row.roles === 1 ? '' : 's'}{row.duplicate_coverage ? ' · overlapping coverage' : ''}</span></>} status={row.decision} event={row.event}
-              actions={ok && <Button onClick={() => setForm({ kind: 'activity', heading: `Activity review · ${row.activity}`, items: [item(row.key, row.activity, row.evidence_version)] })} aria-label={`Review activity ${row.activity}`}><ClipboardCheck size={16} aria-hidden="true" />Review</Button>}
+              compact title={<SodPill kind="activity" value={row.activity} />} summary={<><span className="id-pill-list" aria-label={`Risks supplied by ${row.activity}`}>{row.risks.map(risk => <SodPill key={risk} kind="risk" value={risk} />)}</span><StatusBadge tone={row.duplicate_coverage ? 'info' : 'neutral'}><span title={row.duplicate_coverage ? 'Several role assignments supply this activity' : 'Role assignments supplying this activity'}>{row.roles} role assignment{row.roles === 1 ? '' : 's'}{row.duplicate_coverage ? ' · overlapping' : ''}</span></StatusBadge></>} status={row.decision} event={row.event}
+              actions={ok && <IconButton label={`Review activity ${row.activity}`} tooltip="Record an activity review" variant={row.decision === 'Pending' ? 'primary' : 'secondary'} onClick={() => setForm({ kind: 'activity', heading: `Activity review · ${row.activity}`, items: [item(row.key, row.activity, row.evidence_version)] })}><ClipboardCheck size={16} aria-hidden="true" /></IconButton>}
               history={<DecisionHistory kind="activity" context={context} keyId={row.key} label="Activity review history" />} />
           ))}
         </ReviewSection>
@@ -141,7 +146,7 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
           </div>}
           {quickError && <p role="alert" className="text-[var(--error)]">{quickError}</p>}
           {assignments.map((row) => (
-            <AssignmentReviewRow key={row.id} row={row} ok={ok} checked={picked.assignment.includes(row.id)} onCheck={() => pick('assignment', row.id)} busy={quickBusy.has(row.id)}
+            <AssignmentReviewRow key={row.id} row={row} description={describe(row.catalogue_roles)} ok={ok} checked={picked.assignment.includes(row.id)} onCheck={() => pick('assignment', row.id)} busy={quickBusy.has(row.id)}
               onDecide={(decision) => quickDecide(row, decision)} onOpenRole={() => change({ detailRole: row.catalogue_roles[0] || row.role })}
               onTrack={row.decision === 'Removal required' ? () => setAction({ assignment: { id: row.id, role: row.role, valid_from: row.valid_from, valid_to: row.valid_to, user_group: row.user_group, interval_status: row.interval_status, tcodes: [], other_activities: row.activities, risks: row.risks, catalogue_roles: row.catalogue_roles, evidence_version: row.evidence_version, decision: row.decision, event: row.event } }) : undefined}
               history={<DecisionHistory kind="assignment" context={context} keyId={row.id} label="Assignment review history" />} transactions={tcodesOf.get(row.id) || []} />
@@ -209,14 +214,14 @@ function ReviewSection({ title, kind, done, total, ok, picked, keys, onPickAll, 
 }
 
 /** Collapsed: checkbox, copyable role, review status, icon decisions and an expand control. Expanded: transactions and activities, SAP User Group, validity, history and further actions. */
-function AssignmentReviewRow({ row, ok, checked, onCheck, busy, onDecide, onOpenRole, onTrack, history, transactions }: { row: OverviewAssignment; ok: boolean; checked: boolean; onCheck: () => void; busy: boolean; onDecide: (decision: 'Keep' | 'Remove' | 'Investigate') => void; onOpenRole: () => void; onTrack?: () => void; history: ReactNode; transactions: string[] }) {
+function AssignmentReviewRow({ row, description, ok, checked, onCheck, busy, onDecide, onOpenRole, onTrack, history, transactions }: { row: OverviewAssignment; description?: string; ok: boolean; checked: boolean; onCheck: () => void; busy: boolean; onDecide: (decision: 'Keep' | 'Remove' | 'Investigate') => void; onOpenRole: () => void; onTrack?: () => void; history: ReactNode; transactions: string[] }) {
   const [open, setOpen] = useState(false), kept = row.decision === 'Keep', removed = row.decision === 'Removal required', investigating = row.decision === 'Investigate'
   const detailId = useId()
   return (
     <li className="sod-review-row sod-assignment-row" data-expanded={open || undefined}>
       <div className="sod-assignment-compact">
         {ok && <Checkbox checked={checked} onChange={onCheck} aria-label={`Select ${row.role}`}><span className="sr-only">Select</span></Checkbox>}
-        <div className="sod-assignment-role"><RoleIdentifier value={row.role} onOpen={onOpenRole} openLabel={`Open catalogue role ${row.catalogue_roles[0] || row.role}`} /></div>
+        <div className="sod-assignment-role"><RoleIdentifier value={row.role} onOpen={onOpenRole} openLabel={`Open catalogue role ${row.catalogue_roles[0] || row.role}`} />{description && <p className="sod-assignment-description" title={description}>{description}</p>}</div>
         <LifecycleBadge value={row.decision} />
         {ok && <span className="sod-decision-icons" role="group" aria-label={`Decision for ${row.role}`}>
           <IconButton label={`Keep ${row.role}`} tooltip="Keep this role assignment" variant={kept ? 'primary' : 'secondary'} aria-pressed={kept} loading={busy} disabled={busy} onClick={() => onDecide('Keep')}><Check size={16} aria-hidden="true" /></IconButton>
@@ -241,9 +246,11 @@ function AssignmentReviewRow({ row, ok, checked, onCheck, busy, onDecide, onOpen
   )
 }
 
+/** Compact rows keep identity, status, coverage and the decision action on one line; the latest decision text and the history sit behind an expand control. */
 function ReviewRow({ label, title, meta, summary, compact, status, event, actions, history, checked, onCheck, focused }: {
   label: string; title: ReactNode; meta?: ReactNode; summary?: ReactNode; compact?: boolean; status: string; event: DecisionEvent | null; actions?: ReactNode; history: ReactNode; checked: boolean; onCheck?: () => void; focused?: boolean
 }) {
+  const [open, setOpen] = useState(false), detailId = useId()
   return (
     <li className="sod-review-row" data-focused={focused || undefined} data-compact={compact || undefined}>
       {compact ? (
@@ -251,8 +258,11 @@ function ReviewRow({ label, title, meta, summary, compact, status, event, action
           {onCheck && <Checkbox checked={checked} onChange={onCheck} aria-label={`Select ${label}`}><span className="sr-only">Select</span></Checkbox>}
           <span className="min-w-0">{title}</span>
           <LifecycleBadge value={status} />
-          {summary}
-          {actions && <div className="sod-review-actions sod-review-compact-actions">{actions}</div>}
+          <span className="sod-review-summary">{summary}</span>
+          <div className="sod-review-actions sod-review-compact-actions">
+            {actions}
+            <IconButton label={`${open ? 'Hide' : 'Show'} details for ${label}`} tooltip={open ? 'Hide evidence and history' : 'Show evidence and history'} variant="ghost" aria-expanded={open} aria-controls={detailId} onClick={() => setOpen(!open)}>{open ? <ChevronUp size={16} aria-hidden="true" /> : <ChevronDown size={16} aria-hidden="true" />}</IconButton>
+          </div>
         </div>
       ) : (
         <>
@@ -264,9 +274,14 @@ function ReviewRow({ label, title, meta, summary, compact, status, event, action
           <p className="text-xs text-muted">{meta}</p>
         </>
       )}
-      {event && <p className="text-xs text-muted">{event.decision} by {event.reviewer}, {formatTimestamp(event.timestamp)}: {event.justification}{event.controls ? ` Conditions: ${event.controls}` : ''}</p>}
-      {!compact && actions && <div className="sod-review-actions">{actions}</div>}
-      {history}
+      {compact ? (open && <div id={detailId} className="sod-assignment-details" role="group" aria-label={`Evidence for ${label}`}>
+        {event ? <p className="text-xs text-muted">{event.decision} by {event.reviewer}, {formatTimestamp(event.timestamp)}: {event.justification}{event.controls ? ` Conditions: ${event.controls}` : ''}</p> : <p className="text-xs text-muted">No decision recorded for this item yet.</p>}
+        {history}
+      </div>) : <>
+        {event && <p className="text-xs text-muted">{event.decision} by {event.reviewer}, {formatTimestamp(event.timestamp)}: {event.justification}{event.controls ? ` Conditions: ${event.controls}` : ''}</p>}
+        {actions && <div className="sod-review-actions">{actions}</div>}
+        {history}
+      </>}
     </li>
   )
 }

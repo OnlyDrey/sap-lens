@@ -394,6 +394,11 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .dashboard-metric>progress {accent-color:var(--success)}
 .coverage-summary>progress {accent-color:var(--info);width:100%}
 .dashboard-workspace>.dashboard-middle-section {grid-column:auto}
+/* Every progress bar shows an empty track at zero; Dashboard rules below override the fill color. */
+progress { appearance:none; height:8px; border:0; border-radius:var(--radius-badge); overflow:hidden; background:var(--surface2); box-shadow:inset 0 0 0 1px var(--border); --progress-fill:var(--accent); }
+progress::-webkit-progress-bar { background:var(--surface2); }
+progress::-webkit-progress-value { background:var(--progress-fill); }
+progress::-moz-progress-bar { background:var(--progress-fill); }
 .dashboard-workspace progress {appearance:none;border:0;border-radius:var(--radius-badge);overflow:hidden;background:var(--surface2);--progress-fill:var(--accent2)}
 .dashboard-workspace .dashboard-metric>progress {--progress-fill:var(--success)}
 .dashboard-workspace .coverage-summary>progress {--progress-fill:var(--info)}
@@ -615,7 +620,7 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 
 /* Unified review workspace sections. */
 .sod-review-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
-.sod-review-row { display: grid; min-width: 0; gap: 0.25rem; padding: 0.5rem 0.75rem; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; }
+.sod-review-row { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: 0.25rem; padding: 0.5rem 0.75rem; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; }
 .sod-review-row:last-child { border-bottom: 0; }
 .sod-review-row[data-focused] { background: color-mix(in srgb,var(--accent2) 12%,var(--surface)); box-shadow: inset 3px 0 0 var(--accent2); }
 .sod-review-main { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; min-width: 0; }
@@ -715,7 +720,8 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 
 /* Compact review rows: identifier, status, risks and counts on one wrapping line with the action at the right. */
 .sod-review-compact { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2) var(--space-3); min-width:0; }
-.sod-review-compact-actions { margin-left:auto; }
+.sod-review-summary { display:flex; flex:1 1 9rem; flex-wrap:wrap; align-items:center; gap:var(--space-1) var(--space-2); min-width:0; }
+.sod-review-compact-actions { display:flex; flex:none; align-items:center; gap:var(--space-2); margin-left:auto; }
 
 .sod-periods-table tr[data-active] td:first-child { box-shadow:inset 3px 0 0 var(--accent2); }
 .sod-periods-table progress { width:100%; min-width:6rem; height:8px; }
@@ -817,7 +823,7 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .package-summary-ok { color:var(--success); }
 .package-summary-warn { color:var(--warning); }
 .package-list { display:grid; margin:0; padding:0; list-style:none; }
-.package-row { padding:var(--space-3) 0; border-bottom:1px solid var(--border); min-width:0; }
+.package-row { padding:var(--space-2) 0; border-bottom:1px solid var(--border); min-width:0; }
 .package-row:last-child { border-bottom:0; }
 .package-row-fields { display:grid; grid-template-columns:minmax(7rem,9rem) minmax(0,1fr); gap:var(--space-3); align-items:start; width:100%; }
 .package-generated { display:grid; gap:var(--space-1); min-width:0; }
@@ -826,7 +832,7 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .package-message { margin:0; font-size:var(--font-meta); color:var(--muted); }
 .package-footer { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2); }
 .package-footer > :last-child { margin-left:auto; }
-@media(max-width:500px){ .package-row-fields { grid-template-columns:minmax(0,1fr); } .package-footer > :last-child { margin-left:0; } }
+@media(max-width:500px){ .package-clear-label { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; } .package-row-fields { grid-template-columns:minmax(0,1fr); } .package-footer > :last-child { margin-left:0; } }
 
 /* Release role table: one dense row per role; counts and validity stay compact and the package toggle is a right-aligned action column. */
 .release-directory-table td { vertical-align:middle; }
@@ -1026,9 +1032,12 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 /* Role Assignment Review rows: one compact line (checkbox, role, status, icon decisions, expand); evidence opens beneath it. */
 .sod-assignment-compact { display:flex; align-items:center; gap:var(--space-2); min-width:0; flex-wrap:wrap; }
 .sod-assignment-role { flex:1 1 12rem; min-width:0; }
+.sod-assignment-description { margin:0.125rem 0 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:var(--font-label); color:var(--text2); }
 .sod-assignment-compact .sod-decision-icons { margin-left:auto; }
 .sod-assignment-details { display:grid; gap:var(--space-2); margin:var(--space-2) 0 0 1.75rem; padding:var(--space-2) var(--space-3); border-left:3px solid var(--border); }
 .sod-assignment-tcodes { overflow-wrap:anywhere; }
+.sod-assignment-details .validity-dates div { white-space:normal; flex-wrap:wrap; }
+.sod-assignment-details dd { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-1) var(--space-2); min-width:0; overflow-wrap:anywhere; }
 
 /* Review period row: Open and the menu trigger share one height and baseline. */
 .sod-row-actions { align-items:center; gap:var(--space-2); }
