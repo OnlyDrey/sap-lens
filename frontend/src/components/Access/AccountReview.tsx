@@ -4,6 +4,7 @@ import { type ReviewEvidence } from '@/components/Shared/ReviewFindings'
 import { PageHeader, MetadataList } from '@/components/Shared/Presentation'
 import { ClipboardCheck as PageIcon } from 'lucide-react'
 import { Kpi } from '@/components/Shared/Kpi'
+import { InfoTip } from '@/components/Shared/InfoTip'
 import { StackedBar } from '@/components/Shared/Charts'
 import { FilterLayout, FilterSection, PageToolbar, SortControl } from '@/components/Shared/FilterLayout'
 import { FormField } from '@/components/Shared/Controls'
@@ -186,17 +187,16 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
     return (
       <div className="review-overview">
         <section aria-label="Account review progress" className="review-progress" data-primary="true">
-          <h2>Account review progress</h2>
-          {known ? <>
-            <div className="progress-summary">
-              <strong className="progress-summary-value">{percent.toFixed(1)}%</strong>
-              <span className="progress-summary-caption">{reviewed!.toLocaleString()} of {total!.toLocaleString()} SAP users reviewed</span>
-            </div>
-            <StackedBar label="Account review progress" total={total!} segments={[
+          <div className="review-progress-head">
+            <h2>Account review progress</h2>
+            <InfoTip label="About account review progress">Completed and pending partition all SAP users, so no account is counted twice. Outdated reviews count as pending until they are reviewed again.</InfoTip>
+            {known && <p className="progress-summary"><strong className="progress-summary-value">{percent.toFixed(1)}%</strong><span className="progress-summary-caption">{reviewed!.toLocaleString()} of {total!.toLocaleString()} reviewed</span></p>}
+          </div>
+          {known ? <StackedBar inline label="Account review progress" total={total!} segments={[
               { key: 'completed', label: 'Completed reviews', value: reviewed!, tone: 'success', active: activeFinding('reviewed'), onOpen: () => toggleTile({ finding: 'reviewed' }) },
               { key: 'pending', label: 'Pending reviews', value: pending!, tone: 'neutral', active: activeFinding('pending'), title: 'Accounts without a current completed review, including outdated reviews', onOpen: () => toggleTile({ finding: 'pending' }) },
-            ]} caption={<>Total SAP users: <strong>{total!.toLocaleString()}</strong>. Outdated reviews are counted as pending until they are reviewed again.</>} />
-          </> : <p className="ui-description">Review progress is unavailable until the User Access data and the review annotations are loaded.</p>}
+            ]} trailing={<>Total SAP users <strong>{total!.toLocaleString()}</strong></>} />
+            : <p className="ui-description">Review progress is unavailable until the User Access data and the review annotations are loaded.</p>}
         </section>
         <section aria-label="Review actions">
           <h2 className="sr-only">Review actions</h2>

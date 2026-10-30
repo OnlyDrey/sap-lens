@@ -1308,3 +1308,12 @@ progress::-webkit-progress-bar,.dashboard-workspace progress::-webkit-progress-b
 /* Menu-like popovers overlay the page, size to their items and never scroll or add a border edge of their own. */
 .ui-popover.ui-popover-menu { overflow:visible; padding:var(--space-2); }
 .ui-popover-menu .primary-submenu-link { border:0; box-shadow:none; }
+
+/* Account Review progress: heading, percentage, bar and legend in one compact block */
+.review-progress { gap:var(--space-2); padding:var(--space-2) var(--space-3); }
+.review-progress-head { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-1) var(--space-3); }
+.review-progress-head > h2 { margin:0; font-size:var(--font-section); font-weight:600; }
+.review-progress-head .progress-summary { display:flex; align-items:baseline; gap:var(--space-2); margin:0 0 0 auto; padding:0; }
+.chart-stack[data-inline] .chart-legend { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-1) var(--space-4); }
+.chart-stack[data-inline] .chart-legend .chart-row { width:auto; grid-template-columns:auto auto auto auto; }
+.chart-stack[data-inline] .chart-trailing { margin-left:auto; color:var(--text2); font-size:var(--font-label); }
