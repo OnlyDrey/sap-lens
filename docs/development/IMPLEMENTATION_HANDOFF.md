@@ -122,7 +122,50 @@ Verified against the code and behavior, not the commit messages. Evidence names 
 
 A defect found while validating: showing the previous result while a filter loads (needed to keep keyboard focus on KPI filters) rendered a differently shaped result after a drill-down and blanked the page; kept results are now limited to the same query shape and review context.
 
+## UI/UX Refinement Round 2
+
+Status is stated per requirement from the code and the tests that exercise it. Commits are on `origin/work`; every push was followed by a successful *Fast Validation* run.
+
+### Phases and where they landed
+
+| Phase | Requirement | Status | Evidence |
+| --- | --- | --- | --- |
+| 1 Shared foundation | Information-density rules, button icons, no decorative module-icon hover ring, multiselect toolbar (Clear visible when empty), one-line codeblocks with full copy, zebra/hover/selected tables incl. Single Roles, one disclosure chevron | Implemented | `InfoList`, `Charts`, `DisclosureChevron`, `RoleIdentifier`, `refinement-r2`, `kpi-standard`, `ui-polish-actions` (`eca735a`) |
+| 2 Dashboard | Charts and information lists from real data, no invented trends | Implemented, then superseded by Dashboard v4 below | `91082f1`, `36d9aef` |
+| 3 Access Package | Compact rows (badge, description, one codeblock, suffix field right of it, validation status, remove), sticky Clear/Copy/Export bar, suffix eligibility from role patterns, Confirmed/Unconfirmed/Invalid/Needs suffix, unconfirmed names exportable with a warning, CSV gains a Validation column | Implemented | `backend/access_package.py`, `AccessPackagePanel`, `test_access_package`, `access-package`, `access-package-r2` (`0585c60`, style fix `0a0e637`) |
+| 4 Account Review / User Access | Position changes table, review dialog scope, comparison filter chip at content width, role rows without full-width badges and with unbroken codeblocks | Implemented (most already present from the earlier round; chip width and role-row geometry are now tested) | `investigation-tools`, `refinement-r2`, `position-changes` (`9d54598`) |
+| 5 Release Roles | Toolbar order Compare SAP User Groups, Add filtered roles, Copy role names, Export role list, Export CSV at one height, wide users modal with intact names | Implemented | `release-roles` (`9d54598`) |
+| 6 Shared SoD heatmap | One heatmap under the Review Context on all seven SoD pages, expanded by default, collapse persisted as a local preference, group/risk/activity/cell selection written to page filters or handed to the matching matrix, visible removable filters, compact SAP User Group rows with sticky header in the Risk Matrix | Implemented | `SodGroupHeatmap`, `localPreference`, `sod-shared-heatmap`, `sod-overview-heatmap` (`a32672a`) |
+| 7 SoD analysis | Explorer users and roles evidence in wide modals, redesigned Potential SoD evidence dialog (both activity sides, transaction, single role, assigned role, catalogue role or pattern, validity, provenance), Risk Acceptance row layout | Implemented | `SodExplorer`, `SodConflicts`, `SodInvestigation`, `sod-evidence-modals`, `sod-governance` (`a32672a`) |
+| 8 Settings | Source health cards in independent columns, Technical details and Review source side by side, Component Library patterns, tab strip spacing | Implemented | `IndependentColumns`, `ComponentLibraryPatterns`, `settings-r2` (`cb9f36b`) |
+| 9 Validation and handoff | Targeted tests, visual QA, full regression, audits | See Validation | |
+
+### Dashboard addenda
+
+- **Visual refinement** (`36d9aef`): central match-health thresholds (`lib/health.ts`: green from 95%, amber from 85%), spacing under progress bars, Role Distribution shows five areas and opens the rest in a dialog (the grid never stretches), Review Progress uses green, gray and amber, Assignment Distribution shows counts with shares, technical notes in info popovers.
+- **Dashboard v4** (`fc1de4e`): three-column grid, no key figure row and no repeated metric; Access & Risk with SAP users as the headline; Review Progress as the only review completion view; Directory & Data Health with match percentage and separate Matched, Missing and Ambiguous counts (backend counts the existing match statuses) plus an independent Position changes row; Segregation of Duties card; five assignment ranges (0-5, 6-10, 11-20, 21-30, 31+) over every SAP user with a matching `assignment_band` filter in User Access; Data Sources & Configuration cards with honest states. Account Review gained `directory_missing` and `directory_ambiguous` findings.
+
+### Startup data restoration (root cause and fix, `4f0c10d`)
+
+Persisted datasets are restored by the backend (static sources from private snapshots, dynamic sources re-read). The client only re-read dataset views when the configuration `data_revision` changed, but a restored snapshot keeps its old timestamp, so a client that stayed open across a restart, or views fetched while the backend was still restoring (default 5 minute cache), kept their loading-time empty state until a manual refresh. Fix: the configuration carries a per-process `instance_id`, the end of any observed load re-reads active views, the backend marks itself loading before it serves its first request, and the application reports loading until configuration has answered. No delay, extra polling or automatic reimport was added. Tests: `test_loading_publication` (restart restore for static and dynamic sources, a real fresh process, loading from the first request, missing source, missing file with a validated snapshot, failed reload), `startup-reliability` (the two defect scenarios fail against the old provider and pass now).
+
+### SoD Dashboard initialization (root cause and fix, `2b0eb66`)
+
+The Dashboard SoD card shared its query key with the SoD Overview page and treated an `available: false` answer as a final verdict. While persisted data was still being restored the backend answers "unavailable" (no snapshot yet); the card showed "SoD analysis is not available" and the answer was only refreshed when a SoD page, which uses the same query key, fetched it again. The backend itself restores SoD correctly (probed for static and dynamic sources). The card now has four distinct states: loading ("Preparing SoD analysis" while the application loads), failed (message and Try again), unavailable (the backend coverage lists the missing inputs, a shared button opens the matching source) and ready; the Dashboard requests its own data and re-reads when a load ends. Tests: `sod-dashboard-startup` (loading then ready without visiting SoD, same values after a SoD visit and a reload, unavailable naming the source, failed with retry, disabled), `test_loading_publication` (`SodRestartTests`: static and dynamic restart twice, unavailable names the missing source, mapping disabled).
+
+### Defects found while validating
+
+- The package-row stylesheet block was dropped by an earlier edit of mine (`36d9aef`); the 375 px visual check showed the stretched suffix field and large status text. Restored with stronger selectors and a 375 px assertion.
+- The shared heatmap's header buttons had clipped focus rings (found by `a11y-audit`); the scroller now has padding.
+- Two heatmap-related ambiguities (two "Export CSV" buttons, two retry alerts) were removed by naming the heatmap export "Export heatmap CSV" and giving its error a distinct title.
+
 ## Validation
+
+- **Round 2 final regression** (`python scripts/run-tests.py regression --jobs 1`, head `0a0e637`): backend 793 tests, 3 skipped (PowerShell and PyInstaller only), 0 failed; build with type check, documentation links, workflow contracts, Lucide catalog (1447 icons), whitespace and `pip check` passed; browser 569 tests, 553 passed and 16 failed. The 16 failures were two specs still asserting the superseded Dashboard (`refinement-27` looked for the former "Configuration" region, `refinement-search-layout` for the removed review completion progress bar and the former 1-5 range). They were updated to the v4 structure and re-run: both specs pass (29 tests). The complete suite was not re-run a second time after those two spec edits.
+- Dependency audits: `npm audit --omit=dev` and `npm audit` 0 vulnerabilities; `pip-audit` on `requirements.txt` and `requirements-dev.txt` none.
+- GitHub: *Fast Validation* succeeded on every Round 2 push on `work`, including the final code head (`0a0e637`). No workflow was dispatched; no package build was run or checked.
+- Visual QA: a temporary harness captured 104 full-page screenshots (Dashboard, Access Package panel, Role Details, Account Review, Release Roles, SoD Overview, Risk Matrix, Activity Matrix, Access Explorer, Reviews, the Explorer evidence modal, Data Source Health and the Component Library, in light and dark at 375, 800, 1280 and 1600 px) and every one passed the no-horizontal-overflow assertion. About twenty screenshots over the session (Dashboard at 1280, 1600 and 375 in both themes, SoD Overview light 1280, Risk Matrix dark 375, evidence modals, Data Source Health dark 1280, package panel at 375, Release Roles 375 and 1280, the SoD unavailable button) were inspected by eye and the defects above fixed. The remaining screenshots, the Component Library at every width and the Account Review and Role Details pages at 800 and 1600 px were checked only by the overflow assertion. The Employee Directory and SoD-enabled Dashboard variants were covered by tests more than by eye.
+
 
 - KPI standardization (fourth specification), single-process full regression (`python scripts/run-tests.py regression --jobs 1`, head `ffed040`): backend 780 tests, 3 skipped, 0 failed; browser 530 tests, 529 passed and 1 failed (`settings-runtime-theme` data source health, which still asserted the former `details` element for Technical details); build with type check, documentation links, workflow contracts, Lucide catalog (1,447 icons verified), whitespace and `pip check` passed. The spec was updated and re-run on the final code (5 of 5 passed); no product code changed after the full run. `npm audit --omit=dev`: 0 vulnerabilities; `pip-audit` on `backend/requirements.txt`: none. An earlier three-process targeted run found one genuine defect (blank page after drilling from a group row, caused by showing a differently shaped previous result), fixed before the full run.
 
@@ -140,6 +183,9 @@ A defect found while validating: showing the previous result while a filter load
 - Accessibility: existing audit and keyboard specs pass; keyboard coverage added for multi-select and bulk selection. No external audit tool was run.
 
 ## Not verified
+
+- Round 2: Windows/WebView2 startup and restart restoration, native save dialogs for the new package CSV (the Windows bridge was only unit tested with the new header), Windows Service, installer, systemd and UNC paths were not run here. The startup behavior was validated by real fresh-process backend tests and by browser tests that model the restart, not on a packaged desktop app.
+- Known limitations: with SoD disabled the second Dashboard row has two cards (one empty column slot at desktop width); Data Source Health cards lose their expanded state when a resize changes the number of columns; the package suffix eligibility rule keeps exact roles unchanged even if a user would like to rename them (by specification).
 
 Windows/WebView2 lifecycle, Windows Service, installer acceptance, Linux systemd and deployment packages were not run here.
 Deployment workflows were not dispatched.
