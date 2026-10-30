@@ -109,6 +109,25 @@ class ReleaseRoleTests(unittest.TestCase):
         self.assertEqual(self.get('access/release-options?field=document_type&status=all&user_groups=G1')['items'], ['PO', 'PR'])
         self.assertEqual(self.get('access/release-options?field=username&status=all&search=one,two')['items'], ['DEMO_ONE', 'DEMO_TWO'])
 
+    def test_exports_and_assignment_lists_use_the_same_multi_group_and_tokenized_scope(self):
+        query = 'status=all&user_groups=G1&user_groups=G2&username=demo_one,demo_two&release_areas=E'
+        rows = lambda response: list(csv.reader(io.StringIO(response.text.lstrip('\ufeff')), delimiter=';'))
+        assignments = self.client.get('/api/access/exports/releases?' + query, headers=H)
+        self.assertEqual(assignments.status_code, 200)
+        exported = rows(assignments)[1:]
+        listed = self.get('access/release-assignments?status=all&user_groups=G1&user_groups=G2&username=demo_one,demo_two&limit=100')
+        self.assertEqual({r[0] for r in exported}, {'DEMO_ONE', 'DEMO_TWO'})
+        self.assertEqual(len(exported), 3)  # the E-area assignments of DEMO_ONE (two) and DEMO_TWO (one)
+        self.assertEqual({a['username'] for a in listed['items']}, {'DEMO_ONE', 'DEMO_TWO'})
+        roles = rows(self.client.get('/api/access/exports/release-roles?' + query, headers=H))[1:]
+        self.assertEqual([r[0] for r in roles], ['ZO:MM:M:PO_REL_ST_E3_N2:ALL', 'ZO:MM:M:PR_REL_ST_E2_N1:ALL'])
+        # The count shown in the list equals the exported assignments.
+        page = self.get('access/releases?' + query)
+        self.assertEqual(page['export_assignments'], len(exported))
+        # One group only: DEMO_TWO (G2) drops out of the role and the assignment scope.
+        narrowed = rows(self.client.get('/api/access/exports/releases?status=all&user_groups=G1&release_areas=E', headers=H))[1:]
+        self.assertEqual({r[0] for r in narrowed}, {'DEMO_ONE'})
+
     def test_distinct_role_list_respects_filters_and_validity_and_excludes_catalogue_roles(self):
         every = self.get('access/release-roles?status=all')
         self.assertEqual(every['total'], 5)  # four parsed roles and one unparsed; the catalogue role is excluded

@@ -242,3 +242,21 @@ test('SAP User Groups are multi-select and username or role search accepts sever
   await username.press('Escape')
   await expect.poll(names).toEqual([...new Set([...one, ...two])].sort())
 })
+
+test('the release users panel lists only users inside the multi-group and multi-value filter scope', async ({ page }) => {
+  await open(page)
+  await pick(page, 'Release SAP User Group', 'G1')
+  await expect.poll(() => tableRoles(page)).toEqual([E3, E2].sort())
+  await page.getByRole('button', { name: `Show 1 user with ${E2}`, exact: true }).click()
+  const panel = page.getByRole('dialog', { name: 'Users with this release role' })
+  await expect(panel).toContainText('U1')
+  await expect(panel).not.toContainText('U2')
+  await expect(panel.locator('code', { hasText: /^U1$/ })).toHaveCount(1) // usernames are codeblocks
+  await panel.getByRole('button', { name: /Close/ }).first().click()
+  await pick(page, 'Release SAP User Group', 'G2')
+  await expect(page.getByRole('button', { name: `Show 2 users with ${E2}`, exact: true })).toBeVisible()
+  await page.getByRole('button', { name: `Show 2 users with ${E2}`, exact: true }).click()
+  await expect(panel).toContainText('2 users')
+  await expect(panel.locator('code', { hasText: /^U1$/ })).toHaveCount(1)
+  await expect(panel.locator('code', { hasText: /^U2$/ })).toHaveCount(1)
+})
