@@ -92,8 +92,8 @@ test('loading and reconnect stay contextual during Back and Forward', async ({ p
   let failed = false
   await page.route('**/api/configuration', async route => {
     if (failed) return route.abort()
-    const response = await route.fetch(); const data = await response.json()
-    await route.fulfill({json:{...data,loading:true}})
+    try { const response = await route.fetch(); const data = await response.json(); await route.fulfill({json:{...data,loading:true}}) }
+    catch { await route.abort().catch(() => {}) } // the request belonged to a page that was navigating away
   })
   await page.getByRole('button',{name:'Refresh role data from CSV',exact:true}).click()
   await expect(page.getByRole('heading',{name:'Loading CSV data…',exact:true})).toBeVisible()
@@ -153,7 +153,7 @@ for (const theme of ['dark','light']) for (const width of [1280,800]) test(`data
   await page.getByRole('button',{name:'Back to SAP Lens',exact:true}).click()
   // The loading state is mocked only after the refresh request has been sent. Mocking it earlier races with the application's own configuration polling: when that poll lands before the click, the Refresh button is disabled (correctly) and the click waits until the test times out.
   let mockedLoading = false
-  await page.route('**/api/configuration', async route => {const response=await route.fetch();const body=await response.json();await route.fulfill({json:mockedLoading?{...body,loading:true}:body})})
+  await page.route('**/api/configuration', async route => {try{const response=await route.fetch();const body=await response.json();await route.fulfill({json:mockedLoading?{...body,loading:true}:body})}catch{await route.abort().catch(()=>{})}})
   await page.route('**/api/refresh', async route => {mockedLoading=true;await route.continue()})
   await page.getByRole('button',{name:'Refresh role data from CSV',exact:true}).click()
   await expect(page.getByRole('heading',{name:'Loading CSV data…',exact:true})).toBeVisible()

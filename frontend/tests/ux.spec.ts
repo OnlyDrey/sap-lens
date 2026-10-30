@@ -128,7 +128,8 @@ test('startup connection failure has actionable recovery and configuration notic
  await page.unroute('**/api/configuration')
  await page.getByRole('button',{name:'Retry connection'}).click()
  await expect(settings(page)).toBeVisible()
- await page.route('**/api/configuration',async route=>{const response=await route.fetch();const data=await response.json();await route.fulfill({json:{...data,notice:'File settings migrated to schema 2; the original was backed up locally.'}})})
+ // A configuration poll from the page being reloaded can still be in flight when this handler runs; its response is disposed by the navigation, which must not fail the test.
+ await page.route('**/api/configuration',async route=>{try{const response=await route.fetch();const data=await response.json();await route.fulfill({json:{...data,notice:'File settings migrated to schema 2; the original was backed up locally.'}})}catch{await route.abort().catch(()=>{})}})
  await page.reload()
  await expect(page.getByText(/File settings migrated to schema 2/)).toBeVisible()
  await page.getByRole('button',{name:'Dismiss configuration notice'}).click()
