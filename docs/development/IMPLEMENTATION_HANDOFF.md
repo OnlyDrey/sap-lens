@@ -85,11 +85,12 @@ Not converted to multi-select: Release SAP User Group, username and role-name fi
 
 ## Validation
 
-- Full regression on the final code (`python scripts/run-tests.py regression --jobs 3`, commit `751808f`): backend 769 tests, 3 skipped (PowerShell and
-  PyInstaller only), 0 failed; browser 501 tests, 0 failed; build with type check, docs, workflow, Lucide, whitespace and `pip check` passed.
-  The preceding full run had 1 browser failure (`data-aware-ux` visual QA dark 800) that passed in 12 repeats and in 24 repeats under CPU load
-  and did not recur; its cause is not explained and it is not classified as harmless. Earlier runs had `sod-governance:203` (test pollution from the bulk spec, fixed)
-  and `refinement-27:39` (an unawaited save in the spec, now polls). GitHub Fast Validation passed for `751808f`.
+- Full regression on the final code, single process as in CI (`python scripts/run-tests.py regression --jobs 1`, commit `d9bf29f`): backend 775 tests, 3 skipped
+  (PowerShell and PyInstaller only), 0 failed; browser 513 tests, 0 skipped, 0 failed; build with type check, docs links, workflow contracts, Lucide catalog,
+  whitespace and `pip check` passed. An earlier `--jobs 3` run on the same feature set also passed. The GitHub single-process run on `c3ca4e5` failed
+  `sod-governance:105` because of saved filters left by another spec; the spec now compares only its own view's saved filters.
+  An earlier full run had 1 browser failure (`data-aware-ux` visual QA dark 800) that passed in 12 repeats and in 24 repeats under CPU load
+  and did not recur; its cause is not explained and it is not classified as harmless.
 - `npm audit --omit=dev`: 0 vulnerabilities. `pip-audit` on `backend/requirements.txt`: none.
 - Visual QA: screens loaded without horizontal page overflow in light and dark at 375, 800, 1280 and 1600 px (SoD Overview, Assignments, Remediation, Risk Matrix,
   Role Assignment Review panel, Account Review and dialog, Compare users, Release Roles, Role Lookup, Settings tabs). Screenshots were
