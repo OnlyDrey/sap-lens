@@ -124,6 +124,8 @@ A defect found while validating: showing the previous result while a filter load
 
 ## Validation
 
+- KPI standardization (fourth specification), single-process full regression (`python scripts/run-tests.py regression --jobs 1`, head `ffed040`): backend 780 tests, 3 skipped, 0 failed; browser 530 tests, 529 passed and 1 failed (`settings-runtime-theme` data source health, which still asserted the former `details` element for Technical details); build with type check, documentation links, workflow contracts, Lucide catalog (1,447 icons verified), whitespace and `pip check` passed. The spec was updated and re-run on the final code (5 of 5 passed); no product code changed after the full run. `npm audit --omit=dev`: 0 vulnerabilities; `pip-audit` on `backend/requirements.txt`: none. An earlier three-process targeted run found one genuine defect (blank page after drilling from a group row, caused by showing a differently shaped previous result), fixed before the full run.
+
 - Full regression on the final code, single process as in CI (`python scripts/run-tests.py regression --jobs 1`, commit `d9bf29f`): backend 775 tests, 3 skipped
   (PowerShell and PyInstaller only), 0 failed; browser 513 tests, 0 skipped, 0 failed; build with type check, docs links, workflow contracts, Lucide catalog,
   whitespace and `pip check` passed. An earlier `--jobs 3` run on the same feature set also passed. The GitHub single-process run on `c3ca4e5` failed
