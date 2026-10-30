@@ -1233,3 +1233,19 @@ p.dashboard-card-state { display:flex; align-items:center; gap:var(--space-2); }
 .component-library > .ui-description { margin-bottom:0; }
 /* Padding inside the scroller keeps focus rings of the header and group buttons unclipped (ring width plus offset is 4px). */
 .sod-heatmap-scroll { padding:var(--space-1); scroll-padding:var(--space-1); }
+/* Specific enough to beat the generic input and badge rules when the row wraps on narrow panels. */
+.package-row-line > .package-suffix-input { flex:0 0 6.5rem; width:6.5rem; max-width:100%; }
+.package-row-line > .package-status { flex:none; font-size:var(--font-meta); line-height:1.2; }
+.package-row-line > .package-status svg { flex:none; }
+
+/* Access package row: one codeblock, the suffix field right of it and a compact validation status. */
+.package-row-line { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2); width:100%; min-width:0; }
+.package-row-line > .role-identifier { flex:1 1 14rem; min-width:0; }
+.package-suffix-input { flex:0 0 6.5rem; width:6.5rem; min-height:var(--control-compact); text-transform:uppercase; }
+.package-suffix-input:disabled { text-transform:none; }
+.package-status { display:inline-flex; align-items:center; gap:var(--space-1); flex:none; font-size:var(--font-meta); font-weight:600; white-space:nowrap; }
+.package-status[data-tone="success"] { color:var(--success); }
+.package-status[data-tone="warning"] { color:var(--warning); }
+.package-status[data-tone="error"] { color:var(--error); }
+.package-summary-error { display:inline-flex; align-items:center; gap:var(--space-1); color:var(--error); }
+.package-footer .package-clear { margin-right:auto; }

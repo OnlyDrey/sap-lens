@@ -36,6 +36,10 @@ test('package rows show one codeblock, the suffix field right of it and a compac
   expect(b!.x).toBeGreaterThan(a!.x + a!.width - 1) // right of the codeblock
   expect(Math.abs((b!.y + b!.height / 2) - (a!.y + a!.height / 2))).toBeLessThan(a!.height) // on the same line
   await expect(code).toHaveCSS('white-space', 'nowrap')
+  // compact on a narrow panel too: the suffix field keeps its width when the row wraps and the status stays small
+  await page.setViewportSize({ width: 375, height: 800 })
+  expect((await field.boundingBox())!.width).toBeLessThanOrEqual(140)
+  expect(await item.locator('.package-status').evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeLessThanOrEqual(14)
 })
 
 test('exact roles without suffix variants keep their name and disable suffix editing with an explanation', async ({ page }) => {
