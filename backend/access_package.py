@@ -68,35 +68,42 @@ def propose(source, suffix, known):
 
 
 def name_error(name):
-    """SAP role name rules shared by every package source: allowed characters, length and non-empty segments."""
-    if not NAME_PATTERN.match(name) or len(name) > MAX_ROLE_NAME or any(not part for part in name.split(':')):
-        return f'The role name {name} is not a valid SAP role name (up to {MAX_ROLE_NAME} characters of A-Z, 0-9, _ : / . -, no empty segments).'
+    """SAP role name rules shared by every package source: allowed characters and length. Names ending in a colon are
+    legitimate catalogue stems and are not rejected."""
+    if not NAME_PATTERN.match(name):
+        return 'Only A-Z, 0-9 and _ : / . - are allowed in a role name.'
+    if len(name) > MAX_ROLE_NAME:
+        return f'Longer than {MAX_ROLE_NAME} characters ({len(name)}).'
     return None
 
 
 EXACT_NOTE = 'Exact role name: the catalogue has no suffix variants for it, so the name is kept.'
-VALIDATION_LABEL = {'confirmed': 'Confirmed', 'unconfirmed': 'Unconfirmed', 'invalid': 'Invalid', 'needs_suffix': 'Needs suffix'}
+# confirmed: the exact name exists in imported explicit roles or assignments; pattern: only a catalogue pattern matches;
+# attention: valid-looking or unresolved, cannot be confidently validated; invalid: violates the naming rules.
+VALIDATION_LABEL = {'confirmed': 'Confirmed', 'pattern': 'Pattern match', 'attention': 'Needs attention', 'invalid': 'Invalid'}
 
 
-def preview(default_suffix, items, catalogue, release_roles=None):
+def preview(default_suffix, items, catalogue, release_roles=None, assigned_roles=None):
     """items: [(role, override_suffix[, source])]; catalogue: {agr_name: description}. Deterministic and order preserving.
 
-    Every row carries `validation`: confirmed (valid SAP name found in the imported catalogue, exactly or by pattern),
-    unconfirmed (valid SAP name that the imported data does not confirm; copyable and exportable with a warning),
-    invalid (never copied or exported) or needs_suffix. `suffix_eligible` tells whether the role has suffix variants; exact
-    roles keep their name and ignore any suffix. Release roles (from User Access, not the catalogue) always keep their
-    exact name. release_roles is the set of normalized release role names known to the data.
+    Existence is judged separately from naming validity. Confirmed needs the exact generated name in the imported
+    explicit catalogue roles (names without a wildcard) or in user assignments; a wildcard match alone is only a
+    Pattern match and a name nothing supports is Needs attention. Exact roles without suffix variants keep their
+    name and ignore any suffix. Release roles (from User Access) always keep their exact name. release_roles and
+    assigned_roles are sets of normalized role names known to the data.
     """
     known = naming_evidence(catalogue)
     release_roles = release_roles or set()
+    explicit = {normalize_role(name) for name in catalogue if '*' not in name} | {normalize_role(name) for name in (assigned_roles or ())}
     matcher = RoleMatcher(list(catalogue))
     default = normalize_suffix(default_suffix)
     rows, seen = [], {}
+    exportable_states = {'confirmed', 'pattern'}
 
-    def finish(row, name, validation):
-        row.update(name=name, validation=validation, exportable=validation in {'confirmed', 'unconfirmed'})
+    def finish(row, name, validation, exportable=None):
+        row.update(name=name, validation=validation, exportable=validation in exportable_states if exportable is None else exportable)
         if name in seen and row['exportable']:
-            row.update(status='duplicate', validation='invalid', exportable=False, messages=row['messages'] + [f'Same generated name as {seen[name]}.'])
+            row.update(status='duplicate', validation='invalid', exportable=False, messages=row['messages'] + ['Same name as another role in the package.'])
         elif row['exportable']:
             seen[name] = row['role']
         return row
@@ -105,12 +112,12 @@ def preview(default_suffix, items, catalogue, release_roles=None):
         if rest and rest[0] == 'release':
             name = normalize_role(role)
             row = dict(role=role, description=catalogue.get(role, ''), suffix='', suffix_source='none', suffix_eligible=False, suffix_note=None, name=None,
-                       status='ok', validation='invalid', exportable=False, messages=[], catalogue=None, source='release')
+                       status='ok', validation='attention', exportable=False, messages=[], catalogue=None, source='release')
             rows.append(row)
             if name not in release_roles:
-                row.update(status='unknown_role', messages=['The release role is not in the imported User Access data.'])
+                row.update(status='unknown_role', messages=['Not in the imported User Access data.'])
             elif name_error(name):
-                row.update(status='invalid', messages=[name_error(name)])
+                row.update(status='invalid', validation='invalid', messages=[name_error(name)])
             else:
                 row['messages'].append('Release role names are kept exactly; no suffix is applied.')
                 finish(row, name, 'confirmed')
@@ -120,18 +127,18 @@ def preview(default_suffix, items, catalogue, release_roles=None):
         eligible = kind is not None
         suffix = (override or default) if eligible else ''
         row = dict(role=role, description=catalogue.get(role, ''), suffix=suffix, suffix_source=('override' if override else 'default' if default else 'none') if eligible else 'none',
-                   suffix_eligible=eligible, suffix_note=None if eligible else EXACT_NOTE, name=None, status='ok', validation='invalid', exportable=False, messages=[],
+                   suffix_eligible=eligible, suffix_note=None if eligible else EXACT_NOTE, name=None, status='ok', validation='attention', exportable=False, messages=[],
                    catalogue=None, source='catalogue')
         rows.append(row)
         if role not in catalogue:
-            row.update(status='unknown_role', messages=['The role is not in the imported catalogue.'])
+            row.update(status='unknown_role', messages=['Not in the imported catalogue; re-import or remove it.'])
             continue
         if eligible and not suffix:
-            row.update(status='needs_suffix', validation='needs_suffix', messages=['Set a package default suffix or a suffix for this role.'])
+            row.update(status='needs_suffix', messages=['Needs suffix: set a package default suffix or a suffix for this role.'])
             continue
         problem = suffix_error(suffix) if eligible else None
         if problem:
-            row.update(status='invalid', messages=[problem])
+            row.update(status='invalid', validation='invalid', messages=[problem])
             continue
         name, _, message = propose(role, suffix, known)
         if name is None:
@@ -139,14 +146,18 @@ def preview(default_suffix, items, catalogue, release_roles=None):
             continue
         problem = name_error(name)
         if problem:
-            row.update(status='invalid', messages=[problem])
+            row.update(status='invalid', validation='invalid', messages=[problem])
             continue
         match = matcher.match(name)
         row['catalogue'] = dict(status=match.status, candidates=list(match.candidates))
-        confirmed = match.status in {'exact', 'wildcard'}
-        if not confirmed:
-            row['messages'].append('The generated name is not confirmed by the imported catalogue. Check it in SAP before use.')
-        finish(row, name, 'confirmed' if confirmed else 'unconfirmed')
+        if name in explicit:
+            finish(row, name, 'confirmed')
+        elif match.status in {'exact', 'wildcard'}:
+            row['messages'].append('Matches a catalogue pattern; the exact role is not in the imported data.')
+            finish(row, name, 'pattern')
+        else:
+            row['messages'].append('Not found in imported roles, assignments or catalogue patterns. Check it in SAP before use.')
+            finish(row, name, 'attention', exportable=True)
     return rows
 
 

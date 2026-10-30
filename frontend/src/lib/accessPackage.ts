@@ -55,8 +55,8 @@ export function useAccessPackage() {
 export interface PackageRow {
   role: string; description: string; suffix: string; suffix_source: 'override' | 'default' | 'none'; name: string | null; source: PackageSource
   status: 'ok' | 'needs_suffix' | 'ambiguous' | 'invalid' | 'unknown_role' | 'duplicate'; messages: string[]
-  /** confirmed and unconfirmed names are valid SAP names (unconfirmed ones are not found in the imported catalogue); only those are copied or exported. */
-  validation: 'confirmed' | 'unconfirmed' | 'invalid' | 'needs_suffix'; exportable: boolean
+  /** confirmed: the exact name exists in imported roles or assignments; pattern: only a catalogue pattern matches; attention: cannot be confidently validated; invalid: breaks the naming rules. Only exportable rows are copied or exported. */
+  validation: 'confirmed' | 'pattern' | 'attention' | 'invalid'; exportable: boolean
   /** False for an exact role without suffix variants: its name is kept and a suffix cannot be set. */
   suffix_eligible: boolean; suffix_note: string | null
   catalogue: { status: 'exact' | 'wildcard' | 'ambiguous' | 'unmapped'; candidates: string[] } | null

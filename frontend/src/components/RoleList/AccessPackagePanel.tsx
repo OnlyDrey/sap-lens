@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { AlertTriangle, CheckCircle2, Copy, HelpCircle, Trash2, XCircle } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Copy, HelpCircle, Layers, Trash2, XCircle } from 'lucide-react'
 import { SidePanel } from '@/components/Shared/SidePanel'
 import { Button, IconButton } from '@/components/Shared/Button'
 import { Combobox } from '@/components/Shared/Combobox'
@@ -16,11 +16,11 @@ import { useRoleModules } from '@/hooks/useRoleModules'
 import { announceExport } from '@/lib/exportNotice'
 import { exportPackage, fetchNaming, previewPackage, useAccessPackage, type PackageRow } from '@/lib/accessPackage'
 
-const VALIDATION: Record<PackageRow['validation'], { text: string; tone: 'success' | 'warning' | 'error'; icon: typeof CheckCircle2; hint: string }> = {
-  confirmed: { text: 'Confirmed', tone: 'success', icon: CheckCircle2, hint: 'A valid SAP role name found in the imported catalogue.' },
-  unconfirmed: { text: 'Unconfirmed', tone: 'warning', icon: HelpCircle, hint: 'A valid SAP role name that the imported catalogue does not contain. It can be copied and exported; check it in SAP first.' },
-  invalid: { text: 'Invalid', tone: 'error', icon: XCircle, hint: 'Not a valid SAP role name or not resolvable. It is never copied or exported.' },
-  needs_suffix: { text: 'Needs suffix', tone: 'warning', icon: AlertTriangle, hint: 'Set a package default suffix or a role suffix.' },
+const VALIDATION: Record<PackageRow['validation'], { text: string; tone: 'success' | 'info' | 'warning' | 'error'; icon: typeof CheckCircle2; hint: string }> = {
+  confirmed: { text: 'Confirmed', tone: 'success', icon: CheckCircle2, hint: 'The exact role name exists in the imported roles or user assignments.' },
+  pattern: { text: 'Pattern match', tone: 'info', icon: Layers, hint: 'A valid name that matches a catalogue pattern; the exact role is not in the imported data.' },
+  attention: { text: 'Needs attention', tone: 'warning', icon: HelpCircle, hint: 'The name cannot be confidently validated or is incomplete (for example it needs a suffix). It is copied and exported only when a valid name could be generated.' },
+  invalid: { text: 'Invalid', tone: 'error', icon: XCircle, hint: 'Breaks the naming rules or cannot be generated. It is never copied or exported.' },
 }
 const matchText = (row: PackageRow) => {
   const match = row.catalogue
@@ -39,16 +39,17 @@ export function AccessPackagePanel({ onClose }: { onClose: () => void }) {
   const preview = useQuery({ queryKey: ['access-package', key], queryFn: () => previewPackage(cart), enabled: cart.items.length > 0, placeholderData: keepPreviousData })
   const rows = cart.items.length ? preview.data?.items || [] : []
   const names = [...new Set(rows.filter((row) => row.exportable && row.name).map((row) => row.name as string))].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }) || a.localeCompare(b))
-  const unconfirmed = new Set(rows.filter((row) => row.validation === 'unconfirmed' && row.name).map((row) => row.name)).size
+  const distinct = (state: PackageRow['validation']) => new Set(rows.filter((row) => row.validation === state && row.exportable && row.name).map((row) => row.name)).size
+  const patterns = distinct('pattern'), unverified = distinct('attention')
   const problems = rows.filter((row) => !row.exportable).length
-  const warning = unconfirmed ? ` ${unconfirmed} ${unconfirmed === 1 ? 'name is' : 'names are'} not confirmed by the imported catalogue.` : ''
+  const warning = patterns + unverified ? ` ${patterns + unverified} ${patterns + unverified === 1 ? 'name is' : 'names are'} not confirmed as existing roles.` : ''
   const suffixes = naming.data?.suffixes || []
   const copyAll = async () => {
-    try { await navigator.clipboard.writeText(names.join('\n')); announceExport({ kind: unconfirmed ? 'info' : 'success', message: `Copied ${names.length} generated role names.${warning}` }) } catch { announceExport({ kind: 'error', message: 'Copy failed. Export the CSV instead.' }) }
+    try { await navigator.clipboard.writeText(names.join('\n')); announceExport({ kind: patterns + unverified ? 'info' : 'success', message: `Copied ${names.length} generated role names.${warning}` }) } catch { announceExport({ kind: 'error', message: 'Copy failed. Export the CSV instead.' }) }
   }
   const download = async () => {
     setBusy(true)
-    try { const name = await exportPackage(cart); announceExport(name ? { kind: unconfirmed ? 'info' : 'success', message: `Exported ${name}.${warning}` } : { kind: 'info', message: 'Export cancelled.' }) }
+    try { const name = await exportPackage(cart); announceExport(name ? { kind: patterns + unverified ? 'info' : 'success', message: `Exported ${name}.${warning}` } : { kind: 'info', message: 'Export cancelled.' }) }
     catch (error) { announceExport({ kind: 'error', message: error instanceof Error ? error.message : 'Export failed.' }) }
     finally { setBusy(false) }
   }
@@ -61,12 +62,13 @@ export function AccessPackagePanel({ onClose }: { onClose: () => void }) {
           {!!cart.items.length && !!preview.data && (<p role="status" className="package-summary">
               <span>{cart.items.length} {cart.items.length === 1 ? 'role' : 'roles'}</span>
               <span className="package-summary-ok"><CheckCircle2 size={14} aria-hidden="true" />{names.length} valid {names.length === 1 ? 'name' : 'names'}</span>
-              {unconfirmed > 0 && <span className="package-summary-warn"><HelpCircle size={14} aria-hidden="true" />{unconfirmed} unconfirmed</span>}
-              {problems > 0 && <span className="package-summary-error"><XCircle size={14} aria-hidden="true" />{problems} need attention</span>}
+              {patterns > 0 && <span className="package-summary-info"><Layers size={14} aria-hidden="true" />{patterns} pattern {patterns === 1 ? 'match' : 'matches'}</span>}
+              {unverified > 0 && <span className="package-summary-warn"><HelpCircle size={14} aria-hidden="true" />{unverified} to check</span>}
+              {problems > 0 && <span className="package-summary-error"><XCircle size={14} aria-hidden="true" />{problems} not exportable</span>}
             </p>)}
           <Button variant="secondary" className="package-clear" onClick={() => setConfirmClear(true)} disabled={!cart.items.length}><Trash2 size={16} aria-hidden="true" />Clear package</Button>
           <Button onClick={() => void copyAll()} disabled={!names.length}><Copy size={16} aria-hidden="true" />Copy all names</Button>
-          <ExportCSVButton loading={busy} disabled={!names.length} onClick={() => void download()} title="Exports the valid generated names (confirmed and unconfirmed), sorted, one row per name." />
+          <ExportCSVButton loading={busy} disabled={!names.length} onClick={() => void download()} title="Exports the valid generated names (confirmed, pattern match and names to check), sorted, one row per name." />
         </div>}
         onClose={onClose}>
         <section className="package-config" aria-label="Package suffix">
@@ -84,7 +86,7 @@ export function AccessPackagePanel({ onClose }: { onClose: () => void }) {
             <ul className="package-list" aria-label="Roles in the package">
               {rows.map((row) => {
                 const status = VALIDATION[row.validation], release = row.source === 'release', StatusIcon = status.icon, noteId = `package-note-${row.role}`
-                const messages = [...(row.validation === 'needs_suffix' ? [] : row.messages), ...(matchText(row) ? [matchText(row)] : [])]
+                const messages = [...row.messages, ...(matchText(row) && row.validation !== 'pattern' ? [matchText(row)] : [])]
                 return (
                   <li key={row.role} className="package-row" data-validation={row.validation}>
                     <RoleEntry density="compact" moduleCode={release ? undefined : modules.get(row.role) ?? undefined} title={presentRoleDescription(row.description, areas).description} identifier={row.name ?? row.role} identifierLabel={row.name ? 'generated SAP role name' : release ? 'release role' : 'source role'}

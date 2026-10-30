@@ -44,7 +44,10 @@ class PureRules(unittest.TestCase):
 
     def test_sap_role_name_rules(self):
         self.assertIsNone(access_package.name_error('ZC:MM:BUY:ENP'))
-        for bad in ('ZC:MM:BUY:enp', 'ZC::BUY', 'ZC:MM:', 'ZC:SD:LONG_ROLE_NAME_FOR_SAP:ENP', 'ZC MM', 'ZC:MM:BUY$'):
+        for stem in ('ZC:BC:S4_COMMON_USERS_____MGT:', 'ZC:BC:S4_KEYS_USERS_____MGT:', 'ZC::BUY'):  # colon-terminated catalogue stems are not rejected
+            self.assertIsNone(access_package.name_error(stem), stem)
+        self.assertNotIn('ZC:SD:LONG', access_package.name_error('ZC:SD:LONG_ROLE_NAME_FOR_SAP:ENP'))  # messages do not repeat the long name
+        for bad in ('ZC:MM:BUY:enp', 'ZC:SD:LONG_ROLE_NAME_FOR_SAP:ENP', 'ZC MM', 'ZC:MM:BUY$'):
             self.assertTrue(access_package.name_error(bad), bad)
 
 
@@ -68,6 +71,14 @@ class PackageApi(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         return response.json()
 
+    def test_confirmation_needs_the_exact_role_in_imported_roles_or_assignments(self):
+        # ZC:MM:BUY:ENS is accepted by the ZC:MM:BUY:* pattern only; ZC:FI:VIEW:ENK is an imported explicit role.
+        rows = self.preview('ENS', roles=['ZC:MM:BUY:ENP', 'ZC:FI:VIEW:ENP'])['items']
+        self.assertEqual([(r['name'], r['validation']) for r in rows], [('ZC:MM:BUY:ENS', 'pattern'), ('ZC:FI:VIEW:ENS', 'attention')])
+        rows = self.preview('ENK', roles=['ZC:FI:VIEW:ENP'])['items']
+        self.assertEqual((rows[0]['name'], rows[0]['validation']), ('ZC:FI:VIEW:ENK', 'confirmed'))
+        self.assertTrue(all(row['exportable'] for row in self.preview('ENS', roles=['ZC:MM:BUY:ENP', 'ZC:FI:VIEW:ENP'])['items']))  # all valid: copyable with their warnings
+
     def test_naming_endpoint_reports_detected_suffixes(self):
         data = self.client.get('/api/roles/naming', headers=H).json()
         self.assertEqual(data['suffixes'], [dict(value='ENP', roles=3), dict(value='ENK', roles=2)])
@@ -78,6 +89,7 @@ class PackageApi(unittest.TestCase):
         self.assertEqual((first['name'], first['suffix'], first['suffix_source'], first['status']), ('ZC:MM:BUY:ENK', 'ENK', 'default', 'ok'))
         self.assertEqual(first['catalogue'], dict(status='wildcard', candidates=['ZC:MM:BUY:*']))
         self.assertEqual((second['name'], second['suffix_source'], second['catalogue']['status']), ('ZC:MM:BUY:ENP', 'override', 'exact'))
+        self.assertEqual((first['validation'], second['validation']), ('pattern', 'confirmed'))  # a wildcard match alone is only a Pattern match; the exact imported role is Confirmed
         self.assertEqual(data['exportable'], 2)
         again = self.preview('ENS', **{'ZC:MM:BUY:*': 'ENP'})['items']
         self.assertEqual([item['name'] for item in again], ['ZC:MM:BUY:ENS', 'ZC:MM:BUY:ENP'])  # changing the default keeps overrides
@@ -87,22 +99,22 @@ class PackageApi(unittest.TestCase):
         self.assertEqual(rows[0]['status'], 'needs_suffix')
         rows = self.preview('ENP', roles=['ZC:NOT:THERE', 'ZC:HR:MISC:XYZ', 'ZC:SD:LONG_ROLE_NAME_FOR_SAP:ENP', 'ZC:MM:BUY:ENP', 'ZC:MM:BUY:*'])['items']
         self.assertEqual([row['status'] for row in rows], ['unknown_role', 'ok', 'invalid', 'ok', 'duplicate'])
-        self.assertEqual([row['validation'] for row in rows], ['invalid', 'confirmed', 'invalid', 'confirmed', 'invalid'])
+        self.assertEqual([row['validation'] for row in rows], ['attention', 'confirmed', 'invalid', 'confirmed', 'invalid'])
         exact = rows[1]  # an exact role without suffix variants keeps its name and cannot take a suffix
         self.assertEqual((exact['name'], exact['suffix'], exact['suffix_eligible'], exact['exportable']), ('ZC:HR:MISC:XYZ', '', False, True))
         self.assertIn('no suffix variants', exact['suffix_note'])
         self.assertTrue(rows[3]['suffix_eligible'])
-        self.assertIn('Same generated name as ZC:MM:BUY:ENP', rows[4]['messages'][0])
+        self.assertIn('Same name as another role', rows[4]['messages'][0])
         self.assertEqual(self.preview('bad suffix!')['items'][0]['status'], 'invalid')
         rows = self.preview('ENP', roles=['ZC:MM:BUY:ENP'])['items']
         self.assertEqual(rows[0]['catalogue']['status'], 'exact')
         rows = self.preview('ENQ', roles=['ZC:FI:VIEW:ENP'])['items']
         self.assertEqual(rows[0]['name'], 'ZC:FI:VIEW:ENQ')
         self.assertEqual(rows[0]['catalogue']['status'], 'unmapped')  # a proposed name that is not in the catalogue
-        self.assertEqual((rows[0]['validation'], rows[0]['exportable']), ('unconfirmed', True))  # valid syntax, not confirmed: usable with a warning
-        self.assertIn('not confirmed', rows[0]['messages'][-1])
+        self.assertEqual((rows[0]['validation'], rows[0]['exportable']), ('attention', True))  # valid syntax, nothing supports it: usable with a warning
+        self.assertIn('Check it in SAP', rows[0]['messages'][-1])
         rows = self.preview('', roles=['ZC:MM:BUY:ENP', 'ZC:HR:MISC:XYZ'])['items']
-        self.assertEqual([(r['validation'], r['exportable']) for r in rows], [('needs_suffix', False), ('confirmed', True)])
+        self.assertEqual([(r['validation'], r['exportable']) for r in rows], [('attention', False), ('confirmed', True)])
 
     def test_export_is_deterministic_unique_escaped_and_never_includes_invalid_rows(self):
         body = dict(default_suffix='ENS', items=[dict(role='ZC:MM:BUY:ENP'), dict(role='ZC:FI:VIEW:ENP'), dict(role='ZC:MM:BUY:*'), dict(role='ZC:HR:MISC:XYZ'), dict(role='ZC:NOT:THERE')])
@@ -112,7 +124,7 @@ class PackageApi(unittest.TestCase):
         self.assertTrue(response.text.startswith('﻿"Generated SAP Role Name";"Role Description";"Suffix";"Validation"\r\n'))
         rows = list(csv.reader(io.StringIO(response.text.lstrip('﻿')), delimiter=';'))
         self.assertEqual([row[0] for row in rows[1:]], ['ZC:FI:VIEW:ENS', 'ZC:HR:MISC:XYZ', 'ZC:MM:BUY:ENS'])  # unknown source roles are never exported
-        self.assertEqual(rows[1], ['ZC:FI:VIEW:ENS', 'Description of ZC:FI:VIEW:ENP', 'ENS', 'Unconfirmed'])
+        self.assertEqual(rows[1], ['ZC:FI:VIEW:ENS', 'Description of ZC:FI:VIEW:ENP', 'ENS', 'Needs attention'])
         self.assertEqual(rows[2], ['ZC:HR:MISC:XYZ', 'Description of ZC:HR:MISC:XYZ', '', 'Confirmed'])
         nothing = self.client.post('/api/roles/package/export', json=dict(default_suffix='', items=[dict(role='ZC:MM:BUY:ENP')]), headers=H)
         self.assertEqual(nothing.status_code, 422)

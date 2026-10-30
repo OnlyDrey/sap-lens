@@ -569,7 +569,7 @@ export function RoleList({
       </FilterLayout>
       {(cart.items.length > 0 || selectedRoles.length >= 2) && (
       <div className="floating-action-stack">
-      <AccessPackageBar onOpen={() => setPackageOpen(true)} />
+      <AccessPackageBar onOpen={() => setPackageOpen(true)} selection={{ count: selectedRoles.length, onClear: clearSel }} />
       {selectedRoles.length >= 2 && (
         <div
           className="comparison-selection-bar floating-bar"
