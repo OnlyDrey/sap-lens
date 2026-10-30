@@ -1,4 +1,6 @@
 import { useId, type ReactNode } from 'react'
+import { ChevronDown } from 'lucide-react'
+import { Popover } from './Popover'
 /** One layout primitive; routes remain links and content switches remain tabs. */
 function NavigationStrip({ variant, label, children, className = '' }: {
   variant: 'main' | 'secondary' | 'tabs'; label: string; children: ReactNode; className?: string
@@ -192,5 +194,35 @@ export function MainNavigationItem({
       {icon}
       <span>{label}</span>
     </a>
+  )
+}
+
+export interface MainNavigationSubItem { value: string; label: string; icon: ReactNode; href: string; active: boolean; onSelect: () => void }
+
+/**
+ * A module with pages beneath it: the link opens the module's main page and a separate chevron button opens the submenu of direct page links.
+ * The group stays highlighted while any child page is open and the active submenu entry is marked. Modified clicks open the target in a new tab.
+ */
+export function MainNavigationGroup({ label, icon, active, href, onNavigate, items }: { label: string; icon: ReactNode; active: boolean; href: string; onNavigate: () => void; items: MainNavigationSubItem[] }) {
+  return (
+    <div className="primary-nav-group" data-active={active || undefined}>
+      <MainNavigationItem label={label} icon={icon} active={active} href={href} onNavigate={onNavigate} />
+      <Popover label={`${label} pages`} preferredWidth={240} triggerSize="icon"
+        trigger={<span className="relative inline-flex"><ChevronDown size={16} aria-hidden="true" /><span className="sr-only">{label} pages</span></span>}>
+        {(close) => (
+          <ul className="primary-submenu" aria-label={`${label} pages`}>
+            {items.map((item) => (
+              <li key={item.value}>
+                <a href={item.href} className="primary-submenu-link" aria-current={item.active ? 'page' : undefined}
+                  onClick={(event) => {
+                    if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return
+                    event.preventDefault(); close(); item.onSelect()
+                  }}>{item.icon}<span>{item.label}</span></a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Popover>
+    </div>
   )
 }

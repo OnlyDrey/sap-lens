@@ -1251,3 +1251,28 @@ p.dashboard-card-state { display:flex; align-items:center; gap:var(--space-2); }
 .package-footer .package-clear { margin-right:auto; }
 .package-summary-info { display:inline-flex; align-items:center; gap:var(--space-1); color:var(--info); }
 .package-row-line > .package-status[data-tone="info"] { color:var(--info); }
+
+/* Main navigation with submenus: the link opens the module, the chevron opens its pages. */
+.primary-nav-group { display:flex; align-items:stretch; min-width:0; border-radius:var(--radius-control); }
+.primary-nav-group[data-active] { background:color-mix(in srgb,var(--on-primary) 20%,transparent); }
+.primary-nav-group > .primary-nav-button { background:transparent !important; border-top-right-radius:0; border-bottom-right-radius:0; padding-right:var(--space-2); }
+.primary-nav-group > .ui-button { min-width:1.75rem; min-height:0; padding:0 var(--space-1); border:0; background:transparent; color:inherit; border-radius:0 var(--radius-control) var(--radius-control) 0; }
+.primary-nav-group > .ui-button:hover { background:color-mix(in srgb,var(--on-primary) 12%,transparent); }
+.primary-nav-group > .ui-button:focus-visible { outline:2px solid var(--on-primary); outline-offset:-2px; }
+.primary-nav-group > .ui-button[aria-expanded="true"] svg { transform:rotate(180deg); }
+.primary-nav-group:hover { background:color-mix(in srgb,var(--on-primary) 12%,transparent); }
+.primary-nav-group[data-active]:hover { background:color-mix(in srgb,var(--on-primary) 24%,transparent); }
+.primary-submenu { display:grid; margin:0; padding:0; list-style:none; gap:2px; }
+.primary-submenu-link { display:flex; align-items:center; gap:var(--space-2); min-height:var(--control-compact); padding:var(--space-1) var(--space-3); border-radius:var(--radius-control); color:var(--text); text-decoration:none; font-size:var(--font-label); }
+.primary-submenu-link:hover { background:var(--hover); }
+.primary-submenu-link:focus-visible { outline:var(--focus-width) solid var(--focus); outline-offset:calc(var(--focus-offset) * -1); }
+.primary-submenu-link[aria-current="page"] { background:color-mix(in srgb,var(--accent) 16%,var(--surface)); font-weight:600; box-shadow:inset 3px 0 0 var(--accent); }
+@media(max-width:430px) { .primary-nav-group { flex:1 1 0; min-width:0; } .primary-nav-group > .primary-nav-button { flex:1 1 auto; padding-inline:2px; } .primary-nav-group > .ui-button { min-width:1.25rem; padding:0; } }
+
+/* Single Roles: a primary-tinted hover on both stripes and visible chevron feedback; focus keeps its own outline. */
+.single-role-list .single-role-entry,.single-role-list > div .single-role-entry { transition:background-color .12s ease; }
+.single-role-list .single-role-entry:hover,.single-role-list > div:nth-child(even) .single-role-entry:hover,.single-role-list .single-role-entry:nth-child(even):hover { background:color-mix(in srgb,var(--accent) 12%,var(--surface)); }
+.single-role-entry .role-expand { transition:background-color .12s ease,color .12s ease; }
+.single-role-entry:hover .role-expand { color:var(--accent2); }
+.single-role-entry .role-expand:hover { background:color-mix(in srgb,var(--accent) 22%,transparent); color:var(--accent2); }
+.single-role-entry .role-expand[aria-expanded="true"] { color:var(--accent2); }

@@ -1,6 +1,6 @@
 import { rememberedReviewer } from '@/lib/reviewer'
 import { useState } from 'react'
-import { Eye, FileDown, FileText } from 'lucide-react'
+import { Eye, FileDown, FileText, Wrench } from 'lucide-react'
 import { announceExport } from '@/lib/exportNotice'
 import { useQuery } from '@tanstack/react-query'
 import { downloadFile, REPORT_NAME, sod, sodPost } from '@/api/sod'
@@ -43,7 +43,7 @@ export function SodReports() {
 function ReportTabs({ items }: { items: PeriodItem[] }) {
   const [tab, setTab] = useState('formal')
   return (
-    <ContentTabs label="SoD report types" value={tab} onChange={setTab} items={[{ value: 'formal', label: 'Formal review report' }, { value: 'remediation', label: 'Access remediation report' }]}>
+    <ContentTabs label="SoD report types" value={tab} onChange={setTab} items={[{ value: 'formal', label: 'Formal review report', icon: <FileText size={16} aria-hidden="true" /> }, { value: 'remediation', label: 'Access remediation report', icon: <Wrench size={16} aria-hidden="true" /> }]}>
       {tab === 'formal' ? <FormalReport items={items} /> : <RemediationReport items={items} />}
     </ContentTabs>
   )

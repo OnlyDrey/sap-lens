@@ -3,7 +3,7 @@ import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { downloadFile, scopeParams, sod, EXPORT_NAME, type AssignmentPick, type AssignmentSelection, type BulkAction, type ContextInfo, type Filters, type Lifecycle } from '@/api/sod'
 import { useHistoryValue, useViewHistory, type SodExplorerTable } from '@/hooks/useViewHistory'
-import { ArrowUpRight, ListTree, ScanSearch } from 'lucide-react'
+import { ArrowUpRight, ListTree, ScanSearch, UsersRound } from 'lucide-react'
 import { Button } from '@/components/Shared/Button'
 import { Dialog } from '@/components/Shared/Dialog'
 import { ErrorState, DataTable, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
@@ -58,7 +58,7 @@ export function SodExplorer() {
 
 /** Opens the evidence of one row in a wide modal; the table stays a scannable summary. */
 function EvidenceButton({ label, summary, onOpen }: { label: string; summary: ReactNode; onOpen: () => void }) {
-  return <button type="button" className="sod-expand-toggle" aria-haspopup="dialog" aria-label={`Show evidence for ${label}`} onClick={onOpen}><ListTree size={14} aria-hidden="true" />{summary}</button>
+  return <Button size="compact" aria-haspopup="dialog" aria-label={`Show evidence for ${label}`} onClick={onOpen}><ListTree size={14} aria-hidden="true" />{summary}</Button>
 }
 
 type Evidence =
@@ -252,7 +252,7 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
             <tbody>{data.items.map((row) => <tr key={row.role}><td className="col-role"><RoleIdentifier value={row.role!} label="assigned role" /></td>
               <td><EvidenceButton label={row.role!} summary={`${row.users} user${row.users === 1 ? '' : 's'}`} onOpen={() => setEvidence({ kind: 'users', role: row.role! })} /></td>
               <td>{pills('risk', row.risks)}</td><td>{pills('activity', row.activities)}</td>
-              <td className="col-actions"><Button onClick={() => showUsers(row.role!)} aria-label={`Show users with ${row.role}`}>Show users</Button></td></tr>)}</tbody></>}
+              <td className="col-actions"><Button size="compact" onClick={() => showUsers(row.role!)} aria-label={`Show users with ${row.role}`}><UsersRound size={14} aria-hidden="true" />Show users</Button></td></tr>)}</tbody></>}
         </DataTable> : <EmptyState>No rows match this scope. Results describe imported evidence only; incomplete source coverage cannot establish absence of access.</EmptyState>}
         <Pagination label="Explorer pages" offset={data.offset} total={data.total} limit={data.limit} onChange={setOffset} pageSizes={PAGE_SIZES} onPageSize={setPageSize} />
         {evidence && <ExplorerEvidence evidence={evidence} context={context} filters={filters} onClose={() => setEvidence(null)} onInvestigate={investigate} onUser={openUser} />}

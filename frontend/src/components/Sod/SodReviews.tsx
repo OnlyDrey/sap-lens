@@ -5,7 +5,7 @@ import { downloadFile, scopeParams, sod, EXPORT_NAME, type ContextInfo, type Use
 import { useHistoryValue } from '@/hooks/useViewHistory'
 import { Button } from '@/components/Shared/Button'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
-import { ClipboardCheck } from 'lucide-react'
+import { ClipboardCheck, ListChecks, Wrench } from 'lucide-react'
 import { ErrorState, DataTable, EmptyState, LoadingState } from '@/components/Shared/Presentation'
 import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
 import { ContentTabs } from '@/components/Shared/Navigation'
@@ -18,7 +18,7 @@ import { RemediationView } from './SodRemediation'
 export function SodReviews() {
   const [tab, setTab] = useHistoryValue('sodReviews')
   return (
-    <ContentTabs label="Review areas" value={tab || 'queue'} onChange={(value) => setTab(value as 'queue' | 'remediation')} items={[{ value: 'queue', label: 'Work queue' }, { value: 'remediation', label: 'Remediation' }]}>
+    <ContentTabs label="Review areas" value={tab || 'queue'} onChange={(value) => setTab(value as 'queue' | 'remediation')} items={[{ value: 'queue', label: 'Work queue', icon: <ListChecks size={16} aria-hidden="true" /> }, { value: 'remediation', label: 'Remediation', icon: <Wrench size={16} aria-hidden="true" /> }]}>
       {(tab || 'queue') === 'queue' ? <Queue /> : <RemediationView />}
     </ContentTabs>
   )

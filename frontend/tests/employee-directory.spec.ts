@@ -112,9 +112,13 @@ test('automatic directory import, feature persistence, manager drill-down and fa
   await expect(enrichment.getByRole('link', { name: 'View SAP user' })).toHaveAttribute('href', '#/user-access/user/SAP_MANAGER')
   await enrichment.getByRole('link', { name: 'View SAP user' }).click()
   await expect(page).toHaveURL(/#\/user-access\/user\/SAP_MANAGER$/)
-  await page.getByRole('button', { name: 'Back to previous user: DEMO_EMPLOYEE', exact: true }).click()
+  // The contextual way back sits in the Organization section with the manager relationship, once, not in the top navigation.
+  const back = page.getByRole('button', { name: 'Return to previous user: DEMO_EMPLOYEE', exact: true })
+  await expect(back).toHaveCount(1)
+  await expect(page.getByRole('region', { name: 'Organization', exact: true }).getByRole('button', { name: 'Return to previous user: DEMO_EMPLOYEE', exact: true })).toBeVisible()
+  await back.click()
   await expect(page.getByRole('region',{name:'SAP Identity',exact:true})).toContainText('DEMO_EMPLOYEE')
-  await expect(page.getByRole('button', { name: /Back to previous user/ })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /(Back|Return) to previous user/ })).toHaveCount(0)
   // Directory match is a label followed by the status badge, without a separator dot.
   const match = page.getByRole('button', { name: /^Directory matching details/ })
   await expect(match).toContainText('Directory match')

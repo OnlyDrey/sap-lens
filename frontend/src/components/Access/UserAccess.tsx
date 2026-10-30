@@ -1,5 +1,6 @@
 import {ExportCSVButton} from '@/components/Shared/ExportCSVButton'
 import { ASSIGNMENT_BANDS, LEGACY_ASSIGNMENT_BANDS } from '@/lib/assignmentBands'
+import { USER_ACCESS_VIEWS } from '@/lib/navigationItems'
 import {useAssignmentCSVExport} from '@/hooks/useAssignmentCSVExport'
 import { PageHeader } from '@/components/Shared/Presentation'
 import { UsersRound as PageIcon } from 'lucide-react'
@@ -72,7 +73,7 @@ export function UserAccess({
   const setComparisonContext=(state:ComparisonContext)=>changeComparison({userComparison:state},true);
   const [compareInitial,setCompareInitial]=useState('');
   const [accessMode,setAccessMode]=useHistoryValue('accessMode');
-  const modeButtons=<SecondaryNavigation label="User Access view" items={(['directory','review','compare'] as const).map((value,index)=>({value,label:['User directory','Account Review','Compare users'][index],href:userAccessHref(value),active:(accessMode||'directory')===value,onSelect:()=>{setCompareInitial('');setAccessMode(value)}}))}/>;
+  const modeButtons=<SecondaryNavigation label="User Access view" items={USER_ACCESS_VIEWS.map(({value,label,icon})=>({value,label,icon,href:userAccessHref(value),active:(accessMode||'directory')===value,onSelect:()=>{setCompareInitial('');setAccessMode(value)}}))}/>;
   const {loading:dataLoading}=useApplicationData();
   const listScroll = useRef(0);
   const originUser = useRef(initialUser || "");
@@ -380,11 +381,9 @@ function UserDetails({
       }),
   });
   const user = result.isError ? undefined : result.data;
-  const { view: historyView, change } = useViewHistory(),
-    trail = (historyView.userTrail || []).filter((name) => name !== username);
   return (
     <section aria-label="User details" className="space-y-4">
-      <DetailNavigation parent="User Access" current={username} onBack={onBack} previousUser={trail.length ? { name: trail[trail.length - 1], onBack: () => change({ user: trail[trail.length - 1], userTrail: trail.slice(0, -1) }) } : undefined} {...navigation}/>
+      <DetailNavigation parent="User Access" current={username} onBack={onBack} {...navigation}/>
       <div className="flex flex-wrap items-center gap-3"><h1 className="text-xl font-semibold">User details</h1><Button className="settings-secondary-button" onClick={onCompare}><ArrowLeftRight size={16} aria-hidden="true" />Compare users</Button></div>
       <QueryState loading={result.isLoading || (dataLoading && !result.data)} error={dataLoading && !result.data ? null : result.error} />
       {user && (

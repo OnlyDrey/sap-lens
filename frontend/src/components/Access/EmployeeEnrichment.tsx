@@ -5,7 +5,7 @@ import { DataTable, StatusBadge } from '@/components/Shared/Presentation'
 import { Button } from '@/components/Shared/Button'
 import { directoryDisplayName } from '@/lib/directoryDisplayName'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowUpRight, UserRoundX } from 'lucide-react'
+import { ArrowUpRight, Undo2, UserRoundX } from 'lucide-react'
 import { apiRequest } from '@/api/client'
 import type { Employee } from '@/components/Shared/EmployeeInformation'
 import { userHref, useViewHistory } from '@/hooks/useViewHistory'
@@ -29,6 +29,19 @@ export function useEmployeeMatch(username: string) {
       ),
   })
 }
+/** The way back after following a manager link: the previous SAP username is kept in the trail, so several manager hops can be undone one by one. */
+export function ReturnToPreviousUser({ currentUser }: { currentUser?: string }) {
+  const { view, change } = useViewHistory()
+  const trail = (view.userTrail || []).filter((name) => name !== currentUser), previous = trail[trail.length - 1]
+  if (!previous) return null
+  return (
+    <Button size="compact" className="detail-return-button" aria-label={`Return to previous user: ${previous}`}
+      onClick={() => change({ page: 'users', accessMode: 'directory', user: previous, userTrail: trail.slice(0, -1) })}>
+      <Undo2 size={14} aria-hidden="true" />Return to previous user <strong>{previous}</strong>
+    </Button>
+  )
+}
+
 export function ManagerSummary({
   employee,
   manager,
@@ -92,6 +105,7 @@ export function ManagerSummary({
           </span>
         </div>
       )}
+      <ReturnToPreviousUser currentUser={currentUser} />
     </section>
   )
 }

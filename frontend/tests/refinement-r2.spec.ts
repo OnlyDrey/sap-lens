@@ -276,3 +276,26 @@ test('User Access role rows keep a compact module badge beside the description a
   await expect(code).toHaveCSS('white-space', 'nowrap') // identifiers are never broken
   expect(await code.evaluate(el => el.textContent)).toBe(LONG) // the complete value is present, not truncated
 })
+
+test('Single Roles rows get a primary-tinted hover and the chevron reacts, while the expanded state stays distinct', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/#session=browser-test-session'); await goTo(page, 'Role Lookup')
+  await page.getByRole('article', { name: /Buyer plant$/ }).getByRole('button', { name: /^View details/ }).click()
+  const entries = page.locator('.single-role-list .single-role-entry')
+  const token = (name: string, property: string) => page.evaluate(([variable, prop]) => { const probe = document.createElement('span'); (probe.style as never as Record<string, string>)[prop] = `var(${variable})`; document.body.append(probe); const value = getComputedStyle(probe).getPropertyValue(prop === 'color' ? 'color' : 'background-color'); probe.remove(); return value }, [name, property])
+  const accent2 = await token('--accent2', 'color'), neutralHover = await token('--hover', 'backgroundColor')
+  const bg = (index: number) => entries.nth(index).evaluate(el => getComputedStyle(el).backgroundColor)
+  for (const index of [0, 1]) {
+    const before = await bg(index)
+    await entries.nth(index).hover()
+    const hovered = await bg(index)
+    expect(hovered).not.toBe(before)
+    expect(hovered).not.toBe(neutralHover) // a primary-tinted hover, not the neutral one
+  }
+  const chevron = entries.nth(0).getByRole('button', { name: /^Expand single role/ })
+  await entries.nth(0).hover()
+  await expect(chevron).toHaveCSS('color', accent2) // the chevron takes the accent color while the row is hovered (after its short transition)
+  await chevron.click()
+  await expect(chevron).toHaveAttribute('aria-expanded', 'true')
+  await expect(entries.nth(1).getByRole('button', { name: /^Expand single role/ })).toHaveAttribute('aria-expanded', 'false') // independent expansion
+})
