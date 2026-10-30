@@ -45,6 +45,10 @@ Date entry remains `NorwegianDateInput`, with Norwegian labels, Monday-first flo
 
 `StatusBadge` owns generic tone presentation. `AccountStatus`, `AssignmentStatus`, `StatusPill` and `SourceBadge` keep their domain-specific labels and rules. Lock indicators preserve their established neutral unlocked/unknown and red locked appearance. AD status is not SAP validity. Loading, empty, notification and evidence-disclosure components use semantic text and icons.
 
+## Disclosure and selection states
+
+Every `details/summary` uses one compact chevron control (24 px box, its own hover background, rotates when open); the summary text has no hover fill. Selected rows and active tiles use a subtle full border or primary tint, so selection never shifts layout, and zebra rows, hover and selection stay distinguishable. The multi-select toolbar shows Select all, Clear and Close as three bordered buttons.
+
 ## Capitalization and terminology
 
 Product names stay in Title Case: main navigation, page and section titles, SoD workspace views and the decision names (Activity Review, Role Assignment Review, Risk Acceptance). Table headers, buttons, field labels, filter labels, helper text and chips use sentence case. Official SAP terms keep their SAP spelling, for example **SAP User Group**, **Release Group**, **Release Strategy**, T-code and Risk ID. Use the same label for the same concept on every page.

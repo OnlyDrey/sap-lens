@@ -95,7 +95,6 @@ export function SodOverview() {
         <Card className="content-start" aria-label="Data freshness and coverage">
           <SectionHeader title="Evidence freshness and coverage" icon={<ShieldCheck size={18} aria-hidden="true" />} />
           <dl className="overview-facts">
-            <div><dt>Evaluation date</dt><dd>{g.as_of ? formatDate(g.as_of) : '—'}</dd></div>
             <div><dt>SoD matrix imported</dt><dd>{formatTimestamp(source.imported_at)}</dd></div>
             <div><dt>Last checked</dt><dd>{formatTimestamp(source.checked_at)}</dd></div>
             <div><dt>Since the previous refresh</dt><dd>{g.change ? (g.change.unavailable ? 'Change summary unavailable (baseline too large)' : `${g.change.new} newly detected · ${g.change.no_longer_detected} no longer detected (${g.change.previous_total} → ${g.change.total} user-risk findings)`) : 'No earlier baseline yet'}</dd></div>

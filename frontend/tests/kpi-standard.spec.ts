@@ -67,3 +67,23 @@ test('disclosures share the compact chevron control and matrix status pills have
   const height = (await pill.boundingBox())!.height
   expect(height).toBeGreaterThanOrEqual(24)
 })
+
+test('zebra striping, hover and selected rows stay distinguishable', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await openSod(page, 'Access Explorer')
+  await page.getByRole('tab', { name: 'Assignments', exact: true }).click()
+  const rows = page.getByRole('table', { name: 'Access list' }).locator('tbody tr')
+  await expect(rows.nth(3)).toBeVisible()
+  const bg = (index: number) => rows.nth(index).locator('td').nth(1).evaluate(element => getComputedStyle(element).backgroundColor)
+  const stripe = await bg(1), plain = await bg(0)
+  expect(stripe).not.toBe(plain) // alternating rows
+  await rows.nth(1).getByRole('checkbox').check()
+  const selected = await bg(1)
+  expect(selected).not.toBe(stripe)
+  await rows.nth(3).hover()
+  const hovered = await bg(3)
+  expect(hovered).not.toBe(selected)
+  expect(hovered).not.toBe(await bg(2))
+  await rows.nth(1).hover()
+  expect(await bg(1)).not.toBe(selected) // hover over a selected row is stronger still
+})

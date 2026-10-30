@@ -40,8 +40,8 @@ detail history. Backend regressions verify atomic two-source publication.
 
 ## Overview layout
 
-The compact Dashboard presents **SAP Overview**, **Access & Risk**,
-**Directory & Data Health**, **Review Progress**, **Role Distribution**,
+The Dashboard opens with a compact **Key figures** KPI section: SAP users, Catalogue roles, Release roles, Accounts requiring review, Users with potential conflicts (when SoD is enabled), Pending reviews and Missing or ambiguous directory matches. Each KPI is a button that opens the relevant view with its filter applied (for example Accounts requiring review opens Account Review filtered to those accounts). The sections beneath add detail instead of repeating the key figures: **Access & Risk**,
+**Directory & Data Health** (matched identities with coverage), **Review Progress** (completed, not yet reviewed and outdated reviews with the share reviewed; no trend is invented), **Segregation of Duties** (findings, pending reviews, remediation), **Role Distribution**,
 **Assignment Distribution**, then **Data Sources & Configuration**. Source setup
 buttons open the correct Data Sources tab. Smaller icon/value tiles replace the twelve equal, descriptive cards; metrics
 have explanatory accessible text/tooltips and no fabricated historical trends.

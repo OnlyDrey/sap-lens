@@ -224,9 +224,9 @@ export function ReleaseRoles({
       <div className="results-toolbar release-toolbar">
         <h2>Release assignments <span>{result.data?.total.toLocaleString() ?? '…'} {result.data?.total === 1 ? 'role' : 'roles'}</span></h2>
         <div className="release-bulk-actions" role="group" aria-label="Filtered release role actions">
-          <Button size="compact" onClick={addFiltered} disabled={!settled || bulkBusy || !result.data?.total} title="Adds every distinct release role matching the filters, across pages, to the access package."><Plus size={14} aria-hidden="true"/>Add filtered roles</Button>
-          <Button size="compact" onClick={copyNames} disabled={!settled || bulkBusy || !result.data?.total} title="Copies the distinct filtered release role names, one per line."><Copy size={14} aria-hidden="true"/>Copy role names</Button>
-          <Button size="compact" loading={roleListExport.busy} onClick={()=>void roleListExport.download()} disabled={!settled || !result.data?.total} title="Exports the distinct filtered release roles (name, description, area, group, strategy, PR/PO). Assignment export is separate."><Download size={14} aria-hidden="true"/>Export role list</Button>
+          <Button onClick={addFiltered} disabled={!settled || bulkBusy || !result.data?.total} title="Adds every distinct release role matching the filters, across pages, to the access package."><Plus size={16} aria-hidden="true"/>Add filtered roles</Button>
+          <Button onClick={copyNames} disabled={!settled || bulkBusy || !result.data?.total} title="Copies the distinct filtered release role names, one per line."><Copy size={16} aria-hidden="true"/>Copy role names</Button>
+          <Button loading={roleListExport.busy} onClick={()=>void roleListExport.download()} disabled={!settled || !result.data?.total} title="Exports the distinct filtered release roles (name, description, area, group, strategy, PR/PO). Assignment export is separate."><Download size={16} aria-hidden="true"/>Export role list</Button>
           {matrix && (
             <label className="filter-toggle release-compare-toggle">
               <input type="checkbox" checked={compareGroups} onChange={(e) => setCompareGroups(e.target.checked)} />

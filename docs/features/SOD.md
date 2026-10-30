@@ -23,7 +23,7 @@ Accept or reject → Approve → Remediate → Verify → Report**
 
 Business matrices (for example Finance or P2P) are **Saved Filters** on the two matrices,
 not separate pages. The risk catalogue stays in Settings → SoD Risk Configuration.
-Choose **Review context**: current evidence, or a review period (frozen after approval).
+One **review context bar** sits beneath the SoD navigation on every page: choose current evidence or a review period (frozen after approval) and see the evaluation date and whether the evidence is live or a frozen snapshot. Pages do not repeat this information.
 
 ## Three separate decisions
 

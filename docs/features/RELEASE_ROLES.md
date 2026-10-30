@@ -16,7 +16,7 @@ All filters live in the shared filter sidebar (collapsible on wide screens, a dr
 narrow ones) with [Saved Filters](SAVED_FILTERS.md) as its first section. Filter by SAP
 User Group, PR/PO, **Release Area**, **Release Group**, strategy, username, exact role text,
 assignment status and [assignment dates](FILTERS.md#assignment-dates-and-tables).
-Sort, Descending, Clear filters and the Matrix/Table switch sit in the page toolbar.
+Sort, Descending, Clear filters and the Matrix/Table switch sit in the page toolbar. Above the results, Add filtered roles, Copy role names, Export role list and (in Matrix view) Compare SAP User Groups share one toolbar to the left of Export CSV, which exports assignments and keeps its separate scope.
 Clear filters restores the ordinary currently-valid view.
 Date bounds affect assignments before counts, facets and pagination, never user profiles.
 
