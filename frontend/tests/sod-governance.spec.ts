@@ -144,17 +144,6 @@ test('Finance-style matrices are saved filters, isolated per matrix, renameable 
   await expect.poll(async () => (await mine()).length).toBe(0)
 })
 
-test('group aggregation lists distinct users per group and drills into the users', async ({ page }) => {
-  await openSod(page, 'Risk Matrix')
-  await page.getByRole('combobox', { name: 'Rows', exact: true }).selectOption('group')
-  const matrix = page.getByRole('region', { name: /Scrollable User by risk matrix/ })
-  await expect(matrix.getByRole('rowheader', { name: /FIN/ })).toBeVisible()
-  await matrix.getByRole('button', { name: /users in group FIN with R1/ }).first().click()
-  await expect(page.getByRole('button', { name: 'Remove SAP User Group FIN', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Remove Risk ID R1', exact: true })).toBeVisible()
-  await expect(matrix.getByRole('rowheader', { name: new RegExp('' + names.a) })).toBeVisible()
-})
-
 test('activity matrix is a review entry point and shows role counts and decisions', async ({ page }) => {
   await openSod(page, 'Activity Matrix')
   const cell = cellButton(page, `${names.a}`, 'A')

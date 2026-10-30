@@ -1311,3 +1311,12 @@ progress::-webkit-progress-bar,.dashboard-workspace progress::-webkit-progress-b
 .chart-stack[data-inline] .chart-legend { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-1) var(--space-4); }
 .chart-stack[data-inline] .chart-legend .chart-row { width:auto; grid-template-columns:auto auto auto auto; }
 .chart-stack[data-inline] .chart-trailing { margin-left:auto; color:var(--text2); font-size:var(--font-label); }
+
+/* Grouped matrices: collapsible SAP User Group header rows; the first column (group and user rows) stays sticky while scrolling sideways. */
+.matrix-grid .matrix-group-head { background:var(--surface2); }
+.matrix-grid .matrix-group-fill { background:var(--surface2); }
+.matrix-group-toggle { display:inline-flex; align-items:center; gap:var(--space-1); min-height:var(--control-compact); padding:0 var(--space-1); border:0; border-radius:var(--radius-control); background:transparent; color:inherit; font:inherit; font-weight:700; cursor:pointer; }
+.matrix-group-toggle:hover { background:var(--hover); }
+.matrix-group-toggle:focus-visible { outline:var(--focus-width) solid var(--focus); outline-offset:var(--focus-offset); }
+.matrix-grid .matrix-row-head small { margin-top:var(--space-1); }
+.matrix-grid .matrix-row-head { box-shadow:1px 0 0 var(--border); }

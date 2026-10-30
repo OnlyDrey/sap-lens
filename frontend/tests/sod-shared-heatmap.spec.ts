@@ -78,16 +78,3 @@ test('on pages that cannot filter by group and risk a selection opens the matchi
   await expect(page).toHaveURL(/#\/sod\/activity-matrix/)
   await expect(sidebar(page).getByRole('button', { name: 'Remove Activity B', exact: true })).toBeVisible()
 })
-
-test('the Risk Matrix labels SAP User Groups compactly and keeps the row header visible when scrolled sideways', async ({ page }) => {
-  await page.setViewportSize({ width: 800, height: 900 })
-  await openSod(page, 'Risk Matrix')
-  await page.getByRole('combobox', { name: 'Rows' }).selectOption('group')
-  const grid = page.getByRole('region', { name: /Scrollable User by risk matrix/ })
-  await expect(grid.getByRole('columnheader', { name: 'SAP User Group' })).toBeVisible()
-  const head = grid.locator('tbody th.matrix-row-head').first()
-  await expect(head.locator('.matrix-group-label')).toBeVisible()
-  await expect(head).toHaveAttribute('title', /^SAP User Group /)
-  expect(await head.evaluate(el => getComputedStyle(el).position)).toBe('sticky')
-  expect((await head.boundingBox())!.width).toBeLessThan(260)
-})

@@ -153,6 +153,33 @@ class MatrixTests(GovernanceCase):
         self.assertEqual(by_group['P2P']['cells']['R1']['users'], 1)
         self.assertEqual(result['totals']['users'], 2)
 
+    def test_user_group_grouping_places_each_user_once_and_changes_no_calculation(self):
+        cache._cache = snapshot({'SYN_D': dict(user('ROLE_AB'), assignments=[assignment('ROLE_AB', group='ZED'), assignment('ROLE_A1', group='ALPHA')])})
+        for kind in ('risk', 'activity'):
+            plain = self.get(f'/api/sod/matrix/{kind}')
+            grouped = self.get(f'/api/sod/matrix/{kind}', group_by='user_group')
+            self.assertEqual({row['user']: row['cells'] for row in grouped['rows']}, {row['user']: row['cells'] for row in plain['rows']})  # same users and cells
+            self.assertEqual(len(grouped['rows']), len({row['user'] for row in grouped['rows']}))  # none duplicated
+            self.assertEqual(grouped['total_rows'], plain['total_rows'])
+            self.assertEqual(grouped['totals'], plain['totals'])
+            self.assertEqual(grouped['status_counts'], plain['status_counts'])
+            summaries = grouped['group_summaries']
+            self.assertEqual([item['name'] for item in summaries], ['ALPHA', 'FIN', 'P2P'])  # SYN_D sits once, under its first group
+            self.assertEqual(sum(item['users'] for item in summaries), grouped['total_rows'])
+            self.assertEqual(sum(item['findings'] for item in summaries), sum(len(row['cells']) for row in plain['rows']))
+            self.assertEqual([item['start'] for item in summaries], sorted(item['start'] for item in summaries))
+            self.assertEqual({row['user']: row['group'] for row in grouped['rows']}['SYN_D'], 'ALPHA')
+        filtered = self.get('/api/sod/matrix/risk', group_by='user_group', groups=['ZED'])  # a selected group wins over the alphabetical one
+        self.assertEqual([(row['user'], row['group']) for row in filtered['rows']], [('SYN_D', 'ZED')])
+        self.assertIsNone(self.get('/api/sod/matrix/risk')['group_summaries'])
+
+    def test_user_group_grouping_pages_after_grouping_and_keeps_group_totals(self):
+        paged = self.get('/api/sod/matrix/risk', group_by='user_group', limit=1, offset=1)
+        self.assertEqual([row['user'] for row in paged['rows']], ['SYN_B'])
+        self.assertEqual([(item['name'], item['users'], item['start']) for item in paged['group_summaries']], [('FIN', 1, 0), ('P2P', 1, 1)])
+        descending = self.get('/api/sod/matrix/risk', group_by='user_group', descending='true')
+        self.assertEqual([item['name'] for item in descending['group_summaries']], ['P2P', 'FIN'])
+
     def test_shared_filters_apply_to_both_matrices_and_explorer(self):
         self.assertEqual([row['user'] for row in self.risk_matrix(group='P2P')['rows']], ['SYN_B'])
         self.assertEqual([row['user'] for row in self.get('/api/sod/matrix/activity', role='ROLE_AB')['rows']], ['SYN_B'])
@@ -614,7 +641,7 @@ class RobustnessTests(GovernanceCase):
     def test_every_matrix_sort_and_grouping_combination_returns_valid_json(self):
         for kind in ('risk', 'activity'):
             for sort in ('subject', 'findings'):
-                for group_by in ('user', 'group'):
+                for group_by in ('user', 'group', 'user_group'):
                     for descending in ('false', 'true'):
                         response = self.client.get(f'/api/sod/matrix/{kind}', params={'sort': sort, 'group_by': group_by, 'descending': descending}, headers=H)
                         self.assertEqual(response.status_code, 200, (kind, sort, group_by, descending, response.text[:120]))

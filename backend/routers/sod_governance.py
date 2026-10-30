@@ -66,12 +66,15 @@ def _matrix(kind, group_by, offset, limit, q):
         rows = sorted(rows, key=lambda row: (-len(row['cells']), row['user']), reverse=q['descending'])
     elif q['descending']:
         rows = list(reversed(rows))
+    summaries = None
+    if group_by == 'user_group':  # presentation only: the same users and cells, ordered under one SAP User Group each
+        rows, summaries = governance.place_in_groups(rows, scope.many(q, 'group', 'groups'), q['descending'])
     columns = matrix['columns'][:MAX_COLUMNS]
     keep = {column['risk_id' if kind == 'risk' else 'activity'] for column in columns}
     page = [dict(row, cells={name: cell for name, cell in row['cells'].items() if name in keep}) for row in rows[offset:offset + limit]]
     extra = {name: value for name, value in matrix.items() if name not in {'columns', 'rows'}}
     return dict(info(bundle), kind=kind, group_by=group_by, columns=columns, columns_truncated=len(matrix['columns']) > MAX_COLUMNS, rows=page,
-                total_rows=len(rows), offset=offset, limit=limit, status_counts=status_counts, **extra)
+                total_rows=len(rows), offset=offset, limit=limit, status_counts=status_counts, group_summaries=summaries, **extra)
 
 
 @router.get('/context')
@@ -81,12 +84,12 @@ def context_summary(context: str = Query('current', max_length=64)):
 
 
 @router.get('/matrix/risk')
-def risk_matrix(q: dict = Depends(scope_query), group_by: Literal['user', 'group'] = 'user', offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200)):
+def risk_matrix(q: dict = Depends(scope_query), group_by: Literal['user', 'group', 'user_group'] = 'user', offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200)):
     return _matrix('risk', group_by, offset, limit, q)
 
 
 @router.get('/matrix/activity')
-def activity_matrix(q: dict = Depends(scope_query), group_by: Literal['user', 'group'] = 'user', offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200)):
+def activity_matrix(q: dict = Depends(scope_query), group_by: Literal['user', 'group', 'user_group'] = 'user', offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200)):
     return _matrix('activity', group_by, offset, limit, q)
 
 

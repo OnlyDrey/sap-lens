@@ -249,6 +249,30 @@ def aggregate_by_group(matrix, key='cells'):
     return dict(matrix, rows=rows)
 
 
+def place_in_groups(rows, preferred=(), reverse=False):
+    """Rows ordered by SAP User Group for the grouped matrix view, each user exactly once.
+
+    A user in several groups is placed under the first of their groups that the filter selected, otherwise under
+    their first group, so the groups partition the users (no duplicates, none omitted). Returns the ordered rows
+    (each with ``group``) and one summary per group: distinct users, finding cells and the index of its first row.
+    """
+    wanted = {name.casefold() for name in preferred}
+    buckets = {}
+    for row in rows:
+        groups = row['groups']
+        pick = next((name for name in groups if name.casefold() in wanted), groups[0] if groups else '(no group)')
+        buckets.setdefault(pick, []).append(dict(row, group=pick))
+    names = sorted(buckets, key=lambda name: (name == '(no group)', name.casefold(), name))
+    if reverse:
+        names.reverse()
+    ordered, summaries = [], []
+    for name in names:
+        members = buckets[name]
+        summaries.append(dict(name=name, users=len(members), findings=sum(len(row['cells']) for row in members), start=len(ordered)))
+        ordered += members
+    return ordered, summaries
+
+
 def explorer_rows(table, model, state):
     """Flat investigation tables for the Access Explorer; every row traces back to user, risk, activity and assignment."""
     rows = []

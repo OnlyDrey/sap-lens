@@ -1,5 +1,6 @@
 import { RoleIdentifier } from './RoleIdentifier'
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 
 export interface MatrixColumnDef { id: string; label: string; node?: ReactNode; title?: string; sub?: string; onFilter?: () => void }
 export interface MatrixCellView { icon: ReactNode; text: string; sub?: string; tone?: 'neutral' | 'success' | 'warning' | 'error' | 'info'; label: string }
@@ -12,16 +13,18 @@ const WINDOW_FROM = 48
 /** Scroll offsets survive remounts (for example Back from a role page) within the session. */
 const scrollMemory = new Map<string, { left: number; top: number }>()
 
-export function MatrixGrid({ caption, rowLabel, columns, rows, cell, onSelect, onRow, selected, scrollKey, codeRows, groupRows }: {
-  /** Row labels are SAP User Groups: a compact label with the full name as tooltip; the row header stays visible while scrolling horizontally. */
-  groupRows?: boolean
+export interface MatrixGroupDef { id: string; label: string; summary: string; collapsed: boolean; onToggle: () => void }
+
+export function MatrixGrid({ caption, rowLabel, columns, rows, cell, onSelect, onRow, selected, scrollKey, codeRows, groups }: {
+  /** Collapsible group headers in display order; rows name their group. A collapsed group has a header and no rows. */
+  groups?: MatrixGroupDef[]
   scrollKey?: string
   /** Row labels are identifiers (for example SAP usernames) and render as copyable codeblocks. */
   codeRows?: boolean
   caption: string
   rowLabel: string
   columns: MatrixColumnDef[]
-  rows: { id: string; label: string; sub?: string }[]
+  rows: { id: string; label: string; sub?: string; group?: string }[]
   cell: (row: string, column: string) => MatrixCellView | null
   onSelect: (row: string, column: string) => void
   onRow?: (row: string) => void
@@ -106,6 +109,31 @@ export function MatrixGrid({ caption, rowLabel, columns, rows, cell, onSelect, o
     wanted.current = true
     setActive(`${r}:${c}`)
   }
+  const renderRow = (row: { id: string; label: string; sub?: string; group?: string }, r: number) => (
+            <tr key={row.id}>
+              <th scope="row" className="matrix-row-head">
+                {codeRows ? <RoleIdentifier value={row.label} label="SAP username" onOpen={onRow ? () => onRow(row.id) : undefined} openLabel={`Open ${row.label}`} /> : onRow ? <button type="button" className="matrix-row-button" onClick={() => onRow(row.id)} aria-label={`Open ${row.label}`}>{row.label}</button> : row.label}
+                {row.sub && <small title={`SAP User Group: ${row.sub}`}>{row.sub}</small>}
+              </th>
+              {first > 0 && <td aria-hidden="true" colSpan={first} className="matrix-spacer" />}
+              {visible.map((column, offset) => {
+                const c = first + offset,
+                  view = cell(row.id, column.id),
+                  key = `${r}:${c}`
+                if (!view) return <td key={column.id} className="matrix-cell matrix-empty"><span className="sr-only">No detected evidence</span></td>
+                return (
+                  <td key={column.id} className="matrix-cell" data-tone={view.tone || 'neutral'}>
+                    <button type="button" data-cell={key} tabIndex={current === key ? 0 : -1} aria-label={view.label} aria-current={selected?.row === row.id && selected.col === column.id ? 'true' : undefined}
+                      onFocus={() => setActive(key)} onClick={() => onSelect(row.id, column.id)}>
+                      <span className="matrix-pill"><span className="matrix-icon" aria-hidden="true">{view.icon}</span><span className="matrix-text">{view.text}</span></span>
+                      {view.sub && <span className="matrix-sub">{view.sub}</span>}
+                    </button>
+                  </td>
+                )
+              })}
+              {last < columns.length && <td aria-hidden="true" colSpan={columns.length - last} className="matrix-spacer" />}
+            </tr>
+  )
   return (
     <div className="matrix-scroll" ref={scroller} role="region" aria-label={`Scrollable ${caption}`} onKeyDown={move}>
       <table className="matrix-grid" style={{ width: HEAD + columns.length * CELL }}>
@@ -128,31 +156,21 @@ export function MatrixGrid({ caption, rowLabel, columns, rows, cell, onSelect, o
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, r) => (
-            <tr key={row.id}>
-              <th scope="row" className="matrix-row-head" data-group={groupRows || undefined} title={groupRows ? `SAP User Group ${row.label}` : undefined}>
-                {codeRows ? <RoleIdentifier value={row.label} label="SAP username" onOpen={onRow ? () => onRow(row.id) : undefined} openLabel={`Open ${row.label}`} /> : onRow ? <button type="button" className="matrix-row-button" onClick={() => onRow(row.id)} aria-label={`Open ${row.label}`}>{row.label}</button> : groupRows ? <span className="matrix-group-label">{row.label}</span> : row.label}
-                {row.sub && <small>{row.sub}</small>}
-              </th>
-              {first > 0 && <td aria-hidden="true" colSpan={first} className="matrix-spacer" />}
-              {visible.map((column, offset) => {
-                const c = first + offset,
-                  view = cell(row.id, column.id),
-                  key = `${r}:${c}`
-                if (!view) return <td key={column.id} className="matrix-cell matrix-empty"><span className="sr-only">No detected evidence</span></td>
-                return (
-                  <td key={column.id} className="matrix-cell" data-tone={view.tone || 'neutral'}>
-                    <button type="button" data-cell={key} tabIndex={current === key ? 0 : -1} aria-label={view.label} aria-current={selected?.row === row.id && selected.col === column.id ? 'true' : undefined}
-                      onFocus={() => setActive(key)} onClick={() => onSelect(row.id, column.id)}>
-                      <span className="matrix-pill"><span className="matrix-icon" aria-hidden="true">{view.icon}</span><span className="matrix-text">{view.text}</span></span>
-                      {view.sub && <span className="matrix-sub">{view.sub}</span>}
-                    </button>
-                  </td>
-                )
-              })}
-              {last < columns.length && <td aria-hidden="true" colSpan={columns.length - last} className="matrix-spacer" />}
-            </tr>
-          ))}
+          {(groups ?? [{ id: '', label: '', summary: '', collapsed: false, onToggle: () => undefined }]).map((group) => {
+            const members = rows.map((row, r) => ({ row, r })).filter(({ row }) => !groups || row.group === group.id)
+            return [
+              groups && <tr key={`group:${group.id}`} className="matrix-group-row" data-collapsed={group.collapsed || undefined}>
+                <th scope="rowgroup" className="matrix-row-head matrix-group-head">
+                  <button type="button" className="matrix-group-toggle" aria-expanded={!group.collapsed} aria-label={`${group.collapsed ? 'Expand' : 'Collapse'} SAP User Group ${group.label}`} onClick={group.onToggle}>
+                    {group.collapsed ? <ChevronRight size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}<span>{group.label}</span>
+                  </button>
+                  <small>{group.summary}</small>
+                </th>
+                <td colSpan={Math.max(1, columns.length)} className="matrix-group-fill" aria-hidden="true" />
+              </tr>,
+              ...members.map(({ row, r }) => renderRow(row, r)),
+            ]
+          })}
         </tbody>
       </table>
     </div>

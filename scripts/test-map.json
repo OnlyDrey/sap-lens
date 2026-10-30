@@ -163,6 +163,7 @@
     "sod-stability",
     "sod-dashboard-startup",
     "sod-shared-heatmap",
+    "sod-matrix-grouping",
     "sod-evidence-modals"
    ]
   },
