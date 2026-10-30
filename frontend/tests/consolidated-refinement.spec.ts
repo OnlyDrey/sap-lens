@@ -118,7 +118,7 @@ test.describe('SoD views', () => {
     await page.setViewportSize({ width: 1440, height: 1000 })
     await openSod(page)
     const bar = page.getByRole('toolbar', { name: 'Heatmap controls' })
-    const title = page.getByRole('heading', { name: 'Conflicts by SAP user group' })
+    const title = page.getByRole('heading', { name: 'Conflicts by SAP User Group' })
     const box = await bar.boundingBox(), head = await title.boundingBox()
     expect(Math.abs((box!.y + box!.height / 2) - (head!.y + head!.height / 2))).toBeLessThan(40) // one row with the title
     for (const name of ['Risks', 'Activities']) await expect(bar.getByRole('button', { name, exact: true })).toBeVisible()

@@ -42,8 +42,8 @@ def save(request:Saved):
     allowed={
       'users':{'search','group','groups','roles','sort','descending','role','tcodes','transactionMode','transactionExclude','excludeTcodes','excludeMode','missingRoles','missingMode','expired','assignmentBand'},
       'roles':{'search','activeModules','transactionMode','transactionExclude','transactionOperator','tcodes','notTcodes','excludeTcodes','excludeMode','sortBy'},
-      'release':{'group','kind','releaseGroup','releaseAreas','releaseGroups','strategy','strategies','username','role','status','sort','descending','valid_from_min','valid_from_max','valid_to_min','valid_to_max','include_missing_end'},
-      'review':{'search','finding','license','state','sort','descending'},
+      'release':{'group','userGroups','kind','releaseGroup','releaseAreas','releaseGroups','strategy','strategies','username','role','status','sort','descending','valid_from_min','valid_from_max','valid_to_min','valid_to_max','include_missing_end'},
+      'review':{'search','finding','license','state','findings','licenses','states','sort','descending'},
       'comparison':{'validity','kind','difference','search','area','sort','descending'}}
     for view in ('sod_users','sod_roles'):
         allowed[view]={'search','usernames','risks','criticalities','categories','groups','tcodes','risk','criticality','risk_type','category','username','group','composite_role','single_role','tcode','account_status','sort','descending','validity','as_of','selected_roles'}

@@ -8,7 +8,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers, goTo, openFilters, closeFilters, setDescending, sortDirection } from './support'
+import { headers, goTo, openFilters, closeFilters, setDescending, sortDirection, pickMulti } from './support'
 const fields =
   'Site;Name;SamAccountName;UserPrincipalName;Mail;Department;Title;Enabled;DistinguishedName;ManagerDN;ManagerName;ManagerSamAccountName;ManagerMail;ManagerDepartment;ManagerTitle;ManagerLookupStatus'.split(
     ';',
@@ -84,6 +84,9 @@ test.beforeEach(async ({ request }) => {
   ).toBeTruthy()
 })
 test.afterEach(async ({ request }) => {
+  // Saved filters survive the configuration reset; remove the one the legacy-shape test creates.
+  const items = (await (await request.get('/api/saved-filters', { headers })).json()).items as { id: string; name: string; modified: string }[]
+  for (const item of items.filter(entry => entry.name === 'Older shape')) await request.post('/api/saved-filters/delete', { headers, data: { id: item.id, expected: item.modified } })
   await request.post('/api/configuration/reset', { headers })
   rmSync(root, { recursive: true, force: true })
 })
@@ -154,9 +157,7 @@ test('review findings, license filter, local decision persistence and spreadshee
     window.dispatchEvent(new PopStateEvent('popstate', { state }))
   })
   await review(page)
-  await page
-    .getByLabel('Review finding', { exact: true })
-    .selectOption('ad_disabled_open')
+  await pickMulti(page, 'Review finding', 'AD disabled / SAP valid and unlocked', page)
   const table = page.getByRole('region', {
     name: 'Account review results',
     exact: true,
@@ -164,15 +165,12 @@ test('review findings, license filter, local decision persistence and spreadshee
   await expect(table.getByRole('row')).toHaveCount(2)
   await expect(table).toContainText('DEMO_OPEN')
   await expect(table).toContainText('Configured unlicensed group')
-  await page
-    .getByLabel('License group classification', { exact: true })
-    .selectOption('exclude')
+  await pickMulti(page, 'License group classification', 'Exclude unlicensed groups', page)
   await expect(
     page.getByText('No accounts match these review filters.', { exact: true }),
   ).toBeVisible()
-  await page
-    .getByLabel('License group classification', { exact: true })
-    .selectOption('classified')
+  await page.getByRole('button', { name: 'Remove license classification Exclude unlicensed groups', exact: true }).click()
+  await pickMulti(page, 'License group classification', 'Configured unlicensed groups', page)
   await table
     .getByRole('button', {
       name: /^(Needs review|Investigating)$/,
@@ -201,9 +199,7 @@ test('review findings, license filter, local decision persistence and spreadshee
   await expect(
     table.getByRole('button', { name: 'Investigating', exact: true }),
   ).toBeVisible()
-  await page
-    .getByLabel('License group classification', { exact: true })
-    .selectOption('classified')
+  await expect(page.getByRole('button', { name: 'Remove license classification Configured unlicensed groups', exact: true })).toBeVisible()
   await page
     .getByLabel('Sort account reviews', { exact: true })
     .selectOption('ad_status')
@@ -257,12 +253,8 @@ test('review findings, license filter, local decision persistence and spreadshee
     page.getByRole('region', { name: 'SAP Identity', exact: true }),
   ).toContainText('DEMO_OPEN')
   await page.goBack()
-  await expect(page.getByLabel('Review finding', { exact: true })).toHaveValue(
-    'ad_disabled_open',
-  )
-  await expect(
-    page.getByLabel('License group classification', { exact: true }),
-  ).toHaveValue('classified')
+  await expect(page.getByRole('button', { name: 'Remove review finding AD disabled / SAP valid and unlocked', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Remove license classification Configured unlicensed groups', exact: true })).toBeVisible()
   await expect(
     page.getByLabel('Sort account reviews', { exact: true }),
   ).toHaveValue('ad_status')
@@ -305,9 +297,7 @@ test('Dashboard coverage and account-review KPI open supported evidence filters'
       exact: true,
     })
     .click()
-  await expect(page.getByLabel('Review finding', { exact: true })).toHaveValue(
-    'directory_match',
-  )
+  await expect(page.getByRole('button', { name: 'Remove review finding Missing or ambiguous directory match', exact: true })).toBeVisible()
   await expect(
     page.getByRole('region', { name: 'Account review results', exact: true }),
   ).toContainText('DEMO_UNKNOWN')
@@ -315,9 +305,7 @@ test('Dashboard coverage and account-review KPI open supported evidence filters'
   await page
     .getByRole('button', { name: 'Accounts requiring review', exact: true })
     .click()
-  await expect(page.getByLabel('Review finding', { exact: true })).toHaveValue(
-    'any',
-  )
+  await expect(page.getByRole('button', { name: 'Remove review finding Accounts requiring review', exact: true })).toBeVisible()
 })
 
 test('floating Norwegian calendar stays outside layout, handles maximum dates, Escape and outside click', async ({
@@ -582,9 +570,7 @@ test('unlicensed group policy can be edited, cleared and reloaded without suppre
   ])
   await page.reload()
   await review(page)
-  await page
-    .getByLabel('Review finding', { exact: true })
-    .selectOption('ad_disabled_open')
+  await pickMulti(page, 'Review finding', 'AD disabled / SAP valid and unlocked', page)
   await expect(
     page.getByRole('region', { name: 'Account review results', exact: true }),
   ).toContainText('DEMO_OPEN')
@@ -680,4 +666,62 @@ for(const theme of ['light','dark']) test(`directory conflict evidence identifie
   await page.screenshot({path:info.outputPath('matching-evidence.png')})
   await details.getByRole('button',{name:'Inspect Employee Directory source',exact:true}).click()
   await expect(page.getByRole('tab',{name:'Employee Directory',exact:true})).toHaveAttribute('aria-selected','true')
+})
+
+test('review finding, classification and decision filters are multi-select; tiles combine; older saved filters load', async ({ page, request }) => {
+  await page.goto('/#session=browser-test-session')
+  await review(page)
+  const table = page.getByRole('region', { name: 'Account review results', exact: true })
+  const total = page.getByText(/^\d+ accounts$/)
+  await expect(total).toHaveText('4 accounts')
+  // OR within the finding filter, and the dropdown stays open between choices.
+  const finding = page.getByRole('combobox', { name: 'Review finding', exact: true })
+  await finding.click()
+  await page.getByRole('option', { name: 'AD disabled / SAP valid and unlocked', exact: true }).click()
+  await expect(page.getByRole('listbox', { name: 'Review finding options' })).toBeVisible()
+  await page.getByRole('option', { name: 'Technical or service account', exact: true }).click()
+  await finding.press('Escape')
+  await expect(page.getByRole('button', { name: 'Remove review finding AD disabled / SAP valid and unlocked', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Remove review finding Technical or service account', exact: true })).toBeVisible()
+  await expect(table).toContainText('DEMO_OPEN')
+  await expect(table).toContainText('DEMO_UNKNOWN')
+  await expect(table).not.toContainText('SAP_MANAGER')
+  // AND with the classification filter.
+  await pickMulti(page, 'License group classification', 'Configured unlicensed groups', page)
+  await expect(total).toHaveText('1 accounts')
+  await expect(table).not.toContainText('DEMO_UNKNOWN')
+  // Choosing both classifications does not narrow the list; decisions are multi-select as well.
+  await pickMulti(page, 'License group classification', 'Exclude unlicensed groups', page)
+  await expect(total).toHaveText('2 accounts')
+  await pickMulti(page, 'Review decision', 'Needs review', page)
+  await pickMulti(page, 'Review decision', 'Investigating', page)
+  await expect(page.getByRole('button', { name: 'Remove review decision Investigating', exact: true })).toBeVisible()
+  await expect(total).toHaveText('2 accounts')
+  await page.getByRole('complementary', { name: 'Filters' }).getByRole('button', { name: 'Clear filters', exact: true }).click()
+  await expect(total).toHaveText('4 accounts')
+  // Tiles toggle and combine: findings join (OR), the classification tile adds AND.
+  const tile = (name: string) => page.getByRole('button', { name: new RegExp(`^${name}`) })
+  await tile('Accounts requiring review').click()
+  await tile('Classified unlicensed').click()
+  await expect(tile('Accounts requiring review')).toHaveAttribute('aria-pressed', 'true')
+  await expect(tile('Classified unlicensed')).toHaveAttribute('aria-pressed', 'true')
+  await expect(table).toContainText('DEMO_OPEN')
+  await expect(table).not.toContainText('SAP_MANAGER')
+  await tile('Classified unlicensed').click()
+  await expect(tile('Classified unlicensed')).toHaveAttribute('aria-pressed', 'false')
+  await tile('Accounts requiring review').click()
+  await expect(total).toHaveText('4 accounts')
+  // Saved filters stored with the single-value shape still load as one-item lists.
+  const saved = await request.post('/api/saved-filters', { headers, data: { name: 'Older shape', view: 'review', filters: { search: '', finding: 'ad_disabled_open', license: 'classified', state: '', sort: 'username', descending: false } } })
+  expect(saved.ok()).toBeTruthy()
+  await page.reload()
+  const toolbar = page.locator('div.saved-filter-toolbar[aria-label="review saved filters"]')
+  await toolbar.getByRole('button', { name: /Saved filters/ }).click()
+  const dialog = page.getByRole('dialog', { name: 'review saved filters', exact: true })
+  await dialog.getByRole('combobox', { name: 'Saved filter' }).click()
+  await page.getByRole('option', { name: 'Older shape', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Load', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Remove review finding AD disabled / SAP valid and unlocked', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Remove license classification Configured unlicensed groups', exact: true })).toBeVisible()
+  await expect(total).toHaveText('1 accounts')
 })

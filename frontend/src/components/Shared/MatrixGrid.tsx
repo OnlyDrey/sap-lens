@@ -1,3 +1,4 @@
+import { RoleIdentifier } from './RoleIdentifier'
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 
 export interface MatrixColumnDef { id: string; label: string; node?: ReactNode; title?: string; sub?: string; onFilter?: () => void }
@@ -11,8 +12,10 @@ const WINDOW_FROM = 48
 /** Scroll offsets survive remounts (for example Back from a role page) within the session. */
 const scrollMemory = new Map<string, { left: number; top: number }>()
 
-export function MatrixGrid({ caption, rowLabel, columns, rows, cell, onSelect, onRow, selected, scrollKey }: {
+export function MatrixGrid({ caption, rowLabel, columns, rows, cell, onSelect, onRow, selected, scrollKey, codeRows }: {
   scrollKey?: string
+  /** Row labels are identifiers (for example SAP usernames) and render as copyable codeblocks. */
+  codeRows?: boolean
   caption: string
   rowLabel: string
   columns: MatrixColumnDef[]
@@ -126,7 +129,7 @@ export function MatrixGrid({ caption, rowLabel, columns, rows, cell, onSelect, o
           {rows.map((row, r) => (
             <tr key={row.id}>
               <th scope="row" className="matrix-row-head">
-                {onRow ? <button type="button" className="matrix-row-button" onClick={() => onRow(row.id)} aria-label={`Open ${row.label}`}>{row.label}</button> : row.label}
+                {codeRows ? <RoleIdentifier value={row.label} label="SAP username" onOpen={onRow ? () => onRow(row.id) : undefined} openLabel={`Open ${row.label}`} /> : onRow ? <button type="button" className="matrix-row-button" onClick={() => onRow(row.id)} aria-label={`Open ${row.label}`}>{row.label}</button> : row.label}
                 {row.sub && <small>{row.sub}</small>}
               </th>
               {first > 0 && <td aria-hidden="true" colSpan={first} className="matrix-spacer" />}

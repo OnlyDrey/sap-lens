@@ -51,7 +51,7 @@ test('a department change becomes a priority review that uses the existing Accou
   await expect(tile).toContainText('1')
   await tile.click()
   await expect(page).toHaveURL(/#\/user-access\/account-review/)
-  await expect(page.getByLabel('Review finding', { exact: true })).toHaveValue('position_change')
+  await expect(page.getByRole('button', { name: 'Remove review finding Position changes', exact: true })).toBeVisible()
   const queue = page.getByRole('region', { name: 'Position changes priority queue' })
   await expect(queue).toContainText('not evidence that access is inappropriate')
   const row = queue.getByRole('row').filter({ hasText: 'DEMO_MOVER' })

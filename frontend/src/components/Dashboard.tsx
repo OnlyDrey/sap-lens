@@ -109,15 +109,15 @@ export function Dashboard() {
       ? change({
           page: 'users',
           accessMode: 'review',
-          accountReviewFilters:{search:'',license:'',state:'',sort:'username',descending:false},
+          accountReviewFilters:{search:'',licenses:[],states:[],sort:'username',descending:false},
           kpiNavigation:{...view.kpiNavigation,users:(view.kpiNavigation?.users||0)+1},
           user: '',
-          reviewFinding:
+          reviewFindings: [
             metric.id==='outdated'?'stale':metric.id==='position_changes'?'position_change':metric.id==='reviewed'?'reviewed':metric.id==='pending'?'pending':metric.id==='ad_disabled_open'?'ad_disabled_open':metric.id === 'unresolved'
               ? 'directory_match'
               : metric.id === 'email_matches'
                 ? 'matched'
-                : 'any',
+                : 'any'],
           settings: false,
           detailRole: null,
         })

@@ -86,6 +86,29 @@ class ReleaseRoleTests(unittest.TestCase):
         self.assertTrue(users['items'] and all(item['release']['release_strategy'] == 'N2' for item in users['items']) and all('display_name' in item for item in users['items']))
         self.assertEqual(self.get('access/release-options?field=strategy&status=all&release_groups=E3')['items'], ['N2'])  # strategy options follow their parents, never their own selection
 
+    def test_multiple_sap_user_groups_and_tokenized_searches_use_or(self):
+        names = lambda query: {r['role_name'] for r in self.get('access/release-roles?status=all&' + query)['items']}
+        g1, g2 = names('user_groups=G1'), names('user_groups=G2')
+        self.assertTrue(g1 and g2)
+        self.assertEqual(names('user_groups=G1&user_groups=G2'), g1 | g2)
+        self.assertEqual(names('user_groups=G1&user_groups=G2&document_type=PO'), {n for n in g1 | g2 if 'PO_REL' in n})
+        self.assertEqual(names('user_groups=g1'), set())  # exact identifiers, no case folding
+        self.assertEqual(names('group=G1'), g1)  # the single parameter still works and combines with the list
+        self.assertEqual(names('group=G1&user_groups=G2'), g1 | g2)
+        one, two = names('username=demo_one'), names('username=demo_two')
+        self.assertTrue(one and two)
+        self.assertEqual(names('username=demo_one,DEMO_TWO'), one | two)
+        self.assertEqual(names('username=demo_one;demo_two%0Anobody'), one | two)
+        self.assertEqual(names('username=%2C%20%2C'), names(''))  # separators only do not filter
+        self.assertEqual(names('role=PR_REL_ST_E2,PO_REL_ST_E3'), {'ZO:MM:M:PR_REL_ST_E2_N1:ALL', 'ZO:MM:M:PO_REL_ST_E3_N2:ALL'})
+        self.assertEqual(names('username=demo_one,demo_two&user_groups=G2'), two)
+        users = self.get('access/release-assignments?status=all&user_groups=G1&user_groups=G2&username=demo_one,demo_three&limit=100')
+        self.assertEqual({a['username'] for a in users['items']}, {'DEMO_ONE', 'DEMO_THREE'})
+        self.assertEqual(self.get('access/release-options?field=group&status=all')['items'], ['G1', 'G2'])
+        self.assertEqual(self.get('access/release-options?field=group&status=all&user_groups=G1')['items'], ['G1', 'G2'])  # never narrowed by itself
+        self.assertEqual(self.get('access/release-options?field=document_type&status=all&user_groups=G1')['items'], ['PO', 'PR'])
+        self.assertEqual(self.get('access/release-options?field=username&status=all&search=one,two')['items'], ['DEMO_ONE', 'DEMO_TWO'])
+
     def test_distinct_role_list_respects_filters_and_validity_and_excludes_catalogue_roles(self):
         every = self.get('access/release-roles?status=all')
         self.assertEqual(every['total'], 5)  # four parsed roles and one unparsed; the catalogue role is excluded

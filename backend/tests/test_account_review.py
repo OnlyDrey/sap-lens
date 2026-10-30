@@ -101,6 +101,22 @@ class AccountReviewTests(unittest.TestCase):
         reverse=self.get('?descending=true')['items'];self.assertEqual(reverse[0]['username'],'DEMO_SERVICE')
         self.assertEqual(self.client.get('/api/account-review?finding=unsupported',headers=H).status_code,422)
 
+    def test_multi_value_filters_use_or_within_and_and_between(self):
+        names = lambda q: {r['username'] for r in self.get(q)['items']}
+        everyone = names('?limit=100')
+        a, b = names('?findings=ad_disabled_open'), names('?findings=any')
+        self.assertTrue(a and b)
+        self.assertEqual(names('?findings=ad_disabled_open&findings=any&limit=100'), a | b)
+        self.assertEqual(names('?finding=ad_disabled_open&findings=any&limit=100'), a | b)  # singular alias joins the list
+        classified = names('?license_groups=classified&limit=100')
+        self.assertEqual(names('?license_groups=classified&license_groups=exclude&limit=100'), everyone)  # both classes do not narrow
+        self.assertEqual(names('?findings=ad_disabled_open&findings=any&license_groups=classified&limit=100'), (a | b) & classified)
+        states = names('?review_states=Needs%20review&review_states=Investigating&limit=100')
+        self.assertTrue(states)
+        self.assertEqual(names('?review_states=Approved%20for%20deactivation&limit=100'), set())
+        self.assertEqual(self.client.get('/api/account-review?findings=unsupported',headers=H).status_code,422)
+        self.assertEqual(self.client.get('/api/account-review?review_states=Unknown',headers=H).status_code,422)
+
     def decision(self, row, **kwargs):
         return self.client.post('/api/account-review/decision/'+row['username'],headers=H,json=dict(state='Investigating',reviewer='Synthetic Reviewer',rationale='Synthetic investigation',evidence_version=row['evidence_version'],**kwargs))
 

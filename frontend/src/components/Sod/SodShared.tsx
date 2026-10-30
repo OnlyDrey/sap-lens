@@ -102,7 +102,7 @@ const DECISION_OPTIONS: Record<string, string[]> = {
 export type FilterField = 'group' | 'risk' | 'activity' | 'username' | 'role' | 'role_suffix' | 'tcode' | 'category' | 'criticality' | 'validity' | 'activity_decision' | 'assignment_decision' | 'acceptance'
   | 'risk_type' | 'composite_role' | 'single_role' | 'account_status' | 'review_status'
 const FIELD_LABELS: Record<string, [string, number]> = {
-  group: ['SAP user group', 256], risk: ['Risk ID', 512], activity: ['Activity', 512], username: ['SAP username', 512], role: ['Assigned role', 512], role_suffix: ['Role suffix', 128],
+  group: ['SAP User Group', 256], risk: ['Risk ID', 512], activity: ['Activity', 512], username: ['SAP username', 512], role: ['Assigned role', 512], role_suffix: ['Role suffix', 128],
   tcode: ['Transaction code', 256], category: ['Business area', 120], criticality: ['Source criticality', 64], risk_type: ['Risk type', 64],
   composite_role: ['Catalogue role', 512], single_role: ['Single role', 512],
 }

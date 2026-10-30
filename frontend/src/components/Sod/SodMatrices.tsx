@@ -99,7 +99,7 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
         actions={<>
           <Select aria-label="Rows" value={groupBy} onChange={(event) => { setOffset(0); setGroupBy(event.target.value as 'user' | 'group') }}>
             <option value="user">SAP users</option>
-            <option value="group">SAP user groups</option>
+            <option value="group">SAP User Groups</option>
           </Select>
           <ExportCSVButton loading={busy} disabled={!data?.total_rows} onClick={() => void exportCsv()} title={`Exports the filtered ${risk ? 'user-risk' : 'user-activity'} table.`} />
         </>}>
@@ -140,7 +140,7 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
           <p className="ui-description">{risk ? 'Cells show the risk acceptance status and how many of the risk activities are reviewed (reviewed/total). Criticality and type are in the column tooltip and the investigation.' : 'Scope: activities that contribute to at least one potential conflict (both sides of an enabled, supported risk). Activities a role supplies beyond those are considered in Role Assignment Review. Cells show the activity review status and ×roles supplying it; ⧉ marks overlapping coverage.'}</p>
           <p className="ui-description">Totals count distinct users and distinct {risk ? 'user-risk' : 'user-activity'} pairs. {data.columns_truncated ? 'Showing the first 500 columns; narrow the filters. ' : ''}{groupBy === 'group' ? 'Cells show distinct users per group; select one to list them. ' : 'Select a cell to investigate and review. '}Detected conflicts are potential and derived from imported evidence.</p>
           {data.rows.length
-            ? <MatrixGrid scrollKey={`sod-${kind}-${groupBy}`} caption={risk ? 'User by risk matrix' : 'User by activity matrix'} rowLabel={groupBy === 'group' ? 'User group' : 'SAP user'} columns={columns}
+            ? <MatrixGrid scrollKey={`sod-${kind}-${groupBy}`} caption={risk ? 'User by risk matrix' : 'User by activity matrix'} rowLabel={groupBy === 'group' ? 'User group' : 'SAP user'} codeRows={groupBy === 'user'} columns={columns}
                 rows={data.rows.map((row) => ({ id: row.user, label: row.user, sub: groupBy === 'group' ? `${row.users} users` : row.groups.join(', ') }))}
                 cell={cell} onSelect={open} onRow={groupBy === 'user' ? (row) => setSelected({ user: row }) : undefined}
                 selected={selected ? { row: selected.user, col: selected.risk || selected.activity || '' } : null} />

@@ -1,5 +1,5 @@
 """Authenticated local investigation APIs. Dates describe assignments, not effective authorization."""
-from search_matching import text_matches, search_fields
+from search_matching import text_matches, search_fields, text_matches_any
 
 from collections import defaultdict
 from csv_exports import assignment_response, role_list_response
@@ -341,6 +341,7 @@ def release_options(
     search: str = Query("", max_length=512),
     selected: str = Query("", max_length=512),
     group: str = Query("", max_length=100),
+    user_groups: list[str] = Query(default=[], max_length=100),
     document_type: str = Query("", max_length=20),
     release_group: str = Query("", max_length=100),
     release_areas: list[str] = Query(default=[], max_length=50),
@@ -359,13 +360,14 @@ def release_options(
     """
     rank = {"group": 0, "document_type": 1, "release_area": 2, "release_group": 3, "strategy": 4, "username": 5, "role": 5}[field]
     areas, groups = _bounded(release_areas), _bounded(release_groups)
+    wanted_user_groups = _exact(user_groups, group)
     values = set()
     for a in cache.get_snapshot().users.assignments:
         if a["scope"] != "release" or not within_dates(a, dates) or not relevant(a, "" if status == "all" else status, True):
             continue
         release = a["release"]
         kind = release["document_type"] or "Unparsed"
-        if rank > 0 and group and a["user_group"] != group: continue
+        if rank > 0 and wanted_user_groups and a["user_group"] not in wanted_user_groups: continue
         if rank > 1 and document_type and kind != document_type: continue
         if rank > 2 and areas and release_area(release["release_group"]) not in areas: continue
         if rank > 3 and groups and release["release_group"] not in groups: continue
@@ -376,16 +378,19 @@ def release_options(
                  "release_group": release["release_group"], "strategy": release["release_strategy"],
                  "username": a["username"], "role": a["role_name"]}[field]
         if value: values.add(value)
-    matches = sorted((v for v in values if text_matches(v,search)), key=lambda v: (v.casefold(), v))
+    matches = sorted((v for v in values if text_matches_any(v,search)), key=lambda v: (v.casefold(), v))
     # Username/role use the same literal search as their assignment filters.
     available = not selected or (any(text_matches(v,selected) for v in values)
                                 if field in {"username", "role"} else selected in values)
+    if field in {"username", "role"} and selected:
+        available = any(text_matches_any(v, selected) for v in values)
     return dict(items=matches[:limit], total=len(matches), has_more=len(matches) > limit,
                 selected_available=available)
 
 
 def release_filters(dates:dict=Depends(assignment_dates),
     group: str = Query("", max_length=512),
+    user_groups: list[str] = Query(default=[], max_length=100, description="SAP User Groups; OR within the list"),
     document_type: Literal["", "PR", "PO", "Unparsed"] = "",
     release_group: str = Query("", max_length=100),
     release_areas: list[str] = Query(default=[], max_length=50),
@@ -404,7 +409,12 @@ def release_filters(dates:dict=Depends(assignment_dates),
     ] = "role_name",
     descending: bool = False,
 ):
-    return dict(dates=dates,group=group,document_type=document_type,release_group=release_group,release_areas=release_areas,release_groups=release_groups,strategy=strategy,strategies=list(strategies),username=username,role=role,status=status,sort=sort,descending=descending)
+    return dict(dates=dates,group=group,user_groups=list(user_groups),document_type=document_type,release_group=release_group,release_areas=release_areas,release_groups=release_groups,strategy=strategy,strategies=list(strategies),username=username,role=role,status=status,sort=sort,descending=descending)
+
+
+def _exact(values, single=""):
+    """Exact SAP User Group identifiers (case preserved); blanks and over-long entries never match."""
+    return {value.strip() for value in [*values, single] if value and value.strip() and len(value) <= 512}
 
 
 def _bounded(values):
@@ -412,13 +422,14 @@ def _bounded(values):
     return {value.strip().upper() for value in values if value.strip() and len(value) <= 100}
 
 
-def filtered_release_assignments(snapshot, *, dates,group,document_type,release_group,strategy,username,role,status,sort,descending,release_areas=(),release_groups=(),strategies=(),today=None):
+def filtered_release_assignments(snapshot, *, dates,group,document_type,user_groups=(),release_group,strategy,username,role,status,sort,descending,release_areas=(),release_groups=(),strategies=(),today=None):
     areas, groups = _bounded(release_areas), _bounded(release_groups)
+    wanted_user_groups = _exact(user_groups, group)
     for a in snapshot.users.assignments:
         if a["scope"] != "release" or not within_dates(a, dates):
             continue
         r = a["release"]
-        if group and a["user_group"] != group:
+        if wanted_user_groups and a["user_group"] not in wanted_user_groups:
             continue
         if document_type and (r["document_type"] or "Unparsed") != document_type:
             continue
@@ -432,9 +443,9 @@ def filtered_release_assignments(snapshot, *, dates,group,document_type,release_
             continue
         if strategies and r["release_strategy"] not in _bounded(strategies):
             continue
-        if username and not text_matches(a["username"],username):
+        if username and not text_matches_any(a["username"],username):
             continue
-        if role and not text_matches(a["role_name"],role):
+        if role and not text_matches_any(a["role_name"],role):
             continue
         if not relevant(a, "" if status == "all" else status, True, today):
             continue
@@ -573,6 +584,7 @@ def release_assignments(
     dates: dict = Depends(assignment_dates),
     role: str = Query("", max_length=512),
     group: str = Query("", max_length=512),
+    user_groups: list[str] = Query(default=[], max_length=100),
     ungrouped: bool = False,
     username: str = Query("", max_length=512),
     role_search: str = Query("", max_length=512),
@@ -585,17 +597,18 @@ def release_assignments(
     limit: int = Query(50, ge=1, le=100),
 ):
     entries = []
+    wanted_user_groups = _exact(user_groups, group)
     for a in cache.get_snapshot().users.assignments:
         if a["scope"] != "release" or not within_dates(a, dates):
             continue
         r = a["release"]
-        if username and not text_matches(a["username"],username):
+        if username and not text_matches_any(a["username"],username):
             continue
-        if role_search and not text_matches(a["role_name"],role_search):
+        if role_search and not text_matches_any(a["role_name"],role_search):
             continue
         if role and normalize_role(a["role_name"]) != normalize_role(role):
             continue
-        if group and a["user_group"] != group or ungrouped and a["user_group"]:
+        if wanted_user_groups and a["user_group"] not in wanted_user_groups or ungrouped and a["user_group"]:
             continue
         if document_type and r["document_type"] != document_type:
             continue

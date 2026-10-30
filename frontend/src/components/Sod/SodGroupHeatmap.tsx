@@ -13,9 +13,9 @@ import { SodPill } from '@/lib/sodAppearance'
 type Kind = 'risk' | 'activity'
 type Heat = MatrixResult<RiskColumn | ActivityColumn, GroupCell>
 const MAX_COLUMNS = 25
-const SORTS = [{ value: 'name', label: 'SAP user group' }, { value: 'users', label: 'Distinct users' }, { value: 'items', label: 'Most risks or activities' }]
+const SORTS = [{ value: 'name', label: 'SAP User Group' }, { value: 'users', label: 'Distinct users' }, { value: 'items', label: 'Most risks or activities' }]
 
-/** Distinct users per SAP user group and risk (or activity) over current evidence; cells drill into the matrix for that group and item. */
+/** Distinct users per SAP User Group and risk (or activity) over current evidence; cells drill into the matrix for that group and item. */
 export function SodGroupHeatmap({ onOpen }: { onOpen: (kind: Kind, patch: Record<string, string | string[]>) => void }) {
   const [kind, setKind] = useState<Kind>('risk'), [sort, setSort] = useState('users'), [descending, setDescending] = useState(true), [busy, setBusy] = useState(false)
   const params = scopeParams('current', emptyFilters, { group_by: 'group', limit: 200 })
@@ -39,23 +39,23 @@ export function SodGroupHeatmap({ onOpen }: { onOpen: (kind: Kind, patch: Record
     } finally { setBusy(false) }
   }
   return (
-    <section className="dashboard-section min-w-0 rounded-card bg-surface p-4" aria-label="SAP user group heatmap">
+    <section className="dashboard-section min-w-0 rounded-card bg-surface p-4" aria-label="SAP User Group heatmap">
       <div className="sod-heatmap-bar">
-        <SectionHeader title="Conflicts by SAP user group" icon={<Grid3x3 size={18} aria-hidden="true" />} />
+        <SectionHeader title="Conflicts by SAP User Group" icon={<Grid3x3 size={18} aria-hidden="true" />} />
         <div className="sod-heatmap-controls" role="toolbar" aria-label="Heatmap controls">
           <ButtonGroup label="Heatmap columns" value={kind} onChange={(value) => setKind(value as Kind)} options={[{ value: 'risk', label: 'Risks' }, { value: 'activity', label: 'Activities' }]} />
           <SortControl label="Sort groups" value={sort} options={SORTS} descending={descending} onChange={setSort} onDescending={setDescending} />
-          <ExportCSVButton loading={busy} disabled={!data?.rows.length} onClick={() => void exportCsv()} title={`Exports distinct users per SAP user group and ${risk ? 'risk' : 'activity'}.`} />
+          <ExportCSVButton loading={busy} disabled={!data?.rows.length} onClick={() => void exportCsv()} title={`Exports distinct users per SAP User Group and ${risk ? 'risk' : 'activity'}.`} />
         </div>
       </div>
       {query.isError ? <ErrorState error={query.error} onRetry={() => void query.refetch()} />
         : !data ? <LoadingState />
         : !rows.length ? <EmptyState>No potential conflicts in current evidence. Results describe imported evidence only.</EmptyState>
         : <>
-          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="SAP user group heatmap table">
+          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="SAP User Group heatmap table">
             <table className="sod-heatmap">
-              <caption className="sr-only">Distinct users per SAP user group and {risk ? 'risk' : 'activity'}. A user in several groups counts in each group.</caption>
-              <thead><tr><th scope="col">SAP user group</th><th scope="col">Users</th>{columns.map((column) => <th scope="col" key={idOf(column)}><SodPill kind={kind} value={idOf(column)} /></th>)}</tr></thead>
+              <caption className="sr-only">Distinct users per SAP User Group and {risk ? 'risk' : 'activity'}. A user in several groups counts in each group.</caption>
+              <thead><tr><th scope="col">SAP User Group</th><th scope="col">Users</th>{columns.map((column) => <th scope="col" key={idOf(column)}><SodPill kind={kind} value={idOf(column)} /></th>)}</tr></thead>
               <tbody>
                 {rows.map((row) => (
                   <tr key={row.user}>
@@ -74,7 +74,7 @@ export function SodGroupHeatmap({ onOpen }: { onOpen: (kind: Kind, patch: Record
               <tfoot><tr><th scope="row">Distinct users</th><td>{data.totals.users.toLocaleString()}</td>{columns.map((column) => <td key={idOf(column)}>{column.users.toLocaleString()}</td>)}</tr></tfoot>
             </table>
           </div>
-          <p className="ui-description">A user in several SAP user groups counts in each group, so group counts can add up to more than the distinct total. {data.columns.length > MAX_COLUMNS ? `Showing the ${MAX_COLUMNS} most affected of ${data.columns.length} ${risk ? 'risks' : 'activities'}; the matrix and the CSV list all of them.` : 'The matrix and the CSV list the same data with every user.'}</p>
+          <p className="ui-description">A user in several SAP User Groups counts in each group, so group counts can add up to more than the distinct total. {data.columns.length > MAX_COLUMNS ? `Showing the ${MAX_COLUMNS} most affected of ${data.columns.length} ${risk ? 'risks' : 'activities'}; the matrix and the CSV list all of them.` : 'The matrix and the CSV list the same data with every user.'}</p>
           {data.total_rows > rows.length && <Button variant="ghost" onClick={() => onOpen(kind, {})}>Open the full matrix</Button>}
         </>}
     </section>

@@ -66,7 +66,7 @@ function Expandable({ id, label, summary, children, expanded, toggle }: { id: st
   )
 }
 
-/** Users behind one assigned role: grouped by SAP user group, one entry per distinct username, with the assignment intervals expandable. */
+/** Users behind one assigned role: grouped by SAP User Group, one entry per distinct username, with the assignment intervals expandable. */
 function AssignedUsers({ role, context, filters }: { role: string; context: string; filters: Filters }) {
   const params = scopeParams(context, { ...filters, role, roles: [] }, { limit: 200 }),
     result = useQuery({ queryKey: ['sod-explorer', 'access_list', 'assigned', params.toString()], queryFn: () => sod<Result>('/api/sod/explorer/access_list', params) })
@@ -190,14 +190,14 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
         <p className="ui-description">Trace User → Risk → Activity → Transaction → Role → Assignment. Select a row to investigate; from the lookup, show the users behind a role.</p>
         {data.items.length ? <DataTable caption={LABELS[table]}>
           {table === 'user_risk' && <><thead><tr><th>SAP user</th><th>Risk</th><th>Activities</th><th>Evidence</th><th>Risk acceptance</th><th>Open</th></tr></thead>
-            <tbody>{data.items.map((row) => { const id = `${row.user}:${row.risk_id}`; return <tr key={id}><td>{row.user}<p className="text-xs text-muted">{list(row.groups)}</p></td><td>{pills('risk', row.risk_id)}{row.category && <p><SodArea value={row.category} /></p>}</td><td>{pills('activity', row.activities)}</td>
+            <tbody>{data.items.map((row) => { const id = `${row.user}:${row.risk_id}`; return <tr key={id}><td><RoleIdentifier value={row.user!} label="SAP username" /><p className="text-xs text-muted">{list(row.groups)}</p></td><td>{pills('risk', row.risk_id)}{row.category && <p><SodArea value={row.category} /></p>}</td><td>{pills('activity', row.activities)}</td>
               <td><Expandable id={id} label={`${row.user} ${row.risk_id}`} expanded={expanded.has(id)} toggle={toggle} summary={`${Array.isArray(row.roles) ? row.roles.length : row.roles} roles`}><RoleCodeList roles={row.roles as string[] | number} /></Expandable></td>
               <td><LifecycleBadge value={row.acceptance || 'Pending'} /></td>
-              <td><Button onClick={() => setSelected({ user: row.user!, risk: row.risk_id })} aria-label={`Investigate ${row.user} ${row.risk_id}`}>Investigate</Button></td></tr> })}</tbody></>}
+              <td><Button size="compact" onClick={() => setSelected({ user: row.user!, risk: row.risk_id })} aria-label={`Investigate ${row.user} ${row.risk_id}`}><ScanSearch size={14} aria-hidden="true" />Investigate</Button></td></tr> })}</tbody></>}
           {table === 'user_activity' && <><thead><tr><th>SAP user</th><th>Activity</th><th>Risks</th><th>Evidence</th><th>Review</th><th>Open</th></tr></thead>
-            <tbody>{data.items.map((row) => { const id = `${row.user}:${row.activity}`; return <tr key={id}><td>{row.user}</td><td>{pills('activity', row.activity)}</td><td>{pills('risk', row.risks)}</td>
+            <tbody>{data.items.map((row) => { const id = `${row.user}:${row.activity}`; return <tr key={id}><td><RoleIdentifier value={row.user!} label="SAP username" /></td><td>{pills('activity', row.activity)}</td><td>{pills('risk', row.risks)}</td>
               <td><Expandable id={id} label={`${row.user} ${row.activity}`} expanded={expanded.has(id)} toggle={toggle} summary={`${String(row.roles)} role assignment${row.roles === 1 ? '' : 's'}`}><p>Transactions: {list(row.tcodes)}</p></Expandable>{row.duplicate && <StatusBadge tone="info">Overlap</StatusBadge>}</td><td><LifecycleBadge value={row.decision || 'Pending'} /></td>
-              <td><Button onClick={() => setSelected({ user: row.user!, activity: row.activity })} aria-label={`Investigate ${row.user} ${row.activity}`}>Investigate</Button></td></tr> })}</tbody></>}
+              <td><Button size="compact" onClick={() => setSelected({ user: row.user!, activity: row.activity })} aria-label={`Investigate ${row.user} ${row.activity}`}><ScanSearch size={14} aria-hidden="true" />Investigate</Button></td></tr> })}</tbody></>}
           {table === 'access_list' && <><thead><tr><th className="col-select"><PageCheckbox label="Select all assignments on this page" selected={pageSelected} total={pageRows.length} onChange={(select) => select ? selection.add(pageRows.map(rowPick)) : selection.remove(pageRows.map((row) => row.id!))} /></th><th>SAP user</th><th>Role assignment</th><th>Risks</th><th>Activities</th><th>Review</th><th className="col-actions">Open</th></tr></thead>
             <tbody>{data.items.map((row) => <tr key={`${row.user}:${row.id}`} data-selected={selection.has(row.id!) || undefined}>
               <td className="col-select"><RowCheckbox label={`Select assignment ${row.role} for ${row.user}`} checked={selection.has(row.id!)} onChange={() => selection.toggle(rowPick(row))} /></td>

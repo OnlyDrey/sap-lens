@@ -5,9 +5,9 @@ let directory: string
 test.beforeEach(async ({ request }) => { directory = await seedGovernance(request, 'static') })
 test.afterEach(async ({ request }) => { await cleanup(request, directory) })
 
-const heatmap = (page: import('@playwright/test').Page) => page.getByRole('region', { name: 'SAP user group heatmap', exact: true })
+const heatmap = (page: import('@playwright/test').Page) => page.getByRole('region', { name: 'SAP User Group heatmap', exact: true })
 
-test('Overview uses Dashboard-style sections and a SAP user group heatmap with distinct users', async ({ page }) => {
+test('Overview uses Dashboard-style sections and a SAP User Group heatmap with distinct users', async ({ page }) => {
   await openSod(page)
   for (const name of ['Conflicts', 'Reviews', 'Remediation']) await expect(page.getByRole('region', { name, exact: true })).toBeVisible()
   const table = heatmap(page).getByRole('table')
@@ -32,7 +32,7 @@ test('heatmap sorts groups, drills into the matrix for that group and risk, and 
   await region.getByRole('row', { name: /^FIN\b/ }).getByRole('button', { name: /with R2/ }).click()
   await expect(page).toHaveURL(/#\/sod\/risk-matrix/)
   const sidebar = page.getByRole('complementary', { name: 'Filters', exact: true })
-  await expect(sidebar.getByRole('button', { name: 'Remove SAP user group FIN', exact: true })).toBeVisible()
+  await expect(sidebar.getByRole('button', { name: 'Remove SAP User Group FIN', exact: true })).toBeVisible()
   await expect(sidebar.getByRole('button', { name: 'Remove Risk ID R2', exact: true })).toBeVisible()
 })
 

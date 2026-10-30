@@ -5,21 +5,21 @@ import { Combobox } from '@/components/Shared/Combobox'
 import { MultiSelectFilter } from '@/components/Shared/MultiSelectFilter'
 import { Filter } from './Shared'
 type Options = { items: string[]; total: number; has_more: boolean; selected_available: boolean }
-export function ReleaseFilter({ field, label, value, onChange, context }: { field: string; label: string; value: string; onChange: (value: string) => void; context: Record<string, string | string[]> }) {
+export function ReleaseFilter({ field, label, value, onChange, context, placeholder = 'All · type to search' }: { field: string; label: string; value: string; placeholder?: string; onChange: (value: string) => void; context: Record<string, string | string[]> }) {
   const [search, setSearch] = useState(''), [term, setTerm] = useState('')
   useEffect(() => { const timer = setTimeout(() => setTerm(search), 180); return () => clearTimeout(timer) }, [search])
   const options = useQuery({ queryKey: ['release-options', field, context, term, value],
     queryFn: () => accessQuery<Options>('release-options', { ...context, field, search:term, selected:value }), gcTime:60_000 })
   return <Filter label={label}>
     <Combobox label={label} value={value} options={options.data?.items || []} onChange={onChange} onSearch={setSearch}
-      maxLength={field === 'document_type' ? 20 : ['group', 'release_group', 'strategy'].includes(field) ? 100 : 512} placeholder="All · type to search" allowCustom={field !== 'document_type'} loading={options.isFetching} hasMore={options.data?.has_more}/>
+      maxLength={field === 'document_type' ? 20 : ['group', 'release_group', 'strategy'].includes(field) ? 100 : 512} placeholder={placeholder} allowCustom={field !== 'document_type'} loading={options.isFetching} hasMore={options.data?.has_more}/>
     {options.isError && <span role="status" className="text-xs text-[var(--warning)]">Options unavailable. Existing filter retained.</span>}
     {!options.isFetching && options.data && !options.data.selected_available && <span role="status" className="text-xs text-[var(--warning)]">No available value matches this filter in the current context. Clear it or select All.</span>}
   </Filter>
 }
 
 /** Multi-select over the same hierarchical option source; selected values never restrict their own options. */
-export function ReleaseMultiFilter({ field, label, values, onChange, context, optionLabel }: { field: 'release_area' | 'release_group' | 'strategy'; label: string; values: string[]; onChange: (values: string[]) => void; context: Record<string, string | string[]>; optionLabel?: (value: string) => string }) {
+export function ReleaseMultiFilter({ field, label, values, onChange, context, optionLabel }: { field: 'group' | 'release_area' | 'release_group' | 'strategy'; label: string; values: string[]; onChange: (values: string[]) => void; context: Record<string, string | string[]>; optionLabel?: (value: string) => string }) {
   const [search, setSearch] = useState(''), [term, setTerm] = useState('')
   useEffect(() => { const timer = setTimeout(() => setTerm(search), 180); return () => clearTimeout(timer) }, [search])
   const options = useQuery({ queryKey: ['release-options', field, context, term], queryFn: () => accessQuery<Options>('release-options', { ...context, field, search: term }), gcTime: 60_000 })

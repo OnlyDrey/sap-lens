@@ -91,8 +91,7 @@ for (const descending of [false, true]) test(`user global navigation crosses bou
 test('complete release list preserves descending tie order and returns focus to the origin', async ({ page }) => {
   await page.goto('/#session=browser-test-session'); await destination(page, 'Release Roles')
   const list = page.getByRole('region', { name: 'Release Roles', exact: true })
-  const group = list.getByRole('combobox', { name: 'Release SAP User Group', exact: true })
-  await group.fill('GROUP_KEEP'); await group.press('Escape')
+  await pickMulti(list, 'Release SAP User Group', 'GROUP_KEEP', page)
   await list.getByRole('combobox', { name: 'Sort release roles', exact: true }).selectOption('assigned_users')
   await setDescending(list, true)
   const pager = list.getByRole('navigation',{name:'Release role pages'})

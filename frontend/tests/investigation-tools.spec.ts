@@ -395,10 +395,7 @@ test('Account Review retains stale filter and includes evidence versions in expo
   await page
     .getByRole('button', { name: /^Outdated reviews/ })
     .click()
-  await expect(page.getByRole('button', { name: 'Remove review finding filter', exact: true })).toBeVisible()
-  await expect(page.getByLabel('Review finding', { exact: true })).toHaveValue(
-    'stale',
-  )
+  await expect(page.getByRole('button', { name: 'Remove review finding Outdated reviews', exact: true }).first()).toBeVisible()
   const viewForBar = 'review'
   const bar = saved(page, 'review')
   await openSaved(page, viewForBar)
