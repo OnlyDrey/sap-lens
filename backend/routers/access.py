@@ -11,7 +11,7 @@ import cache
 from role_matching import normalize_role
 from transaction_filters import normalized_tcodes, matching_role_names, matching_codes, legacy_groups
 from user_access import (
-    assignment_view, current_role_count,
+    assignment_view, current_role_count, in_assignment_band,
     interval_status,
     relevant,
     sap_date,
@@ -122,7 +122,7 @@ def directory_filters(
     tcode: str = Query("", max_length=128),
     tcodes: list[str] = Query(default=[], max_length=21),
     transaction_mode: Literal["and", "or"] = "and",
-    assignment_band: Literal["", "0", "1–5", "6–20", "21+"] = "",
+    assignment_band: Literal["", "0–5", "6–10", "11–20", "21–30", "31+", "0", "1–5", "6–20", "21+"] = "",
     status: Status = "",
     show_expired: bool = False,
     exclude_transactions: bool = Query(False, description="Reverse the transaction filter across the user's eligible role assignments"),
@@ -217,8 +217,7 @@ def directory_selection(snapshot, *, search,group,role,tcode,groups=(),roles=(),
             evidence[key] = evidence.get(key) or missing[key]
         if assignment_band:
             count=current_role_count(user,today)
-            band='0' if count==0 else '1–5' if count<=5 else '6–20' if count<=20 else '21+'
-            if band!=assignment_band:continue
+            if not in_assignment_band(count,assignment_band):continue
         if group_set and not group_set & set(user["groups"]):
             continue
         if (role_list or (include and snapshot.roles) or excluded or status) and key not in evidence:

@@ -9,6 +9,10 @@ import account_review as review
 from config import get_settings
 from config_models import StrictModel
 from .access import require_mapping
+
+# Directory match statuses, partitioned exactly as the Dashboard counts them.
+MISSING_MATCHES = {'missing_email', 'unmatched'}
+AMBIGUOUS_MATCHES = {'duplicate_email', 'ambiguous_sap_email'}
 from .employees import available
 
 router = APIRouter(prefix='/api/account-review', tags=['Account Review'], dependencies=[Depends(require_mapping)])
@@ -47,7 +51,7 @@ def accounts(search: str = Query('', max_length=256), finding: str = Query('', m
     wanted = [*dict.fromkeys([*findings, *([finding] if finding else [])])]
     licenses = {*license_groups, *([license_group] if license_group else [])}
     states = {*review_states, *([review_state] if review_state else [])}
-    if set(wanted) - {*review.FINDINGS, 'any', 'stale', 'matched', 'reviewed', 'pending', 'position_change'}: raise HTTPException(422, 'Unknown review finding.')
+    if set(wanted) - {*review.FINDINGS, 'any', 'stale', 'matched', 'reviewed', 'pending', 'position_change', 'directory_missing', 'directory_ambiguous'}: raise HTTPException(422, 'Unknown review finding.')
     summary = dict(total=len(items), outdated=sum(r['stale'] for r in items), matched=sum(r['match_status'] == 'matched' for r in items) if directory else None,
                    missing=sum('directory_match' in r['findings'] for r in items) if directory else None,
                    mismatch=sum('ad_disabled_open' in r['findings'] for r in items),
@@ -58,6 +62,7 @@ def accounts(search: str = Query('', max_length=256), finding: str = Query('', m
     term = search.strip()
     def has(r, name):
         return (name == 'any' and r['needs_review'] or name == 'stale' and r['stale'] or name == 'matched' and r['match_status'] == 'matched'
+                or name == 'directory_missing' and r['match_status'] in MISSING_MATCHES or name == 'directory_ambiguous' and r['match_status'] in AMBIGUOUS_MATCHES
                 or name == 'reviewed' and bool(r['decision']) and r['review_state'] != 'Needs review' and not r['stale']
                 or name == 'pending' and (not r['decision'] or r['review_state'] == 'Needs review' or r['stale'])
                 or name == 'position_change' and bool(r['position_change'] and r['position_change']['open']) or name in r['findings'])

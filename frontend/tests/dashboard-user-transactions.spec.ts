@@ -152,12 +152,9 @@ test('Dashboard counts and KPI routes are meaningful, with browser Back and disa
       exact: true,
     }),
   ).toContainText('4')
-  await expect(
-    dashboard.getByRole('button', {
-      name: 'Employee Directory records',
-      exact: true,
-    }).locator('.status-pill'),
-  ).toHaveText('Disabled')
+  // A disabled, unconfigured source is not offered; configured sources show their honest state.
+  await expect(dashboard.getByRole('button', { name: /^Employee Directory:/ })).toHaveCount(0)
+  await expect(dashboard.getByRole('button', { name: /^Role Catalogue: Ready/ })).toBeVisible()
   await dashboard
     .getByRole('button', { name: 'SAP users', exact: true })
     .click()
@@ -190,11 +187,10 @@ test('Dashboard counts and KPI routes are meaningful, with browser Back and disa
   await expect(
     dashboard.getByRole('button', { name: 'Catalogue roles', exact: true }),
   ).toContainText('3')
-  await dashboard
-    .getByRole('button', { name: 'Employee Directory records', exact: true })
-    .click()
+  await expect(dashboard.getByRole('button', { name: /^User–Role Mapping: Disabled/ })).toBeVisible()
+  await dashboard.getByRole('button', { name: /^User–Role Mapping: Disabled/ }).click()
   await expect(
-    page.getByRole('tab', { name: 'Employee Directory', exact: true }),
+    page.getByRole('tab', { name: 'User Access', exact: true }),
   ).toHaveAttribute('aria-selected', 'true')
 })
 

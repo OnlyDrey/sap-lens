@@ -65,8 +65,10 @@ test('Settings source status and the Dashboard agree after startup, and a genuin
   const dashboard = page.getByRole('region', { name: 'Dashboard', exact: true })
   await expect(rolesRow(page)).toContainText('2')
   await expect(dashboard.locator('[data-metric="users"], [aria-label="SAP users"]').first()).toContainText('Unavailable')
-  await expect(dashboard.getByText('Loaded', { exact: true }).first()).toBeVisible() // the catalogue is really loaded
-  await expect(dashboard.getByText('Not loaded', { exact: true }).first()).toBeVisible() // the mapping is not
+  const sources = dashboard.getByRole('region', { name: 'Data Sources & Configuration', exact: true })
+  await expect(sources.getByRole('button', { name: /^Role Catalogue: Ready\./ })).toBeVisible() // the catalogue is really loaded
+  await expect(sources.getByRole('button', { name: /^User–Role Mapping: (Not loaded|Not configured|Failed)\./ })).toBeVisible() // the mapping is not, and is never labelled Ready
+  await expect(sources.getByRole('button', { name: /^User–Role Mapping: Ready/ })).toHaveCount(0)
   await goTo(page, 'Role Lookup')
   await expect(page.getByRole('article')).toHaveCount(2)
 })

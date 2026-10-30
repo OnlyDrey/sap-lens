@@ -268,6 +268,16 @@ class AccountReviewTests(unittest.TestCase):
         self.assertEqual(sum(data['assignment_distribution'].values()),6)
         self.assertIsNone(data['role_distribution'])
 
+    def test_dashboard_directory_counts_partition_users_and_match_review_filters(self):
+        data=self.client.get('/api/dashboard',headers=H).json();value={m['id']:m['value'] for m in data['metrics']}
+        self.assertEqual(value['email_matches']+value['directory_missing']+value['directory_ambiguous'],data['coverage_total'])
+        self.assertEqual(data['coverage_total'],data['review_population'])
+        for metric,finding in (('email_matches','matched'),('directory_missing','directory_missing'),('directory_ambiguous','directory_ambiguous')):
+            self.assertEqual(self.get('?finding='+finding)['total'],value[metric],metric)
+        self.assertEqual(self.client.get('/api/account-review?finding=unknown',headers=H).status_code,422)
+        # position changes are an independent signal: they never enter the match partition
+        self.assertIn('position_changes',{m['id'] for m in data['metrics']})
+
     def test_format_one_review_is_preserved_and_migrates_only_on_explicit_save(self):
         row=self.get('?search=DEMO_OPEN')['items'][0]
         user=cache.get_snapshot().users.users['DEMO_OPEN'];directory=store.get(config.get_settings().employee_csv_path)

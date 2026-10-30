@@ -5,7 +5,7 @@ from datetime import date
 import cache
 from config import get_settings
 from role_matching import normalize_role
-from user_access import interval_status, sap_date, current_role_count
+from user_access import interval_status, sap_date, current_role_count, assignment_band, ASSIGNMENT_BANDS
 from .employees import directory_status
 
 router = APIRouter(prefix='/api/dashboard', tags=['Overview'])
@@ -36,6 +36,8 @@ def overview():
     add('employees','Employee Directory records',directory['report'].get('records') if enabled and directory['loaded'] else None,'employees','Open directory import and data quality.','Employee Directory disabled' if not enabled else 'Import directory records first')
     coverage=directory['coverage']
     add('email_matches','Matched SAP identities',coverage.get('matched',0) if directory['coverage_total'] else None,'review',f"Exact matches of {directory['coverage_total']} SAP identities; open directory data quality.",directory['coverage_reason'])
+    add('directory_missing','Missing matches',sum(coverage.get(k,0) for k in ('missing_email','unmatched')) if directory['coverage_total'] else None,'review','SAP users without an email or whose email is not in the directory; open them in Account Review.',directory['coverage_reason'])
+    add('directory_ambiguous','Ambiguous matches',sum(coverage.get(k,0) for k in ('duplicate_email','ambiguous_sap_email')) if directory['coverage_total'] else None,'review','Duplicate directory emails or SAP emails shared by several users; open them in Account Review.',directory['coverage_reason'])
     add('unresolved','Missing or ambiguous directory matches',sum(v for k,v in coverage.items() if k!='matched') if directory['coverage_total'] else None,'review','Includes missing SAP email, unmatched and ambiguous evidence; open data quality.',directory['coverage_reason'])
     if mapping:
         from account_review import current_rows, decisions
@@ -56,11 +58,11 @@ def overview():
         add('account_review', 'Accounts requiring review', None, 'review', 'Open Account Review.', reason)
         for key,label in [('reviewed','Completed reviews'),('pending','Pending reviews'),('outdated','Outdated reviews')]: add(key,label,None,'review','Open Account Review.',reason)
     role_distribution=Counter((r.function_key or 'UNCLASSIFIED') for r in state.summaries) if catalogue else None
-    assignment_distribution=Counter() if mapping else None
+    assignment_distribution=Counter({band:0 for band in ASSIGNMENT_BANDS}) if mapping else None
     if mapping:
         for user in state.users.users.values():
             count=current_role_count(user)
-            assignment_distribution['0' if count==0 else '1–5' if count<=5 else '6–20' if count<=20 else '21+']+=1
+            assignment_distribution[assignment_band(count)]+=1
     paths={'roles':settings.data_csv_path,'users':settings.user_csv_path,'employees':settings.employee_csv_path}
     def freshness(key):
         reference=settings.data_lifecycle.sources.get(key)

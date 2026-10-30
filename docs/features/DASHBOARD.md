@@ -5,16 +5,27 @@ Dashboard is the default landing page, available from the main navigation and at
 still work, and an existing detail history entry remains meaningful. No historical trends are inferred
 from a single import. Data stays on the configured SAP Lens instance; desktop defaults to loopback.
 
-## Layout and charts
+## Layout and cards (v4)
 
-A compact key figure row (SAP users, Accounts requiring review, Review completion, plus users with potential SoD conflicts when SoD is enabled) sits above information lists (Access & Risk, Directory & Data Health, Segregation of Duties) and three real-data charts. Future assignment records are detected but not shown here.
+Three balanced columns on desktop (two at tablet width, one on mobile), with no separate key figure row and no metric repeated:
 
-- **Directory match quality.** The Matched SAP identities row shows count, percentage text and a progress bar below its label with room before the next row. The bar color follows the central thresholds in `frontend/src/lib/health.ts` (green from 95%, amber from 85%, red below); 251 of 264 (95.1%) is green. It describes directory matching quality only, not the health of other sources or any SAP authorization.
-- **Review Progress.** One stacked bar of mutually exclusive parts of the imported SAP accounts: completed (green), not yet reviewed (neutral gray) and outdated (amber). With no completed reviews no success color is shown.
-- **Role Distribution.** The card lists the five largest SAP areas with count and share; **Show all N areas** opens a dialog with every area (Escape closes it and returns focus). Each area keeps its drill-down. The dashboard grid never changes height.
-- **Assignment Distribution.** The three buckets show absolute counts with shares; bars scale to the total of users with currently valid assignments. Tooltips carry the exact percentage.
-- **Explanations.** Technical notes sit in an info popover beside the card title (catalogue roles versus assignments and releases, validity of intervals, that high counts are not findings).
-- Cards keep their own height (no stretching to the tallest neighbour) and the layout stays free of horizontal scroll from 375 px upward.
+| Row | Column 1 | Column 2 | Column 3 |
+| --- | --- | --- | --- |
+| 1 | Access & Risk | Review Progress | Directory & Data Health |
+| 2 | Segregation of Duties (only when SoD is enabled) | Role Distribution | Assignment Distribution |
+| 3 | Data Sources & Configuration, spanning the grid | | |
+
+Future assignment records are detected but not shown here.
+
+- **Access & Risk.** SAP users as the headline row (larger number), then AD disabled / SAP active, Role assignment records, Role/T-code mappings, Catalogue roles and Release roles as compact rows. Each row opens the matching view; AD disabled / SAP active opens Account Review with that finding.
+- **Review Progress.** The single Dashboard presentation of review completion: the percentage, reviewed of all imported accounts, one stacked bar (completed green, not yet reviewed neutral gray, outdated amber) and three rows that open Account Review with the Completed, Pending or Outdated filter. With no completed reviews no success color is shown. There is no separate Accounts requiring review or Review completion tile.
+- **Directory & Data Health.** The match percentage (matched SAP identities of all applicable SAP identities) with a progress bar colored by the central thresholds in `frontend/src/lib/health.ts` (green from 95%, amber from 85%, red below; 251 of 264 is green). The color describes directory matching quality only, never other sources or SAP authorization. Rows: Matched identities, Missing matches (SAP user without an email, or an email not in the directory), Ambiguous matches (duplicate directory email, or an SAP email shared by several users) and Position changes. Matched, missing and ambiguous partition the SAP users (the backend counts the existing match statuses, nothing is guessed); Position changes is an independent signal and never changes the percentage. Each row opens Account Review with the matching filter (`matched`, `directory_missing`, `directory_ambiguous`, `position_change`), shown as a removable chip.
+- **Segregation of Duties.** Users with potential conflicts, user-risk findings, SoD reviews pending, open and overdue remediation actions. Hidden when SoD is disabled; when the analysis is unavailable a reason is shown instead of zeros.
+- **Role Distribution.** The five largest SAP areas with count and share; **Show all N areas** opens a dialog with every area (Escape closes it and returns focus). Each area keeps its drill-down; the card height never changes.
+- **Assignment Distribution.** Five non-overlapping ranges of distinct currently valid roles per SAP user: 0-5, 6-10, 11-20, 21-30 and 31+. The population is every applicable SAP user, users without a valid role included in the first range, each user counted once, so the five counts sum to the SAP user total. Duplicate assignment records of one role count once. All bars share one scale; tooltips carry the exact percentage. Each bar opens User Access with the range applied (the `assignment_band` filter, also available as **Currently valid roles** in the User Access filters and in saved filters; earlier ranges in saved filters stay valid).
+- **Data Sources & Configuration.** One compact card per relevant source (Role Catalogue, User-Role Mapping, Employee Directory, SoD Matrix; a source is shown when it is enabled or configured). Each card has an honest state computed from what the backend holds (Ready, Loading, Refreshing, Failed, Not loaded, Not configured, Disabled; never Ready just because it is enabled), the mode, source-specific records (composite roles, users and assignment records, directory records, matrix records) and the last import. Selecting a card opens that source in Settings.
+- **Explanations.** Technical notes sit in an info popover beside the card title.
+- No horizontal scroll from 375 px upward.
 
 ## Segregation of Duties summary
 

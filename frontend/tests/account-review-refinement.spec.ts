@@ -265,46 +265,26 @@ test('review findings, license filter, local decision persistence and spreadshee
   expect(revision).toMatch(/^[a-f0-9]{64}$/)
 })
 
-test('Dashboard coverage and account-review KPI open supported evidence filters', async ({
+test('Dashboard directory and review rows open supported evidence filters', async ({
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
-  await expect(
-    page
-      .getByRole('region', { name: 'Key figures', exact: true })
-      .getByRole('button'),
-  ).toHaveCount(3)
-  expect(
-    await page
-      .getByRole('region', { name: 'Key figures', exact: true })
-      .getByRole('button')
-      .evaluateAll((items) => items.map((el) => el.getAttribute('aria-label'))),
-  ).toEqual([
-    'SAP users',
-    'Accounts requiring review',
-    'Review completion',
-  ])
-  await expect(
-    page.getByRole('button', {
-      name: 'Matched SAP identities',
-      exact: true,
-    }),
-  ).toContainText('75.0%')
-  await page
-    .getByRole('button', {
-      name: 'Missing or ambiguous directory matches',
-      exact: true,
-    })
-    .click()
-  await expect(page.getByRole('button', { name: 'Remove review finding Missing or ambiguous directory match', exact: true })).toBeVisible()
+  const dashboard = page.getByRole('region', { name: 'Dashboard', exact: true })
+  await expect(dashboard.getByRole('region', { name: 'Key figures', exact: true })).toHaveCount(0)
+  const directory = dashboard.getByRole('region', { name: 'Directory & Data Health', exact: true })
+  await expect(directory).toContainText('75.0%')
+  await expect(directory.getByRole('button', { name: 'Matched identities', exact: true })).toBeVisible()
+  await directory.getByRole('button', { name: 'Missing matches', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Remove review finding Missing directory matches', exact: true })).toBeVisible()
   await expect(
     page.getByRole('region', { name: 'Account review results', exact: true }),
   ).toContainText('DEMO_UNKNOWN')
   await page.goBack()
-  await page
-    .getByRole('button', { name: 'Accounts requiring review', exact: true })
-    .click()
-  await expect(page.getByRole('button', { name: 'Remove review finding Accounts requiring review', exact: true })).toBeVisible()
+  await dashboard.getByRole('region', { name: 'Directory & Data Health', exact: true }).getByRole('button', { name: 'Matched identities', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Remove review finding Reliably matched identities', exact: true })).toBeVisible()
+  await page.goBack()
+  await dashboard.getByRole('region', { name: 'Review Progress', exact: true }).getByRole('button', { name: /^Not yet reviewed:/ }).click()
+  await expect(page.getByRole('button', { name: 'Remove review finding Pending reviews', exact: true })).toBeVisible()
 })
 
 test('floating Norwegian calendar stays outside layout, handles maximum dates, Escape and outside click', async ({
@@ -480,7 +460,7 @@ for (const theme of ['light', 'dark'])
       }
       await expect(
         page.getByRole('button', {
-          name: 'Matched SAP identities',
+          name: 'Matched identities',
           exact: true,
         }),
       ).toBeVisible()

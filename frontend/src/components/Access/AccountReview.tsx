@@ -86,7 +86,7 @@ const TILE_GROUPS: [string, [string, string, { finding: string; license?: string
   ['Review queue', [['requiring_review', 'Accounts requiring review', { finding: 'any' }], ['position_changes', 'Position changes', { finding: 'position_change' }], ['pending', 'Pending reviews', { finding: 'pending' }], ['reviewed', 'Completed reviews', { finding: 'reviewed' }], ['outdated', 'Outdated reviews', { finding: 'stale' }]]],
   ['Account status', [['total', 'SAP accounts', { finding: '' }], ['mismatch', 'AD disabled / SAP valid and unlocked', { finding: 'ad_disabled_open' }], ['missing', 'Missing or ambiguous directory matches', { finding: 'directory_match' }], ['unlicensed', 'Classified unlicensed', { finding: '', license: 'classified' }]]],
 ]
-const FINDING_NAMES: Record<string, string> = { any: 'Accounts requiring review', matched: 'Reliably matched identities', reviewed: 'Completed reviews', pending: 'Pending reviews', position_change: 'Position changes', stale: 'Outdated reviews' }
+const FINDING_NAMES: Record<string, string> = { any: 'Accounts requiring review', matched: 'Reliably matched identities', directory_missing: 'Missing directory matches', directory_ambiguous: 'Ambiguous directory matches', reviewed: 'Completed reviews', pending: 'Pending reviews', position_change: 'Position changes', stale: 'Outdated reviews' }
 
 /** Department and job title together, labelled so the two are never confused. Changed values are emphasized; unchanged ones are muted. */
 function PositionCell({ department, title, changed }: { department?: string | null; title?: string | null; changed?: string[] }) {
@@ -173,7 +173,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
     else if (target.finding) setFindings(list => (list ?? []).includes(target.finding) ? (list ?? []).filter(item => item !== target.finding) : [...(list ?? []), target.finding])
     else { setFindings([]); setLicenses([]) }
   }
-  const findingOptions = ['any', 'matched', 'reviewed', 'pending', 'position_change', ...Object.keys(data?.finding_labels || {}), 'stale']
+  const findingOptions = ['any', 'matched', 'directory_missing', 'directory_ambiguous', 'reviewed', 'pending', 'position_change', ...Object.keys(data?.finding_labels || {}), 'stale']
   const findingLabel = (key: string) => FINDING_NAMES[key] || data?.finding_labels[key] || key
   const clearAll = () => { setOffset(0); setSearch(''); setTerm(''); setFindings([]); setLicenses([]); setStates([]); setSort('username'); setDescending(false) }
   const queueParams = 'finding=position_change&sort=priority&limit=25'

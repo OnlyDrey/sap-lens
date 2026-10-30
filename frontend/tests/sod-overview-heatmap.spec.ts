@@ -40,10 +40,10 @@ test('Dashboard summarizes SoD when enabled and opens the matching SoD view', as
   await page.goto('/#session=browser-test-session')
   const section = page.getByRole('region', { name: 'Segregation of Duties', exact: true })
   await expect(section).toBeVisible()
-  // The conflict count is a key figure at the top; the SoD detail section adds findings, pending reviews and remediation instead of repeating it.
-  const key = page.getByRole('region', { name: 'Key figures', exact: true }).getByRole('button', { name: 'Users with potential conflicts' })
+  // The conflict count lives in the Segregation of Duties card next to findings, pending reviews and remediation; there is no separate key figure row.
+  await expect(page.getByRole('region', { name: 'Key figures', exact: true })).toHaveCount(0)
+  const key = section.getByRole('button', { name: 'Users with potential conflicts' })
   await expect(key).toContainText('2')
-  await expect(section.getByRole('button', { name: 'Users with potential conflicts' })).toHaveCount(0)
   await expect(section.getByRole('button', { name: 'User-risk findings' })).toBeVisible()
   await key.click()
   await expect(page).toHaveURL(/#\/sod\/risk-matrix/)

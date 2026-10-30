@@ -1,4 +1,5 @@
 import {ExportCSVButton} from '@/components/Shared/ExportCSVButton'
+import { ASSIGNMENT_BANDS, LEGACY_ASSIGNMENT_BANDS } from '@/lib/assignmentBands'
 import {useAssignmentCSVExport} from '@/hooks/useAssignmentCSVExport'
 import { PageHeader } from '@/components/Shared/Presentation'
 import { UsersRound as PageIcon } from 'lucide-react'
@@ -206,6 +207,13 @@ export function UserAccess({
             <TransactionFilterGroups subject="users" groups={transactionGroups} includeLabel="Filter users by transaction" excludeLabel="Exclude users by transaction" />
           </FilterSection>
           <FilterSection title="Assignments">
+            <Filter label="Currently valid roles">
+              <Select aria-label="Currently valid roles" className={inputClass} value={assignmentBand} onChange={event => setAssignmentBand(event.target.value)}>
+                <option value="">Any number of roles</option>
+                {ASSIGNMENT_BANDS.map(band => <option key={band} value={band}>{band} roles</option>)}
+                {(LEGACY_ASSIGNMENT_BANDS as readonly string[]).includes(assignmentBand) && <option value={assignmentBand}>{assignmentBand} roles (saved range)</option>}
+              </Select>
+            </Filter>
             <label className="filter-toggle"><input type="checkbox" checked={expired} onChange={(e) => setExpired(e.target.checked)} />Show expired assignments</label>
           </FilterSection>
         </div>}>

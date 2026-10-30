@@ -28,7 +28,7 @@ for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(
  await page.setViewportSize({width,height:1000});await page.goto('/#session=browser-test-session');await expect(page.locator('html')).toHaveAttribute('data-theme',theme)
  const dashboard=page.getByRole('region',{name:'Dashboard',exact:true})
  await expect(dashboard.locator('.ui-page-title>svg')).toBeVisible()
- await expect(dashboard.getByRole('region',{name:'Key figures',exact:true})).toBeVisible()
+ await expect(dashboard.getByRole('region',{name:'Access & Risk',exact:true})).toBeVisible()
  await expect(dashboard.getByRole('button',{name:'SAP users',exact:true})).toContainText('2')
  await expect(dashboard.getByRole('button',{name:'Role assignment records',exact:true})).toContainText('7')
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()

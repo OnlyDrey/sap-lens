@@ -139,7 +139,8 @@ test('Account Review keeps investigation controls across secondary navigation an
   ).toHaveValue('name')
   await goTo(page, 'Dashboard')
   await page
-    .getByRole('button', { name: 'Accounts requiring review', exact: true })
+    .getByRole('region', { name: 'Review Progress', exact: true })
+    .getByRole('button', { name: /^Not yet reviewed:/ })
     .click()
   await expect(
     page.getByLabel('Search account reviews', { exact: true }),

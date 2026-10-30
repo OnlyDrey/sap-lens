@@ -1,4 +1,5 @@
 import { migrateTransactionFilters } from '@/lib/savedFilterMigration'
+import { ASSIGNMENT_BANDS, LEGACY_ASSIGNMENT_BANDS } from '@/lib/assignmentBands'
 import { Button } from './Button'
 import { Popover } from './Popover'
 import { useState } from 'react'
@@ -126,7 +127,7 @@ export function SavedFilters({
     const choices: Record<string, string[]> = {
       transactionMode: ['and', 'or'],
       excludeMode: ['any', 'all'],
-      assignmentBand: ['', '0', '1–5', '6–20', '21+'],
+      assignmentBand: ['', ...ASSIGNMENT_BANDS, ...LEGACY_ASSIGNMENT_BANDS],
       finding: [
         '',
         'any',
@@ -135,6 +136,8 @@ export function SavedFilters({
         'ad_disabled_open',
         'ad_disabled_locked',
         'directory_match',
+        'directory_missing',
+        'directory_ambiguous',
         'expired',
         'technical',
       ],

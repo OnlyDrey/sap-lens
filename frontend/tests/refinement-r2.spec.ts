@@ -72,21 +72,26 @@ test('multi-select shows Select all, Clear and Close with icons, and Clear is vi
   await expect(popup).toHaveCount(0)
 })
 
-test('Dashboard shows a compact key figure row, information lists and no future assignment record row', async ({ page }) => {
+test('Dashboard v4 has no key figure row, no duplicate review metric and an emphasized SAP users row inside Access & Risk', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/#session=browser-test-session')
   const dashboard = page.getByRole('region', { name: 'Dashboard', exact: true })
-  const key = dashboard.getByRole('region', { name: 'Key figures', exact: true })
-  await expect(key.locator('.ui-kpi')).toHaveCount(3)
-  await expect(key).toContainText('SAP users'); await expect(key).toContainText('Review completion')
-  const list = dashboard.getByRole('region', { name: 'Access & Risk', exact: true }).getByRole('list')
-  await expect(list).toBeVisible()
-  await expect(list.locator('.info-row').first()).toBeVisible()
+  await expect(dashboard.getByRole('region', { name: 'Key figures', exact: true })).toHaveCount(0)
+  await expect(dashboard.locator('.ui-kpi')).toHaveCount(0)
+  await expect(dashboard.getByRole('button', { name: 'Accounts requiring review', exact: true })).toHaveCount(0) // review completion lives only in Review Progress
+  await expect(dashboard.getByRole('button', { name: 'Review completion', exact: true })).toHaveCount(0)
   await expect(dashboard.getByText(/Future assignment/i)).toHaveCount(0)
-  // secondary facts are rows, not tiles: an information row is much shorter than a key figure
-  const rowHeight = (await list.locator('.info-row').first().boundingBox())!.height
-  const kpiHeight = (await key.locator('.ui-kpi').first().boundingBox())!.height
-  expect(rowHeight).toBeLessThan(kpiHeight)
+  const risk = dashboard.getByRole('region', { name: 'Access & Risk', exact: true })
+  const rows = risk.locator('.info-row')
+  await expect(rows.first()).toHaveAttribute('data-primary', 'true')
+  await expect(rows.first()).toContainText('SAP users')
+  expect(await rows.first().locator('.info-row-value').evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(await rows.nth(1).locator('.info-row-value').evaluate(el => parseFloat(getComputedStyle(el).fontSize)))
+  for (const name of ['AD disabled / SAP active', 'Role assignment records', 'Role/T-code mappings', 'Catalogue roles', 'Release roles']) await expect(risk.getByRole('button', { name, exact: true })).toBeVisible()
+  await expect(risk.getByRole('button', { name: 'Expired assignment records', exact: true })).toHaveCount(0)
+  const review = dashboard.getByRole('region', { name: 'Review Progress', exact: true })
+  await expect(review.locator('.progress-summary-value')).toContainText('%')
+  const directory = dashboard.getByRole('region', { name: 'Directory & Data Health', exact: true })
+  for (const name of ['Matched identities', 'Missing matches', 'Ambiguous matches', 'Position changes']) await expect(directory.getByRole('button', { name, exact: true })).toBeVisible()
 })
 
 test('Dashboard charts show real counts, expose tooltips and drill down', async ({ page }) => {
@@ -103,7 +108,7 @@ test('Dashboard charts show real counts, expose tooltips and drill down', async 
   const progress = dashboard.getByRole('region', { name: 'Review Progress', exact: true })
   await expect(progress.getByRole('img', { name: /Account review progress: Completed reviews 0, Not yet reviewed 2/ })).toBeVisible()
   await progress.getByRole('button', { name: /^Not yet reviewed/ }).click()
-  await expect(page.getByRole('region', { name: /Account Review|Key figures/ }).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Remove review finding Pending reviews', exact: true })).toBeVisible()
 })
 
 // Dashboard addendum: semantic health colors, stable card layout and the Role Distribution detail view, on controlled dashboard data.
@@ -112,7 +117,7 @@ const mockDashboard = async (page: Page, overrides: Overrides) => {
   await page.route('**/api/dashboard', async route => {
     const response = await route.fetch(), json = await response.json()
     const set = (id: string, value: number) => { const metric = json.metrics.find((item: { id: string }) => item.id === id); if (metric) { metric.value = value; metric.unavailable_reason = null } }
-    if (overrides.matched !== undefined) { set('email_matches', overrides.matched); set('unresolved', (overrides.coverage ?? 0) - overrides.matched); json.coverage_total = overrides.coverage }
+    if (overrides.matched !== undefined) { set('email_matches', overrides.matched); set('directory_missing', (overrides.coverage ?? 0) - overrides.matched); set('directory_ambiguous', 0); set('unresolved', (overrides.coverage ?? 0) - overrides.matched); json.coverage_total = overrides.coverage }
     if (overrides.review) { const r = overrides.review; json.review_population = r.population; set('reviewed', r.reviewed); set('pending', r.pending); set('outdated', r.outdated) }
     if (overrides.roles) json.role_distribution = overrides.roles
     if (overrides.assignments) json.assignment_distribution = overrides.assignments
@@ -131,15 +136,16 @@ test('Directory match progress uses central health thresholds, shows the percent
     const directory = section(page, 'Directory & Data Health')
     const bar = directory.getByRole('progressbar', { name: new RegExp(`${percent.replace('.', '\\.')} matched`) })
     await expect(bar).toHaveAttribute('data-tone', tone)
-    await expect(directory.locator('.info-row').first()).toContainText(`${percent} matched`) // numeric value independent of color
+    await expect(directory.locator('.progress-summary')).toContainText(`${percent}`) // numeric value independent of color
+    await expect(directory.locator('.progress-summary')).toContainText(`${matched} / 264 SAP identities matched`)
     const fill = await bar.evaluate(el => getComputedStyle(el).getPropertyValue('--progress-fill').trim())
     expect(fill).toBe(await page.evaluate(token => getComputedStyle(document.documentElement).getPropertyValue(token).trim() || token, `--${tone}`))
   }
   const directory = section(page, 'Directory & Data Health')
-  const first = directory.locator('li').first(), next = directory.locator('li').nth(1)
-  const bar = await first.locator('progress').boundingBox(), label = await first.locator('.info-row-label').boundingBox(), after = await next.boundingBox()
-  expect(Math.abs(bar!.x - label!.x)).toBeLessThanOrEqual(1) // the bar starts under the label
-  expect(after!.y - (bar!.y + bar!.height)).toBeGreaterThanOrEqual(8) // room before the next row
+  const barBox = await directory.locator('progress').boundingBox(), firstRow = await directory.locator('li').first().boundingBox()
+  expect(firstRow!.y - (barBox!.y + barBox!.height)).toBeGreaterThanOrEqual(8) // the first row never sits against the bar
+  const summary = await directory.locator('.progress-summary-value').boundingBox(), caption = await directory.locator('.progress-summary-caption').boundingBox()
+  expect(Math.abs((summary!.y + summary!.height / 2) - (caption!.y + caption!.height / 2))).toBeLessThan(10) // percentage and count read on one line
 })
 
 test('Role Distribution keeps five areas in the card, shows all in a dialog and never stretches neighbouring cards', async ({ page }) => {
@@ -178,30 +184,80 @@ test('Review Progress segments are semantic at 0%, partial and complete', async 
   expect((await tones()).map(([tone, width]) => [tone, width])).toEqual([['success', 100]])
 })
 
-test('Assignment Distribution shows counts with shares, scales bars to the total and keeps explanations in an info tip', async ({ page }) => {
+test('Assignment Distribution has five ranges with counts, shares, a common scale and an info tip', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
-  await mockDashboard(page, { assignments: { '1–5': 3, '6–20': 1, '21+': 0 } })
+  await mockDashboard(page, { assignments: { '0–5': 4, '6–10': 2, '11–20': 1, '21–30': 1, '31+': 0 } })
   await page.goto('/#session=browser-test-session')
   const card = section(page, 'Assignment Distribution')
-  const first = card.getByRole('button', { name: 'Investigate users with 1–5 currently valid roles' })
-  await expect(first).toContainText('3'); await expect(first).toContainText('75%')
-  await expect(first).toHaveAttribute('title', /75\.0% of 4 users with assignments/)
-  await expect(card.getByRole('button', { name: 'Investigate users with 6–20 currently valid roles' })).toContainText('25%')
-  expect(await first.locator('.chart-fill').evaluate(el => Math.round(parseFloat((el as HTMLElement).style.width)))).toBe(75)
-  await expect(card.getByText(/Historical and unknown intervals/)).toHaveCount(0) // technical text is not permanently visible
+  const bar = (band: string) => card.getByRole('button', { name: `Investigate users with ${band} currently valid roles`, exact: true })
+  await expect(card.getByRole('button', { name: /^Investigate users with/ })).toHaveCount(5)
+  await expect(bar('0–5')).toContainText('4'); await expect(bar('0–5')).toContainText('50%')
+  await expect(bar('0–5')).toHaveAttribute('title', /50\.0% of 8 SAP users/)
+  await expect(bar('31+')).toContainText('0%')
+  const width = (band: string) => bar(band).locator('.chart-fill').evaluate(el => Math.round(parseFloat((el as HTMLElement).style.width)))
+  expect([await width('0–5'), await width('6–10'), await width('11–20'), await width('21–30'), await width('31+')]).toEqual([100, 50, 25, 25, 0]) // one scale for all bars
+  await expect(card.getByText(/Historical and unknown intervals/)).toHaveCount(0)
   await card.getByRole('button', { name: 'About Assignment Distribution' }).click()
   await expect(page.getByText(/Historical and unknown intervals are excluded/)).toBeVisible()
-  await expect(page.getByText(/High counts are not security findings/)).toBeVisible()
+  await expect(page.getByText(/Users without any valid role are in the first range/)).toBeVisible()
 })
 
-test('Dashboard cards keep their own height and there is no horizontal scroll at 375, 800, 1280 and 1600', async ({ page }) => {
+test('Dashboard v4 uses three balanced columns on desktop, stacks responsively and never scrolls horizontally', async ({ page }) => {
   await mockDashboard(page, { matched: 251, coverage: 264, roles: { MM: 9, FI: 7, SD: 5, HR: 4, BC: 3, PP: 2, QM: 1 } })
   for (const width of [375, 800, 1280, 1600]) {
     await page.setViewportSize({ width, height: 900 })
     await page.goto('/#session=browser-test-session'); await page.reload()
     await expect(section(page, 'Role Distribution')).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBeTruthy()
+    const [risk, review, directory, sources] = await Promise.all(['Access & Risk', 'Review Progress', 'Directory & Data Health', 'Data Sources & Configuration'].map(name => section(page, name).boundingBox()))
+    if (width >= 1200) {
+      expect(Math.abs(risk!.y - review!.y)).toBeLessThan(2); expect(Math.abs(review!.y - directory!.y)).toBeLessThan(2)
+      expect(review!.x).toBeGreaterThan(risk!.x); expect(directory!.x).toBeGreaterThan(review!.x)
+      expect(Math.abs(risk!.height - review!.height)).toBeLessThan(2) // cards in a row share one height
+    } else if (width >= 800) { expect(Math.abs(risk!.y - review!.y)).toBeLessThan(2); expect(directory!.y).toBeGreaterThan(risk!.y) }
+    else { expect(review!.y).toBeGreaterThan(risk!.y); expect(directory!.y).toBeGreaterThan(review!.y) }
+    expect(sources!.width).toBeGreaterThan(risk!.width * (width >= 1200 ? 2.5 : width >= 800 ? 1.5 : 0.99)) // the sources section spans the grid
+    expect(sources!.y).toBeGreaterThan(directory!.y)
   }
-  const [risk, directory] = await Promise.all([section(page, 'Access & Risk').boundingBox(), section(page, 'Directory & Data Health').boundingBox()])
-  expect(directory!.height).toBeLessThan(risk!.height) // a short card is not stretched to the tallest one
+})
+
+test('Assignment Distribution drill-down opens User Access with the range filter actually applied', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto('/#session=browser-test-session')
+  await section(page, 'Assignment Distribution').getByRole('button', { name: 'Investigate users with 0–5 currently valid roles', exact: true }).click()
+  await expect(page.getByRole('group', { name: 'Active user filters' }).or(page.getByLabel('Active user filters'))).toContainText('0–5 currently valid roles')
+  await expect(page.getByRole('link', { name: /^U\d$/ })).toHaveCount(2) // both users hold one valid role, so both are in the first range
+  await page.getByRole('button', { name: 'Remove assignment count filter' }).click()
+  await page.goBack()
+  await section(page, 'Assignment Distribution').getByRole('button', { name: 'Investigate users with 6–10 currently valid roles', exact: true }).click()
+  await expect(page.getByRole('link', { name: /^U\d$/ })).toHaveCount(0)
+  await expect(page.getByRole('combobox', { name: 'Currently valid roles' }).or(page.getByLabel('Currently valid roles'))).toHaveValue('6–10')
+})
+
+test('Data Sources section shows only relevant sources with honest, source-specific state and records', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  type Source = { id: string; enabled: boolean; configured: boolean; loaded: boolean; loading: boolean; error: string | null; records?: number; assignments?: number; mode?: string; last_successful_load: string | null }
+  const sources: Record<string, Partial<Source>> = {}
+  await page.route('**/api/diagnostics', async route => {
+    const response = await route.fetch(), json = await response.json()
+    json.sources = json.sources.map((source: Source) => ({ ...source, ...sources[source.id] }))
+    await route.fulfill({ response, json })
+  })
+  Object.assign(sources, {
+    roles: { loaded: true, loading: true, records: 96 },
+    users: { loaded: false, loading: false, error: 'invalid', records: 0 },
+    sod: { enabled: false, configured: false, loaded: false },
+    employees: { enabled: true, configured: true, loaded: true, loading: false, error: null, records: 251 },
+  })
+  await page.goto('/#session=browser-test-session')
+  const area = section(page, 'Data Sources & Configuration')
+  await expect(area.getByRole('button', { name: /^Role Catalogue: Refreshing/ })).toContainText('96 composite roles')
+  await expect(area.getByRole('button', { name: /^User–Role Mapping: Failed/ })).toContainText('invalid')
+  await expect(area.getByRole('button', { name: /^Employee Directory: Ready/ })).toContainText('251 directory records')
+  await expect(area.getByRole('button', { name: /^SoD Matrix/ })).toHaveCount(0) // disabled and unconfigured: not relevant
+  Object.assign(sources, { sod: { enabled: true, configured: true, loaded: true, loading: false, error: null, records: 40 }, users: { loaded: true, loading: false, error: null, records: 264, assignments: 5120 } })
+  await page.reload()
+  await expect(area.getByRole('button', { name: /^SoD Matrix: Ready/ })).toContainText('40 matrix records')
+  await expect(area.getByRole('button', { name: /^User–Role Mapping: Ready/ })).toContainText('264 users · 5,120 assignment records') // users and assignment records are different counts
+  await expect(area.getByRole('listitem')).toHaveCount(4)
 })

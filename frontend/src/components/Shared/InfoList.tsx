@@ -7,7 +7,9 @@ export function InfoList({ label, children, className = '' }: { label?: string; 
 }
 
 /** One secondary metric: label, value and optional icon or note. With `onClick` the whole row is a button (aria-pressed when `active` is given). */
-export function InfoRow({ label, value, icon, note, tone = 'neutral', onClick, active, navigates, ariaLabel, title, data, progress }: {
+export function InfoRow({ label, value, icon, note, tone = 'neutral', onClick, active, navigates, ariaLabel, title, data, progress, primary }: {
+  /** The headline figure of a card: a slightly larger label and number. */
+  primary?: boolean
   /** Proportion under the row, only where numerator and denominator are real data. */
   progress?: { value: number; max: number; label: string; tone?: 'success' | 'warning' | 'error' }
   label: string; value: ReactNode; icon?: ReactNode; note?: ReactNode; tone?: 'neutral' | 'warning' | 'error' | 'success'
@@ -23,7 +25,7 @@ export function InfoRow({ label, value, icon, note, tone = 'neutral', onClick, a
       {progress && <progress className="info-row-progress" data-tone={progress.tone} aria-label={progress.label} max={Math.max(progress.max, 1)} value={Math.min(progress.value, Math.max(progress.max, 1))} />}
     </>
   )
-  const attrs = { className: 'info-row', 'data-tone': tone, 'data-active': active || undefined, 'data-progress': progress ? '' : undefined, 'data-icon': icon ? '' : undefined, title, ...dataAttrs }
+  const attrs = { className: 'info-row', 'data-tone': tone, 'data-active': active || undefined, 'data-progress': progress ? '' : undefined, 'data-icon': icon ? '' : undefined, 'data-primary': primary || undefined, title, ...dataAttrs }
   return (
     <li>
       {onClick
