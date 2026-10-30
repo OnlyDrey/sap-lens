@@ -3,7 +3,8 @@ import { useModuleDefinitions } from '@/components/Modules/ModuleRegistry'
 import { presentRoleDescription } from '@/lib/rolePresentation'
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, ChevronDown, ChevronUp, ClipboardCheck, FlaskConical, History, Search, Trash2, Wrench } from 'lucide-react'
+import { DisclosureChevron } from '@/components/Shared/DisclosureChevron'
+import { Check, ClipboardCheck, FlaskConical, History, Search, Trash2, Wrench } from 'lucide-react'
 import { emptyFilters, scopeParams, sod, sodPost, type ActivityDetail, type AssignmentRow, type DecisionEvent, type OverviewAssignment, type Subject } from '@/api/sod'
 import { useViewHistory, userHref } from '@/hooks/useViewHistory'
 import { SidePanel } from '@/components/Shared/SidePanel'
@@ -228,7 +229,7 @@ function AssignmentReviewRow({ row, description, ok, checked, onCheck, busy, onD
           <IconButton label={`Investigate ${row.role}`} tooltip="Mark for further investigation (not a final decision)" variant={investigating ? 'primary' : 'secondary'} aria-pressed={investigating} loading={busy} disabled={busy} onClick={() => onDecide('Investigate')}><Search size={16} aria-hidden="true" /></IconButton>
           <IconButton label={`Remove ${row.role}`} tooltip="Recommend removing this role assignment (no change in SAP)" variant={removed ? 'destructive' : 'secondary'} aria-pressed={removed} loading={busy} disabled={busy} onClick={() => onDecide('Remove')}><Trash2 size={16} aria-hidden="true" /></IconButton>
         </span>}
-        <IconButton label={`${open ? 'Hide' : 'Show'} details for ${row.role}`} tooltip={open ? 'Hide evidence' : 'Show evidence'} variant="ghost" aria-expanded={open} aria-controls={detailId} onClick={() => setOpen(!open)}>{open ? <ChevronUp size={16} aria-hidden="true" /> : <ChevronDown size={16} aria-hidden="true" />}</IconButton>
+        <IconButton label={`${open ? 'Hide' : 'Show'} details for ${row.role}`} tooltip={open ? 'Hide evidence' : 'Show evidence'} variant="ghost" aria-expanded={open} aria-controls={detailId} onClick={() => setOpen(!open)}><DisclosureChevron open={open} /></IconButton>
       </div>
       {open && <div id={detailId} className="sod-assignment-details" role="group" aria-label={`Evidence for ${row.role}`}>
         <dl className="validity-dates">
@@ -261,7 +262,7 @@ function ReviewRow({ label, title, meta, summary, compact, status, event, action
           <span className="sod-review-summary">{summary}</span>
           <div className="sod-review-actions sod-review-compact-actions">
             {actions}
-            <IconButton label={`${open ? 'Hide' : 'Show'} details for ${label}`} tooltip={open ? 'Hide evidence and history' : 'Show evidence and history'} variant="ghost" aria-expanded={open} aria-controls={detailId} onClick={() => setOpen(!open)}>{open ? <ChevronUp size={16} aria-hidden="true" /> : <ChevronDown size={16} aria-hidden="true" />}</IconButton>
+            <IconButton label={`${open ? 'Hide' : 'Show'} details for ${label}`} tooltip={open ? 'Hide evidence and history' : 'Show evidence and history'} variant="ghost" aria-expanded={open} aria-controls={detailId} onClick={() => setOpen(!open)}><DisclosureChevron open={open} /></IconButton>
           </div>
         </div>
       ) : (

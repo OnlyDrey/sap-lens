@@ -2,7 +2,7 @@ import {useState} from 'react'
 import {useQuery,useQueryClient} from '@tanstack/react-query'
 import {apiRequest} from '@/api/client'
 import {useViewHistory} from '@/hooks/useViewHistory'
-import {Activity,GitCompare,Grid3x3,ListChecks,MoreHorizontal,Trash2} from 'lucide-react'
+import {Activity,GitCompare,Grid3x3,ListChecks,MoreHorizontal,Plus,Trash2} from 'lucide-react'
 import {Button} from '@/components/Shared/Button'
 import {Popover} from '@/components/Shared/Popover'
 import {Card,DataTable,Toolbar,StatusBadge,LoadingState,EvidenceDisclosure,ErrorState,EmptyState} from '@/components/Shared/Presentation'
@@ -35,8 +35,8 @@ export function SodPeriods(){
  const compareWith=(period:Period)=>{setLeft(period.id);setRight('');setComparing(true)}
  return <section className="grid min-w-0 gap-3" aria-label="SoD review periods">
   <Toolbar className="sod-periods-header"><h2>Review periods</h2>
-   <Button variant="primary" onClick={()=>setCreating(true)}>Create review period</Button>
-   <Button onClick={()=>{setComparing(true)}} disabled={active.length<2} title={active.length<2?'Create at least two review periods to compare them.':undefined} aria-describedby={active.length<2?'compare-periods-why':undefined}>Compare periods</Button>{active.length<2&&<span id="compare-periods-why" className="sod-meta">Needs at least two periods.</span>}
+   <Button variant="primary" onClick={()=>setCreating(true)}><Plus size={16} aria-hidden="true"/>Create review period</Button>
+   <Button onClick={()=>{setComparing(true)}} disabled={active.length<2} title={active.length<2?'Create at least two review periods to compare them.':undefined} aria-describedby={active.length<2?'compare-periods-why':undefined}><GitCompare size={16} aria-hidden="true"/>Compare periods</Button>{active.length<2&&<span id="compare-periods-why" className="sod-meta">Needs at least two periods.</span>}
    <Button variant="ghost" size="compact" aria-pressed={archived} onClick={()=>setArchived(!archived)}>{archived?'Hide archived periods':'Show archived periods'}</Button></Toolbar>
   <EvidenceDisclosure title="Period snapshots and approval">Each period captures explicit imported source versions and an evaluation date. Refresh does not update it. Recapture is an intentional action available only for open periods. Approved snapshots stay immutable together with their decisions. Reviewer and approver are separate people; names are self-reported and are not verified digital signatures. Historical evaluation does not reconstruct unexported SAP authorizations.</EvidenceDisclosure>
   {notice&&<p role="status">{notice}</p>}{error&&<p role="alert">{error}</p>}

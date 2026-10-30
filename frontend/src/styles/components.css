@@ -724,7 +724,8 @@ progress::-moz-progress-bar { background:var(--progress-fill); }
 
 /* Role identifier: content-sized and never scrolling. It wraps at ':' '_' '-' '.' '/' (wbr) and only as a last resort inside a token. */
 .role-identifier { display:inline-flex; align-items:center; flex-wrap:nowrap; gap:var(--space-1); width:fit-content; max-width:100%; min-width:0; padding:2px 4px 2px 8px; vertical-align:middle; }
-.role-identifier code { flex:1 1 auto; min-width:0; white-space:normal; overflow-wrap:anywhere; word-break:normal; overflow:visible; line-height:1.4; }
+/* SAP identifiers are never broken: one line, scrolling horizontally inside the codeblock when the container is narrower. The copied value is always the full identifier. */
+.role-identifier code { flex:1 1 auto; min-width:0; white-space:nowrap; overflow-wrap:normal; word-break:normal; overflow-x:auto; overflow-y:hidden; scrollbar-width:thin; line-height:1.4; }
 .role-identifier-link { min-width:0; max-width:100%; }
 .role-identifier-link code { flex:1; }
 
@@ -1031,7 +1032,7 @@ button.ui-kpi:disabled { opacity:.55; cursor:not-allowed; }
 /* Disclosure: every details/summary uses the compact chevron control (a 24px box with its own hover background). The summary text itself has no hover fill. */
 details:not(.preview-cell) > summary { display:flex; align-items:center; gap:var(--space-2); list-style:none; cursor:pointer; min-height:var(--control-compact); }
 details:not(.preview-cell) > summary::-webkit-details-marker { display:none; }
-details:not(.preview-cell) > summary::before { content:''; flex:none; width:1.5rem; height:1.5rem; border-radius:var(--radius-control); background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237a8599' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:center; background-size:1rem; transition:transform .12s ease; }
+details:not(.preview-cell) > summary::before { content:''; flex:none; width:var(--control-compact,2rem); height:var(--control-compact,2rem); border-radius:var(--radius-control); background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237a8599' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:center; background-size:1rem; transition:transform .12s ease; }
 details:not(.preview-cell) > summary:hover::before { background-color:var(--hover); }
 details:not(.preview-cell)[open] > summary::before { transform:rotate(90deg); }
 @media (prefers-reduced-motion: reduce) { details:not(.preview-cell) > summary::before { transition:none; } }
@@ -1088,3 +1089,29 @@ details:not(.preview-cell)[open] > summary::before { transform:rotate(90deg); }
 /* Row states over zebra striping: hover, selection and the active period stay distinguishable from each other and from the stripe. */
 .access-table tbody tr[data-selected] td,.access-table tbody tr[data-active] td { background:color-mix(in srgb,var(--accent) 12%,var(--surface)); }
 .access-table tbody tr[data-selected]:hover td,.access-table tbody tr[data-active]:hover td { background:color-mix(in srgb,var(--accent) 18%,var(--surface)); }
+
+/* Information list: secondary metrics as plain rows (no tile borders), full-row buttons when they navigate or filter. */
+.info-list { display:grid; margin:0; padding:0; list-style:none; }
+.info-list > li { min-width:0; border-bottom:1px solid var(--border); }
+.info-list > li:last-child { border-bottom:0; }
+.info-row { display:flex; align-items:center; gap:var(--space-2); width:100%; min-width:0; min-height:var(--control-compact); padding:var(--space-1) var(--space-2); border:0; border-radius:var(--radius-control); background:transparent; color:var(--text); font:inherit; font-size:var(--font-label); text-align:left; }
+.info-row-label { flex:1 1 auto; min-width:0; overflow-wrap:anywhere; }
+.info-row-label > small { display:block; color:var(--muted); font-size:var(--font-meta); }
+.info-row-icon { display:inline-flex; flex:none; color:var(--text2); }
+.info-row-value { flex:none; font-size:var(--font-section); font-weight:700; font-variant-numeric:tabular-nums; }
+.info-row-arrow { flex:none; color:var(--muted); }
+button.info-row { cursor:pointer; }
+button.info-row:hover { background:var(--hover); }
+button.info-row:focus-visible { outline:var(--focus-width) solid var(--focus); outline-offset:calc(var(--focus-offset) * -1); }
+.info-row[data-active="true"] { background:color-mix(in srgb,var(--accent) 12%,var(--surface)); outline:1px solid var(--accent); outline-offset:-1px; }
+.info-row[data-tone="warning"] .info-row-value { color:var(--warning); }
+.info-row[data-tone="error"] .info-row-value { color:var(--error); }
+.info-row[data-tone="success"] .info-row-value { color:var(--success); }
+
+/* Single Roles and other expandable lists: alternating rows are visible (the heading is transparent so the entry background shows), hover and expanded states differ from the stripe. */
+.single-role-list .single-role-heading { background:transparent; }
+.single-role-list .single-role-entry:nth-child(even),.single-role-list > div:nth-child(even) .single-role-entry { background:var(--surface2); }
+.single-role-list .single-role-entry:hover { background:var(--hover); }
+.single-role-list > div:nth-child(even) .single-role-entry:hover,.single-role-list .single-role-entry:nth-child(even):hover { background:var(--hover); }
+.single-role-list .single-role-heading[data-expanded="true"] { background:color-mix(in srgb,var(--accent) 10%,transparent); }
+.role-expand { width:var(--control-compact); min-height:var(--control-compact); }

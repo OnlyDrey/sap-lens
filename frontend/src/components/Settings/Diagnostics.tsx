@@ -6,8 +6,9 @@ import { Button } from '@/components/Shared/Button'
 import { DirectoryDiagnostics } from './EmployeeDirectory'
 import { formatTimestamp } from '@/lib/dateFormat'
 import { useId, useState } from 'react'
+import { DisclosureChevron } from '@/components/Shared/DisclosureChevron'
 import { useQuery } from '@tanstack/react-query'
-import { Activity, BookUser, ChevronDown, ChevronUp, Download, FileText, FolderOpen, Library, ShieldCheck, UsersRound, Eye } from 'lucide-react'
+import { Activity, BookUser, Download, FileText, FolderOpen, Library, ShieldCheck, UsersRound, Eye } from 'lucide-react'
 import { apiRequest, applicationToken } from '@/api/client'
 const SOURCE_ICONS: Record<string, React.ReactNode> = { roles: <Library size={18} aria-hidden="true"/>, users: <UsersRound size={18} aria-hidden="true"/>, employees: <BookUser size={18} aria-hidden="true"/>, sod: <ShieldCheck size={18} aria-hidden="true"/> }
 interface DataSource {
@@ -276,7 +277,7 @@ function SourceHealthCard({ source, onDetail, onSource }: { source: SourceEviden
       </header>
       <SourceEssentials source={source}/>
       <div className="source-health-actions">
-        <Button aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)}>{open ? <ChevronUp size={16} aria-hidden="true"/> : <ChevronDown size={16} aria-hidden="true"/>}Technical details</Button>
+        <Button aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)}><DisclosureChevron open={open} />Technical details</Button>
         <Button onClick={() => onSource?.(source.id as 'roles' | 'users' | 'employees' | 'sod')}><Eye size={16} aria-hidden="true"/>Review source</Button>
       </div>
       {open && <div id={id} className="source-health-technical space-y-2">

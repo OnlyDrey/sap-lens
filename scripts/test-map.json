@@ -165,6 +165,7 @@
    "browser": [
     "consolidated-refinement",
       "kpi-standard",
+      "refinement-r2",
     "a11y-audit",
     "design-system",
     "investigation-ux",

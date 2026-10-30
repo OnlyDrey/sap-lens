@@ -1,5 +1,6 @@
 import { rememberedReviewer } from '@/lib/reviewer'
 import { useState } from 'react'
+import { Eye, FileDown, FileText } from 'lucide-react'
 import { announceExport } from '@/lib/exportNotice'
 import { useQuery } from '@tanstack/react-query'
 import { downloadFile, REPORT_NAME, sod, sodPost } from '@/api/sod'
@@ -108,8 +109,8 @@ function FormalReport({ items }: { items: PeriodItem[] }) {
         <details><summary>Included report sections</summary><div className="grid gap-2 py-3 sm:grid-cols-2">{Object.entries(sectionNames).map(([value, label]) => <Checkbox key={value} checked={sections.includes(value)} onChange={(event) => setSections((previousList) => (event.target.checked ? [...previousList, value] : previousList.filter((name) => name !== value)))}>{label}</Checkbox>)}</div></details>
         <Checkbox checked={appendices} onChange={(event) => setAppendices(event.target.checked)}>Include detailed appendices</Checkbox>
         <Toolbar>
-          <Button loading={exporter.busy} disabled={!period} onClick={() => void showPreview()}>Preview report</Button>
-          {(['docx', 'pdf'] as const).map((kind) => <Button key={kind} disabled={exporter.busy || !active} onClick={() => void exporter.run(`/api/sod/reports/${kind}`, { period_id: period, options, expected_model: active!.model_checksum }, 'document', kind.toUpperCase())}>Export {kind.toUpperCase()}</Button>)}
+          <Button loading={exporter.busy} disabled={!period} onClick={() => void showPreview()}><Eye size={16} aria-hidden="true" />Preview report</Button>
+          {(['docx', 'pdf'] as const).map((kind) => <Button key={kind} disabled={exporter.busy || !active} onClick={() => void exporter.run(`/api/sod/reports/${kind}`, { period_id: period, options, expected_model: active!.model_checksum }, 'document', kind.toUpperCase())}>{kind === 'pdf' ? <FileDown size={16} aria-hidden="true" /> : <FileText size={16} aria-hidden="true" />}Export {kind.toUpperCase()}</Button>)}
         </Toolbar>
       </Card>
       {exporter.message && <p role="status" className="break-all">{exporter.message}</p>}
@@ -160,9 +161,9 @@ function RemediationReport({ items }: { items: PeriodItem[] }) {
         </div>
         </details>
         <Toolbar>
-          <Button loading={exporter.busy} disabled={!recommended.length} onClick={() => void showPreview()}>Preview report</Button>
+          <Button loading={exporter.busy} disabled={!recommended.length} onClick={() => void showPreview()}><Eye size={16} aria-hidden="true" />Preview report</Button>
           <Button disabled={exporter.busy || !active} onClick={() => void exporter.run('/api/sod/reports/remediation/csv', { context, options, expected_model: active!.model_checksum }, 'csv', 'CSV')}>Export CSV</Button>
-          {(['docx', 'pdf'] as const).map((kind) => <Button key={kind} disabled={exporter.busy || !active} onClick={() => void exporter.run(`/api/sod/reports/remediation/${kind}`, { context, options, expected_model: active!.model_checksum }, 'document', kind.toUpperCase())}>Export {kind.toUpperCase()}</Button>)}
+          {(['docx', 'pdf'] as const).map((kind) => <Button key={kind} disabled={exporter.busy || !active} onClick={() => void exporter.run(`/api/sod/reports/remediation/${kind}`, { context, options, expected_model: active!.model_checksum }, 'document', kind.toUpperCase())}>{kind === 'pdf' ? <FileDown size={16} aria-hidden="true" /> : <FileText size={16} aria-hidden="true" />}Export {kind.toUpperCase()}</Button>)}
         </Toolbar>
       </Card>
       {exporter.message && <p role="status" className="break-all">{exporter.message}</p>}

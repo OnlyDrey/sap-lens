@@ -4,6 +4,7 @@ import { type ReviewEvidence } from '@/components/Shared/ReviewFindings'
 import { PageHeader, MetadataList } from '@/components/Shared/Presentation'
 import { ClipboardCheck as PageIcon } from 'lucide-react'
 import { Kpi } from '@/components/Shared/Kpi'
+import { InfoList, InfoRow } from '@/components/Shared/InfoList'
 import { FilterLayout, FilterSection, PageToolbar, SortControl } from '@/components/Shared/FilterLayout'
 import { FormField } from '@/components/Shared/Controls'
 import { SearchInput } from '@/components/Shared/Controls'
@@ -328,10 +329,15 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
       </p>
       {data && (
         <>
-          <div className="review-kpi-groups">{TILE_GROUPS.map(([title,tiles],group)=><section key={title} aria-label={title} data-primary={group===0||undefined}><h2>{title}</h2><div className="review-kpis">{tiles.map(([key,label,target])=>{
-            const value=data.summary[key]
-            const active=target.license?licenses.includes(target.license):target.finding?findings.includes(target.finding):!findings.length&&!licenses.length
-            return <Kpi key={key} layout={group===0?'expanded':'compact'} label={label} value={value?.toLocaleString()??'Unavailable'} tone={['mismatch','missing','outdated'].includes(key)&&!!value?'warning':'neutral'} active={active} onClick={()=>toggleTile(target)}/>})}</div></section>)}</div>
+          <div className="review-kpi-groups">{TILE_GROUPS.map(([title,tiles],group)=><section key={title} aria-label={title} data-primary={group===0||undefined}><h2>{title}</h2>{group===0
+            ? <div className="review-kpis">{tiles.map(([key,label,target])=>{
+              const value=data.summary[key]
+              const active=target.license?licenses.includes(target.license):target.finding?findings.includes(target.finding):!findings.length&&!licenses.length
+              return <Kpi key={key} layout="expanded" label={label} value={value?.toLocaleString()??'Unavailable'} tone={['mismatch','missing','outdated'].includes(key)&&!!value?'warning':'neutral'} active={active} onClick={()=>toggleTile(target)}/>})}</div>
+            : <InfoList label={title}>{tiles.map(([key,label,target])=>{
+              const value=data.summary[key]
+              const active=target.license?licenses.includes(target.license):target.finding?findings.includes(target.finding):!findings.length&&!licenses.length
+              return <InfoRow key={key} label={label} value={value?.toLocaleString()??'Unavailable'} tone={['mismatch','missing'].includes(key)&&!!value?'warning':'neutral'} active={active} onClick={()=>toggleTile(target)}/>})}</InfoList>}</section>)}</div>
           {!data.directory_available && (
             <p role="status">
               Directory enrichment unavailable. Enable and import Employee

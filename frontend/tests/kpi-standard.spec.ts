@@ -61,7 +61,7 @@ test('disclosures share the compact chevron control and matrix status pills have
   await openSod(page, 'Reports')
   const summary = page.locator('details > summary').first()
   const before = await summary.evaluate(element => { const css = getComputedStyle(element, '::before'); return { width: css.width, height: css.height, display: getComputedStyle(element).display } })
-  expect(before.width).toBe('24px'); expect(before.height).toBe('24px'); expect(before.display).toBe('flex')
+  expect(before.width).toBe('34px'); expect(before.height).toBe('34px'); // the shared compact control size, equal to icon buttons; expect(before.display).toBe('flex')
   await openSod(page, 'Risk Matrix')
   const pill = page.locator('.matrix-pill').first()
   const height = (await pill.boundingBox())!.height

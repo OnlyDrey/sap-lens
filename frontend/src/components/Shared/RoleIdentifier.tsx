@@ -1,8 +1,8 @@
-import { Fragment, useEffect, useRef, useState, type ButtonHTMLAttributes } from 'react'
+import { useEffect, useRef, useState, type ButtonHTMLAttributes } from 'react'
 import { Check, Copy, ArrowUpRight } from 'lucide-react'
 
-/** Optional line-break opportunities after ':' '_' '-' '.' '/'; wbr adds no character, so selection and copy keep the exact identifier. */
-export const identifierFragments = (value: string) => value.split(/(?<=[:_\-./])/).map((part, index) => <Fragment key={index}>{index > 0 && <wbr />}{part}</Fragment>)
+/** SAP identifiers are rendered as one unbroken string: no soft-wrap opportunities are inserted, so a role name never splits mid-identifier and selection and copy keep the exact value. */
+export const identifierFragments = (value: string) => value
 
 interface RoleIdentifierProps {
   moduleId?: string | null
@@ -26,8 +26,8 @@ export function RoleIdentifier({ moduleId: _moduleId, value, label = 'role ident
       data-copied={message === 'Copied'}
       onClick={(e) => e.stopPropagation()}
     >
-      {onOpen && href ? <a href={href} className="role-identifier-link" aria-label={openLabel || `Open ${value}`} data-user={openButtonProps?.['data-user']} onClick={(event) => { if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return; event.preventDefault(); onOpen() }}><code title={value}>{identifierFragments(value)}</code><ArrowUpRight size={14} aria-hidden="true" className="shrink-0"/></a>
-        : onOpen ? <button {...openButtonProps} type="button" className="role-identifier-link" aria-label={openLabel || `Open ${value}`} onClick={onOpen}><code title={value}>{identifierFragments(value)}</code><ArrowUpRight size={14} aria-hidden="true" className="shrink-0"/></button> : <code title={value}>{identifierFragments(value)}</code>}
+      {onOpen && href ? <a href={href} className="role-identifier-link" aria-label={openLabel || `Open ${value}`} data-user={openButtonProps?.['data-user']} onClick={(event) => { if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return; event.preventDefault(); onOpen() }}><code title={value} tabIndex={-1}>{identifierFragments(value)}</code><ArrowUpRight size={14} aria-hidden="true" className="shrink-0"/></a>
+        : onOpen ? <button {...openButtonProps} type="button" className="role-identifier-link" aria-label={openLabel || `Open ${value}`} onClick={onOpen}><code title={value} tabIndex={-1}>{identifierFragments(value)}</code><ArrowUpRight size={14} aria-hidden="true" className="shrink-0"/></button> : <code title={value} tabIndex={-1}>{identifierFragments(value)}</code>}
       <button
         type="button"
         aria-label={`Copy ${label} ${value}`}
