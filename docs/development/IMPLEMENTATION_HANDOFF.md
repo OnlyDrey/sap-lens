@@ -191,6 +191,40 @@ Commits are on `origin/work`; no workflow was dispatched and no tag or release w
 - The info tip button beside *Most common conflicting roles* is the shared 32 px icon button, taller than the heading text.
 - Windows/WebView2, Windows Service, installer, systemd and UNC acceptance, and deployment package builds, were not run here.
 
+## UI/UX Refinement and Validation Framework (Round 4)
+
+Commits are on `origin/work`; no workflow was dispatched and no tag or release was created.
+
+| Phase | Requirement | Status | Evidence |
+| --- | --- | --- | --- |
+| 1 Access Package | Package bar only describes and clears the package (Clear package, confirmed); the selection bar shows one or more selected roles with Clear selection and offers Compare now from two; role codeblocks wrap long names and copy the exact value | Implemented | `70f1092`, `access-package-r2`, `refinement-r2` |
+| 2 Navigation | Submenu is a no-scroll menu popover that overlays the page, never resizes the navbar and has no left border on hover, focus or current | Implemented | `f015008`, `navigation-r3` |
+| 3 Account Review | Compact progress section (heading, percentage, bar, one legend row; about 120 px on desktop) | Implemented | `5535c22`, `account-review-refinement` |
+| 4 SoD Overview | Most common conflicting roles and Remediation verified removed from the UI (API data and the Verified removals filter stay); card rows share one height | Implemented | `043ac7a`, `sod-overview-actionable` |
+| 5 Matrices | Username with group beneath, sticky first column, optional Group by SAP User Group (collapsible, distinct counts over the filtered scope, each user once), multi-select group filter with grouping | Implemented | `7413462`, `sod-matrix-grouping`, `test_sod_governance` |
+| 6 Validation framework | `docs/validation` CSV (138 items, 18 areas), checker, summary, workbook export and merge | Implemented | `0bf327f` (tooling and guide), the CSV itself in the final commit because `*.csv` is git-ignored; `test_validation_tracker` |
+| 7 Final validation | See below | Done | |
+
+### Decisions worth knowing
+
+- The old Rows view of the matrices (aggregated SAP User Groups) was replaced by Group by. The aggregate API (`group_by=group`) stays for the shared heatmap; `group_by=user_group` is the new presentation mode.
+- A user in several SAP User Groups is listed once, under the first selected group or else the first group, so group counts partition the users; other groups are noted under the username.
+- Grouping is presentation only: matrix exports use the Explorer export of the active filters and are identical with and without grouping (tested).
+- The validation tracker marks 133 of 138 items Not reviewed; two are recorded improvement opportunities found during visual QA plus the new floating-bar item, and three Windows checks are Blocked in Linux CI. Nothing is Approved.
+
+### Validation (Round 4)
+
+- Single-process full regression (`python scripts/run-tests.py regression --jobs 1`, head `0bf327f`, before the tracker CSV was un-ignored and committed): backend 809 tests, 3 skipped (PowerShell and PyInstaller only), 0 failed; browser 593 tests, 0 skipped, 0 failed; build with type check, documentation links, workflow contracts, Lucide catalog, whitespace and `pip check` passed. `a11y-audit` and `navigation-a11y` are part of that run.
+- `npm audit --omit=dev`: 0 vulnerabilities. `pip-audit` on `requirements.txt` and `requirements-dev.txt`: none.
+- Visual QA after the regression: submenu, Role Lookup with a long role name and both floating bars, SoD Overview, grouped Risk and Activity Matrix and Account Review in light and dark at 375, 800, 1280 and 1600 px loaded without horizontal page overflow (assertion on all 64 captures). Screenshots inspected: submenu (1280 light), Role Lookup (375 light), grouped Risk Matrix (800 dark). The other combinations were checked by the overflow assertion only.
+- The workbook export was opened with openpyxl and converted by LibreOffice; it was not opened in Excel.
+
+### Remaining limitations
+
+- Remediation at 1280 px with the filter sidebar open scrolls the table horizontally inside its card (tracker `SODR-006`).
+- The shared info tip button is taller than the headings it sits beside (`UI-016`); at 375 px the package and selection bars stack to roughly a quarter of the viewport (`PKG-009`).
+- Windows/WebView2, Windows Service, installer, systemd and UNC acceptance, and deployment package builds, were not run here.
+
 ## Validation
 
 - **Round 2 final regression** (`python scripts/run-tests.py regression --jobs 1`, head `0a0e637`): backend 793 tests, 3 skipped (PowerShell and PyInstaller only), 0 failed; build with type check, documentation links, workflow contracts, Lucide catalog (1447 icons), whitespace and `pip check` passed; browser 569 tests, 553 passed and 16 failed. The 16 failures were two specs still asserting the superseded Dashboard (`refinement-27` looked for the former "Configuration" region, `refinement-search-layout` for the removed review completion progress bar and the former 1-5 range). They were updated to the v4 structure and re-run: both specs pass (29 tests). The complete suite was not re-run a second time after those two spec edits.

@@ -3,6 +3,7 @@ import copy
 import importlib.util
 import io
 import re
+import subprocess
 import tempfile
 import unittest
 import zipfile
@@ -22,6 +23,11 @@ class TrackerTests(unittest.TestCase):
         self.assertEqual(tracker.problems(self.rows), [])
         self.assertEqual({row['Area'] for row in self.rows}, set(tracker.AREAS))
         self.assertEqual(len(tracker.AREAS), 18)
+
+    def test_the_tracker_is_versioned_while_other_csv_files_stay_ignored(self):
+        self.assertEqual(subprocess.run(['git', 'check-ignore', '-q', 'docs/validation/validation-items.csv'], cwd=ROOT).returncode, 1)
+        self.assertEqual(subprocess.run(['git', 'check-ignore', '-q', 'docs/validation/other.csv'], cwd=ROOT).returncode, 0)
+        self.assertEqual(subprocess.run(['git', 'check-ignore', '-q', 'role-export.csv'], cwd=ROOT).returncode, 0)
 
     def test_ids_are_stable_and_every_reference_exists(self):
         ids = [row['ID'] for row in self.rows]
