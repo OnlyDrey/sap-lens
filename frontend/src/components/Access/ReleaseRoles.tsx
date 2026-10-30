@@ -16,7 +16,6 @@ import { formatDate } from '@/lib/dateFormat'
 import { AssignmentDateFilters, emptyDates, dateParams, datesActive, type AssignmentDates } from '@/components/Shared/AssignmentDateFilters'
 import { ClearFilterButton } from '@/components/Shared/ClearFilterButton'
 import { Select } from '@/components/Shared/Select';
-import { SidePanel } from '@/components/Shared/SidePanel';
 import { useHistoryValue, type ReleaseDrill } from '@/hooks/useViewHistory';
 import { List, Grid3X3, Plus, Check, Copy, Download } from 'lucide-react';
 import { useRecordNavigation, type RecordNavigationState } from "@/hooks/useRecordNavigation";
@@ -223,18 +222,18 @@ export function ReleaseRoles({
       <div className="grid min-w-0 gap-4">
       <div className="results-toolbar release-toolbar">
         <h2>Release assignments <span>{result.data?.total.toLocaleString() ?? '…'} {result.data?.total === 1 ? 'role' : 'roles'}</span></h2>
-        <div className="release-bulk-actions" role="group" aria-label="Filtered release role actions">
-          <Button onClick={addFiltered} disabled={!settled || bulkBusy || !result.data?.total} title="Adds every distinct release role matching the filters, across pages, to the access package."><Plus size={16} aria-hidden="true"/>Add filtered roles</Button>
-          <Button onClick={copyNames} disabled={!settled || bulkBusy || !result.data?.total} title="Copies the distinct filtered release role names, one per line."><Copy size={16} aria-hidden="true"/>Copy role names</Button>
-          <Button loading={roleListExport.busy} onClick={()=>void roleListExport.download()} disabled={!settled || !result.data?.total} title="Exports the distinct filtered release roles (name, description, area, group, strategy, PR/PO). Assignment export is separate."><Download size={16} aria-hidden="true"/>Export role list</Button>
+        <div className="release-bulk-actions" role="group" aria-label="Release actions">
           {matrix && (
             <label className="filter-toggle release-compare-toggle">
               <input type="checkbox" checked={compareGroups} onChange={(e) => setCompareGroups(e.target.checked)} />
               Compare SAP User Groups
             </label>
           )}
+          <Button onClick={addFiltered} disabled={!settled || bulkBusy || !result.data?.total} title="Adds every distinct release role matching the filters, across pages, to the access package."><Plus size={16} aria-hidden="true"/>Add filtered roles</Button>
+          <Button onClick={copyNames} disabled={!settled || bulkBusy || !result.data?.total} title="Copies the distinct filtered release role names, one per line."><Copy size={16} aria-hidden="true"/>Copy role names</Button>
+          <Button loading={roleListExport.busy} onClick={()=>void roleListExport.download()} disabled={!settled || !result.data?.total} title="Exports the distinct filtered release roles (name, description, area, group, strategy, PR/PO). Assignment export is separate."><Download size={16} aria-hidden="true"/>Export role list</Button>
+          <ExportCSVButton loading={assignmentExport.busy} disabled={dataLoading||result.isFetching||!result.data?.export_assignments||username!==query.username||role!==query.role} title="Exports every release assignment matching these filters and date bounds, across pages. Table and Matrix use the same assignment set." onClick={()=>void assignmentExport.download()}/>
         </div>
-        <ExportCSVButton loading={assignmentExport.busy} disabled={dataLoading||result.isFetching||!result.data?.export_assignments||username!==query.username||role!==query.role} title="Exports every release assignment matching these filters and date bounds, across pages. Table and Matrix use the same assignment set." onClick={()=>void assignmentExport.download()}/>
       </div>
       <p className="ui-description">Export scope: {result.data?.export_assignments?.toLocaleString()??'…'} matching user–release-role assignments across all pages; identical in Table and Matrix.</p>
       <QueryState loading={result.isLoading || (dataLoading && !result.data?.loaded)} error={result.error} />
@@ -616,8 +615,9 @@ function ReleaseRoleUsersPanel({ role, filters, status, dates, onUser, onClose }
   const download = useAssignmentCSVExport('releases', exportFilters as never, result.data?.data_revision, result.data?.as_of)
   const data = result.data
   return (
-    <SidePanel title="Users with this release role" subtitle={<RoleIdentifier value={role} label="release role" />} onClose={onClose}
+    <Dialog title="Users with this release role" onClose={onClose}
       footer={<ExportCSVButton loading={download.busy} disabled={!data?.total} onClick={() => void download.download()} title="Exports the matching assignments of this release role." />}>
+      <div className="release-users-role"><span className="ui-description">Release role</span><RoleIdentifier value={role} label="release role" /></div>
       <QueryState loading={result.isLoading} error={result.error} />
       {data && <>
         <p role="status" className="ui-description">{data.distinct_users} {data.distinct_users === 1 ? 'user' : 'users'} · {data.total} assignment {data.total === 1 ? 'record' : 'records'} in the current validity scope</p>
@@ -627,7 +627,7 @@ function ReleaseRoleUsersPanel({ role, filters, status, dates, onUser, onClose }
             <tbody>{data.items.map((a) => (
               <tr key={a.id}>
                 <td><RoleIdentifier value={a.username} label="SAP username" onOpen={() => onUser(a.username)} openLabel={`Open user ${a.username}`} /></td>
-                <td>{a.display_name || <span className="text-muted">Not available</span>}</td>
+                <td className="release-user-name">{a.display_name || <span className="text-muted">Not available</span>}</td>
                 <td className="whitespace-nowrap">{a.user_group || 'Unknown'}</td>
                 <td><AssignmentStatus value={a.status} /><dl className="validity-dates"><div><dt>Valid from</dt><dd>{formatDate(a.valid_from)}</dd></div><div><dt>Valid to</dt><dd>{formatDate(a.valid_to)}</dd></div></dl></td>
                 <td className="col-actions"><DetailButton onClick={() => onUser(a.username)} aria-label={`View user details ${a.username}`}>Details</DetailButton></td>
@@ -637,6 +637,6 @@ function ReleaseRoleUsersPanel({ role, filters, status, dates, onUser, onClose }
         {!data.items.length && <p>No assignments match the current validity scope.</p>}
         <Pagination offset={offset} total={data.total} onChange={setOffset} label="Release role user pages" />
       </>}
-    </SidePanel>
+    </Dialog>
   )
 }

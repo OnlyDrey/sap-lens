@@ -16,7 +16,7 @@ All filters live in the shared filter sidebar (collapsible on wide screens, a dr
 narrow ones) with [Saved Filters](SAVED_FILTERS.md) as its first section. Filter by SAP
 User Group, PR/PO, **Release Area**, **Release Group**, strategy, username, exact role text,
 assignment status and [assignment dates](FILTERS.md#assignment-dates-and-tables).
-Sort, Descending, Clear filters and the Matrix/Table switch sit in the page toolbar. Above the results, Add filtered roles, Copy role names, Export role list and (in Matrix view) Compare SAP User Groups share one toolbar to the left of Export CSV, which exports assignments and keeps its separate scope.
+Sort, Descending, Clear filters and the Matrix/Table switch sit in the page toolbar. Above the results one toolbar holds, in this order, Compare SAP User Groups (Matrix view), Add filtered roles, Copy role names, Export role list and Export CSV (which exports assignments and keeps its separate scope). All controls have one height and keep that order when the toolbar wraps on narrow screens.
 Clear filters restores the ordinary currently-valid view.
 Date bounds affect assignments before counts, facets and pagination, never user profiles.
 
@@ -97,4 +97,4 @@ The Matrix keeps counts, filters and drill-down but offers no Add to access pack
 
 ## Users of a release role
 
-The Users count of a table row is a button that opens a panel with the users holding that role: SAP username codeblock, name when the user source has one, SAP User Group, assignment status and validity, a link to the user details and an export of the same assignments. The panel follows the list's validity scope and filters. Release Strategy is a multi-select like Release Area and Release Group.
+The Users count of a table row is a button (the count only, no repeated record text) that opens a wide modal with the users holding that role: SAP username codeblock, name when the user source has one, SAP User Group, assignment status and validity, a link to the user details and an export of the same assignments. The panel follows the list's validity scope and filters. Release Strategy is a multi-select like Release Area and Release Group.

@@ -157,7 +157,7 @@ test('bulk actions add, copy and export distinct filtered roles without changing
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await open(page)
   await pick(page, 'Release Area', 'E')
-  const actions = page.getByRole('group', { name: 'Filtered release role actions' })
+  const actions = page.getByRole('group', { name: 'Release actions' })
   await expect(actions.getByRole('button', { name: 'Add filtered roles' })).toBeEnabled()
   await actions.getByRole('button', { name: 'Copy role names' }).click()
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`${E3}\n${E2}`.split('\n').sort((a, b) => a.localeCompare(b)).join('\n'))
@@ -185,7 +185,7 @@ test('large bulk additions require confirmation and filters with no match disabl
   const many = 'USERNAME,ROLE_NAME,USER_GROUP,ROLE_VALID_FROM,ROLE_VALID_TO\n' + Array.from({ length: 520 }, (_, i) => `U${i},ZO:MM:M:PR_REL_ST_E${i}_N1:ALL,G1,20200101,99991231`).join('\n') + '\n'
   await seeded.cleanup(); seeded = await seedSources(request, { roles, users: many })
   await open(page)
-  const actions = page.getByRole('group', { name: 'Filtered release role actions' })
+  const actions = page.getByRole('group', { name: 'Release actions' })
   await actions.getByRole('button', { name: 'Add filtered roles' }).click()
   const dialog = page.getByRole('dialog', { name: 'Add many release roles?' })
   await expect(dialog).toContainText('520 distinct release roles')
@@ -261,16 +261,42 @@ test('the release users panel lists only users inside the multi-group and multi-
   await expect(panel.locator('code', { hasText: /^U2$/ })).toHaveCount(1)
 })
 
-test('role actions share one compact toolbar left of Export CSV and the users count has no repeated record text', async ({ page }) => {
+test('release actions keep one order (Compare SAP User Groups, four role actions, Export CSV), equal heights and the same order when wrapping', async ({ page }) => {
+  for (const width of [1440, 800, 375]) {
+    await page.setViewportSize({ width, height: 900 })
+    await open(page, 'Matrix')
+    const actions = page.getByRole('group', { name: 'Release actions' })
+    const items = [actions.getByLabel('Compare SAP User Groups').locator('xpath=..'), actions.getByRole('button', { name: 'Add filtered roles' }), actions.getByRole('button', { name: 'Copy role names' }),
+      actions.getByRole('button', { name: 'Export role list' }), actions.getByRole('button', { name: /^Export CSV/ })]
+    const boxes = await Promise.all(items.map(async item => (await item.boundingBox())!))
+    const heights = boxes.map(box => Math.round(box.height))
+    expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(1) // one height
+    // reading order follows the order of the controls whether they sit on one row or wrap
+    const reading = boxes.map((box, index) => ({ index, key: Math.round(box.y / 10) * 10000 + box.x })).sort((a, b) => a.key - b.key).map(item => item.index)
+    expect(reading).toEqual([0, 1, 2, 3, 4])
+    if (width >= 1200) { for (let i = 1; i < boxes.length; i++) expect(boxes[i].x).toBeGreaterThan(boxes[i - 1].x + boxes[i - 1].width - 1); expect(Math.abs(boxes[0].y - boxes[4].y)).toBeLessThan(2) }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBeTruthy()
+  }
   await page.setViewportSize({ width: 1440, height: 900 })
-  await open(page, 'Matrix')
-  const actions = page.getByRole('group', { name: 'Filtered release role actions' })
-  const names = ['Add filtered roles', 'Copy role names', 'Export role list']
-  const boxes = await Promise.all(names.map(async name => (await actions.getByRole('button', { name }).boundingBox())!))
-  const compare = (await actions.getByLabel('Compare SAP User Groups').boundingBox())!, exportCsv = (await page.getByRole('button', { name: /^Export CSV/ }).first().boundingBox())!
-  for (const box of [...boxes, compare]) expect(Math.abs(box.y + box.height / 2 - (exportCsv.y + exportCsv.height / 2))).toBeLessThan(24) // one row with Export CSV
-  expect(Math.max(...boxes.map(box => box.x + box.width))).toBeLessThan(exportCsv.x) // actions sit to its left
   await page.getByRole('button', { name: 'Table', exact: true }).click()
   await expect(page.getByRole('region', { name: 'Release role results' })).not.toContainText(/\d+ records?\b/)
   await expect(page.getByRole('button', { name: /^Show \d+ users? with/ }).first()).toBeVisible()
+})
+
+test('the release users dialog is a wide modal with a scrollable compact table, copyable usernames and intact names', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await open(page, 'Table')
+  await page.getByRole('button', { name: /^Show \d+ users? with/ }).first().click()
+  const dialog = page.getByRole('dialog', { name: 'Users with this release role' })
+  await expect(dialog).toBeVisible()
+  expect((await dialog.boundingBox())!.width).toBeGreaterThanOrEqual(720) // wide, not a narrow side panel
+  const table = dialog.getByRole('region', { name: 'Users with this release role' })
+  await expect(table).toHaveAttribute('data-density', 'compact')
+  expect(await table.evaluate(el => getComputedStyle(el).overflowX)).toBe('auto') // horizontal scroll inside the modal
+  await expect(dialog.getByRole('button', { name: /^Copy SAP username / }).first()).toBeVisible()
+  await expect(dialog.getByRole('button', { name: /^Open user / }).first()).toBeVisible()
+  const name = dialog.locator('.release-user-name').first()
+  expect(await name.evaluate(el => getComputedStyle(el).overflowWrap)).toBe('normal') // names never break into single letters
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
 })

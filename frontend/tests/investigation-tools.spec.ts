@@ -131,6 +131,13 @@ test('comparison filters roles, validity and derived transactions with inspectab
   await expect(table).not.toContainText('FB03')
   await page.getByLabel('Comparison summary',{exact:true}).getByRole('button',{name:/^Shared/}).click()
   await expect(table).toContainText('FB03')
+  // The active difference indicator is a chip that takes its content width and can be dismissed from the keyboard.
+  const chip = page.locator('.transaction-chip').filter({ hasText: 'Difference: Shared' })
+  await expect(chip).toBeVisible()
+  const [chipBox, parentBox] = [await chip.boundingBox(), await chip.locator('xpath=..').boundingBox()]
+  expect(chipBox!.width).toBeLessThan(parentBox!.width * 0.6)
+  const clear = chip.getByRole('button', { name: 'Clear comparison difference', exact: true })
+  await clear.focus(); await expect(clear).toBeFocused()
   await expect(table).toContainText('ZC:ONLY_A')
   await expect(table).toContainText('ZC:SHARED:ENP')
   await page

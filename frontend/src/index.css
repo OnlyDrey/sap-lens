@@ -502,3 +502,6 @@ button.manager-identity:focus-visible { outline:var(--focus-width) solid var(--f
 .comparison-table th:nth-child(2) { min-width:115px; }
 .comparison-table th:nth-child(3), .comparison-table th:nth-child(4) { min-width:300px; }
 .feature-controls { display:flex; flex-direction:column; align-items:flex-end; gap:var(--space-2); }
+
+/* Active-filter chips take their content width inside grid and flex-column parents and wrap long text instead of stretching. */
+.transaction-chip { justify-self:start; align-self:flex-start; width:fit-content; max-width:100%; }

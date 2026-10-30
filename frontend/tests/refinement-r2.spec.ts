@@ -261,3 +261,18 @@ test('Data Sources section shows only relevant sources with honest, source-speci
   await expect(area.getByRole('button', { name: /^User–Role Mapping: Ready/ })).toContainText('264 users · 5,120 assignment records') // users and assignment records are different counts
   await expect(area.getByRole('listitem')).toHaveCount(4)
 })
+
+test('User Access role rows keep a compact module badge beside the description and an unbroken role codeblock', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto('/#session=browser-test-session'); await goTo(page, 'User Access')
+  await page.getByRole('link', { name: 'U2', exact: true }).click()
+  const head = page.locator('.assigned-role-head').first()
+  await expect(head).toBeVisible()
+  const badge = await head.locator('.module-badge').first().boundingBox(), description = await head.locator('.assigned-role-description').boundingBox(), cell = await head.locator('xpath=../..').boundingBox()
+  expect(badge!.width).toBeLessThan(cell!.width * 0.4) // never a full-width badge
+  expect(Math.abs(badge!.y - description!.y)).toBeLessThan(14) // description adjacent, same line
+  expect(description!.x).toBeGreaterThanOrEqual(badge!.x + badge!.width - 1)
+  const code = page.locator('.assigned-role .role-identifier code').first()
+  await expect(code).toHaveCSS('white-space', 'nowrap') // identifiers are never broken
+  expect(await code.evaluate(el => el.textContent)).toBe(LONG) // the complete value is present, not truncated
+})

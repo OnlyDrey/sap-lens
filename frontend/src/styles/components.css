@@ -1180,3 +1180,12 @@ button.chart-row:focus-visible { outline:var(--focus-width) solid var(--focus); 
 /* Dashboard card states (loading, failed, unavailable) with their action below the explanation. */
 .dashboard-card-state { display:grid; justify-items:start; gap:var(--space-3); margin:0; }
 p.dashboard-card-state { display:flex; align-items:center; gap:var(--space-2); }
+
+/* Release Roles toolbar: Compare SAP User Groups, then the four filtered-role actions, directly left of Export CSV; one height, order preserved when wrapping. */
+.release-toolbar .release-bulk-actions { margin-left:auto; justify-content:flex-end; }
+.release-bulk-actions .ui-button,.release-bulk-actions .release-compare-toggle { min-height:var(--control-height); }
+.release-bulk-actions .release-compare-toggle { display:inline-flex; align-items:center; gap:var(--space-2); padding:0 var(--space-3); border:1px solid var(--border); border-radius:var(--radius-control); background:var(--surface2); }
+.release-toolbar > h2 { margin-right:0; flex:1 1 12rem; }
+.release-users-role { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2); min-width:0; }
+.ui-dialog .access-table[data-density="compact"] { overflow-x:auto; }
+.ui-dialog .access-table td.release-user-name,.access-table td.release-user-name { min-width:11rem; overflow-wrap:normal; word-break:normal; }
