@@ -43,6 +43,8 @@ accepted data is retained while loading and after a rejected replacement. Initia
 empty/not-found states wait for startup completion. Service loss offers retry
 without restarting navigation or discarding the last accepted view.
 
+**Restart behavior.** Persisted datasets are restored by the backend at startup (static sources from their private snapshots, dynamic sources re-read from their files, a failed check keeping the validated snapshot with its error visible). The backend marks itself as loading before it serves its first request, so a client never reads an idle, empty backend. `GET /api/configuration` returns `instance_id` (new for every server process) next to `data_revision`. The provider treats the end of every observed load as a reason to re-read active dataset views, and an instance change as a new publication, because a restored snapshot keeps its old revision timestamp and views read while the backend was still restoring would otherwise stay in their loading-time state (a five minute default cache) until a manual refresh. While configuration has not yet answered, the application reports loading instead of a missing-data verdict. Native Windows/WebView2 startup is not covered by the Linux tests; its manual acceptance is listed in the implementation handoff.
+
 Previously, refresh state and role/module invalidation lived in page components.
 Dashboard, user and release results could remain cached after startup completion;
 a delayed response could repopulate an obsolete route cache. Browser regressions

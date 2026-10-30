@@ -16,7 +16,7 @@ import type { RefreshSummary } from '@/components/Shared/RefreshReport'
 /** Source snapshot identity is separate from the SAP refresh timestamp. */
 function datasetRevision(data:Awaited<ReturnType<typeof fetchConfiguration>>) {
  const sources=data.settings.data_lifecycle?.sources as Record<string,{snapshot?:string}>|undefined
- return JSON.stringify([data.data_revision??data.analysis,...['roles','users','sod'].map(source=>sources?.[source]?.snapshot||null),data.settings.employee_snapshot_id||null])
+ return JSON.stringify([data.instance_id??null,data.data_revision??data.analysis,...['roles','users','sod'].map(source=>sources?.[source]?.snapshot||null),data.settings.employee_snapshot_id||null])
 }
 const Context = createContext<{
   loading: boolean
@@ -34,7 +34,8 @@ const isDatasetQuery = (query: { queryKey: readonly unknown[] }) =>
 /** Owns startup/background publication observation across every route. No CSV data is stored here. */
 export function ApplicationDataProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient(),
-    observed = useRef<string | null>(null)
+    observed = useRef<string | null>(null),
+    pendingLoad = useRef(false)
   const [refreshing, setRefreshing] = useState(false),
     [synchronizing, setSynchronizing] = useState(false)
   const running = useRef(false)
@@ -47,8 +48,8 @@ export function ApplicationDataProvider({ children }: { children: ReactNode }) {
     refetchInterval: (query) => (query.state.data?.loading ? 500 : 3000),
   })
   const synchronize = useCallback(
-    async (revision: string) => {
-      if (observed.current === revision) return
+    async (revision: string, force = false) => {
+      if (observed.current === revision && !force) return
       observed.current = revision
       setSynchronizing(true)
       try {
@@ -68,8 +69,16 @@ export function ApplicationDataProvider({ children }: { children: ReactNode }) {
     const data = configuration.data
     if (!data) return
     const revision = datasetRevision(data)
-    if (observed.current === null && data.loading) observed.current = revision
-    if (!data.loading) void synchronize(revision)
+    if (data.loading) {
+      // Views fetched while the backend restores or reloads data may hold empty results. Whatever revision the load ends
+      // with (a restart can restore the same timestamp as before), the end of an observed load re-reads active views.
+      pendingLoad.current = true
+      if (observed.current === null) observed.current = revision
+      return
+    }
+    const force = pendingLoad.current
+    pendingLoad.current = false
+    void synchronize(revision, force)
   }, [configuration.data, synchronize])
   const refresh = useCallback(async () => {
     if (running.current || configuration.data?.loading) return
@@ -111,7 +120,7 @@ export function ApplicationDataProvider({ children }: { children: ReactNode }) {
     <Context.Provider
       value={{
         loading:
-          refreshing || synchronizing || Boolean(configuration.data?.loading),
+          refreshing || synchronizing || configuration.isPending || Boolean(configuration.data?.loading),
         refresh,
         activateSource,
         importPhase:importPhase&&configuration.data?.loading?(configuration.data.progress?.stage||importPhase):importPhase,

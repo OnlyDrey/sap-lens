@@ -2,6 +2,7 @@
 from contextlib import nullcontext
 import asyncio
 import base64
+import uuid
 from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import Field
@@ -16,6 +17,10 @@ from branding import image_from_path, logo_bytes
 from daemon_tasks import daemon_call
 from csv_import import CsvImport
 from portable_config import PortableConfig, export_configuration, read_portable
+
+# One value per server process. A client that stays open across a restart sees it change and re-reads every dataset view,
+# even when the restored snapshot has the same revision timestamp as before.
+INSTANCE_ID = uuid.uuid4().hex
 
 
 def validate_configuration(config,current=None):
@@ -118,7 +123,7 @@ def configuration_router(loader, desktop_preferences=None):
         state = cache.get_snapshot()
         return {'settings':get_settings().model_dump(), 'notice':configuration_notice(),
                 'loading':loader.loading, 'progress':loader.progress, 'error':loader.error, 'analysis':state.analysis,
-                'data_revision':state.last_loaded.isoformat() if state.last_loaded else 'empty'}
+                'data_revision':state.last_loaded.isoformat() if state.last_loaded else 'empty', 'instance_id':INSTANCE_ID}
 
     @router.post('/configuration')
     async def write_config(config: AppConfig):
