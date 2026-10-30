@@ -112,15 +112,15 @@ const accessibleName = (page: Page) => page.evaluate(() => {
 
 test.describe('User Directory keyboard order', () => {
   // Reading order = DOM order: page toolbar, then the filter sidebar (wide) or no sidebar stops (narrow drawer is closed), then the results.
-  const wide = ['Hide filters', 'Sort users', 'Ascending order, switch to descending', 'Clear filters', 'Clear all filters', 'Close filters', 'Saved filters', 'SAP User Group', 'Filter users by role', 'Roles the user must lack', 'Filter users by transaction', 'Exclude users by transaction', 'Show expired assignments', 'Search users']
-  const narrow = ['Filters', 'Sort users', 'Ascending order, switch to descending', 'Clear filters', 'Search users']
+  const wide = ['Hide filters', 'Sort users', 'Ascending order, switch to descending', 'Clear filters', 'Close filters', 'Saved filters', 'SAP User Group', 'Filter users by role', 'Roles the user must lack', 'Filter users by transaction', 'Exclude users by transaction', 'Currently valid roles', 'Show expired assignments', 'Search users']
+  const narrow = ['Filters', 'Sort users', 'Ascending order, switch to descending', 'Search users']
   for (const width of [375, 800, 1280, 1600]) test(`Tab and Shift+Tab follow the reading order at ${width}`, async ({ page }) => {
     const order = width >= 1024 ? wide : narrow
     await page.setViewportSize({ width, height: 900 })
     await page.goto('/#session=browser-test-session')
     await main(page).getByRole('link', { name: 'User Access', exact: true }).click()
     await page.getByLabel('Search users', { exact: true }).fill('DEMO')
-    await expect(page.getByRole('button', { name: 'Clear filters', exact: true })).toBeEnabled()
+    await expect(page.getByLabel('Search users', { exact: true })).toHaveValue('DEMO')
     await page.getByRole('toolbar', { name: 'Page actions' }).getByRole('button').first().focus()
     const forward = [await accessibleName(page)]
     for (let step = 1; step < order.length; step++) { await page.keyboard.press('Tab'); forward.push(await accessibleName(page)) }

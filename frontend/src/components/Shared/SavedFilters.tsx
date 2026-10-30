@@ -1,4 +1,5 @@
 import { migrateTransactionFilters } from '@/lib/savedFilterMigration'
+import { ASSIGNMENT_BANDS, LEGACY_ASSIGNMENT_BANDS } from '@/lib/assignmentBands'
 import { Button } from './Button'
 import { Popover } from './Popover'
 import { useState } from 'react'
@@ -25,6 +26,15 @@ export interface FilterStorage {
   remove: (body: { id: string; expected: string }) => Promise<unknown>
 }
 /** Explicit operations only: unsupported definitions remain stored until deliberately updated. */
+/** Account Review filters were single values (finding, license, state); they are now lists. Older definitions load as one-item lists. */
+function migrateReviewFilters(filters: Record<string, unknown>): Record<string, unknown> {
+  const migrated: Record<string, unknown> = { ...filters }
+  for (const [old, next] of [['finding', 'findings'], ['license', 'licenses'], ['state', 'states']] as const) {
+    if (typeof migrated[old] === 'string') { migrated[next] = migrated[old] ? [migrated[old]] : []; delete migrated[old] }
+  }
+  return migrated
+}
+
 export function SavedFilters({
   view,
   state,
@@ -103,7 +113,7 @@ export function SavedFilters({
     }
     const safe: State = {},
       warnings: string[] = []
-    const filters = view === 'roles' || view === 'users' ? migrateTransactionFilters(selected.filters) : selected.filters
+    const filters = view === 'roles' || view === 'users' ? migrateTransactionFilters(selected.filters) : view === 'review' ? migrateReviewFilters(selected.filters) : selected.filters
     Object.entries(filters).forEach(([key, value]) => {
       const current = state[key]
       if (
@@ -117,7 +127,7 @@ export function SavedFilters({
     const choices: Record<string, string[]> = {
       transactionMode: ['and', 'or'],
       excludeMode: ['any', 'all'],
-      assignmentBand: ['', '0', '1–5', '6–20', '21+'],
+      assignmentBand: ['', ...ASSIGNMENT_BANDS, ...LEGACY_ASSIGNMENT_BANDS],
       finding: [
         '',
         'any',
@@ -126,6 +136,8 @@ export function SavedFilters({
         'ad_disabled_open',
         'ad_disabled_locked',
         'directory_match',
+        'directory_missing',
+        'directory_ambiguous',
         'expired',
         'technical',
       ],

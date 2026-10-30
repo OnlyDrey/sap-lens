@@ -118,6 +118,15 @@ class MatrixTests(GovernanceCase):
         self.assertEqual(self.get('/api/sod/matrix/risk', group_by='group')['status_counts'], {'Pending': 3})
         self.assertEqual(self.get('/api/sod/matrix/activity')['status_counts'], {'Pending': 5})
 
+    def test_context_summary_describes_current_evidence_without_loading_a_matrix(self):
+        current = self.get('/api/sod/context')
+        self.assertEqual((current['context'], current['frozen'], current['period'], current['reviewable']), ('current', False, None, True))
+        self.assertTrue(current['as_of'])
+        shared = self.risk_matrix()
+        for key in ('context', 'generation', 'as_of', 'frozen', 'reviewable', 'period', 'legacy'):
+            self.assertEqual(current[key], shared[key], key)
+        self.assertEqual(self.client.get('/api/sod/context', params={'context': 'no-such-period'}, headers=H).status_code in (404, 422), True)
+
     def test_filter_options_come_from_imported_evidence_and_are_searchable(self):
         options = lambda field, **params: self.get('/api/sod/filter-options', field=field, **params)
         self.assertEqual(options('risk')['items'], ['R1', 'R2'])
@@ -414,6 +423,65 @@ class RemediationTests(GovernanceCase):
         self.assertEqual(self.get('/api/sod/remediation', recommended='No action required')['total'], 1)
 
 
+class VerificationTests(GovernanceCase):
+    def track_removal(self):
+        remove = self.assignment_item('SYN_A', 'ROLE_A2')
+        self.decide('assignment', [remove], 'Remove')
+        self.assertEqual(self.get('/api/sod/overview')['governance']['remediation']['removal_without_action'], 1)
+        view = self.get('/api/sod/remediation')
+        self.post('/api/sod/remediation/actions', dict(context='current', expected_revision=view['revision'], actor='Owner', user='SYN_A',
+                                                       assignment_id=remove['key'], role='ROLE_A2', recommended='Remove assignment', reason='Duplicate'))
+
+    def refresh_without_role(self, users_imported_at=None):
+        refreshed = snapshot()
+        refreshed.users.users['SYN_A']['assignments'] = [a for a in refreshed.users.users['SYN_A']['assignments'] if a['role_name'] != 'ROLE_A2']
+        cache._cache = refreshed
+        if users_imported_at:
+            settings = config.get_settings().model_copy(deep=True)
+            settings.data_lifecycle.sources['users'] = SourceSnapshot(snapshot='c' * 64, path=str(self.root / 'u.csv'), imported_at=users_imported_at, checked_at=users_imported_at)
+            config.save_configuration(settings, settings.revision)
+
+    def test_without_tracked_removals_verification_is_unavailable_with_a_reason(self):
+        verification = self.get('/api/sod/overview')['governance']['remediation']['verification']
+        self.assertEqual((verification['tracked'], verification['verified'], verification['available']), (0, 0, False))
+        self.assertIn('No removal action', verification['reason'])
+
+    def test_completed_status_and_missing_assignment_alone_do_not_verify(self):
+        self.track_removal()
+        remediation = self.get('/api/sod/overview')['governance']['remediation']
+        self.assertEqual(remediation['removal_without_action'], 0)
+        self.assertEqual((remediation['verification']['tracked'], remediation['verification']['still_present'], remediation['verification']['verified']), (1, 1, 0))
+        action = self.get('/api/sod/remediation')['actions'][0]
+        view = self.get('/api/sod/remediation')
+        self.post('/api/sod/remediation/actions', dict(context='current', expected_revision=view['revision'], actor='Owner', action_id=action['id'], user='SYN_A',
+                                                       assignment_id=action['assignment_id'], role='ROLE_A2', recommended='Remove assignment', reason='Duplicate',
+                                                       status='Completed', completion_evidence='Ticket SYN-1'))
+        self.assertEqual(self.get('/api/sod/overview')['governance']['remediation']['verification']['verified'], 0)
+        self.refresh_without_role()  # absent, but no User-Role import newer than the action
+        awaiting = self.get('/api/sod/overview')['governance']['remediation']['verification']
+        self.assertEqual((awaiting['verified'], awaiting['awaiting_evidence']), (0, 1))
+
+    def test_newer_user_role_evidence_without_the_assignment_verifies_and_drills_down(self):
+        self.track_removal()
+        self.refresh_without_role('2099-01-01T00:00:00+00:00')
+        verification = self.get('/api/sod/overview')['governance']['remediation']['verification']
+        self.assertEqual((verification['tracked'], verification['verified'], verification['available']), (1, 1, True))
+        drill = self.get('/api/sod/remediation', tracking='verified')
+        self.assertEqual((drill['total'], [item['verified'] for item in drill['actions']]), (0, [True]))
+        self.assertEqual(len(self.get('/api/sod/remediation', tracking='untracked')['items']), 0)
+
+    def test_untracked_filter_lists_only_removal_recommendations_without_an_action(self):
+        remove = self.assignment_item('SYN_A', 'ROLE_A2')
+        self.decide('assignment', [remove], 'Remove')
+        untracked = self.get('/api/sod/remediation', tracking='untracked')
+        self.assertTrue(untracked['items'])
+        self.assertEqual({(row['recommended'], row['action']) for row in untracked['items']}, {('Remove assignment', None)})
+        self.assertGreaterEqual(self.get('/api/sod/remediation')['total'], untracked['total'])
+        csv = self.client.get('/api/sod/remediation/export', params={'tracking': 'untracked'}, headers=H)
+        self.assertEqual(csv.status_code, 200)
+        self.assertTrue(all('Remove assignment' in line for line in csv.text.splitlines()[1:] if line))
+
+
 class QueueTests(GovernanceCase):
     def test_queue_status_filters_and_counts(self):
         queue = self.get('/api/sod/queue')
@@ -483,6 +551,21 @@ class OverviewTests(GovernanceCase):
         after = self.get('/api/sod/overview')['governance']
         self.assertEqual((after['change']['new'], after['change']['no_longer_detected'], after['users_with_conflicts']), (0, 1, 1))
         self.assertEqual(self.get('/api/sod/overview')['governance']['change'], after['change'])
+
+    def test_overview_counts_multi_risk_users_and_ranks_roles_by_distinct_user_risk_findings(self):
+        overview = self.get('/api/sod/overview')['governance']
+        concentration = overview['concentration']
+        self.assertEqual(concentration['multi_risk_users'], 1)
+        self.assertEqual([(item['role'], item['users'], item['findings']) for item in concentration['top_roles']],
+                         [('ROLE_A1', 1, 2), ('ROLE_A2', 1, 2), ('ROLE_AB', 1, 1), ('ROLE_B', 1, 1), ('ROLE_C', 1, 1)])
+        self.assertEqual(concentration['top_roles_total'], 5)
+
+    def test_multiple_risks_filter_matches_the_overview_count_and_composes_with_other_filters(self):
+        explorer = self.get('/api/sod/explorer/user_risk', multiple_risks='true')
+        self.assertEqual({row['user'] for row in explorer['items']} if explorer['items'] and 'user' in explorer['items'][0] else {row['subject'] for row in explorer['items']}, {'SYN_A'})
+        self.assertEqual(explorer['total'], 2)
+        self.assertEqual(self.get('/api/sod/explorer/user_risk', multiple_risks='true', risk='R1')['total'], 1)
+        self.assertEqual(self.get('/api/sod/explorer/user_risk')['total'], 3)
 
     def test_overview_without_evidence_is_unavailable_not_zero(self):
         cache._cache.users = UserState(users={})

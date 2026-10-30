@@ -7,7 +7,7 @@ import { UserRound, ShieldCheck, Building2 } from 'lucide-react'
 import type { UserDetail } from '@/api/access'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import { formatDate } from '@/lib/dateFormat'
-import { useEmployeeMatch, ManagerSummary, DirectoryMatchDetails } from './EmployeeEnrichment'
+import { useEmployeeMatch, ManagerSummary, DirectoryMatchDetails, ReturnToPreviousUser } from './EmployeeEnrichment'
 export function UserProfile({ user }: { user: UserDetail }) {
   const match = useEmployeeMatch(user.username),
     employee = match.data?.employee
@@ -121,6 +121,8 @@ export function UserProfile({ user }: { user: UserDetail }) {
             />
           </>
         ) : (
+          <>
+          <ReturnToPreviousUser currentUser={user.username} />
           <p className="text-sm text-[var(--muted)]">
             {match.isLoading
               ? 'Loading directory enrichment…'
@@ -132,6 +134,7 @@ export function UserProfile({ user }: { user: UserDetail }) {
                     ? 'SAP email source unavailable.'
                     : 'No uniquely matched directory organization information. Review Data Sources for matching diagnostics.'}
           </p>
+          </>
         )}
       </section>
 

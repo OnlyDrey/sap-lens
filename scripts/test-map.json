@@ -54,7 +54,8 @@
     "global-navigation",
     "refinement-round2",
     "release-roles",
-    "user-role-export"
+    "user-role-export",
+    "navigation-r3"
    ]
   },
   "access-package": {
@@ -64,7 +65,8 @@
     "test_missing_roles"
    ],
    "browser": [
-    "access-package"
+    "access-package",
+    "access-package-r2"
    ]
   },
   "account-review": {
@@ -101,7 +103,8 @@
    "browser": [
     "automatic-import",
     "csv-lifecycle",
-    "loading-consolidation"
+    "loading-consolidation",
+    "startup-reliability"
    ]
   },
   "settings": {
@@ -154,15 +157,22 @@
     "sod-integration",
     "sod-layout",
     "sod-overview-heatmap",
+    "sod-overview-actionable",
     "sod-periods",
     "sod-reports",
-    "sod-stability"
+    "sod-stability",
+    "sod-dashboard-startup",
+    "sod-shared-heatmap",
+    "sod-evidence-modals"
    ]
   },
   "shared-ui": {
    "description": "Shared components, navigation, accessibility, visual consistency",
    "backend": [],
    "browser": [
+    "consolidated-refinement",
+    "kpi-standard",
+    "refinement-r2",
     "a11y-audit",
     "design-system",
     "investigation-ux",
@@ -171,7 +181,8 @@
     "role-visuals",
     "transaction-filter",
     "ui-consistency",
-    "ui-polish-actions"
+    "ui-polish-actions",
+    "settings-r2"
    ]
   },
   "platform": {

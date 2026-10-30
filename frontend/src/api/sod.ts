@@ -140,14 +140,14 @@ export interface QueueItem {
   event: DecisionEvent | null
 }
 
-const SCALAR_KEYS = ['search', 'risk', 'criticality', 'risk_type', 'category', 'username', 'group', 'composite_role', 'single_role', 'tcode', 'role', 'role_suffix', 'activity', 'account_status',
+const SCALAR_KEYS = ['search', 'risk', 'criticality', 'risk_type', 'category', 'username', 'group', 'composite_role', 'single_role', 'tcode', 'role', 'role_suffix', 'activity', 'account_status', 'multiple_risks', 'tracking',
   'activity_decision', 'assignment_decision', 'acceptance', 'validity', 'as_of', 'sort']
 
 /** Exact multi-select values: OR within the list, AND with every other filter. */
-const MULTI_KEYS = ['usernames', 'role_suffixes']
+const MULTI_KEYS = ['usernames', 'role_suffixes', 'risks', 'activities', 'groups', 'roles', 'tcodes', 'categories', 'criticalities']
 
 export const emptyFilters: Filters = {
-  search: '', risk: '', criticality: '', category: '', username: '', usernames: [], role_suffixes: [], group: '', role: '', role_suffix: '', activity: '', tcode: '', account_status: '',
+  search: '', risk: '', criticality: '', category: '', username: '', usernames: [], role_suffixes: [], risks: [], activities: [], groups: [], roles: [], tcodes: [], categories: [], criticalities: [], group: '', role: '', role_suffix: '', activity: '', tcode: '', account_status: '', multiple_risks: '', tracking: '',
   activity_decision: '', assignment_decision: '', acceptance: '', validity: 'active', as_of: '', sort: 'subject', descending: false,
 }
 

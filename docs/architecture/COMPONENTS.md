@@ -57,6 +57,10 @@ Paths below are relative to `frontend/src/components/`. The inventory covers reu
 
 Native confirmation dialogs remain the existing deletion safeguard. There is no separate custom ConfirmationDialog or new toast service to showcase. Do not create a second abstraction simply to populate the library.
 
+## KPI
+
+`Shared/Kpi` is the one summary component: label, value, optional icon, note and progress (progress only where numerator and denominator are real data). `layout="compact"` is one line, `layout="expanded"` stacks icon and label above a larger value. Without `onClick` it is an informational group; with `onClick` it is a real button, `active` adds `aria-pressed` for filter KPIs, `navigates` adds the open arrow for KPIs that leave the view. Active states use a full primary border and tint, never a thick side bar. `FilterTile` and `MetricTile` are thin wrappers. Where KPI filters combine, values inside one dimension combine with OR and different dimensions with AND.
+
 ## APIs and examples
 
 ```tsx
@@ -260,3 +264,18 @@ components have isolated Component Library previews and are used by the SoD view
 - `Shared/FilterLayout`: `FilterLayout` (collapsible left sidebar from 1024 px, overlay drawer below; sidebar open state is a per-viewer convenience in `localStorage`, filter values stay in view history), `FilterSection`, `PageToolbar`, `SortControl`.
 - `Sod/SodShared.SodFilters` replaces the old `FilterBar`: each page passes only the filter fields it can act on. Saved Filters sit at the top of the sidebar; applying one clears values for fields the page does not show so hidden filters never narrow results. Search, sort, view options, CSV export and Reset share one toolbar.
 - `Shared/IdPill`: compact risk/activity identifier pill. The identifier text always carries the meaning; the optional `color` (validated `#rrggbb`) only tints it.
+
+## Round 2 additions
+
+| Component | Purpose and contract |
+| --- | --- |
+| `Shared/InfoList.tsx` (`InfoList`, `InfoRow`) | Secondary metrics as rows; a row is a full-width button when it filters or navigates (`aria-pressed` when it toggles). `primary` enlarges a card's headline figure; `progress` draws a bar under the label from real numerator and denominator, optionally with a semantic `tone`. |
+| `Shared/Charts.tsx` (`BarChart`, `StackedBar`) | Real-count charts without a chart library: bars scale to the largest shown value or an explicit common `max`, a value cell with an optional compact share, native tooltips, rows that open filtered lists; stacked parts are mutually exclusive and neutral parts are gray. |
+| `Shared/InfoTip.tsx` | Secondary explanation in an anchored popover beside a card title (keyboard and Escape handled by `Popover`). |
+| `Shared/IndependentColumns.tsx` | Cards in independent columns that fill in order; expanding one card moves only its own column. |
+| `Shared/DisclosureChevron.tsx` | The one expand/collapse glyph: right when collapsed, down when expanded. |
+| `lib/health.ts` | Central share thresholds (green from 95%, amber from 85%) and `matchHealthTone`; always shown with the numeric percentage. |
+| `lib/sourceState.ts` | Honest source state (Ready, Loading, Refreshing, Failed, Not loaded, Not configured, Disabled) computed from what the backend holds. |
+| `lib/localPreference.ts` | Per-browser convenience preferences (for example the heatmap expanded state); never evidence or decisions. |
+| `Sod/SodGroupHeatmap.tsx` | The shared SAP User Group heatmap under the Review Context on every SoD page. |
+| `Settings/ComponentLibraryPatterns.tsx` | Library demonstrations of the above: compact KPI, information list, charts, health thresholds, table states, codeblock, validation badges, disclosure, multiselect toolbar, heatmap controls and a wide modal. |

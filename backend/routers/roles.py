@@ -17,7 +17,7 @@ from transaction_filters import normalized_tcodes, select_role_names, legacy_gro
 
 router = APIRouter(prefix="/api/roles", tags=["Roles"])
 
-PACKAGE_COLUMNS = ['Generated SAP Role Name', 'Role Description', 'Suffix']
+PACKAGE_COLUMNS = ['Generated SAP Role Name', 'Role Description', 'Suffix', 'Validation']
 PACKAGE_HEADER = '\ufeff' + ';'.join('"' + column + '"' for column in PACKAGE_COLUMNS) + '\r\n'
 
 
@@ -36,7 +36,8 @@ def _package_rows(body):
     state = cache.get_snapshot()
     catalogue = {role.agr_name: role.text or '' for role in state.summaries}
     release_roles = {normalize_role(a['role_name']) for a in getattr(state.users, 'assignments', []) if a['scope'] == 'release'} if any(item.source == 'release' for item in body.items) else set()
-    return access_package.preview(body.default_suffix, [(item.role, item.suffix, item.source) for item in body.items], catalogue, release_roles), catalogue
+    assigned = {normalize_role(a['role_name']) for a in getattr(state.users, 'assignments', [])}
+    return access_package.preview(body.default_suffix, [(item.role, item.suffix, item.source) for item in body.items], catalogue, release_roles, assigned), catalogue
 
 
 @router.get("/naming")

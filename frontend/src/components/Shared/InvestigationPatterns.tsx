@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Activity, CircleCheck, CircleAlert, CircleHelp } from 'lucide-react'
 import { StatusBadge } from './Presentation'
+import { Kpi } from './Kpi'
 export function StatusCard({label,value,tone='neutral',children}: {label:string;value:ReactNode;tone?:'neutral'|'success'|'warning'|'error'|'info';children?:ReactNode}) {
  const Icon=tone==='success'?CircleCheck:tone==='warning'||tone==='error'?CircleAlert:tone==='info'?Activity:CircleHelp
  return <div className="compact-health" data-tone={tone}><span className="status-card-label"><Icon size={16} aria-hidden="true"/>{label}</span><strong>{value}</strong>{children}</div>
@@ -14,5 +15,5 @@ export function PreviewStatus({validated,inspecting}:{validated:boolean;inspecti
 }
 /** Compact, clickable summary count that applies a filter to the list below it. */
 export function FilterTile({label,value,tone='neutral',active,onClick}:{label:string;value:ReactNode;tone?:'neutral'|'warning';active:boolean;onClick:()=>void}) {
- return <button type="button" className="filter-tile" data-tone={tone} aria-pressed={active} onClick={onClick}><span className="filter-tile-label">{label}</span><strong>{value}</strong></button>
+ return <Kpi label={label} value={value} tone={tone} active={active} onClick={onClick}/>
 }

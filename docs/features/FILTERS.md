@@ -280,3 +280,9 @@ unchanged; local table scrolling remains available where needed.
 Release Roles initially opens in Matrix view, followed by Table in the view
 switcher. Changing filters preserves the selected view in the mounted investigation.
 Both views export the same filtered assignment set.
+
+## Shared sidebar, Clear and multi-select
+
+Every sidebar view (User Access, Role Lookup, Release Roles, Account Review, Compare users and the SoD pages) uses the same header: the title, a compact **Clear** button (filter-reset icon, accessible name "Clear filters") and Close, with the same height. Clear resets only that view's filters, including its sort, and is the only reset action; the Role Lookup results area repeats it only while the sidebar is hidden. Active filter counts follow the same state, and Saved Filters keep working.
+
+Multi-value filters use one searchable multi-select: the list stays open while options are toggled (outside click, Escape, Tab or Close dismiss it), searching never drops a selection, *Select all* acts on the options currently listed and says so, *Clear selection* and removable chips undo it, and arrow keys, Enter and Backspace work. Values combine with OR inside one filter and with AND between filters. Multi-select applies to SAP User Group, role and *Roles the user must lack* (User Access), Release Area, Release Group and Release Strategy, and in SoD to SAP username, Role suffix, SAP user group, Risk ID, Activity, Assigned role, Transaction code, Business area and Criticality. Sort order, review context, validity and mode selectors stay single-select. Active, selected and pressed states use the product's primary action color.

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { cleanup, createPeriod, headers, openSod, seedGovernance, wideMatrix } from './sod-fixture'
+import { pickMulti } from './support'
 
 let directory: string
 test.beforeEach(async ({ request }) => { directory = await seedGovernance(request, 'static') })
@@ -13,14 +14,14 @@ test('wide screens show a collapsible filter sidebar that keeps filter state and
   const sidebar = page.getByRole('complementary', { name: 'Filters', exact: true })
   await expect(sidebar).toBeVisible()
   await expect(sidebar.locator('legend').first()).toHaveText('Saved Filters')
-  await sidebar.getByRole('combobox', { name: 'Risk ID', exact: true }).fill('R1')
+  await pickMulti(sidebar, 'Risk ID', 'R1', page)
   await page.getByRole('button', { name: /^Hide filters/ }).click()
   await expect(sidebar).toBeHidden()
   await page.getByRole('button', { name: /^Filters/ }).click()
-  await expect(sidebar.getByRole('combobox', { name: 'Risk ID', exact: true })).toHaveValue('R1')
+  await expect(sidebar.getByRole('button', { name: 'Remove Risk ID R1', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: /^Hide filters/ })).toContainText('1')
-  await page.getByRole('button', { name: 'Reset', exact: true }).click()
-  await expect(sidebar.getByRole('combobox', { name: 'Risk ID', exact: true })).toHaveValue('')
+  await sidebar.getByRole('button', { name: 'Clear filters', exact: true }).click()
+  await expect(sidebar.getByRole('button', { name: 'Remove Risk ID R1', exact: true })).toHaveCount(0)
 })
 
 test('every SoD page has the same toolbar and only the filters it needs', async ({ page }) => {
@@ -28,7 +29,7 @@ test('every SoD page has the same toolbar and only the filters it needs', async 
   for (const view of views) {
     await openSod(page, view)
     await expect(page.getByRole('searchbox', { name: 'Search SoD data', exact: true })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Reset', exact: true })).toBeVisible()
+    await expect(page.getByRole('complementary', { name: 'Filters', exact: true }).getByRole('button', { name: 'Clear filters', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: /Export CSV/ }).first()).toBeVisible()
     await expect(page.getByRole('complementary', { name: 'Filters', exact: true })).toBeVisible()
   }
@@ -49,7 +50,7 @@ for (const width of [375, 800]) test(`narrow screens use a drawer without horizo
   await page.getByRole('button', { name: /^Filters/ }).click()
   const drawer = page.getByRole('dialog', { name: 'Filters', exact: true })
   await expect(drawer).toBeVisible()
-  await drawer.getByLabel('Risk ID', { exact: true }).fill('R1')
+  await pickMulti(drawer, 'Risk ID', 'R1', page)
   await page.keyboard.press('Escape')
   await expect(drawer).toBeHidden()
   await expect(page.getByRole('button', { name: /^Filters/ })).toContainText('1')
@@ -114,4 +115,72 @@ for (const width of [375, 800]) test(`the review workspace is usable without hor
   await panel.getByRole('button', { name: /^Review activity / }).first().click()
   await expect(panel.getByRole('button', { name: 'Save decision', exact: true })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
+})
+
+test('Activity Review and Role Assignment Review rows are single-line with icon actions and keep evidence behind an expand control', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await openSod(page, 'Reviews')
+  await page.getByRole('button', { name: /^Open review for / }).first().click()
+  const panel = page.getByRole('dialog', { name: /^SYN_/ })
+  const activities = panel.getByRole('region', { name: 'Activity Review', exact: true })
+  const row = activities.getByRole('listitem').filter({ has: page.getByRole('button', { name: 'Review activity A', exact: true }) })
+  // Identity, status, risk pills, role coverage, decision action and expand control share one line.
+  const review = row.getByRole('button', { name: 'Review activity A', exact: true }), expand = row.getByRole('button', { name: 'Show details for A', exact: true })
+  await expect(review.locator('svg')).toHaveCount(1)
+  await expect(row).toContainText('role assignment')
+  const [reviewBox, expandBox, rowBox] = [await review.boundingBox(), await expand.boundingBox(), await row.boundingBox()]
+  expect(Math.abs(reviewBox!.y - expandBox!.y)).toBeLessThan(4)
+  expect(reviewBox!.height).toBeGreaterThanOrEqual(24)
+  expect(rowBox!.height).toBeLessThan(80)
+  // Evidence and history are behind the expand control.
+  await expect(row.getByText('Activity review history')).toHaveCount(0)
+  await expand.click()
+  await expect(row.getByText('No decision recorded for this item yet.')).toBeVisible()
+  await expect(row.getByText('Activity review history')).toBeVisible()
+  await row.getByRole('button', { name: 'Hide details for A', exact: true }).click()
+  await expect(row.getByText('Activity review history')).toHaveCount(0)
+  // Role assignment rows show the catalogue description next to the role identifier without opening the evidence.
+  const assignments = panel.getByRole('region', { name: 'Role Assignment Review', exact: true })
+  await expect(assignments.getByRole('listitem').first().locator('.sod-assignment-description')).toContainText('Synt')
+  await expect(assignments.getByText('SAP User Group')).toHaveCount(0)
+})
+
+test('an expanded Role Assignment Review row keeps its status and decision icons inside the panel at 375px', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 })
+  await openSod(page, 'Reviews')
+  await page.getByRole('button', { name: /^Open review for / }).first().click()
+  const panel = page.getByRole('dialog', { name: /^SYN_/ })
+  const row = panel.getByRole('region', { name: 'Role Assignment Review', exact: true }).getByRole('listitem').first()
+  await row.getByRole('button', { name: /^Show details for / }).click()
+  await expect(row.getByRole('group', { name: /^Evidence for / })).toBeVisible()
+  const panelBox = await panel.boundingBox()
+  for (const control of await row.getByRole('button').all()) {
+    const box = await control.boundingBox()
+    expect(box!.x + box!.width, await control.getAttribute('aria-label') ?? 'control').toBeLessThanOrEqual(panelBox!.x + panelBox!.width + 1)
+  }
+})
+
+test('the Overview sections fill the row at 800px: two columns with the third section spanning both', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 900 })
+  await openSod(page)
+  const sections = page.locator('.sod-overview-cards > .dashboard-section')
+  await expect(sections).toHaveCount(3)
+  const [a, b, c] = await Promise.all([0, 1, 2].map(async index => (await sections.nth(index).boundingBox())!))
+  expect(Math.abs(a.y - b.y)).toBeLessThan(2) // first two share a row
+  expect(c.y).toBeGreaterThan(a.y + 50)
+  expect(c.width).toBeGreaterThan((a.width + b.width) * 0.95) // the third spans the row
+})
+
+test('one review context bar sits beneath the SoD navigation on every SoD page', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  for (const view of ['Overview', 'Risk Matrix', 'Activity Matrix', 'Access Explorer', 'Reviews', 'Review Periods', 'Reports']) {
+    await openSod(page, view)
+    const bar = page.locator('[aria-label="Review context"].ui-toolbar, div[aria-label="Review context"]').first()
+    await expect(bar, view).toHaveCount(1)
+    await expect(bar.getByLabel('Review context')).toBeVisible()
+    await expect(bar.getByRole('status')).toContainText('Evaluation date')
+    await expect(bar.getByRole('status')).toContainText('live imported evidence')
+    const nav = (await page.getByRole('navigation', { name: 'SoD views' }).boundingBox())!, box = (await bar.boundingBox())!
+    expect(box.y, view).toBeGreaterThan(nav.y + nav.height - 1)
+  }
 })

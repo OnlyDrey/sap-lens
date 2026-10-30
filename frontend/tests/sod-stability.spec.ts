@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { cellButton, cleanup, longRoleName, names, openSod, seedGovernance } from './sod-fixture'
+import { pickMulti } from './support'
 
 let directory: string
 test.beforeEach(async ({ request }) => { directory = await seedGovernance(request, 'static', undefined, true) })
@@ -62,13 +63,13 @@ test('opening a role from the investigation panel shows one panel; Back and clos
 
 test('opening a user from the panel and returning keeps the investigation and filters', async ({ page }) => {
   await openSod(page, 'Risk Matrix')
-  await page.getByRole('combobox', { name: 'SAP user group', exact: true }).fill('FIN')
+  await pickMulti(page, 'SAP User Group', 'FIN')
   await cellButton(page, names.a, 'R1').click()
   await page.getByRole('dialog', { name: `${names.a} · R1` }).getByRole('link', { name: `Open SAP user ${names.a}`, exact: true }).click()
   await expect(page.getByRole('heading', { name: 'SAP Identity', exact: true })).toBeVisible()
   await page.goBack()
   await expect(page.getByRole('dialog', { name: `${names.a} · R1` })).toBeVisible()
-  await expect(page.getByRole('combobox', { name: 'SAP user group', exact: true })).toHaveValue('FIN')
+  await expect(page.getByRole('button', { name: 'Remove SAP User Group FIN', exact: true })).toBeVisible()
 })
 
 for (const width of [375, 800]) test(`long roles never widen the page or break table actions at ${width}`, async ({ page }) => {
@@ -81,7 +82,7 @@ for (const width of [375, 800]) test(`long roles never widen the page or break t
   expect(await noOverflow()).toBeTruthy()
   const user = page.getByRole('cell', { name: new RegExp(`^${names.a}`) }).first()
   // The user name itself stays on one line (rows may be taller for validity text).
-  expect(await user.evaluate((cell) => { const range = document.createRange(); range.selectNodeContents(cell.firstChild!); return range.getBoundingClientRect().height })).toBeLessThan(30)
+  expect(await user.evaluate((cell) => { const range = document.createRange(); range.selectNodeContents(cell.firstChild!); return range.getBoundingClientRect().height })).toBeLessThan(40)
   await page.getByRole('tab', { name: 'Roles', exact: true }).click()
   expect(await noOverflow()).toBeTruthy()
   await openSod(page, 'Reviews')

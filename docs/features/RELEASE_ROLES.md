@@ -16,7 +16,7 @@ All filters live in the shared filter sidebar (collapsible on wide screens, a dr
 narrow ones) with [Saved Filters](SAVED_FILTERS.md) as its first section. Filter by SAP
 User Group, PR/PO, **Release Area**, **Release Group**, strategy, username, exact role text,
 assignment status and [assignment dates](FILTERS.md#assignment-dates-and-tables).
-Sort, Descending, Clear filters and the Matrix/Table switch sit in the page toolbar.
+Sort, Descending, Clear filters and the Matrix/Table switch sit in the page toolbar. Above the results one toolbar holds, in this order, Compare SAP User Groups (Matrix view), Add filtered roles, Copy role names, Export role list and Export CSV (which exports assignments and keeps its separate scope). All controls have one height and keep that order when the toolbar wraps on narrow screens.
 Clear filters restores the ordinary currently-valid view.
 Date bounds affect assignments before counts, facets and pagination, never user profiles.
 
@@ -27,7 +27,7 @@ have no area and are never matched by an area selection. Release Area and Releas
 are searchable multi-selects: values inside one filter combine with OR, different filters
 combine with AND. The Release Group options narrow to the selected areas, and groups that
 fall outside a changed area selection are removed. Matrix and Table share one predicate.
-Saved filters store `releaseAreas` and `releaseGroups`; a filter saved with the former single
+**SAP User Group** and **Release Strategy** are searchable multi-selects in the same way. The username and role name searches accept several values separated by comma, semicolon or line break: each value is a partial-text (or `*` pattern) match and the values combine with OR; separators alone do not filter. PR/PO and the assignment status stay single choices (two values and a mutually exclusive date scope). Saved filters store `userGroups` (a filter saved with the single `group` restores as one item), `releaseAreas` and `releaseGroups`; a filter saved with the former single
 `releaseGroup` restores as a one-item selection.
 
 Open a role for exact copyable identifier, parsed type/group/strategy and assigned
@@ -94,3 +94,7 @@ not confirmed effective release authorization.
 ## Matrix, Table and pagination
 
 The Matrix keeps counts, filters and drill-down but offers no Add to access package control; the Table keeps the package action column. The Table is paged server side with 10, 20, 50 or 100 rows (default 20); changing a filter or the page size returns to the first page. Release Area values show only the letter. Area and Group stay multi-selects with OR within a filter and AND between filters. The assignment CSV export and the role-list export keep their separate scopes.
+
+## Users of a release role
+
+The Users count of a table row is a button (the count only, no repeated record text) that opens a wide modal with the users holding that role: SAP username codeblock, name when the user source has one, SAP User Group, assignment status and validity, a link to the user details and an export of the same assignments. The panel follows the list's validity scope and filters. Release Strategy is a multi-select like Release Area and Release Group.

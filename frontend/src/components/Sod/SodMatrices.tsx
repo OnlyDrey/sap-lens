@@ -1,3 +1,4 @@
+import { Kpi } from '@/components/Shared/Kpi'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Users } from 'lucide-react'
@@ -10,7 +11,7 @@ import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
 import { PAGE_SIZES, Pagination } from '@/components/Access/Shared'
 import { announceExport } from '@/lib/exportNotice'
 import { SodPill } from '@/lib/sodAppearance'
-import { ContextBar, CoverageNotice, SodFilters, lifecycleView, useSodContext, useSodFilters, useSodSubject } from './SodShared'
+import { CoverageNotice, SodFilters, keepWithinContext, lifecycleView, useFilterChangeReset, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 
 type Risk = MatrixResult<RiskColumn, RiskCell>
 type Activity = MatrixResult<ActivityColumn, ActivityCell>
@@ -38,16 +39,18 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
     setOffset(0)
     setFiltersState(value)
   }
+  useFilterChangeReset(filters, () => setOffset(0))
   const params = scopeParams(context, filters, { group_by: groupBy, offset, limit: pageSize })
-  const result = useQuery({ queryKey: ['sod-matrix', kind, params.toString()], queryFn: () => sod<Risk | Activity>(`/api/sod/matrix/${kind}`, params) })
+  const matrixKey = ['sod-matrix', kind, params.toString()],
+    result = useQuery({ queryKey: matrixKey, queryFn: () => sod<Risk | Activity>(`/api/sod/matrix/${kind}`, params), placeholderData: keepWithinContext(matrixKey, params, ['group_by']) as never })
   const data = result.data
   const byUser = new Map((data?.rows || []).map((row) => [row.user, row]))
   const risk = kind === 'risk'
   const columns = (data?.columns || []).map((column) => {
     const id = risk ? (column as RiskColumn).risk_id : (column as ActivityColumn).activity
     return risk
-      ? { id, label: id, node: <SodPill kind="risk" value={id} />, sub: `${column.users} users`, title: `${(column as RiskColumn).display_name || (column as RiskColumn).source_text || id} · criticality ${(column as RiskColumn).criticality}`, onFilter: () => setFilters({ ...filters, risk: id }) }
-      : { id, label: id, node: <SodPill kind="activity" value={id} />, sub: `${column.users} users`, title: `Activity ${id} · ${(column as ActivityColumn).risks.length} risks`, onFilter: () => setFilters({ ...filters, activity: id }) }
+      ? { id, label: id, node: <SodPill kind="risk" value={id} />, sub: `${column.users} users`, title: `${(column as RiskColumn).display_name || (column as RiskColumn).source_text || id} · criticality ${(column as RiskColumn).criticality}`, onFilter: () => setFilters({ ...filters, risk: '', risks: [id] }) }
+      : { id, label: id, node: <SodPill kind="activity" value={id} />, sub: `${column.users} users`, title: `Activity ${id} · ${(column as ActivityColumn).risks.length} risks`, onFilter: () => setFilters({ ...filters, activity: '', activities: [id] }) }
   })
   const cell = (row: string, column: string): MatrixCellView | null => {
     const entry = byUser.get(row)?.cells[column]
@@ -72,7 +75,7 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
   const open = (row: string, column: string) => {
     if (groupBy === 'group') {
       setGroupBy('user')
-      setFilters({ ...filters, group: row, ...(risk ? { risk: column } : { activity: column }) })
+      setFilters({ ...filters, group: '', groups: [row], ...(risk ? { risk: '', risks: [column] } : { activity: '', activities: [column] }) })
       return
     }
     setSelected(risk ? { user: row, risk: column } : { user: row, activity: column })
@@ -92,14 +95,13 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
   const legend = risk ? ['Pending', 'Accepted', 'Rejected', 'Outdated'] : ['Pending', 'Approved', 'Conditional', 'Removal required', 'Outdated']
   return (
     <section className="grid min-w-0 gap-4" aria-label={risk ? 'SoD risk matrix' : 'SoD activity matrix'}>
-      <ContextBar info={data} />
       <SodFilters view={risk ? 'sod_risk_matrix' : 'sod_activity_matrix'} filters={filters} setFilters={setFilters}
-        fields={['group', 'risk', 'activity', 'username', 'role', 'role_suffix', 'tcode', 'category', 'criticality', 'validity', 'activity_decision', 'assignment_decision', 'acceptance']}
+        fields={['group', 'risk', 'activity', 'username', 'role', 'role_suffix', 'tcode', 'category', 'validity', 'activity_decision', 'assignment_decision', 'acceptance']}
         sorts={[{ value: 'subject', label: 'Name' }, { value: 'findings', label: risk ? 'Most risks' : 'Most activities' }]}
         actions={<>
           <Select aria-label="Rows" value={groupBy} onChange={(event) => { setOffset(0); setGroupBy(event.target.value as 'user' | 'group') }}>
             <option value="user">SAP users</option>
-            <option value="group">SAP user groups</option>
+            <option value="group">SAP User Groups</option>
           </Select>
           <ExportCSVButton loading={busy} disabled={!data?.total_rows} onClick={() => void exportCsv()} title={`Exports the filtered ${risk ? 'user-risk' : 'user-activity'} table.`} />
         </>}>
@@ -111,30 +113,30 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
             {(risk
               ? [['Users with conflicts', data.totals.users], ['Distinct user-risk findings', data.totals.user_risk ?? 0], ['Risks shown', data.totals.risks ?? 0]]
               : [['Users with activity evidence', data.totals.users], ['User-activity pairs', data.totals.user_activity ?? 0], ['Activities shown', data.totals.activities ?? 0]]
-            ).map(([label, value]) => <div className="sod-tile" key={label}><span>{label}</span><strong>{Number(value).toLocaleString()}</strong></div>)}
+            ).map(([label, value]) => <Kpi key={label} label={String(label)} value={Number(value).toLocaleString()} />)}
             {legend.map((value) => {
               const filterName = risk ? 'acceptance' : 'activity_decision',
                 active = filters[filterName] === value,
-                view = lifecycleView(value)
+                view = lifecycleView(value),
+                count = data.status_counts?.[value] || 0
               return (
-                <div className="sod-tile" key={value} data-active={active || undefined} data-tone={(data.status_counts?.[value] || 0) === 0 ? undefined : value === 'Pending' || value === 'Outdated' ? 'warning' : value === 'Rejected' || value === 'Removal required' ? 'error' : undefined}>
-                  <button type="button" aria-pressed={active} onClick={() => setFilters({ ...filters, [filterName]: active ? '' : value })}>{view.text}{risk ? ' risks' : ' activities'}</button>
-                  <strong>{(data.status_counts?.[value] || 0).toLocaleString()}</strong>
-                </div>
+                <Kpi key={value} label={`${view.text}${risk ? ' risks' : ' activities'}`} value={count.toLocaleString()} active={active}
+                  tone={count === 0 ? 'neutral' : value === 'Pending' || value === 'Outdated' ? 'warning' : value === 'Rejected' || value === 'Removal required' ? 'error' : 'neutral'}
+                  onClick={() => setFilters({ ...filters, [filterName]: active ? '' : value })} />
               )
             })}
-            {Object.entries((data as Risk).criticality || {}).map(([key, value]) => <div className="sod-tile" key={key}><span>Criticality {key}</span><strong>{value.user_risk.toLocaleString()}</strong><small>{value.users} users</small></div>)}
+            {filters[risk ? 'acceptance' : 'activity_decision'] && <Button size="compact" variant="ghost" onClick={() => setFilters({ ...filters, [risk ? 'acceptance' : 'activity_decision']: '' })}>Reset tile filters</Button>}
           </section>
           <p className="ui-description">{risk ? 'Cells show the risk acceptance status and how many of the risk activities are reviewed (reviewed/total). Criticality and type are in the column tooltip and the investigation.' : 'Scope: activities that contribute to at least one potential conflict (both sides of an enabled, supported risk). Activities a role supplies beyond those are considered in Role Assignment Review. Cells show the activity review status and ×roles supplying it; ⧉ marks overlapping coverage.'}</p>
           <p className="ui-description">Totals count distinct users and distinct {risk ? 'user-risk' : 'user-activity'} pairs. {data.columns_truncated ? 'Showing the first 500 columns; narrow the filters. ' : ''}{groupBy === 'group' ? 'Cells show distinct users per group; select one to list them. ' : 'Select a cell to investigate and review. '}Detected conflicts are potential and derived from imported evidence.</p>
           {data.rows.length
-            ? <MatrixGrid scrollKey={`sod-${kind}-${groupBy}`} caption={risk ? 'User by risk matrix' : 'User by activity matrix'} rowLabel={groupBy === 'group' ? 'User group' : 'SAP user'} columns={columns}
+            ? <MatrixGrid scrollKey={`sod-${kind}-${groupBy}`} caption={risk ? 'User by risk matrix' : 'User by activity matrix'} rowLabel={groupBy === 'group' ? 'SAP User Group' : 'SAP user'} codeRows={groupBy === 'user'} groupRows={groupBy === 'group'} columns={columns}
                 rows={data.rows.map((row) => ({ id: row.user, label: row.user, sub: groupBy === 'group' ? `${row.users} users` : row.groups.join(', ') }))}
                 cell={cell} onSelect={open} onRow={groupBy === 'user' ? (row) => setSelected({ user: row }) : undefined}
                 selected={selected ? { row: selected.user, col: selected.risk || selected.activity || '' } : null} />
             : <EmptyState>No users match this scope. Results describe imported evidence only; incomplete source coverage cannot establish absence of access.</EmptyState>}
           <Pagination label="Matrix pages" offset={data.offset} total={data.total_rows} limit={data.limit} onChange={setOffset} pageSizes={PAGE_SIZES} onPageSize={setPageSize} />
-          {filters.risk || filters.activity || filters.group ? <Button variant="ghost" onClick={() => setFilters({ ...filters, risk: '', activity: '', group: '' })}>Show all risks, activities and groups</Button> : null}
+          {filters.risk || filters.activity || filters.group || ['risks', 'activities', 'groups'].some((name) => Array.isArray(filters[name]) && (filters[name] as string[]).length) ? <Button variant="ghost" onClick={() => setFilters({ ...filters, risk: '', activity: '', group: '', risks: [], activities: [], groups: [] })}>Show all risks, activities and groups</Button> : null}
         </>}
       </SodFilters>
     </section>

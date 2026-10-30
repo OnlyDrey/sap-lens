@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { keepPreviousData, useQuery, type QueryClient } from '@tanstack/react-query'
 import { AlertTriangle, CheckCircle2, CircleDashed, CircleDot, History, Lock, RefreshCw, Search, ShieldCheck, ShieldX, UserMinus } from 'lucide-react'
 import { sod, scopeParams, emptyFilters, type ContextInfo, type Filters, type Lifecycle } from '@/api/sod'
@@ -8,7 +8,6 @@ import { FormField, SearchInput } from '@/components/Shared/Controls'
 import { Select } from '@/components/Shared/Select'
 import { Combobox } from '@/components/Shared/Combobox'
 import { MultiSelectFilter } from '@/components/Shared/MultiSelectFilter'
-import { ClearFilterButton } from '@/components/Shared/ClearFilterButton'
 import { Button } from '@/components/Shared/Button'
 import { FilterLayout, FilterSection, PageToolbar, SortControl } from '@/components/Shared/FilterLayout'
 import { SavedFilters } from '@/components/Shared/SavedFilters'
@@ -63,11 +62,20 @@ export function useSodFilters(name: string): [Filters, (value: Filters) => void]
   return [{ ...emptyFilters, ...stored?.[name] }, (value) => set((previous) => ({ ...previous, [name]: value as SodFilterState }))]
 }
 
-export const refreshKeys = ['sod-filter-options', 'sod-matrix', 'sod-subject', 'sod-queue', 'sod-explorer', 'sod-overview', 'sod-remediation', 'sod-periods', 'sod-period']
+/** A filter change made from outside the page (for example the shared heatmap) must not leave the results on a page that no longer exists. */
+export function useFilterChangeReset(filters: Filters, reset: () => void) {
+  const key = JSON.stringify(filters), previous = useRef(key)
+  useEffect(() => { if (previous.current !== key) { previous.current = key; reset() } }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+export const refreshKeys = ['sod-filter-options', 'sod-matrix', 'sod-subject', 'sod-queue', 'sod-explorer', 'sod-overview', 'sod-remediation', 'sod-periods', 'sod-period', 'sod-context']
 export const invalidateSod = (qc: QueryClient) => Promise.all(refreshKeys.map((key) => qc.invalidateQueries({ queryKey: [key] })))
 
-export function ContextBar({ info }: { info?: ContextInfo }) {
+/** One review-context bar for every SoD view, shown beneath the SoD navigation: current evidence or a review period, its evaluation date and whether it is live or a frozen snapshot. */
+export function ContextBar() {
   const [context, setContext] = useSodContext()
+  const summary = useQuery({ queryKey: ['sod-context', context], queryFn: () => sod<ContextInfo>('/api/sod/context', new URLSearchParams({ context })) })
+  const info = summary.data
   const periods = useQuery({ queryKey: ['sod-periods'], queryFn: () => sod<{ items: { id: string; name: string; state: string }[] }>('/api/sod/periods') })
   // A period that was archived or deleted elsewhere falls back to current evidence instead of an error.
   useEffect(() => {
@@ -101,14 +109,14 @@ const DECISION_OPTIONS: Record<string, string[]> = {
 }
 
 export type FilterField = 'group' | 'risk' | 'activity' | 'username' | 'role' | 'role_suffix' | 'tcode' | 'category' | 'criticality' | 'validity' | 'activity_decision' | 'assignment_decision' | 'acceptance'
-  | 'risk_type' | 'composite_role' | 'single_role' | 'account_status' | 'review_status'
+  | 'risk_type' | 'composite_role' | 'single_role' | 'account_status' | 'review_status' | 'multiple_risks'
 const FIELD_LABELS: Record<string, [string, number]> = {
-  group: ['SAP user group', 256], risk: ['Risk ID', 512], activity: ['Activity', 512], username: ['SAP username', 512], role: ['Assigned role', 512], role_suffix: ['Role suffix', 128],
+  group: ['SAP User Group', 256], risk: ['Risk ID', 512], activity: ['Activity', 512], username: ['SAP username', 512], role: ['Assigned role', 512], role_suffix: ['Role suffix', 128],
   tcode: ['Transaction code', 256], category: ['Business area', 120], criticality: ['Source criticality', 64], risk_type: ['Risk type', 64],
   composite_role: ['Catalogue role', 512], single_role: ['Single role', 512],
 }
 const FIELD_SECTIONS: { title: string; fields: FilterField[] }[] = [
-  { title: 'Subject', fields: ['group', 'username', 'account_status'] },
+  { title: 'Subject', fields: ['group', 'username', 'account_status', 'multiple_risks'] },
   { title: 'Risk and activity', fields: ['risk', 'activity', 'tcode', 'category', 'criticality', 'risk_type'] },
   { title: 'Roles and assignments', fields: ['role', 'role_suffix', 'composite_role', 'single_role', 'validity'] },
   { title: 'Review status', fields: ['review_status', 'activity_decision', 'assignment_decision', 'acceptance'] },
@@ -169,11 +177,11 @@ export function SodFilters({ view, filters, setFilters, fields, sorts, actions, 
   const apply = (value: Record<string, unknown>) => {
     onReset?.()
     const next = { ...defaults, ...value } as Filters
-    for (const name of Object.keys(FIELD_LABELS).concat(Object.keys(DECISION_LABELS), ['validity', 'account_status'])) if (!shown.has(name)) { next[name] = defaults[name] ?? ''; if (MULTI[name]) next[MULTI[name]] = [] }
+    for (const name of Object.keys(FIELD_LABELS).concat(Object.keys(DECISION_LABELS), ['validity', 'account_status', 'multiple_risks'])) if (!shown.has(name)) { next[name] = defaults[name] ?? ''; if (MULTI[name]) next[MULTI[name]] = [] }
     setFilters(next)
   }
   const list = (name: string) => (Array.isArray(filters[name]) ? (filters[name] as string[]) : [])
-  const MULTI: Record<string, string> = { username: 'usernames', role_suffix: 'role_suffixes' }
+  const MULTI: Record<string, string> = { username: 'usernames', role_suffix: 'role_suffixes', risk: 'risks', activity: 'activities', group: 'groups', role: 'roles', tcode: 'tcodes', category: 'categories', criticality: 'criticalities' }
   const isDefault = (name: string) => text(name) === (typeof defaults[name] === 'string' ? (defaults[name] as string) : '') && (!MULTI[name] || !list(MULTI[name]).length)
   const active = [...shown].filter((name) => !isDefault(name)).length + (text('search') ? 1 : 0)
   const field = (name: FilterField) => {
@@ -196,6 +204,14 @@ export function SodFilters({ view, filters, setFilters, fields, sorts, actions, 
           <option value="investigating">Under investigation</option>
           <option value="reviewed">Reviewed assignments</option>
           <option value="all">All assignments</option>
+        </Select>
+      </FormField>
+    )
+    if (name === 'multiple_risks') return (
+      <FormField key={name} label="Risks per user">
+        <Select value={text(name)} onChange={(event) => update(name, event.target.value)}>
+          <option value="">All users with conflicts</option>
+          <option value="true">More than one distinct risk</option>
         </Select>
       </FormField>
     )
@@ -242,7 +258,7 @@ export function SodFilters({ view, filters, setFilters, fields, sorts, actions, 
     <PageToolbar>
       {sorts && <SortControl value={text('sort') || sorts[0].value} options={sorts} descending={filters.descending === true} onChange={(value) => update('sort', value)} onDescending={(value) => update('descending', value)} />}
       {actions}
-      <ClearFilterButton onClick={clear} disabled={!active && text('sort') === (typeof defaults.sort === 'string' ? defaults.sort : 'subject') && filters.descending !== true}>Reset</ClearFilterButton>
+
     </PageToolbar>
   )
   return <FilterLayout activeCount={active} sidebar={sidebar} toolbar={toolbar} onClear={clear} clearDisabled={!active && !text('search')}>{children}</FilterLayout>
@@ -282,4 +298,14 @@ export function SodArea({ value }: { value?: string | null }) {
   const key = value.trim().toLowerCase()
   const module = Object.values(modules).find((item) => item.id.toLowerCase() === key || item.name.toLowerCase() === key)
   return <span className="inline-flex items-center gap-1.5 text-xs text-muted">{module && <ModuleBadge moduleId={module.id} variant="compact" />}<span>{value}</span></span>
+}
+
+/** Keeps the previous result on screen while a filter change loads (so keyboard focus and scroll position survive). It never crosses a review-context change, another query shape (table, grouping) or another view, because stale numbers or a differently shaped result must not be rendered. */
+export function keepWithinContext(key: readonly unknown[], params: URLSearchParams, shape: string[] = []) {
+  const prefix = JSON.stringify(key.slice(0, -1))
+  const same = (earlier: URLSearchParams) => (earlier.get('context') ?? '') === (params.get('context') ?? '') && shape.every((name) => earlier.get(name) === params.get(name))
+  return (previous: unknown, previousQuery?: { queryKey: readonly unknown[] }) => {
+    const earlierKey = previousQuery?.queryKey ?? []
+    return JSON.stringify(earlierKey.slice(0, -1)) === prefix && same(new URLSearchParams(String(earlierKey[earlierKey.length - 1] ?? ''))) ? previous : undefined
+  }
 }

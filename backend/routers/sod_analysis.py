@@ -33,6 +33,9 @@ def analysis_query(kind: Literal['users', 'roles'] = 'users',
                    group: str = Query('', max_length=256), composite_role: str = Query('', max_length=512),
                    single_role: str = Query('', max_length=512), tcode: str = Query('', max_length=256),
                    account_status: Literal['', 'locked', 'unlocked', 'ad_disabled', 'ad_enabled', 'unknown'] = '',
+                   usernames: list[str] = Query(default=[], max_length=100), risks: list[str] = Query(default=[], max_length=100),
+                   criticalities: list[str] = Query(default=[], max_length=50), categories: list[str] = Query(default=[], max_length=50),
+                   groups: list[str] = Query(default=[], max_length=100), tcodes: list[str] = Query(default=[], max_length=100),
                    sort: Literal['subject', 'risk_id', 'criticality', 'evidence_count'] = 'subject',
                    descending: bool = False):
     if any(not name or len(name) > 512 for name in selected_roles):
@@ -40,7 +43,8 @@ def analysis_query(kind: Literal['users', 'roles'] = 'users',
     return dict(kind=kind, validity=validity, as_of=as_of or date.today(), selected_roles=sorted(set(selected_roles)),
                 search=search, risk=risk, criticality=criticality, risk_type=risk_type, category=category,
                 username=username, group=group, composite_role=composite_role, single_role=single_role,
-                tcode=tcode, account_status=account_status, sort=sort, descending=descending)
+                tcode=tcode, account_status=account_status, usernames=list(usernames), risks=list(risks), criticalities=list(criticalities),
+                categories=list(categories), groups=list(groups), tcodes=list(tcodes), sort=sort, descending=descending)
 
 
 def context_key(snapshot, settings, saved, query):
@@ -123,6 +127,11 @@ def _account_matches(row, selected):
     return account['ad_status'] == 'Unknown' or locks not in ({True}, {False})
 
 
+def _many(query, single, plural):
+    """Requested values of one filter: the single value plus the multi-select list (OR within, AND with the other filters)."""
+    return [value for value in [query.get(single) or '', *(query.get(plural) or [])] if value]
+
+
 def filtered(result, query):
     items = []
     for row in result[query['kind']]:
@@ -132,13 +141,19 @@ def filtered(result, query):
                 definition['display_name'], definition['source_text'], *(path['tcode'] for path in paths),
                 *(path['matched_catalogue_pattern'] for path in paths), *(path.get('actual_assigned_role', '') for path in paths)):
             continue
-        if any(query[key] and value != query[key] for key,value in [('risk',row['risk_id']),
-                ('criticality',row['criticality']),('risk_type',definition['risk_type']),('category',definition['business_category'])]):
+        if any(wanted and value not in wanted for wanted,value in [(_many(query,'risk','risks'),row['risk_id']),
+                (_many(query,'criticality','criticalities'),row['criticality']),(_many(query,'category','categories'),definition['business_category'])]) \
+                or query['risk_type'] and definition['risk_type'] != query['risk_type']:
             continue
         if query['username'] and (row['kind'] != 'user' or not text_matches(row['subject'], query['username'])):
             continue
-        fields = [('group','user_group'),('composite_role','matched_catalogue_pattern'),('single_role','single_role'),('tcode','tcode')]
-        if any(query[key] and not any(text_matches(path.get(field, ''), query[key]) for path in paths) for key,field in fields):
+        users = {name.casefold() for name in query.get('usernames') or []}
+        if users and (row['kind'] != 'user' or row['subject'].casefold() not in users):
+            continue
+        fields = [('group','groups','user_group'),('tcode','tcodes','tcode')]
+        if any(wanted and not any(text_matches(path.get(field, ''), item) for path in paths for item in wanted) for wanted,field in [(_many(query,single,plural),field) for single,plural,field in fields]):
+            continue
+        if any(query[key] and not any(text_matches(path.get(field, ''), query[key]) for path in paths) for key,field in [('composite_role','matched_catalogue_pattern'),('single_role','single_role')]):
             continue
         if query['account_status'] and not _account_matches(row, query['account_status']):
             continue

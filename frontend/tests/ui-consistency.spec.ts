@@ -23,10 +23,11 @@ for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(
  await expect(distribution.getByRole('button',{name:/Investigate .* catalogue roles/})).toHaveCount(5)
  const row=distribution.getByRole('button',{name:/Investigate .* catalogue roles/}).first();await row.scrollIntoViewIfNeeded();const before=(await row.boundingBox())!
  await row.hover();const after=(await row.boundingBox())!;expect(after.y).toBe(before.y);expect(after.height).toBe(before.height)
- await distribution.getByRole('button',{name:'Show all',exact:true}).click();await expect(distribution.getByRole('button',{name:/Investigate .* catalogue roles/})).toHaveCount(7)
- await distribution.getByRole('button',{name:'Show less',exact:true}).click();await expect(distribution.getByRole('button',{name:/Investigate .* catalogue roles/})).toHaveCount(5)
- await expect(page.getByRole('button',{name:'Investigate users with 0 currently valid roles',exact:true})).toHaveCount(0)
- const last=await page.locator('.dashboard-workspace > :last-child').getAttribute('aria-label');expect(last).toBe('Configuration')
+ const showAll=distribution.getByRole('button',{name:/^Show all \d+ areas$/});await showAll.click()
+ const all=page.getByRole('dialog',{name:'Role Distribution by SAP area',exact:true});await expect(all.getByRole('button',{name:/Investigate .* catalogue roles/})).toHaveCount(7)
+ await page.keyboard.press('Escape');await expect(all).toHaveCount(0);await expect(distribution.getByRole('button',{name:/Investigate .* catalogue roles/})).toHaveCount(5)
+ for(const band of ['0–5','6–10','11–20','21–30','31+'])await expect(page.getByRole('button',{name:`Investigate users with ${band} currently valid roles`,exact:true})).toBeVisible()
+ const last=await page.locator('.dashboard-cards > :last-child').getAttribute('aria-label');expect(last).toBe('Data Sources & Configuration')
  await page.screenshot({path:info.outputPath(`dashboard-${theme}-${width}.png`),fullPage:true})
  await page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('link',{name:'User Access',exact:true}).click()
  const link=page.getByRole('navigation',{name:'User Access view',exact:true}).getByRole('link',{name:'User directory',exact:true}),box=(await link.boundingBox())!

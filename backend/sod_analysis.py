@@ -124,6 +124,8 @@ def analyze(snapshot, metadata=None, as_of=None, validity='active', selected_rol
                              users_with_findings=len({item['subject'] for item in user_results}),
                              current_potential_findings=sum(item['current_potential'] for item in user_results)),
                 coverage=dict(status='available' if users_available else 'unavailable', reason=reason,
+                              # Which required inputs are absent, so an unavailable state names its real cause.
+                              missing=[] if users_available else [name for name, present in (('roles', bool(snapshot.roles)), ('users', bool(snapshot.users.users)), ('sod', bool(source))) if not present] if reason == 'required_source_unavailable' else [],
                               eligible_assignment_records=eligible_assignments, mapped_assignment_records=matched_assignments,
                               unmapped_assignment_records=eligible_assignments - matched_assignments,
                               roles_available=bool(snapshot.roles),

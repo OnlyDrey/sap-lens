@@ -120,8 +120,8 @@ test('keyboard: identifiers are not tab stops, only their copy and open controls
   }
   await page.getByRole('navigation', { name: 'Main navigation', exact: true }).getByRole('link', { name: 'SoD', exact: true }).click()
   await page.getByRole('link', { name: 'Risk Matrix', exact: true }).first().click()
-  await expect(page.locator('.matrix-row-button').first()).toBeVisible()
-  for (const selector of ['.matrix-row-button', '.sod-tile > button']) {
+  await expect(page.locator('tbody th .role-identifier-link').first()).toBeVisible()
+  for (const selector of ['tbody th .role-identifier-link', 'button.ui-kpi']) {
     const heights = await page.locator(selector).evaluateAll(els => els.map(element => element.getBoundingClientRect().height))
     expect(heights.length, selector).toBeGreaterThan(0)
     for (const height of heights) expect(height, selector).toBeGreaterThanOrEqual(23.5)

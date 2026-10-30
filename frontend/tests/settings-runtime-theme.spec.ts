@@ -57,9 +57,15 @@ test('data source health cards use two columns where space permits and every act
   }
   // Optional features show Enabled/Disabled at the far right of the card header; essentials stay visible while technical facts are expandable.
   const sod = page.getByRole('region', { name: 'SoD Matrix CSV', exact: true })
-  await expect(sod.locator('details')).not.toHaveAttribute('open', '')
-  await sod.getByText('Technical details', { exact: true }).click()
+  const technical = sod.getByRole('button', { name: 'Technical details', exact: true })
+  await expect(technical).toHaveAttribute('aria-expanded', 'false')
+  await expect(sod.locator('.source-health-technical')).toHaveCount(0)
+  await technical.click()
+  await expect(technical).toHaveAttribute('aria-expanded', 'true')
   await expect(sod.getByText('Last validated source check')).toBeVisible()
+  // Technical details and Review source sit side by side.
+  const [first, second] = [await technical.boundingBox(), await sod.getByRole('button', { name: 'Review source', exact: true }).boundingBox()]
+  expect(Math.abs(first!.y - second!.y)).toBeLessThan(2)
   const header = await sod.locator('.source-health-header').boundingBox(), badge = await sod.locator('.source-health-header .evidence-badge').boundingBox()
   expect(Math.abs(header!.x + header!.width - (badge!.x + badge!.width))).toBeLessThanOrEqual(2)
   await page.setViewportSize({ width: 375, height: 900 })

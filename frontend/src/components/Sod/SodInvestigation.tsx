@@ -1,12 +1,14 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useRoleDescriptions } from '@/hooks/useRoleModules'
+import { useModuleDefinitions } from '@/components/Modules/ModuleRegistry'
+import { presentRoleDescription } from '@/lib/rolePresentation'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { DisclosureChevron } from '@/components/Shared/DisclosureChevron'
 import { Check, ClipboardCheck, FlaskConical, History, Search, Trash2, Wrench } from 'lucide-react'
 import { emptyFilters, scopeParams, sod, sodPost, type ActivityDetail, type AssignmentRow, type DecisionEvent, type OverviewAssignment, type Subject } from '@/api/sod'
 import { useViewHistory, userHref } from '@/hooks/useViewHistory'
 import { SidePanel } from '@/components/Shared/SidePanel'
 import { Button, IconButton } from '@/components/Shared/Button'
-import { RoleEntry } from '@/components/Shared/RoleEntry'
-import { moduleOfRoles, useRoleModules } from '@/hooks/useRoleModules'
 import { Card, ErrorState, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
 import { Checkbox, FormField, Input } from '@/components/Shared/Controls'
 import { Select } from '@/components/Shared/Select'
@@ -95,6 +97,10 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
   const pick = (kind: Kind, key: string) => setPicked((previous) => ({ ...previous, [kind]: previous[kind].includes(key) ? previous[kind].filter((value) => value !== key) : [...previous[kind], key] }))
   const item = (key: string, ref: string, version: string): Item => ({ key, user, ref, evidence_version: version })
   const overview = data?.overview
+  const roleTexts = useRoleDescriptions(), areaCodes = Object.keys(useModuleDefinitions())
+  const describe = (names: string[]) => { for (const name of names) { const text = roleTexts.get(name); if (text) return presentRoleDescription(text, areaCodes).description } return undefined }
+  const tcodesOf = new Map<string, string[]>()
+  for (const block of data?.activities || []) for (const entry of block.assignments) tcodesOf.set(entry.id, [...new Set([...(tcodesOf.get(entry.id) || []), ...entry.tcodes])].sort())
   // A matrix cell opens only that user-risk or user-activity and the evidence behind it; the user row opens everything.
   const scoped = !!(risk || activity)
   const allActivities = overview?.activities || [], allAssignments = overview?.assignments || [], allRisks = overview?.risks || []
@@ -122,17 +128,17 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
         </section>
         {form && <div ref={formRef}><DecisionForm key={form.heading} form={form} subject={data} onCancel={() => setForm(null)} onSaved={async () => { setForm(null); setPicked({ activity: [], assignment: [], acceptance: [] }); await invalidateSod(qc) }} /></div>}
 
-        <ReviewSection title="Activity Review" kind="activity" done={progressOf(activities)} total={activities.length} ok={ok} picked={picked.activity}
+        <ReviewSection title="Activity Review" kind="activity" done={progressOf(activities)} total={activities.length} ok={ok} picked={picked.activity} keys={activities.map((row) => row.key)} onPickAll={(keys) => setPicked((previous) => ({ ...previous, activity: keys }))}
           onBatch={() => batch('activity', `Batch activity review (${picked.activity.length})`, activities.filter((row) => picked.activity.includes(row.key)).map((row) => item(row.key, row.activity, row.evidence_version)))}>
           {activities.map((row) => (
             <ReviewRow key={row.key} focused={focus(row.activity, 'activity')} label={row.activity} checked={picked.activity.includes(row.key)} onCheck={ok ? () => pick('activity', row.key) : undefined}
-              compact title={<SodPill kind="activity" value={row.activity} />} summary={<><span className="id-pill-list" aria-label={`Risks supplied by ${row.activity}`}>{row.risks.map(risk => <SodPill key={risk} kind="risk" value={risk} />)}</span><span className="sod-meta whitespace-nowrap">{row.roles} role assignment{row.roles === 1 ? '' : 's'}{row.duplicate_coverage ? ' · overlapping coverage' : ''}</span></>} status={row.decision} event={row.event}
-              actions={ok && <Button onClick={() => setForm({ kind: 'activity', heading: `Activity review · ${row.activity}`, items: [item(row.key, row.activity, row.evidence_version)] })} aria-label={`Review activity ${row.activity}`}><ClipboardCheck size={16} aria-hidden="true" />Review</Button>}
+              compact title={<SodPill kind="activity" value={row.activity} />} summary={<><span className="id-pill-list" aria-label={`Risks supplied by ${row.activity}`}>{row.risks.map(risk => <SodPill key={risk} kind="risk" value={risk} />)}</span><StatusBadge tone={row.duplicate_coverage ? 'info' : 'neutral'}><span title={row.duplicate_coverage ? 'Several role assignments supply this activity' : 'Role assignments supplying this activity'}>{row.roles} role assignment{row.roles === 1 ? '' : 's'}{row.duplicate_coverage ? ' · overlapping' : ''}</span></StatusBadge></>} status={row.decision} event={row.event}
+              actions={ok && <IconButton label={`Review activity ${row.activity}`} tooltip="Record an activity review" variant={row.decision === 'Pending' ? 'primary' : 'secondary'} onClick={() => setForm({ kind: 'activity', heading: `Activity review · ${row.activity}`, items: [item(row.key, row.activity, row.evidence_version)] })}><ClipboardCheck size={16} aria-hidden="true" /></IconButton>}
               history={<DecisionHistory kind="activity" context={context} keyId={row.key} label="Activity review history" />} />
           ))}
         </ReviewSection>
 
-        <ReviewSection title="Role Assignment Review" kind="assignment" done={progressOf(assignments)} total={assignments.length} ok={ok} picked={picked.assignment}
+        <ReviewSection title="Role Assignment Review" kind="assignment" done={progressOf(assignments)} total={assignments.length} ok={ok} picked={picked.assignment} keys={assignments.map((row) => row.id)} onPickAll={(keys) => setPicked((previous) => ({ ...previous, assignment: keys }))}
           note="Reviewed with the other activities each role supplies, so one assignment can serve several approved activities."
           onBatch={() => batch('assignment', `Batch role assignment review (${picked.assignment.length})`, assignments.filter((row) => picked.assignment.includes(row.id)).map((row) => item(row.id, row.role, row.evidence_version)))}>
           {ok && assignments.length > 0 && <div className="quick-review-identity" role="group" aria-label="Quick review details">
@@ -141,19 +147,19 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
           </div>}
           {quickError && <p role="alert" className="text-[var(--error)]">{quickError}</p>}
           {assignments.map((row) => (
-            <AssignmentReviewRow key={row.id} row={row} ok={ok} checked={picked.assignment.includes(row.id)} onCheck={() => pick('assignment', row.id)} busy={quickBusy.has(row.id)}
+            <AssignmentReviewRow key={row.id} row={row} description={describe(row.catalogue_roles)} ok={ok} checked={picked.assignment.includes(row.id)} onCheck={() => pick('assignment', row.id)} busy={quickBusy.has(row.id)}
               onDecide={(decision) => quickDecide(row, decision)} onOpenRole={() => change({ detailRole: row.catalogue_roles[0] || row.role })}
               onTrack={row.decision === 'Removal required' ? () => setAction({ assignment: { id: row.id, role: row.role, valid_from: row.valid_from, valid_to: row.valid_to, user_group: row.user_group, interval_status: row.interval_status, tcodes: [], other_activities: row.activities, risks: row.risks, catalogue_roles: row.catalogue_roles, evidence_version: row.evidence_version, decision: row.decision, event: row.event } }) : undefined}
-              history={<DecisionHistory kind="assignment" context={context} keyId={row.id} label="Assignment review history" />} />
+              history={<DecisionHistory kind="assignment" context={context} keyId={row.id} label="Assignment review history" />} transactions={tcodesOf.get(row.id) || []} />
           ))}
         </ReviewSection>
 
-        <ReviewSection title="Risk Acceptance" kind="acceptance" done={progressOf(risks)} total={risks.length} ok={ok} picked={picked.acceptance}
+        <ReviewSection title="Risk Acceptance" kind="acceptance" done={progressOf(risks)} total={risks.length} ok={ok} picked={picked.acceptance} keys={risks.map((row) => row.finding_id)} onPickAll={(keys) => setPicked((previous) => ({ ...previous, acceptance: keys }))}
           note="Accepting a risk needs a justification, an approver different from the reviewer and optional controls. It never suppresses detection."
           onBatch={() => batch('acceptance', `Batch risk acceptance (${picked.acceptance.length})`, risks.filter((row) => picked.acceptance.includes(row.finding_id)).map((row) => item(row.finding_id, row.risk_id, row.evidence_version)))}>
           {risks.map((row) => (
             <ReviewRow key={row.finding_id} focused={focus(row.risk_id, 'risk')} label={row.risk_id} checked={picked.acceptance.includes(row.finding_id)} onCheck={ok ? () => pick('acceptance', row.finding_id) : undefined}
-              title={<SodPill kind="risk" value={row.risk_id} />} meta={<>{row.display_name || row.source_text}</>} status={row.acceptance} event={row.event}
+              title={<SodPill kind="risk" value={row.risk_id} />} meta={<>{row.display_name || row.source_text || 'No description in the SoD matrix'}</>} status={row.acceptance} event={row.event}
               actions={ok && <Button onClick={() => setForm({ kind: 'acceptance', heading: `Risk acceptance · ${row.risk_id}`, items: [item(row.finding_id, row.risk_id, row.evidence_version)] })} aria-label={`Decide risk acceptance ${row.risk_id}`}><ClipboardCheck size={16} aria-hidden="true" />Decide</Button>}
               history={<DecisionHistory kind="acceptance" context={context} keyId={row.finding_id} label="Risk acceptance history" />} />
           ))}
@@ -196,10 +202,11 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
   )
 }
 
-function ReviewSection({ title, kind, done, total, ok, picked, note, onBatch, children }: { title: string; kind: Kind; done: number; total: number; ok: boolean; picked: string[]; note?: string; onBatch: () => void; children: ReactNode }) {
+function ReviewSection({ title, kind, done, total, ok, picked, keys, onPickAll, note, onBatch, children }: { title: string; kind: Kind; done: number; total: number; ok: boolean; picked: string[]; keys: string[]; onPickAll: (keys: string[]) => void; note?: string; onBatch: () => void; children: ReactNode }) {
   return (
     <section className="sod-section sod-review-section" aria-label={title} data-kind={kind}>
       <Toolbar><h3>{title}</h3><StatusBadge tone={total > 0 && done === total ? 'success' : 'neutral'}>{done}/{total} decided</StatusBadge>
+        {ok && keys.length > 1 && <Checkbox checked={picked.length === keys.length} onChange={(event) => onPickAll(event.target.checked ? keys : [])} aria-label={`Select all visible in ${title}`}>Select all visible</Checkbox>}
         {ok && picked.length > 0 && <Button variant="primary" onClick={onBatch}>Review selected ({picked.length})</Button>}</Toolbar>
       {note && <p className="ui-description">{note}</p>}
       {total === 0 ? <p className="ui-description">Nothing to review in this section.</p> : <ul className="sod-review-list" aria-label={`${title} items`}>{children}</ul>}
@@ -207,63 +214,62 @@ function ReviewSection({ title, kind, done, total, ok, picked, note, onBatch, ch
   )
 }
 
-/** Role assignment: module, copyable identifier, validity, SAP User Group, activities supplied and review status, with compact icon decisions on the right. */
-function AssignmentReviewRow({ row, ok, checked, onCheck, busy, onDecide, onOpenRole, onTrack, history }: { row: OverviewAssignment; ok: boolean; checked: boolean; onCheck: () => void; busy: boolean; onDecide: (decision: 'Keep' | 'Remove' | 'Investigate') => void; onOpenRole: () => void; onTrack?: () => void; history: ReactNode }) {
-  const code = moduleOfRoles(useRoleModules(), row.catalogue_roles), kept = row.decision === 'Keep', removed = row.decision === 'Removal required', investigating = row.decision === 'Investigate'
+/** Collapsed: checkbox, copyable role, review status, icon decisions and an expand control. Expanded: transactions and activities, SAP User Group, validity, history and further actions. */
+function AssignmentReviewRow({ row, description, ok, checked, onCheck, busy, onDecide, onOpenRole, onTrack, history, transactions }: { row: OverviewAssignment; description?: string; ok: boolean; checked: boolean; onCheck: () => void; busy: boolean; onDecide: (decision: 'Keep' | 'Remove' | 'Investigate') => void; onOpenRole: () => void; onTrack?: () => void; history: ReactNode; transactions: string[] }) {
+  const [open, setOpen] = useState(false), kept = row.decision === 'Keep', removed = row.decision === 'Removal required', investigating = row.decision === 'Investigate'
+  const detailId = useId()
   return (
-    <li className="sod-review-row sod-assignment-row">
-      <div className="sod-assignment-line">
+    <li className="sod-review-row sod-assignment-row" data-expanded={open || undefined}>
+      <div className="sod-assignment-compact">
         {ok && <Checkbox checked={checked} onChange={onCheck} aria-label={`Select ${row.role}`}><span className="sr-only">Select</span></Checkbox>}
-        <RoleEntry density="compact" moduleCode={code} title="Assigned role" identifier={row.role} identifierSlot={<RoleIdentifier value={row.role} onOpen={onOpenRole} openLabel={`Open catalogue role ${row.catalogue_roles[0] || row.role}`} />}
-          actions={<>
-            <LifecycleBadge value={row.decision} />
-            {onTrack && <Button size="compact" onClick={onTrack}>Track action</Button>}
-            {ok && <span className="sod-decision-icons" role="group" aria-label={`Decision for ${row.role}`}>
-              <IconButton label={`Keep ${row.role}`} tooltip="Keep this role assignment" variant={kept ? 'primary' : 'secondary'} aria-pressed={kept} loading={busy} disabled={busy} onClick={() => onDecide('Keep')}><Check size={16} aria-hidden="true" /></IconButton>
-              <IconButton label={`Investigate ${row.role}`} tooltip="Mark for further investigation (not a final decision)" variant={investigating ? 'primary' : 'secondary'} aria-pressed={investigating} loading={busy} disabled={busy} onClick={() => onDecide('Investigate')}><Search size={16} aria-hidden="true" /></IconButton>
-              <IconButton label={`Remove ${row.role}`} tooltip="Recommend removing this role assignment (no change in SAP)" variant={removed ? 'destructive' : 'secondary'} aria-pressed={removed} loading={busy} disabled={busy} onClick={() => onDecide('Remove')}><Trash2 size={16} aria-hidden="true" /></IconButton>
-            </span>}
-          </>}
-          meta={<>
-            <span className="whitespace-nowrap">SAP User Group: {row.user_group || 'Unknown'}</span>
-            {row.interval_status && <AssignmentStatus value={row.interval_status} />}
-            <span className="whitespace-nowrap">Valid from {formatDate(row.valid_from)} to {formatDate(row.valid_to)}</span>
-          </>}>
-          <span className="id-pill-list" aria-label={`Activities supplied by ${row.role}`}>{row.activities.map((name) => <SodPill key={name} kind="activity" value={name} />)}</span>
-        </RoleEntry>
+        <div className="sod-assignment-role"><RoleIdentifier value={row.role} onOpen={onOpenRole} openLabel={`Open catalogue role ${row.catalogue_roles[0] || row.role}`} />{description && <p className="sod-assignment-description" title={description}>{description}</p>}</div>
+        <LifecycleBadge value={row.decision} />
+        {ok && <span className="sod-decision-icons" role="group" aria-label={`Decision for ${row.role}`}>
+          <IconButton label={`Keep ${row.role}`} tooltip="Keep this role assignment" variant={kept ? 'primary' : 'secondary'} aria-pressed={kept} loading={busy} disabled={busy} onClick={() => onDecide('Keep')}><Check size={16} aria-hidden="true" /></IconButton>
+          <IconButton label={`Investigate ${row.role}`} tooltip="Mark for further investigation (not a final decision)" variant={investigating ? 'primary' : 'secondary'} aria-pressed={investigating} loading={busy} disabled={busy} onClick={() => onDecide('Investigate')}><Search size={16} aria-hidden="true" /></IconButton>
+          <IconButton label={`Remove ${row.role}`} tooltip="Recommend removing this role assignment (no change in SAP)" variant={removed ? 'destructive' : 'secondary'} aria-pressed={removed} loading={busy} disabled={busy} onClick={() => onDecide('Remove')}><Trash2 size={16} aria-hidden="true" /></IconButton>
+        </span>}
+        <IconButton label={`${open ? 'Hide' : 'Show'} details for ${row.role}`} tooltip={open ? 'Hide evidence' : 'Show evidence'} variant="ghost" aria-expanded={open} aria-controls={detailId} onClick={() => setOpen(!open)}><DisclosureChevron open={open} /></IconButton>
       </div>
-      {row.event && <p className="text-xs text-muted">{row.event.decision === 'Remove' ? 'Removal recommended' : row.event.decision === 'Investigate' ? 'Marked for investigation' : row.event.decision} by {row.event.reviewer}, {formatTimestamp(row.event.timestamp)}: {row.event.justification}</p>}
-      {history}
+      {open && <div id={detailId} className="sod-assignment-details" role="group" aria-label={`Evidence for ${row.role}`}>
+        <dl className="validity-dates">
+          <div><dt>SAP User Group</dt><dd>{row.user_group || 'Unknown'}</dd></div>
+          <div><dt>Validity</dt><dd>{row.interval_status && <AssignmentStatus value={row.interval_status} />} {formatDate(row.valid_from)} to {formatDate(row.valid_to)}</dd></div>
+          <div><dt>Activities</dt><dd><span className="id-pill-list" aria-label={`Activities supplied by ${row.role}`}>{row.activities.map((name) => <SodPill key={name} kind="activity" value={name} />)}</span></dd></div>
+          <div><dt>Risks</dt><dd><span className="id-pill-list">{row.risks.map((name) => <SodPill key={name} kind="risk" value={name} />)}</span></dd></div>
+          {!!transactions.length && <div><dt>Transactions</dt><dd className="sod-assignment-tcodes">{transactions.join(', ')}</dd></div>}
+        </dl>
+        {row.event && <p className="text-xs text-muted">{row.event.decision === 'Remove' ? 'Removal recommended' : row.event.decision === 'Investigate' ? 'Marked for investigation' : row.event.decision} by {row.event.reviewer}, {formatTimestamp(row.event.timestamp)}: {row.event.justification}</p>}
+        {onTrack && <div className="ui-toolbar"><Button size="compact" onClick={onTrack}>Track action</Button></div>}
+        {history}
+      </div>}
     </li>
   )
 }
 
+/** Compact rows keep identity, status, coverage and the decision action on one line; the latest decision text and the history sit behind an expand control. */
 function ReviewRow({ label, title, meta, summary, compact, status, event, actions, history, checked, onCheck, focused }: {
   label: string; title: ReactNode; meta?: ReactNode; summary?: ReactNode; compact?: boolean; status: string; event: DecisionEvent | null; actions?: ReactNode; history: ReactNode; checked: boolean; onCheck?: () => void; focused?: boolean
 }) {
+  const [open, setOpen] = useState(false), detailId = useId()
   return (
     <li className="sod-review-row" data-focused={focused || undefined} data-compact={compact || undefined}>
-      {compact ? (
-        <div className="sod-review-compact">
-          {onCheck && <Checkbox checked={checked} onChange={onCheck} aria-label={`Select ${label}`}><span className="sr-only">Select</span></Checkbox>}
-          <span className="min-w-0">{title}</span>
-          <LifecycleBadge value={status} />
-          {summary}
-          {actions && <div className="sod-review-actions sod-review-compact-actions">{actions}</div>}
+      {/* Primary row: select, identifier, status and the decision action at the right edge; the description and the expandable history sit below it. */}
+      <div className="sod-review-compact">
+        {onCheck && <Checkbox checked={checked} onChange={onCheck} aria-label={`Select ${label}`}><span className="sr-only">Select</span></Checkbox>}
+        <span className="min-w-0">{title}</span>
+        <LifecycleBadge value={status} />
+        <span className="sod-review-summary">{summary}</span>
+        <div className="sod-review-actions sod-review-compact-actions">
+          {actions}
+          <IconButton label={`${open ? 'Hide' : 'Show'} details for ${label}`} tooltip={open ? 'Hide evidence and history' : 'Show evidence and history'} variant="ghost" aria-expanded={open} aria-controls={detailId} onClick={() => setOpen(!open)}><DisclosureChevron open={open} /></IconButton>
         </div>
-      ) : (
-        <>
-          <div className="sod-review-main">
-            {onCheck && <Checkbox checked={checked} onChange={onCheck} aria-label={`Select ${label}`}><span className="sr-only">Select</span></Checkbox>}
-            <span className="min-w-0">{title}</span>
-            <LifecycleBadge value={status} />
-          </div>
-          <p className="text-xs text-muted">{meta}</p>
-        </>
-      )}
-      {event && <p className="text-xs text-muted">{event.decision} by {event.reviewer}, {formatTimestamp(event.timestamp)}: {event.justification}{event.controls ? ` Conditions: ${event.controls}` : ''}</p>}
-      {!compact && actions && <div className="sod-review-actions">{actions}</div>}
-      {history}
+      </div>
+      {!compact && meta && <p className="text-xs text-muted sod-review-description">{meta}</p>}
+      {open && <div id={detailId} className="sod-assignment-details" role="group" aria-label={`Evidence for ${label}`}>
+        {event ? <p className="text-xs text-muted">{event.decision} by {event.reviewer}, {formatTimestamp(event.timestamp)}: {event.justification}{event.controls ? ` Conditions: ${event.controls}` : ''}</p> : <p className="text-xs text-muted">No decision recorded for this item yet.</p>}
+        {history}
+      </div>}
     </li>
   )
 }
@@ -326,6 +332,7 @@ export function DecisionForm({ form, subject, onCancel, onSaved }: { form: FormS
     [controls, setControls] = useState(''),
     [expires, setExpires] = useState(''),
     [error, setError] = useState(''),
+    [confirmed, setConfirmed] = useState(form.items.length < 2),
     [busy, setBusy] = useState(false)
   const needsControls = form.kind === 'activity' && decision === 'Conditional' || form.kind === 'acceptance' && decision === 'Accepted'
   const formal = form.kind === 'acceptance' && decision !== 'Pending'
@@ -356,9 +363,10 @@ export function DecisionForm({ form, subject, onCancel, onSaved }: { form: FormS
       <FormField label="Justification"><textarea className="ui-control min-h-20" value={justification} maxLength={4000} onChange={(event) => setJustification(event.target.value)} /></FormField>
       {(needsControls || form.kind === 'acceptance' && formal) && <FormField label={form.kind === 'activity' ? 'Conditions' : 'Compensating controls (optional)'}><textarea className="ui-control min-h-16" value={controls} maxLength={8000} onChange={(event) => setControls(event.target.value)} /></FormField>}
       {form.kind === 'acceptance' && decision === 'Accepted' && <NorwegianDateInput label="Acceptance expires (optional)" value={expires} onChange={setExpires} />}
+      {form.items.length > 1 && <Checkbox checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)}>Record this decision for {form.items.length} selected {KIND_LABEL[form.kind].toLowerCase()} items, each with its own history entry</Checkbox>}
       {error && <p role="alert">{error}</p>}
       <Toolbar>
-        <Button loading={busy} disabled={!reviewer.trim() || !justification.trim() || formal && !approver.trim() || form.kind === 'activity' && decision === 'Conditional' && !controls.trim()} onClick={() => void save()}>Save decision</Button>
+        <Button loading={busy} disabled={!confirmed || !reviewer.trim() || !justification.trim() || formal && !approver.trim() || form.kind === 'activity' && decision === 'Conditional' && !controls.trim()} onClick={() => void save()}>Save decision</Button>
         <Button variant="ghost" onClick={onCancel}>Cancel</Button>
       </Toolbar>
     </section>

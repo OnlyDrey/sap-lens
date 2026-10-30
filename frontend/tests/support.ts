@@ -62,3 +62,11 @@ export async function closeFilters(page: Page) {
   const close = page.getByRole('button', { name: 'Close filters', exact: true })
   if (await close.isVisible()) await close.click()
 }
+
+/** Pick one value in a multi-select filter: open it, search, toggle the option and close the list. Selections stay independent of the search text. */
+export async function pickMulti(scope: Page | Locator, label: string, option: string, page?: Page) {
+  const box = scope.getByRole('combobox', { name: label, exact: true })
+  await box.click(); await box.fill(option)
+  await (page ?? (scope as Page)).getByRole('option', { name: option, exact: true }).click()
+  await box.press('Escape')
+}

@@ -1,8 +1,8 @@
+import { MultiSelectFilter } from '@/components/Shared/MultiSelectFilter'
 import { Popover } from '@/components/Shared/Popover'
 import { announceExport } from '@/lib/exportNotice'
-import { ClearFilterButton } from '@/components/Shared/ClearFilterButton'
-import { FilterPanel } from '@/components/Shared/InvestigationPatterns'
-import { SearchInput } from '@/components/Shared/Controls'
+import { FilterLayout, FilterSection, PageToolbar, SortControl } from '@/components/Shared/FilterLayout'
+import { FormField, SearchInput } from '@/components/Shared/Controls'
 import { AssignmentStatus } from '@/components/Shared/InvestigationNavigation'
 import { FilterChip } from '@/components/Shared/FilterChip'
 import { Button, IconButton } from '@/components/Shared/Button'
@@ -30,13 +30,12 @@ import {
   type Page,
   type UserRow,
 } from '@/api/access'
-import { Combobox } from '@/components/Shared/Combobox'
 import { Select } from '@/components/Shared/Select'
 import { AccountStatus } from '@/components/Shared/AccountStatus'
 import { SavedFilters } from '@/components/Shared/SavedFilters'
 import { csvField } from '@/lib/accessExport'
 import { formatDate } from '@/lib/dateFormat'
-import { Filter, inputClass, Pagination, QueryState } from './Shared'
+import { inputClass, Pagination, QueryState } from './Shared'
 interface Row {
   identifier: string
   difference: string
@@ -207,7 +206,7 @@ export interface ComparisonContext {
   kind: string
   difference: string
   search: string
-  area: string
+  areas: string[]
 }
 export function UserComparison({
   initialUser = '',
@@ -231,7 +230,7 @@ export function UserComparison({
     [difference, setDifference] = useState(context?.difference || ''),
     [search, setSearch] = useState(context?.search || ''),
     [term, setTerm] = useState(context?.search || ''),
-    [area, setArea] = useState(context?.area || ''),
+    [areas, setAreas] = useState<string[]>(context?.areas || []),
     [offset, setOffset] = useState(0),
     [sort, setSort] = useState(context?.sort || 'identifier'),
     [descending, setDescending] = useState(context?.descending || false),
@@ -247,6 +246,10 @@ export function UserComparison({
     }
   }, [initialUser])
   useEffect(() => {
+    // The same SAP user can never sit on both sides of a comparison.
+    if (a && b && a.trim().toUpperCase() === b.trim().toUpperCase()) setB('')
+  }, [a, b])
+  useEffect(() => {
     const t = setTimeout(() => setTerm(search), 200)
     return () => clearTimeout(t)
   }, [search])
@@ -259,7 +262,7 @@ export function UserComparison({
         kind,
         difference,
         search,
-        area,
+        areas,
         sort,
         descending,
       }),
@@ -270,13 +273,13 @@ export function UserComparison({
       kind,
       difference,
       search,
-      area,
+      areas,
       sort,
       descending,
       onContext,
     ],
   )
-  const state = { validity, kind, difference, search, area, sort, descending }
+  const state = { validity, kind, difference, search, areas, sort, descending }
   const params = new URLSearchParams({
     user_a: a,
     user_b: b,
@@ -284,10 +287,10 @@ export function UserComparison({
     kind,
     difference,
     search: term,
-    area,
     sort,
     descending: String(descending),
   })
+  areas.forEach(value => params.append('areas', value))
   const key = params.toString(),
     operationKey = JSON.stringify([
       a,
@@ -296,7 +299,7 @@ export function UserComparison({
       kind,
       difference,
       search,
-      area,
+      areas,
       sort,
       descending,
     ]),
@@ -328,7 +331,9 @@ export function UserComparison({
     if (['', 'shared', 'a', 'b'].includes(String(s.difference)))
       setDifference(String(s.difference))
     if (typeof s.search === 'string') setSearch(s.search)
-    if (typeof s.area === 'string') setArea(s.area)
+    // Filters saved before multi-select stored one area string.
+    if (Array.isArray(s.areas)) setAreas(s.areas.filter((item: unknown): item is string => typeof item === 'string'))
+    else if (typeof s.area === 'string') setAreas(s.area ? [s.area] : [])
     if (['identifier', 'difference', 'a', 'b'].includes(String(s.sort)))
       setSort(String(s.sort))
     if (typeof s.descending === 'boolean') setDescending(s.descending)
@@ -338,7 +343,7 @@ export function UserComparison({
     setKind('roles')
     setDifference('')
     setSearch('')
-    setArea('')
+    setAreas([])
     setSort('identifier')
     setDescending(false)
   }
@@ -535,96 +540,42 @@ export function UserComparison({
           )
         })}
       </div>
-      <SavedFilters
-        showClear={false} view="comparison"
-        state={state}
-        apply={apply}
-        clear={clear}
-      />
-      <FilterPanel label="Comparison filters" className="comparison-filter-bar">
-        <Filter label="Assignment validity">
-          <Select
-            aria-label="Assignment validity"
-            className={inputClass}
-            value={validity}
-            onChange={(e) => setValidity(e.target.value)}
-          >
-            {['active', 'expired', 'future', 'unknown', 'all'].map((v) => (
-              <option key={v} value={v}>
-                {v === 'active'
-                  ? 'Currently valid'
-                  : v === 'all'
-                    ? 'All intervals'
-                    : v.charAt(0).toUpperCase() + v.slice(1)}
-              </option>
-            ))}
-          </Select>
-        </Filter>
-        <Filter label="Comparison section">
-          <Select
-            aria-label="Comparison section"
-            className={inputClass}
-            value={kind}
-            onChange={(e) => {
-              setKind(e.target.value)
-              setSearch('')
-            }}
-          >
-            <option value="roles">Roles</option>
-            <option value="transactions">Role-derived transactions</option>
-          </Select>
-        </Filter>
-
-        <Filter
-          label={
-            kind === 'roles'
-              ? 'Search comparison roles'
-              : 'Search comparison transactions'
-          }
-        >
-          <SearchInput
-            className={inputClass}
-            value={search}
-            maxLength={256}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </Filter>
-        <Filter label="Comparison SAP area">
-          <Combobox
-            label="Comparison SAP area"
-            value={area}
-            options={data?.areas || []}
-            onChange={setArea}
-          />
-        </Filter>
-            <div className="sort-control"><Filter label="Sort comparison">
-              <Select
-                className={inputClass}
-                value={sort}
-                onChange={(e) => setSort(e.target.value)}
-              >
-                {[
-                  ['identifier', 'Role / Transaction'],
-                  ['difference', 'Difference'],
-                  ['a', 'User A evidence count'],
-                  ['b', 'User B evidence count'],
-                ].map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
+      <FilterLayout label="Filters" activeCount={[validity !== 'active', kind !== 'roles', search, areas.length > 0, difference].filter(Boolean).length} onClear={clear}
+        clearDisabled={validity === 'active' && kind === 'roles' && !search && !areas.length && !difference && sort === 'identifier' && !descending}
+        toolbar={<PageToolbar>
+          <SortControl label="Sort comparison" value={sort} descending={descending} onChange={setSort} onDescending={setDescending}
+            options={[{ value: 'identifier', label: 'Role / transaction' }, { value: 'difference', label: 'Difference' }, { value: 'a', label: 'User A evidence count' }, { value: 'b', label: 'User B evidence count' }]} />
+          <Button disabled={busy || !data || result.isFetching || term !== search} onClick={() => void exportCSV()}>
+            <Download size={16} />
+            Export comparison CSV
+          </Button>
+        </PageToolbar>}
+        sidebar={<div className="grid min-w-0 gap-3" role="search" aria-label="Comparison filters">
+          <FilterSection title="Saved Filters">
+            <SavedFilters showClear={false} view="comparison" state={state} apply={apply} clear={clear} />
+          </FilterSection>
+          <FilterSection title="Search">
+            <SearchInput className={inputClass} aria-label={kind === 'roles' ? 'Search comparison roles' : 'Search comparison transactions'} placeholder="Search" value={search} maxLength={256} onChange={(e) => setSearch(e.target.value)} onClear={() => setSearch('')} />
+          </FilterSection>
+          <FilterSection title="Comparison">
+            <FormField label="Assignment validity">
+              <Select aria-label="Assignment validity" className={inputClass} value={validity} onChange={(e) => setValidity(e.target.value)}>
+                {['active', 'expired', 'future', 'unknown', 'all'].map((v) => (
+                  <option key={v} value={v}>{v === 'active' ? 'Currently valid' : v === 'all' ? 'All intervals' : v.charAt(0).toUpperCase() + v.slice(1)}</option>
                 ))}
               </Select>
-            </Filter>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={descending}
-                onChange={(e) => setDescending(e.target.checked)}
-              />
-              Descending
-            </label></div>
-      <ClearFilterButton className="comparison-clear" onClick={clear}>Clear filters</ClearFilterButton>
-      </FilterPanel>
+            </FormField>
+            <FormField label="Comparison section">
+              <Select aria-label="Comparison section" className={inputClass} value={kind} onChange={(e) => { setKind(e.target.value); setSearch('') }}>
+                <option value="roles">Roles</option>
+                <option value="transactions">Role-derived transactions</option>
+              </Select>
+            </FormField>
+            <FormField label="Comparison SAP area">
+              <MultiSelectFilter label="Comparison SAP area" values={areas} options={data?.areas || []} onChange={setAreas} placeholder="All · type to search" />
+            </FormField>
+          </FilterSection>
+        </div>}>
       <QueryState loading={result.isFetching} error={result.error} />
       {(!a || !b) && (
         <p>
@@ -699,13 +650,6 @@ export function UserComparison({
             <span>
               {data.total} matching {kind}
             </span>
-            <Button
-              disabled={busy || result.isFetching || term !== search}
-              onClick={() => void exportCSV()}
-            >
-              <Download size={16} />
-              Export comparison CSV
-            </Button>
           </Toolbar>
           {!data.total && (
             <p>
@@ -720,10 +664,10 @@ export function UserComparison({
           >
             <thead>
               <tr>
-                <th>Role / Transaction</th>
+                <th>Role / transaction</th>
                 <th>Difference</th>
-                <th>User A Evidence</th>
-                <th>User B Evidence</th>
+                <th>User A evidence</th>
+                <th>User B evidence</th>
               </tr>
             </thead>
             <tbody>
@@ -770,6 +714,7 @@ export function UserComparison({
           />
         </>
       )}
+      </FilterLayout>
     </section>
   )
 }

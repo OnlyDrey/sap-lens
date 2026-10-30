@@ -81,3 +81,17 @@ test('SoD colors use the shared hex input with validation, preview and reset',as
  await hex.fill('#7C3AED');await expect(save).toBeEnabled();await expect(dialog.locator('.id-pill-risk[data-colored="true"]').first()).toBeVisible()
  await dialog.getByRole('button',{name:'Reset Risk color',exact:true}).click();await expect(hex).toHaveValue('');await expect(dialog.locator('.id-pill-risk[data-colored="true"]')).toHaveCount(0);await expect(save).toBeEnabled()
 })
+test('risk and activity tables use icon Edit buttons and a consistent actionable transactions button',async({page})=>{
+ await settings(page)
+ const edit=page.getByRole('button',{name:'Edit SoD risk SYN01',exact:true}),source=page.getByRole('button',{name:'Source details for risk SYN01',exact:true})
+ await expect(edit.locator('svg')).toHaveCount(1) // pencil
+ const [editBox,sourceBox]=[await edit.boundingBox(),await source.boundingBox()]
+ expect(Math.abs(editBox!.height-sourceBox!.height)).toBeLessThan(1) // buttons beside each other share one height
+ await page.getByRole('tab',{name:'Activities',exact:true}).click()
+ const transactions=page.getByRole('button',{name:/^Show \d+ transactions for CREATE$/}),editActivity=page.getByRole('button',{name:'Edit SoD activity CREATE',exact:true})
+ await expect(editActivity.locator('svg')).toHaveCount(1)
+ await expect(transactions.locator('svg')).toHaveCount(1)
+ expect(Math.abs((await transactions.boundingBox())!.height-(await editActivity.boundingBox())!.height)).toBeLessThan(1)
+ await transactions.click()
+ await expect(page.getByRole('dialog',{name:/transactions$/})).toBeVisible()
+})

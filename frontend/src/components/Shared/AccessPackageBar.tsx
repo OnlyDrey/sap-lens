@@ -1,9 +1,11 @@
 import { Package } from 'lucide-react'
 import { Button } from './Button'
+import { ClearFilterButton } from './ClearFilterButton'
 import { useAccessPackage } from '@/lib/accessPackage'
 
 /** Floating access package action shared by Role Lookup and Release Roles; independent of comparison and of the package size. */
-export function AccessPackageBar({ onOpen }: { onOpen: () => void }) {
+/** `selection` (Role Lookup) adds Clear selection for the current role selection only; the package and its roles are never touched by it. */
+export function AccessPackageBar({ onOpen, selection }: { onOpen: () => void; selection?: { count: number; onClear: () => void } }) {
   const cart = useAccessPackage()
   if (!cart.items.length) return null
   return (
@@ -13,11 +15,12 @@ export function AccessPackageBar({ onOpen }: { onOpen: () => void }) {
           <span style={{ color:'var(--accent2)' }}>{cart.items.length}</span>{' '}
           {cart.items.length === 1 ? 'role' : 'roles'} in access package
         </p>
-        <p className="text-[10px] mt-0.5" style={{ color:'var(--muted)' }}>proposed names only</p>
+        <p className="text-[10px] mt-0.5" style={{ color:'var(--muted)' }}>proposed names only{selection ? ` · ${selection.count} selected` : ''}</p>
       </div>
       <Button variant="primary" onClick={onOpen} aria-haspopup="dialog">
         <Package size={16} aria-hidden="true" />Access package ({cart.items.length})
       </Button>
+      {selection && <ClearFilterButton onClick={selection.onClear} disabled={!selection.count}>Clear selection</ClearFilterButton>}
     </div>
   )
 }

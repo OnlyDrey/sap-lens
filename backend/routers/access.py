@@ -1,5 +1,5 @@
 """Authenticated local investigation APIs. Dates describe assignments, not effective authorization."""
-from search_matching import text_matches, search_fields
+from search_matching import text_matches, search_fields, text_matches_any
 
 from collections import defaultdict
 from csv_exports import assignment_response, role_list_response
@@ -11,7 +11,7 @@ import cache
 from role_matching import normalize_role
 from transaction_filters import normalized_tcodes, matching_role_names, matching_codes, legacy_groups
 from user_access import (
-    assignment_view, current_role_count,
+    assignment_view, current_role_count, in_assignment_band,
     interval_status,
     relevant,
     sap_date,
@@ -117,10 +117,12 @@ def directory_filters(
     search: str = Query("", max_length=256),
     group: str = Query("", max_length=512),
     role: str = Query("", max_length=512),
+    groups: list[str] = Query(default=[], max_length=50, description="SAP User Groups; OR within the list, combined with every other filter by AND"),
+    roles: list[str] = Query(default=[], max_length=50, description="Assigned roles; OR within the list, combined with every other filter by AND"),
     tcode: str = Query("", max_length=128),
     tcodes: list[str] = Query(default=[], max_length=21),
     transaction_mode: Literal["and", "or"] = "and",
-    assignment_band: Literal["", "0", "1–5", "6–20", "21+"] = "",
+    assignment_band: Literal["", "0–5", "6–10", "11–20", "21–30", "31+", "0", "1–5", "6–20", "21+"] = "",
     status: Status = "",
     show_expired: bool = False,
     exclude_transactions: bool = Query(False, description="Reverse the transaction filter across the user's eligible role assignments"),
@@ -139,7 +141,7 @@ def directory_filters(
     ] = "username",
     descending: bool = False,
 ):
-    return dict(assignment_band=assignment_band,search=search,group=group,role=role,tcode=tcode,tcodes=tcodes,transaction_mode=transaction_mode,status=status,show_expired=show_expired,exclude_transactions=exclude_transactions,exclude_tcodes=exclude_tcodes,exclude_mode=exclude_mode,missing_roles=missing_roles,missing_mode=missing_mode,sort=sort,descending=descending)
+    return dict(assignment_band=assignment_band,search=search,group=group,role=role,groups=tuple(groups),roles=tuple(roles),tcode=tcode,tcodes=tcodes,transaction_mode=transaction_mode,status=status,show_expired=show_expired,exclude_transactions=exclude_transactions,exclude_tcodes=exclude_tcodes,exclude_mode=exclude_mode,missing_roles=missing_roles,missing_mode=missing_mode,sort=sort,descending=descending)
 
 
 def missing_users(snapshot, roles, mode, group, status, show_expired, today):
@@ -153,7 +155,7 @@ def missing_users(snapshot, roles, mode, group, status, show_expired, today):
         return {}
     eligible = defaultdict(list)
     for a in state.assignments:
-        if a["scope"] != "other" and relevant(a, status, show_expired, today) and (not group or group == a["user_group"]):
+        if a["scope"] != "other" and relevant(a, status, show_expired, today) and (not group or a["user_group"] in group):
             eligible[a["user_key"]].append(a)
     found = {}
     for key, entries in eligible.items():
@@ -166,7 +168,7 @@ def missing_users(snapshot, roles, mode, group, status, show_expired, today):
     return found
 
 
-def directory_selection(snapshot, *, search,group,role,tcode,tcodes,transaction_mode,status,show_expired,sort,descending,today=None,assignment_band="",exclude_transactions=False,exclude_tcodes=(),exclude_mode="any",missing_roles=(),missing_mode="any"):
+def directory_selection(snapshot, *, search,group,role,tcode,groups=(),roles=(),tcodes,transaction_mode,status,show_expired,sort,descending,today=None,assignment_band="",exclude_transactions=False,exclude_tcodes=(),exclude_mode="any",missing_roles=(),missing_mode="any"):
     state = snapshot.users
     wanted_codes = normalized_tcodes([tcode] + tcodes if tcode else tcodes)
     include, include_mode, excluded, excluded_mode = legacy_groups(wanted_codes, transaction_mode, exclude_transactions)
@@ -175,13 +177,15 @@ def directory_selection(snapshot, *, search,group,role,tcode,tcodes,transaction_
         excluded, excluded_mode = explicit_excluded, exclude_mode
         if exclude_transactions:
             include, include_mode = (), 'all'
-    candidates = matching_entries(state, role)
+    group_set = {value for value in (group, *groups) if value}
+    role_list = [value for value in (role, *roles) if value]
+    candidates = list({a['id']: a for value in role_list for a in matching_entries(state, value)}.values()) if role_list else matching_entries(state, '')
     evidence = defaultdict(list)
     for a in candidates:
         if (
             a["scope"] != "other"
             and relevant(a, status, show_expired, today)
-            and (not group or group == a["user_group"])
+            and (not group_set or a["user_group"] in group_set)
         ):
             evidence[a["user_key"]].append(a)
     if (include or excluded) and snapshot.roles:
@@ -203,21 +207,20 @@ def directory_selection(snapshot, *, search,group,role,tcode,tcodes,transaction_
                 evidence[key] = [a for a in entries if any(a['id'] in code_ids[code] for code in include)]
     elif excluded:
         evidence.clear()  # without a catalogue no transaction evidence exists, so absence cannot be concluded
-    missing = missing_users(snapshot, missing_roles, missing_mode, group, status, show_expired, today) if missing_roles else None
+    missing = missing_users(snapshot, missing_roles, missing_mode, group_set, status, show_expired, today) if missing_roles else None
     result = []
     term = search.strip()
     for key, user in state.users.items():
         if missing is not None:
-            if key not in missing or (role and key not in evidence):
+            if key not in missing or (role_list and key not in evidence):
                 continue
             evidence[key] = evidence.get(key) or missing[key]
         if assignment_band:
             count=current_role_count(user,today)
-            band='0' if count==0 else '1–5' if count<=5 else '6–20' if count<=20 else '21+'
-            if band!=assignment_band:continue
-        if group and group not in user["groups"]:
+            if not in_assignment_band(count,assignment_band):continue
+        if group_set and not group_set & set(user["groups"]):
             continue
-        if (role or (include and snapshot.roles) or excluded or status) and key not in evidence:
+        if (role_list or (include and snapshot.roles) or excluded or status) and key not in evidence:
             continue
         if term and not search_fields(term, user["username"], *user["groups"], *user["emails"], *(" ".join(n) for n in user["names"])):
             continue
@@ -337,11 +340,13 @@ def release_options(
     search: str = Query("", max_length=512),
     selected: str = Query("", max_length=512),
     group: str = Query("", max_length=100),
+    user_groups: list[str] = Query(default=[], max_length=100),
     document_type: str = Query("", max_length=20),
     release_group: str = Query("", max_length=100),
     release_areas: list[str] = Query(default=[], max_length=50),
     release_groups: list[str] = Query(default=[], max_length=200),
     strategy: str = Query("", max_length=100),
+    strategies: list[str] = Query(default=[], max_length=100),
     status: Literal["active", "expired", "future", "unknown", "all"] = "active",
     limit: int = Query(50, ge=1, le=100),
 ):
@@ -354,37 +359,43 @@ def release_options(
     """
     rank = {"group": 0, "document_type": 1, "release_area": 2, "release_group": 3, "strategy": 4, "username": 5, "role": 5}[field]
     areas, groups = _bounded(release_areas), _bounded(release_groups)
+    wanted_user_groups = _exact(user_groups, group)
     values = set()
     for a in cache.get_snapshot().users.assignments:
         if a["scope"] != "release" or not within_dates(a, dates) or not relevant(a, "" if status == "all" else status, True):
             continue
         release = a["release"]
         kind = release["document_type"] or "Unparsed"
-        if rank > 0 and group and a["user_group"] != group: continue
+        if rank > 0 and wanted_user_groups and a["user_group"] not in wanted_user_groups: continue
         if rank > 1 and document_type and kind != document_type: continue
         if rank > 2 and areas and release_area(release["release_group"]) not in areas: continue
         if rank > 3 and groups and release["release_group"] not in groups: continue
         if rank > 3 and release_group and release["release_group"] != release_group: continue
         if rank > 4 and strategy and release["release_strategy"] != strategy: continue
+        if rank > 4 and strategies and release["release_strategy"] not in strategies: continue
         value = {"group": a["user_group"], "document_type": kind, "release_area": release_area(release["release_group"]),
                  "release_group": release["release_group"], "strategy": release["release_strategy"],
                  "username": a["username"], "role": a["role_name"]}[field]
         if value: values.add(value)
-    matches = sorted((v for v in values if text_matches(v,search)), key=lambda v: (v.casefold(), v))
+    matches = sorted((v for v in values if text_matches_any(v,search)), key=lambda v: (v.casefold(), v))
     # Username/role use the same literal search as their assignment filters.
     available = not selected or (any(text_matches(v,selected) for v in values)
                                 if field in {"username", "role"} else selected in values)
+    if field in {"username", "role"} and selected:
+        available = any(text_matches_any(v, selected) for v in values)
     return dict(items=matches[:limit], total=len(matches), has_more=len(matches) > limit,
                 selected_available=available)
 
 
 def release_filters(dates:dict=Depends(assignment_dates),
     group: str = Query("", max_length=512),
+    user_groups: list[str] = Query(default=[], max_length=100, description="SAP User Groups; OR within the list"),
     document_type: Literal["", "PR", "PO", "Unparsed"] = "",
     release_group: str = Query("", max_length=100),
     release_areas: list[str] = Query(default=[], max_length=50),
     release_groups: list[str] = Query(default=[], max_length=200),
     strategy: str = Query("", max_length=100),
+    strategies: list[str] = Query(default=[], max_length=100),
     username: str = Query("", max_length=512),
     role: str = Query("", max_length=512),
     status: Literal["active", "expired", "future", "unknown", "all"] = "active",
@@ -397,7 +408,12 @@ def release_filters(dates:dict=Depends(assignment_dates),
     ] = "role_name",
     descending: bool = False,
 ):
-    return dict(dates=dates,group=group,document_type=document_type,release_group=release_group,release_areas=release_areas,release_groups=release_groups,strategy=strategy,username=username,role=role,status=status,sort=sort,descending=descending)
+    return dict(dates=dates,group=group,user_groups=list(user_groups),document_type=document_type,release_group=release_group,release_areas=release_areas,release_groups=release_groups,strategy=strategy,strategies=list(strategies),username=username,role=role,status=status,sort=sort,descending=descending)
+
+
+def _exact(values, single=""):
+    """Exact SAP User Group identifiers (case preserved); blanks and over-long entries never match."""
+    return {value.strip() for value in [*values, single] if value and value.strip() and len(value) <= 512}
 
 
 def _bounded(values):
@@ -405,13 +421,14 @@ def _bounded(values):
     return {value.strip().upper() for value in values if value.strip() and len(value) <= 100}
 
 
-def filtered_release_assignments(snapshot, *, dates,group,document_type,release_group,strategy,username,role,status,sort,descending,release_areas=(),release_groups=(),today=None):
+def filtered_release_assignments(snapshot, *, dates,group,document_type,user_groups=(),release_group,strategy,username,role,status,sort,descending,release_areas=(),release_groups=(),strategies=(),today=None):
     areas, groups = _bounded(release_areas), _bounded(release_groups)
+    wanted_user_groups = _exact(user_groups, group)
     for a in snapshot.users.assignments:
         if a["scope"] != "release" or not within_dates(a, dates):
             continue
         r = a["release"]
-        if group and a["user_group"] != group:
+        if wanted_user_groups and a["user_group"] not in wanted_user_groups:
             continue
         if document_type and (r["document_type"] or "Unparsed") != document_type:
             continue
@@ -423,9 +440,11 @@ def filtered_release_assignments(snapshot, *, dates,group,document_type,release_
             continue
         if strategy and r["release_strategy"] != strategy:
             continue
-        if username and not text_matches(a["username"],username):
+        if strategies and r["release_strategy"] not in _bounded(strategies):
             continue
-        if role and not text_matches(a["role_name"],role):
+        if username and not text_matches_any(a["username"],username):
+            continue
+        if role and not text_matches_any(a["role_name"],role):
             continue
         if not relevant(a, "" if status == "all" else status, True, today):
             continue
@@ -564,28 +583,31 @@ def release_assignments(
     dates: dict = Depends(assignment_dates),
     role: str = Query("", max_length=512),
     group: str = Query("", max_length=512),
+    user_groups: list[str] = Query(default=[], max_length=100),
     ungrouped: bool = False,
     username: str = Query("", max_length=512),
     role_search: str = Query("", max_length=512),
     document_type: Literal["", "PR", "PO"] = "",
     release_group: str = Query("", max_length=100),
     strategy: str = Query("", max_length=100),
+    strategies: list[str] = Query(default=[], max_length=100),
     status: Literal["active", "expired", "future", "unknown", "all"] = "active",
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ):
     entries = []
+    wanted_user_groups = _exact(user_groups, group)
     for a in cache.get_snapshot().users.assignments:
         if a["scope"] != "release" or not within_dates(a, dates):
             continue
         r = a["release"]
-        if username and not text_matches(a["username"],username):
+        if username and not text_matches_any(a["username"],username):
             continue
-        if role_search and not text_matches(a["role_name"],role_search):
+        if role_search and not text_matches_any(a["role_name"],role_search):
             continue
         if role and normalize_role(a["role_name"]) != normalize_role(role):
             continue
-        if group and a["user_group"] != group or ungrouped and a["user_group"]:
+        if wanted_user_groups and a["user_group"] not in wanted_user_groups or ungrouped and a["user_group"]:
             continue
         if document_type and r["document_type"] != document_type:
             continue
@@ -593,11 +615,17 @@ def release_assignments(
             continue
         if strategy and r["release_strategy"] != strategy:
             continue
+        if strategies and r["release_strategy"] not in _bounded(strategies):
+            continue
         if relevant(a, "" if status == "all" else status, True):
             entries.append(a)
     entries.sort(
         key=lambda a: (a["user_key"], a["role_name"], a["valid_from"] or "", a["id"])
     )
     paged = page(entries, offset, limit)
-    paged["items"] = [assignment_view(a) for a in paged["items"]]
+    people = cache.get_snapshot().users.users
+    def display_name(key):
+        names = (people.get(key) or {}).get("names") or []
+        return " ".join(part for part in (names[0] if names else ()) if part)
+    paged["items"] = [dict(assignment_view(a), display_name=display_name(a["user_key"])) for a in paged["items"]]
     return dict(**paged, distinct_users=len({a["user_key"] for a in entries}), role_info=parse_release_role(role) if role else None)

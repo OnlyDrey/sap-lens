@@ -108,7 +108,7 @@ test('catalogue AND/OR is exact across mapping rows; multi-area OR combines with
   await search.fill('MIGO')
   await expect(page.getByRole('article')).toHaveCount(0)
   await page
-    .getByRole('button', { name: 'Clear all filters', exact: true })
+    .getByRole('button', { name: 'Clear filters', exact: true })
     .click()
   await expect(page.getByRole('article')).toHaveCount(3)
   await expect(search).toHaveValue('')
@@ -117,7 +117,7 @@ test('catalogue AND/OR is exact across mapping rows; multi-area OR combines with
     'true',
   )
   await expect(
-    page.getByRole('button', { name: 'Clear all filters', exact: true }),
+    page.getByRole('button', { name: 'Clear filters', exact: true }),
   ).toBeDisabled()
 })
 
@@ -135,16 +135,16 @@ test('one catalogue reset covers live-only transaction, text, areas, mode and so
     .click()
   await tx.getByRole('textbox').fill('MIGO')
   await expect(
-    page.getByRole('button', { name: 'Clear all filters', exact: true }),
+    page.getByRole('button', { name: 'Clear filters', exact: true }),
   ).toBeVisible()
   await page
-    .getByRole('button', { name: 'Clear all filters', exact: true })
+    .getByRole('button', { name: 'Clear filters', exact: true })
     .click()
   await expect(page.getByRole('article')).toHaveCount(3)
   await page.getByRole('button', { name: 'Name A to Z', exact: true }).click()
   await page.getByRole('button', { name: 'Name Z to A', exact: true }).click()
   await page
-    .getByRole('button', { name: 'Clear all filters', exact: true })
+    .getByRole('button', { name: 'Clear filters', exact: true })
     .click()
   await expect(
     page.getByRole('button', { name: 'Name A to Z', exact: true }),
@@ -244,9 +244,7 @@ test('business and release assignment tabs have dedicated split-date columns wit
     .getByRole('tab', { name: 'Business Roles — ZC:*', exact: true })
     .click()
   let table = detail.getByRole('region', { name: 'User role assignments' })
-  await expect(
-    table.getByRole('columnheader', { name: 'Role description', exact: true }),
-  ).toBeVisible()
+  await expect(table.locator('.assigned-role-description').first()).toBeVisible()
   await expect(
     table.getByRole('columnheader', { name: 'Type', exact: true }),
   ).toHaveCount(0)
@@ -264,9 +262,7 @@ test('business and release assignment tabs have dedicated split-date columns wit
     await expect(
       table.getByRole('columnheader', { name, exact: true }),
     ).toBeVisible()
-  await expect(
-    table.getByRole('columnheader', { name: 'Role description', exact: true }),
-  ).toHaveCount(0)
+  await expect(table.locator('.assigned-role-description')).toHaveCount(0)
   await expect(table).not.toContainText('Unmapped')
   await expect(table).toContainText('31.12.9999')
   await expect(table).toContainText('Active assignment')

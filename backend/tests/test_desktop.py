@@ -346,7 +346,7 @@ class DesktopTests(unittest.TestCase):
         from routers.roles import PACKAGE_HEADER
         bridge=desktop.NativeDialogs('synthetic-capability');bridge._window=self.window
         target=self.root/'Synthetic package.csv';self.window.create_file_dialog.return_value=[str(target)]
-        name='sap-lens-access-package-2026-10-28.csv';content=PACKAGE_HEADER+'"ZC:MM:BUY:ENS";"Synthetic";"ENS"\r\n'
+        name='sap-lens-access-package-2026-10-28.csv';content=PACKAGE_HEADER+'"ZC:MM:BUY:ENS";"Synthetic";"ENS";"Confirmed"\r\n'
         with self.assertRaises(ValueError):bridge.save_role_package_csv('wrong',name,content)
         with self.assertRaises(ValueError):bridge.save_role_package_csv('synthetic-capability',name,'unrelated header')
         with self.assertRaises(ValueError):bridge.save_role_package_csv('synthetic-capability','sap-lens-sod-explorer-user-risk-2026-10-28.csv',content)

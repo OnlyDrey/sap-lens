@@ -81,7 +81,7 @@ test('the assignment queue shows what needs attention by default and filters ind
   // The same user has reviewed and unreviewed roles: only the assignments needing attention are listed.
   await expect.poll(shown).toEqual(['ROLE_B', 'ROLE_C'])
   const progress = page.getByRole('region', { name: 'Role assignment review progress' })
-  await expect(progress).toContainText('Remaining to review')
+  await expect(progress).toContainText('Needs review')
   await status.selectOption({ label: 'Reviewed assignments' })
   await expect.poll(shown).toEqual(['ROLE_A1', 'ROLE_A2'])
   await status.selectOption({ label: 'Under investigation' })
@@ -92,7 +92,7 @@ test('the assignment queue shows what needs attention by default and filters ind
   await expect.poll(shown).toEqual(['ROLE_A1', 'ROLE_A2', 'ROLE_B', 'ROLE_C'])
   await expect(page.getByRole('status').filter({ hasText: /of 7|7 rows/ }).first()).toBeVisible().catch(() => undefined)
   // Reset restores the documented default view.
-  await page.getByRole('toolbar', { name: 'Page actions' }).getByRole('button', { name: 'Reset', exact: true }).click()
+  await page.getByRole('complementary', { name: 'Filters' }).getByRole('button', { name: 'Clear filters', exact: true }).click()
   await expect(status).toHaveValue('')
   await expect.poll(shown).toEqual(['ROLE_B', 'ROLE_C'])
 })

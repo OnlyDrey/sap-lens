@@ -39,7 +39,7 @@ test('manager-only and formatting-only directory changes are not position change
   writeFileSync(csv, employees(' finance ', 'ACCOUNTANT', 'Another Manager'))
   await importDirectory(request)
   await page.goto('/#session=browser-test-session')
-  const tile = page.getByRole('button', { name: 'Users requiring review — Position changes' })
+  const tile = page.getByRole('region', { name: 'Directory & Data Health', exact: true }).getByRole('button', { name: 'Position changes', exact: true })
   await expect(tile).toContainText('0')
 })
 
@@ -47,26 +47,34 @@ test('a department change becomes a priority review that uses the existing Accou
   writeFileSync(csv, employees('Procurement', 'Accountant'))
   await importDirectory(request)
   await page.goto('/#session=browser-test-session')
-  const tile = page.getByRole('button', { name: 'Users requiring review — Position changes' })
+  const tile = page.getByRole('region', { name: 'Directory & Data Health', exact: true }).getByRole('button', { name: 'Position changes', exact: true })
   await expect(tile).toContainText('1')
   await tile.click()
   await expect(page).toHaveURL(/#\/user-access\/account-review/)
-  await expect(page.getByLabel('Review finding', { exact: true })).toHaveValue('position_change')
+  await expect(page.getByRole('button', { name: 'Remove review finding Position changes', exact: true })).toBeVisible()
   const queue = page.getByRole('region', { name: 'Position changes priority queue' })
   await expect(queue).toContainText('not evidence that access is inappropriate')
   const row = queue.getByRole('row').filter({ hasText: 'DEMO_MOVER' })
   // Last-known and current values are separate columns; the detection time is the first detection, not the date of the change.
-  await expect(queue.getByRole('columnheader', { name: 'Previous department', exact: true })).toBeVisible()
-  await expect(queue.getByRole('columnheader', { name: 'Current department', exact: true })).toBeVisible()
-  await expect(row.getByRole('cell', { name: 'Finance', exact: true })).toBeVisible()
-  await expect(row.getByRole('cell', { name: 'Procurement', exact: true })).toBeVisible()
-  await expect(row).toContainText('(unchanged)')
+  await expect(queue.getByRole('columnheader', { name: 'Previous position', exact: true })).toBeVisible()
+  await expect(queue.getByRole('columnheader', { name: 'Current position', exact: true })).toBeVisible()
+  await expect(queue.getByRole('columnheader', { name: 'Status', exact: true })).toHaveCount(0) // the redundant Status column is gone
+  // Department and job title are stacked and labelled in each position cell; unchanged values stay muted, changed ones are emphasized.
+  const [previous, current] = [row.getByRole('cell').nth(2), row.getByRole('cell').nth(3)]
+  await expect(previous).toContainText('Department'); await expect(previous).toContainText('Job title')
+  await expect(previous).toContainText('Finance'); await expect(current).toContainText('Procurement')
+  await expect(current.locator('.position-line[data-changed]')).toHaveCount(1) // only the department changed
   await expect(row).toContainText('High')
-  await expect(row).toContainText('Needs review')
+  await expect(row.getByRole('button', { name: 'Review position change for DEMO_MOVER' }).locator('svg')).toHaveCount(1) // Review carries an icon
   await expect(queue.getByRole('row').filter({ hasText: 'DEMO_STAYER' })).toHaveCount(0)
   await expect(row.getByRole('link', { name: 'Open SAP user DEMO_MOVER' })).toHaveAttribute('href', '#/user-access/user/DEMO_MOVER')
   await row.getByRole('button', { name: 'Review position change for DEMO_MOVER' }).click()
   const dialog = page.getByRole('dialog', { name: 'Review account · DEMO_MOVER' })
+  // The dialog is limited to SAP identity, organizational position changes and the review decision; findings stay under Investigate SAP user.
+  for (const name of ['SAP identity', 'Review decision']) await expect(dialog.getByRole('region', { name, exact: true })).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Organizational position changes' })).toBeVisible()
+  await expect(dialog.getByText('Current findings and evidence')).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: /Investigate SAP user/ })).toBeVisible()
   await dialog.getByLabel('Reviewer', { exact: true }).fill('Synthetic Reviewer')
   await dialog.getByLabel('Rationale', { exact: true }).fill('Move confirmed with the line manager.')
   await dialog.getByLabel('Decision', { exact: true }).selectOption('No action required')
@@ -74,5 +82,5 @@ test('a department change becomes a priority review that uses the existing Accou
   await expect(dialog).toHaveCount(0)
   await expect(queue).toHaveCount(0)
   await goTo(page, 'Dashboard')
-  await expect(page.getByRole('button', { name: 'Users requiring review — Position changes' })).toContainText('0')
+  await expect(page.getByRole('region', { name: 'Directory & Data Health', exact: true }).getByRole('button', { name: 'Position changes', exact: true })).toContainText('0')
 })

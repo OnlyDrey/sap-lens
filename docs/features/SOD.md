@@ -23,7 +23,7 @@ Accept or reject → Approve → Remediate → Verify → Report**
 
 Business matrices (for example Finance or P2P) are **Saved Filters** on the two matrices,
 not separate pages. The risk catalogue stays in Settings → SoD Risk Configuration.
-Choose **Review context**: current evidence, or a review period (frozen after approval).
+One **review context bar** sits beneath the SoD navigation on every page: choose current evidence or a review period (frozen after approval) and see the evaluation date and whether the evidence is live or a frozen snapshot. Pages do not repeat this information.
 
 ## Three separate decisions
 
@@ -64,7 +64,7 @@ lines are not verified digital signatures.
 ## Evidence rules
 
 - Missing sources or coverage appear as unavailable or "Not observed", never as resolved or zero.
-- Source criticality labels (for example C/H) are shown literally.
+- Source criticality labels (for example C/H) are shown literally as evidence, in settings, reports and the investigation. Operational views (matrices, explorer, reviews, remediation, conflicts) no longer filter by criticality.
 - Private backups must include the SoD stores. Portable configuration and diagnostics
   exports exclude them. Use only synthetic data in examples and tests.
 
@@ -103,14 +103,19 @@ Every period status can be deleted from the row action menu or the period dialog
 - Reports already issued outside SAP Lens stay valid; their log entries remain, but they cannot be regenerated afterwards. Findings first seen in a deleted
   approved period are classified as new instead of reopened in later comparisons. Other periods and current decisions are never changed (no cascade).
 
-## SAP user group heatmap
+## SAP User Group heatmap
 
-The Overview heatmap shows distinct users per SAP user group and risk (or activity) over current evidence. Darker cells have more users; the Users column and the Distinct users row are distinct counts. A user in several groups counts in each group, so group counts can exceed the distinct total. The 25 most affected columns are shown; the matrix lists all of them. Sort by group, distinct users or number of risks/activities, select a cell to open the matrix for that group and item, and use Export CSV (long format: group, item, users with the item, users in the group with items). When SoD is enabled the [Dashboard](DASHBOARD.md) also summarizes conflicts, pending reviews and remediation.
+One shared heatmap, **Conflicts by SAP User Group**, sits directly under the Review Context on every SoD page (Overview, Risk Matrix, Activity Matrix, Access Explorer, Reviews, Review Periods and Reports). It shows distinct users per SAP User Group and risk (or activity) for the selected review context. Darker cells have more users; the Users column and the Distinct users row are distinct counts. A user in several groups counts in each group, so group counts can exceed the distinct total. The 25 most affected columns are shown; the matrix lists all of them. Sort by group, distinct users or number of risks/activities, and export with **Export heatmap CSV** (long format: group, item, users with the item, users in the group with items).
+
+- **Collapse.** The heading is a button; the heatmap is expanded by default. The choice is a per-browser preference (local storage, never review evidence or a decision) and holds across SoD pages and reloads.
+- **Filtering.** Select a group (row header), a risk or activity (column header) or a cell. On Risk Matrix, Activity Matrix, Access Explorer and Reviews the selection is written into that page's own group and risk or activity filters, so it is visible in the page filters and in the removable chips under the heatmap title, and every other filter is kept. **Clear heatmap filters** removes only the group and risk or activity filters. On Overview, Review Periods and Reports (which cannot filter by them) a selection opens the Risk Matrix or Activity Matrix with the filter applied; nothing is filtered silently.
+- **Scope.** Counts follow the review context and match the heatmap CSV. When SoD analysis is unavailable the page's own notice explains why and the heatmap is not shown.
+- **Risk Matrix by SAP User Group.** Rows are labelled "SAP User Group" with a compact label (full name as tooltip) and a row header that stays visible when the matrix scrolls sideways.
 
 ## Filters, tiles and drawer
 
 - Every SoD page (matrices, Access Explorer, Role Conflicts, User Conflicts) uses the same **Filters** sidebar: search, Saved Filters and all filters live there. The toolbar keeps only sort, direction, row mode, Export CSV and Reset.
-- Risk, activity, group, user, role, transaction, business area and criticality fields suggest values taken from the imported evidence (searchable, bounded). A typed value that is not suggested still filters.
+- Risk, activity, group, user, role, transaction and business area fields suggest values taken from the imported evidence (searchable, bounded). A typed value that is not suggested still filters.
 - Risk and Activity matrices show tiles for users, distinct user-risk or user-activity pairs and each review status (Pending, Accepted, Rejected, Outdated; Pending, Approved, Conditional, Removal required, Outdated). Counts cover the whole filtered matrix, not the visible page; a status tile toggles the matching filter.
 - A matrix cell opens the investigation drawer for that one user-risk or user-activity: only the matching activities, role assignments and risk acceptance are listed, with **Show all review items** to widen it. A user row opens everything. The business area reuses the configured module icon and color when it names a module.
 - CSV exports use exactly the filters shown, including assignment validity (active, expired, future, unknown, all).
@@ -144,3 +149,19 @@ The Overview heatmap shows distinct users per SAP user group and risk (or activi
 - The report forms show the essentials (period or context, title, status, handling groups) and keep people, roles, version, date and comments under "Document details". The Norwegian language option was removed; older API requests that send `language` remain accepted and produce the English report.
 - **Report status** distinguishes four labels: *Draft* (not reviewed or approved), *Reviewed* (a reviewer is named; the name is not authenticated, so it is not an approval), *Approved* (the period has a recorded approval and is frozen; names are still typed locally) and *Externally signed* (the preparer states it was signed outside SAP Lens; the signature is not verified). Approved and Externally signed require a frozen period. Earlier values *For review* and *Approved snapshot* are read as Reviewed and Approved. The preview, DOCX and PDF show the same status statement.
 - **Export notice**: every export reports through one notice fixed at the top of the application. It overlays the page, so nothing shifts. Success and cancel messages fade after a few seconds; errors stay until dismissed.
+
+## Consolidated review workflows
+
+- **Summary tiles** that filter are buttons: the matrix status tiles and the assignment queue tiles (In scope, Completed, Pending, Under investigation, Needs review, Removal recommended). The active tile is highlighted, clicking it again toggles it off, tiles combine with the sidebar filters and *Reset tile filters* clears them. Informational tiles (for example Outdated) stay flat and dashed.
+- **Actionable Overview metrics.** *Users with more than one risk* counts SAP users with at least two different risk IDs (activities or roles repeating one risk count once) and opens Access Explorer with the *Risks per user* filter. *Most common conflicting roles* ranks assigned roles by the distinct user-risk findings they contribute to (a role counts once per user and risk), shows the top five with *Show more*, and opens the Explorer filtered to that assigned role. *Remediation awaiting action* counts role assignments recommended for removal that have no tracked remediation action and opens Remediation with *Awaiting action* selected. *Remediation verified* counts tracked removals only when a User-Role import newer than the action no longer contains the assignment and source coverage is complete; a Completed status alone never verifies. Without tracked removals, or when current evidence cannot confirm absence, the tile shows *Unavailable* with the reason, and *Verified removals* in Remediation lists the verified tracked actions.
+- **Overview.** With no approved period and no open period the review card is a compact empty state with *Open review periods*.
+- **Access Explorer.** Assignments show the SAP username and role as codeblocks with risk and activity pills; module labels, the Active assignment badge and validity dates are left out (non-active assignments keep their status badge, and the validity scope filter defaults to active assignments). Roles show the role codeblock, users, risks, activities and *Show users*. Role conflicts use the colored Risk ID pill.
+- **Role Assignment Review rows** are one compact line: checkbox, copyable role, review status, Keep, Investigate and Remove icons and an expand control. Expanding shows SAP User Group, validity, activities, risks, transactions, decision history and further actions. *Select all visible* and *Review selected* ask for confirmation of the number of assignments; every assignment keeps its own history.
+- **Reviewer name.** The self-reported name is remembered for the browser session and reused by quick decisions, forms, bulk review and report preparation; it can always be changed and is stored with each decision, never as an authenticated identity.
+- **Work queue and periods.** The queue shows usernames as codeblocks, tile filters and an icon action. The period menu uses icons, a trigger as tall as the Open button and keeps Delete set apart behind its confirmation. Reports open with *Document details* expanded.
+
+## Evidence dialogs and review rows
+
+- **Access Explorer evidence.** In the Users tab the evidence button of a row (for example "3 roles") opens a wide modal: a compact summary (SAP user, risk, activities, role count), a table of the roles that scrolls inside the dialog, and shortcuts to open the SAP user or investigate. In the Roles tab the users count opens the users behind that role (SAP username codeblocks with navigation, SAP User Group, assignment intervals, Investigate). Escape closes them.
+- **Potential SoD evidence.** The dialog for a finding starts with a summary (subject, risk with its source criticality, both required activities) and then one section per activity side, each with a scrollable table whose columns keep the kinds of evidence apart: Transaction (mapped to the activity), Single role, Assigned role (what the user actually has), Catalogue role or pattern (the match, exact or wildcard) and Assignment validity, plus Technical provenance. It describes potential conflicts and never effective SAP authorization.
+- **Risk Acceptance rows.** The primary row is checkbox, Risk ID, status and a right-aligned Decide; the description sits below and the decision history is collapsed behind the disclosure control. Bulk review, filters, decisions, removal recommendations and history are unchanged, and nothing changes in SAP.

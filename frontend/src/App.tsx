@@ -1,7 +1,9 @@
 import {SodWorkspace} from '@/components/Sod/SodWorkspace'
 import {applicationToken} from '@/api/client'
-import { MainNavigation, MainNavigationItem } from '@/components/Shared/Navigation'
-import { pageHref, useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
+import { MainNavigation, MainNavigationGroup, MainNavigationItem } from '@/components/Shared/Navigation'
+import { SOD_VIEWS, USER_ACCESS_VIEWS } from '@/lib/navigationItems'
+import { pageHref, sodHref, useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
+import { userAccessHref } from '@/hooks/useViewHistory'
 import { DISCARD_PROMPT, settingsDirty } from '@/lib/settingsGuard'
 import { useState, useCallback, useRef, useLayoutEffect, useEffect } from 'react'
 import { AppLayout } from '@/components/Layout/AppLayout'
@@ -37,8 +39,16 @@ export function App() {
   const [visited, setVisited] = useState(() => new Set([page]))
   const scrollPositions = useRef<Record<string, number>>({})
   const navigate = (next: 'dashboard'|'roles'|'users'|'releases'|'sod') => { scrollPositions.current[page] = window.scrollY; setVisited(previous => new Set([...previous, next])); change({page:next, detailRole:null, settings:false}) }
+  const [accessMode] = useHistoryValue('accessMode'), [sodView] = useHistoryValue('sodView')
+  /** A submenu entry opens one page of a module; unsaved Settings edits are confirmed first, like every other destination. */
+  const openPage = (next: 'users' | 'sod', patch: Record<string, unknown>) => { if (settingsDirty() && !window.confirm(DISCARD_PROMPT)) return; scrollPositions.current[page] = window.scrollY; setVisited(previous => new Set([...previous, next])); change({ page: next, detailRole: null, settings: false, ...patch } as never) }
+  const submenus = {
+    users: USER_ACCESS_VIEWS.map(({ value, label, icon }) => ({ value, label, icon, href: userAccessHref(value), active: page === 'users' && !settingsOpen && (accessMode || 'directory') === value, onSelect: () => openPage('users', { accessMode: value, user: '', userContext: {} }) })),
+    sod: SOD_VIEWS.map(({ value, label, icon }) => ({ value, label, icon, href: sodHref(value), active: page === 'sod' && !settingsOpen && (sodView || 'overview') === value, onSelect: () => openPage('sod', { sodView: value }) })),
+  } as const
   /** Settings stay open until the destination is confirmed when they hold unsaved edits. */
-  const go = (next: 'dashboard'|'roles'|'users'|'releases'|'sod') => { if (settingsDirty() && !window.confirm(DISCARD_PROMPT)) return; navigate(next) }
+  /** The main link opens the module: from another module it returns to where that module was left (open record, filters); on the module itself it opens the main page (User directory, SoD Overview). Other pages are reached through the submenu. */
+  const go = (next: 'dashboard'|'roles'|'users'|'releases'|'sod') => { if (settingsDirty() && !window.confirm(DISCARD_PROMPT)) return; if (page === next && !settingsOpen && (next === 'users' || next === 'sod')) openPage(next, next === 'users' ? { accessMode: 'directory', user: '', userContext: {} } : { sodView: 'overview' }); else navigate(next) }
   useLayoutEffect(() => { setVisited(previous => new Set([...previous, page])); window.scrollTo(0, scrollPositions.current[page] || 0) }, [page])
   const [userContext] = useHistoryValue('userContext')
   const [selectedUser] = useHistoryValue('user')
@@ -71,7 +81,7 @@ export function App() {
     <AppLayout
       navigation={<>
       <MainNavigation>
-        {([['dashboard','Dashboard',LayoutDashboard],['roles','Role Lookup',Search],['users','User Access',Users],['releases','Release Roles',FileCheck2],['sod','SoD',ShieldCheck]] as const).filter(([key])=>key!=='sod'||sodEnabled).map(([key,label,Icon])=><MainNavigationItem key={key} label={label} icon={<Icon size={17} aria-hidden="true"/>} active={page===key&&!settingsOpen} href={pageHref(key)} onNavigate={()=>go(key)}/>)}
+        {([['dashboard','Dashboard',LayoutDashboard],['roles','Role Lookup',Search],['users','User Access',Users],['releases','Release Roles',FileCheck2],['sod','SoD',ShieldCheck]] as const).filter(([key])=>key!=='sod'||sodEnabled).map(([key,label,Icon])=>{const props={label,icon:<Icon size={17} aria-hidden="true"/>,active:page===key&&!settingsOpen,href:pageHref(key),onNavigate:()=>go(key)};return key==='users'||key==='sod'?<MainNavigationGroup key={key} {...props} items={[...submenus[key]]}/>:<MainNavigationItem key={key} {...props}/>})}
       </MainNavigation>
       </>}
       onDataChanged={() => {

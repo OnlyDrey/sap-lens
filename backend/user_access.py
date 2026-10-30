@@ -276,3 +276,24 @@ def current_role_count(user, today=None):
     return len({normalize_role(a['role_name']) for a in user['assignments']
                 if a['scope'] in {'business','release'} and
                 interval_status(sap_date(a['valid_from']),sap_date(a['valid_to']),today)=='active'})
+
+
+# Non-overlapping ranges of distinct currently valid roles per SAP user, covering every user (zero included).
+ASSIGNMENT_BANDS = ('0–5', '6–10', '11–20', '21–30', '31+')
+# Earlier saved filters and links used other ranges; they stay valid.
+LEGACY_ASSIGNMENT_BANDS = ('0', '1–5', '6–20', '21+')
+_BAND = re.compile(r'^(\d+)(?:–(\d+)|(\+))?$')
+
+
+def assignment_band(count):
+    return next(band for band in ASSIGNMENT_BANDS if in_assignment_band(count, band))
+
+
+def in_assignment_band(count, band):
+    """Whether a role count falls in a band label such as '6–10', '31+' or the single value '0'."""
+    match = _BAND.match(band)
+    if not match:
+        return False
+    low = int(match[1])
+    high = None if match[3] else int(match[2]) if match[2] else low
+    return count >= low and (high is None or count <= high)

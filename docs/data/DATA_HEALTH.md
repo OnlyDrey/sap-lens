@@ -24,7 +24,7 @@ Role and user sources now restore durable canonical snapshots rather than relyin
 
 Source health uses shared mode/availability badges and four full-width metadata
 rows: Records, Last import/dataset activation, Snapshot and Last validated source
-check. Dynamic is informational; Static/Disabled are neutral. Loaded is a green
+check. Dynamic has its own accent pill, distinct from the neutral Static/Disabled pills. Source cards sit in a grid of three columns on wide screens, two on medium and one on narrow screens. Loaded is a green
 success state independent of a warning about the most recent failed source read.
 Absent source-check evidence stays Not checked, rather than borrowing an import
 timestamp. Existing technical details and recovery actions remain available.

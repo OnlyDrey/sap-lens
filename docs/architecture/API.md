@@ -12,7 +12,7 @@ Desktop: the owned `http://127.0.0.1:<selected-port>` origin, preferring `18743`
 | POST | `/api/refresh-schedule/preview` | Explain an unsaved schedule draft (description and next runs, or the reason it is invalid); the schedule is saved with `POST /api/configuration` (`refresh_schedule`) |
 | GET | `/api/roles/naming` | Organizational suffixes detected in the imported role names |
 | POST | `/api/roles/package/preview` | Proposed access package: generated names, validation and catalogue matches for any number of roles (read-only) |
-| POST | `/api/roles/package/export` | Package CSV (`sap-lens-access-package-DATE.csv`) of the valid generated names |
+| POST | `/api/roles/package/export` | Package CSV (`sap-lens-access-package-DATE.csv`, columns name, description, suffix, validation) of the exportable generated names (Confirmed, Pattern match, Needs attention) |
 | GET | `/api/roles/{agr_name}` | Role details with single roles and transactions |
 | GET | `/api/modules` | Distinct module labels |
 | POST | `/api/compare` | Compare two to five distinct roles |
@@ -274,7 +274,7 @@ Evidence and exports are bounded; see [SoD architecture](SOD.md) and the
 | Method | Route | Purpose |
 | --- | --- | --- |
 | POST | `/api/data-sources/sod/{select,preview}` | Validated SoD matrix selection and snapshot preview (shared source lifecycle) |
-| GET | `/api/sod/overview` | Catalogue counts plus a `governance` block: conflicts, decisions, remediation, open period progress, changes since the last refresh |
+| GET | `/api/sod/overview` | Catalogue counts plus a `governance` block: conflicts (including `concentration`: users with more than one risk and the roles behind the most distinct user-risk findings), decisions, remediation (including `verification`), open period progress, changes since the last refresh |
 | GET | `/api/sod/catalogue`, `/catalogue/export` | Filtered risks with local guidance; CSV |
 | POST | `/api/sod/catalogue/{risk_id}`, `/catalogue/bulk` | Edit local metadata (English text, color); confirmed bulk enablement |
 | GET/POST | `/api/sod/catalogue-activities`, `/catalogue-activities/{activity}` | Activities derived from the import with local English-only metadata; optimistic `expected_revision` |
@@ -290,7 +290,7 @@ Evidence and exports are bounded; see [SoD architecture](SOD.md) and the
 | GET | `/api/sod/queue`, `/queue/export` | Review work queue (`kind`, `status`) with status counts; CSV |
 | POST | `/api/sod/decisions/{activity,assignment,acceptance}` | Record one decision for explicitly listed items (max 100) |
 | GET | `/api/sod/decisions/{kind}/history`, `/evidence` | Event history and the evidence retained with an event |
-| GET | `/api/sod/remediation`, `/remediation/export` | Recommended handling per assignment, tracked actions with verification; CSV |
+| GET | `/api/sod/remediation`, `/remediation/export` | Recommended handling per assignment, tracked actions with verification; CSV. `tracking=untracked` keeps removal recommendations without an action, `tracking=verified` lists tracked removals verified by newer evidence; scope filters also accept `multiple_risks=true` |
 | POST | `/api/sod/remediation/actions` | Create or update a tracked action (completion needs evidence) |
 | GET / POST | `/api/sod/periods`, `/{id}`, `/compare` | List (optionally archived), create, read snapshot, compare two periods with decision changes |
 | POST | `/api/sod/periods/{id}/{transition,recapture}` | Workflow change with gates, approval separation and rejection reason; explicit open-period recapture |

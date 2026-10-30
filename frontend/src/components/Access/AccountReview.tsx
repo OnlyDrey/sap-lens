@@ -1,23 +1,26 @@
 import { Dialog } from '@/components/Shared/Dialog'
 import { userHref } from '@/hooks/useViewHistory'
-import { ReviewFindings, type ReviewEvidence } from '@/components/Shared/ReviewFindings'
+import { type ReviewEvidence } from '@/components/Shared/ReviewFindings'
 import { PageHeader, MetadataList } from '@/components/Shared/Presentation'
 import { ClipboardCheck as PageIcon } from 'lucide-react'
-import { FilterTile, FilterPanel, ResultsToolbar } from '@/components/Shared/InvestigationPatterns'
+import { Kpi } from '@/components/Shared/Kpi'
+import { StackedBar } from '@/components/Shared/Charts'
+import { FilterLayout, FilterSection, PageToolbar, SortControl } from '@/components/Shared/FilterLayout'
+import { FormField } from '@/components/Shared/Controls'
 import { SearchInput } from '@/components/Shared/Controls'
 import { Button } from '@/components/Shared/Button'
 import { SavedFilters } from '@/components/Shared/SavedFilters'
 import { useApplicationData } from '@/state/ApplicationData'
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowUpRight, Download, Save } from 'lucide-react'
+import { ArrowUpRight, ClipboardCheck, Download, Save } from 'lucide-react'
 import { apiRequest, applicationToken } from '@/api/client'
 import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
 import { AccountStatus } from '@/components/Shared/AccountStatus'
-import { ClearFilterButton } from '@/components/Shared/ClearFilterButton'
 import { FilterChip } from '@/components/Shared/FilterChip'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import { Select } from '@/components/Shared/Select'
+import { MultiSelectFilter } from '@/components/Shared/MultiSelectFilter'
 import { csvField } from '@/lib/accessExport'
 import { formatTimestamp } from '@/lib/dateFormat'
 import { Filter, Pagination, QueryState, inputClass } from './Shared'
@@ -71,32 +74,44 @@ interface Results {
   finding_labels: Record<string, string>
   review_states: string[]
 }
+const SORTS = [{ value: 'username', label: 'Username' }, { value: 'name', label: 'Name' }, { value: 'sap_validity', label: 'SAP validity' }, { value: 'lock_status', label: 'SAP lock status' }, { value: 'ad_status', label: 'AD status' }, { value: 'review_state', label: 'Review state' }, { value: 'priority', label: 'Priority' }]
 const matchLabel = (status: string) => ({matched:'Matched',duplicate_email:'Duplicate Email',missing_email:'Missing Email',ambiguous:'Ambiguous Match',unmatched:'Unmatched',disabled:'Disabled',unavailable:'Unavailable'} as Record<string,string>)[status] || status.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())
 const changeText = (change: PositionChange) => [
   change.fields.includes('department') && `Department ${change.previous_department} → ${change.current_department}`,
   change.fields.includes('title') && `Job title ${change.previous_title} → ${change.current_title}`,
 ].filter(Boolean).join(' · ')
 
-/** Overview tiles: each applies its finding (and license classification) to the list. */
-const TILE_GROUPS: [string, [string, string, { finding: string; license?: string }][]][] = [
-  ['Account status', [['total', 'SAP accounts', { finding: '' }], ['mismatch', 'AD disabled / SAP valid and unlocked', { finding: 'ad_disabled_open' }], ['missing', 'Missing or ambiguous directory matches', { finding: 'directory_match' }]]],
-  ['Review findings', [['requiring_review', 'Accounts requiring review', { finding: 'any' }], ['position_changes', 'Position changes', { finding: 'position_change' }], ['unlicensed', 'Classified unlicensed', { finding: '', license: 'classified' }]]],
-  ['Review progress', [['reviewed', 'Reviewed accounts', { finding: 'reviewed' }], ['outdated', 'Outdated reviews', { finding: 'stale' }], ['pending', 'Pending reviews', { finding: 'pending' }]]],
+/** Secondary KPIs: each applies its finding to the list. Review progress itself (completed and pending) is the primary overview above them. */
+const ACTION_TILES: [string, string, { finding: string; license?: string }][] = [
+  ['requiring_review', 'Accounts requiring review', { finding: 'any' }],
+  ['missing', 'Missing or ambiguous directory matches', { finding: 'directory_match' }],
+  ['position_changes', 'Position changes', { finding: 'position_change' }],
+  ['mismatch', 'AD disabled / SAP valid and unlocked', { finding: 'ad_disabled_open' }],
+  ['outdated', 'Outdated reviews', { finding: 'stale' }],
 ]
-const FINDING_NAMES: Record<string, string> = { any: 'Accounts requiring review', matched: 'Reliably matched identities', reviewed: 'Reviewed accounts', pending: 'Pending reviews', position_change: 'Position changes', stale: 'Outdated reviews' }
+const FINDING_NAMES: Record<string, string> = { any: 'Accounts requiring review', matched: 'Reliably matched identities', directory_missing: 'Missing directory matches', directory_ambiguous: 'Ambiguous directory matches', reviewed: 'Completed reviews', pending: 'Pending reviews', position_change: 'Position changes', stale: 'Outdated reviews' }
+
+/** Department and job title together, labelled so the two are never confused. Changed values are emphasized; unchanged ones are muted. */
+function PositionCell({ department, title, changed }: { department?: string | null; title?: string | null; changed?: string[] }) {
+  const line = (label: string, value: string | null | undefined, field: string) => (
+    <p className="position-line" data-changed={changed?.includes(field) || undefined}><span className="position-label">{label}</span><span className="position-value" title={value || undefined}>{value || '—'}</span></p>
+  )
+  return <div className="position-cell">{line('Department', department, 'department')}{line('Job title', title, 'title')}</div>
+}
 
 export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
   const { loading: dataLoading } = useApplicationData()
-  const [finding, setFinding] = useHistoryValue('reviewFinding')
+  const [retainedFindings, setFindings] = useHistoryValue('reviewFindings')
+  const findings = retainedFindings ?? []
   const {view,change}=useViewHistory()
   const retained=view.accountReviewFilters
   const [search, setSearch] = useState(retained?.search||''),
-    [license, setLicense] = useState(retained?.license||''),
-    [state, setState] = useState(retained?.state||''),
+    [licenses, setLicenses] = useState<string[]>(retained?.licenses||[]),
+    [states, setStates] = useState<string[]>(retained?.states||[]),
     [sort, setSort] = useState(retained?.sort||'username'),
     [descending, setDescending] = useState(retained?.descending||false),
     [offset, setOffset] = useState(0)
-  useEffect(()=>change({accountReviewFilters:{search,license,state,sort,descending}},true),[search,license,state,sort,descending,change])
+  useEffect(()=>change({accountReviewFilters:{search,licenses,states,sort,descending}},true),[search,licenses,states,sort,descending,change])
   const [term, setTerm] = useState(''),
     [feedback, setFeedback] = useState(''),
     [busy, setBusy] = useState(false),
@@ -119,16 +134,16 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
   }, [search])
   useEffect(
     () => setOffset(0),
-    [term, finding, license, state, sort, descending],
+    [term, findings.join('|'), licenses.join('|'), states.join('|'), sort, descending],
   )
   const params = new URLSearchParams({
     search: term,
-    finding: finding || '',
-    license_group: license,
-    review_state: state,
     sort,
     descending: String(descending),
   })
+  findings.forEach(value => params.append('findings', value))
+  licenses.forEach(value => params.append('license_groups', value))
+  states.forEach(value => params.append('review_states', value))
   const generation = useRef(0)
   useEffect(() => {
     generation.current++
@@ -155,6 +170,47 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
     setRationale(row.decision?.rationale || '')
     setDecision(row.review_state)
   }
+  /** Tiles toggle: a finding joins the finding filter (OR), the classification tile joins the classification filter (AND with findings). The first tile clears both. */
+  const toggleTile = (target: { finding: string; license?: string }) => {
+    if (target.license) setLicenses(list => list.includes(target.license!) ? list.filter(item => item !== target.license) : [...list, target.license!])
+    else if (target.finding) setFindings(list => (list ?? []).includes(target.finding) ? (list ?? []).filter(item => item !== target.finding) : [...(list ?? []), target.finding])
+    else { setFindings([]); setLicenses([]) }
+  }
+  /** One progress overview (completed and pending of all SAP accounts, no account counted twice) followed by compact actionable tiles. */
+  const renderOverview = () => {
+    if (!data) return null
+    const { total, reviewed, pending } = data.summary
+    const known = total != null && reviewed != null && pending != null
+    const percent = known && total ? (reviewed! / total) * 100 : 0
+    const activeFinding = (name: string) => findings.includes(name)
+    return (
+      <div className="review-overview">
+        <section aria-label="Account review progress" className="review-progress" data-primary="true">
+          <h2>Account review progress</h2>
+          {known ? <>
+            <div className="progress-summary">
+              <strong className="progress-summary-value">{percent.toFixed(1)}%</strong>
+              <span className="progress-summary-caption">{reviewed!.toLocaleString()} of {total!.toLocaleString()} SAP users reviewed</span>
+            </div>
+            <StackedBar label="Account review progress" total={total!} segments={[
+              { key: 'completed', label: 'Completed reviews', value: reviewed!, tone: 'success', active: activeFinding('reviewed'), onOpen: () => toggleTile({ finding: 'reviewed' }) },
+              { key: 'pending', label: 'Pending reviews', value: pending!, tone: 'neutral', active: activeFinding('pending'), title: 'Accounts without a current completed review, including outdated reviews', onOpen: () => toggleTile({ finding: 'pending' }) },
+            ]} caption={<>Total SAP users: <strong>{total!.toLocaleString()}</strong>. Outdated reviews are counted as pending until they are reviewed again.</>} />
+          </> : <p className="ui-description">Review progress is unavailable until the User Access data and the review annotations are loaded.</p>}
+        </section>
+        <section aria-label="Review actions">
+          <h2 className="sr-only">Review actions</h2>
+          <div className="review-kpis">{ACTION_TILES.filter(([key]) => key !== 'outdated' || data.summary.outdated != null).map(([key, label, target]) => {
+            const value = data.summary[key]
+            return <Kpi key={key} layout="expanded" label={label} value={value?.toLocaleString() ?? 'Unavailable'} tone={['mismatch', 'missing', 'outdated'].includes(key) && !!value ? 'warning' : 'neutral'} active={activeFinding(target.finding)} onClick={() => toggleTile(target)} />
+          })}</div>
+        </section>
+      </div>
+    )
+  }
+  const findingOptions = ['any', 'matched', 'directory_missing', 'directory_ambiguous', 'reviewed', 'pending', 'position_change', ...Object.keys(data?.finding_labels || {}), 'stale']
+  const findingLabel = (key: string) => FINDING_NAMES[key] || data?.finding_labels[key] || key
+  const clearAll = () => { setOffset(0); setSearch(''); setTerm(''); setFindings([]); setLicenses([]); setStates([]); setSort('username'); setDescending(false) }
   const queueParams = 'finding=position_change&sort=priority&limit=25'
   const queue = useQuery({
     queryKey: ['account-review', 'position-queue'],
@@ -176,7 +232,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
     if (button) button.focus()
     else
       document
-        .querySelector<HTMLSelectElement>('select[aria-label="Review finding"]')
+        .querySelector<HTMLInputElement>('input[aria-label="Review finding"]')
         ?.focus()
   }, [editing, busy, result.isFetching])
 
@@ -308,10 +364,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
       </p>
       {data && (
         <>
-          <div className="review-metric-groups">{TILE_GROUPS.map(([title,tiles])=><section key={title} aria-label={title}><h2>{title}</h2><div className="review-metrics">{tiles.map(([key,label,target])=>{
-            const value=data.summary[key]
-            const active=target.license?license===target.license&&!finding:!target.license&&(finding||'')===target.finding&&!license
-            return <FilterTile key={key} label={label} value={value?.toLocaleString()??'Unavailable'} tone={['mismatch','missing','outdated'].includes(key)&&!!value?'warning':'neutral'} active={active} onClick={()=>{setFinding(target.finding);setLicense(target.license||'')}}/>})}</div></section>)}</div>
+          {renderOverview()}
           {!data.directory_available && (
             <p role="status">
               Directory enrichment unavailable. Enable and import Employee
@@ -332,7 +385,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
               <table>
                 <thead>
                   <tr>
-                    <th>SAP username</th><th>Employee</th><th>Previous department</th><th>Current department</th><th>Previous job title</th><th>Current job title</th><th>Previous snapshot</th><th>First detected</th><th>Status</th><th>Priority</th><th>Review action</th>
+                    <th>SAP username</th><th>Employee</th><th>Previous position</th><th>Current position</th><th>Priority</th><th><span className="sr-only">Review action</span></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -342,15 +395,10 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
                       <tr key={row.username}>
                         <td><RoleIdentifier value={row.username} label="username" onOpen={() => onUser(row.username)} href={userHref(row.username)} openLabel={`Open SAP user ${row.username}`} openButtonProps={{ 'data-user': row.username }} /></td>
                         <td>{row.name || 'Unknown'}</td>
-                        <td className={change.fields.includes('department') ? '' : 'text-muted'}>{change.previous_department || '—'}</td>
-                        <td>{change.fields.includes('department') ? <strong>{change.current_department}</strong> : <span className="text-muted">{change.current_department || '—'} (unchanged)</span>}</td>
-                        <td className={change.fields.includes('title') ? '' : 'text-muted'}>{change.previous_title || '—'}</td>
-                        <td>{change.fields.includes('title') ? <strong>{change.current_title}</strong> : <span className="text-muted">{change.current_title || '—'} (unchanged)</span>}</td>
-                        <td>{change.previous_imported_at ? formatTimestamp(change.previous_imported_at) : <span className="text-muted">Not recorded</span>}</td>
-                        <td>{formatTimestamp(change.detected_at)}</td>
-                        <td>{row.review_state}</td>
+                        <td><PositionCell department={change.previous_department} title={change.previous_title} /></td>
+                        <td><PositionCell department={change.current_department} title={change.current_title} changed={change.fields} /></td>
                         <td><span className="evidence-badge evidence-warning">{row.priority}</span></td>
-                        <td><Button className="settings-secondary-button" disabled={busy} onClick={() => startReview(row)} aria-label={`Review position change for ${row.username}`}>Review</Button></td>
+                        <td><Button size="compact" className="settings-secondary-button" disabled={busy} onClick={() => startReview(row)} aria-label={`Review position change for ${row.username}`}><ClipboardCheck size={14} aria-hidden="true" />Review</Button></td>
                       </tr>
                     )
                   })}
@@ -361,119 +409,40 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
           {queue.data && queue.data.total > queue.data.items.length && <p className="ui-description">Showing {queue.data.items.length} of {queue.data.total}. Use the Review finding filter to see all.</p>}
         </section>
       )}
-      <SavedFilters showClear={false} view="review" state={{search,finding:finding||'',license,state,sort,descending}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(typeof s.finding==='string'&&['','any','stale','matched','reviewed','pending','position_change',...Object.keys(data?.finding_labels||{})].includes(s.finding))setFinding(s.finding);if(['','classified','exclude'].includes(String(s.license)))setLicense(String(s.license));if(['',...(data?.review_states||[])].includes(String(s.state)))setState(String(s.state));if(['username','name','sap_validity','lock_status','ad_status','review_state'].includes(String(s.sort)))setSort(String(s.sort));if(typeof s.descending==='boolean')setDescending(s.descending)}} clear={()=>{setSearch('');setFinding('');setLicense('');setState('');setSort('username');setDescending(false)}}/>
-      <FilterPanel label="Review filters" className="review-filters">
-        <Filter label="Search account reviews">
-          <SearchInput
-            className={inputClass}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </Filter>
-        <Filter label="Review finding">
-          <Select
-            className={inputClass}
-            aria-label="Review finding"
-            value={finding || ''}
-            onChange={(e) => setFinding(e.target.value)}
-          >
-            <option value="">All accounts</option>
-            <option value="any">Accounts requiring review</option>
-            <option value="matched">Reliably matched identities</option><option value="reviewed">Reviewed accounts</option><option value="pending">Pending reviews</option><option value="position_change">Position changes (department or job title)</option>
-            {Object.entries(data?.finding_labels || {}).map(([key, label]) => (
-              <option key={key} value={key}>
-                {label}
-              </option>
-            ))}
-            <option value="stale">Outdated reviews · changed evidence</option>
-          </Select>
-        </Filter>
-        <Filter label="License group classification">
-          <Select
-            className={inputClass}
-            aria-label="License group classification"
-            value={license}
-            onChange={(e) => setLicense(e.target.value)}
-          >
-            <option value="">All classifications</option>
-            <option value="classified">Configured unlicensed groups</option>
-            <option value="exclude">Exclude unlicensed groups</option>
-          </Select>
-        </Filter>
-        <Filter label="Review decision">
-          <Select
-            className={inputClass}
-            aria-label="Review decision"
-            value={state}
-            onChange={(e) => setState(e.target.value)}
-          >
-            <option value="">All decisions</option>
-            {data?.review_states.map((s) => (
-              <option key={s}>{s}</option>
-            ))}
-          </Select>
-        </Filter>
-
-        <div className="sort-control"><Filter label="Sort account reviews">
-          <Select
-            className={inputClass}
-            aria-label="Sort account reviews"
-            value={sort}
-            onChange={(e) => setSort(e.target.value)}
-          >
-            {[
-              'username',
-              'name',
-              'sap_validity',
-              'lock_status',
-              'ad_status',
-              'review_state',
-              'priority',
-            ].map((s) => (
-              <option key={s} value={s}>
-                {{username:'Username',name:'Name',sap_validity:'SAP Validity',lock_status:'Lock Status',ad_status:'AD Status',review_state:'Review State',priority:'Priority'}[s]}
-              </option>
-            ))}
-          </Select>
-        </Filter>
-        <label className="filter-toggle">
-          <input
-            type="checkbox"
-            checked={descending}
-            onChange={(e) => setDescending(e.target.checked)}
-          />
-          Descending
-        </label></div>
-        <ClearFilterButton
-          onClick={() => {
-            setOffset(0)
-            setSearch('')
-            setTerm('')
-            setFinding('')
-            setLicense('')
-            setState('')
-            setSort('username')
-            setDescending(false)
-          }}
-        >
-          Clear filters
-        </ClearFilterButton>
-
-      </FilterPanel>
-      {(finding || license || state || search) && <div className="active-filter-row" aria-label="Active review filters">
-        {finding && <FilterChip removeLabel="Remove review finding filter" onRemove={() => setFinding('')}>Finding: {FINDING_NAMES[finding] || data?.finding_labels[finding] || finding}</FilterChip>}
-        {license && <FilterChip removeLabel="Remove license classification filter" onRemove={() => setLicense('')}>{license === 'classified' ? 'Configured unlicensed groups' : 'Excluding unlicensed groups'}</FilterChip>}
-        {state && <FilterChip removeLabel="Remove review decision filter" onRemove={() => setState('')}>Decision: {state}</FilterChip>}
+      <FilterLayout label="Filters" activeCount={findings.length + licenses.length + states.length + (search ? 1 : 0)} onClear={clearAll} clearDisabled={!(findings.length || licenses.length || states.length || search) && sort === 'username' && !descending}
+        toolbar={<PageToolbar>
+          <SortControl label="Sort account reviews" value={sort} options={SORTS} descending={descending} onChange={setSort} onDescending={setDescending} />
+          <Button className="settings-secondary-button" disabled={busy || !data?.loaded} onClick={() => void exportCSV()}>
+            <Download size={16} />
+            Export review CSV
+          </Button>
+        </PageToolbar>}
+        sidebar={<div className="grid min-w-0 gap-3" role="search" aria-label="Review filters">
+          <FilterSection title="Saved Filters">
+            <SavedFilters showClear={false} view="review" state={{search,findings,licenses,states,sort,descending}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(Array.isArray(s.findings))setFindings(s.findings.filter(item=>findingOptions.includes(item)));if(Array.isArray(s.licenses))setLicenses(s.licenses.filter(item=>['classified','exclude'].includes(item)));if(Array.isArray(s.states))setStates(s.states.filter(item=>(data?.review_states||[]).includes(item)));if(['username','name','sap_validity','lock_status','ad_status','review_state'].includes(String(s.sort)))setSort(String(s.sort));if(typeof s.descending==='boolean')setDescending(s.descending)}} clear={()=>{setSearch('');setFindings([]);setLicenses([]);setStates([]);setSort('username');setDescending(false)}}/>
+          </FilterSection>
+          <FilterSection title="Search">
+            <SearchInput className={inputClass} aria-label="Search account reviews" placeholder="Search" value={search} onChange={(e) => setSearch(e.target.value)} onClear={() => setSearch('')} />
+          </FilterSection>
+          <FilterSection title="Review">
+            <FormField label="Review finding">
+              <MultiSelectFilter label="Review finding" values={findings} options={findingOptions} optionLabel={findingLabel} onChange={setFindings} placeholder="All accounts · type to search" />
+            </FormField>
+            <FormField label="License group classification">
+              <MultiSelectFilter label="License group classification" values={licenses} options={['classified', 'exclude']} optionLabel={value => value === 'classified' ? 'Configured unlicensed groups' : 'Exclude unlicensed groups'} onChange={setLicenses} placeholder="All classifications" />
+            </FormField>
+            <FormField label="Review decision">
+              <MultiSelectFilter label="Review decision" values={states} options={data?.review_states || []} onChange={setStates} placeholder="All decisions" />
+            </FormField>
+          </FilterSection>
+        </div>}>
+      {(findings.length > 0 || licenses.length > 0 || states.length > 0 || search) && <div className="active-filter-row" aria-label="Active review filters">
+        {findings.map(value => <FilterChip key={`finding-${value}`} removeLabel={`Remove review finding ${findingLabel(value)}`} onRemove={() => setFindings(findings.filter(item => item !== value))}>Finding: {findingLabel(value)}</FilterChip>)}
+        {licenses.map(value => <FilterChip key={`license-${value}`} removeLabel={`Remove license classification ${value === 'classified' ? 'Configured unlicensed groups' : 'Exclude unlicensed groups'}`} onRemove={() => setLicenses(licenses.filter(item => item !== value))}>{value === 'classified' ? 'Configured unlicensed groups' : 'Excluding unlicensed groups'}</FilterChip>)}
+        {states.map(value => <FilterChip key={`state-${value}`} removeLabel={`Remove review decision ${value}`} onRemove={() => setStates(states.filter(item => item !== value))}>Decision: {value}</FilterChip>)}
         {search && <FilterChip removeLabel="Remove account search filter" onRemove={() => { setSearch(''); setTerm('') }}>Search: {search}</FilterChip>}
       </div>}
-      <ResultsToolbar><strong>{data?.total.toLocaleString() ?? '…'} accounts</strong>        <Button
-          className="settings-secondary-button"
-          disabled={busy || !data?.loaded}
-          onClick={() => void exportCSV()}
-        >
-          <Download size={16} />
-          Export review CSV
-        </Button></ResultsToolbar>
+      <div className="results-toolbar ui-toolbar"><strong>{data?.total.toLocaleString() ?? '…'} accounts</strong></div>
       <QueryState
         loading={result.isLoading || (dataLoading && !data?.loaded)}
         error={result.error}
@@ -592,30 +561,28 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
           />
         </>
       )}
+      </FilterLayout>
       {editing && (
         <Dialog title={`Review account · ${editing.username}`} onClose={closeEditor}><section
           className="review-dialog"
           aria-label={`Review decision for ${editing.username}`}
         >
-          <section aria-label="SAP identity and organizational context" className="review-dialog-section"><h3>SAP identity and organizational context</h3>
+          <section aria-label="SAP identity" className="review-dialog-section"><h3>SAP identity</h3>
             <MetadataList items={[
               {label:'SAP username',value:<RoleIdentifier value={editing.username} label="username"/>},
               {label:'Name',value:editing.name||'Name unavailable'},
               {label:'SAP User Group',value:editing.groups.join(', ')||'Group unavailable'},
               {label:'Directory match',value:matchLabel(editing.match_status)},
             ]}/>
+            <div className="ui-toolbar"><Button onClick={()=>{if(reviewer!==(editing.decision?.reviewer||'')||rationale!==(editing.decision?.rationale||'')||decision!==editing.review_state){if(!window.confirm('Discard unsaved review changes and investigate this user?'))return}setEditing(null);onUser(editing.username)}}><ArrowUpRight size={16} aria-hidden="true"/>Investigate SAP user</Button></div>
           </section>
-          {editing.position_change&&<section aria-label="Position change that triggered this review" className="review-dialog-section review-dialog-trigger"><h3>Position changes</h3>
+          {editing.position_change&&<section aria-label="Position change that triggered this review" className="review-dialog-section review-dialog-trigger"><h3>Organizational position changes</h3>
             <table className="review-change-table"><thead><tr><th scope="col"><span className="sr-only">Field</span></th><th scope="col">Previous (last known)</th><th scope="col">Current</th></tr></thead><tbody>
               <tr><th scope="row">Department</th><td>{editing.position_change.previous_department||'—'}</td><td data-changed={editing.position_change.fields.includes('department')||undefined}>{editing.position_change.current_department||'—'}</td></tr>
               <tr><th scope="row">Job title</th><td>{editing.position_change.previous_title||'—'}</td><td data-changed={editing.position_change.fields.includes('title')||undefined}>{editing.position_change.current_title||'—'}</td></tr>
               <tr><th scope="row">Employee Directory snapshot</th><td>{editing.position_change.previous_imported_at?`Imported ${formatTimestamp(editing.position_change.previous_imported_at)}`:'Import time not recorded'}</td><td>First detected {formatTimestamp(editing.position_change.detected_at)}</td></tr>
             </tbody></table>
             <p className="ui-description">The organizational change itself happened at an unknown time between the two imports. A position change prompts a review; it is not evidence that access is inappropriate.</p></section>}
-          <ReviewFindings positionTrigger={!!editing.position_change} row={editing} labels={data?.finding_labels||{}}/>
-          <section aria-label="Investigation actions" className="review-dialog-section"><h3>Investigation actions</h3>
-            <div className="ui-toolbar"><Button onClick={()=>{if(reviewer!==(editing.decision?.reviewer||'')||rationale!==(editing.decision?.rationale||'')||decision!==editing.review_state){if(!window.confirm('Discard unsaved review changes and investigate this user?'))return}setEditing(null);onUser(editing.username)}}><ArrowUpRight size={16} aria-hidden="true"/>Investigate SAP user</Button></div>
-          </section>
           {actionError&&feedback&&<p role="alert">{feedback}</p>}
           <section aria-label="Review decision" className="review-dialog-section"><h3>Review decision</h3>
           <div className="review-dialog-fields">

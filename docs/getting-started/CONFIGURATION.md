@@ -58,7 +58,7 @@ Role catalogue and User Access have separate CSV Import Formats and local paths.
 ## Compact health information
 
 Health & Diagnostics shows service status, last successful refresh and whether
-application storage exists. **Data source health** shows one card per source: the source icon and name with an Enabled/Disabled badge at the far right, the load status, record count and last import, and a **Review source** action that opens the source tab. Source mode, snapshot availability, the last validated check and file availability are under the card's expandable **Technical details**, together with the locations and diagnostics dialog; a failed refresh is stated on the card. Expand **Health details and refresh history** for
+application storage exists. **Data source health** shows one card per source in independent columns (expanding a card moves only the cards below it in its own column; the other columns keep their heights and the order is the column-by-column reading order): the source icon and name with an Enabled/Disabled badge at the far right, the load status, record count and last import, and a **Review source** action that opens the source tab. Source mode, snapshot availability, the last validated check and file availability are under the card's expandable **Technical details**, together with the locations and diagnostics dialog; a failed refresh is stated on the card. Expand **Health details and refresh history** for
 source counts, configuration versions and last failed refresh in this process.
 **Source locations and storage details** reveals local paths privately in the
 application. **Employee Directory technical details** explains its optional source,

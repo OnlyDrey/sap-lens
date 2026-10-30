@@ -5,6 +5,28 @@ Dashboard is the default landing page, available from the main navigation and at
 still work, and an existing detail history entry remains meaningful. No historical trends are inferred
 from a single import. Data stays on the configured SAP Lens instance; desktop defaults to loopback.
 
+## Layout and cards (v4)
+
+Three balanced columns on desktop (two at tablet width, one on mobile), with no separate key figure row and no metric repeated:
+
+| Row | Column 1 | Column 2 | Column 3 |
+| --- | --- | --- | --- |
+| 1 | Access & Risk | Review Progress | Directory & Data Health |
+| 2 | Segregation of Duties (only when SoD is enabled) | Role Distribution | Assignment Distribution |
+| 3 | Data Sources & Configuration, spanning the grid | | |
+
+Future assignment records are detected but not shown here.
+
+- **Access & Risk.** SAP users as the headline row (larger number), then AD disabled / SAP active, Role assignment records, Role/T-code mappings, Catalogue roles and Release roles as compact rows. Each row opens the matching view; AD disabled / SAP active opens Account Review with that finding.
+- **Review Progress.** The single Dashboard presentation of review completion: the percentage, reviewed of all imported accounts, one stacked bar (completed green, not yet reviewed neutral gray, outdated amber) and three rows that open Account Review with the Completed, Pending or Outdated filter. With no completed reviews no success color is shown. There is no separate Accounts requiring review or Review completion tile.
+- **Directory & Data Health.** The match percentage (matched SAP identities of all applicable SAP identities) with a progress bar colored by the central thresholds in `frontend/src/lib/health.ts` (green from 95%, amber from 85%, red below; 251 of 264 is green). The color describes directory matching quality only, never other sources or SAP authorization. Rows: Matched identities, Missing matches (SAP user without an email, or an email not in the directory), Ambiguous matches (duplicate directory email, or an SAP email shared by several users) and Position changes. Matched, missing and ambiguous partition the SAP users (the backend counts the existing match statuses, nothing is guessed); Position changes is an independent signal and never changes the percentage. Each row opens Account Review with the matching filter (`matched`, `directory_missing`, `directory_ambiguous`, `position_change`), shown as a removable chip.
+- **Segregation of Duties.** Users with potential conflicts, user-risk findings, SoD reviews pending, open and overdue remediation actions, from the Dashboard's own request (no SoD page visit is needed). Hidden when SoD is disabled. The card distinguishes four states: *loading* ("Preparing SoD analysis…" while the application is still restoring data or the request has not answered; never a missing-data verdict), *failed* (the request failed; message and **Try again**), *unavailable* (a real cause: the backend names the missing inputs, for example "The SoD matrix is not loaded", or says that User-Role Mapping is disabled, with an **Open SoD source** button, a shared secondary button with an icon, that opens the matching source in Settings) and *ready*. Counts are never zero-filled.
+- **Role Distribution.** The five largest SAP areas with count and share; **Show all N areas** opens a dialog with every area (Escape closes it and returns focus). Each area keeps its drill-down; the card height never changes.
+- **Assignment Distribution.** Five non-overlapping ranges of distinct currently valid roles per SAP user: 0-5, 6-10, 11-20, 21-30 and 31+. The population is every applicable SAP user, users without a valid role included in the first range, each user counted once, so the five counts sum to the SAP user total. Duplicate assignment records of one role count once. All bars share one scale; tooltips carry the exact percentage. Each bar opens User Access with the range applied (the `assignment_band` filter, also available as **Currently valid roles** in the User Access filters and in saved filters; earlier ranges in saved filters stay valid).
+- **Data Sources & Configuration.** One compact card per relevant source (Role Catalogue, User-Role Mapping, Employee Directory, SoD Matrix; a source is shown when it is enabled or configured). Each card has an honest state computed from what the backend holds (Ready, Loading, Refreshing, Failed, Not loaded, Not configured, Disabled; never Ready just because it is enabled), the mode, source-specific records (composite roles, users and assignment records, directory records, matrix records) and the last import. Selecting a card opens that source in Settings.
+- **Explanations.** Technical notes sit in an info popover beside the card title.
+- No horizontal scroll from 375 px upward.
+
 ## Segregation of Duties summary
 
 When the SoD feature is enabled, a **Segregation of Duties** section shows users with potential conflicts, user-risk findings, pending reviews and open or overdue remediation actions, each opening the matching [SoD](SOD.md) view. If analysis is unavailable the section says why. The counts are potential transaction-derived conflicts, not effective authorization.
@@ -32,6 +54,8 @@ accepted data is retained while loading and after a rejected replacement. Initia
 empty/not-found states wait for startup completion. Service loss offers retry
 without restarting navigation or discarding the last accepted view.
 
+**Restart behavior.** Persisted datasets are restored by the backend at startup (static sources from their private snapshots, dynamic sources re-read from their files, a failed check keeping the validated snapshot with its error visible). The backend marks itself as loading before it serves its first request, so a client never reads an idle, empty backend. `GET /api/configuration` returns `instance_id` (new for every server process) next to `data_revision`. The provider treats the end of every observed load as a reason to re-read active dataset views, and an instance change as a new publication, because a restored snapshot keeps its old revision timestamp and views read while the backend was still restoring would otherwise stay in their loading-time state (a five minute default cache) until a manual refresh. While configuration has not yet answered, the application reports loading instead of a missing-data verdict. Native Windows/WebView2 startup is not covered by the Linux tests; its manual acceptance is listed in the implementation handoff.
+
 Previously, refresh state and role/module invalidation lived in page components.
 Dashboard, user and release results could remain cached after startup completion;
 a delayed response could repopulate an obsolete route cache. Browser regressions
@@ -40,8 +64,8 @@ detail history. Backend regressions verify atomic two-source publication.
 
 ## Overview layout
 
-The compact Dashboard presents **SAP Overview**, **Access & Risk**,
-**Directory & Data Health**, **Review Progress**, **Role Distribution**,
+The Dashboard opens with a compact **Key figures** KPI section: SAP users, Catalogue roles, Release roles, Accounts requiring review, Users with potential conflicts (when SoD is enabled), Pending reviews and Missing or ambiguous directory matches. Each KPI is a button that opens the relevant view with its filter applied (for example Accounts requiring review opens Account Review filtered to those accounts). The sections beneath add detail instead of repeating the key figures: **Access & Risk**,
+**Directory & Data Health** (matched identities with coverage), **Review Progress** (completed, not yet reviewed and outdated reviews with the share reviewed; no trend is invented), **Segregation of Duties** (findings, pending reviews, remediation), **Role Distribution**,
 **Assignment Distribution**, then **Data Sources & Configuration**. Source setup
 buttons open the correct Data Sources tab. Smaller icon/value tiles replace the twelve equal, descriptive cards; metrics
 have explanatory accessible text/tooltips and no fabricated historical trends.

@@ -41,3 +41,17 @@ test('SoD missing dependency is unavailable rather than a false no-conflict clai
 for(const theme of ['light','dark'])for(const width of [375,1280])test(`SoD conflict preview ${theme} ${width}`,async({page,request},info)=>{
  await request.post('/api/configuration/theme',{headers,data:{theme}});await page.setViewportSize({width,height:950});await userView(page);await expect(page.getByRole('button',{name:'Investigate SYN_UI_A UIR01',exact:true})).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();await page.screenshot({path:info.outputPath(`sod-conflicts-${theme}-${width}.png`)})
 })
+test('Access Explorer assignments show active assignments by default, historical ones on request, and the export follows the choice',async({page})=>{
+ await userView(page);await page.getByRole('tab',{name:'Assignments',exact:true}).click()
+ const table=page.getByRole('table',{name:'Access list',exact:true});await expect(page.getByRole('combobox',{name:'Assignment validity',exact:true})).toHaveValue('active')
+ await expect(table).toContainText('SYN_UI_A');await expect(table).not.toContainText('SYN_UI_EXPIRED')
+ // The default table has no module label, no redundant active badge and no validity dates.
+ await expect(table).not.toContainText('Active assignment');await expect(table.getByRole('columnheader',{name:/valid/i})).toHaveCount(0)
+ const exported=async()=>{const downloadPromise=page.waitForEvent('download');await page.getByRole('button',{name:/Export CSV/}).first().click();const file=await downloadPromise;return readFileSync((await file.path())!,'utf8')}
+ const activeCsv=await exported();expect(activeCsv).toContain('SYN_UI_A');expect(activeCsv).not.toContain('SYN_UI_EXPIRED')
+ await page.getByRole('combobox',{name:'Assignment validity',exact:true}).selectOption('expired')
+ await expect(table).toContainText('SYN_UI_EXPIRED');await expect(table).not.toContainText('SYN_UI_A')
+ const expiredCsv=await exported();expect(expiredCsv).toContain('SYN_UI_EXPIRED');expect(expiredCsv).not.toContain('SYN_UI_A')
+ await page.getByRole('combobox',{name:'Assignment validity',exact:true}).selectOption('all')
+ await expect(table).toContainText('SYN_UI_EXPIRED');await expect(table).toContainText('SYN_UI_A')
+})

@@ -26,7 +26,7 @@ _derived = {}
 
 def live_query(validity='active', as_of=None):
     return dict(kind='users', validity=validity, as_of=as_of or date.today(), selected_roles=[], search='', risk='', criticality='', risk_type='',
-                category='', username='', group='', composite_role='', single_role='', tcode='', account_status='', sort='subject', descending=False)
+                category='', username='', group='', composite_role='', single_role='', tcode='', account_status='', multiple_risks=False, sort='subject', descending=False)
 
 
 def load(context, validity='active', as_of=None):
@@ -101,20 +101,31 @@ def suffix_matches(role, wanted):
     return not wanted or governance.role_suffix(role or '').casefold() in wanted
 
 
+def many(q, single, plural):
+    """Requested values of one filter: the single value plus the multi-select list (OR within, AND with the other filters)."""
+    return [value for value in [q.get(single) or '', *(q.get(plural) or [])] if value]
+
+
+def any_match(value, wanted):
+    return not wanted or any(text_matches(value, item) for item in wanted)
+
+
 def _path_matches(finding, q):
     paths = [path for side in finding['evidence'].values() for path in side]
-    if q.get('role') and not any(text_matches(path.get('actual_assigned_role', ''), q['role']) for path in paths):
+    roles = many(q, 'role', 'roles')
+    if roles and not any(any_match(path.get('actual_assigned_role', ''), roles) for path in paths):
         return False
     wanted = wanted_suffixes(q)
     if wanted and not any(suffix_matches(path.get('actual_assigned_role', ''), wanted) for path in paths):
         return False
-    if q.get('activity') and not any(text_matches(path['activity'], q['activity']) for path in paths):
+    activities = many(q, 'activity', 'activities')
+    if activities and not any(any_match(path['activity'], activities) for path in paths):
         return False
     return True
 
 
 def assignment_filters_active(q):
-    return any(q.get(name) for name in ('role', 'role_suffix', 'role_suffixes', 'group', 'activity', 'tcode', 'assignment_decision')) or q.get('review_status') not in (None, '', 'all')
+    return any(q.get(name) for name in ('role', 'roles', 'role_suffix', 'role_suffixes', 'group', 'groups', 'activity', 'activities', 'tcode', 'tcodes', 'assignment_decision')) or q.get('review_status') not in (None, '', 'all')
 
 
 #: Review status filter of the assignment queue: lifecycle values each choice keeps. The default working view is 'attention'.
@@ -129,15 +140,17 @@ def allowed_assignments(model, state, q):
     for user, entry in model.items():
         ids = set()
         for aid, assignment in entry['assignments'].items():
-            if q.get('role') and not text_matches(assignment['role'], q['role']):
+            if not any_match(assignment['role'], many(q, 'role', 'roles')):
                 continue
             if not suffix_matches(assignment['role'], wanted):
                 continue
-            if q.get('group') and not text_matches(assignment['user_group'], q['group']):
+            if not any_match(assignment['user_group'], many(q, 'group', 'groups')):
                 continue
-            if q.get('activity') and not any(text_matches(name, q['activity']) for name in assignment['supplies']):
+            wanted_activities = many(q, 'activity', 'activities')
+            if wanted_activities and not any(any_match(name, wanted_activities) for name in assignment['supplies']):
                 continue
-            if q.get('tcode') and not any(text_matches(code, q['tcode']) for codes in assignment['supplies'].values() for code in codes):
+            wanted_codes = many(q, 'tcode', 'tcodes')
+            if wanted_codes and not any(any_match(code, wanted_codes) for codes in assignment['supplies'].values() for code in codes):
                 continue
             if q.get('assignment_decision') and state['assignment'][aid][0] != q['assignment_decision']:
                 continue
@@ -160,6 +173,8 @@ def visible_cells(bundle, model, state, q):
         if not _path_matches(finding, q):
             continue
         entry = model[finding['subject']]
+        if q.get('multiple_risks') and len(entry['findings']) < 2:
+            continue
         names = [name for name, item in entry['activities'].items() if finding['risk_id'] in item['risks']]
         if q.get('acceptance') and state['acceptance'][finding['finding_id']][0] != q['acceptance']:
             continue
@@ -255,6 +270,44 @@ def verification_map(actions):
     verify = make_verifier()
     return {item.assignment_id: verify(item.user, item.assignment_id) for item in actions
             if item.assignment_id and item.recommended == 'Remove assignment' and item.status != 'Cancelled'}
+
+
+def removal_verification(actions):
+    """(summary, ids) for tracked removals. Verified needs source evidence newer than the action that shows the assignment gone.
+
+    A completed status is a manual claim and never verifies. The assignment must be absent from current evidence with
+    complete source coverage and the User-Role source must have been imported after the action was created.
+    """
+    from datetime import datetime, timezone
+    tracked = [item for item in actions if item.assignment_id and item.recommended == 'Remove assignment' and item.status != 'Cancelled']
+    summary = dict(tracked=len(tracked), verified=0, still_present=0, awaiting_evidence=0, not_assessable=0, available=True, reason=None)
+    if not tracked:
+        summary.update(available=False, reason='No removal action is tracked yet.')
+        return summary, set()
+    reference = get_settings().data_lifecycle.sources.get('users')
+
+    def moment(text):
+        try:
+            value = datetime.fromisoformat(text)
+        except (TypeError, ValueError):
+            return None
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    imported = moment(reference.imported_at) if reference else None
+    verify, ids = make_verifier(), set()
+    for item in tracked:
+        text = verify(item.user, item.assignment_id)
+        if text.startswith('Not assessable'):
+            summary['not_assessable'] += 1
+        elif text.startswith('Still present'):
+            summary['still_present'] += 1
+        elif imported is not None and (moment(item.created) or imported) < imported:
+            summary['verified'] += 1
+            ids.add(item.id)
+        else:
+            summary['awaiting_evidence'] += 1
+    if summary['not_assessable'] == len(tracked):
+        summary.update(available=False, reason='Current evidence cannot confirm removals (analysis unavailable or source coverage incomplete).')
+    return summary, ids
 
 
 OBSERVE_LIMIT = 100000

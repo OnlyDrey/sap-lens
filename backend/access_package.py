@@ -37,94 +37,131 @@ def suffix_error(suffix):
     return None if SUFFIX_PATTERN.match(suffix) else 'Suffix may only use letters, digits, underscore and hyphen (1 to 16 characters).'
 
 
-def propose(source, suffix, known, explicit=False):
-    """-> (generated name or None, kind, message). kind: wildcard | organizational | ambiguous."""
+def suffix_kind(source, known):
+    """How a catalogue role takes an organizational suffix: 'wildcard' (trailing pattern), 'organizational' (its final
+    segment is a suffix used under several stems) or None (an exact role name without suffix variants, kept as is)."""
     key = normalize_role(source)
     if '*' in key:
-        if key.count('*') != 1 or not key.endswith('*') or len(key) == 1:
-            return None, 'ambiguous', 'Unsupported wildcard pattern; only a trailing * is supported.'
-        prefix = key[:-1]
-        if prefix.endswith(':'):
-            return prefix + suffix, 'wildcard', None
-        partial = prefix.rpartition(':')[2]
-        if partial and suffix.startswith(partial):
-            return prefix[:-len(partial)] + suffix, 'wildcard', None
-        return None, 'ambiguous', f"The pattern keeps the partial segment '{partial}'; the suffix must start with it."
-    if ':' not in key:
-        return None, 'ambiguous', 'The role name has no segment structure, so a suffix position cannot be determined.'
-    stem, _, last = key.rpartition(':')
-    if last in known:
-        return f'{stem}:{suffix}', 'organizational', None
-    if explicit:
-        return f'{stem}:{suffix}', 'organizational', f"The last segment '{last}' is not a known organizational suffix; it was replaced because this role has an explicit suffix."
-    return None, 'ambiguous', f"The last segment '{last}' is not a known organizational suffix. Set an explicit suffix for this role to replace it."
+        return 'wildcard'
+    if ':' in key and key.rpartition(':')[2] in known:
+        return 'organizational'
+    return None
 
 
-def preview(default_suffix, items, catalogue, release_roles=None):
+def propose(source, suffix, known):
+    """-> (generated name or None, kind, message). kind: wildcard | organizational | exact | ambiguous."""
+    key = normalize_role(source)
+    kind = suffix_kind(key, known)
+    if kind is None:
+        return key, 'exact', None
+    if kind == 'organizational':
+        return f"{key.rpartition(':')[0]}:{suffix}", 'organizational', None
+    if key.count('*') != 1 or not key.endswith('*') or len(key) == 1:
+        return None, 'ambiguous', 'Unsupported wildcard pattern; only a trailing * is supported.'
+    prefix = key[:-1]
+    if prefix.endswith(':'):
+        return prefix + suffix, 'wildcard', None
+    partial = prefix.rpartition(':')[2]
+    if partial and suffix.startswith(partial):
+        return prefix[:-len(partial)] + suffix, 'wildcard', None
+    return None, 'ambiguous', f"The pattern keeps the partial segment '{partial}'; the suffix must start with it."
+
+
+def name_error(name):
+    """SAP role name rules shared by every package source: allowed characters and length. Names ending in a colon are
+    legitimate catalogue stems and are not rejected."""
+    if not NAME_PATTERN.match(name):
+        return 'Only A-Z, 0-9 and _ : / . - are allowed in a role name.'
+    if len(name) > MAX_ROLE_NAME:
+        return f'Longer than {MAX_ROLE_NAME} characters ({len(name)}).'
+    return None
+
+
+EXACT_NOTE = 'Exact role name: the catalogue has no suffix variants for it, so the name is kept.'
+# confirmed: the exact name exists in imported explicit roles or assignments; pattern: only a catalogue pattern matches;
+# attention: valid-looking or unresolved, cannot be confidently validated; invalid: violates the naming rules.
+VALIDATION_LABEL = {'confirmed': 'Confirmed', 'pattern': 'Pattern match', 'attention': 'Needs attention', 'invalid': 'Invalid'}
+
+
+def preview(default_suffix, items, catalogue, release_roles=None, assigned_roles=None):
     """items: [(role, override_suffix[, source])]; catalogue: {agr_name: description}. Deterministic and order preserving.
 
-    source 'release' marks an assigned technical release role (from User Access, not the catalogue). Its name is
-    kept exactly: the scope/suffix tokens of release roles are opaque, so no suffix is ever substituted and
-    catalogue wildcard rules never apply. release_roles is the set of normalized release role names known to the data.
+    Existence is judged separately from naming validity. Confirmed needs the exact generated name in the imported
+    explicit catalogue roles (names without a wildcard) or in user assignments; a wildcard match alone is only a
+    Pattern match and a name nothing supports is Needs attention. Exact roles without suffix variants keep their
+    name and ignore any suffix. Release roles (from User Access) always keep their exact name. release_roles and
+    assigned_roles are sets of normalized role names known to the data.
     """
     known = naming_evidence(catalogue)
     release_roles = release_roles or set()
+    explicit = {normalize_role(name) for name in catalogue if '*' not in name} | {normalize_role(name) for name in (assigned_roles or ())}
     matcher = RoleMatcher(list(catalogue))
     default = normalize_suffix(default_suffix)
     rows, seen = [], {}
+    exportable_states = {'confirmed', 'pattern'}
+
+    def finish(row, name, validation, exportable=None):
+        row.update(name=name, validation=validation, exportable=validation in exportable_states if exportable is None else exportable)
+        if name in seen and row['exportable']:
+            row.update(status='duplicate', validation='invalid', exportable=False, messages=row['messages'] + ['Same name as another role in the package.'])
+        elif row['exportable']:
+            seen[name] = row['role']
+        return row
+
     for role, override, *rest in items:
         if rest and rest[0] == 'release':
             name = normalize_role(role)
-            row = dict(role=role, description=catalogue.get(role, ''), suffix='', suffix_source='none', name=None, status='ok',
-                       messages=[], catalogue=None, source='release')
+            row = dict(role=role, description=catalogue.get(role, ''), suffix='', suffix_source='none', suffix_eligible=False, suffix_note=None, name=None,
+                       status='ok', validation='attention', exportable=False, messages=[], catalogue=None, source='release')
             rows.append(row)
             if name not in release_roles:
-                row.update(status='unknown_role', messages=['The release role is not in the imported User Access data.'])
-            elif not NAME_PATTERN.match(name) or len(name) > MAX_ROLE_NAME:
-                row.update(status='invalid', messages=[f'The role name {name} is not a valid SAP role name (up to {MAX_ROLE_NAME} characters of A-Z, 0-9, _ : / . -).'])
+                row.update(status='unknown_role', messages=['Not in the imported User Access data.'])
+            elif name_error(name):
+                row.update(status='invalid', validation='invalid', messages=[name_error(name)])
             else:
-                row['name'] = name
                 row['messages'].append('Release role names are kept exactly; no suffix is applied.')
-                if name in seen:
-                    row.update(status='duplicate', messages=row['messages'] + [f'Same name as {seen[name]}.'])
-                else:
-                    seen[name] = role
+                finish(row, name, 'confirmed')
             continue
         override = normalize_suffix(override)
-        suffix = override or default
-        row = dict(role=role, description=catalogue.get(role, ''), suffix=suffix, suffix_source='override' if override else 'default' if default else 'none',
-                   name=None, status='ok', messages=[], catalogue=None, source='catalogue')
+        kind = suffix_kind(role, known)
+        eligible = kind is not None
+        suffix = (override or default) if eligible else ''
+        row = dict(role=role, description=catalogue.get(role, ''), suffix=suffix, suffix_source=('override' if override else 'default' if default else 'none') if eligible else 'none',
+                   suffix_eligible=eligible, suffix_note=None if eligible else EXACT_NOTE, name=None, status='ok', validation='attention', exportable=False, messages=[],
+                   catalogue=None, source='catalogue')
         rows.append(row)
         if role not in catalogue:
-            row.update(status='unknown_role', messages=['The role is not in the imported catalogue.'])
+            row.update(status='unknown_role', messages=['Not in the imported catalogue; re-import or remove it.'])
             continue
-        if not suffix:
-            row.update(status='needs_suffix', messages=['Set a package default suffix or a suffix for this role.'])
+        if eligible and not suffix:
+            row.update(status='needs_suffix', messages=['Needs suffix: set a package default suffix or a suffix for this role.'])
             continue
-        problem = suffix_error(suffix)
+        problem = suffix_error(suffix) if eligible else None
         if problem:
-            row.update(status='invalid', messages=[problem])
+            row.update(status='invalid', validation='invalid', messages=[problem])
             continue
-        name, _, message = propose(role, suffix, known, explicit=bool(override))
+        name, _, message = propose(role, suffix, known)
         if name is None:
             row.update(status='ambiguous', messages=[message])
             continue
-        if message:
-            row['messages'].append(message)
-        if len(name) > MAX_ROLE_NAME or not NAME_PATTERN.match(name):
-            row.update(status='invalid', messages=row['messages'] + [f'The generated name {name} is not a valid SAP role name (up to {MAX_ROLE_NAME} characters of A-Z, 0-9, _ : / . -).'])
+        problem = name_error(name)
+        if problem:
+            row.update(status='invalid', validation='invalid', messages=[problem])
             continue
-        row['name'] = name
         match = matcher.match(name)
         row['catalogue'] = dict(status=match.status, candidates=list(match.candidates))
-        if name in seen:
-            row.update(status='duplicate', messages=row['messages'] + [f'Same generated name as {seen[name]}.'])
+        if name in explicit:
+            finish(row, name, 'confirmed')
+        elif match.status in {'exact', 'wildcard'}:
+            row['messages'].append('Matches a catalogue pattern; the exact role is not in the imported data.')
+            finish(row, name, 'pattern')
         else:
-            seen[name] = role
+            row['messages'].append('Not found in imported roles, assignments or catalogue patterns. Check it in SAP before use.')
+            finish(row, name, 'attention', exportable=True)
     return rows
 
 
 def csv_rows(rows):
-    """Unique generated names in deterministic order: (name, description, suffix)."""
-    unique = {row['name']: (row['name'], row['description'] or '', row['suffix']) for row in reversed(rows) if row['name'] and row['status'] in {'ok'}}
+    """Unique valid generated names in deterministic order: (name, description, suffix, validation)."""
+    unique = {row['name']: (row['name'], row['description'] or '', row['suffix'], VALIDATION_LABEL[row['validation']]) for row in reversed(rows) if row['name'] and row['exportable']}
     return sorted(unique.values(), key=lambda item: (item[0].casefold(), item[0]))

@@ -1,11 +1,13 @@
-import { SourceEssentials, SourceTechnicalFacts, SourceDetailsDialog } from './SourceStatus'
+import { SourceEssentials, SourceTechnicalFacts, SourceDetailsDialog, type SourceEvidence } from './SourceStatus'
+import { IndependentColumns } from '@/components/Shared/IndependentColumns'
 import { StatusBadge } from '@/components/Shared/Presentation'
 import { StatusCard } from '@/components/Shared/InvestigationPatterns'
 import { RefreshHistory } from '@/components/Shared/RefreshReport'
 import { Button } from '@/components/Shared/Button'
 import { DirectoryDiagnostics } from './EmployeeDirectory'
 import { formatTimestamp } from '@/lib/dateFormat'
-import { useState } from 'react'
+import { useId, useState } from 'react'
+import { DisclosureChevron } from '@/components/Shared/DisclosureChevron'
 import { useQuery } from '@tanstack/react-query'
 import { Activity, BookUser, Download, FileText, FolderOpen, Library, ShieldCheck, UsersRound, Eye } from 'lucide-react'
 import { apiRequest, applicationToken } from '@/api/client'
@@ -172,29 +174,7 @@ export function Diagnostics({
       </section>
       <section className="space-y-3" aria-label="Data source health">
         <h2 className="settings-subheading">Data source health</h2>
-        <div className="diagnostic-source-grid">
-          {query.data?.sources.map((source) => (
-            <section
-              className="settings-card source-health-card"
-              key={source.id}
-              aria-label={source.name}
-            >
-              <header className="source-health-header">
-                <h3 className="font-semibold">{SOURCE_ICONS[source.id] || <FileText size={18} aria-hidden="true"/>}{source.name}</h3>
-                {source.enabled !== undefined && <StatusBadge tone={source.enabled ? 'success' : 'neutral'}>{source.enabled ? 'Enabled' : 'Disabled'}</StatusBadge>}
-              </header>
-              <SourceEssentials source={source}/>
-              <details className="settings-advanced">
-                <summary>Technical details</summary>
-                <SourceTechnicalFacts source={source}/>
-                <Button onClick={()=>setDetail(source)}><FileText size={16} aria-hidden="true"/>Locations and diagnostics</Button>
-              </details>
-              <div className="source-health-actions">
-                <Button onClick={() => onSource?.(source.id as 'roles' | 'users' | 'employees' | 'sod')}><Eye size={16} aria-hidden="true"/>Review source</Button>
-              </div>
-            </section>
-          ))}
-        </div>
+        <IndependentColumns breakpoints={SOURCE_COLUMNS} items={(query.data?.sources ?? []).map((source) => <SourceHealthCard key={source.id} source={source} onDetail={() => setDetail(source)} onSource={onSource} />)} />
       </section>
       {detail&&<SourceDetailsDialog source={detail} onClose={()=>setDetail(null)}>{detail.id==='employees'&&<DirectoryDiagnostics onConfigure={()=>{setDetail(null);onEmployeeSettings?.()}} onFeatureSettings={()=>{setDetail(null);onEmployeeFeatures?.()}}/>}</SourceDetailsDialog>}
       <RefreshHistory />
@@ -282,5 +262,29 @@ export function Diagnostics({
         </details>
       </section>
     </div>
+  )
+}
+
+/** Wide screens show three columns, medium two, narrow one. */
+const SOURCE_COLUMNS: [number, number][] = [[1400, 3], [700, 2]]
+/** One source card: essentials, then Technical details (toggle) and Review source side by side; the technical facts open beneath the buttons. */
+function SourceHealthCard({ source, onDetail, onSource }: { source: SourceEvidence; onDetail: () => void; onSource?: (source: 'roles' | 'users' | 'employees' | 'sod') => void }) {
+  const [open, setOpen] = useState(false), id = useId()
+  return (
+    <section className="settings-card source-health-card" aria-label={source.name}>
+      <header className="source-health-header">
+        <h3 className="font-semibold">{SOURCE_ICONS[source.id] || <FileText size={18} aria-hidden="true"/>}{source.name}</h3>
+        {source.enabled !== undefined && <StatusBadge tone={source.enabled ? 'success' : 'neutral'}>{source.enabled ? 'Enabled' : 'Disabled'}</StatusBadge>}
+      </header>
+      <SourceEssentials source={source}/>
+      <div className="source-health-actions">
+        <Button aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)}><DisclosureChevron open={open} />Technical details</Button>
+        <Button onClick={() => onSource?.(source.id as 'roles' | 'users' | 'employees' | 'sod')}><Eye size={16} aria-hidden="true"/>Review source</Button>
+      </div>
+      {open && <div id={id} className="source-health-technical space-y-2">
+        <SourceTechnicalFacts source={source}/>
+        <Button onClick={onDetail}><FileText size={16} aria-hidden="true"/>Locations and diagnostics</Button>
+      </div>}
+    </section>
   )
 }

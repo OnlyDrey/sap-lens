@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { sodPost, type AssignmentPick, type BulkAction, type BulkResult, type ContextInfo } from '@/api/sod'
+import { rememberedReviewer, rememberReviewer } from '@/lib/reviewer'
 import { Dialog } from '@/components/Shared/Dialog'
 import { Button } from '@/components/Shared/Button'
 import { Checkbox, FormField, Input } from '@/components/Shared/Controls'
@@ -19,7 +20,7 @@ export function BulkReviewDialog({ action, picks: livePicks, info, onClose, onAp
   const copy = COPY[action], qc = useQueryClient()
   // The dialog reports on the selection it was opened with, even after saved assignments leave the live selection.
   const [picks] = useState(livePicks)
-  const [reviewer, setReviewer] = useState(''), [rationale, setRationale] = useState(''), [replace, setReplace] = useState(false), [track, setTrack] = useState(false)
+  const [reviewer, setReviewer] = useState(rememberedReviewer), [rationale, setRationale] = useState(''), [replace, setReplace] = useState(false), [track, setTrack] = useState(false)
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [result, setResult] = useState<BulkResult | null>(null)
   const users = counted(picks.map((pick) => pick.user)), suffixes = counted(picks.map((pick) => pick.suffix || 'No suffix')), roles = new Set(picks.map((pick) => pick.ref)).size
   const reviewed = picks.filter((pick) => pick.decision === 'Keep' || pick.decision === 'Removal required')
@@ -31,6 +32,7 @@ export function BulkReviewDialog({ action, picks: livePicks, info, onClose, onAp
         context: info.context, expected_revision: info.revision, expected_generation: info.generation, action, reviewer: reviewer.trim(), justification: rationale.trim(), replace_existing: replace, track_action: action === 'Investigate' && track,
         items: picks.map((pick) => ({ key: pick.key, user: pick.user, ref: pick.ref, evidence_version: pick.evidence_version })),
       })
+      rememberReviewer(reviewer)
       setResult(response)
       onApplied(response.recorded)
       await qc.invalidateQueries({ predicate: (query) => ['sod-explorer', 'sod-matrix', 'sod-overview', 'sod-queue', 'sod-remediation', 'sod-subject'].includes(String(query.queryKey[0])) })

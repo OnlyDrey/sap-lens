@@ -40,6 +40,10 @@ Role sections retain the actual existing ZC/ZO investigation scopes; these namin
 - Secondary navigation (`SecondaryNavigation`) accepts an optional Lucide icon and has no count badges; counts belong in the result summary.
 - Stacked list rows use `.ui-list-row`: bottom separator, no rounded or double borders, with hover, active and focus-visible states.
 
+## Main navigation submenus
+
+Modules with pages (User Access: User directory, Account Review, Compare users; SoD: Overview, Risk Matrix, Activity Matrix, Access Explorer, Reviews, Review Periods, Reports) are `MainNavigationGroup`s: the module link and a separate chevron button (`<Module> pages`). The link opens the module (returning to where it was left when coming from another module, and its main page when the module is already open); the chevron opens a submenu of direct page links with the module's icons (`lib/navigationItems.tsx`, shared with the secondary navigation). The group stays highlighted while a child page is open, the active entry is marked `aria-current="page"`, modified clicks open a new tab, Escape closes the menu and returns focus to the chevron. Modules without pages (Dashboard, Role Lookup, Release Roles) show no chevron. After following a manager link the way back is **Return to previous user** inside the Organization section next to the manager relationship (the trail keeps every previous SAP username), not in the top navigation.
+
 ## Compact navbar and metadata
 
 Theme, Settings and Refresh are icon actions with independent accessible names, focus tooltips and shared hit targets. Refresh retains application-scoped loading, request suppression and atomic publication; completion/error feedback is explicit. Destination text remains visible at narrow widths on a wrapped navigation row.

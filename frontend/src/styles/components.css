@@ -62,8 +62,8 @@ header[role=banner] .app-header-row>div:first-child img { height:40px; }
 .comparison-metrics>.comparison-metric { display:block; height:auto; min-height:58px; text-align:left; padding:var(--space-2); background:var(--surface2); border-radius:var(--radius-control); font-size:var(--font-meta); }
 .comparison-metric[aria-pressed="true"] {outline:2px solid var(--focus);outline-offset:-2px}
 
-.diagnostic-source-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-3)}
-@media(max-width:700px){.diagnostic-source-grid{grid-template-columns:1fr}}
+.diagnostic-source-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(21rem,100%),1fr));gap:var(--space-3)}
+
 .comparison-metrics strong { display:block; font-size:var(--font-section); color:var(--text); }
 .comparison-filter-bar { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:var(--space-3); }
 .comparison-evidence-item { padding:var(--space-2) 0; border-bottom:1px solid var(--border); }
@@ -99,7 +99,7 @@ main h1,.settings-content h1 { font-size:var(--font-title); font-weight:600; }
 @media(pointer:coarse) { :root { --copy-hit-size:2.625rem; } }
 .ui-button-group { display:inline-flex; align-items:center; gap:var(--space-1); padding:var(--space-1); border:1px solid var(--border); border-radius:var(--radius-control); background:var(--surface2); }
 .ui-button-group .ui-button { border-color:transparent; background:transparent; }
-.ui-button-group .ui-button[aria-pressed=true] { background:var(--secondary,var(--accent2)); color:var(--text); border-color:var(--accent2); }
+.ui-button-group .ui-button[aria-pressed=true] { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
 .app-brand { flex:1 1 180px; min-width:0; }
 .app-brand>div { min-width:0; }
 .app-brand p,.app-brand p[title] { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -215,8 +215,6 @@ main h1,.settings-content h1 { font-size:var(--font-title); font-weight:600; }
 .review-metric-groups {grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-3)}
 .review-metric-groups>section .review-metrics {display:flex;flex-direction:column;gap:var(--space-2)}
 .review-metrics .compact-health {padding:var(--space-2)}
-.dashboard-secondary-metrics {display:flex;flex-wrap:wrap;gap:var(--space-2)}
-.dashboard-secondary-metrics .dashboard-metric {flex:1 1 170px;min-height:0;padding:var(--space-3)}
 .role-detail-header .ui-button-ghost {color:inherit}
 .release-directory-table td:nth-child(-n+3),.release-matrix th,.release-matrix td {font-size:var(--font-body);font-weight:600}
 @media(max-width:800px){.review-metric-groups{grid-template-columns:1fr}.review-metric-groups>section .review-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -283,19 +281,8 @@ main h1,.settings-content h1 { font-size:var(--font-title); font-weight:600; }
 .dashboard-workspace>.dashboard-section {padding:var(--space-4);border-radius:var(--radius-card);background:var(--surface);min-width:0}
 .dashboard-workspace>.dashboard-section:first-child,.dashboard-workspace>.dashboard-section:last-child {grid-column:1/-1}
 .dashboard-workspace .dashboard-section>h2 {margin-bottom:var(--space-3);font-size:var(--font-section)}
-.dashboard-workspace .dashboard-primary-metrics {display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
-.dashboard-workspace .dashboard-primary-metrics .dashboard-metric {background:var(--surface2);border:0;padding:var(--space-4)}
-.dashboard-workspace .dashboard-primary-metrics strong {font-size:32px}
-.dashboard-workspace .dashboard-secondary-metrics {display:flex;flex-direction:column;gap:0}
-.dashboard-workspace .dashboard-secondary-metrics .dashboard-metric {display:grid;grid-template-columns:18px minmax(0,1fr) auto 14px;flex:none;border:0;border-radius:0;padding:var(--space-3);border-bottom:1px solid var(--border);background:transparent}
-.dashboard-workspace .dashboard-secondary-metrics .dashboard-metric strong {grid-column:3;grid-row:1;font-size:var(--font-section)}
-.dashboard-workspace .dashboard-secondary-metrics .dashboard-metric>svg:last-of-type {grid-column:4}
-.dashboard-workspace .dashboard-secondary-metrics .dashboard-metric[data-tone=warning]>strong {color:var(--warning)}
-.dashboard-workspace .dashboard-metric:hover {background:var(--hover)}
 .dashboard-workspace .coverage-summary {margin-top:var(--space-4);padding:var(--space-3);border-radius:var(--radius-control);background:var(--surface2)}
 .dashboard-workspace .coverage-summary>strong {font-size:var(--font-section)}
-.dashboard-workspace .dashboard-sources {grid-template-columns:repeat(3,minmax(0,1fr));margin-top:var(--space-3)}
-.dashboard-workspace .dashboard-source {border:0;background:var(--surface2);flex-wrap:wrap}
 @media(max-width:1099px){.directory-transaction,.directory-expired,.directory-clear {grid-row:auto;grid-column:auto}.directory-transaction{grid-column:1/-1}.dashboard-workspace .dashboard-primary-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.dashboard-workspace .dashboard-sources{grid-template-columns:1fr}}
 @media(max-width:800px){.dashboard-workspace{grid-template-columns:minmax(0,1fr)}.dashboard-workspace>.dashboard-section{grid-column:1}.role-detail-heading-content{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:430px){.ui-metadata-list>div {grid-template-columns:minmax(0,1fr);gap:var(--space-1)}.ui-metadata-list dd{text-align:left}.dashboard-workspace .dashboard-primary-metrics{grid-template-columns:minmax(0,1fr)}.directory-transaction{grid-column:auto}}
@@ -370,17 +357,13 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 
 
 
-.dashboard-workspace .dashboard-metric:hover,.dashboard-workspace .dashboard-metric:focus-visible,.dashboard-distribution-link:hover,.dashboard-distribution-link:focus-visible {background:var(--hover);color:var(--accent2)}
-.dashboard-workspace .dashboard-primary-metrics .dashboard-metric:hover {background:color-mix(in srgb,var(--accent2) 4%,var(--surface2))}
-.dashboard-metric:hover>svg,.dashboard-distribution-link:hover>svg {color:var(--accent2)}
-.dashboard-secondary-metrics .dashboard-metric>small,.dashboard-secondary-metrics .dashboard-metric>progress {grid-column:1/-1}
-.dashboard-secondary-metrics .dashboard-metric>progress {width:100%;height:8px}
+.dashboard-distribution-link:hover,.dashboard-distribution-link:focus-visible {background:var(--hover);color:var(--accent2)}
+.dashboard-distribution-link:hover>svg {color:var(--accent2)}
 .dashboard-distribution-link {display:grid;grid-template-columns:60px minmax(0,1fr) 36px 18px;align-items:center;gap:var(--space-3);width:100%;padding:var(--space-2) var(--space-3);text-align:left;font-size:var(--font-body);border-bottom:1px solid var(--border);margin-top:0}
 .dashboard-distribution-link progress {width:100%;height:8px}
 .dashboard-distribution h3 {margin-top:var(--space-4);font-size:var(--font-body);font-weight:600}
 .dashboard-assignment-distribution {display:flex;flex-wrap:wrap;gap:var(--space-4);margin-top:var(--space-3)}
 .dashboard-assignment-distribution>div {display:flex;gap:var(--space-2);align-items:center;background:var(--surface2);border-radius:var(--radius-control);padding:var(--space-2) var(--space-3)}
-.dashboard-source-freshness {flex-basis:100%;font-size:var(--font-meta);text-align:left;color:var(--muted)}
 .review-findings article {padding:var(--space-2) 0;border-bottom:1px solid var(--border)}
 .review-findings h4 {font-weight:600;margin-bottom:var(--space-2)}
 @media(max-width:1199px){.dashboard-workspace{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -391,11 +374,14 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .change-record-name {display:block;font-size:var(--font-body);margin-bottom:var(--space-2);overflow-wrap:anywhere}
 .ui-dialog table td small {display:block;margin-top:var(--space-1);color:var(--muted)}
 .dashboard-distribution-link progress {accent-color:var(--accent2)}
-.dashboard-metric>progress {accent-color:var(--success)}
 .coverage-summary>progress {accent-color:var(--info);width:100%}
 .dashboard-workspace>.dashboard-middle-section {grid-column:auto}
+/* Every progress bar shows an empty track at zero; Dashboard rules below override the fill color. */
+progress { appearance:none; height:8px; border:0; border-radius:var(--radius-badge); overflow:hidden; background:var(--surface2); box-shadow:inset 0 0 0 1px var(--border); --progress-fill:var(--accent); }
+progress::-webkit-progress-bar { background:var(--surface2); }
+progress::-webkit-progress-value { background:var(--progress-fill); }
+progress::-moz-progress-bar { background:var(--progress-fill); }
 .dashboard-workspace progress {appearance:none;border:0;border-radius:var(--radius-badge);overflow:hidden;background:var(--surface2);--progress-fill:var(--accent2)}
-.dashboard-workspace .dashboard-metric>progress {--progress-fill:var(--success)}
 .dashboard-workspace .coverage-summary>progress {--progress-fill:var(--info)}
 .dashboard-workspace progress::-webkit-progress-bar {background:var(--surface2)}
 .dashboard-workspace progress::-webkit-progress-value {background:var(--progress-fill)}
@@ -427,10 +413,6 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 
 .role-detail-header>button{align-self:end}
 
-.dashboard-workspace .dashboard-source{display:grid;grid-template-columns:18px minmax(0,1fr) auto 14px;gap:var(--space-2);align-items:center}
-.dashboard-workspace .dashboard-source>.source-compact{grid-column:2/-1;grid-row:2}
-.dashboard-workspace .dashboard-source>.status-pill{grid-column:3;grid-row:1}
-.dashboard-workspace .dashboard-source>svg:last-child{grid-column:4;grid-row:1}
 .dashboard-workspace .source-compact{display:flex;flex-wrap:wrap}
 .dashboard-workspace .source-compact small{flex-basis:100%}
 
@@ -468,8 +450,6 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .ui-button.detail-back-action:hover:not(:disabled) {background:transparent}
 
 .employee-pagination>span {flex-basis:100%;order:-1}
-.dashboard-metric[data-metric=assignments],.dashboard-metric[data-metric=assigned_users] {font-size:var(--font-meta)}
-.dashboard-secondary-metrics .dashboard-metric[data-metric=assignments]>strong,.dashboard-secondary-metrics .dashboard-metric[data-metric=assigned_users]>strong {font-size:var(--font-body)}
 
 .role-detail-header {display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--space-2) var(--space-3)}
 .role-detail-header .role-detail-heading-content {display:contents}
@@ -498,8 +478,8 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .matrix-col-button,.matrix-row-button { min-height:24px; max-width:100%; padding:0; border:0; background:none; color:inherit; font:inherit; font-weight:600; text-align:left; cursor:pointer; overflow:hidden; text-overflow:ellipsis; }
 .matrix-col-button:hover,.matrix-row-button:hover { color:var(--accent2); text-decoration:underline; }
 .matrix-col-button:focus-visible,.matrix-row-button:focus-visible { outline:var(--focus-width) solid var(--focus); outline-offset:var(--focus-offset); }
-.matrix-cell { padding:2px !important; height:52px; }
-.matrix-cell button { display:grid; place-items:center; align-content:center; gap:1px; width:100%; min-height:46px; padding:2px; border:1px solid transparent; border-radius:var(--radius-control); background:transparent; color:var(--text); font:inherit; line-height:1.15; cursor:pointer; }
+.matrix-cell { padding:2px !important; height:60px; }
+.matrix-cell button { display:grid; place-items:center; align-content:center; gap:2px; width:100%; min-height:54px; padding:2px; border:1px solid transparent; border-radius:var(--radius-control); background:transparent; color:var(--text); font:inherit; line-height:1.15; cursor:pointer; }
 .matrix-cell button:hover { background:var(--hover); border-color:var(--border); }
 .matrix-cell button:focus-visible { outline:2px solid var(--focus); outline-offset:-2px; }
 .matrix-cell button[aria-current="true"] { border-color:var(--accent2); background:var(--hover); }
@@ -582,23 +562,11 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 /* SoD overview: compact figure tiles that link into filtered views. */
 .sod-overview-figures { display: grid; min-width: 0; gap: 0.75rem; }
 .sod-tiles { display: grid; min-width: 0; gap: 0.5rem; grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); }
-.sod-tile { display: grid; min-width: 0; align-content: space-between; gap: 0.25rem; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--surface); }
-.sod-tile > button { min-height: 24px; }
-.sod-tile > button, .sod-tile > span { padding: 0; border: 0; background: none; color: inherit; font: inherit; font-size: 0.75rem; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
-.sod-tile > span { cursor: default; }
-.sod-tile > button:hover { color: var(--accent2); text-decoration: underline; }
-.sod-tile > button:focus-visible { outline:var(--focus-width) solid var(--focus); outline-offset:var(--focus-offset); }
-.sod-tile > strong { font-size: 1.5rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.sod-tile[data-active] { border-color: var(--accent2); background: color-mix(in srgb,var(--accent2) 10%,var(--surface)); }
-.sod-tile > small { font-size: 0.75rem; color: var(--muted); }
-.sod-tile[data-tone='warning'] > strong { color: var(--warning); }
-.sod-tile[data-tone='error'] > strong { color: var(--error); }
-.sod-tile[data-tone='error'] { border-color: var(--error); }
 .sod-row-actions { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: 0.25rem; }
 .sod-periods-header > h2 { margin-right: auto; }
 
 /* Matrix cells: a colored status pill plus one short count. */
-.matrix-pill { display: inline-flex; align-items: center; gap: 0.25rem; max-width: 100%; padding: 0 0.375rem; border: 1px solid var(--border); border-radius: 999px; }
+.matrix-pill { display: inline-flex; align-items: center; justify-content: center; gap: 0.25rem; max-width: 100%; min-height: 1.5rem; padding: var(--space-1) var(--space-2); line-height: 1.2; border: 1px solid var(--border); border-radius: 999px; }
 .matrix-cell[data-tone='success'] .matrix-pill { border-color: var(--success); background: color-mix(in srgb, var(--success) 12%, transparent); }
 .matrix-cell[data-tone='warning'] .matrix-pill { border-color: var(--warning); background: color-mix(in srgb, var(--warning) 12%, transparent); }
 .matrix-cell[data-tone='error'] .matrix-pill { border-color: var(--error); background: color-mix(in srgb, var(--error) 12%, transparent); }
@@ -615,9 +583,9 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 
 /* Unified review workspace sections. */
 .sod-review-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
-.sod-review-row { display: grid; min-width: 0; gap: 0.25rem; padding: 0.5rem 0.75rem; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; }
+.sod-review-row { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: 0.25rem; padding: 0.5rem 0.75rem; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; }
 .sod-review-row:last-child { border-bottom: 0; }
-.sod-review-row[data-focused] { background: color-mix(in srgb,var(--accent2) 12%,var(--surface)); box-shadow: inset 3px 0 0 var(--accent2); }
+.sod-review-row[data-focused] { background: color-mix(in srgb,var(--accent) 10%,var(--surface)); outline:1px solid var(--accent); outline-offset:-1px; }
 .sod-review-main { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; min-width: 0; }
 .sod-review-actions { display: flex; flex-wrap: wrap; gap: 0.25rem; }
 .sod-review-section > .ui-toolbar, .sod-review-section > div:first-child { align-items: center; }
@@ -642,14 +610,9 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .ui-list-row:hover { background:var(--hover); }
 .ui-list-row:active,.ui-list-row[aria-current] { background:var(--secondary,color-mix(in srgb,var(--accent) 12%,var(--surface))); }
 .ui-list-row:focus-visible { outline:2px solid var(--focus); outline-offset:-2px; }
-.dashboard-workspace .dashboard-secondary-metrics .dashboard-metric:active { background:color-mix(in srgb,var(--accent) 12%,var(--surface)); }
-.dashboard-workspace .dashboard-secondary-metrics .dashboard-metric:focus-visible { outline-offset:-2px; }
 
 /* Keyboard focus scrolls elements in with a margin so their focus rings are never cut off at a scroll edge. */
 .settings-scroll,.filter-sidebar,.ui-side-panel-body,.ui-dialog-content,.matrix-scroll,.access-table,.ui-navigation,.transaction-table-scroll { scroll-padding:12px; }
-.dashboard-metric > svg:first-child { grid-column:1; grid-row:1; }
-.dashboard-metric[data-tone='warning'] > strong { color:var(--warning); }
-.dashboard-metric[data-tone='error'] > strong { color:var(--error); }
 .sod-heatmap { width:100%; border-collapse:separate; border-spacing:0; font-size:var(--font-label); }
 .sod-heatmap th, .sod-heatmap td { padding:0.25rem 0.5rem; border-bottom:1px solid var(--border); text-align:center; white-space:nowrap; }
 .sod-heatmap thead th { position:sticky; top:0; background:var(--surface); z-index:1; }
@@ -715,9 +678,10 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 
 /* Compact review rows: identifier, status, risks and counts on one wrapping line with the action at the right. */
 .sod-review-compact { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2) var(--space-3); min-width:0; }
-.sod-review-compact-actions { margin-left:auto; }
+.sod-review-summary { display:flex; flex:1 1 9rem; flex-wrap:wrap; align-items:center; gap:var(--space-1) var(--space-2); min-width:0; }
+.sod-review-compact-actions { display:flex; flex:none; align-items:center; gap:var(--space-2); margin-left:auto; }
 
-.sod-periods-table tr[data-active] td:first-child { box-shadow:inset 3px 0 0 var(--accent2); }
+.sod-periods-table tr[data-active] td { background:color-mix(in srgb,var(--accent) 8%,var(--surface)); }
 .sod-periods-table progress { width:100%; min-width:6rem; height:8px; }
 
 /* Account review dialog: light sections, reviewer and decision side by side. */
@@ -753,7 +717,8 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 
 /* Role identifier: content-sized and never scrolling. It wraps at ':' '_' '-' '.' '/' (wbr) and only as a last resort inside a token. */
 .role-identifier { display:inline-flex; align-items:center; flex-wrap:nowrap; gap:var(--space-1); width:fit-content; max-width:100%; min-width:0; padding:2px 4px 2px 8px; vertical-align:middle; }
-.role-identifier code { flex:1 1 auto; min-width:0; white-space:normal; overflow-wrap:anywhere; word-break:normal; overflow:visible; line-height:1.4; }
+/* SAP identifiers are never broken: one line, scrolling horizontally inside the codeblock when the container is narrower. The copied value is always the full identifier. */
+.role-identifier code { flex:1 1 auto; min-width:0; white-space:nowrap; overflow-wrap:normal; word-break:normal; overflow-x:auto; overflow-y:hidden; scrollbar-width:thin; line-height:1.4; }
 .role-identifier-link { min-width:0; max-width:100%; }
 .role-identifier-link code { flex:1; }
 
@@ -810,28 +775,23 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .package-suffix-chips { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2); font-size:var(--font-label); }
 .package-suffix-chip { display:inline-flex; align-items:center; gap:var(--space-1); padding:2px var(--space-2); border:1px solid var(--border); border-radius:var(--radius-badge); background:var(--surface2); color:var(--text); font-family:var(--font-code); font-size:var(--font-label); cursor:pointer; }
 .package-suffix-chip span { color:var(--muted); font-family:inherit; }
-.package-suffix-chip[aria-pressed="true"] { border-color:var(--accent2); background:color-mix(in srgb,var(--accent) 16%,var(--surface)); }
+.package-suffix-chip[aria-pressed="true"] { border-color:var(--accent); background:color-mix(in srgb,var(--accent) 16%,var(--surface)); }
 .package-suffix-chip:hover { background:var(--hover); }
 .package-summary { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-3); margin:0; font-size:var(--font-label); font-weight:600; }
 .package-summary-ok,.package-summary-warn { display:inline-flex; align-items:center; gap:var(--space-1); }
 .package-summary-ok { color:var(--success); }
 .package-summary-warn { color:var(--warning); }
 .package-list { display:grid; margin:0; padding:0; list-style:none; }
-.package-row { padding:var(--space-3) 0; border-bottom:1px solid var(--border); min-width:0; }
+.package-row { padding:var(--space-2) 0; border-bottom:1px solid var(--border); min-width:0; }
 .package-row:last-child { border-bottom:0; }
-.package-row-fields { display:grid; grid-template-columns:minmax(7rem,9rem) minmax(0,1fr); gap:var(--space-3); align-items:start; width:100%; }
-.package-generated { display:grid; gap:var(--space-1); min-width:0; }
-.package-generated-label { font-size:var(--font-label); font-weight:600; color:var(--text2); }
-.package-generated-value { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2); min-width:0; }
 .package-message { margin:0; font-size:var(--font-meta); color:var(--muted); }
 .package-footer { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2); }
 .package-footer > :last-child { margin-left:auto; }
-@media(max-width:500px){ .package-row-fields { grid-template-columns:minmax(0,1fr); } .package-footer > :last-child { margin-left:0; } }
+@media(max-width:500px){ .package-footer > :last-child { margin-left:0; } }
 
 /* Release role table: one dense row per role; counts and validity stay compact and the package toggle is a right-aligned action column. */
 .release-directory-table td { vertical-align:middle; }
 .release-directory-table td:nth-child(n+2):nth-child(-n+5) { white-space:nowrap; }
-.release-record-count { display:block; font-size:var(--font-meta); font-weight:400; color:var(--muted); white-space:nowrap; }
 .release-validity { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-1) var(--space-2); }
 .release-validity .validity-evidence { font-size:var(--font-label); color:var(--muted); white-space:nowrap; }
 .release-directory-table th.col-actions,.release-directory-table td.col-actions { width:1%; text-align:center; }
@@ -839,13 +799,6 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 
 /* Account Review overview: compact grouped tiles that filter the list. */
 .review-metric-groups .review-metrics { display:flex; flex-direction:column; gap:var(--space-1); }
-.filter-tile { display:flex; align-items:center; justify-content:space-between; gap:var(--space-3); width:100%; min-height:var(--control-compact); padding:var(--space-1) var(--space-3); border:1px solid var(--border); border-radius:var(--radius-control); background:var(--surface); color:var(--text); text-align:left; cursor:pointer; }
-.filter-tile:hover { background:var(--hover); }
-.filter-tile:focus-visible { outline:var(--focus-width) solid var(--focus); outline-offset:var(--focus-offset); }
-.filter-tile[aria-pressed="true"] { border-color:var(--accent2); background:color-mix(in srgb,var(--accent) 14%,var(--surface)); box-shadow:inset 3px 0 0 var(--accent2); }
-.filter-tile[data-tone="warning"] strong { color:var(--warning); }
-.filter-tile-label { font-size:var(--font-label); color:var(--text2); }
-.filter-tile strong { font-size:var(--font-section); font-variant-numeric:tabular-nums; }
 @media(max-width:800px){ .review-metric-groups>section .review-metrics { display:flex; } }
 
 /* Review dialog: titled sections with consistent rhythm, side-by-side change table and compact history. */
@@ -870,9 +823,6 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 
 /* SoD summary: compact horizontal rows (label and value inline) instead of tall tiles. */
 .sod-tiles { display:flex; flex-wrap:wrap; gap:var(--space-2); }
-.sod-tile { display:inline-flex; flex-flow:row wrap; align-items:baseline; align-content:center; gap:var(--space-1) var(--space-2); padding:var(--space-1) var(--space-3); min-height:var(--control-compact); }
-.sod-tile > strong { order:2; font-size:var(--font-section); line-height:1.2; }
-.sod-tile > small { order:3; }
 .id-pill { display:inline-flex; align-items:center; gap:0.25rem; }
 .id-pill > svg { flex:none; }
 .id-pill-text { min-width:0; overflow:hidden; text-overflow:ellipsis; overflow-wrap:anywhere; }
@@ -884,9 +834,10 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .multi-popup-head { position:sticky; top:0; z-index:1; display:grid; gap:var(--space-2); padding:var(--space-2); border-bottom:1px solid var(--border); background:var(--surface); }
 .multi-popup-scope { margin:0; font-size:var(--font-meta); color:var(--muted); overflow-wrap:anywhere; }
 .multi-popup-actions { display:flex; flex-wrap:wrap; gap:var(--space-1); }
+.multi-popup-actions > .ui-button { flex:1 1 auto; justify-content:center; white-space:nowrap; }
 .multi-option { justify-content:flex-start; }
 .multi-check { display:inline-flex; flex:none; align-items:center; justify-content:center; width:1rem; height:1rem; border:1.5px solid var(--border-strong,var(--muted)); border-radius:4px; background:var(--surface); color:var(--on-accent); }
-.multi-check[data-checked] { border-color:var(--accent2); background:var(--accent); }
+.multi-check[data-checked] { border-color:var(--accent); background:var(--accent); color:var(--on-accent); }
 
 /* Bulk selection: row/header checkboxes and the contextual toolbar. DOM order equals reading order; the toolbar wraps instead of scrolling. */
 .bulk-checkbox { width:1.125rem; height:1.125rem; accent-color:var(--accent); cursor:pointer; }
@@ -979,6 +930,8 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .dashboard-workspace.sod-overview-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--space-4); align-items:stretch; min-width:0; }
 .sod-overview-cards > .dashboard-section { min-width:0; }
 @media(max-width:1199px){ .dashboard-workspace.sod-overview-cards { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+/* With two columns the third section spans the row instead of leaving an empty half. */
+@media(min-width:701px) and (max-width:1199px){ .dashboard-workspace.sod-overview-cards > .dashboard-section:last-child:nth-child(odd) { grid-column:1/-1; } }
 @media(max-width:700px){ .dashboard-workspace.sod-overview-cards { grid-template-columns:minmax(0,1fr); } }
 .dashboard-workspace.sod-overview-cards > .dashboard-section:first-child,.dashboard-workspace.sod-overview-cards > .dashboard-section:last-child,.dashboard-workspace.sod-overview-cards > .dashboard-section { grid-column:auto; }
 @media(max-width:700px){ .dashboard-workspace.sod-overview-cards > .dashboard-section { grid-column:1/-1; } }
@@ -986,3 +939,366 @@ button.status-pill:disabled {opacity:.55;cursor:not-allowed}
 .role-entry-head { flex-wrap:wrap; }
 .role-entry-title { flex:1 1 8rem; min-width:min(8rem,100%); }
 .role-entry-actions { flex-wrap:wrap; justify-content:flex-end; }
+
+/* Filter sidebar header: title on the left, compact Clear and Close aligned on the right with the same height. */
+.filter-sidebar > header { display:flex; align-items:center; justify-content:space-between; gap:var(--space-2); min-height:var(--control-height); }
+.filter-sidebar-actions { display:flex; align-items:center; gap:var(--space-2); }
+.filter-sidebar-actions .ui-button-compact,.filter-sidebar-actions .ui-button-icon { min-height:var(--control-compact); height:var(--control-compact); }
+.filter-sidebar-actions .ui-button-icon { width:var(--control-compact); padding:0; }
+
+/* Status pills: taller, vertically centered content and one minimum height everywhere. */
+.evidence-badge,.ui-status-badge { display:inline-flex; align-items:center; gap:var(--space-1); min-height:1.75rem; padding:var(--space-1) var(--space-3); line-height:1.3; }
+.evidence-badge > svg { flex:none; }
+/* Active (selected) states use the product's primary action color; the configured secondary color stays on secondary buttons. */
+:root { --color-active: var(--accent); --color-on-active: var(--on-accent); }
+.module-badge { transition:none; }
+.module-badge:hover { box-shadow:none; }
+
+/* Access package footer: validity summary first, then copy and export. */
+.package-footer .package-summary { flex:1 1 100%; }
+.package-footer > :last-child { margin-left:0; }
+/* Role entries: the description is vertically centered against the module icon and code. */
+.role-entry-head { align-items:center; }
+.role-entry-head > .module-badge { margin-top:0; }
+
+/* SoD overview heatmap: title, columns toggle, metric, sort and export share one responsive row. */
+.sod-heatmap-bar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-2) var(--space-4); margin-bottom:var(--space-3); }
+.sod-heatmap-bar > :first-child { margin:0; }
+.sod-heatmap-controls { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2); }
+
+.overview-empty { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2) var(--space-3); padding:var(--space-2) 0; }
+
+/* Summary tiles: filter tiles look and behave like buttons (primary when active); informational tiles stay flat. */
+
+/* Role Assignment Review rows: one compact line (checkbox, role, status, icon decisions, expand); evidence opens beneath it. */
+.sod-assignment-compact { display:flex; align-items:center; gap:var(--space-2); min-width:0; flex-wrap:wrap; }
+.sod-assignment-role { flex:1 1 12rem; min-width:0; }
+.sod-assignment-description { margin:0.125rem 0 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:var(--font-label); color:var(--text2); }
+.sod-assignment-compact .sod-decision-icons { margin-left:auto; }
+.sod-assignment-details { display:grid; gap:var(--space-2); margin:var(--space-2) 0 0 1.75rem; padding:var(--space-2) var(--space-3); border-left:3px solid var(--border); }
+.sod-assignment-tcodes { overflow-wrap:anywhere; }
+.sod-assignment-details .validity-dates div { white-space:normal; flex-wrap:wrap; }
+.sod-assignment-details dd { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-1) var(--space-2); min-width:0; overflow-wrap:anywhere; }
+
+/* Review period row: Open and the menu trigger share one height and baseline. */
+.sod-row-actions { align-items:center; gap:var(--space-2); }
+.sod-row-actions .ui-button-compact { min-height:var(--control-compact); }
+.action-menu > .ui-button { gap:var(--space-2); }
+
+
+/* Shared KPI: one informational or interactive summary, compact (one line) or expanded (icon and label above the value). */
+.ui-kpi { display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:var(--space-1) var(--space-3); min-width:0; min-height:var(--control-compact); padding:var(--space-1) var(--space-3); border:1px solid var(--border); border-radius:var(--radius-control); background:var(--surface); color:var(--text); font:inherit; text-align:left; }
+.ui-kpi[data-icon="true"] { grid-template-columns:auto minmax(0,1fr) auto auto; }
+.ui-kpi-label { font-size:var(--font-label); color:var(--text2); overflow-wrap:anywhere; }
+.ui-kpi-value { font-size:var(--font-section); font-weight:700; font-variant-numeric:tabular-nums; line-height:1.2; }
+.ui-kpi-icon { display:inline-flex; color:var(--text2); }
+.ui-kpi-arrow { color:var(--muted); }
+.ui-kpi-note { grid-column:1/-1; font-size:var(--font-meta); color:var(--muted); }
+.ui-kpi-progress { grid-column:1/-1; width:100%; }
+.ui-kpi[data-layout="expanded"] { grid-template-columns:auto minmax(0,1fr) auto; grid-template-rows:auto 1fr; align-items:start; padding:var(--space-3); gap:var(--space-1) var(--space-2); }
+.ui-kpi[data-layout="expanded"] .ui-kpi-icon { grid-column:1; grid-row:1; }
+.ui-kpi[data-layout="expanded"] .ui-kpi-label { grid-column:2/-1; grid-row:1; align-self:center; }
+.ui-kpi[data-layout="expanded"][data-icon="false"] .ui-kpi-label { grid-column:1/-1; }
+.ui-kpi[data-layout="expanded"] .ui-kpi-value { grid-column:1/3; grid-row:2; align-self:end; font-size:var(--font-title,1.5rem); }
+.ui-kpi[data-layout="expanded"] .ui-kpi-arrow { grid-column:3; grid-row:2; align-self:end; }
+.ui-kpi[data-layout="expanded"] .ui-kpi-note { grid-row:3; }
+.ui-kpi[data-layout="expanded"] .ui-kpi-progress { grid-row:4; }
+button.ui-kpi { cursor:pointer; box-shadow:0 1px 0 var(--border); }
+button.ui-kpi:hover:not(:disabled) { background:var(--hover); border-color:var(--accent); }
+button.ui-kpi:focus-visible { outline:var(--focus-width) solid var(--focus); outline-offset:var(--focus-offset); }
+button.ui-kpi:disabled { opacity:.55; cursor:not-allowed; }
+.ui-kpi[data-active="true"] { border-color:var(--accent); background:color-mix(in srgb,var(--accent) 14%,var(--surface)); }
+.ui-kpi[data-static="true"] { border-style:dashed; background:transparent; }
+.ui-kpi[data-tone="warning"] .ui-kpi-value { color:var(--warning); }
+.ui-kpi[data-tone="error"] .ui-kpi-value { color:var(--error); }
+.ui-kpi[data-tone="error"] { border-color:var(--error); }
+.ui-kpi[data-tone="success"] .ui-kpi-value { color:var(--success); }
+
+/* Filter sidebar: Saved filters and Assignment date filters use the full sidebar width. */
+.filter-sidebar .saved-filter-toolbar,.filter-sidebar .assignment-date-filters { display:grid; grid-template-columns:minmax(0,1fr); gap:var(--space-2); width:100%; max-width:100%; }
+.filter-sidebar .saved-filter-toolbar > .ui-button,.filter-sidebar .assignment-date-filters > .ui-button { width:100%; justify-content:center; text-align:center; }
+
+/* Disclosure: every details/summary uses the compact chevron control (a 24px box with its own hover background). The summary text itself has no hover fill. */
+details:not(.preview-cell) > summary { display:flex; align-items:center; gap:var(--space-2); list-style:none; cursor:pointer; min-height:var(--control-compact); }
+details:not(.preview-cell) > summary::-webkit-details-marker { display:none; }
+details:not(.preview-cell) > summary::before { content:''; flex:none; width:var(--control-compact,2rem); height:var(--control-compact,2rem); border-radius:var(--radius-control); background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237a8599' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:center; background-size:1rem; transition:transform .12s ease; }
+details:not(.preview-cell) > summary:hover::before { background-color:var(--hover); }
+details:not(.preview-cell)[open] > summary::before { transform:rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { details:not(.preview-cell) > summary::before { transition:none; } }
+
+/* Dashboard: KPI section on top, detail sections beneath. */
+.dashboard-key-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(9.5rem,100%),1fr)); gap:var(--space-3); }
+.dashboard-key-grid .ui-kpi[data-layout="expanded"] { min-height:5.5rem; }
+.dashboard-detail-metrics { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(11.5rem,100%),1fr)); gap:var(--space-2); }
+.dashboard-detail-metrics .ui-kpi[data-metric="assignments"],.dashboard-detail-metrics .ui-kpi[data-metric="assigned_users"] { min-height:var(--control-compact); }
+
+/* Position changes table: department and job title stacked and labelled, no horizontal congestion. */
+.position-cell { display:grid; gap:var(--space-1); min-width:0; }
+.position-line { display:grid; grid-template-columns:4.75rem minmax(0,1fr); gap:var(--space-2); margin:0; font-size:var(--font-meta); }
+.position-label { color:var(--muted); }
+.position-value { overflow-wrap:anywhere; }
+.position-line[data-changed] .position-value { font-weight:700; }
+
+/* Account Review KPIs: the review queue (expanded) above the secondary account status (compact). */
+.review-kpi-groups { display:grid; gap:var(--space-3); }
+.review-kpi-groups > section > h2 { margin-bottom:var(--space-2); font-size:var(--font-label); font-weight:600; color:var(--text2); }
+.review-kpis { display:grid; gap:var(--space-2); grid-template-columns:repeat(auto-fit,minmax(min(11rem,100%),1fr)); }
+.review-kpi-groups > section:not([data-primary]) .review-kpis { grid-template-columns:repeat(auto-fit,minmax(min(15rem,100%),1fr)); }
+
+/* User details, assigned roles: the module badge keeps its natural width and the description is the primary label beside it, above the exact role codeblock. */
+.assigned-role { display:grid; gap:var(--space-1); min-width:0; }
+.assigned-role-head { display:flex; align-items:flex-start; gap:var(--space-2); min-width:0; }
+.assigned-role-head > * { flex:none; }
+.assigned-role-head > .assigned-role-description { flex:1 1 auto; min-width:0; font-weight:600; overflow-wrap:anywhere; }
+
+/* Release Roles: role actions and Export CSV share one compact toolbar; Export CSV stays at the right. */
+.release-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2) var(--space-3); }
+.release-toolbar > h2 { margin-right:auto; }
+.release-toolbar .release-bulk-actions { gap:var(--space-2); }
+.release-compare-toggle { min-height:var(--control-compact); padding:0 var(--space-2); }
+
+/* SoD Overview: compact KPI groups instead of tall list cards. */
+.sod-kpi-list { display:grid; gap:var(--space-2); }
+.sod-overview-cards > .dashboard-section { padding:var(--space-3); }
+
+/* Access Explorer: assigned role codeblocks get room to avoid needless line breaks; the table scrolls horizontally only when the viewport is narrower. */
+.access-table td.col-role { min-width:15rem; }
+
+/* SoD risk configuration: the activity and risk identity columns keep enough width; actions keep one height. */
+.sod-config-table td:first-child { min-width:13rem; }
+.sod-config-table td:nth-child(2) { min-width:12rem; }
+.sod-config-table .ui-button-compact { min-height:var(--control-compact); white-space:nowrap; }
+
+/* Position-change table in the review dialog: row headers never split inside a word. */
+.review-change-table tbody th { overflow-wrap:normal; word-break:normal; hyphens:none; min-width:6rem; }
+
+/* Source health actions: Technical details and Review source side by side; they wrap only when the card is too narrow for both. */
+.source-health-actions > .ui-button { flex:1 1 auto; justify-content:center; white-space:nowrap; }
+
+/* Row states over zebra striping: hover, selection and the active period stay distinguishable from each other and from the stripe. */
+.access-table tbody tr[data-selected] td,.access-table tbody tr[data-active] td { background:color-mix(in srgb,var(--accent) 12%,var(--surface)); }
+.access-table tbody tr[data-selected]:hover td,.access-table tbody tr[data-active]:hover td { background:color-mix(in srgb,var(--accent) 18%,var(--surface)); }
+
+/* Information list: secondary metrics as plain rows (no tile borders), full-row buttons when they navigate or filter. */
+.info-list { display:grid; margin:0; padding:0; list-style:none; }
+.info-list > li { min-width:0; border-bottom:1px solid var(--border); }
+.info-list > li:last-child { border-bottom:0; }
+.info-row { display:flex; align-items:center; gap:var(--space-2); width:100%; min-width:0; min-height:var(--control-compact); padding:var(--space-1) var(--space-2); border:0; border-radius:var(--radius-control); background:transparent; color:var(--text); font:inherit; font-size:var(--font-label); text-align:left; }
+.info-row-label { flex:1 1 auto; min-width:0; overflow-wrap:anywhere; }
+.info-row-label > small { display:block; color:var(--muted); font-size:var(--font-meta); }
+.info-row-icon { display:inline-flex; flex:none; color:var(--text2); }
+.info-row-value { flex:none; font-size:var(--font-section); font-weight:700; font-variant-numeric:tabular-nums; }
+.info-row-arrow { flex:none; color:var(--muted); }
+button.info-row { cursor:pointer; }
+button.info-row:hover { background:var(--hover); }
+button.info-row:focus-visible { outline:var(--focus-width) solid var(--focus); outline-offset:calc(var(--focus-offset) * -1); }
+.info-row[data-active="true"] { background:color-mix(in srgb,var(--accent) 12%,var(--surface)); outline:1px solid var(--accent); outline-offset:-1px; }
+.info-row[data-tone="warning"] .info-row-value { color:var(--warning); }
+.info-row[data-tone="error"] .info-row-value { color:var(--error); }
+.info-row[data-tone="success"] .info-row-value { color:var(--success); }
+
+/* Single Roles and other expandable lists: alternating rows are visible (the heading is transparent so the entry background shows), hover and expanded states differ from the stripe. */
+.single-role-list .single-role-heading { background:transparent; }
+.single-role-list .single-role-entry:nth-child(even),.single-role-list > div:nth-child(even) .single-role-entry { background:var(--surface2); }
+.single-role-list .single-role-entry:hover { background:var(--hover); }
+.single-role-list > div:nth-child(even) .single-role-entry:hover,.single-role-list .single-role-entry:nth-child(even):hover { background:var(--hover); }
+.single-role-list .single-role-heading[data-expanded="true"] { background:color-mix(in srgb,var(--accent) 10%,transparent); }
+.role-expand { width:var(--control-compact); min-height:var(--control-compact); }
+
+/* Charts: bars and a stacked bar drawn from real counts with semantic tokens (no chart library). */
+.chart-bars,.chart-legend { display:grid; margin:0; padding:0; list-style:none; }
+.chart-row { display:grid; grid-template-columns:minmax(4.5rem,8rem) minmax(0,1fr) auto auto; align-items:center; gap:var(--space-2); width:100%; min-height:var(--control-compact); padding:var(--space-1) var(--space-2); border:0; border-radius:var(--radius-control); background:transparent; color:var(--text); font:inherit; font-size:var(--font-label); text-align:left; }
+button.chart-row { cursor:pointer; }
+button.chart-row:hover { background:var(--hover); }
+button.chart-row:focus-visible { outline:var(--focus-width) solid var(--focus); outline-offset:calc(var(--focus-offset) * -1); }
+.chart-label { min-width:0; overflow-wrap:anywhere; }
+.chart-track { display:block; height:.625rem; border-radius:999px; background:var(--surface2); box-shadow:inset 0 0 0 1px var(--border); overflow:hidden; }
+.chart-fill { display:block; height:100%; border-radius:inherit; background:var(--accent); }
+.chart-value { font-variant-numeric:tabular-nums; text-align:right; }
+.chart-arrow { color:var(--muted); }
+.chart-stack-bar { display:flex; height:.875rem; overflow:hidden; border-radius:999px; background:var(--surface2); box-shadow:inset 0 0 0 1px var(--border); }
+.chart-stack-bar > span { display:block; height:100%; min-width:2px; }
+.chart-stack-bar > span[data-tone="success"],.chart-swatch[data-tone="success"] { background:var(--success); }
+.chart-stack-bar > span[data-tone="neutral"],.chart-swatch[data-tone="neutral"] { background:var(--accent); }
+.chart-stack-bar > span[data-tone="warning"],.chart-swatch[data-tone="warning"] { background:var(--warning); }
+.chart-stack-bar > span[data-tone="error"],.chart-swatch[data-tone="error"] { background:var(--error); }
+.chart-swatch { display:inline-block; width:.75rem; height:.75rem; border-radius:3px; }
+.chart-legend .chart-row { grid-template-columns:auto minmax(0,1fr) auto auto; }
+.chart-stack { display:grid; gap:var(--space-2); }
+
+/* Rows with a progress bar: label, value and arrow on the first line; the bar spans from the label to the arrow with room below. */
+.info-row[data-progress] { display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; row-gap:var(--space-2); padding-block:var(--space-2); }
+.info-row[data-progress][data-icon] { grid-template-columns:auto minmax(0,1fr) auto auto; }
+.info-row-progress { grid-column:1 / -1; width:100%; height:.5rem; margin-bottom:var(--space-1); }
+.info-row[data-progress][data-icon] .info-row-progress { grid-column:2 / -1; }
+.info-row-progress[data-tone="success"] { --progress-fill:var(--success); }
+.info-row-progress[data-tone="warning"] { --progress-fill:var(--warning); }
+.info-row-progress[data-tone="error"] { --progress-fill:var(--error); }
+/* Neutral chart parts are gray, never the accent color, so an empty review does not look like progress. */
+.chart-stack-bar > span[data-tone="neutral"],.chart-swatch[data-tone="neutral"] { background:color-mix(in srgb,var(--muted) 55%,var(--surface2)); }
+.chart-value { display:inline-flex; align-items:baseline; justify-content:flex-end; gap:var(--space-1); }
+.chart-value small { color:var(--muted); font-size:var(--font-meta); }
+.info-tip-body { display:grid; gap:var(--space-2); font-size:var(--font-label); }
+.info-tip-body p { margin:0; }
+.dashboard-cards { align-items:start; }
+.dashboard-chart .ui-section-header { margin-bottom:var(--space-2); }
+.ui-section-header .ui-button-icon { width:var(--control-compact); min-width:var(--control-compact); min-height:var(--control-compact); height:var(--control-compact); }
+
+/* Dashboard v4: three-column grid, summaries that share one progress presentation, and compact source cards. */
+.dashboard-cards { grid-template-columns:repeat(3,minmax(0,1fr)); align-items:stretch; }
+.dashboard-card { gap:var(--space-3); }
+.dashboard-cards > .dashboard-sources-section { grid-column:1 / -1; }
+.info-row[data-primary] { min-height:calc(var(--control-compact) + var(--space-2)); }
+.info-row[data-primary] .info-row-label { font-weight:600; }
+.info-row[data-primary] .info-row-value { font-size:var(--font-title); }
+.progress-summary { display:grid; grid-template-columns:auto minmax(0,1fr); align-items:baseline; column-gap:var(--space-2); row-gap:var(--space-2); padding-inline:var(--space-2); }
+.progress-summary-value { font-size:var(--font-title); font-weight:700; font-variant-numeric:tabular-nums; }
+.progress-summary-caption { color:var(--text2); font-size:var(--font-label); }
+.progress-summary-bar { grid-column:1 / -1; width:100%; height:.75rem; margin-bottom:var(--space-2); }
+.progress-summary-bar[data-tone="success"] { --progress-fill:var(--success); }
+.progress-summary-bar[data-tone="warning"] { --progress-fill:var(--warning); }
+.progress-summary-bar[data-tone="error"] { --progress-fill:var(--error); }
+.dashboard-card .chart-stack { padding-inline:var(--space-2); }
+.dashboard-card .chart-stack .ui-description { padding-inline:0; }
+.dashboard-sources { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(15rem,100%),1fr)); gap:var(--space-3); margin:0; padding:0; list-style:none; }
+.dashboard-sources > li { min-width:0; display:flex; }
+.dashboard-workspace .dashboard-source { display:grid; align-content:start; gap:var(--space-2); width:100%; min-width:0; padding:var(--space-3); border:1px solid var(--border); border-radius:var(--radius-card); background:var(--surface2); color:var(--text); text-align:left; cursor:pointer; }
+.dashboard-source:hover { background:var(--hover); }
+.dashboard-source:focus-visible { outline:var(--focus-width) solid var(--focus); outline-offset:var(--focus-offset); }
+.dashboard-source-head { display:flex; align-items:center; gap:var(--space-2); min-width:0; }
+.dashboard-source-head > strong { flex:1 1 auto; min-width:0; overflow-wrap:anywhere; }
+.dashboard-source-arrow { flex:none; color:var(--muted); }
+.dashboard-source-badges { display:flex; flex-wrap:wrap; gap:var(--space-1); }
+.dashboard-source-meta { color:var(--text2); font-size:var(--font-meta); overflow-wrap:anywhere; }
+.dashboard-source-meta[data-tone="warning"] { color:var(--warning); }
+.dashboard-source-meta[data-tone="error"] { color:var(--error); }
+@media(max-width:1199px){ .dashboard-cards { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:700px){ .dashboard-cards { grid-template-columns:minmax(0,1fr); } }
+
+.dashboard-card .ui-section-header { min-height:2.25rem; }
+
+/* Dashboard card states (loading, failed, unavailable) with their action below the explanation. */
+.dashboard-card-state { display:grid; justify-items:start; gap:var(--space-3); margin:0; }
+p.dashboard-card-state { display:flex; align-items:center; gap:var(--space-2); }
+
+/* Release Roles toolbar: Compare SAP User Groups, then the four filtered-role actions, directly left of Export CSV; one height, order preserved when wrapping. */
+.release-toolbar .release-bulk-actions { margin-left:auto; justify-content:flex-end; }
+.release-bulk-actions .ui-button,.release-bulk-actions .release-compare-toggle { min-height:var(--control-height); }
+.release-bulk-actions .release-compare-toggle { display:inline-flex; align-items:center; gap:var(--space-2); padding:0 var(--space-3); border:1px solid var(--border); border-radius:var(--radius-control); background:var(--surface2); }
+.release-toolbar > h2 { margin-right:0; flex:1 1 12rem; }
+.release-users-role { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2); min-width:0; }
+.ui-dialog .access-table[data-density="compact"] { overflow-x:auto; }
+.ui-dialog .access-table td.release-user-name,.access-table td.release-user-name { min-width:11rem; overflow-wrap:normal; word-break:normal; }
+
+/* Shared SoD heatmap: collapsible, selectable groups, risks/activities and cells. */
+.sod-heatmap-section { display:grid; gap:var(--space-2); }
+.sod-heatmap-title { margin:0; font-size:var(--font-section); }
+.sod-heatmap-toggle { display:inline-flex; align-items:center; gap:var(--space-2); min-height:var(--control-compact); padding:0 var(--space-2); border:0; border-radius:var(--radius-control); background:transparent; color:inherit; font:inherit; font-weight:600; cursor:pointer; }
+.sod-heatmap-toggle:hover { background:var(--hover); }
+.sod-heatmap-toggle:focus-visible,.sod-heat-head:focus-visible,.sod-heat-group:focus-visible { outline:var(--focus-width) solid var(--focus); outline-offset:var(--focus-offset); }
+.sod-heatmap-toggle > svg:not(:first-child) { color:var(--muted); }
+.sod-heatmap-section[data-expanded="false"] .sod-heatmap-bar { margin-bottom:0; }
+.sod-heatmap-filters { padding-block:var(--space-1); }
+.sod-heat-head,.sod-heat-group { display:inline-flex; align-items:center; max-width:100%; padding:2px var(--space-1); border:1px solid transparent; border-radius:var(--radius-control); background:transparent; color:inherit; font:inherit; font-weight:600; cursor:pointer; }
+.sod-heat-group { max-width:12rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sod-heat-head:hover,.sod-heat-group:hover { background:var(--hover); }
+.sod-heat-head[aria-pressed="true"],.sod-heat-group[aria-pressed="true"] { border-color:var(--accent); background:color-mix(in srgb,var(--accent) 14%,var(--surface)); }
+.sod-heatmap tr[data-selected] > th,.sod-heatmap th[data-selected] { background:color-mix(in srgb,var(--accent) 8%,var(--surface)); }
+.sod-heatmap button.sod-heat-cell[aria-pressed="true"] { outline:2px solid var(--accent); outline-offset:-1px; font-weight:700; }
+.matrix-grid .matrix-row-head[data-group] { box-shadow:1px 0 0 var(--border); }
+.matrix-group-label { display:inline-block; max-width:100%; padding:1px var(--space-2); border-radius:var(--radius-badge); background:var(--surface2); border:1px solid var(--border); font-weight:600; overflow:hidden; text-overflow:ellipsis; vertical-align:bottom; }
+
+/* Wide evidence modals: a compact summary above a table that scrolls inside the dialog. */
+.evidence-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(10rem,1fr)); gap:var(--space-2) var(--space-4); margin:0; }
+.evidence-summary > div { display:grid; gap:2px; min-width:0; }
+.evidence-summary dt { color:var(--muted); font-size:var(--font-meta); }
+.evidence-summary dd { margin:0; min-width:0; font-weight:600; }
+.evidence-scroll { max-height:min(50dvh,28rem); overflow:auto; border:1px solid var(--border); border-radius:var(--radius-card); }
+.evidence-scroll:focus-visible { outline:var(--focus-width) solid var(--focus); outline-offset:var(--focus-offset); }
+.evidence-scroll thead th { position:sticky; top:0; z-index:1; background:var(--surface2); }
+.ui-dialog .evidence-scroll table { margin:0; }
+.evidence-side { display:grid; gap:var(--space-2); min-width:0; }
+.evidence-side-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-2); }
+.evidence-side-head h3 { display:inline-flex; align-items:center; gap:var(--space-2); margin:0; font-size:var(--font-body); }
+.evidence-role { display:grid; gap:var(--space-1); justify-items:start; min-width:0; }
+.evidence-dialog .role-identifier { max-width:100%; }
+.sod-heatmap-section { min-width:0; max-width:100%; }
+.sod-heatmap-section > * { min-width:0; }
+
+/* Independent columns, and tab strips whose scrollbar must sit below the underline, with room above them. */
+.independent-columns { display:grid; gap:var(--space-3); align-items:start; min-width:0; }
+.independent-column { display:flex; flex-direction:column; gap:var(--space-3); min-width:0; }
+.ui-content-tabs,.ui-secondary-navigation { padding-bottom:var(--space-1); scrollbar-width:thin; scroll-padding-inline:var(--space-2); }
+.component-library > .ui-tabs { margin-top:var(--space-2); }
+.component-library > .ui-description { margin-bottom:0; }
+/* Padding inside the scroller keeps focus rings of the header and group buttons unclipped (ring width plus offset is 4px). */
+.sod-heatmap-scroll { padding:var(--space-1); scroll-padding:var(--space-1); }
+/* Specific enough to beat the generic input and badge rules when the row wraps on narrow panels. */
+.package-row-line > .package-suffix-input { flex:0 0 6.5rem; width:6.5rem; max-width:100%; }
+.package-row-line > .package-status { flex:none; font-size:var(--font-meta); line-height:1.2; }
+.package-row-line > .package-status svg { flex:none; }
+
+/* Access package row: one codeblock, the suffix field right of it and a compact validation status. */
+.package-row-line { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2); width:100%; min-width:0; }
+.package-row-line > .role-identifier { flex:1 1 14rem; min-width:0; }
+.package-suffix-input { flex:0 0 6.5rem; width:6.5rem; min-height:var(--control-compact); text-transform:uppercase; }
+.package-suffix-input:disabled { text-transform:none; }
+.package-status { display:inline-flex; align-items:center; gap:var(--space-1); flex:none; font-size:var(--font-meta); font-weight:600; white-space:nowrap; }
+.package-status[data-tone="success"] { color:var(--success); }
+.package-status[data-tone="warning"] { color:var(--warning); }
+.package-status[data-tone="error"] { color:var(--error); }
+.package-summary-error { display:inline-flex; align-items:center; gap:var(--space-1); color:var(--error); }
+.package-footer .package-clear { margin-right:auto; }
+.package-summary-info { display:inline-flex; align-items:center; gap:var(--space-1); color:var(--info); }
+.package-row-line > .package-status[data-tone="info"] { color:var(--info); }
+
+/* Main navigation with submenus: the link opens the module, the chevron opens its pages. */
+.primary-nav-group { display:flex; align-items:stretch; min-width:0; border-radius:var(--radius-control); }
+.primary-nav-group[data-active] { background:color-mix(in srgb,var(--on-primary) 20%,transparent); }
+.primary-nav-group > .primary-nav-button { background:transparent !important; border-top-right-radius:0; border-bottom-right-radius:0; padding-right:var(--space-2); }
+.primary-nav-group > .ui-button { min-width:1.75rem; min-height:0; padding:0 var(--space-1); border:0; background:transparent; color:inherit; border-radius:0 var(--radius-control) var(--radius-control) 0; }
+.primary-nav-group > .ui-button:hover { background:color-mix(in srgb,var(--on-primary) 12%,transparent); }
+.primary-nav-group > .ui-button:focus-visible { outline:2px solid var(--on-primary); outline-offset:-2px; }
+.primary-nav-group > .ui-button[aria-expanded="true"] svg { transform:rotate(180deg); }
+.primary-nav-group:hover { background:color-mix(in srgb,var(--on-primary) 12%,transparent); }
+.primary-nav-group[data-active]:hover { background:color-mix(in srgb,var(--on-primary) 24%,transparent); }
+.primary-submenu { display:grid; margin:0; padding:0; list-style:none; gap:2px; }
+.primary-submenu-link { display:flex; align-items:center; gap:var(--space-2); min-height:var(--control-compact); padding:var(--space-1) var(--space-3); border-radius:var(--radius-control); color:var(--text); text-decoration:none; font-size:var(--font-label); }
+.primary-submenu-link:hover { background:var(--hover); }
+.primary-submenu-link:focus-visible { outline:var(--focus-width) solid var(--focus); outline-offset:calc(var(--focus-offset) * -1); }
+.primary-submenu-link[aria-current="page"] { background:color-mix(in srgb,var(--accent) 16%,var(--surface)); font-weight:600; box-shadow:inset 3px 0 0 var(--accent); }
+@media(max-width:430px) { .primary-nav-group { flex:1 1 0; min-width:0; } .primary-nav-group > .primary-nav-button { flex:1 1 auto; padding-inline:2px; } .primary-nav-group > .ui-button { min-width:1.25rem; padding:0; } }
+
+/* Single Roles: a primary-tinted hover on both stripes and visible chevron feedback; focus keeps its own outline. */
+.single-role-list .single-role-entry,.single-role-list > div .single-role-entry { transition:background-color .12s ease; }
+.single-role-list .single-role-entry:hover,.single-role-list > div:nth-child(even) .single-role-entry:hover,.single-role-list .single-role-entry:nth-child(even):hover { background:color-mix(in srgb,var(--accent) 12%,var(--surface)); }
+.single-role-entry .role-expand { transition:background-color .12s ease,color .12s ease; }
+.single-role-entry:hover .role-expand { color:var(--accent2); }
+.single-role-entry .role-expand:hover { background:color-mix(in srgb,var(--accent) 22%,transparent); color:var(--accent2); }
+.single-role-entry .role-expand[aria-expanded="true"] { color:var(--accent2); }
+
+/* Account Review: one progress overview, then compact actionable KPI tiles. */
+.review-overview { display:grid; gap:var(--space-3); }
+.review-progress { display:grid; gap:var(--space-2); padding:var(--space-3); border:1px solid var(--border); border-radius:var(--radius-card); background:var(--surface); }
+.review-progress > h2 { margin:0; font-size:var(--font-section); font-weight:600; }
+
+/* One visible track for every progress bar: a zero value still reads as an empty bar with a clear boundary, in both themes. */
+:root { --progress-track:color-mix(in srgb,var(--muted) 26%,var(--surface)); }
+progress,.dashboard-workspace progress,.coverage-summary progress,.dashboard-workspace .coverage-summary > progress,.ui-kpi-progress,.info-row-progress { height:.625rem; background:var(--progress-track); box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--muted) 45%,var(--border)); }
+progress::-webkit-progress-bar,.dashboard-workspace progress::-webkit-progress-bar,.dashboard-workspace .coverage-summary > progress::-webkit-progress-bar { background:var(--progress-track); }
+.chart-track,.chart-stack-bar { background:var(--progress-track); box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--muted) 45%,var(--border)); }
+
+/* Operating mode and source facts: hues that are not review or health states. Dynamic is accent-tinted, Criticality is a filled neutral, Type a dashed outline. */
+.evidence-accent { color:var(--text); background:color-mix(in srgb,var(--accent) 20%,var(--surface)); box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 60%,transparent); }
+.evidence-criticality { color:var(--text); font-weight:600; background:color-mix(in srgb,var(--muted) 28%,var(--surface)); box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--muted) 70%,transparent); }
+.evidence-type { color:var(--text2); background:transparent; border:1px dashed color-mix(in srgb,var(--muted) 80%,transparent); }
+.sod-workspace progress,.sod-overview-cards progress { --progress-fill:var(--success); }
+
+/* SoD Overview: conflicting roles ranking inside the Conflicts group */
+.overview-roles { display:grid; gap:var(--space-2); margin-top:var(--space-3); padding-top:var(--space-3); border-top:1px solid var(--border); }
+.overview-roles-title { display:flex; align-items:center; gap:var(--space-1); margin:0; font-size:var(--text-sm, .875rem); font-weight:600; }
+.overview-role-list .info-row-label { min-width:0; overflow-wrap:anywhere; font-family:var(--font-mono, ui-monospace, monospace); font-size:.8125rem; }
+.overview-roles > button { justify-self:start; }
+
+/* Account Review action tiles: five tiles share one row from tablet width instead of leaving one alone on a second row */
+.review-overview .review-kpis { grid-template-columns:repeat(auto-fit,minmax(min(8.5rem,100%),1fr)); }

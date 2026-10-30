@@ -75,6 +75,59 @@ class ReleaseRoleTests(unittest.TestCase):
         rows = {r['role_name']: r['release_area'] for r in self.get(base)['items']}
         self.assertEqual(rows['ZO:MM:M:PR_REL_ST_N1_N1:ALL'], 'N')
 
+    def test_multiple_strategies_use_or_and_combine_with_the_other_filters(self):
+        names = lambda query: {r['role_name'] for r in self.get('access/release-roles?status=all&' + query)['items']}
+        n1, n2 = names('strategies=N1'), names('strategies=N2')
+        self.assertTrue(n1 and n2 and not n1 & n2)
+        self.assertEqual(names('strategies=N1&strategies=N2'), n1 | n2)
+        self.assertEqual(names('strategies=N1&strategies=N2&document_type=PO'), {name for name in n1 | n2 if 'PO_REL' in name})
+        self.assertEqual(names('strategies=N9'), set())
+        users = self.get('access/release-assignments?status=all&strategies=N2&limit=100')
+        self.assertTrue(users['items'] and all(item['release']['release_strategy'] == 'N2' for item in users['items']) and all('display_name' in item for item in users['items']))
+        self.assertEqual(self.get('access/release-options?field=strategy&status=all&release_groups=E3')['items'], ['N2'])  # strategy options follow their parents, never their own selection
+
+    def test_multiple_sap_user_groups_and_tokenized_searches_use_or(self):
+        names = lambda query: {r['role_name'] for r in self.get('access/release-roles?status=all&' + query)['items']}
+        g1, g2 = names('user_groups=G1'), names('user_groups=G2')
+        self.assertTrue(g1 and g2)
+        self.assertEqual(names('user_groups=G1&user_groups=G2'), g1 | g2)
+        self.assertEqual(names('user_groups=G1&user_groups=G2&document_type=PO'), {n for n in g1 | g2 if 'PO_REL' in n})
+        self.assertEqual(names('user_groups=g1'), set())  # exact identifiers, no case folding
+        self.assertEqual(names('group=G1'), g1)  # the single parameter still works and combines with the list
+        self.assertEqual(names('group=G1&user_groups=G2'), g1 | g2)
+        one, two = names('username=demo_one'), names('username=demo_two')
+        self.assertTrue(one and two)
+        self.assertEqual(names('username=demo_one,DEMO_TWO'), one | two)
+        self.assertEqual(names('username=demo_one;demo_two%0Anobody'), one | two)
+        self.assertEqual(names('username=%2C%20%2C'), names(''))  # separators only do not filter
+        self.assertEqual(names('role=PR_REL_ST_E2,PO_REL_ST_E3'), {'ZO:MM:M:PR_REL_ST_E2_N1:ALL', 'ZO:MM:M:PO_REL_ST_E3_N2:ALL'})
+        self.assertEqual(names('username=demo_one,demo_two&user_groups=G2'), two)
+        users = self.get('access/release-assignments?status=all&user_groups=G1&user_groups=G2&username=demo_one,demo_three&limit=100')
+        self.assertEqual({a['username'] for a in users['items']}, {'DEMO_ONE', 'DEMO_THREE'})
+        self.assertEqual(self.get('access/release-options?field=group&status=all')['items'], ['G1', 'G2'])
+        self.assertEqual(self.get('access/release-options?field=group&status=all&user_groups=G1')['items'], ['G1', 'G2'])  # never narrowed by itself
+        self.assertEqual(self.get('access/release-options?field=document_type&status=all&user_groups=G1')['items'], ['PO', 'PR'])
+        self.assertEqual(self.get('access/release-options?field=username&status=all&search=one,two')['items'], ['DEMO_ONE', 'DEMO_TWO'])
+
+    def test_exports_and_assignment_lists_use_the_same_multi_group_and_tokenized_scope(self):
+        query = 'status=all&user_groups=G1&user_groups=G2&username=demo_one,demo_two&release_areas=E'
+        rows = lambda response: list(csv.reader(io.StringIO(response.text.lstrip('\ufeff')), delimiter=';'))
+        assignments = self.client.get('/api/access/exports/releases?' + query, headers=H)
+        self.assertEqual(assignments.status_code, 200)
+        exported = rows(assignments)[1:]
+        listed = self.get('access/release-assignments?status=all&user_groups=G1&user_groups=G2&username=demo_one,demo_two&limit=100')
+        self.assertEqual({r[0] for r in exported}, {'DEMO_ONE', 'DEMO_TWO'})
+        self.assertEqual(len(exported), 3)  # the E-area assignments of DEMO_ONE (two) and DEMO_TWO (one)
+        self.assertEqual({a['username'] for a in listed['items']}, {'DEMO_ONE', 'DEMO_TWO'})
+        roles = rows(self.client.get('/api/access/exports/release-roles?' + query, headers=H))[1:]
+        self.assertEqual([r[0] for r in roles], ['ZO:MM:M:PO_REL_ST_E3_N2:ALL', 'ZO:MM:M:PR_REL_ST_E2_N1:ALL'])
+        # The count shown in the list equals the exported assignments.
+        page = self.get('access/releases?' + query)
+        self.assertEqual(page['export_assignments'], len(exported))
+        # One group only: DEMO_TWO (G2) drops out of the role and the assignment scope.
+        narrowed = rows(self.client.get('/api/access/exports/releases?status=all&user_groups=G1&release_areas=E', headers=H))[1:]
+        self.assertEqual({r[0] for r in narrowed}, {'DEMO_ONE'})
+
     def test_distinct_role_list_respects_filters_and_validity_and_excludes_catalogue_roles(self):
         every = self.get('access/release-roles?status=all')
         self.assertEqual(every['total'], 5)  # four parsed roles and one unparsed; the catalogue role is excluded

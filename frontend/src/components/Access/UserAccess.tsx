@@ -1,4 +1,6 @@
 import {ExportCSVButton} from '@/components/Shared/ExportCSVButton'
+import { ASSIGNMENT_BANDS, LEGACY_ASSIGNMENT_BANDS } from '@/lib/assignmentBands'
+import { USER_ACCESS_VIEWS } from '@/lib/navigationItems'
 import {useAssignmentCSVExport} from '@/hooks/useAssignmentCSVExport'
 import { PageHeader } from '@/components/Shared/Presentation'
 import { UsersRound as PageIcon } from 'lucide-react'
@@ -20,11 +22,11 @@ import { Select } from '@/components/Shared/Select';
 import { formatDate } from '@/lib/dateFormat';
 import { exportAssignments } from '@/lib/accessExport';
 import { announceExport } from '@/lib/exportNotice'
-import { ArrowRight, Download } from 'lucide-react';
+import { ArrowLeftRight, ArrowRight, Download } from 'lucide-react';
 import { useHistoryValue, useViewHistory, userAccessHref } from '@/hooks/useViewHistory';
 import { useRecordNavigation, type RecordNavigationState } from "@/hooks/useRecordNavigation";
 import { DetailNavigation, LockStatus, AssignmentStatus } from "@/components/Shared/InvestigationNavigation";
-import { Combobox } from "@/components/Shared/Combobox";
+import { MultiSelectFilter } from '@/components/Shared/MultiSelectFilter';
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -71,7 +73,7 @@ export function UserAccess({
   const setComparisonContext=(state:ComparisonContext)=>changeComparison({userComparison:state},true);
   const [compareInitial,setCompareInitial]=useState('');
   const [accessMode,setAccessMode]=useHistoryValue('accessMode');
-  const modeButtons=<SecondaryNavigation label="User Access view" items={(['directory','review','compare'] as const).map((value,index)=>({value,label:['User directory','Account Review','Compare users'][index],href:userAccessHref(value),active:(accessMode||'directory')===value,onSelect:()=>{setCompareInitial('');setAccessMode(value)}}))}/>;
+  const modeButtons=<SecondaryNavigation label="User Access view" items={USER_ACCESS_VIEWS.map(({value,label,icon})=>({value,label,icon,href:userAccessHref(value),active:(accessMode||'directory')===value,onSelect:()=>{setCompareInitial('');setAccessMode(value)}}))}/>;
   const {loading:dataLoading}=useApplicationData();
   const listScroll = useRef(0);
   const originUser = useRef(initialUser || "");
@@ -80,11 +82,11 @@ export function UserAccess({
   const [search, setSearch] = useState(""),
     [sort, setSort] = useState("username"),
     [descending, setDescending] = useState(false);
-  const [group, setGroup] = useState(""),
+  const [groups, setGroups] = useState<string[]>([]),
     [offset, setOffset] = useState(0),
     [selected, setSelected] = useHistoryValue('user');
   const { change: changeView } = useViewHistory();
-  const [role, setRole] = useState(initialRole),
+  const [roles, setRoles] = useState<string[]>(initialRole ? [initialRole] : []),
     [expired, setExpired] = useState(false);
   const [roleSearch, setRoleSearch] = useState(''), [roleTerm, setRoleTerm] = useState('')
   useEffect(() => { const timer = setTimeout(() => setRoleTerm(roleSearch), 200); return () => clearTimeout(timer) }, [roleSearch])
@@ -98,10 +100,10 @@ export function UserAccess({
   const excludeTransaction = useTransactionFilter()
   const [excludeMode,setExcludeMode] = useState<'any'|'all'>('any')
   const transactionGroups = { include: directoryTransaction, includeMode: transactionMode, setIncludeMode: setTransactionMode, exclude: excludeTransaction, excludeMode, setExcludeMode }
-  const activeFilterCount = [group, role, expired, assignmentBand, missingRoles.length, directoryTransaction.codes.length, excludeTransaction.codes.length].filter(Boolean).length
+  const activeFilterCount = [groups.length, roles.length, expired, assignmentBand, missingRoles.length, directoryTransaction.codes.length, excludeTransaction.codes.length].filter(Boolean).length
   useEffect(()=>{ directoryTransaction.setChips(initialTcode ? [initialTcode.trim().toUpperCase()] : []) },[initialTcode])
   useEffect(()=>{ if (!directoryTransaction.codes.length) setTransactionMode('and') },[directoryTransaction.key])
-  const clearEvidence = () => {setRole(''); directoryTransaction.clear(); setTransactionMode('and'); excludeTransaction.clear(); setExcludeMode('any'); setMissingRoles([]); setMissingMode('any')}
+  const clearEvidence = () => {setRoles([]); directoryTransaction.clear(); setTransactionMode('and'); excludeTransaction.clear(); setExcludeMode('any'); setMissingRoles([]); setMissingMode('any')}
   const [term, setTerm] = useState("");
   useEffect(() => {
     const t = setTimeout(() => setTerm(search), 250);
@@ -109,17 +111,17 @@ export function UserAccess({
   }, [search]);
   useEffect(() => {
     setOffset(0);
-  }, [term, group, sort, descending, role, directoryTransaction.deferredKey, transactionMode, excludeTransaction.deferredKey, excludeMode, missingRoles, missingMode, expired, assignmentBand]);
-  const filters = { assignment_band:assignmentBand, search: term, group, sort, descending, role, tcodes: directoryTransaction.deferredCodes, transaction_mode: transactionMode, exclude_tcodes: excludeTransaction.deferredCodes, exclude_mode: excludeMode, missing_roles: missingRoles, missing_mode: missingMode, show_expired: expired };
+  }, [term, groups, sort, descending, roles, directoryTransaction.deferredKey, transactionMode, excludeTransaction.deferredKey, excludeMode, missingRoles, missingMode, expired, assignmentBand]);
+  const filters = { assignment_band:assignmentBand, search: term, groups, sort, descending, roles, tcodes: directoryTransaction.deferredCodes, transaction_mode: transactionMode, exclude_tcodes: excludeTransaction.deferredCodes, exclude_mode: excludeMode, missing_roles: missingRoles, missing_mode: missingMode, show_expired: expired };
   const navigation = useRecordNavigation('users', filters, selected, setSelected);
   const result = useQuery({
     queryKey: [
       "access-users", assignmentBand,
       term,
-      group,
+      groups,
       sort,
       descending,
-      role,
+      roles,
       directoryTransaction.deferredCodes,
       transactionMode,
       excludeTransaction.deferredCodes,
@@ -166,8 +168,8 @@ export function UserAccess({
         navigation={navigation}
       />
     );
-  const clearAll=()=>{setAssignmentBand('');setSearch('');setGroup('');setSort('username');setDescending(false);setRole('');directoryTransaction.clear();setTransactionMode('and');excludeTransaction.clear();setExcludeMode('any');setExpired(false);setTerm('');setMissingRoles([]);setMissingMode('any');clearEvidence()}
-  const clearDisabled=!activeFilterCount&&!search&&!role&&!group&&!expired&&!missingRoles.length&&sort==='username'&&!descending
+  const clearAll=()=>{setAssignmentBand('');setSearch('');setGroups([]);setSort('username');setDescending(false);setRoles([]);directoryTransaction.clear();setTransactionMode('and');excludeTransaction.clear();setExcludeMode('any');setExpired(false);setTerm('');setMissingRoles([]);setMissingMode('any');clearEvidence()}
+  const clearDisabled=!activeFilterCount&&!search&&!roles.length&&!groups.length&&!expired&&!missingRoles.length&&sort==='username'&&!descending
   return (
     <section aria-label="User Access" className="space-y-4">
       {modeButtons}<PageHeader title="User Access" icon={<PageIcon size={22} aria-hidden="true"/>}/>
@@ -176,29 +178,27 @@ export function UserAccess({
       <FilterLayout label="Filters" activeCount={activeFilterCount} onClear={clearAll} clearDisabled={clearDisabled}
         toolbar={<PageToolbar>
           <SortControl label="Sort users" value={sort} options={USER_SORTS} descending={descending} onChange={setSort} onDescending={setDescending} />
-          <ClearFilterButton disabled={clearDisabled} onClick={clearAll}>Clear filters</ClearFilterButton>
         </PageToolbar>}
         sidebar={<div className="grid min-w-0 gap-3" role="search" aria-label="User filters">
           <FilterSection title="Saved Filters">
-            <SavedFilters showClear={false} view="users" state={{assignmentBand,search,group,sort,descending,role,tcodes:directoryTransaction.codes,transactionMode,excludeTcodes:excludeTransaction.codes,excludeMode,missingRoles,missingMode,expired}} apply={s=>{setMissingRoles(Array.isArray(s.missingRoles)?s.missingRoles.filter((name:unknown):name is string=>typeof name==='string').slice(0,20):[]);setMissingMode(s.missingMode==='all'?'all':'any');setAssignmentBand(typeof s.assignmentBand==='string'?s.assignmentBand:'');if(typeof s.search==='string')setSearch(s.search);if(typeof s.group==='string')setGroup(s.group);if(typeof s.sort==='string'&&['username','group','first_name','last_name','email','account_status','relevant_roles'].includes(s.sort))setSort(s.sort);if(typeof s.descending==='boolean')setDescending(s.descending);if(typeof s.role==='string')setRole(s.role);if(Array.isArray(s.tcodes)){directoryTransaction.setInput('');directoryTransaction.setChips(s.tcodes)};if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(Array.isArray(s.excludeTcodes)){excludeTransaction.setInput('');excludeTransaction.setChips(s.excludeTcodes)}else excludeTransaction.clear();setExcludeMode(s.excludeMode==='all'?'all':'any');if(typeof s.expired==='boolean')setExpired(s.expired)}} clear={clearAll}/>
+            <SavedFilters showClear={false} view="users" state={{assignmentBand,search,groups,sort,descending,roles,tcodes:directoryTransaction.codes,transactionMode,excludeTcodes:excludeTransaction.codes,excludeMode,missingRoles,missingMode,expired}} apply={s=>{setMissingRoles(Array.isArray(s.missingRoles)?s.missingRoles.filter((name:unknown):name is string=>typeof name==='string').slice(0,20):[]);setMissingMode(s.missingMode==='all'?'all':'any');setAssignmentBand(typeof s.assignmentBand==='string'?s.assignmentBand:'');if(typeof s.search==='string')setSearch(s.search);if(Array.isArray(s.groups))setGroups(s.groups.filter((v:unknown):v is string=>typeof v==='string').slice(0,50));else if(typeof s.group==='string'&&s.group)setGroups([s.group]);if(typeof s.sort==='string'&&['username','group','first_name','last_name','email','account_status','relevant_roles'].includes(s.sort))setSort(s.sort);if(typeof s.descending==='boolean')setDescending(s.descending);if(Array.isArray(s.roles))setRoles(s.roles.filter((v:unknown):v is string=>typeof v==='string').slice(0,50));else if(typeof s.role==='string'&&s.role)setRoles([s.role]);if(Array.isArray(s.tcodes)){directoryTransaction.setInput('');directoryTransaction.setChips(s.tcodes)};if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(Array.isArray(s.excludeTcodes)){excludeTransaction.setInput('');excludeTransaction.setChips(s.excludeTcodes)}else excludeTransaction.clear();setExcludeMode(s.excludeMode==='all'?'all':'any');if(typeof s.expired==='boolean')setExpired(s.expired)}} clear={clearAll}/>
           </FilterSection>
           <FilterSection title="Users">
         <Filter label="SAP User Group">
-          <Combobox label="SAP User Group" value={group} options={result.data?.groups || []} onChange={setGroup} placeholder="All groups; type a group to filter"/>
+          <MultiSelectFilter label="SAP User Group" values={groups} options={result.data?.groups || []} onChange={setGroups} placeholder="All groups · type to search"/>
         </Filter>
         <Filter label="Filter users by role">
-          <Combobox label="Filter users by role" value={role} options={(roleOptions.data || []).slice(0,100).map(item=>item.agr_name)} onChange={setRole} onSearch={setRoleSearch} serverFiltered loading={roleOptions.isFetching} hasMore={(roleOptions.data?.length||0)>100} optionLabel={value=>{const item=roleOptions.data?.find(item=>item.agr_name===value);return item?.text ? `${value} · ${item.text}` : value}} placeholder="Role name or description"/>
+          <MultiSelectFilter label="Filter users by role" values={roles} options={(roleOptions.data || []).slice(0,100).map(item=>item.agr_name)} onChange={setRoles} onSearch={setRoleSearch} loading={roleOptions.isFetching} hasMore={(roleOptions.data?.length||0)>100} optionLabel={value=>{const item=roleOptions.data?.find(item=>item.agr_name===value);return item?.text ? `${value} · ${item.text}` : value}} placeholder="Role name or description" scope="in the role catalogue"/>
         </Filter>
           </FilterSection>
           <FilterSection title="Missing roles">
       <section className="directory-missing grid min-w-0 gap-2" aria-label="Users lacking roles">
         <Filter label="Roles the user must lack">
-          <Combobox label="Roles the user must lack" value="" options={(missingOptions.data || []).slice(0,100).map(item=>item.agr_name).filter(name=>!missingRoles.includes(name))} onChange={name=>{if(name&&!missingRoles.includes(name)&&missingRoles.length<20)setMissingRoles([...missingRoles,name])}} onSearch={setMissingSearch} allowCustom={false} serverFiltered loading={missingOptions.isFetching} hasMore={(missingOptions.data?.length||0)>100} placeholder="Add a catalogue role to find users lacking it"/>
+          <MultiSelectFilter label="Roles the user must lack" values={missingRoles} options={(missingOptions.data || []).slice(0,100).map(item=>item.agr_name)} onChange={values=>setMissingRoles(values.slice(0,20))} onSearch={setMissingSearch} loading={missingOptions.isFetching} hasMore={(missingOptions.data?.length||0)>100} maxSelected={20} placeholder="Add catalogue roles to find users lacking them" scope="in the role catalogue"/>
         </Filter>
         {missingRoles.length>0&&<>
           <div className="flex flex-wrap items-center gap-2">
             <ButtonGroup label="Missing role operator" value={missingMode} onChange={value=>setMissingMode(value==='all'?'all':'any')} options={[{value:'any',label:'Missing ANY'},{value:'all',label:'Missing ALL'}]}/>
-            {missingRoles.map(name=><FilterChip key={name} removeLabel={`Remove missing role ${name}`} onRemove={()=>setMissingRoles(missingRoles.filter(value=>value!==name))}>Lacks: {name}</FilterChip>)}
           </div>
           <p className="transaction-help text-xs text-[var(--muted)]" role="status">{missingMode==='all'?'Missing ALL: users lacking every selected role.':'Missing ANY: users lacking at least one selected role.'} Only users whose current assignments are all mapped to catalogue roles are listed; missing or unmapped evidence is never read as missing access.</p>
         </>}
@@ -208,6 +208,13 @@ export function UserAccess({
             <TransactionFilterGroups subject="users" groups={transactionGroups} includeLabel="Filter users by transaction" excludeLabel="Exclude users by transaction" />
           </FilterSection>
           <FilterSection title="Assignments">
+            <Filter label="Currently valid roles">
+              <Select aria-label="Currently valid roles" className={inputClass} value={assignmentBand} onChange={event => setAssignmentBand(event.target.value)}>
+                <option value="">Any number of roles</option>
+                {ASSIGNMENT_BANDS.map(band => <option key={band} value={band}>{band} roles</option>)}
+                {(LEGACY_ASSIGNMENT_BANDS as readonly string[]).includes(assignmentBand) && <option value={assignmentBand}>{assignmentBand} roles (saved range)</option>}
+              </Select>
+            </Filter>
             <label className="filter-toggle"><input type="checkbox" checked={expired} onChange={(e) => setExpired(e.target.checked)} />Show expired assignments</label>
           </FilterSection>
         </div>}>
@@ -221,11 +228,11 @@ export function UserAccess({
             placeholder="Username, name, email or group"
           />
         </Filter>
-      {(assignmentBand || role || group || search || expired) && <div className="active-filter-row" aria-label="Active user filters">
+      {(assignmentBand || roles.length > 0 || groups.length > 0 || search || expired) && <div className="active-filter-row" aria-label="Active user filters">
         {assignmentBand&&<FilterChip removeLabel="Remove assignment count filter" onRemove={()=>setAssignmentBand('')}>{assignmentBand} currently valid roles</FilterChip>}
         {expired && <FilterChip removeLabel="Remove expired assignment filter" onRemove={()=>setExpired(false)}>Include Expired Assignments</FilterChip>}
-        {role && <FilterChip removeLabel="Remove role filter" onRemove={()=>setRole('')}>Role: {role}</FilterChip>}
-        {group && <FilterChip removeLabel="Remove user group filter" onRemove={()=>setGroup('')}>User Group: {group}</FilterChip>}
+        {roles.map(name => <FilterChip key={`role-${name}`} removeLabel={`Remove role filter ${name}`} onRemove={()=>setRoles(roles.filter(value=>value!==name))}>Role: {name}</FilterChip>)}
+        {groups.map(name => <FilterChip key={`group-${name}`} removeLabel={`Remove user group filter ${name}`} onRemove={()=>setGroups(groups.filter(value=>value!==name))}>User group: {name}</FilterChip>)}
         {search && <FilterChip removeLabel="Remove user search filter" onRemove={()=>{setSearch('');setTerm('')}}>Search: {search}</FilterChip>}
       </div>}
       <QueryState loading={result.isLoading || (dataLoading && !result.data?.loaded)} error={result.error} />
@@ -374,12 +381,10 @@ function UserDetails({
       }),
   });
   const user = result.isError ? undefined : result.data;
-  const { view: historyView, change } = useViewHistory(),
-    trail = (historyView.userTrail || []).filter((name) => name !== username);
   return (
     <section aria-label="User details" className="space-y-4">
-      <DetailNavigation parent="User Access" current={username} onBack={onBack} previousUser={trail.length ? { name: trail[trail.length - 1], onBack: () => change({ user: trail[trail.length - 1], userTrail: trail.slice(0, -1) }) } : undefined} {...navigation}/>
-      <div className="flex flex-wrap items-center gap-3"><h1 className="text-xl font-semibold">User details</h1><Button className="settings-secondary-button" onClick={onCompare}>Compare users</Button></div>
+      <DetailNavigation parent="User Access" current={username} onBack={onBack} {...navigation}/>
+      <div className="flex flex-wrap items-center gap-3"><h1 className="text-xl font-semibold">User details</h1><Button className="settings-secondary-button" onClick={onCompare}><ArrowLeftRight size={16} aria-hidden="true" />Compare users</Button></div>
       <QueryState loading={result.isLoading || (dataLoading && !result.data)} error={dataLoading && !result.data ? null : result.error} />
       {user && (
         <>
@@ -457,7 +462,7 @@ function UserDetails({
               <thead>
                 <tr>
                   <th>Exact assigned role</th>
-                  {scope === 'release' ? <><th>Type</th><th>Release group</th><th>Release strategy</th></> : <th>Role description</th>}
+                  {scope === 'release' && <><th>Type</th><th>Release group</th><th>Release strategy</th></>}
                   <th>Valid from</th><th>Valid to</th>
                   <th>Assignment status</th>
                   <th>
@@ -510,12 +515,12 @@ function AssignmentRow({
   return (
     <tr>
       <td>
-        <div className="grid min-w-0 gap-1">
-          {!releaseView && <RoleModuleBadge catalogueRoles={a.match_status === "exact" || a.match_status === "wildcard" ? a.catalogue_roles : undefined} />}
+        <div className="assigned-role">
+          {!releaseView && <div className="assigned-role-head"><RoleModuleBadge catalogueRoles={a.match_status === "exact" || a.match_status === "wildcard" ? a.catalogue_roles : undefined} /><span className="assigned-role-description">{a.role_description || 'Description unavailable'}</span></div>}
           <RoleIdentifier value={a.role_name} />
         </div>
       </td>
-      {releaseView ? <><td>{a.release?.document_type || 'Unparsed'}</td><td>{a.release?.release_group || '—'}</td><td>{a.release?.release_strategy || '—'}</td></> : <td className="assignment-description">{a.role_description||'Description unavailable'}</td>}
+      {releaseView && <><td>{a.release?.document_type || 'Unparsed'}</td><td>{a.release?.release_group || '—'}</td><td>{a.release?.release_strategy || '—'}</td></>}
       <td className="assignment-date">{formatDate(a.valid_from)}</td><td className="assignment-date">{formatDate(a.valid_to)}</td>
 
       <td>

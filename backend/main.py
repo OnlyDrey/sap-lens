@@ -59,6 +59,9 @@ def create_app(origin: str | None = None, session_token: str | None = None,
         task = None
         if get_settings().data_csv_path or get_settings().user_csv_path or get_settings().employee_csv_path or get_settings().employee_snapshot_id or get_settings().sod_csv_path:
             task = asyncio.create_task(initial_load())
+            # One scheduling turn lets the task mark the loader as loading before the first request is served,
+            # so a client never reads an empty, idle backend while persisted data is still being restored.
+            await asyncio.sleep(0)
         else:
             loader.error = 'Choose a SAP role catalogue or user access CSV in Settings.'
         yield

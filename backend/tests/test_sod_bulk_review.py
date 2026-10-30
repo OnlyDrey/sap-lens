@@ -320,7 +320,7 @@ class ReviewStatusQueueTests(BulkCase):
 
     def test_progress_ignores_the_status_filter_and_does_not_double_count(self):
         progress = self.get('/api/sod/explorer/access_list', review_status='reviewed')['progress']
-        self.assertEqual(progress, dict(total=10, completed=2, pending=7, investigating=1, outdated=0, attention=8))
+        self.assertEqual(progress, dict(total=10, completed=2, pending=7, investigating=1, outdated=0, attention=8, removal=1))
 
     def test_outdated_decisions_return_to_the_queue(self):
         self.bulk(self.picked(usernames=['U2'], role_suffix='ES2'), 'Keep')
@@ -344,6 +344,40 @@ class ReviewStatusQueueTests(BulkCase):
     def test_status_filter_is_saved_filter_compatible(self):
         response = self.client.post('/api/saved-filters', json=dict(name='Queue', view='sod_explorer', filters=dict(review_status='investigating')), headers=H)
         self.assertEqual(response.status_code, 200, response.text)
+
+
+class MultiSelectScopeTests(BulkCase):
+    """Every multi-select SoD filter is OR within and AND between filters, in matrices, explorer, selection and exports."""
+
+    def users_in(self, **params):
+        return sorted({row['user'] for row in self.get('/api/sod/matrix/risk', **params)['rows']})
+
+    def test_groups_roles_activities_transactions_and_risks_combine_with_or(self):
+        self.assertEqual(self.users_in(groups=['P2P']), ['U2'])
+        self.assertEqual(self.users_in(groups=['FIN', 'P2P']), ['U1', 'U2', 'U3', 'U4'])
+        self.assertEqual(self.users_in(roles=['ZC:MM:BUY:ES2', 'ZC:MM:BUY:ESH']), ['U2', 'U3'])
+        self.assertEqual(self.users_in(roles=['ZC:MM:BUY:ES2', 'ZC:MM:BUY:ESH'], groups=['P2P']), ['U2'])  # AND between filters
+        self.assertEqual(self.users_in(activities=['A', 'B']), ['U1', 'U2', 'U3', 'U4'])
+        self.assertEqual(self.users_in(tcodes=['X1', 'X9']), ['U1', 'U2', 'U3', 'U4'])
+        self.assertEqual(self.users_in(risks=['R1', 'R9']), ['U1', 'U2', 'U3', 'U4'])
+        self.assertEqual(self.users_in(risks=['R9']), [])
+        self.assertEqual(self.users_in(criticalities=['H', 'M'], categories=[]), ['U1', 'U2', 'U3', 'U4'])
+
+    def test_assignment_lists_apply_multi_role_group_and_activity_filters_per_assignment(self):
+        rows = self.listing(roles=['ZC:MM:BUY:CDK', 'ZC:MM:SEL:ENO'])['items']
+        self.assertEqual(sorted((row['user'], row['role']) for row in rows), [('U1', 'ZC:MM:BUY:CDK'), ('U2', 'ZC:MM:SEL:ENO')])
+        self.assertEqual(self.selection(roles=['ZC:MM:BUY:CDK', 'ZC:MM:SEL:ENO'])['total'], 2)
+        self.assertEqual(len(self.listing(groups=['P2P'], activities=['B'])['items']), 1)  # only U2's SEL:ENO supplies B in P2P
+
+    def test_filter_options_are_scoped_by_the_other_multi_selects(self):
+        self.assertEqual(self.get('/api/sod/filter-options', field='group', roles=['ZC:MM:BUY:ES2'])['items'], ['P2P'])
+        self.assertEqual(self.get('/api/sod/filter-options', field='role', groups=['P2P'])['items'], ['ZC:MM:BUY:ES2', 'ZC:MM:SEL:ENO'])
+
+    def test_conflict_pages_honor_multi_values_too(self):
+        users = lambda **params: sorted({item['subject'] for item in self.get('/api/sod/analysis', kind='users', limit=100, **params)['items']})
+        self.assertEqual(users(usernames=['U1', 'U3']), ['U1', 'U3'])
+        self.assertEqual(users(groups=['P2P']), ['U2'])
+        self.assertEqual(users(risks=['R1'], usernames=['U4']), ['U4'])
 
 
 if __name__ == '__main__':

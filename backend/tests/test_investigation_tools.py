@@ -87,6 +87,15 @@ class InvestigationTools(unittest.TestCase):
         self.assertEqual(self.compare(difference='a',search='ONLY')['total'],1)
         first=self.compare(limit=1);second=self.compare(offset=1,limit=1)
         self.assertEqual(first['total'],3);self.assertNotEqual(first['items'][0]['identifier'],second['items'][0]['identifier'])
+    def test_several_areas_use_or_and_the_single_parameter_still_works(self):
+        areas=self.compare()['areas']
+        every={i['identifier'] for i in self.compare(limit=100)['items']}
+        if len(areas)>1:
+            one=[{i['identifier'] for i in self.compare(areas=[area],limit=100)['items']} for area in areas]
+            self.assertEqual({i['identifier'] for i in self.compare(areas=areas,limit=100)['items']},set().union(*one))
+        self.assertEqual({i['identifier'] for i in self.compare(area=areas[0],limit=100)['items']},{i['identifier'] for i in self.compare(areas=[areas[0]],limit=100)['items']})
+        self.assertEqual({i['identifier'] for i in self.compare(areas=['No such area'],limit=100)['items']},set())
+        self.assertEqual({i['identifier'] for i in self.compare(areas=[''],limit=100)['items']},every)
     def test_unknown_same_and_disabled_users_rejected(self):
         for b,status in [('DEMO_A',422),('NO_USER',404)]:
             self.assertEqual(self.client.get('/api/user-comparison',params=dict(user_a='demo_a',user_b=b),headers=H).status_code,status)

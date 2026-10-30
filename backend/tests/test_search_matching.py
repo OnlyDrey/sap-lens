@@ -36,6 +36,16 @@ class SearchAPIContractTests(unittest.TestCase):
    self.assertEqual(response.status_code,200);counts.append(response.json()['total'])
   self.assertEqual(sum(counts),3)
   self.assertEqual(self.client.get('/api/access/users',headers=fixtures.H,params={'assignment_band':'unexpected'}).status_code,422)
+ def test_five_assignment_bands_cover_every_user_exactly_once_and_match_the_drilldown(self):
+  from user_access import ASSIGNMENT_BANDS, assignment_band, in_assignment_band
+  self.assertEqual([assignment_band(n) for n in (0,5,6,10,11,20,21,30,31,200)],['0–5','0–5','6–10','6–10','11–20','11–20','21–30','21–30','31+','31+'])
+  for count in range(0,80):self.assertEqual(sum(in_assignment_band(count,band) for band in ASSIGNMENT_BANDS),1)
+  data=self.client.get('/api/dashboard',headers=fixtures.H).json()
+  self.assertEqual(list(data['assignment_distribution']),list(ASSIGNMENT_BANDS))
+  self.assertEqual(sum(data['assignment_distribution'].values()),data['review_population'])
+  for band,count in data['assignment_distribution'].items():
+   response=self.client.get('/api/access/users',headers=fixtures.H,params={'assignment_band':band})
+   self.assertEqual((response.status_code,response.json()['total']),(200,count),band)
  def test_wildcard_filters_pagination_export_and_saved_definition_agree(self):
   import csv,io
   params={'search':'DEMO_O*','tcodes':['ME*','MI*'],'assignment_band':'1–5'}

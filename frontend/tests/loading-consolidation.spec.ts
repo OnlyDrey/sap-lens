@@ -207,14 +207,14 @@ test('Dashboard is the default landing route and configuration links target thei
   ).toBeVisible()
   expect(new URL(page.url()).hash).toBe('#/dashboard')
   for (const name of [
-    'SAP Overview',
     'Access & Risk',
+    'Review Progress',
     'Directory & Data Health',
-    'Configuration',
+    'Data Sources & Configuration',
   ])
     await expect(page.getByRole('region', { name, exact: true })).toBeVisible()
   await page
-    .getByRole('button', { name: 'Configure User–Role Mapping', exact: true })
+    .getByRole('button', { name: /^User–Role Mapping: .* Open source settings$/ })
     .click()
   await expect(
     page.getByRole('tab', { name: 'User Access', exact: true }),

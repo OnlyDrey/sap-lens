@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { cellButton, cleanup, headers, names, openSod, seedGovernance, wideMatrix } from './sod-fixture'
+import { pickMulti } from './support'
 
 let directory: string
 test.beforeEach(async ({ request }) => { directory = await seedGovernance(request) })
@@ -104,7 +105,7 @@ async function openSaved(page: Page, view: string) {
 
 test('Finance-style matrices are saved filters, isolated per matrix, renameable and deletable', async ({ page, request }) => {
   await openSod(page, 'Risk Matrix')
-  await page.getByRole('combobox', { name: 'SAP user group', exact: true }).fill('P2P')
+  await pickMulti(page, 'SAP User Group', 'P2P')
   await expect(page.getByRole('rowheader', { name: new RegExp('' + names.a) })).toHaveCount(0)
   await expect(page.getByRole('rowheader', { name: new RegExp('' + names.b) })).toBeVisible()
   await openSaved(page, 'sod_risk_matrix')
@@ -112,9 +113,11 @@ test('Finance-style matrices are saved filters, isolated per matrix, renameable 
   await menu.getByLabel('Saved filter name', { exact: true }).fill('P2P matrix')
   await menu.getByRole('button', { name: 'Save as new', exact: true }).click()
   await expect(menu).toContainText('Saved filters updated.')
-  const stored = (await (await request.get('/api/saved-filters', { headers })).json()).items
+  // Saved filters are retained history shared with other specs: only this matrix view is compared.
+  const mine = async () => ((await (await request.get('/api/saved-filters', { headers })).json()).items as { name: string; view: string; filters: Record<string, unknown> }[]).filter((item) => item.view === 'sod_risk_matrix')
+  const stored = await mine()
   expect(stored.map((item: { name: string; view: string }) => [item.name, item.view])).toEqual([['P2P matrix', 'sod_risk_matrix']])
-  expect(stored[0].filters.group).toBe('P2P')
+  expect(stored[0].filters.groups).toEqual(['P2P'])
   await menu.getByRole('button', { name: 'Clear filters', exact: true }).click()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('rowheader', { name: new RegExp('' + names.a) })).toBeVisible()
@@ -130,25 +133,26 @@ test('Finance-style matrices are saved filters, isolated per matrix, renameable 
   await page.getByRole('option').filter({ hasText: 'P2P matrix' }).first().click()
   await savedDialog(page, 'sod_risk_matrix').getByRole('button', { name: 'Load', exact: true }).click()
   await page.keyboard.press('Escape')
-  await expect(page.getByRole('combobox', { name: 'SAP user group', exact: true })).toHaveValue('P2P')
+  await expect(page.getByRole('button', { name: 'Remove SAP User Group P2P', exact: true })).toBeVisible()
   await expect(page.getByRole('rowheader', { name: new RegExp('' + names.a) })).toHaveCount(0)
   await openSaved(page, 'sod_risk_matrix')
   await savedDialog(page, 'sod_risk_matrix').getByLabel('Saved filter name', { exact: true }).fill('P2P renamed')
   await savedDialog(page, 'sod_risk_matrix').getByRole('button', { name: 'Rename', exact: true }).click()
-  await expect.poll(async () => (await (await request.get('/api/saved-filters', { headers })).json()).items[0].name).toBe('P2P renamed')
+  await expect.poll(async () => (await mine())[0]?.name).toBe('P2P renamed')
   page.once('dialog', (dialog) => dialog.accept())
   await savedDialog(page, 'sod_risk_matrix').getByRole('button', { name: 'Delete', exact: true }).click()
-  await expect.poll(async () => (await (await request.get('/api/saved-filters', { headers })).json()).items.length).toBe(0)
+  await expect.poll(async () => (await mine()).length).toBe(0)
 })
 
 test('group aggregation lists distinct users per group and drills into the users', async ({ page }) => {
   await openSod(page, 'Risk Matrix')
   await page.getByRole('combobox', { name: 'Rows', exact: true }).selectOption('group')
-  await expect(page.getByRole('rowheader', { name: /FIN/ })).toBeVisible()
-  await page.getByRole('button', { name: /users in group FIN with R1/ }).first().click()
-  await expect(page.getByRole('combobox', { name: 'SAP user group', exact: true })).toHaveValue('FIN')
-  await expect(page.getByRole('combobox', { name: 'Risk ID', exact: true })).toHaveValue('R1')
-  await expect(page.getByRole('rowheader', { name: new RegExp('' + names.a) })).toBeVisible()
+  const matrix = page.getByRole('region', { name: /Scrollable User by risk matrix/ })
+  await expect(matrix.getByRole('rowheader', { name: /FIN/ })).toBeVisible()
+  await matrix.getByRole('button', { name: /users in group FIN with R1/ }).first().click()
+  await expect(page.getByRole('button', { name: 'Remove SAP User Group FIN', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Remove Risk ID R1', exact: true })).toBeVisible()
+  await expect(matrix.getByRole('rowheader', { name: new RegExp('' + names.a) })).toBeVisible()
 })
 
 test('activity matrix is a review entry point and shows role counts and decisions', async ({ page }) => {
@@ -174,8 +178,8 @@ test('work queue has one row per user, batch review lives in the workspace and t
   await openSod(page, 'Reviews')
   const table = page.getByRole('table', { name: 'SoD review work queue' })
   await expect(table.getByRole('row')).toHaveCount(3)
-  await expect(page.getByRole('button', { name: /^Needs review: 2$/ })).toBeVisible()
-  await expect(page.getByRole('button', { name: /^Complete: 0$/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Needs review\s*2$/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Complete\s*0$/ })).toBeVisible()
   const rowA = table.getByRole('row').filter({ hasText: names.a })
   await expect(rowA).toContainText('0/9')
   await rowA.getByRole('button', { name: `Open review for ${names.a}`, exact: true }).click()
@@ -187,6 +191,8 @@ test('work queue has one row per user, batch review lives in the workspace and t
   const form = panel.getByRole('region', { name: /Batch activity review \(2\)/ })
   await form.getByRole('textbox', { name: 'Reviewer (self-reported)', exact: true }).fill('Synthetic Reviewer')
   await form.getByRole('textbox', { name: 'Justification', exact: true }).fill('Same business need')
+  await expect(form.getByRole('button', { name: 'Save decision', exact: true })).toBeDisabled() // a batch needs explicit confirmation
+  await form.getByRole('checkbox', { name: /Record this decision for 2 selected activity items/ }).check()
   await form.getByRole('button', { name: 'Save decision', exact: true }).click()
   await expect(form).toHaveCount(0)
   await expect(activities).toContainText('2/3 decided')
@@ -209,6 +215,8 @@ test('remediation separates proposals from verification and keeps tracked action
   await quick.getByRole('textbox', { name: 'Reviewer (self-reported)', exact: true }).fill('Synthetic Reviewer')
   await quick.getByRole('textbox', { name: 'Rationale (optional)', exact: true }).fill('Duplicate coverage')
   await row.getByRole('button', { name: 'Remove ROLE_A2', exact: true }).click()
+  await expect(row.getByRole('button', { name: 'Remove ROLE_A2', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await row.getByRole('button', { name: 'Show details for ROLE_A2' }).click()
   await row.getByRole('button', { name: 'Track action', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Track remediation action' })
   await dialog.getByRole('textbox', { name: 'Assigned owner', exact: true }).fill('Access team')
@@ -238,12 +246,15 @@ test('access explorer traces user to role and back through the lookup', async ({
   await expect(page.getByRole('table', { name: 'User risk table' }).locator('code', { hasText: /^ROLE_(A1|A2|B)$/ })).toHaveCount(0)
   await page.getByRole('button', { name: `Show evidence for ${names.a} R1`, exact: true }).click()
   // Each evidence role is its own code block on its own line, never a comma-separated string.
-  const evidenceRoles = page.getByRole('table', { name: 'User risk table' }).locator('code', { hasText: /^ROLE_(A1|A2|B)$/ })
+  const evidenceDialog = page.getByRole('dialog', { name: /^Role evidence · / })
+  const evidenceRoles = evidenceDialog.getByRole('table').locator('code', { hasText: /^ROLE_(A1|A2|B)$/ })
   await expect(evidenceRoles).toHaveText(['ROLE_A1', 'ROLE_A2', 'ROLE_B'])
-  await expect(page.getByRole('table', { name: 'User risk table' })).not.toContainText('ROLE_A1, ROLE_A2')
+  await expect(evidenceDialog.getByRole('table')).not.toContainText('ROLE_A1, ROLE_A2')
+  await page.keyboard.press('Escape')
   await page.getByRole('tab', { name: 'Roles', exact: true }).click()
   await page.getByRole('button', { name: 'Show evidence for ROLE_AB', exact: true }).click()
-  await expect(page.getByRole('group', { name: 'Users with ROLE_AB' })).toContainText(names.b)
+  await expect(page.getByRole('dialog', { name: 'Users with ROLE_AB' })).toContainText(names.b)
+  await page.keyboard.press('Escape')
   await page.getByRole('button', { name: 'Show users with ROLE_AB', exact: true }).click()
   await expect(page.getByRole('tab', { name: 'Assignments', exact: true })).toHaveAttribute('aria-selected', 'true')
   const list = page.getByRole('table', { name: 'Access list' })

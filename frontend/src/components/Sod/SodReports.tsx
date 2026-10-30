@@ -1,4 +1,6 @@
+import { rememberedReviewer } from '@/lib/reviewer'
 import { useState } from 'react'
+import { Eye, FileDown, FileText, Wrench } from 'lucide-react'
 import { announceExport } from '@/lib/exportNotice'
 import { useQuery } from '@tanstack/react-query'
 import { downloadFile, REPORT_NAME, sod, sodPost } from '@/api/sod'
@@ -41,7 +43,7 @@ export function SodReports() {
 function ReportTabs({ items }: { items: PeriodItem[] }) {
   const [tab, setTab] = useState('formal')
   return (
-    <ContentTabs label="SoD report types" value={tab} onChange={setTab} items={[{ value: 'formal', label: 'Formal review report' }, { value: 'remediation', label: 'Access remediation report' }]}>
+    <ContentTabs label="SoD report types" value={tab} onChange={setTab} items={[{ value: 'formal', label: 'Formal review report', icon: <FileText size={16} aria-hidden="true" /> }, { value: 'remediation', label: 'Access remediation report', icon: <Wrench size={16} aria-hidden="true" /> }]}>
       {tab === 'formal' ? <FormalReport items={items} /> : <RemediationReport items={items} />}
     </ContentTabs>
   )
@@ -65,7 +67,7 @@ function useExport() {
 
 function FormalReport({ items }: { items: PeriodItem[] }) {
   const [period, setPeriod] = useState(''), [title, setTitle] = useState('SoD Access Review'), [status, setStatus] = useState('Draft'),
-    [prepared, setPrepared] = useState(''), [reviewer, setReviewer] = useState(''), [approver, setApprover] = useState(''), [reviewerRole, setReviewerRole] = useState(''), [approverRole, setApproverRole] = useState(''),
+    [prepared, setPrepared] = useState(rememberedReviewer), [reviewer, setReviewer] = useState(''), [approver, setApprover] = useState(''), [reviewerRole, setReviewerRole] = useState(''), [approverRole, setApproverRole] = useState(''),
     [version, setVersion] = useState('1.0'), [comments, setComments] = useState(''), [previous, setPrevious] = useState(''), [date, setDate] = useState(todayText), [sections, setSections] = useState(Object.keys(sectionNames)),
     [appendices, setAppendices] = useState(true), [preview, setPreview] = useState<Preview | null>(null), [previewKey, setPreviewKey] = useState('')
   const exporter = useExport()
@@ -95,7 +97,7 @@ function FormalReport({ items }: { items: PeriodItem[] }) {
           <FormField label="Report title"><Input value={title} maxLength={160} onChange={(event) => setTitle(event.target.value)} /></FormField>
           <FormField label="Report status"><Select value={status} onChange={(event) => setStatus(event.target.value)}><option>Draft</option><option>Reviewed</option>{frozen && <option>Approved</option>}{frozen && <option>Externally signed</option>}</Select><p className="ui-description">{STATUS_HELP[status]}</p></FormField>
         </div>
-        <details className="sod-report-details"><summary>Document details</summary>
+        <details className="sod-report-details" open><summary>Document details</summary>
         <div className="grid min-w-0 gap-3 py-3 sm:grid-cols-2 xl:grid-cols-4">
           {([['Prepared by', prepared, setPrepared], ['Report reviewer', reviewer, setReviewer], ['Reviewer role', reviewerRole, setReviewerRole], ['Report approver', approver, setApprover], ['Approver role', approverRole, setApproverRole], ['Document version', version, setVersion]] as [string, string, (value: string) => void][]).map(([label, value, set]) => (
             <FormField key={label} label={label}><Input value={value} maxLength={label === 'Document version' ? 80 : 120} onChange={(event) => set(event.target.value)} /></FormField>))}
@@ -107,8 +109,8 @@ function FormalReport({ items }: { items: PeriodItem[] }) {
         <details><summary>Included report sections</summary><div className="grid gap-2 py-3 sm:grid-cols-2">{Object.entries(sectionNames).map(([value, label]) => <Checkbox key={value} checked={sections.includes(value)} onChange={(event) => setSections((previousList) => (event.target.checked ? [...previousList, value] : previousList.filter((name) => name !== value)))}>{label}</Checkbox>)}</div></details>
         <Checkbox checked={appendices} onChange={(event) => setAppendices(event.target.checked)}>Include detailed appendices</Checkbox>
         <Toolbar>
-          <Button loading={exporter.busy} disabled={!period} onClick={() => void showPreview()}>Preview report</Button>
-          {(['docx', 'pdf'] as const).map((kind) => <Button key={kind} disabled={exporter.busy || !active} onClick={() => void exporter.run(`/api/sod/reports/${kind}`, { period_id: period, options, expected_model: active!.model_checksum }, 'document', kind.toUpperCase())}>Export {kind.toUpperCase()}</Button>)}
+          <Button loading={exporter.busy} disabled={!period} onClick={() => void showPreview()}><Eye size={16} aria-hidden="true" />Preview report</Button>
+          {(['docx', 'pdf'] as const).map((kind) => <Button key={kind} disabled={exporter.busy || !active} onClick={() => void exporter.run(`/api/sod/reports/${kind}`, { period_id: period, options, expected_model: active!.model_checksum }, 'document', kind.toUpperCase())}>{kind === 'pdf' ? <FileDown size={16} aria-hidden="true" /> : <FileText size={16} aria-hidden="true" />}Export {kind.toUpperCase()}</Button>)}
         </Toolbar>
       </Card>
       {exporter.message && <p role="status" className="break-all">{exporter.message}</p>}
@@ -150,7 +152,7 @@ function RemediationReport({ items }: { items: PeriodItem[] }) {
           <FormField label="Evidence context"><Select value={context} onChange={(event) => setContext(event.target.value)}><option value="current">Current evidence</option>{items.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.state}</option>)}</Select></FormField>
         </div>
         <fieldset><legend>Included handling</legend><div className="grid gap-2 py-2 sm:grid-cols-2 xl:grid-cols-3">{groups.map((group) => <Checkbox key={group} checked={recommended.includes(group)} onChange={(event) => setRecommended((previousList) => (event.target.checked ? [...previousList, group] : previousList.filter((name) => name !== group)))}>{group}</Checkbox>)}</div></fieldset>
-        <details className="sod-report-details"><summary>Document details</summary>
+        <details className="sod-report-details" open><summary>Document details</summary>
         <div className="grid min-w-0 gap-3 py-3 sm:grid-cols-2 xl:grid-cols-4">
           <FormField label="Report title"><Input value={title} maxLength={160} onChange={(event) => setTitle(event.target.value)} /></FormField>
           <FormField label="Prepared by"><Input value={prepared} maxLength={120} onChange={(event) => setPrepared(event.target.value)} /></FormField>
@@ -159,9 +161,9 @@ function RemediationReport({ items }: { items: PeriodItem[] }) {
         </div>
         </details>
         <Toolbar>
-          <Button loading={exporter.busy} disabled={!recommended.length} onClick={() => void showPreview()}>Preview report</Button>
+          <Button loading={exporter.busy} disabled={!recommended.length} onClick={() => void showPreview()}><Eye size={16} aria-hidden="true" />Preview report</Button>
           <Button disabled={exporter.busy || !active} onClick={() => void exporter.run('/api/sod/reports/remediation/csv', { context, options, expected_model: active!.model_checksum }, 'csv', 'CSV')}>Export CSV</Button>
-          {(['docx', 'pdf'] as const).map((kind) => <Button key={kind} disabled={exporter.busy || !active} onClick={() => void exporter.run(`/api/sod/reports/remediation/${kind}`, { context, options, expected_model: active!.model_checksum }, 'document', kind.toUpperCase())}>Export {kind.toUpperCase()}</Button>)}
+          {(['docx', 'pdf'] as const).map((kind) => <Button key={kind} disabled={exporter.busy || !active} onClick={() => void exporter.run(`/api/sod/reports/remediation/${kind}`, { context, options, expected_model: active!.model_checksum }, 'document', kind.toUpperCase())}>{kind === 'pdf' ? <FileDown size={16} aria-hidden="true" /> : <FileText size={16} aria-hidden="true" />}Export {kind.toUpperCase()}</Button>)}
         </Toolbar>
       </Card>
       {exporter.message && <p role="status" className="break-all">{exporter.message}</p>}

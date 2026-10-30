@@ -101,6 +101,22 @@ class AccountReviewTests(unittest.TestCase):
         reverse=self.get('?descending=true')['items'];self.assertEqual(reverse[0]['username'],'DEMO_SERVICE')
         self.assertEqual(self.client.get('/api/account-review?finding=unsupported',headers=H).status_code,422)
 
+    def test_multi_value_filters_use_or_within_and_and_between(self):
+        names = lambda q: {r['username'] for r in self.get(q)['items']}
+        everyone = names('?limit=100')
+        a, b = names('?findings=ad_disabled_open'), names('?findings=any')
+        self.assertTrue(a and b)
+        self.assertEqual(names('?findings=ad_disabled_open&findings=any&limit=100'), a | b)
+        self.assertEqual(names('?finding=ad_disabled_open&findings=any&limit=100'), a | b)  # singular alias joins the list
+        classified = names('?license_groups=classified&limit=100')
+        self.assertEqual(names('?license_groups=classified&license_groups=exclude&limit=100'), everyone)  # both classes do not narrow
+        self.assertEqual(names('?findings=ad_disabled_open&findings=any&license_groups=classified&limit=100'), (a | b) & classified)
+        states = names('?review_states=Needs%20review&review_states=Investigating&limit=100')
+        self.assertTrue(states)
+        self.assertEqual(names('?review_states=Approved%20for%20deactivation&limit=100'), set())
+        self.assertEqual(self.client.get('/api/account-review?findings=unsupported',headers=H).status_code,422)
+        self.assertEqual(self.client.get('/api/account-review?review_states=Unknown',headers=H).status_code,422)
+
     def decision(self, row, **kwargs):
         return self.client.post('/api/account-review/decision/'+row['username'],headers=H,json=dict(state='Investigating',reviewer='Synthetic Reviewer',rationale='Synthetic investigation',evidence_version=row['evidence_version'],**kwargs))
 
@@ -251,6 +267,16 @@ class AccountReviewTests(unittest.TestCase):
         self.assertEqual(data['review_population'],6)
         self.assertEqual(sum(data['assignment_distribution'].values()),6)
         self.assertIsNone(data['role_distribution'])
+
+    def test_dashboard_directory_counts_partition_users_and_match_review_filters(self):
+        data=self.client.get('/api/dashboard',headers=H).json();value={m['id']:m['value'] for m in data['metrics']}
+        self.assertEqual(value['email_matches']+value['directory_missing']+value['directory_ambiguous'],data['coverage_total'])
+        self.assertEqual(data['coverage_total'],data['review_population'])
+        for metric,finding in (('email_matches','matched'),('directory_missing','directory_missing'),('directory_ambiguous','directory_ambiguous')):
+            self.assertEqual(self.get('?finding='+finding)['total'],value[metric],metric)
+        self.assertEqual(self.client.get('/api/account-review?finding=unknown',headers=H).status_code,422)
+        # position changes are an independent signal: they never enter the match partition
+        self.assertIn('position_changes',{m['id'] for m in data['metrics']})
 
     def test_format_one_review_is_preserved_and_migrates_only_on_explicit_save(self):
         row=self.get('?search=DEMO_OPEN')['items'][0]

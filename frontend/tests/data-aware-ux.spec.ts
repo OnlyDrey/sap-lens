@@ -92,8 +92,8 @@ test('loading and reconnect stay contextual during Back and Forward', async ({ p
   let failed = false
   await page.route('**/api/configuration', async route => {
     if (failed) return route.abort()
-    const response = await route.fetch(); const data = await response.json()
-    await route.fulfill({json:{...data,loading:true}})
+    try { const response = await route.fetch(); const data = await response.json(); await route.fulfill({json:{...data,loading:true}}) }
+    catch { await route.abort().catch(() => {}) } // the request belonged to a page that was navigating away
   })
   await page.getByRole('button',{name:'Refresh role data from CSV',exact:true}).click()
   await expect(page.getByRole('heading',{name:'Loading CSV data…',exact:true})).toBeVisible()
@@ -117,7 +117,18 @@ for (const theme of ['dark','light']) for (const width of [1280,800]) test(`data
   settings.theme = theme; await request.post('/api/configuration',{headers,data:settings})
   await page.setViewportSize({width,height:900})
   await page.goto('/#session=browser-test-session')
-  const shot = async (name:string) => { expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBeTruthy(); await page.screenshot({path:info.outputPath(`${name}.png`),fullPage:true}) }
+  // The overflow check polls (layout settles after route and panel changes) and, when it still fails, attaches the offending elements and a screenshot so a rare failure is diagnosable from the report.
+  const shot = async (name:string) => {
+    const fits = () => page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)
+    try { await expect.poll(fits, { timeout: 3000 }).toBeTruthy() }
+    catch (error) {
+      const offenders = await page.evaluate(() => [...document.querySelectorAll('body *')].map(element => { const box = element.getBoundingClientRect(); return { tag: element.tagName.toLowerCase(), cls: String(element.className).slice(0, 60), text: (element.textContent || '').trim().slice(0, 40), right: Math.round(box.right), width: Math.round(box.width) } }).filter(item => item.right > innerWidth + 1 && item.width > 0).slice(0, 25).concat([{ tag: 'viewport', cls: '', text: `scrollWidth ${document.documentElement.scrollWidth} innerWidth ${innerWidth}`, right: 0, width: 0 }]))
+      await info.attach(`overflow-${name}.json`, { body: JSON.stringify(offenders, null, 1), contentType: 'application/json' })
+      await info.attach(`overflow-${name}.png`, { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' })
+      throw error
+    }
+    await page.screenshot({path:info.outputPath(`${name}.png`),fullPage:true})
+  }
   await navigate(page,'User Access'); await page.getByRole('link', { name: 'DEMO_OTHER',exact:true}).click()
   await expect(page.getByRole('region',{name:'Account Status',exact:true})).toBeVisible()
   await shot('user-two-column')
@@ -140,11 +151,14 @@ for (const theme of ['dark','light']) for (const width of [1280,800]) test(`data
   await page.getByRole('img',{name:'Header logo preview',exact:true}).scrollIntoViewIfNeeded()
   await shot('branding-controls')
   await page.getByRole('button',{name:'Back to SAP Lens',exact:true}).click()
-  await page.route('**/api/configuration', async route => {const response=await route.fetch();await route.fulfill({json:{...await response.json(),loading:true}})})
+  // The loading state is mocked only after the refresh request has been sent. Mocking it earlier races with the application's own configuration polling: when that poll lands before the click, the Refresh button is disabled (correctly) and the click waits until the test times out.
+  let mockedLoading = false
+  await page.route('**/api/configuration', async route => {try{const response=await route.fetch();const body=await response.json();await route.fulfill({json:mockedLoading?{...body,loading:true}:body})}catch{await route.abort().catch(()=>{})}})
+  await page.route('**/api/refresh', async route => {mockedLoading=true;await route.continue()})
   await page.getByRole('button',{name:'Refresh role data from CSV',exact:true}).click()
   await expect(page.getByRole('heading',{name:'Loading CSV data…',exact:true})).toBeVisible()
   await shot('contextual-loading')
-  await page.unroute('**/api/configuration')
+  await page.unroute('**/api/configuration'); await page.unroute('**/api/refresh')
   // Actual authored bootstrap document and palette, browser-rendered; not native WebView2.
   const html = bootstrapDocument(theme)
   await page.route('**/synthetic-bootstrap-preview',route=>route.fulfill({contentType:'text/html; charset=utf-8',body:html}))
