@@ -226,6 +226,7 @@
     "test_repository_integrity",
     "test_repository_privacy",
     "test_test_profiles",
+    "test_validation_tracker",
     "test_workflows"
    ],
    "browser": []
