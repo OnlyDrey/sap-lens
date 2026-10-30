@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { keepPreviousData, useQuery, type QueryClient } from '@tanstack/react-query'
 import { AlertTriangle, CheckCircle2, CircleDashed, CircleDot, History, Lock, RefreshCw, Search, ShieldCheck, ShieldX, UserMinus } from 'lucide-react'
 import { sod, scopeParams, emptyFilters, type ContextInfo, type Filters, type Lifecycle } from '@/api/sod'
@@ -60,6 +60,12 @@ export function useSodSubject(): [SodSubject | null, (value: SodSubject | null) 
 export function useSodFilters(name: string): [Filters, (value: Filters) => void] {
   const [stored, set] = useHistoryValue('sodFilters')
   return [{ ...emptyFilters, ...stored?.[name] }, (value) => set((previous) => ({ ...previous, [name]: value as SodFilterState }))]
+}
+
+/** A filter change made from outside the page (for example the shared heatmap) must not leave the results on a page that no longer exists. */
+export function useFilterChangeReset(filters: Filters, reset: () => void) {
+  const key = JSON.stringify(filters), previous = useRef(key)
+  useEffect(() => { if (previous.current !== key) { previous.current = key; reset() } }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 export const refreshKeys = ['sod-filter-options', 'sod-matrix', 'sod-subject', 'sod-queue', 'sod-explorer', 'sod-overview', 'sod-remediation', 'sod-periods', 'sod-period', 'sod-context']

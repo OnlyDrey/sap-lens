@@ -27,7 +27,7 @@ test('heatmap sorts groups, drills into the matrix for that group and risk, and 
   await region.getByRole('button', { name: /Descending order/ }).click()
   await expect.poll(names).toEqual(['FIN', 'P2P'])
   const download = page.waitForEvent('download')
-  await region.getByRole('button', { name: /Export CSV/ }).click()
+  await region.getByRole('button', { name: /Export heatmap CSV/ }).click()
   expect((await download).suggestedFilename()).toMatch(/^sap-lens-sod-group-risk-heatmap-\d{4}-\d{2}-\d{2}\.csv$/)
   await region.getByRole('row', { name: /^FIN\b/ }).getByRole('button', { name: /with R2/ }).click()
   await expect(page).toHaveURL(/#\/sod\/risk-matrix/)

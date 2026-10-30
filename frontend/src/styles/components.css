@@ -1189,3 +1189,38 @@ p.dashboard-card-state { display:flex; align-items:center; gap:var(--space-2); }
 .release-users-role { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2); min-width:0; }
 .ui-dialog .access-table[data-density="compact"] { overflow-x:auto; }
 .ui-dialog .access-table td.release-user-name,.access-table td.release-user-name { min-width:11rem; overflow-wrap:normal; word-break:normal; }
+
+/* Shared SoD heatmap: collapsible, selectable groups, risks/activities and cells. */
+.sod-heatmap-section { display:grid; gap:var(--space-2); }
+.sod-heatmap-title { margin:0; font-size:var(--font-section); }
+.sod-heatmap-toggle { display:inline-flex; align-items:center; gap:var(--space-2); min-height:var(--control-compact); padding:0 var(--space-2); border:0; border-radius:var(--radius-control); background:transparent; color:inherit; font:inherit; font-weight:600; cursor:pointer; }
+.sod-heatmap-toggle:hover { background:var(--hover); }
+.sod-heatmap-toggle:focus-visible,.sod-heat-head:focus-visible,.sod-heat-group:focus-visible { outline:var(--focus-width) solid var(--focus); outline-offset:var(--focus-offset); }
+.sod-heatmap-toggle > svg:not(:first-child) { color:var(--muted); }
+.sod-heatmap-section[data-expanded="false"] .sod-heatmap-bar { margin-bottom:0; }
+.sod-heatmap-filters { padding-block:var(--space-1); }
+.sod-heat-head,.sod-heat-group { display:inline-flex; align-items:center; max-width:100%; padding:2px var(--space-1); border:1px solid transparent; border-radius:var(--radius-control); background:transparent; color:inherit; font:inherit; font-weight:600; cursor:pointer; }
+.sod-heat-group { max-width:12rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sod-heat-head:hover,.sod-heat-group:hover { background:var(--hover); }
+.sod-heat-head[aria-pressed="true"],.sod-heat-group[aria-pressed="true"] { border-color:var(--accent); background:color-mix(in srgb,var(--accent) 14%,var(--surface)); }
+.sod-heatmap tr[data-selected] > th,.sod-heatmap th[data-selected] { background:color-mix(in srgb,var(--accent) 8%,var(--surface)); }
+.sod-heatmap button.sod-heat-cell[aria-pressed="true"] { outline:2px solid var(--accent); outline-offset:-1px; font-weight:700; }
+.matrix-grid .matrix-row-head[data-group] { box-shadow:1px 0 0 var(--border); }
+.matrix-group-label { display:inline-block; max-width:100%; padding:1px var(--space-2); border-radius:var(--radius-badge); background:var(--surface2); border:1px solid var(--border); font-weight:600; overflow:hidden; text-overflow:ellipsis; vertical-align:bottom; }
+
+/* Wide evidence modals: a compact summary above a table that scrolls inside the dialog. */
+.evidence-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(10rem,1fr)); gap:var(--space-2) var(--space-4); margin:0; }
+.evidence-summary > div { display:grid; gap:2px; min-width:0; }
+.evidence-summary dt { color:var(--muted); font-size:var(--font-meta); }
+.evidence-summary dd { margin:0; min-width:0; font-weight:600; }
+.evidence-scroll { max-height:min(50dvh,28rem); overflow:auto; border:1px solid var(--border); border-radius:var(--radius-card); }
+.evidence-scroll:focus-visible { outline:var(--focus-width) solid var(--focus); outline-offset:var(--focus-offset); }
+.evidence-scroll thead th { position:sticky; top:0; z-index:1; background:var(--surface2); }
+.ui-dialog .evidence-scroll table { margin:0; }
+.evidence-side { display:grid; gap:var(--space-2); min-width:0; }
+.evidence-side-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-2); }
+.evidence-side-head h3 { display:inline-flex; align-items:center; gap:var(--space-2); margin:0; font-size:var(--font-body); }
+.evidence-role { display:grid; gap:var(--space-1); justify-items:start; min-width:0; }
+.evidence-dialog .role-identifier { max-width:100%; }
+.sod-heatmap-section { min-width:0; max-width:100%; }
+.sod-heatmap-section > * { min-width:0; }

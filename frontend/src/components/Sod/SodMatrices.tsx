@@ -11,7 +11,7 @@ import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
 import { PAGE_SIZES, Pagination } from '@/components/Access/Shared'
 import { announceExport } from '@/lib/exportNotice'
 import { SodPill } from '@/lib/sodAppearance'
-import { CoverageNotice, SodFilters, keepWithinContext, lifecycleView, useSodContext, useSodFilters, useSodSubject } from './SodShared'
+import { CoverageNotice, SodFilters, keepWithinContext, lifecycleView, useFilterChangeReset, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 
 type Risk = MatrixResult<RiskColumn, RiskCell>
 type Activity = MatrixResult<ActivityColumn, ActivityCell>
@@ -39,6 +39,7 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
     setOffset(0)
     setFiltersState(value)
   }
+  useFilterChangeReset(filters, () => setOffset(0))
   const params = scopeParams(context, filters, { group_by: groupBy, offset, limit: pageSize })
   const matrixKey = ['sod-matrix', kind, params.toString()],
     result = useQuery({ queryKey: matrixKey, queryFn: () => sod<Risk | Activity>(`/api/sod/matrix/${kind}`, params), placeholderData: keepWithinContext(matrixKey, params, ['group_by']) as never })
@@ -136,7 +137,7 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
           <p className="ui-description">{risk ? 'Cells show the risk acceptance status and how many of the risk activities are reviewed (reviewed/total). Criticality and type are in the column tooltip and the investigation.' : 'Scope: activities that contribute to at least one potential conflict (both sides of an enabled, supported risk). Activities a role supplies beyond those are considered in Role Assignment Review. Cells show the activity review status and ×roles supplying it; ⧉ marks overlapping coverage.'}</p>
           <p className="ui-description">Totals count distinct users and distinct {risk ? 'user-risk' : 'user-activity'} pairs. {data.columns_truncated ? 'Showing the first 500 columns; narrow the filters. ' : ''}{groupBy === 'group' ? 'Cells show distinct users per group; select one to list them. ' : 'Select a cell to investigate and review. '}Detected conflicts are potential and derived from imported evidence.</p>
           {data.rows.length
-            ? <MatrixGrid scrollKey={`sod-${kind}-${groupBy}`} caption={risk ? 'User by risk matrix' : 'User by activity matrix'} rowLabel={groupBy === 'group' ? 'User group' : 'SAP user'} codeRows={groupBy === 'user'} columns={columns}
+            ? <MatrixGrid scrollKey={`sod-${kind}-${groupBy}`} caption={risk ? 'User by risk matrix' : 'User by activity matrix'} rowLabel={groupBy === 'group' ? 'SAP User Group' : 'SAP user'} codeRows={groupBy === 'user'} groupRows={groupBy === 'group'} columns={columns}
                 rows={data.rows.map((row) => ({ id: row.user, label: row.user, sub: groupBy === 'group' ? `${row.users} users` : row.groups.join(', ') }))}
                 cell={cell} onSelect={open} onRow={groupBy === 'user' ? (row) => setSelected({ user: row }) : undefined}
                 selected={selected ? { row: selected.user, col: selected.risk || selected.activity || '' } : null} />

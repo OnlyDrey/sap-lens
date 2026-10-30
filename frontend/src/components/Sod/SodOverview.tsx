@@ -8,7 +8,6 @@ import { InfoList, InfoRow } from '@/components/Shared/InfoList'
 import { Button } from '@/components/Shared/Button'
 import { formatDate, formatTimestamp } from '@/lib/dateFormat'
 import { AlertNote } from './SodShared'
-import { SodGroupHeatmap } from './SodGroupHeatmap'
 
 interface Governance {
   available: boolean; reason?: string | null
@@ -75,7 +74,6 @@ export function SodOverview() {
             </InfoList>
           </section>
         </section>}
-      {g.available && <SodGroupHeatmap onOpen={(kind, patch) => go(kind === 'risk' ? 'risk-matrix' : 'activity-matrix', kind === 'risk' ? 'riskMatrix' : 'activityMatrix', patch)} />}
       <div className="grid min-w-0 items-start gap-4 lg:grid-cols-2">
         <Card className="content-start" aria-label="Review period progress">
           <SectionHeader title="Review period and approval" icon={<ClipboardCheck size={18} aria-hidden="true" />} />

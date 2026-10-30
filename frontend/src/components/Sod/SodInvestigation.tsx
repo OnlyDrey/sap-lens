@@ -159,7 +159,7 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
           onBatch={() => batch('acceptance', `Batch risk acceptance (${picked.acceptance.length})`, risks.filter((row) => picked.acceptance.includes(row.finding_id)).map((row) => item(row.finding_id, row.risk_id, row.evidence_version)))}>
           {risks.map((row) => (
             <ReviewRow key={row.finding_id} focused={focus(row.risk_id, 'risk')} label={row.risk_id} checked={picked.acceptance.includes(row.finding_id)} onCheck={ok ? () => pick('acceptance', row.finding_id) : undefined}
-              title={<SodPill kind="risk" value={row.risk_id} />} meta={<>{row.display_name || row.source_text}</>} status={row.acceptance} event={row.event}
+              title={<SodPill kind="risk" value={row.risk_id} />} meta={<>{row.display_name || row.source_text || 'No description in the SoD matrix'}</>} status={row.acceptance} event={row.event}
               actions={ok && <Button onClick={() => setForm({ kind: 'acceptance', heading: `Risk acceptance · ${row.risk_id}`, items: [item(row.finding_id, row.risk_id, row.evidence_version)] })} aria-label={`Decide risk acceptance ${row.risk_id}`}><ClipboardCheck size={16} aria-hidden="true" />Decide</Button>}
               history={<DecisionHistory kind="acceptance" context={context} keyId={row.finding_id} label="Risk acceptance history" />} />
           ))}
@@ -254,35 +254,22 @@ function ReviewRow({ label, title, meta, summary, compact, status, event, action
   const [open, setOpen] = useState(false), detailId = useId()
   return (
     <li className="sod-review-row" data-focused={focused || undefined} data-compact={compact || undefined}>
-      {compact ? (
-        <div className="sod-review-compact">
-          {onCheck && <Checkbox checked={checked} onChange={onCheck} aria-label={`Select ${label}`}><span className="sr-only">Select</span></Checkbox>}
-          <span className="min-w-0">{title}</span>
-          <LifecycleBadge value={status} />
-          <span className="sod-review-summary">{summary}</span>
-          <div className="sod-review-actions sod-review-compact-actions">
-            {actions}
-            <IconButton label={`${open ? 'Hide' : 'Show'} details for ${label}`} tooltip={open ? 'Hide evidence and history' : 'Show evidence and history'} variant="ghost" aria-expanded={open} aria-controls={detailId} onClick={() => setOpen(!open)}><DisclosureChevron open={open} /></IconButton>
-          </div>
+      {/* Primary row: select, identifier, status and the decision action at the right edge; the description and the expandable history sit below it. */}
+      <div className="sod-review-compact">
+        {onCheck && <Checkbox checked={checked} onChange={onCheck} aria-label={`Select ${label}`}><span className="sr-only">Select</span></Checkbox>}
+        <span className="min-w-0">{title}</span>
+        <LifecycleBadge value={status} />
+        <span className="sod-review-summary">{summary}</span>
+        <div className="sod-review-actions sod-review-compact-actions">
+          {actions}
+          <IconButton label={`${open ? 'Hide' : 'Show'} details for ${label}`} tooltip={open ? 'Hide evidence and history' : 'Show evidence and history'} variant="ghost" aria-expanded={open} aria-controls={detailId} onClick={() => setOpen(!open)}><DisclosureChevron open={open} /></IconButton>
         </div>
-      ) : (
-        <>
-          <div className="sod-review-main">
-            {onCheck && <Checkbox checked={checked} onChange={onCheck} aria-label={`Select ${label}`}><span className="sr-only">Select</span></Checkbox>}
-            <span className="min-w-0">{title}</span>
-            <LifecycleBadge value={status} />
-          </div>
-          <p className="text-xs text-muted">{meta}</p>
-        </>
-      )}
-      {compact ? (open && <div id={detailId} className="sod-assignment-details" role="group" aria-label={`Evidence for ${label}`}>
+      </div>
+      {!compact && meta && <p className="text-xs text-muted sod-review-description">{meta}</p>}
+      {open && <div id={detailId} className="sod-assignment-details" role="group" aria-label={`Evidence for ${label}`}>
         {event ? <p className="text-xs text-muted">{event.decision} by {event.reviewer}, {formatTimestamp(event.timestamp)}: {event.justification}{event.controls ? ` Conditions: ${event.controls}` : ''}</p> : <p className="text-xs text-muted">No decision recorded for this item yet.</p>}
         {history}
-      </div>) : <>
-        {event && <p className="text-xs text-muted">{event.decision} by {event.reviewer}, {formatTimestamp(event.timestamp)}: {event.justification}{event.controls ? ` Conditions: ${event.controls}` : ''}</p>}
-        {actions && <div className="sod-review-actions">{actions}</div>}
-        {history}
-      </>}
+      </div>}
     </li>
   )
 }

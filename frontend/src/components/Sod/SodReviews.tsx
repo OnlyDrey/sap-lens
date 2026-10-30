@@ -11,7 +11,7 @@ import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
 import { ContentTabs } from '@/components/Shared/Navigation'
 import { Pagination } from '@/components/Access/Shared'
 import { announceExport } from '@/lib/exportNotice'
-import { CoverageNotice, SodFilters, keepWithinContext, useSodContext, useSodFilters, useSodSubject } from './SodShared'
+import { CoverageNotice, SodFilters, keepWithinContext, useFilterChangeReset, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 import { RemediationView } from './SodRemediation'
 
 
@@ -36,6 +36,7 @@ function Queue() {
     [, setSubject] = useSodSubject(),
     [busy, setBusy] = useState(false)
   const reset = () => setOffset(0)
+  useFilterChangeReset(filters, reset)
   const params = scopeParams(context, filters, { progress, offset, limit: 50 })
   const result = useQuery({ queryKey: ['sod-queue', 'users', params.toString()], queryFn: () => sod<UserResult>('/api/sod/queue/users', params), placeholderData: keepWithinContext(['sod-queue', 'users', params.toString()], params) as never })
   const data = result.data
