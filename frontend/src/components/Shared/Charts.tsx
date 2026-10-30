@@ -1,11 +1,11 @@
 import type { ReactNode } from 'react'
 import { ArrowUpRight } from 'lucide-react'
 
-export interface BarDatum { key: string; label: ReactNode; value: number; /** Native tooltip and accessible detail. */ title?: string; ariaLabel?: string; onOpen?: () => void }
+export interface BarDatum { key: string; label: ReactNode; value: number; /** Compact secondary text beside the value, for example a share. */ note?: string; /** Native tooltip and accessible detail. */ title?: string; ariaLabel?: string; onOpen?: () => void }
 
 /** Horizontal bar chart from real counts: label, proportional bar and value on one row. Rows are buttons only when they can open a filtered view. Bars scale to the largest value shown. */
-export function BarChart({ label, data, empty = 'No data' }: { label: string; data: BarDatum[]; empty?: string }) {
-  const max = Math.max(1, ...data.map(item => item.value))
+export function BarChart({ label, data, empty = 'No data', max: scale }: { label: string; data: BarDatum[]; empty?: string; /** Common maximum the bars are scaled to (default: the largest value shown). */ max?: number }) {
+  const max = Math.max(1, scale ?? 0, ...data.map(item => item.value))
   if (!data.length) return <p className="ui-description">{empty}</p>
   return (
     <ul className="chart-bars" aria-label={label}>
@@ -14,7 +14,7 @@ export function BarChart({ label, data, empty = 'No data' }: { label: string; da
           <>
             <span className="chart-label">{item.label}</span>
             <span className="chart-track" aria-hidden="true"><span className="chart-fill" style={{ width: `${(item.value / max) * 100}%` }} /></span>
-            <strong className="chart-value">{item.value.toLocaleString()}</strong>
+            <span className="chart-value"><strong>{item.value.toLocaleString()}</strong>{item.note && <small>{item.note}</small>}</span>
             {item.onOpen && <ArrowUpRight size={14} aria-hidden="true" className="chart-arrow" />}
           </>
         )

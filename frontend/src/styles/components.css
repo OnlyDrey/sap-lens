@@ -1133,17 +1133,20 @@ button.chart-row:focus-visible { outline:var(--focus-width) solid var(--focus); 
 .chart-legend .chart-row { grid-template-columns:auto minmax(0,1fr) auto auto; }
 .chart-stack { display:grid; gap:var(--space-2); }
 
-.info-row-progress { flex:1 0 100%; width:100%; }
-.info-row[data-progress] { flex-wrap:wrap; }
-
-/* Access package row: one codeblock, the suffix field right of it and a compact validation status. */
-.package-row-line { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2); width:100%; min-width:0; }
-.package-row-line > .role-identifier { flex:1 1 14rem; min-width:0; }
-.package-suffix-input { flex:0 0 6.5rem; width:6.5rem; min-height:var(--control-compact); text-transform:uppercase; }
-.package-suffix-input:disabled { text-transform:none; }
-.package-status { display:inline-flex; align-items:center; gap:var(--space-1); flex:none; font-size:var(--font-meta); font-weight:600; white-space:nowrap; }
-.package-status[data-tone="success"] { color:var(--success); }
-.package-status[data-tone="warning"] { color:var(--warning); }
-.package-status[data-tone="error"] { color:var(--error); }
-.package-summary-error { display:inline-flex; align-items:center; gap:var(--space-1); color:var(--error); }
-.package-footer .package-clear { margin-right:auto; }
+/* Rows with a progress bar: label, value and arrow on the first line; the bar spans from the label to the arrow with room below. */
+.info-row[data-progress] { display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; row-gap:var(--space-2); padding-block:var(--space-2); }
+.info-row[data-progress][data-icon] { grid-template-columns:auto minmax(0,1fr) auto auto; }
+.info-row-progress { grid-column:1 / -1; width:100%; height:.5rem; margin-bottom:var(--space-1); }
+.info-row[data-progress][data-icon] .info-row-progress { grid-column:2 / -1; }
+.info-row-progress[data-tone="success"] { --progress-fill:var(--success); }
+.info-row-progress[data-tone="warning"] { --progress-fill:var(--warning); }
+.info-row-progress[data-tone="error"] { --progress-fill:var(--error); }
+/* Neutral chart parts are gray, never the accent color, so an empty review does not look like progress. */
+.chart-stack-bar > span[data-tone="neutral"],.chart-swatch[data-tone="neutral"] { background:color-mix(in srgb,var(--muted) 55%,var(--surface2)); }
+.chart-value { display:inline-flex; align-items:baseline; justify-content:flex-end; gap:var(--space-1); }
+.chart-value small { color:var(--muted); font-size:var(--font-meta); }
+.info-tip-body { display:grid; gap:var(--space-2); font-size:var(--font-label); }
+.info-tip-body p { margin:0; }
+.dashboard-cards { align-items:start; }
+.dashboard-chart .ui-section-header { margin-bottom:var(--space-2); }
+.ui-section-header .ui-button-icon { width:var(--control-compact); min-width:var(--control-compact); min-height:var(--control-compact); height:var(--control-compact); }

@@ -5,6 +5,17 @@ Dashboard is the default landing page, available from the main navigation and at
 still work, and an existing detail history entry remains meaningful. No historical trends are inferred
 from a single import. Data stays on the configured SAP Lens instance; desktop defaults to loopback.
 
+## Layout and charts
+
+A compact key figure row (SAP users, Accounts requiring review, Review completion, plus users with potential SoD conflicts when SoD is enabled) sits above information lists (Access & Risk, Directory & Data Health, Segregation of Duties) and three real-data charts. Future assignment records are detected but not shown here.
+
+- **Directory match quality.** The Matched SAP identities row shows count, percentage text and a progress bar below its label with room before the next row. The bar color follows the central thresholds in `frontend/src/lib/health.ts` (green from 95%, amber from 85%, red below); 251 of 264 (95.1%) is green. It describes directory matching quality only, not the health of other sources or any SAP authorization.
+- **Review Progress.** One stacked bar of mutually exclusive parts of the imported SAP accounts: completed (green), not yet reviewed (neutral gray) and outdated (amber). With no completed reviews no success color is shown.
+- **Role Distribution.** The card lists the five largest SAP areas with count and share; **Show all N areas** opens a dialog with every area (Escape closes it and returns focus). Each area keeps its drill-down. The dashboard grid never changes height.
+- **Assignment Distribution.** The three buckets show absolute counts with shares; bars scale to the total of users with currently valid assignments. Tooltips carry the exact percentage.
+- **Explanations.** Technical notes sit in an info popover beside the card title (catalogue roles versus assignments and releases, validity of intervals, that high counts are not findings).
+- Cards keep their own height (no stretching to the tallest neighbour) and the layout stays free of horizontal scroll from 375 px upward.
+
 ## Segregation of Duties summary
 
 When the SoD feature is enabled, a **Segregation of Duties** section shows users with potential conflicts, user-risk findings, pending reviews and open or overdue remediation actions, each opening the matching [SoD](SOD.md) view. If analysis is unavailable the section says why. The counts are potential transaction-derived conflicts, not effective authorization.

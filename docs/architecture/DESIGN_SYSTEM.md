@@ -51,7 +51,7 @@ Date entry remains `NorwegianDateInput`, with Norwegian labels, Monday-first flo
 | --- | --- |
 | One prominent figure to scan or drill into | `Kpi` (a few per view, never a wall of tiles) |
 | Secondary metrics and operational facts | `InfoList` and `InfoRow`: plain rows, a full-row button when they filter or navigate |
-| A distribution or proportion backed by data | A chart with readable labels and tooltips; no invented trends |
+| A distribution or proportion backed by data | A chart with readable labels and tooltips; no invented trends. Secondary explanations go in an `InfoTip` popover; neutral parts are gray, never the accent color; share-based health uses the central `lib/health.ts` thresholds with semantic tokens and always shows the number |
 | Detailed, comparable records | A table (zebra, hover and selected states) |
 | Compact status or classification | A badge or pill |
 | An exact technical identifier | A codeblock (`RoleIdentifier`): one line, scrolls horizontally, copies the full value |

@@ -25,6 +25,9 @@ import { StatusPill } from '@/components/Shared/StatusPill'
 import { Kpi } from '@/components/Shared/Kpi'
 import { InfoList, InfoRow } from '@/components/Shared/InfoList'
 import { BarChart, StackedBar } from '@/components/Shared/Charts'
+import { InfoTip } from '@/components/Shared/InfoTip'
+import { Dialog } from '@/components/Shared/Dialog'
+import { MATCH_HEALTH_LEGEND, matchHealthTone } from '@/lib/health'
 import { fetchConfiguration } from '@/api/configuration'
 /** Cards below SAP Overview, in reading order. Reordering this list reorders the rendered elements. */
 export const DASHBOARD_CARDS = ['access-risk', 'sod', 'directory-health', 'review-progress', 'role-distribution', 'assignment-distribution'] as const
@@ -167,7 +170,7 @@ export function Dashboard() {
     return <InfoRow key={metric.id} icon={<Icon size={16} aria-hidden="true" />} label={metric.label} ariaLabel={metric.label} title={metric.context} value={value} data={{ metric: metric.id }}
       tone={['unresolved', 'outdated'].includes(metric.id) && !!metric.value ? 'warning' : 'neutral'}
       note={unavailable ? metric.unavailable_reason : coverageTotal && metric.value !== null ? `${((metric.value / coverageTotal) * 100).toFixed(1)}% matched` : undefined}
-      progress={coverageTotal && metric.value !== null ? { value: metric.value, max: coverageTotal, label: 'SAP identity match coverage' } : undefined} onClick={() => open(metric)} navigates />
+      progress={coverageTotal && metric.value !== null ? { value: metric.value, max: coverageTotal, tone: matchHealthTone((metric.value / coverageTotal) * 100), label: `SAP identity match coverage: ${((metric.value / coverageTotal) * 100).toFixed(1)}% matched` } : undefined} onClick={() => open(metric)} navigates />
   }
   const [allAreas,setAllAreas]=useState(false)
   const modules=useModules()
@@ -200,15 +203,16 @@ export function Dashboard() {
       </section>
     )
   }
-  const infoCard = (name: string, icon: ReactNode, children: ReactNode, note?: string) => (
+  const infoCard = (name: string, icon: ReactNode, children: ReactNode, note?: string, tip?: ReactNode) => (
     <section key={name} aria-label={name} className="dashboard-section dashboard-middle-section">
-      <SectionHeader title={name} icon={icon}/>
+      <SectionHeader title={name} icon={icon}>{tip && <InfoTip label={`About ${name}`}>{tip}</InfoTip>}</SectionHeader>
       <InfoList label={name}>{children}</InfoList>
       {note && <p className="text-xs text-[var(--muted)]">{note}</p>}
     </section>
   )
   const renderAccessRisk = (d: DashboardData) => infoCard('Access & Risk', <ShieldAlert size={18}/>, list(d, ['position_changes', 'ad_disabled_open', 'expired', 'assignments', 'assigned_users', 'mappings', 'roles', 'releases']).map(m => row(m)), 'Counts describe source evidence, not effective SAP authorization.')
-  const renderDirectory = (d: DashboardData) => infoCard('Directory & Data Health', <HeartPulse size={18}/>, <>{list(d, ['email_matches']).map(m => row(m, d.coverage_total || 0))}{list(d, ['unresolved']).map(m => row(m))}</>)
+  const renderDirectory = (d: DashboardData) => infoCard('Directory & Data Health', <HeartPulse size={18}/>, <>{list(d, ['email_matches']).map(m => row(m, d.coverage_total || 0))}{list(d, ['unresolved']).map(m => row(m))}</>, undefined,
+    <><p>The bar shows the share of SAP users matched to the Employee Directory. It describes directory matching quality only, not the health of other data sources or any SAP authorization.</p><p>{MATCH_HEALTH_LEGEND} The percentage is always shown as text.</p></>)
   const renderSod = (d: DashboardData) => {
     if (!(sodEnabled && sodSummary.data)) return null
     const g = sodSummary.data.governance, pending = (g.activities?.Pending || 0) + (g.activities?.Outdated || 0) + (g.acceptance?.Pending || 0) + (g.acceptance?.Outdated || 0)
@@ -241,28 +245,44 @@ export function Dashboard() {
         : <p className="ui-description">Review progress needs the User Access data and account-review annotations.</p>}
     </section>
   }
-  const renderRoleDistribution = (d: DashboardData) => (
-    <section key="role-distribution" aria-label="Role Distribution" className="dashboard-section dashboard-chart min-w-0 rounded-card bg-surface p-4">
-      <SectionHeader title="Role Distribution" icon={<BarChart3 size={18}/>}/>
-      <p className="ui-description">Distinct catalogue roles by canonical SAP area. Single-role relationships and release assignments are separate evidence.</p>
-      {d.role_distribution == null ? <p>Role catalogue unavailable.</p> : <>
-        <BarChart label="Catalogue roles by SAP area" data={Object.entries(d.role_distribution).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, allAreas ? undefined : 5).map(([area, count]) => ({
-          key: area, label: <ModuleBadge moduleId={area} variant="compact" showUnclassified/>, value: count, title: `${modules.data?.find(module => module.function_key === area)?.module_name || area}: ${count} catalogue roles`,
-          ariaLabel: `Investigate ${area} catalogue roles`, onOpen: () => { const metric = metricOf(d, 'roles'); if (metric) open(metric, area) } }))} />
-        {Object.keys(d.role_distribution).length > 5 && <Button size="compact" aria-expanded={allAreas} onClick={() => setAllAreas(value => !value)}>{allAreas ? 'Show less' : 'Show all'}</Button>}
-      </>}
-    </section>
-  )
-  const renderAssignmentDistribution = (d: DashboardData) => (
-    <section key="assignment-distribution" aria-label="Assignment Distribution" className="dashboard-section dashboard-chart min-w-0 rounded-card bg-surface p-4">
-      <SectionHeader title="Assignment Distribution" icon={<UsersRound size={18}/>}/>
-      <p className="ui-description">Users by the number of distinct currently valid assigned roles. Historical and unknown intervals are excluded. High counts are not security findings.</p>
-      {d.assignment_distribution
-        ? <BarChart label="Users by currently valid role count" data={['1–5', '6–20', '21+'].map(bin => ({ key: bin, label: `${bin} roles`, value: d.assignment_distribution?.[bin] || 0, title: `${d.assignment_distribution?.[bin] || 0} users with ${bin} currently valid roles`,
-            ariaLabel: `Investigate users with ${bin} currently valid roles`, onOpen: () => change({ page: 'users', accessMode: 'directory', user: '', userContext: {}, assignmentBand: bin, settings: false, detailRole: null }) }))} />
-        : <p>User–Role Mapping unavailable.</p>}
-    </section>
-  )
+  const renderRoleDistribution = (d: DashboardData) => {
+    const entries = d.role_distribution ? Object.entries(d.role_distribution).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])) : []
+    const scale = Math.max(1, ...entries.map(([, count]) => count)), roleTotal = entries.reduce((sum, [, count]) => sum + count, 0)
+    const datum = ([area, count]: [string, number]) => ({
+      key: area, label: <ModuleBadge moduleId={area} variant="compact" showUnclassified/>, value: count, note: roleTotal ? `${Math.round((count / roleTotal) * 100)}%` : undefined,
+      title: `${modules.data?.find(module => module.function_key === area)?.module_name || area}: ${count} catalogue roles${roleTotal ? ` (${((count / roleTotal) * 100).toFixed(1)}% of ${roleTotal})` : ''}`,
+      ariaLabel: `Investigate ${area} catalogue roles`, onOpen: () => { setAllAreas(false); const metric = metricOf(d, 'roles'); if (metric) open(metric, area) } })
+    return (
+      <section key="role-distribution" aria-label="Role Distribution" className="dashboard-section dashboard-chart min-w-0 rounded-card bg-surface p-4">
+        <SectionHeader title="Role Distribution" icon={<BarChart3 size={18}/>}>
+          <InfoTip label="About Role Distribution"><p>Distinct catalogue roles by canonical SAP area. Single-role relationships and release assignments are separate evidence.</p></InfoTip>
+        </SectionHeader>
+        {d.role_distribution == null ? <p>Role catalogue unavailable.</p> : <>
+          <BarChart label="Catalogue roles by SAP area" max={scale} data={entries.slice(0, 5).map(datum)} />
+          {entries.length > 5 && <Button size="compact" aria-haspopup="dialog" onClick={() => setAllAreas(true)}>Show all {entries.length} areas</Button>}
+          {allAreas && <Dialog title="Role Distribution by SAP area" onClose={() => setAllAreas(false)}>
+            <p className="ui-description">Distinct catalogue roles by canonical SAP area. Select an area to investigate its roles.</p>
+            <BarChart label="Catalogue roles by SAP area (all areas)" max={scale} data={entries.map(datum)} />
+          </Dialog>}
+        </>}
+      </section>
+    )
+  }
+  const renderAssignmentDistribution = (d: DashboardData) => {
+    const bins = ['1–5', '6–20', '21+'], counts = bins.map(bin => d.assignment_distribution?.[bin] || 0), total = counts.reduce((sum, count) => sum + count, 0)
+    return (
+      <section key="assignment-distribution" aria-label="Assignment Distribution" className="dashboard-section dashboard-chart min-w-0 rounded-card bg-surface p-4">
+        <SectionHeader title="Assignment Distribution" icon={<UsersRound size={18}/>}>
+          <InfoTip label="About Assignment Distribution"><p>Users by the number of distinct currently valid assigned roles. Historical and unknown intervals are excluded.</p><p>High counts are not security findings.</p></InfoTip>
+        </SectionHeader>
+        {d.assignment_distribution
+          ? <BarChart label="Users by currently valid role count" max={total} data={bins.map((bin, index) => ({ key: bin, label: `${bin} roles`, value: counts[index], note: total ? `${Math.round((counts[index] / total) * 100)}%` : undefined,
+              title: `${counts[index]} users with ${bin} currently valid roles${total ? ` (${((counts[index] / total) * 100).toFixed(1)}% of ${total} users with assignments)` : ''}`,
+              ariaLabel: `Investigate users with ${bin} currently valid roles`, onOpen: () => change({ page: 'users', accessMode: 'directory', user: '', userContext: {}, assignmentBand: bin, settings: false, detailRole: null }) }))} />
+          : <p>User–Role Mapping unavailable.</p>}
+      </section>
+    )
+  }
   // Reading and keyboard order follow DASHBOARD_CARDS; the grid only wraps columns.
   const cards: Record<DashboardCard, (d: DashboardData) => ReactNode> = {
     'access-risk': renderAccessRisk,
