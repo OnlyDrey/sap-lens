@@ -159,6 +159,38 @@ The Dashboard SoD card shared its query key with the SoD Overview page and treat
 - The shared heatmap's header buttons had clipped focus rings (found by `a11y-audit`); the scroller now has padding.
 - Two heatmap-related ambiguities (two "Export CSV" buttons, two retry alerts) were removed by naming the heatmap export "Export heatmap CSV" and giving its error a distinct title.
 
+## UI/UX Refinement Round 3 (Access Package, navigation, Account Review, SoD Overview)
+
+Commits are on `origin/work`; no workflow was dispatched and no tag or release was created.
+
+| Phase | Requirement | Status | Evidence |
+| --- | --- | --- | --- |
+| 1 Access Package | Clear selection in the floating bar; statuses Confirmed, Pattern match, Needs attention, Invalid; Confirmed needs the exact generated name in imported roles or assignments, a wildcard match is only a Pattern match; colon-terminated stems such as `ZC:BC:S4_COMMON_USERS_____MGT:` are valid | Implemented | `a9a65e5`, `access-package*`, `test_access_package` |
+| 2 Navigation | Main link opens the module page, a separate chevron opens the submenu; Return to previous user in the manager card; Single Roles hover; Explorer action icons; secondary navigation icons; SoD settings actions | Implemented | `ef4fe6c`, `navigation-r3` |
+| 3 Account Review and shared UI | One progress overview and compact action tiles (no Classified unlicensed, duplicate SAP accounts or duplicate Pending), visible progress bars, source health 3/2/1 columns, distinct Dynamic, Criticality and Type pills, no criticality filter in operational SoD views | Implemented | `97b6d75`, `account-review-refinement` |
+| 4 SoD Overview | Users with more than one risk (Explorer filter), most common conflicting roles (top five, Show more, Explorer drilldown), remediation awaiting action, remediation verified with explained unavailable state | Implemented | `649c5f8`, `sod-overview-actionable`, `test_sod_governance` |
+| 5 Audit and regression | Visual QA, full regression, audits, handoff | See Validation | |
+
+### Decisions worth knowing
+
+- *Remediation verified* needs three things: a tracked removal action, the assignment absent from current evidence with complete source coverage, and a User-Role import newer than the action. A Completed status or a missing assignment alone never verifies. A removal whose user has disappeared from the evidence is not assessable, so it is not verified.
+- *Users with more than one risk* counts distinct risk IDs per user; the drilldown uses the same rule (`multiple_risks`), so list and tile agree.
+- The Account Review Outdated reviews tile is shown whenever review annotations are available (a zero is information, and the existing investigation spec relies on it).
+
+### Validation (Round 3)
+
+- Single-process full regression (`python scripts/run-tests.py regression --jobs 1`, head `649c5f8` plus the stylesheet change below): backend 800 tests, 3 skipped (PowerShell and PyInstaller only), 0 failed; browser 581 tests, 0 skipped, 0 failed; build with type check, documentation links, workflow contracts, Lucide catalog, whitespace and `pip check` passed.
+- After that run, one stylesheet rule changed (Account Review action tiles share one row from tablet width); `account-review-refinement`, `investigation-tools` and `refinement-search-layout` were re-run and passed (50 tests). The complete suite was not repeated.
+- `npm audit --omit=dev`: 0 vulnerabilities. `pip-audit` on `requirements.txt` and `requirements-dev.txt`: none.
+- Visual QA: SoD Overview, SoD Remediation (Awaiting action), Account Review and Data Source Health in light and dark at 375, 800, 1280 and 1600 px loaded without horizontal page overflow (assertion on all 32 captures). Screenshots inspected: Overview (375, 1280), Account Review (800, light and dark), Remediation (1280 dark), Data Source Health (1600). Other combinations were checked by the overflow assertion only.
+- GitHub *Fast Validation* succeeded for the Phase 1 to 3 pushes; the Phase 4 run (`649c5f8`) was queued when last checked.
+
+### Remaining limitations
+
+- Remediation at 1280 px with the filter sidebar open scrolls the table horizontally inside its card, so the Actions column is partly hidden until scrolled. The page itself does not overflow. Not changed in this round.
+- The info tip button beside *Most common conflicting roles* is the shared 32 px icon button, taller than the heading text.
+- Windows/WebView2, Windows Service, installer, systemd and UNC acceptance, and deployment package builds, were not run here.
+
 ## Validation
 
 - **Round 2 final regression** (`python scripts/run-tests.py regression --jobs 1`, head `0a0e637`): backend 793 tests, 3 skipped (PowerShell and PyInstaller only), 0 failed; build with type check, documentation links, workflow contracts, Lucide catalog (1447 icons), whitespace and `pip check` passed; browser 569 tests, 553 passed and 16 failed. The 16 failures were two specs still asserting the superseded Dashboard (`refinement-27` looked for the former "Configuration" region, `refinement-search-layout` for the removed review completion progress bar and the former 1-5 range). They were updated to the v4 structure and re-run: both specs pass (29 tests). The complete suite was not re-run a second time after those two spec edits.

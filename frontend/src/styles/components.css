@@ -1299,3 +1299,6 @@ progress::-webkit-progress-bar,.dashboard-workspace progress::-webkit-progress-b
 .overview-roles-title { display:flex; align-items:center; gap:var(--space-1); margin:0; font-size:var(--text-sm, .875rem); font-weight:600; }
 .overview-role-list .info-row-label { min-width:0; overflow-wrap:anywhere; font-family:var(--font-mono, ui-monospace, monospace); font-size:.8125rem; }
 .overview-roles > button { justify-self:start; }
+
+/* Account Review action tiles: five tiles share one row from tablet width instead of leaving one alone on a second row */
+.review-overview .review-kpis { grid-template-columns:repeat(auto-fit,minmax(min(8.5rem,100%),1fr)); }
