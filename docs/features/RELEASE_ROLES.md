@@ -27,7 +27,7 @@ have no area and are never matched by an area selection. Release Area and Releas
 are searchable multi-selects: values inside one filter combine with OR, different filters
 combine with AND. The Release Group options narrow to the selected areas, and groups that
 fall outside a changed area selection are removed. Matrix and Table share one predicate.
-Saved filters store `releaseAreas` and `releaseGroups`; a filter saved with the former single
+**SAP User Group** and **Release Strategy** are searchable multi-selects in the same way. The username and role name searches accept several values separated by comma, semicolon or line break: each value is a partial-text (or `*` pattern) match and the values combine with OR; separators alone do not filter. PR/PO and the assignment status stay single choices (two values and a mutually exclusive date scope). Saved filters store `userGroups` (a filter saved with the single `group` restores as one item), `releaseAreas` and `releaseGroups`; a filter saved with the former single
 `releaseGroup` restores as a one-item selection.
 
 Open a role for exact copyable identifier, parsed type/group/strategy and assigned

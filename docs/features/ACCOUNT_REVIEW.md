@@ -51,7 +51,7 @@ Supported findings:
 - Technical/service/reference/communication accounts (B/C/S/L): separate review,
   not a claim that they are unnecessary.
 
-Search, finding, license-group and decision filters compose. Sorting is stable by
+Search, finding, license-group and decision filters compose. Finding, license group classification and decision are searchable multi-selects: values inside one filter combine with OR (choosing both classifications does not narrow), different filters combine with AND. The overview tiles toggle and combine in the same way (finding tiles join the finding filter, *Classified unlicensed* joins the classification filter; *SAP accounts* clears both). Saved filters store `findings`, `licenses` and `states`; filters saved with the former single `finding`, `license` and `state` values load as one-item lists, and the API still accepts the singular parameters. Sorting is stable by
 selected field and SAP username; results are paginated. One in-memory review cache
 reuses the current immutable source/directory snapshot across page and export reads.
 Policy, annotations, source publication, directory and local evaluation-day changes

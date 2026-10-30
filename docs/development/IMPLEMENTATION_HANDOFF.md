@@ -81,7 +81,7 @@ standards and the Phase 6 regression). The original 36-point numbering was not r
 | 5.6 Review periods | Complete | Icons in the menu, trigger the same height as Open |
 | 5.7 Reports | Complete | Document details expanded by default |
 
-Not converted to multi-select: Release SAP User Group, username and role-name filters on the Release Roles page, and the Account Review finding, classification and decision selects (single-choice by design).
+The follow-up [UI/UX gap audit](UI_UX_GAP_AUDIT.md) converted the Account Review finding, classification and decision filters, the Release SAP User Group filter and the Compare users SAP area filter to multi-select, made the Release username and role name searches multi-value, and made Activity Review rows compact and expandable. Still single-choice: Release PR/PO and assignment status, Compare users validity and section.
 
 ## Validation
 

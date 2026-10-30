@@ -45,6 +45,10 @@ Date entry remains `NorwegianDateInput`, with Norwegian labels, Monday-first flo
 
 `StatusBadge` owns generic tone presentation. `AccountStatus`, `AssignmentStatus`, `StatusPill` and `SourceBadge` keep their domain-specific labels and rules. Lock indicators preserve their established neutral unlocked/unknown and red locked appearance. AD status is not SAP validity. Loading, empty, notification and evidence-disclosure components use semantic text and icons.
 
+## Capitalization and terminology
+
+Product names stay in Title Case: main navigation, page and section titles, SoD workspace views and the decision names (Activity Review, Role Assignment Review, Risk Acceptance). Table headers, buttons, field labels, filter labels, helper text and chips use sentence case. Official SAP terms keep their SAP spelling, for example **SAP User Group**, **Release Group**, **Release Strategy**, T-code and Risk ID. Use the same label for the same concept on every page.
+
 ## Responsive rules
 
 Desktop navbar utilities are compact icons on one row where space permits. At narrower widths, primary navigation gets its own row with visible destination labels. Utility accessible names remain available to touch assistive technology. User panels become one column; comparison filters go from five to three/two/one; compact summary counts wrap without becoming large KPI cards. Existing settings-sidebar behavior and source/table breakpoints are retained.
