@@ -1224,3 +1224,12 @@ p.dashboard-card-state { display:flex; align-items:center; gap:var(--space-2); }
 .evidence-dialog .role-identifier { max-width:100%; }
 .sod-heatmap-section { min-width:0; max-width:100%; }
 .sod-heatmap-section > * { min-width:0; }
+
+/* Independent columns, and tab strips whose scrollbar must sit below the underline, with room above them. */
+.independent-columns { display:grid; gap:var(--space-3); align-items:start; min-width:0; }
+.independent-column { display:flex; flex-direction:column; gap:var(--space-3); min-width:0; }
+.ui-content-tabs,.ui-secondary-navigation { padding-bottom:var(--space-1); scrollbar-width:thin; scroll-padding-inline:var(--space-2); }
+.component-library > .ui-tabs { margin-top:var(--space-2); }
+.component-library > .ui-description { margin-bottom:0; }
+/* Padding inside the scroller keeps focus rings of the header and group buttons unclipped (ring width plus offset is 4px). */
+.sod-heatmap-scroll { padding:var(--space-1); scroll-padding:var(--space-1); }

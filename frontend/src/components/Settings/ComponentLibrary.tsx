@@ -26,6 +26,7 @@ import {
   MainNavigationItem,
   ContentTabs,
 } from '@/components/Shared/Navigation'
+import { ComponentLibraryPatterns } from './ComponentLibraryPatterns'
 import { Popover } from '@/components/Shared/Popover'
 import { Dialog } from '@/components/Shared/Dialog'
 import { SidePanel } from '@/components/Shared/SidePanel'
@@ -154,9 +155,7 @@ export function ComponentLibrary() {
   return (
     <div className="component-library w-full min-w-0 max-w-full" aria-label="Component Library previews">
       <p className="ui-description">
-        Interactive reference using the real application components. Synthetic
-        identities and isolated memory only; controls do not modify application
-        settings, imported data or saved investigations.
+        Uses the real application components with synthetic identities and isolated memory; controls do not modify application settings, imported data or saved investigations.
       </p>
       <ContentTabs label="Component categories" value={category} onChange={setCategory} items={categories.map(([value,label])=>({value,label}))}>
       {(category==='all'||category==='buttons')&&<Card>
@@ -248,6 +247,7 @@ export function ComponentLibrary() {
         </div>
       </Card>}
       {(category==='all'||category==='sap')&&<Card><PageHeader title="Page header preview" icon={<LayoutDashboard size={22} aria-hidden="true"/>}/><MetadataList items={[{label:'Records',value:'2'},{label:'Last validated source check',value:'Not checked · Static source'}]}/><TransactionCount count={12}/><ExportCSVButton disabled title="Isolated preview; no records are exported."/><h2>Import and source controls</h2><p className="ui-description">Real import components with isolated synthetic state. In Data Sources, selection automatically validates and imports a complete dataset. This isolated preview only selects a demo string; no files, settings or datasets are changed.</p><SourceFileField label="Demo source file" value={demoPath} onChange={setDemoPath} native onBrowse={()=>setDemoPath('C:/synthetic/replacement.csv')} browseLabel="Browse demo source"/><div className="demo-grid"><MappingField field="AGR_NAME" label="Demo role name" required value={demoMapping} columns={['AGR_NAME','ROLE_NAME']} onChange={setDemoMapping}/><SourceHealthSummary source={{id:'roles',mode:'static',loaded:true,loading:false,error:null,records:2,last_successful_load:'2026-01-01T12:00:00Z',snapshot_available:true}}/></div><ImportPreview fileName="synthetic.csv" metrics={[{label:'Records',value:2}]} samples={[{AGR_NAME:'ZC:DEMO',TCODE:'MIGO'},{AGR_NAME:'ZC:EXAMPLE',TCODE:'ME23N'}]} warnings={['Example warning: an optional description was not supplied.']}/></Card>}
+      {(category==='all'||category==='data')&&<ComponentLibraryPatterns />}
       {(category==='all'||category==='data')&&<Card><SectionHeader title="Investigation evidence" icon={<Info size={18}/>}/><ReviewFindings row={{sap_validity:'Valid',lock_status:'Unlocked',ad_status:'Unknown',match_status:'missing_email',findings:['directory_match'],stale:false}} labels={{directory_match:'Missing directory match'}}/><ChangeRecordDetails change={{source:'employees',source_name:'Synthetic directory',type:'modified',identifier:'SYNTHETIC_RECORD',fields:[{field:'Title',before:'Example analyst',after:'Example reviewer'}],before:{Name:'Synthetic Example'},after:{Name:'Synthetic Example'}}}/></Card>}
       {(category==='all'||category==='status')&&<Card><h2>Operational status and filtering</h2><div className="demo-grid"><StatusCard label="Demo service" value="Running" tone="success"/><StatusCard label="Demo source" value="Needs attention" tone="warning"/></div><FilterPanel label="Demo filters"><p className="ui-description">Apply commits only demo date state; Cancel leaves it unchanged. Calendar and filter popovers do not reflow their parent.</p><AssignmentDateFilters value={demoDates} onChange={setDemoDates}/></FilterPanel><ResultsToolbar><span>2 demo results</span><Button onClick={()=>setDemoDates({...emptyDates})}>Clear demo filters</Button></ResultsToolbar></Card>}
       {(category==='all'||category==='forms')&&<Card>

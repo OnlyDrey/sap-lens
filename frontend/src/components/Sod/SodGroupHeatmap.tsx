@@ -95,7 +95,7 @@ export function SodGroupHeatmap() {
           : !data ? <LoadingState />
           : !rows.length ? <EmptyState>No potential conflicts in the selected evidence. Results describe imported evidence only.</EmptyState>
           : <>
-            <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="SAP User Group heatmap table">
+            <div className="overflow-x-auto sod-heatmap-scroll" tabIndex={0} role="region" aria-label="SAP User Group heatmap table">
               <table className="sod-heatmap">
                 <caption className="sr-only">Distinct users per SAP User Group and {risk ? 'risk' : 'activity'}. A user in several groups counts in each group. Select a group, a {risk ? 'risk' : 'activity'} or a cell to filter.</caption>
                 <thead><tr><th scope="col">SAP User Group</th><th scope="col">Users</th>{columns.map((column) => {

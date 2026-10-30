@@ -1,4 +1,5 @@
 import { SourceEssentials, SourceTechnicalFacts, SourceDetailsDialog, type SourceEvidence } from './SourceStatus'
+import { IndependentColumns } from '@/components/Shared/IndependentColumns'
 import { StatusBadge } from '@/components/Shared/Presentation'
 import { StatusCard } from '@/components/Shared/InvestigationPatterns'
 import { RefreshHistory } from '@/components/Shared/RefreshReport'
@@ -173,9 +174,7 @@ export function Diagnostics({
       </section>
       <section className="space-y-3" aria-label="Data source health">
         <h2 className="settings-subheading">Data source health</h2>
-        <div className="diagnostic-source-grid">
-          {query.data?.sources.map((source) => <SourceHealthCard key={source.id} source={source} onDetail={() => setDetail(source)} onSource={onSource} />)}
-        </div>
+        <IndependentColumns items={(query.data?.sources ?? []).map((source) => <SourceHealthCard key={source.id} source={source} onDetail={() => setDetail(source)} onSource={onSource} />)} />
       </section>
       {detail&&<SourceDetailsDialog source={detail} onClose={()=>setDetail(null)}>{detail.id==='employees'&&<DirectoryDiagnostics onConfigure={()=>{setDetail(null);onEmployeeSettings?.()}} onFeatureSettings={()=>{setDetail(null);onEmployeeFeatures?.()}}/>}</SourceDetailsDialog>}
       <RefreshHistory />

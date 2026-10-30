@@ -179,7 +179,8 @@
     "role-visuals",
     "transaction-filter",
     "ui-consistency",
-    "ui-polish-actions"
+    "ui-polish-actions",
+    "settings-r2"
    ]
   },
   "platform": {
