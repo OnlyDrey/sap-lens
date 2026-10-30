@@ -64,7 +64,7 @@ lines are not verified digital signatures.
 ## Evidence rules
 
 - Missing sources or coverage appear as unavailable or "Not observed", never as resolved or zero.
-- Source criticality labels (for example C/H) are shown literally.
+- Source criticality labels (for example C/H) are shown literally as evidence, in settings, reports and the investigation. Operational views (matrices, explorer, reviews, remediation, conflicts) no longer filter by criticality.
 - Private backups must include the SoD stores. Portable configuration and diagnostics
   exports exclude them. Use only synthetic data in examples and tests.
 
@@ -115,7 +115,7 @@ One shared heatmap, **Conflicts by SAP User Group**, sits directly under the Rev
 ## Filters, tiles and drawer
 
 - Every SoD page (matrices, Access Explorer, Role Conflicts, User Conflicts) uses the same **Filters** sidebar: search, Saved Filters and all filters live there. The toolbar keeps only sort, direction, row mode, Export CSV and Reset.
-- Risk, activity, group, user, role, transaction, business area and criticality fields suggest values taken from the imported evidence (searchable, bounded). A typed value that is not suggested still filters.
+- Risk, activity, group, user, role, transaction and business area fields suggest values taken from the imported evidence (searchable, bounded). A typed value that is not suggested still filters.
 - Risk and Activity matrices show tiles for users, distinct user-risk or user-activity pairs and each review status (Pending, Accepted, Rejected, Outdated; Pending, Approved, Conditional, Removal required, Outdated). Counts cover the whole filtered matrix, not the visible page; a status tile toggles the matching filter.
 - A matrix cell opens the investigation drawer for that one user-risk or user-activity: only the matching activities, role assignments and risk acceptance are listed, with **Show all review items** to widen it. A user row opens everything. The business area reuses the configured module icon and color when it names a module.
 - CSV exports use exactly the filters shown, including assignment validity (active, expired, future, unknown, all).
@@ -152,7 +152,7 @@ One shared heatmap, **Conflicts by SAP User Group**, sits directly under the Rev
 
 ## Consolidated review workflows
 
-- **Summary tiles** that filter are buttons: the matrix status and criticality tiles and the assignment queue tiles (In scope, Completed, Pending, Under investigation, Needs review, Removal recommended). The active tile is highlighted, clicking it again toggles it off, tiles combine with the sidebar filters and *Reset tile filters* clears them. Informational tiles (for example Outdated) stay flat and dashed.
+- **Summary tiles** that filter are buttons: the matrix status tiles and the assignment queue tiles (In scope, Completed, Pending, Under investigation, Needs review, Removal recommended). The active tile is highlighted, clicking it again toggles it off, tiles combine with the sidebar filters and *Reset tile filters* clears them. Informational tiles (for example Outdated) stay flat and dashed.
 - **Overview.** With no approved period and no open period the review card is a compact empty state with *Open review periods*.
 - **Access Explorer.** Assignments show the SAP username and role as codeblocks with risk and activity pills; module labels, the Active assignment badge and validity dates are left out (non-active assignments keep their status badge, and the validity scope filter defaults to active assignments). Roles show the role codeblock, users, risks, activities and *Show users*. Role conflicts use the colored Risk ID pill.
 - **Role Assignment Review rows** are one compact line: checkbox, copyable role, review status, Keep, Investigate and Remove icons and an expand control. Expanding shows SAP User Group, validity, activities, risks, transactions, decision history and further actions. *Select all visible* and *Review selected* ask for confirmation of the number of assignments; every assignment keeps its own history.

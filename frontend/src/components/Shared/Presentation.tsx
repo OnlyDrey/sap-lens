@@ -47,7 +47,7 @@ export function StatusBadge({
   className = '',
   ...props
 }: {
-  tone?: 'neutral' | 'success' | 'warning' | 'error' | 'info'
+  tone?: 'neutral' | 'success' | 'warning' | 'error' | 'info' | 'accent'
   children: ReactNode
 } & HTMLAttributes<HTMLSpanElement>) {
   return (

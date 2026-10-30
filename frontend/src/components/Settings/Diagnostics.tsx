@@ -174,7 +174,7 @@ export function Diagnostics({
       </section>
       <section className="space-y-3" aria-label="Data source health">
         <h2 className="settings-subheading">Data source health</h2>
-        <IndependentColumns items={(query.data?.sources ?? []).map((source) => <SourceHealthCard key={source.id} source={source} onDetail={() => setDetail(source)} onSource={onSource} />)} />
+        <IndependentColumns breakpoints={SOURCE_COLUMNS} items={(query.data?.sources ?? []).map((source) => <SourceHealthCard key={source.id} source={source} onDetail={() => setDetail(source)} onSource={onSource} />)} />
       </section>
       {detail&&<SourceDetailsDialog source={detail} onClose={()=>setDetail(null)}>{detail.id==='employees'&&<DirectoryDiagnostics onConfigure={()=>{setDetail(null);onEmployeeSettings?.()}} onFeatureSettings={()=>{setDetail(null);onEmployeeFeatures?.()}}/>}</SourceDetailsDialog>}
       <RefreshHistory />
@@ -265,6 +265,8 @@ export function Diagnostics({
   )
 }
 
+/** Wide screens show three columns, medium two, narrow one. */
+const SOURCE_COLUMNS: [number, number][] = [[1400, 3], [700, 2]]
 /** One source card: essentials, then Technical details (toggle) and Review source side by side; the technical facts open beneath the buttons. */
 function SourceHealthCard({ source, onDetail, onSource }: { source: SourceEvidence; onDetail: () => void; onSource?: (source: 'roles' | 'users' | 'employees' | 'sod') => void }) {
   const [open, setOpen] = useState(false), id = useId()

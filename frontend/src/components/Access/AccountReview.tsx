@@ -4,7 +4,7 @@ import { type ReviewEvidence } from '@/components/Shared/ReviewFindings'
 import { PageHeader, MetadataList } from '@/components/Shared/Presentation'
 import { ClipboardCheck as PageIcon } from 'lucide-react'
 import { Kpi } from '@/components/Shared/Kpi'
-import { InfoList, InfoRow } from '@/components/Shared/InfoList'
+import { StackedBar } from '@/components/Shared/Charts'
 import { FilterLayout, FilterSection, PageToolbar, SortControl } from '@/components/Shared/FilterLayout'
 import { FormField } from '@/components/Shared/Controls'
 import { SearchInput } from '@/components/Shared/Controls'
@@ -81,10 +81,13 @@ const changeText = (change: PositionChange) => [
   change.fields.includes('title') && `Job title ${change.previous_title} → ${change.current_title}`,
 ].filter(Boolean).join(' · ')
 
-/** KPIs: each applies its finding (and license classification) to the list. The review queue comes first; account status is secondary. */
-const TILE_GROUPS: [string, [string, string, { finding: string; license?: string }][]][] = [
-  ['Review queue', [['requiring_review', 'Accounts requiring review', { finding: 'any' }], ['position_changes', 'Position changes', { finding: 'position_change' }], ['pending', 'Pending reviews', { finding: 'pending' }], ['reviewed', 'Completed reviews', { finding: 'reviewed' }], ['outdated', 'Outdated reviews', { finding: 'stale' }]]],
-  ['Account status', [['total', 'SAP accounts', { finding: '' }], ['mismatch', 'AD disabled / SAP valid and unlocked', { finding: 'ad_disabled_open' }], ['missing', 'Missing or ambiguous directory matches', { finding: 'directory_match' }], ['unlicensed', 'Classified unlicensed', { finding: '', license: 'classified' }]]],
+/** Secondary KPIs: each applies its finding to the list. Review progress itself (completed and pending) is the primary overview above them. */
+const ACTION_TILES: [string, string, { finding: string; license?: string }][] = [
+  ['requiring_review', 'Accounts requiring review', { finding: 'any' }],
+  ['missing', 'Missing or ambiguous directory matches', { finding: 'directory_match' }],
+  ['position_changes', 'Position changes', { finding: 'position_change' }],
+  ['mismatch', 'AD disabled / SAP valid and unlocked', { finding: 'ad_disabled_open' }],
+  ['outdated', 'Outdated reviews', { finding: 'stale' }],
 ]
 const FINDING_NAMES: Record<string, string> = { any: 'Accounts requiring review', matched: 'Reliably matched identities', directory_missing: 'Missing directory matches', directory_ambiguous: 'Ambiguous directory matches', reviewed: 'Completed reviews', pending: 'Pending reviews', position_change: 'Position changes', stale: 'Outdated reviews' }
 
@@ -172,6 +175,38 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
     if (target.license) setLicenses(list => list.includes(target.license!) ? list.filter(item => item !== target.license) : [...list, target.license!])
     else if (target.finding) setFindings(list => (list ?? []).includes(target.finding) ? (list ?? []).filter(item => item !== target.finding) : [...(list ?? []), target.finding])
     else { setFindings([]); setLicenses([]) }
+  }
+  /** One progress overview (completed and pending of all SAP accounts, no account counted twice) followed by compact actionable tiles. */
+  const renderOverview = () => {
+    if (!data) return null
+    const { total, reviewed, pending } = data.summary
+    const known = total != null && reviewed != null && pending != null
+    const percent = known && total ? (reviewed! / total) * 100 : 0
+    const activeFinding = (name: string) => findings.includes(name)
+    return (
+      <div className="review-overview">
+        <section aria-label="Account review progress" className="review-progress" data-primary="true">
+          <h2>Account review progress</h2>
+          {known ? <>
+            <div className="progress-summary">
+              <strong className="progress-summary-value">{percent.toFixed(1)}%</strong>
+              <span className="progress-summary-caption">{reviewed!.toLocaleString()} of {total!.toLocaleString()} SAP users reviewed</span>
+            </div>
+            <StackedBar label="Account review progress" total={total!} segments={[
+              { key: 'completed', label: 'Completed reviews', value: reviewed!, tone: 'success', active: activeFinding('reviewed'), onOpen: () => toggleTile({ finding: 'reviewed' }) },
+              { key: 'pending', label: 'Pending reviews', value: pending!, tone: 'neutral', active: activeFinding('pending'), title: 'Accounts without a current completed review, including outdated reviews', onOpen: () => toggleTile({ finding: 'pending' }) },
+            ]} caption={<>Total SAP users: <strong>{total!.toLocaleString()}</strong>. Outdated reviews are counted as pending until they are reviewed again.</>} />
+          </> : <p className="ui-description">Review progress is unavailable until the User Access data and the review annotations are loaded.</p>}
+        </section>
+        <section aria-label="Review actions">
+          <h2 className="sr-only">Review actions</h2>
+          <div className="review-kpis">{ACTION_TILES.filter(([key]) => key !== 'outdated' || data.summary.outdated != null).map(([key, label, target]) => {
+            const value = data.summary[key]
+            return <Kpi key={key} layout="expanded" label={label} value={value?.toLocaleString() ?? 'Unavailable'} tone={['mismatch', 'missing', 'outdated'].includes(key) && !!value ? 'warning' : 'neutral'} active={activeFinding(target.finding)} onClick={() => toggleTile(target)} />
+          })}</div>
+        </section>
+      </div>
+    )
   }
   const findingOptions = ['any', 'matched', 'directory_missing', 'directory_ambiguous', 'reviewed', 'pending', 'position_change', ...Object.keys(data?.finding_labels || {}), 'stale']
   const findingLabel = (key: string) => FINDING_NAMES[key] || data?.finding_labels[key] || key
@@ -329,15 +364,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
       </p>
       {data && (
         <>
-          <div className="review-kpi-groups">{TILE_GROUPS.map(([title,tiles],group)=><section key={title} aria-label={title} data-primary={group===0||undefined}><h2>{title}</h2>{group===0
-            ? <div className="review-kpis">{tiles.map(([key,label,target])=>{
-              const value=data.summary[key]
-              const active=target.license?licenses.includes(target.license):target.finding?findings.includes(target.finding):!findings.length&&!licenses.length
-              return <Kpi key={key} layout="expanded" label={label} value={value?.toLocaleString()??'Unavailable'} tone={['mismatch','missing','outdated'].includes(key)&&!!value?'warning':'neutral'} active={active} onClick={()=>toggleTile(target)}/>})}</div>
-            : <InfoList label={title}>{tiles.map(([key,label,target])=>{
-              const value=data.summary[key]
-              const active=target.license?licenses.includes(target.license):target.finding?findings.includes(target.finding):!findings.length&&!licenses.length
-              return <InfoRow key={key} label={label} value={value?.toLocaleString()??'Unavailable'} tone={['mismatch','missing'].includes(key)&&!!value?'warning':'neutral'} active={active} onClick={()=>toggleTile(target)}/>})}</InfoList>}</section>)}</div>
+          {renderOverview()}
           {!data.directory_available && (
             <p role="status">
               Directory enrichment unavailable. Enable and import Employee

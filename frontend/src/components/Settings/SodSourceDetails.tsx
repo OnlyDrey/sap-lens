@@ -17,7 +17,7 @@ export type SourceRisk = {
 
 /** Compact source pills; Criticality and Type are source metadata shown only in Settings. */
 export function SourceMeta({ criticality, riskType }: { criticality: string; riskType: string }) {
-  return <span className="source-meta-pills"><StatusBadge>Criticality {criticality || '—'}</StatusBadge><StatusBadge>Type {riskType || '—'}</StatusBadge></span>
+  return <span className="source-meta-pills"><StatusBadge className="evidence-criticality">Criticality {criticality || '—'}</StatusBadge><StatusBadge className="evidence-type">Type {riskType || '—'}</StatusBadge></span>
 }
 
 /** A risk or activity identifier that opens its read-only details. */

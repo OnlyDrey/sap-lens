@@ -1276,3 +1276,20 @@ p.dashboard-card-state { display:flex; align-items:center; gap:var(--space-2); }
 .single-role-entry:hover .role-expand { color:var(--accent2); }
 .single-role-entry .role-expand:hover { background:color-mix(in srgb,var(--accent) 22%,transparent); color:var(--accent2); }
 .single-role-entry .role-expand[aria-expanded="true"] { color:var(--accent2); }
+
+/* Account Review: one progress overview, then compact actionable KPI tiles. */
+.review-overview { display:grid; gap:var(--space-3); }
+.review-progress { display:grid; gap:var(--space-2); padding:var(--space-3); border:1px solid var(--border); border-radius:var(--radius-card); background:var(--surface); }
+.review-progress > h2 { margin:0; font-size:var(--font-section); font-weight:600; }
+
+/* One visible track for every progress bar: a zero value still reads as an empty bar with a clear boundary, in both themes. */
+:root { --progress-track:color-mix(in srgb,var(--muted) 26%,var(--surface)); }
+progress,.dashboard-workspace progress,.coverage-summary progress,.dashboard-workspace .coverage-summary > progress,.ui-kpi-progress,.info-row-progress { height:.625rem; background:var(--progress-track); box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--muted) 45%,var(--border)); }
+progress::-webkit-progress-bar,.dashboard-workspace progress::-webkit-progress-bar,.dashboard-workspace .coverage-summary > progress::-webkit-progress-bar { background:var(--progress-track); }
+.chart-track,.chart-stack-bar { background:var(--progress-track); box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--muted) 45%,var(--border)); }
+
+/* Operating mode and source facts: hues that are not review or health states. Dynamic is accent-tinted, Criticality is a filled neutral, Type a dashed outline. */
+.evidence-accent { color:var(--text); background:color-mix(in srgb,var(--accent) 20%,var(--surface)); box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 60%,transparent); }
+.evidence-criticality { color:var(--text); font-weight:600; background:color-mix(in srgb,var(--muted) 28%,var(--surface)); box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--muted) 70%,transparent); }
+.evidence-type { color:var(--text2); background:transparent; border:1px dashed color-mix(in srgb,var(--muted) 80%,transparent); }
+.sod-workspace progress,.sod-overview-cards progress { --progress-fill:var(--success); }

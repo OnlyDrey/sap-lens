@@ -63,7 +63,7 @@ export function ConflictView({kind}:{kind:'users'|'roles'}){
  return <section className="grid min-w-0 gap-4" aria-label={kind==='users'?'SoD user conflicts':'SoD role conflicts'}>
   <EvidenceDisclosure title="About potential SoD conflicts">Both required activity sides must have transaction-derived role evidence. This is not proof of effective SAP authorization or actual transaction use. Account state is separate from assignment evidence. All-validity results do not prove concurrent historical access. Role coverage has no assignment validity.</EvidenceDisclosure>
   <SodFilters view={`sod_${kind}`} filters={filters as Filters} setFilters={value=>setFilters(value as SodFilterState)} defaults={initial as Filters} searchLabel="Search SoD findings" onReset={()=>setDateError(false)}
-   fields={['risk','criticality','risk_type','category','composite_role','single_role','tcode',...(kind==='users'?['username','group','account_status','validity'] as FilterField[]:[])]}
+   fields={['risk','risk_type','category','composite_role','single_role','tcode',...(kind==='users'?['username','group','account_status','validity'] as FilterField[]:[])]}
    sorts={[{value:'subject',label:'Subject'},{value:'risk_id',label:'Risk ID'},{value:'criticality',label:'Source Criticality'},{value:'evidence_count',label:'Evidence Count'}]}
    actions={<ExportCSVButton loading={busy} disabled={!result.data?.total||result.isFetching||dateError} onClick={()=>void exportCsv()} title="Exports every filtered finding and all supporting evidence, across pages."/>}
    extra={<>

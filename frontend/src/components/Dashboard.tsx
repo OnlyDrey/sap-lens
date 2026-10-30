@@ -324,7 +324,7 @@ export function Dashboard() {
                     <span className="dashboard-source-head"><Database size={16} aria-hidden="true"/><strong>{SOURCE_NAMES[source.id] ?? source.name}</strong><ArrowUpRight size={14} aria-hidden="true" className="dashboard-source-arrow"/></span>
                     <span className="dashboard-source-badges">
                       <StatusBadge tone={state.tone}>{state.label}</StatusBadge>
-                      {source.mode && <StatusBadge tone="neutral">{source.mode === 'static' ? 'Static' : 'Dynamic'}</StatusBadge>}
+                      {source.mode && <StatusBadge tone={source.mode === 'static' ? 'neutral' : 'accent'}>{source.mode === 'static' ? 'Static' : 'Dynamic'}</StatusBadge>}
                     </span>
                     {state.key !== 'not_configured' && <span className="dashboard-source-meta">{line ?? 'No records'}</span>}
                     <span className="dashboard-source-meta">{source.last_successful_load ? `Last import ${formatTimestamp(source.last_successful_load)}` : 'No successful import'}</span>

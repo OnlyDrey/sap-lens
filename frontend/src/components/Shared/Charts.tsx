@@ -30,7 +30,7 @@ export function BarChart({ label, data, empty = 'No data', max: scale }: { label
   )
 }
 
-export interface Segment { key: string; label: string; value: number; tone: 'success' | 'neutral' | 'warning' | 'error'; title?: string; onOpen?: () => void }
+export interface Segment { key: string; label: string; value: number; tone: 'success' | 'neutral' | 'warning' | 'error'; title?: string; onOpen?: () => void; /** Marks the legend entry as the active filter. */ active?: boolean }
 
 /** One stacked bar of mutually exclusive parts of a known total, with a legend whose entries open the matching list. Parts with no records take no width. */
 export function StackedBar({ label, segments, total, caption }: { label: string; segments: Segment[]; total: number; caption?: ReactNode }) {
@@ -43,7 +43,7 @@ export function StackedBar({ label, segments, total, caption }: { label: string;
       <ul className="chart-legend" aria-label={`${label} legend`}>
         {segments.map(item => {
           const body = <><span className="chart-swatch" data-tone={item.tone} aria-hidden="true" /><span className="chart-label">{item.label}</span><strong className="chart-value">{item.value.toLocaleString()}</strong>{item.onOpen && <ArrowUpRight size={14} aria-hidden="true" className="chart-arrow" />}</>
-          return <li key={item.key}>{item.onOpen ? <button type="button" className="chart-row" aria-label={`${item.label}: ${item.value.toLocaleString()}`} title={item.title} onClick={item.onOpen}>{body}</button> : <div className="chart-row">{body}</div>}</li>
+          return <li key={item.key}>{item.onOpen ? <button type="button" className="chart-row" aria-label={`${item.label}: ${item.value.toLocaleString()}`} aria-pressed={item.active} data-active={item.active || undefined} title={item.title} onClick={item.onOpen}>{body}</button> : <div className="chart-row">{body}</div>}</li>
         })}
       </ul>
       {caption && <p className="ui-description">{caption}</p>}

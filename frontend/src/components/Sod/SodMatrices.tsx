@@ -96,7 +96,7 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
   return (
     <section className="grid min-w-0 gap-4" aria-label={risk ? 'SoD risk matrix' : 'SoD activity matrix'}>
       <SodFilters view={risk ? 'sod_risk_matrix' : 'sod_activity_matrix'} filters={filters} setFilters={setFilters}
-        fields={['group', 'risk', 'activity', 'username', 'role', 'role_suffix', 'tcode', 'category', 'criticality', 'validity', 'activity_decision', 'assignment_decision', 'acceptance']}
+        fields={['group', 'risk', 'activity', 'username', 'role', 'role_suffix', 'tcode', 'category', 'validity', 'activity_decision', 'assignment_decision', 'acceptance']}
         sorts={[{ value: 'subject', label: 'Name' }, { value: 'findings', label: risk ? 'Most risks' : 'Most activities' }]}
         actions={<>
           <Select aria-label="Rows" value={groupBy} onChange={(event) => { setOffset(0); setGroupBy(event.target.value as 'user' | 'group') }}>
@@ -125,14 +125,7 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
                   onClick={() => setFilters({ ...filters, [filterName]: active ? '' : value })} />
               )
             })}
-            {Object.entries((data as Risk).criticality || {}).map(([key, value]) => {
-              const wanted = Array.isArray(filters.criticalities) ? filters.criticalities : [], active = wanted.includes(key)
-              return (
-                <Kpi key={key} label={`Criticality ${key}`} value={value.user_risk.toLocaleString()} note={`${value.users} users`} active={active}
-                  onClick={() => setFilters({ ...filters, criticality: '', criticalities: active ? wanted.filter((item) => item !== key) : [...wanted, key] })} />
-              )
-            })}
-            {(filters[risk ? 'acceptance' : 'activity_decision'] || (Array.isArray(filters.criticalities) && filters.criticalities.length > 0)) && <Button size="compact" variant="ghost" onClick={() => setFilters({ ...filters, [risk ? 'acceptance' : 'activity_decision']: '', criticalities: [] })}>Reset tile filters</Button>}
+            {filters[risk ? 'acceptance' : 'activity_decision'] && <Button size="compact" variant="ghost" onClick={() => setFilters({ ...filters, [risk ? 'acceptance' : 'activity_decision']: '' })}>Reset tile filters</Button>}
           </section>
           <p className="ui-description">{risk ? 'Cells show the risk acceptance status and how many of the risk activities are reviewed (reviewed/total). Criticality and type are in the column tooltip and the investigation.' : 'Scope: activities that contribute to at least one potential conflict (both sides of an enabled, supported risk). Activities a role supplies beyond those are considered in Role Assignment Review. Cells show the activity review status and ×roles supplying it; ⧉ marks overlapping coverage.'}</p>
           <p className="ui-description">Totals count distinct users and distinct {risk ? 'user-risk' : 'user-activity'} pairs. {data.columns_truncated ? 'Showing the first 500 columns; narrow the filters. ' : ''}{groupBy === 'group' ? 'Cells show distinct users per group; select one to list them. ' : 'Select a cell to investigate and review. '}Detected conflicts are potential and derived from imported evidence.</p>

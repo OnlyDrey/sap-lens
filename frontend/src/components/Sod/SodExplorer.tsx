@@ -31,8 +31,8 @@ interface Progress { total: number; completed: number; pending: number; investig
 interface Result extends ContextInfo { items: Row[]; total: number; offset: number; limit: number; progress?: Progress }
 const COMMON: FilterField[] = ['username', 'risk', 'activity', 'role', 'role_suffix', 'tcode', 'validity']
 const FIELDS: Record<string, FilterField[]> = {
-  user_risk: [...COMMON, 'group', 'category', 'criticality', 'activity_decision', 'assignment_decision', 'acceptance'],
-  user_activity: [...COMMON, 'group', 'category', 'criticality', 'activity_decision', 'assignment_decision'],
+  user_risk: [...COMMON, 'group', 'category', 'activity_decision', 'assignment_decision', 'acceptance'],
+  user_activity: [...COMMON, 'group', 'category', 'activity_decision', 'assignment_decision'],
   access_list: [...COMMON, 'group', 'review_status', 'assignment_decision'],
   lookup: COMMON,
 }
