@@ -17,7 +17,7 @@ from transaction_filters import normalized_tcodes, select_role_names, legacy_gro
 
 router = APIRouter(prefix="/api/roles", tags=["Roles"])
 
-PACKAGE_COLUMNS = ['Generated SAP Role Name', 'Role Description', 'Suffix']
+PACKAGE_COLUMNS = ['Generated SAP Role Name', 'Role Description', 'Suffix', 'Validation']
 PACKAGE_HEADER = '\ufeff' + ';'.join('"' + column + '"' for column in PACKAGE_COLUMNS) + '\r\n'
 
 

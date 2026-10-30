@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { AlertTriangle, CheckCircle2, Copy, Trash2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Copy, HelpCircle, Trash2, XCircle } from 'lucide-react'
 import { SidePanel } from '@/components/Shared/SidePanel'
 import { Button, IconButton } from '@/components/Shared/Button'
 import { Combobox } from '@/components/Shared/Combobox'
 import { ConfirmDialog } from '@/components/Shared/ConfirmDialog'
 import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
 import { FormField, Input } from '@/components/Shared/Controls'
-import { EmptyState, ErrorState, LoadingState, StatusBadge } from '@/components/Shared/Presentation'
+import { EmptyState, ErrorState, LoadingState } from '@/components/Shared/Presentation'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import { RoleEntry } from '@/components/Shared/RoleEntry'
 import { presentRoleDescription } from '@/lib/rolePresentation'
@@ -16,17 +16,18 @@ import { useRoleModules } from '@/hooks/useRoleModules'
 import { announceExport } from '@/lib/exportNotice'
 import { exportPackage, fetchNaming, previewPackage, useAccessPackage, type PackageRow } from '@/lib/accessPackage'
 
-const STATUS: Record<PackageRow['status'], { text: string; tone: 'success' | 'warning' | 'error' }> = {
-  ok: { text: 'Ready', tone: 'success' }, needs_suffix: { text: 'Needs suffix', tone: 'warning' }, ambiguous: { text: 'Ambiguous source', tone: 'warning' },
-  invalid: { text: 'Invalid', tone: 'error' }, unknown_role: { text: 'Not found in imported data', tone: 'error' }, duplicate: { text: 'Duplicate name', tone: 'error' },
+const VALIDATION: Record<PackageRow['validation'], { text: string; tone: 'success' | 'warning' | 'error'; icon: typeof CheckCircle2; hint: string }> = {
+  confirmed: { text: 'Confirmed', tone: 'success', icon: CheckCircle2, hint: 'A valid SAP role name found in the imported catalogue.' },
+  unconfirmed: { text: 'Unconfirmed', tone: 'warning', icon: HelpCircle, hint: 'A valid SAP role name that the imported catalogue does not contain. It can be copied and exported; check it in SAP first.' },
+  invalid: { text: 'Invalid', tone: 'error', icon: XCircle, hint: 'Not a valid SAP role name or not resolvable. It is never copied or exported.' },
+  needs_suffix: { text: 'Needs suffix', tone: 'warning', icon: AlertTriangle, hint: 'Set a package default suffix or a role suffix.' },
 }
 const matchText = (row: PackageRow) => {
   const match = row.catalogue
   if (!match) return ''
-  return match.status === 'exact' ? 'Exists in the imported catalogue'
-    : match.status === 'wildcard' ? `Covered by catalogue pattern ${match.candidates[0]}`
+  return match.status === 'wildcard' ? `Covered by catalogue pattern ${match.candidates[0]}`
     : match.status === 'ambiguous' ? `Ambiguous catalogue match (${match.candidates.length} candidates)`
-    : 'Not found in the imported catalogue'
+    : ''
 }
 const SUFFIX = /^[A-Z0-9_-]{0,16}$/
 
@@ -37,15 +38,17 @@ export function AccessPackagePanel({ onClose }: { onClose: () => void }) {
   const key = JSON.stringify([cart.defaultSuffix, cart.items])
   const preview = useQuery({ queryKey: ['access-package', key], queryFn: () => previewPackage(cart), enabled: cart.items.length > 0, placeholderData: keepPreviousData })
   const rows = cart.items.length ? preview.data?.items || [] : []
-  const names = [...new Set(rows.filter((row) => row.status === 'ok' && row.name).map((row) => row.name as string))].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }) || a.localeCompare(b))
-  const problems = rows.filter((row) => row.status !== 'ok').length
+  const names = [...new Set(rows.filter((row) => row.exportable && row.name).map((row) => row.name as string))].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }) || a.localeCompare(b))
+  const unconfirmed = new Set(rows.filter((row) => row.validation === 'unconfirmed' && row.name).map((row) => row.name)).size
+  const problems = rows.filter((row) => !row.exportable).length
+  const warning = unconfirmed ? ` ${unconfirmed} ${unconfirmed === 1 ? 'name is' : 'names are'} not confirmed by the imported catalogue.` : ''
   const suffixes = naming.data?.suffixes || []
   const copyAll = async () => {
-    try { await navigator.clipboard.writeText(names.join('\n')); announceExport({ kind: 'success', message: `Copied ${names.length} generated role names.` }) } catch { announceExport({ kind: 'error', message: 'Copy failed. Export the CSV instead.' }) }
+    try { await navigator.clipboard.writeText(names.join('\n')); announceExport({ kind: unconfirmed ? 'info' : 'success', message: `Copied ${names.length} generated role names.${warning}` }) } catch { announceExport({ kind: 'error', message: 'Copy failed. Export the CSV instead.' }) }
   }
   const download = async () => {
     setBusy(true)
-    try { const name = await exportPackage(cart); announceExport(name ? { kind: 'success', message: `Exported ${name}.` } : { kind: 'info', message: 'Export cancelled.' }) }
+    try { const name = await exportPackage(cart); announceExport(name ? { kind: unconfirmed ? 'info' : 'success', message: `Exported ${name}.${warning}` } : { kind: 'info', message: 'Export cancelled.' }) }
     catch (error) { announceExport({ kind: 'error', message: error instanceof Error ? error.message : 'Export failed.' }) }
     finally { setBusy(false) }
   }
@@ -54,15 +57,16 @@ export function AccessPackagePanel({ onClose }: { onClose: () => void }) {
     <>
       <SidePanel className="package-panel" title="Proposed access package"
         subtitle={<>{cart.items.length} {cart.items.length === 1 ? 'role' : 'roles'} selected. Names only: nothing is assigned or changed in SAP.</>}
-        headerActions={<Button size="compact" variant="ghost" aria-label="Clear package" onClick={() => setConfirmClear(true)} disabled={!cart.items.length}><Trash2 size={14} aria-hidden="true" /><span className="package-clear-label">Clear package</span></Button>}
         footer={<div className="package-footer">
           {!!cart.items.length && !!preview.data && (<p role="status" className="package-summary">
               <span>{cart.items.length} {cart.items.length === 1 ? 'role' : 'roles'}</span>
               <span className="package-summary-ok"><CheckCircle2 size={14} aria-hidden="true" />{names.length} valid {names.length === 1 ? 'name' : 'names'}</span>
-              {problems > 0 && <span className="package-summary-warn"><AlertTriangle size={14} aria-hidden="true" />{problems} need attention</span>}
+              {unconfirmed > 0 && <span className="package-summary-warn"><HelpCircle size={14} aria-hidden="true" />{unconfirmed} unconfirmed</span>}
+              {problems > 0 && <span className="package-summary-error"><XCircle size={14} aria-hidden="true" />{problems} need attention</span>}
             </p>)}
+          <Button variant="secondary" className="package-clear" onClick={() => setConfirmClear(true)} disabled={!cart.items.length}><Trash2 size={16} aria-hidden="true" />Clear package</Button>
           <Button onClick={() => void copyAll()} disabled={!names.length}><Copy size={16} aria-hidden="true" />Copy all names</Button>
-          <ExportCSVButton loading={busy} disabled={!names.length} onClick={() => void download()} title="Exports the valid generated names, sorted, one row per name." />
+          <ExportCSVButton loading={busy} disabled={!names.length} onClick={() => void download()} title="Exports the valid generated names (confirmed and unconfirmed), sorted, one row per name." />
         </div>}
         onClose={onClose}>
         <section className="package-config" aria-label="Package suffix">
@@ -70,13 +74,7 @@ export function AccessPackagePanel({ onClose }: { onClose: () => void }) {
             <Combobox label="Package default suffix" value={cart.defaultSuffix} options={suffixes.map((item) => item.value)} onChange={cart.setDefault} placeholder="Choose or type a suffix" clearLabel="No default suffix" maxLength={16} />
           </FormField>
           {defaultInvalid && <p role="alert" className="package-alert"><AlertTriangle size={14} aria-hidden="true" />Use letters, digits, underscore or hyphen (up to 16 characters).</p>}
-          {suffixes.length > 0 && (
-            <div className="package-suffix-chips" role="group" aria-label="Suffixes found in the imported role names">
-              <span className="text-muted">Found in your roles:</span>
-              {suffixes.slice(0, 8).map((item) => <button key={item.value} type="button" className="package-suffix-chip" aria-pressed={cart.defaultSuffix === item.value} onClick={() => cart.setDefault(item.value)}>{item.value}<span>{item.roles}</span></button>)}
-            </div>
-          )}
-          <p className="ui-description">The suffix replaces a wildcard or the organizational suffix of each catalogue role. A role suffix overrides the default. Release roles keep their exact names.</p>
+          <p className="ui-description">The suffix replaces a wildcard or the organizational suffix of each catalogue role. A role suffix overrides the default. Roles without suffix variants and release roles keep their exact names.</p>
         </section>
         {!cart.items.length ? <EmptyState>The access package is empty. Use Add to access package on a role in Role Lookup or Release Roles.</EmptyState>
           : preview.isError ? <ErrorState error={preview.error} onRetry={() => void preview.refetch()} />
@@ -85,27 +83,20 @@ export function AccessPackagePanel({ onClose }: { onClose: () => void }) {
 
             <ul className="package-list" aria-label="Roles in the package">
               {rows.map((row) => {
-                const status = STATUS[row.status], release = row.source === 'release'
+                const status = VALIDATION[row.validation], release = row.source === 'release', StatusIcon = status.icon, noteId = `package-note-${row.role}`
+                const messages = [...(row.validation === 'needs_suffix' ? [] : row.messages), ...(matchText(row) ? [matchText(row)] : [])]
                 return (
-                  <li key={row.role} className="package-row">
-                    <RoleEntry density="compact" moduleCode={release ? undefined : modules.get(row.role) ?? undefined} title={presentRoleDescription(row.description, areas).description} identifier={row.role} identifierLabel={release ? 'release role' : 'source role'}
-                      actions={<IconButton label={`Remove ${row.role} from access package`} onClick={() => cart.remove(row.role)}><Trash2 size={16} /></IconButton>}>
-                      <div className="package-row-fields">
-                        {release
-                          ? <div className="package-generated"><span className="package-generated-label">Source</span><StatusBadge tone="info">Release role</StatusBadge></div>
-                          : <FormField label="Role suffix">
-                            <Input aria-label={`Suffix for ${row.role}`} value={cart.items.find((item) => item.role === row.role)?.suffix || ''} maxLength={16} placeholder={cart.defaultSuffix || 'Default'} onChange={(event) => cart.setSuffix(row.role, event.target.value)} />
-                          </FormField>}
-                        <div className="package-generated">
-                          <span className="package-generated-label">Generated SAP role name</span>
-                          <div className="package-generated-value">
-                            {row.name ? <RoleIdentifier value={row.name} label="generated SAP role name" /> : <span className="text-xs text-muted">No name generated</span>}
-                            <StatusBadge tone={status.tone}>{status.text}</StatusBadge>
-                          </div>
-                        </div>
-                      </div>
-                      {row.status !== 'needs_suffix' && row.messages.map((message) => <p key={message} className="package-message">{message}</p>)}
-                      {row.catalogue && <p className="package-message">{matchText(row)}</p>}
+                  <li key={row.role} className="package-row" data-validation={row.validation}>
+                    <RoleEntry density="compact" moduleCode={release ? undefined : modules.get(row.role) ?? undefined} title={presentRoleDescription(row.description, areas).description} identifier={row.name ?? row.role} identifierLabel={row.name ? 'generated SAP role name' : release ? 'release role' : 'source role'}
+                      actions={<IconButton label={`Remove ${row.role} from access package`} onClick={() => cart.remove(row.role)}><Trash2 size={16} /></IconButton>}
+                      identifierSlot={<div className="package-row-line">
+                        {row.name ? <RoleIdentifier value={row.name} label="generated SAP role name" /> : <RoleIdentifier value={row.role} label={release ? 'release role' : 'source role'} />}
+                        {!release && <Input className="package-suffix-input" aria-label={`Suffix for ${row.role}`} aria-describedby={row.suffix_eligible ? undefined : noteId} value={row.suffix_eligible ? cart.items.find((item) => item.role === row.role)?.suffix || '' : ''} disabled={!row.suffix_eligible}
+                          maxLength={16} placeholder={row.suffix_eligible ? cart.defaultSuffix || 'Suffix' : 'Exact'} title={row.suffix_note ?? undefined} onChange={(event) => cart.setSuffix(row.role, event.target.value)} />}
+                        <span className="package-status" data-tone={status.tone} title={status.hint}><StatusIcon size={14} aria-hidden="true" />{status.text}</span>
+                      </div>}>
+                      {!row.suffix_eligible && !release && row.suffix_note && row.source === 'catalogue' && row.name && <p id={noteId} className="package-message">{row.suffix_note}</p>}
+                      {messages.map((message) => <p key={message} className="package-message">{message}</p>)}
                     </RoleEntry>
                   </li>
                 )

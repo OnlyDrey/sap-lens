@@ -49,12 +49,14 @@ test('package: default suffix, per-role override, validation, copy, CSV, persist
   await page.getByRole('button', { name: 'Access package (4)' }).click()
   const panel = page.getByRole('dialog', { name: 'Proposed access package' })
   await expect(panel).toContainText(/nothing is assigned or changed in SAP/i)
-  await expect(panel.getByRole('group', { name: 'Suffixes found in the imported role names' })).toContainText(/ENK\s*2.*ENP\s*2/)
+  await expect(panel.getByText('Found in your roles')).toHaveCount(0)
   await expect(panel.getByRole('listitem').first()).toContainText('Needs suffix')
+  await panel.getByRole('combobox', { name: 'Package default suffix' }).click()
+  await expect(page.getByRole('option', { name: 'ENP', exact: true })).toBeVisible(); await expect(page.getByRole('option', { name: 'ENK', exact: true })).toBeVisible()
   const row = (role: string) => panel.getByRole('listitem').filter({ has: page.getByRole('button', { name: `Remove ${role} from access package` }) })
   await panel.getByRole('combobox', { name: 'Package default suffix' }).fill('enk')
   await expect(row('ZC:MM:BUY:ENP')).toContainText('ZC:MM:BUY:ENK')
-  await expect(row('ZC:MM:BUY:*')).toContainText('Duplicate name')
+  await expect(row('ZC:MM:BUY:*')).toContainText('Invalid'); await expect(row('ZC:MM:BUY:*')).toContainText('Same generated name as ZC:MM:BUY:ENP')
   await row('ZC:MM:BUY:*').getByRole('textbox', { name: 'Suffix for ZC:MM:BUY:*' }).fill('eno')
   await expect(row('ZC:MM:BUY:*')).toContainText('ZC:MM:BUY:ENO')
   await expect(row('ZC:MM:BUY:*')).toContainText('Covered by catalogue pattern ZC:MM:BUY:*')
@@ -62,9 +64,9 @@ test('package: default suffix, per-role override, validation, copy, CSV, persist
   await expect(row('ZC:MM:BUY:ENP')).toContainText('ZC:MM:BUY:ENS')
   await expect(row('ZC:MM:BUY:*')).toContainText('ZC:MM:BUY:ENO') // the explicit override survives a default change
   await expect(row('ZC:SD:ORD:ENK')).toContainText('ZC:SD:ORD:ENS')
-  await expect(row('ZC:SD:ORD:ENK')).toContainText('Not found in the imported catalogue')
+  await expect(row('ZC:SD:ORD:ENK')).toContainText('Unconfirmed'); await expect(row('ZC:SD:ORD:ENK')).toContainText('not confirmed by the imported catalogue')
   await expect(row('ZC:MM:BUY:ENP')).toContainText('Covered by catalogue pattern ZC:MM:BUY:*')
-  await expect(panel.locator('.package-summary')).toContainText(/4 roles.*4 valid names/)
+  await expect(panel.locator('.package-summary')).toContainText(/4 roles.*4 valid names.*2 unconfirmed/)
   await panel.getByRole('button', { name: 'Copy all names' }).click()
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('ZC:FI:VIEW:ENS\nZC:MM:BUY:ENO\nZC:MM:BUY:ENS\nZC:SD:ORD:ENS')
   await row('ZC:MM:BUY:ENP').getByRole('button', { name: 'Copy generated SAP role name ZC:MM:BUY:ENS' }).click()
@@ -75,11 +77,11 @@ test('package: default suffix, per-role override, validation, copy, CSV, persist
   expect(file.suggestedFilename()).toMatch(/^sap-lens-access-package-\d{4}-\d{2}-\d{2}\.csv$/)
   const text = readFileSync((await file.path())!, 'utf8')
   expect(text.split('\r\n').filter(Boolean)).toEqual([
-    '﻿"Generated SAP Role Name";"Role Description";"Suffix"',
-    '"ZC:FI:VIEW:ENS";"Finance view";"ENS"', '"ZC:MM:BUY:ENO";"Buyer wildcard";"ENO"', '"ZC:MM:BUY:ENS";"Buyer plant";"ENS"', '"ZC:SD:ORD:ENS";"Orders ENK";"ENS"',
+    '﻿"Generated SAP Role Name";"Role Description";"Suffix";"Validation"',
+    '"ZC:FI:VIEW:ENS";"Finance view";"ENS";"Unconfirmed"', '"ZC:MM:BUY:ENO";"Buyer wildcard";"ENO";"Confirmed"', '"ZC:MM:BUY:ENS";"Buyer plant";"ENS";"Confirmed"', '"ZC:SD:ORD:ENS";"Orders ENK";"ENS";"Unconfirmed"',
   ])
   await row('ZC:SD:ORD:ENK').getByRole('button', { name: 'Remove ZC:SD:ORD:ENK from access package' }).click()
-  await expect(panel.locator('.package-summary')).toContainText(/3 roles.*3 valid names/)
+  await expect(panel.locator('.package-summary')).toContainText(/3 roles.*3 valid names.*1 unconfirmed/)
   await page.keyboard.press('Escape')
   await goTo(page, 'Dashboard'); await goTo(page, 'Role Lookup')
   await expect(page.getByRole('button', { name: 'Access package (3)' })).toBeVisible()
@@ -148,10 +150,9 @@ test('the access package drawer keeps a compact header and a sticky action foote
   await page.getByRole('button', { name: 'Access package (2)' }).click()
   const panel = page.getByRole('dialog', { name: 'Proposed access package' })
   await expect(panel).toContainText('2 roles selected')
-  // Clear package stays reachable by name while its label is visually hidden on narrow screens.
-  const clear = panel.getByRole('button', { name: 'Clear package' })
+  // Clear package, Copy all names and Export CSV live in the sticky footer; the header only carries the title and Close.
+  const clear = panel.locator('.package-footer').getByRole('button', { name: 'Clear package' })
   await expect(clear).toBeVisible()
-  expect((await clear.boundingBox())!.width).toBeLessThan(60)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
   // The footer (summary, copy, export) stays inside the viewport while the role list scrolls.
   const footer = panel.locator('.package-footer')

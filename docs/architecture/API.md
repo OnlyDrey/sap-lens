@@ -12,7 +12,7 @@ Desktop: the owned `http://127.0.0.1:<selected-port>` origin, preferring `18743`
 | POST | `/api/refresh-schedule/preview` | Explain an unsaved schedule draft (description and next runs, or the reason it is invalid); the schedule is saved with `POST /api/configuration` (`refresh_schedule`) |
 | GET | `/api/roles/naming` | Organizational suffixes detected in the imported role names |
 | POST | `/api/roles/package/preview` | Proposed access package: generated names, validation and catalogue matches for any number of roles (read-only) |
-| POST | `/api/roles/package/export` | Package CSV (`sap-lens-access-package-DATE.csv`) of the valid generated names |
+| POST | `/api/roles/package/export` | Package CSV (`sap-lens-access-package-DATE.csv`, columns name, description, suffix, validation) of the confirmed and unconfirmed generated names |
 | GET | `/api/roles/{agr_name}` | Role details with single roles and transactions |
 | GET | `/api/modules` | Distinct module labels |
 | POST | `/api/compare` | Compare two to five distinct roles |

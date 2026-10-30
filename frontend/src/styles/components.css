@@ -791,14 +791,10 @@ progress::-moz-progress-bar { background:var(--progress-fill); }
 .package-list { display:grid; margin:0; padding:0; list-style:none; }
 .package-row { padding:var(--space-2) 0; border-bottom:1px solid var(--border); min-width:0; }
 .package-row:last-child { border-bottom:0; }
-.package-row-fields { display:grid; grid-template-columns:minmax(7rem,9rem) minmax(0,1fr); gap:var(--space-3); align-items:start; width:100%; }
-.package-generated { display:grid; gap:var(--space-1); min-width:0; }
-.package-generated-label { font-size:var(--font-label); font-weight:600; color:var(--text2); }
-.package-generated-value { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2); min-width:0; }
 .package-message { margin:0; font-size:var(--font-meta); color:var(--muted); }
 .package-footer { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2); }
 .package-footer > :last-child { margin-left:auto; }
-@media(max-width:500px){ .package-clear-label { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; } .package-row-fields { grid-template-columns:minmax(0,1fr); } .package-footer > :last-child { margin-left:0; } }
+@media(max-width:500px){ .package-footer > :last-child { margin-left:0; } }
 
 /* Release role table: one dense row per role; counts and validity stay compact and the package toggle is a right-aligned action column. */
 .release-directory-table td { vertical-align:middle; }
@@ -1139,3 +1135,15 @@ button.chart-row:focus-visible { outline:var(--focus-width) solid var(--focus); 
 
 .info-row-progress { flex:1 0 100%; width:100%; }
 .info-row[data-progress] { flex-wrap:wrap; }
+
+/* Access package row: one codeblock, the suffix field right of it and a compact validation status. */
+.package-row-line { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2); width:100%; min-width:0; }
+.package-row-line > .role-identifier { flex:1 1 14rem; min-width:0; }
+.package-suffix-input { flex:0 0 6.5rem; width:6.5rem; min-height:var(--control-compact); text-transform:uppercase; }
+.package-suffix-input:disabled { text-transform:none; }
+.package-status { display:inline-flex; align-items:center; gap:var(--space-1); flex:none; font-size:var(--font-meta); font-weight:600; white-space:nowrap; }
+.package-status[data-tone="success"] { color:var(--success); }
+.package-status[data-tone="warning"] { color:var(--warning); }
+.package-status[data-tone="error"] { color:var(--error); }
+.package-summary-error { display:inline-flex; align-items:center; gap:var(--space-1); color:var(--error); }
+.package-footer .package-clear { margin-right:auto; }

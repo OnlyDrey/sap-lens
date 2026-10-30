@@ -64,7 +64,8 @@
     "test_missing_roles"
    ],
    "browser": [
-    "access-package"
+    "access-package",
+    "access-package-r2"
    ]
   },
   "account-review": {
@@ -164,8 +165,8 @@
    "backend": [],
    "browser": [
     "consolidated-refinement",
-      "kpi-standard",
-      "refinement-r2",
+    "kpi-standard",
+    "refinement-r2",
     "a11y-audit",
     "design-system",
     "investigation-ux",
