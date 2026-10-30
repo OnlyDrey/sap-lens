@@ -56,6 +56,12 @@ Verification method: **code** (read the component and handler), **browser** (Pla
 | E06 | Period menu icons, trigger size, alignment, archive, delete, compare | Implemented | Implemented | `Sod/SodPeriods` | None | visual (menu open), `sod-periods` |
 | E07 | Document details expanded by default, fields, PDF/DOCX, approval and signing information | Implemented | Implemented | `Sod/SodReports` | None | visual, `sod-reports`, `test_sod_reports` |
 
+## Test results
+
+- Full regression, single process as in CI (`python scripts/run-tests.py regression --jobs 1`, head `1933f67`): backend 779 tests, 3 skipped (PowerShell and PyInstaller only), 0 failed; browser 521 tests, 0 skipped, 0 failed; build with type check, documentation links, workflow contracts, Lucide catalog, whitespace and `pip check` passed.
+- An earlier three-shard run (`--jobs 3`, same code apart from the test hardening below) had 3 browser failures that all passed in isolation: `data-aware-ux` light 800, `investigation-ux` combobox keyboard and `ux` startup connection failure (a route mock whose response was disposed by `page.reload()`). The two mock handlers were hardened. The `investigation-ux` failure was not reproduced in 25 loaded repeats and its cause is unknown; four cores were running three browsers and three servers at that moment, so CPU contention is the likely trigger, not a proven cause.
+- `npm audit` and `pip-audit` were not re-run in this pass.
+
 ## Visual QA
 
 A temporary harness (not committed) drove the Access family (dashboard, Role Lookup with filters, package drawer, User Access, user details,
