@@ -157,6 +157,7 @@
     "sod-integration",
     "sod-layout",
     "sod-overview-heatmap",
+    "sod-overview-actionable",
     "sod-periods",
     "sod-reports",
     "sod-stability",

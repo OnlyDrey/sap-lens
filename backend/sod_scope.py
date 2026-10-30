@@ -26,7 +26,7 @@ _derived = {}
 
 def live_query(validity='active', as_of=None):
     return dict(kind='users', validity=validity, as_of=as_of or date.today(), selected_roles=[], search='', risk='', criticality='', risk_type='',
-                category='', username='', group='', composite_role='', single_role='', tcode='', account_status='', sort='subject', descending=False)
+                category='', username='', group='', composite_role='', single_role='', tcode='', account_status='', multiple_risks=False, sort='subject', descending=False)
 
 
 def load(context, validity='active', as_of=None):
@@ -173,6 +173,8 @@ def visible_cells(bundle, model, state, q):
         if not _path_matches(finding, q):
             continue
         entry = model[finding['subject']]
+        if q.get('multiple_risks') and len(entry['findings']) < 2:
+            continue
         names = [name for name, item in entry['activities'].items() if finding['risk_id'] in item['risks']]
         if q.get('acceptance') and state['acceptance'][finding['finding_id']][0] != q['acceptance']:
             continue
@@ -268,6 +270,44 @@ def verification_map(actions):
     verify = make_verifier()
     return {item.assignment_id: verify(item.user, item.assignment_id) for item in actions
             if item.assignment_id and item.recommended == 'Remove assignment' and item.status != 'Cancelled'}
+
+
+def removal_verification(actions):
+    """(summary, ids) for tracked removals. Verified needs source evidence newer than the action that shows the assignment gone.
+
+    A completed status is a manual claim and never verifies. The assignment must be absent from current evidence with
+    complete source coverage and the User-Role source must have been imported after the action was created.
+    """
+    from datetime import datetime, timezone
+    tracked = [item for item in actions if item.assignment_id and item.recommended == 'Remove assignment' and item.status != 'Cancelled']
+    summary = dict(tracked=len(tracked), verified=0, still_present=0, awaiting_evidence=0, not_assessable=0, available=True, reason=None)
+    if not tracked:
+        summary.update(available=False, reason='No removal action is tracked yet.')
+        return summary, set()
+    reference = get_settings().data_lifecycle.sources.get('users')
+
+    def moment(text):
+        try:
+            value = datetime.fromisoformat(text)
+        except (TypeError, ValueError):
+            return None
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    imported = moment(reference.imported_at) if reference else None
+    verify, ids = make_verifier(), set()
+    for item in tracked:
+        text = verify(item.user, item.assignment_id)
+        if text.startswith('Not assessable'):
+            summary['not_assessable'] += 1
+        elif text.startswith('Still present'):
+            summary['still_present'] += 1
+        elif imported is not None and (moment(item.created) or imported) < imported:
+            summary['verified'] += 1
+            ids.add(item.id)
+        else:
+            summary['awaiting_evidence'] += 1
+    if summary['not_assessable'] == len(tracked):
+        summary.update(available=False, reason='Current evidence cannot confirm removals (analysis unavailable or source coverage incomplete).')
+    return summary, ids
 
 
 OBSERVE_LIMIT = 100000

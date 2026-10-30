@@ -109,14 +109,14 @@ const DECISION_OPTIONS: Record<string, string[]> = {
 }
 
 export type FilterField = 'group' | 'risk' | 'activity' | 'username' | 'role' | 'role_suffix' | 'tcode' | 'category' | 'criticality' | 'validity' | 'activity_decision' | 'assignment_decision' | 'acceptance'
-  | 'risk_type' | 'composite_role' | 'single_role' | 'account_status' | 'review_status'
+  | 'risk_type' | 'composite_role' | 'single_role' | 'account_status' | 'review_status' | 'multiple_risks'
 const FIELD_LABELS: Record<string, [string, number]> = {
   group: ['SAP User Group', 256], risk: ['Risk ID', 512], activity: ['Activity', 512], username: ['SAP username', 512], role: ['Assigned role', 512], role_suffix: ['Role suffix', 128],
   tcode: ['Transaction code', 256], category: ['Business area', 120], criticality: ['Source criticality', 64], risk_type: ['Risk type', 64],
   composite_role: ['Catalogue role', 512], single_role: ['Single role', 512],
 }
 const FIELD_SECTIONS: { title: string; fields: FilterField[] }[] = [
-  { title: 'Subject', fields: ['group', 'username', 'account_status'] },
+  { title: 'Subject', fields: ['group', 'username', 'account_status', 'multiple_risks'] },
   { title: 'Risk and activity', fields: ['risk', 'activity', 'tcode', 'category', 'criticality', 'risk_type'] },
   { title: 'Roles and assignments', fields: ['role', 'role_suffix', 'composite_role', 'single_role', 'validity'] },
   { title: 'Review status', fields: ['review_status', 'activity_decision', 'assignment_decision', 'acceptance'] },
@@ -177,7 +177,7 @@ export function SodFilters({ view, filters, setFilters, fields, sorts, actions, 
   const apply = (value: Record<string, unknown>) => {
     onReset?.()
     const next = { ...defaults, ...value } as Filters
-    for (const name of Object.keys(FIELD_LABELS).concat(Object.keys(DECISION_LABELS), ['validity', 'account_status'])) if (!shown.has(name)) { next[name] = defaults[name] ?? ''; if (MULTI[name]) next[MULTI[name]] = [] }
+    for (const name of Object.keys(FIELD_LABELS).concat(Object.keys(DECISION_LABELS), ['validity', 'account_status', 'multiple_risks'])) if (!shown.has(name)) { next[name] = defaults[name] ?? ''; if (MULTI[name]) next[MULTI[name]] = [] }
     setFilters(next)
   }
   const list = (name: string) => (Array.isArray(filters[name]) ? (filters[name] as string[]) : [])
@@ -204,6 +204,14 @@ export function SodFilters({ view, filters, setFilters, fields, sorts, actions, 
           <option value="investigating">Under investigation</option>
           <option value="reviewed">Reviewed assignments</option>
           <option value="all">All assignments</option>
+        </Select>
+      </FormField>
+    )
+    if (name === 'multiple_risks') return (
+      <FormField key={name} label="Risks per user">
+        <Select value={text(name)} onChange={(event) => update(name, event.target.value)}>
+          <option value="">All users with conflicts</option>
+          <option value="true">More than one distinct risk</option>
         </Select>
       </FormField>
     )

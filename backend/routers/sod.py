@@ -171,7 +171,8 @@ def governance_overview():
     latest_approval=dict(id=latest.id,name=latest.name,state=latest.state,approval_date=latest.approval_date.isoformat(),approver=latest.approver) if latest else None
     return dict(available=True,latest_approval=latest_approval,users_with_conflicts=len(model),user_risk_findings=sum(len(entry['findings']) for entry in model.values()),
                 activities=tally('activity'),assignments=tally('assignment'),acceptance=tally('acceptance'),
-                assignments_marked_remove=sum(1 for life,_ in state['assignment'].values() if life=='Removal required'),
+                assignments_marked_remove=sum(1 for life,_ in state['assignment'].values() if life=='Removal required'),concentration=governance.conflict_concentration(model),
                 remediation=dict(open_actions=len(open_actions),overdue=sum(1 for item in open_actions if item.due_date and item.due_date<today),
-                                 removal_without_action=len({(row['user'],row['assignment_id']) for row in rows if row['recommended']=='Remove assignment' and not row['action']})),
+                                 removal_without_action=len({(row['user'],row['assignment_id']) for row in rows if row['recommended']=='Remove assignment' and not row['action']}),
+                                 verification=scope.removal_verification(actions)[0]),
                 periods=progress,change=change,as_of=bundle['as_of'])

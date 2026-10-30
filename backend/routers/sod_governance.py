@@ -35,7 +35,7 @@ def scope_query(context: str = Query('current', pattern=legacy.CONTEXT_PATTERN),
                 risks: list[str] = Query(default=[], max_length=100), activities: list[str] = Query(default=[], max_length=100), groups: list[str] = Query(default=[], max_length=100),
                 roles: list[str] = Query(default=[], max_length=100), tcodes: list[str] = Query(default=[], max_length=100), categories: list[str] = Query(default=[], max_length=50),
                 criticalities: list[str] = Query(default=[], max_length=50),
-                account_status: Literal['', 'locked', 'unlocked', 'ad_disabled', 'ad_enabled', 'unknown'] = '',
+                account_status: Literal['', 'locked', 'unlocked', 'ad_disabled', 'ad_enabled', 'unknown'] = '', multiple_risks: bool = False,
                 activity_decision: Lifecycle = '', assignment_decision: Lifecycle = '', acceptance: Lifecycle = '',
                 review_status: Literal['', 'attention', 'pending', 'investigating', 'reviewed', 'all'] = '',
                 sort: Literal['subject', 'findings'] = 'subject', descending: bool = False):
@@ -624,17 +624,28 @@ def remediation_data(q):
 
 
 REMEDIATION_FILTER = Literal['', 'Remove assignment', 'Investigate assignment', 'Apply compensating control', 'Maintain access', 'No action required']
+TRACKING_FILTER = Literal['', 'untracked', 'verified']
+
+
+def tracked_rows(rows, tracking):
+    """``untracked``: removal recommendations that have no remediation action yet."""
+    return [row for row in rows if row['recommended'] == 'Remove assignment' and not row['action']] if tracking == 'untracked' else rows
 
 
 @router.get('/remediation')
-def remediation(q: dict = Depends(scope_query), recommended: REMEDIATION_FILTER = '', offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200)):
+def remediation(q: dict = Depends(scope_query), recommended: REMEDIATION_FILTER = '', tracking: TRACKING_FILTER = '', offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200)):
     bundle, rows, summary, actions = remediation_data(q)
     if recommended:
         rows = [row for row in rows if row['recommended'] == recommended]
+    rows = tracked_rows(rows, tracking)
+    verified_ids = scope.removal_verification(actions)[1] if bundle['frozen_decisions'] is None else set()
+    if tracking == 'verified':
+        rows = []
     verify = (lambda user, aid: (bundle['frozen_decisions'].get('verification') or {}).get(aid, 'Not assessed at approval')) if bundle['frozen_decisions'] is not None else scope.make_verifier()
     tracked = [dict(item.model_dump(mode='json'), verification=verify(item.user, item.assignment_id) if item.assignment_id and item.recommended == 'Remove assignment' else 'Not verifiable from source evidence')
                for item in actions]
-    return dict(info(bundle), items=rows[offset:offset + limit], total=len(rows), summary=summary, offset=offset, limit=limit, actions=tracked)
+    tracked = [dict(item, verified=item['id'] in verified_ids) for item in tracked if tracking != 'verified' or item['id'] in verified_ids]
+    return dict(info(bundle), items=rows[offset:offset + limit], total=len(rows), summary=summary, offset=offset, limit=limit, actions=tracked, tracking=tracking)
 
 
 REMEDIATION_COLUMNS = ['USERNAME', 'ACTIVITY', 'RISKS', 'ROLE', 'ASSIGNMENT_ID', 'VALID_FROM', 'VALID_TO', 'ACTIVITY_REVIEW', 'ASSIGNMENT_REVIEW', 'RISK_ACCEPTANCE',
@@ -649,10 +660,11 @@ def remediation_csv_rows(rows):
 
 
 @router.get('/remediation/export')
-def remediation_export(q: dict = Depends(scope_query), recommended: REMEDIATION_FILTER = ''):
+def remediation_export(q: dict = Depends(scope_query), recommended: REMEDIATION_FILTER = '', tracking: TRACKING_FILTER = ''):
     _, rows, _, _ = remediation_data(q)
     if recommended:
         rows = [row for row in rows if row['recommended'] == recommended]
+    rows = tracked_rows(rows, tracking)
     return csv_response(REMEDIATION_COLUMNS, remediation_csv_rows(rows), 'access-remediation')
 
 

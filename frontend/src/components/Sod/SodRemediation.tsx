@@ -28,7 +28,8 @@ interface Row {
   activity_decision: string; assignment_decision: string; risk_acceptance: string[]; recommended: string; reason: string; controls: string
   action: TrackedAction | null; owner: string; due_date: string | null; action_status: string; overdue: boolean; verification: string
 }
-interface Result extends ContextInfo { items: Row[]; total: number; summary: Record<string, number>; actions: TrackedAction[]; offset: number; limit: number }
+interface Result extends ContextInfo { items: Row[]; total: number; summary: Record<string, number>; actions: (TrackedAction & { verified?: boolean })[]; offset: number; limit: number; tracking?: string }
+const TRACKING: [string, string][] = [['', 'All rows'], ['untracked', 'Awaiting action'], ['verified', 'Verified removals']]
 
 const actorKey = 'sap-lens-sod-reviewer'
 const remembered = () => { try { return sessionStorage.getItem(actorKey) || '' } catch { return '' } }
@@ -106,6 +107,7 @@ export function RemediationView() {
     [pageSize, setPageSizeState] = useState(50),
     [openKeys, setOpenKeys] = useState<Set<string>>(new Set())
   const toggleKey = (key: string) => setOpenKeys((previous) => { const next = new Set(previous); if (next.has(key)) next.delete(key); else next.add(key); return next })
+  const tracking = typeof filters.tracking === 'string' ? filters.tracking : '', verifiedOnly = tracking === 'verified'
   const params = scopeParams(context, filters, { recommended, offset, limit: pageSize })
   const result = useQuery({ queryKey: ['sod-remediation', params.toString()], queryFn: () => sod<Result>('/api/sod/remediation', params) })
   const data = result.data
@@ -131,7 +133,7 @@ export function RemediationView() {
       <CoverageNotice info={data} />
       <SodFilters view="sod_queue" filters={filters} setFilters={(value) => { setOffset(0); setFiltersState(value) }}
         fields={['group', 'username', 'risk', 'activity', 'role', 'role_suffix', 'tcode', 'category', 'validity']}
-        actions={<ExportCSVButton loading={busy} disabled={!data?.total} onClick={() => void exportCsv()} title="Exports the filtered remediation rows." />}>
+        actions={<ExportCSVButton loading={busy} disabled={!data?.total || verifiedOnly} onClick={() => void exportCsv()} title={verifiedOnly ? 'Verified removals are tracked actions; export the remediation report instead.' : 'Exports the filtered remediation rows.'} />}>
       {result.isError ? <ErrorState error={result.error} onRetry={() => void result.refetch()} /> : !data ? <LoadingState /> : <>
         <Toolbar aria-label="Recommended handling">
           <Button variant={recommended ? 'secondary' : 'primary'} aria-pressed={!recommended} onClick={() => { setRecommended(''); setOffset(0) }}>All handling</Button>
@@ -140,8 +142,11 @@ export function RemediationView() {
           <StatusBadge tone={data.summary.overdue ? 'error' : 'neutral'}>{data.summary.overdue ?? 0} overdue</StatusBadge>
           <Button variant="ghost" onClick={() => change({ sodView: 'reports' })}>Remediation report</Button>
         </Toolbar>
+        <Toolbar aria-label="Remediation tracking">
+          {TRACKING.map(([value, label]) => <Button key={value} variant={tracking === value ? 'primary' : 'secondary'} aria-pressed={tracking === value} onClick={() => { setFiltersState({ ...filters, tracking: value }); setOffset(0) }}>{label}</Button>)}
+        </Toolbar>
         <p className="ui-description">A proposed removal is not completed remediation. Verification compares with the latest imported evidence and is only conclusive when source coverage is complete.</p>
-        {data.items.length ? <>
+        {verifiedOnly ? <p className="ui-description" role="status">Verified removals need a tracked removal action and a newer User-Role import that no longer contains the assignment. A completed status alone never verifies. They are listed under Tracked actions.</p> : data.items.length ? <>
           <Toolbar aria-label="Remediation row controls">
             <span className="ui-description" role="status">{parents.length} {parents.length === 1 ? 'assignment' : 'assignments'} · {data.items.length} activity {data.items.length === 1 ? 'row' : 'rows'} on this page</span>
             <Button size="compact" onClick={() => setOpenKeys(new Set(parents.map((parent) => parent.key)))}>Expand all</Button>
@@ -173,15 +178,15 @@ export function RemediationView() {
                   <td className="text-xs" colSpan={2}>Verification: {row.verification}</td>
                 </tr>)} />
             })}</tbody>
-          </DataTable></> : <EmptyState>No decided items match. Pending reviews are excluded until a decision is recorded.</EmptyState>}
-        <Pagination label="Remediation pages" offset={data.offset} total={data.total} limit={data.limit} onChange={setOffset} pageSizes={PAGE_SIZES} onPageSize={(value) => { setPageSizeState(value); setOffset(0) }} />
+          </DataTable></> : <EmptyState>{tracking === 'untracked' ? 'No removal recommendation is waiting for an action.' : 'No decided items match. Pending reviews are excluded until a decision is recorded.'}</EmptyState>}
+        {!verifiedOnly && <Pagination label="Remediation pages" offset={data.offset} total={data.total} limit={data.limit} onChange={setOffset} pageSizes={PAGE_SIZES} onPageSize={(value) => { setPageSizeState(value); setOffset(0) }} />}
         {data.actions.length > 0 && <>
           <h3 className="text-base font-semibold">Tracked actions</h3>
           <DataTable caption="Tracked remediation actions">
             <thead><tr><th>Action</th><th>Owner / due</th><th>Status</th><th>Verification</th></tr></thead>
             <tbody>{data.actions.map((action) => (
               <tr key={action.id}><td>{action.user} · {action.role || action.activity || action.risk_id}<p className="text-xs">{action.recommended}: {action.reason}</p></td>
-                <td>{action.owner || '—'}<p>{action.due_date ? formatDate(action.due_date) : '—'}</p></td><td>{action.status}{action.completion_evidence && <p className="text-xs">{action.completion_evidence}</p>}</td><td className="text-xs">{action.verification}</td></tr>))}</tbody>
+                <td>{action.owner || '—'}<p>{action.due_date ? formatDate(action.due_date) : '—'}</p></td><td>{action.status}{action.completion_evidence && <p className="text-xs">{action.completion_evidence}</p>}</td><td className="text-xs">{action.verified ? <StatusBadge tone="success">Verified</StatusBadge> : null}<p>{action.verification}</p></td></tr>))}</tbody>
           </DataTable></>}
       </>}
       </SodFilters>

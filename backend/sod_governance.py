@@ -306,6 +306,24 @@ def queue_items(model, state, context_info=None):
 GROUPS = ('Remove assignment', 'Investigate assignment', 'Apply compensating control', 'Maintain access', 'No action required')
 
 
+def conflict_concentration(model):
+    """Users with more than one distinct risk, and the assigned roles behind the most distinct user-risk findings.
+
+    A finding is one (user, risk) pair, so a role is never counted twice for the same user and risk however many
+    activities or assignments of it supply that risk.
+    """
+    roles = {}
+    for user, entry in model.items():
+        for assignment in entry['assignments'].values():
+            for risk in assignment['risks'] & entry['findings'].keys():
+                item = roles.setdefault(assignment['role'], dict(users=set(), findings=set()))
+                item['users'].add(user)
+                item['findings'].add((user, risk))
+    ranked = sorted(((role, len(item['users']), len(item['findings'])) for role, item in roles.items()), key=lambda row: (-row[2], -row[1], row[0].casefold()))
+    return dict(multi_risk_users=sum(1 for entry in model.values() if len(entry['findings']) > 1),
+                top_roles=[dict(role=role, users=users, findings=findings) for role, users, findings in ranked[:50]], top_roles_total=len(ranked))
+
+
 def remediation_rows(model, state, actions, verify, today=None, include_pending=False):
     """Recommended handling per (user, activity, assignment) for decided items; pending items are excluded.
 
