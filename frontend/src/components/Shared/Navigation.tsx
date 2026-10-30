@@ -207,7 +207,7 @@ export function MainNavigationGroup({ label, icon, active, href, onNavigate, ite
   return (
     <div className="primary-nav-group" data-active={active || undefined}>
       <MainNavigationItem label={label} icon={icon} active={active} href={href} onNavigate={onNavigate} />
-      <Popover label={`${label} pages`} preferredWidth={240} triggerSize="icon"
+      <Popover label={`${label} pages`} preferredWidth={240} triggerSize="icon" className="ui-popover-menu"
         trigger={<span className="relative inline-flex"><ChevronDown size={16} aria-hidden="true" /><span className="sr-only">{label} pages</span></span>}>
         {(close) => (
           <ul className="primary-submenu" aria-label={`${label} pages`}>

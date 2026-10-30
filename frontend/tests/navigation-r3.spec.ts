@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { cleanup, openSod, seedGovernance } from './sod-fixture'
+import { cleanup, headers, openSod, seedGovernance } from './sod-fixture'
 
 let directory = ''
 test.beforeEach(async ({ request }) => { directory = await seedGovernance(request, 'static') })
@@ -89,4 +89,28 @@ test('secondary navigation, explorer and SoD settings actions carry icons and re
   const edit = page.getByRole('button', { name: /^Edit SoD risk / }).first()
   const [a, b] = [await edit.boundingBox(), await source.boundingBox()]
   expect(Math.abs(a!.height - b!.height)).toBeLessThanOrEqual(1); expect(Math.abs(a!.y - b!.y)).toBeLessThan(3)
+})
+
+for (const width of [375, 800, 1280]) for (const theme of ['light', 'dark']) test(`submenu overlays the page without scrollbars, size changes or left borders (${theme} ${width})`, async ({ page, request }) => {
+  const settings = (await (await request.get('/api/configuration', { headers })).json()).settings; settings.theme = theme
+  expect((await request.post('/api/configuration', { headers, data: settings })).ok()).toBeTruthy()
+  await page.setViewportSize({ width, height: 800 })
+  await page.goto('/#session=browser-test-session')
+  const header = page.locator('header').first(), before = await header.boundingBox()
+  await main(page).getByRole('button', { name: 'SoD pages' }).click()
+  const menu = page.getByRole('dialog', { name: 'SoD pages' })
+  await expect(menu).toBeVisible()
+  expect(await menu.evaluate((element) => ({ y: getComputedStyle(element).overflow, fits: element.scrollHeight <= element.clientHeight && element.scrollWidth <= element.clientWidth }))).toEqual({ y: 'visible', fits: true })
+  expect(await header.boundingBox()).toEqual(before) // the navbar keeps its size
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
+  const link = menu.getByRole('link', { name: 'Risk Matrix' })
+  for (const action of ['hover', 'focus'] as const) {
+    await link[action]()
+    expect(await link.evaluate((element) => { const style = getComputedStyle(element); return [style.borderLeftWidth, style.boxShadow] })).toEqual(['0px', 'none'])
+  }
+  await menu.getByRole('link', { name: 'Overview' }).evaluate((element) => element.setAttribute('aria-current', 'page')) // the active entry
+  const active = menu.getByRole('link', { name: 'Overview' })
+  expect(await active.evaluate((element) => { const style = getComputedStyle(element); return [style.borderLeftWidth, style.boxShadow, style.backgroundColor !== 'rgba(0, 0, 0, 0)'] })).toEqual(['0px', 'none', true])
+  await page.keyboard.press('Escape')
+  await expect(menu).toHaveCount(0)
 })
