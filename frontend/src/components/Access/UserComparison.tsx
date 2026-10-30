@@ -1,3 +1,4 @@
+import { MultiSelectFilter } from '@/components/Shared/MultiSelectFilter'
 import { Popover } from '@/components/Shared/Popover'
 import { announceExport } from '@/lib/exportNotice'
 import { FilterLayout, FilterSection, PageToolbar, SortControl } from '@/components/Shared/FilterLayout'
@@ -29,7 +30,6 @@ import {
   type Page,
   type UserRow,
 } from '@/api/access'
-import { Combobox } from '@/components/Shared/Combobox'
 import { Select } from '@/components/Shared/Select'
 import { AccountStatus } from '@/components/Shared/AccountStatus'
 import { SavedFilters } from '@/components/Shared/SavedFilters'
@@ -206,7 +206,7 @@ export interface ComparisonContext {
   kind: string
   difference: string
   search: string
-  area: string
+  areas: string[]
 }
 export function UserComparison({
   initialUser = '',
@@ -230,7 +230,7 @@ export function UserComparison({
     [difference, setDifference] = useState(context?.difference || ''),
     [search, setSearch] = useState(context?.search || ''),
     [term, setTerm] = useState(context?.search || ''),
-    [area, setArea] = useState(context?.area || ''),
+    [areas, setAreas] = useState<string[]>(context?.areas || []),
     [offset, setOffset] = useState(0),
     [sort, setSort] = useState(context?.sort || 'identifier'),
     [descending, setDescending] = useState(context?.descending || false),
@@ -262,7 +262,7 @@ export function UserComparison({
         kind,
         difference,
         search,
-        area,
+        areas,
         sort,
         descending,
       }),
@@ -273,13 +273,13 @@ export function UserComparison({
       kind,
       difference,
       search,
-      area,
+      areas,
       sort,
       descending,
       onContext,
     ],
   )
-  const state = { validity, kind, difference, search, area, sort, descending }
+  const state = { validity, kind, difference, search, areas, sort, descending }
   const params = new URLSearchParams({
     user_a: a,
     user_b: b,
@@ -287,10 +287,10 @@ export function UserComparison({
     kind,
     difference,
     search: term,
-    area,
     sort,
     descending: String(descending),
   })
+  areas.forEach(value => params.append('areas', value))
   const key = params.toString(),
     operationKey = JSON.stringify([
       a,
@@ -299,7 +299,7 @@ export function UserComparison({
       kind,
       difference,
       search,
-      area,
+      areas,
       sort,
       descending,
     ]),
@@ -331,7 +331,9 @@ export function UserComparison({
     if (['', 'shared', 'a', 'b'].includes(String(s.difference)))
       setDifference(String(s.difference))
     if (typeof s.search === 'string') setSearch(s.search)
-    if (typeof s.area === 'string') setArea(s.area)
+    // Filters saved before multi-select stored one area string.
+    if (Array.isArray(s.areas)) setAreas(s.areas.filter((item: unknown): item is string => typeof item === 'string'))
+    else if (typeof s.area === 'string') setAreas(s.area ? [s.area] : [])
     if (['identifier', 'difference', 'a', 'b'].includes(String(s.sort)))
       setSort(String(s.sort))
     if (typeof s.descending === 'boolean') setDescending(s.descending)
@@ -341,7 +343,7 @@ export function UserComparison({
     setKind('roles')
     setDifference('')
     setSearch('')
-    setArea('')
+    setAreas([])
     setSort('identifier')
     setDescending(false)
   }
@@ -538,8 +540,8 @@ export function UserComparison({
           )
         })}
       </div>
-      <FilterLayout label="Filters" activeCount={[validity !== 'active', kind !== 'roles', search, area, difference].filter(Boolean).length} onClear={clear}
-        clearDisabled={validity === 'active' && kind === 'roles' && !search && !area && !difference && sort === 'identifier' && !descending}
+      <FilterLayout label="Filters" activeCount={[validity !== 'active', kind !== 'roles', search, areas.length > 0, difference].filter(Boolean).length} onClear={clear}
+        clearDisabled={validity === 'active' && kind === 'roles' && !search && !areas.length && !difference && sort === 'identifier' && !descending}
         toolbar={<PageToolbar>
           <SortControl label="Sort comparison" value={sort} descending={descending} onChange={setSort} onDescending={setDescending}
             options={[{ value: 'identifier', label: 'Role / transaction' }, { value: 'difference', label: 'Difference' }, { value: 'a', label: 'User A evidence count' }, { value: 'b', label: 'User B evidence count' }]} />
@@ -570,7 +572,7 @@ export function UserComparison({
               </Select>
             </FormField>
             <FormField label="Comparison SAP area">
-              <Combobox label="Comparison SAP area" value={area} options={data?.areas || []} onChange={setArea} />
+              <MultiSelectFilter label="Comparison SAP area" values={areas} options={data?.areas || []} onChange={setAreas} placeholder="All · type to search" />
             </FormField>
           </FilterSection>
         </div>}>

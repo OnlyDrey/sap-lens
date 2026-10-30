@@ -159,3 +159,14 @@ test('an expanded Role Assignment Review row keeps its status and decision icons
     expect(box!.x + box!.width, await control.getAttribute('aria-label') ?? 'control').toBeLessThanOrEqual(panelBox!.x + panelBox!.width + 1)
   }
 })
+
+test('the Overview sections fill the row at 800px: two columns with the third section spanning both', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 900 })
+  await openSod(page)
+  const sections = page.locator('.sod-overview-cards > .dashboard-section')
+  await expect(sections).toHaveCount(3)
+  const [a, b, c] = await Promise.all([0, 1, 2].map(async index => (await sections.nth(index).boundingBox())!))
+  expect(Math.abs(a.y - b.y)).toBeLessThan(2) // first two share a row
+  expect(c.y).toBeGreaterThan(a.y + 50)
+  expect(c.width).toBeGreaterThan((a.width + b.width) * 0.95) // the third spans the row
+})

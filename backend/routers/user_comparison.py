@@ -81,16 +81,17 @@ def evidence(user_a:str=Query(...,min_length=1,max_length=512),user_b:str=Query(
 def comparison(user_a: str = Query(..., min_length=1, max_length=512), user_b: str = Query(..., min_length=1, max_length=512),
                validity: Literal['active','expired','future','unknown','all'] = 'active',
                kind: Literal['roles','transactions'] = 'roles', difference: Literal['','shared','a','b'] = '',
-               search: str = Query('', max_length=256), area: str = Query('', max_length=256),
+               search: str = Query('', max_length=256), area: str = Query('', max_length=256), areas: list[str] = Query([], max_length=50),
                sort: Literal['identifier','difference','a','b'] = 'identifier', descending: bool = False,
                offset: int = Query(0, ge=0), limit: int = Query(25, ge=1, le=100)):
+    wanted_areas = {*(value for value in areas if value), *([area] if area else [])}  # OR within the area filter
     snapshot = cache.get_snapshot()
     result = compare(snapshot, user_a, user_b, validity)
     rows = list(result[kind].values())
     summaries = {name: {d: sum(r['difference']==d for r in result[name].values()) for d in ('shared','a','b')} for name in ('roles','transactions')}
     areas = sorted({a for r in result['roles'].values() for a in r['areas']})
     term = search.strip()
-    rows = [r for r in rows if (not difference or r['difference']==difference) and (not area or area in r['areas']) and (not term or search_fields(term,r['identifier'],r.get('description','')))]
+    rows = [r for r in rows if (not difference or r['difference']==difference) and (not wanted_areas or wanted_areas & set(r['areas'])) and (not term or search_fields(term,r['identifier'],r.get('description','')))]
     rows.sort(key=lambda r:(len(r[sort]) if sort in {'a','b'} else r[sort], r['identifier']), reverse=descending)
     bounded=[{**r, 'a':r['a'][:25], 'b':r['b'][:25], 'a_total':len(r['a']), 'b_total':len(r['b'])} for r in rows[offset:offset+limit]]
     provenance = {side: transaction_evidence(result, sorted({name for row in bounded for name in row[side]}), side) for side in ('a','b')} if kind == 'transactions' else {}
