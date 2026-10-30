@@ -51,7 +51,7 @@ test('tasks 19–21: shared source evidence, interactive feature pill and techni
 })
 test('tasks 22–26: dashboard uses observed distributions, review population and navigable areas',async({page,request})=>{
  await page.goto('/#session=browser-test-session');const dashboard=page.getByRole('region',{name:'Dashboard',exact:true})
- await expect(dashboard.getByRole('region',{name:'Review Progress',exact:true})).toContainText('All 2 imported SAP accounts; outdated reviews remain pending.');await expect(dashboard.getByRole('progressbar',{name:'Account review completion',exact:true})).toHaveAttribute('max','2')
+ await expect(dashboard.getByRole('region',{name:'Review Progress',exact:true})).toContainText('All 2 imported SAP accounts. Outdated reviews are pending until reviewed again.');await expect(dashboard.getByRole('region',{name:'Key figures',exact:true}).getByRole('progressbar',{name:'Account review completion',exact:true})).toHaveAttribute('max','2');await expect(dashboard.getByRole('img',{name:/Account review progress: Completed reviews 0, Not yet reviewed 2, Outdated reviews 0 of 2/})).toBeVisible()
  const data=await(await request.get('/api/dashboard',{headers})).json();expect(data.role_distribution).toEqual({BC:1,MM:1});expect(Object.values(data.assignment_distribution).reduce((a:any,b:any)=>a+b,0)).toBe(2)
  await expect(dashboard.getByRole('progressbar',{name:'SAP identity match coverage',exact:true})).toHaveCount(1)
  for(const name of ['Access & Risk','Directory & Data Health','Review Progress','Role Distribution','Data Sources & Configuration'])await expect(dashboard.getByRole('heading',{name,exact:true}).locator('svg')).toBeVisible()

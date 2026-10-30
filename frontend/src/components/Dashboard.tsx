@@ -23,6 +23,8 @@ import { useViewHistory } from '@/hooks/useViewHistory'
 import { useApplicationData } from '@/state/ApplicationData'
 import { StatusPill } from '@/components/Shared/StatusPill'
 import { Kpi } from '@/components/Shared/Kpi'
+import { InfoList, InfoRow } from '@/components/Shared/InfoList'
+import { BarChart, StackedBar } from '@/components/Shared/Charts'
 import { fetchConfiguration } from '@/api/configuration'
 /** Cards below SAP Overview, in reading order. Reordering this list reorders the rendered elements. */
 export const DASHBOARD_CARDS = ['access-risk', 'sod', 'directory-health', 'review-progress', 'role-distribution', 'assignment-distribution'] as const
@@ -138,46 +140,37 @@ export function Dashboard() {
             detailRole: null,
             settings: false,
           })
-  const tile = (metric: Metric, layout: 'compact' | 'expanded' = 'compact') => {
-    const Icon =
-      metric.id === 'account_review'
-        ? ClipboardCheck
-        : metric.id === 'position_changes'
-          ? UserCog
-        : metric.id === 'areas'
-          ? Network
-          : metric.id === 'releases'
-            ? FileCheck2
-            : metric.id === 'expired' || metric.id === 'future'
-              ? CalendarDays
-              : metric.id.includes('match') || metric.id === 'unresolved'
-                ? MailCheck
-                : metric.destination === 'users'
-                  ? UsersRound
-                  : Database
-    const coverage = metric.id === 'email_matches' && query.data?.coverage_total ? query.data.coverage_total : 0
+  const iconFor = (metric: Metric) => metric.id === 'account_review' ? ClipboardCheck
+    : metric.id === 'position_changes' ? UserCog
+    : metric.id === 'areas' ? Network
+    : metric.id === 'releases' ? FileCheck2
+    : metric.id === 'expired' || metric.id === 'future' ? CalendarDays
+    : metric.id.includes('match') || metric.id === 'unresolved' ? MailCheck
+    : metric.destination === 'users' ? UsersRound : Database
+  /** Displayed value of one metric: a skeleton while loading, a stated reason when unavailable. */
+  const present = (metric: Metric, coverage = 0) => {
     const unavailable = metric.value === null
-    const value = unavailable
+    const value: ReactNode = unavailable
       ? (loading && !metric.unavailable_reason?.toLowerCase().includes('disabled') ? <><span className="dashboard-skeleton" aria-hidden="true"/><span className="sr-only">Loading</span></> : 'Unavailable')
       : coverage ? `${metric.value!.toLocaleString()} / ${coverage.toLocaleString()}` : metric.value!.toLocaleString()
-    return (
-      <Kpi key={metric.id} layout={layout} icon={<Icon size={18} aria-hidden="true" />} label={metric.label} value={value} ariaLabel={metric.label} title={metric.context}
-        tone={['account_review', 'unresolved'].includes(metric.id) && !!metric.value ? 'warning' : 'neutral'} data={{ metric: metric.id }}
-        note={unavailable ? metric.unavailable_reason : coverage ? `${((metric.value! / coverage) * 100).toFixed(1)}% matched` : undefined}
-        progress={coverage && !unavailable ? { value: metric.value!, max: coverage, label: 'SAP identity match coverage' } : undefined}
-        onClick={() => open(metric)} navigates />
-    )
+    return { unavailable, value }
+  }
+  /** Prominent figure for the KPI row. */
+  const tile = (metric: Metric) => {
+    const Icon = iconFor(metric), { unavailable, value } = present(metric)
+    return <Kpi key={metric.id} layout="expanded" icon={<Icon size={18} aria-hidden="true" />} label={metric.label} value={value} ariaLabel={metric.label} title={metric.context}
+      tone={metric.id === 'account_review' && !!metric.value ? 'warning' : 'neutral'} data={{ metric: metric.id }} note={unavailable ? metric.unavailable_reason : undefined} onClick={() => open(metric)} navigates />
+  }
+  /** Secondary operational fact for an information list. */
+  const row = (metric: Metric, coverageTotal = 0) => {
+    const Icon = iconFor(metric), { unavailable, value } = present(metric, coverageTotal)
+    return <InfoRow key={metric.id} icon={<Icon size={16} aria-hidden="true" />} label={metric.label} ariaLabel={metric.label} title={metric.context} value={value} data={{ metric: metric.id }}
+      tone={['unresolved', 'outdated'].includes(metric.id) && !!metric.value ? 'warning' : 'neutral'}
+      note={unavailable ? metric.unavailable_reason : coverageTotal && metric.value !== null ? `${((metric.value / coverageTotal) * 100).toFixed(1)}% matched` : undefined}
+      progress={coverageTotal && metric.value !== null ? { value: metric.value, max: coverageTotal, label: 'SAP identity match coverage' } : undefined} onClick={() => open(metric)} navigates />
   }
   const [allAreas,setAllAreas]=useState(false)
   const modules=useModules()
-  /** Key figures sit in the KPI section at the top; the detail sections below show what the key figures do not. */
-  const keyIds = ['users', 'roles', 'releases', 'account_review'] as const
-  const groups = [
-    ['Key figures', keyIds],
-    ['Access & Risk', ['position_changes', 'ad_disabled_open', 'expired', 'future', 'mappings', 'assignments', 'assigned_users']],
-    ['Directory & Data Health', ['email_matches']],
-    ['Review Progress', ['reviewed', 'pending', 'outdated']],
-  ] as const
   const lifecycle = dashboardLifecycle({
     fetching: query.isLoading,
     failed: query.isError || !!query.data?.source_warning,
@@ -185,60 +178,97 @@ export function Dashboard() {
     hasValidatedData: !!query.data?.metrics.some(metric => metric.value !== null),
     hasEnabledSource: !query.data?.sources || query.data.sources.some(source => source.configured && source.enabled),
   })
-  const byId = (d: DashboardData, ids: readonly string[]) => d.metrics.filter((m) => ids.includes(m.id)).sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id))
-  const renderGroup = (d: DashboardData, name: string, ids: readonly string[]) => (
-    <section key={name} aria-label={name} className="dashboard-section dashboard-middle-section">
-      <SectionHeader title={name} icon={name === 'Access & Risk' ? <ShieldAlert size={18}/> : name === 'Review Progress' ? <ClipboardCheck size={18}/> : <HeartPulse size={18}/>}/>
-      <div className="dashboard-detail-metrics">{byId(d, ids).map((metric) => tile(name === 'Review Progress' && metric.id === 'pending' ? { ...metric, label: 'Not yet reviewed' } : metric))}</div>
-      {name === 'Review Progress' && d.review_population != null && d.metrics.find(m => m.id === 'reviewed')?.value != null && <div className="coverage-summary"><strong>{d.review_population ? (((d.metrics.find(m => m.id === 'reviewed')?.value || 0) / d.review_population) * 100).toFixed(1) : '0.0'}% reviewed</strong><progress aria-label="Account review completion" max={d.review_population || 1} value={d.metrics.find(m => m.id === 'reviewed')?.value || 0}/><small>All {d.review_population} imported SAP accounts; outdated reviews remain pending.</small></div>}
-      {name === 'Access & Risk' && <p className="text-xs text-[var(--muted)]">Counts describe source evidence, not effective SAP authorization.</p>}
-    </section>
-  )
-  /** Compact KPI section: the figures that drive decisions or navigation. Each opens the relevant view with its filter applied. */
+  const metricOf = (d: DashboardData, id: string) => d.metrics.find(m => m.id === id)
+  const list = (d: DashboardData, ids: readonly string[]) => ids.map(id => metricOf(d, id)).filter((m): m is Metric => !!m)
+  /** Key figures: the few numbers that drive decisions. Each opens the relevant view with its filter applied. */
   const renderKeyFigures = (d: DashboardData) => {
     const g = sodEnabled ? sodSummary.data?.governance : undefined
-    const first = byId(d, keyIds), review = d.metrics.find(m => m.id === 'pending'), unresolved = d.metrics.find(m => m.id === 'unresolved')
+    const users = metricOf(d, 'users'), review = metricOf(d, 'account_review'), reviewed = metricOf(d, 'reviewed'), pending = metricOf(d, 'pending')
+    const population = d.review_population, done = reviewed?.value
+    const percent = population && done != null ? (done / population) * 100 : null
     return (
       <section key="key-figures" aria-label="Key figures" className="dashboard-section dashboard-key-figures">
         <h2 className="sr-only">Key figures</h2>
         <div className="dashboard-key-grid">
-          {first.map((metric) => tile(metric, 'expanded'))}
+          {users && tile(users)}
+          {review && tile(review)}
           {sodEnabled && sodSummary.data && <Kpi layout="expanded" icon={<ConflictUsers size={18} aria-hidden="true"/>} label="Users with potential conflicts" ariaLabel="Users with potential conflicts" value={g?.available ? (g.users_with_conflicts ?? 0).toLocaleString() : 'Unavailable'} tone={g?.available && g.users_with_conflicts ? 'warning' : 'neutral'} note={g?.available ? 'Segregation of Duties' : 'SoD analysis unavailable'} onClick={() => openSod('risk-matrix')} navigates data={{ metric: 'sod_conflicts' }}/>}
-          {review && tile(review, 'expanded')}
-          {unresolved && tile(unresolved, 'expanded')}
+          {pending && <Kpi layout="expanded" icon={<ClipboardCheck size={18} aria-hidden="true"/>} label="Review completion" ariaLabel="Review completion" title="Share of imported SAP accounts with a current completed review. Opens the accounts still pending." data={{ metric: 'review_completion' }}
+            value={percent === null ? 'Unavailable' : `${percent.toFixed(1)}%`} note={percent === null ? 'Review population unavailable' : `${(done ?? 0).toLocaleString()} of ${population!.toLocaleString()} accounts`}
+            progress={percent === null ? undefined : { value: done ?? 0, max: population!, label: 'Account review completion' }} onClick={() => open(pending)} navigates />}
         </div>
       </section>
     )
   }
-  const renderSod = () => {
+  const infoCard = (name: string, icon: ReactNode, children: ReactNode, note?: string) => (
+    <section key={name} aria-label={name} className="dashboard-section dashboard-middle-section">
+      <SectionHeader title={name} icon={icon}/>
+      <InfoList label={name}>{children}</InfoList>
+      {note && <p className="text-xs text-[var(--muted)]">{note}</p>}
+    </section>
+  )
+  const renderAccessRisk = (d: DashboardData) => infoCard('Access & Risk', <ShieldAlert size={18}/>, list(d, ['position_changes', 'ad_disabled_open', 'expired', 'assignments', 'assigned_users', 'mappings', 'roles', 'releases']).map(m => row(m)), 'Counts describe source evidence, not effective SAP authorization.')
+  const renderDirectory = (d: DashboardData) => infoCard('Directory & Data Health', <HeartPulse size={18}/>, <>{list(d, ['email_matches']).map(m => row(m, d.coverage_total || 0))}{list(d, ['unresolved']).map(m => row(m))}</>)
+  const renderSod = (d: DashboardData) => {
     if (!(sodEnabled && sodSummary.data)) return null
-            const g=sodSummary.data.governance,pending=(g.activities?.Pending||0)+(g.activities?.Outdated||0)+(g.acceptance?.Pending||0)+(g.acceptance?.Outdated||0)
-            return <section aria-label="Segregation of Duties" className="dashboard-section min-w-0 rounded-card bg-surface p-4">
-              <SectionHeader title="Segregation of Duties" icon={<ShieldAlert size={18}/>}/>
-              {g.available
-                ? <div className="dashboard-detail-metrics">
-                    <Kpi icon={<ShieldAlert size={18} aria-hidden="true"/>} label="User-risk findings" ariaLabel="User-risk findings" value={(g.user_risk_findings ?? 0).toLocaleString()} onClick={()=>openSod('risk-matrix')} navigates/>
-                    <Kpi icon={<CircleDashed size={18} aria-hidden="true"/>} label="SoD reviews pending" ariaLabel="SoD reviews pending" value={pending.toLocaleString()} tone={pending ? 'warning' : 'neutral'} onClick={()=>openSod('reviews')} navigates/>
-                    <Kpi icon={<ShieldCheck size={18} aria-hidden="true"/>} label="Open remediation actions" ariaLabel="Open remediation actions" value={(g.remediation?.open_actions ?? 0).toLocaleString()} onClick={()=>openSod('reviews')} navigates/>
-                    <Kpi icon={<AlertTriangle size={18} aria-hidden="true"/>} label="Overdue remediation actions" ariaLabel="Overdue remediation actions" value={(g.remediation?.overdue ?? 0).toLocaleString()} tone={g.remediation?.overdue ? 'error' : 'neutral'} onClick={()=>openSod('reviews')} navigates/>
-                  </div>
-                : <p className="text-sm text-[var(--muted)]">SoD analysis is not available ({g.reason==='mapping_disabled'?'User–Role Mapping is disabled':'a supported SoD matrix and validated role catalogue are required'}). <Button variant="ghost" onClick={()=>openSod('overview')}>Open SoD</Button></p>}
-              <p className="text-xs text-[var(--muted)]">Potential transaction-derived conflicts, not effective SAP authorization.</p>
-            </section>
+    const g = sodSummary.data.governance, pending = (g.activities?.Pending || 0) + (g.activities?.Outdated || 0) + (g.acceptance?.Pending || 0) + (g.acceptance?.Outdated || 0)
+    void d
+    return <section key="sod" aria-label="Segregation of Duties" className="dashboard-section dashboard-middle-section">
+      <SectionHeader title="Segregation of Duties" icon={<ShieldAlert size={18}/>}/>
+      {g.available
+        ? <InfoList label="Segregation of Duties">
+            <InfoRow icon={<ShieldAlert size={16} aria-hidden="true"/>} label="User-risk findings" value={(g.user_risk_findings ?? 0).toLocaleString()} onClick={()=>openSod('risk-matrix')} navigates/>
+            <InfoRow icon={<CircleDashed size={16} aria-hidden="true"/>} label="SoD reviews pending" value={pending.toLocaleString()} tone={pending ? 'warning' : 'neutral'} onClick={()=>openSod('reviews')} navigates/>
+            <InfoRow icon={<ShieldCheck size={16} aria-hidden="true"/>} label="Open remediation actions" value={(g.remediation?.open_actions ?? 0).toLocaleString()} onClick={()=>openSod('reviews')} navigates/>
+            <InfoRow icon={<AlertTriangle size={16} aria-hidden="true"/>} label="Overdue remediation actions" value={(g.remediation?.overdue ?? 0).toLocaleString()} tone={g.remediation?.overdue ? 'error' : 'neutral'} onClick={()=>openSod('reviews')} navigates/>
+          </InfoList>
+        : <p className="text-sm text-[var(--muted)]">SoD analysis is not available ({g.reason==='mapping_disabled'?'User–Role Mapping is disabled':'a supported SoD matrix and validated role catalogue are required'}). <Button variant="ghost" onClick={()=>change({settings:true,settingsTarget:g.reason==='mapping_disabled'?'features':'sod'})}>Review configuration</Button></p>}
+      <p className="text-xs text-[var(--muted)]">Potential transaction-derived conflicts, not effective SAP authorization.</p>
+    </section>
+  }
+  /** Review progress as one stacked bar: completed, pending and outdated are mutually exclusive parts of the imported SAP accounts. */
+  const renderReviewProgress = (d: DashboardData) => {
+    const reviewed = metricOf(d, 'reviewed'), pending = metricOf(d, 'pending'), outdated = metricOf(d, 'outdated')
+    const ready = d.review_population != null && reviewed?.value != null && pending?.value != null && outdated?.value != null
+    return <section key="review-progress" aria-label="Review Progress" className="dashboard-section dashboard-chart min-w-0 rounded-card bg-surface p-4">
+      <SectionHeader title="Review Progress" icon={<ClipboardCheck size={18}/>}/>
+      {ready
+        ? <StackedBar label="Account review progress" total={d.review_population!} segments={[
+            { key: 'completed', label: 'Completed reviews', value: reviewed!.value!, tone: 'success', onOpen: () => open(reviewed!) },
+            { key: 'pending', label: 'Not yet reviewed', value: pending!.value! - outdated!.value!, tone: 'neutral', title: 'Accounts without a current decision (excluding outdated reviews)', onOpen: () => open(pending!) },
+            { key: 'outdated', label: 'Outdated reviews', value: outdated!.value!, tone: 'warning', title: 'The decision was recorded against evidence that has since changed', onOpen: () => open(outdated!) },
+          ]} caption={`All ${d.review_population!.toLocaleString()} imported SAP accounts. Outdated reviews are pending until reviewed again.`} />
+        : <p className="ui-description">Review progress needs the User Access data and account-review annotations.</p>}
+    </section>
   }
   const renderRoleDistribution = (d: DashboardData) => (
-    <section aria-label="Role Distribution" className="dashboard-section dashboard-distribution min-w-0 rounded-card bg-surface p-4"><SectionHeader title="Role Distribution" icon={<BarChart3 size={18}/>}/><p className="ui-description">Distinct catalogue roles by canonical SAP area. Single-role relationships and release assignments are separate evidence.</p><div className="grid gap-0">{d.role_distribution==null?<p>Role catalogue unavailable.</p>:Object.entries(d.role_distribution).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,allAreas?undefined:5).map(([area,count])=><button key={area} className="dashboard-distribution-link" title={modules.data?.find(module=>module.function_key===area)?.module_name||area} aria-label={`Investigate ${area} catalogue roles`} onClick={()=>{const metric=d.metrics.find(m=>m.id==='roles');if(metric)open(metric,area)}}><ModuleBadge moduleId={area} variant="compact" showUnclassified/><progress aria-label={`${area} catalogue roles`} max={Math.max(1,...Object.values(d.role_distribution||{}))} value={count}/><strong>{count}</strong><ArrowUpRight size={14}/></button>)}</div>{d.role_distribution&&Object.keys(d.role_distribution).length>5&&<Button size="compact" aria-expanded={allAreas} onClick={()=>setAllAreas(value=>!value)}>{allAreas?'Show less':'Show all'}</Button>}</section>
+    <section key="role-distribution" aria-label="Role Distribution" className="dashboard-section dashboard-chart min-w-0 rounded-card bg-surface p-4">
+      <SectionHeader title="Role Distribution" icon={<BarChart3 size={18}/>}/>
+      <p className="ui-description">Distinct catalogue roles by canonical SAP area. Single-role relationships and release assignments are separate evidence.</p>
+      {d.role_distribution == null ? <p>Role catalogue unavailable.</p> : <>
+        <BarChart label="Catalogue roles by SAP area" data={Object.entries(d.role_distribution).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, allAreas ? undefined : 5).map(([area, count]) => ({
+          key: area, label: <ModuleBadge moduleId={area} variant="compact" showUnclassified/>, value: count, title: `${modules.data?.find(module => module.function_key === area)?.module_name || area}: ${count} catalogue roles`,
+          ariaLabel: `Investigate ${area} catalogue roles`, onOpen: () => { const metric = metricOf(d, 'roles'); if (metric) open(metric, area) } }))} />
+        {Object.keys(d.role_distribution).length > 5 && <Button size="compact" aria-expanded={allAreas} onClick={() => setAllAreas(value => !value)}>{allAreas ? 'Show less' : 'Show all'}</Button>}
+      </>}
+    </section>
   )
   const renderAssignmentDistribution = (d: DashboardData) => (
-    <section aria-label="Assignment Distribution" className="dashboard-section dashboard-distribution min-w-0 rounded-card bg-surface p-4"><SectionHeader title="Assignment Distribution" icon={<UsersRound size={18}/>}/><p className="ui-description">Distinct currently valid assigned roles. Historical and unknown intervals are excluded. High counts are not security findings.</p><div className="grid gap-0">{d.assignment_distribution?['1–5','6–20','21+'].map(bin=><button key={bin} className="dashboard-distribution-stat" aria-label={`Investigate users with ${bin} currently valid roles`} onClick={()=>change({page:'users',accessMode:'directory',user:'',userContext:{},assignmentBand:bin,settings:false,detailRole:null})}><span>{bin} roles</span><progress aria-label={`${bin} roles user count`} max={Math.max(1,...Object.values(d.assignment_distribution||{}))} value={d.assignment_distribution?.[bin]||0}/><strong>{d.assignment_distribution?.[bin]||0}</strong></button>):<p>User–Role Mapping unavailable.</p>}</div>
-          </section>
+    <section key="assignment-distribution" aria-label="Assignment Distribution" className="dashboard-section dashboard-chart min-w-0 rounded-card bg-surface p-4">
+      <SectionHeader title="Assignment Distribution" icon={<UsersRound size={18}/>}/>
+      <p className="ui-description">Users by the number of distinct currently valid assigned roles. Historical and unknown intervals are excluded. High counts are not security findings.</p>
+      {d.assignment_distribution
+        ? <BarChart label="Users by currently valid role count" data={['1–5', '6–20', '21+'].map(bin => ({ key: bin, label: `${bin} roles`, value: d.assignment_distribution?.[bin] || 0, title: `${d.assignment_distribution?.[bin] || 0} users with ${bin} currently valid roles`,
+            ariaLabel: `Investigate users with ${bin} currently valid roles`, onOpen: () => change({ page: 'users', accessMode: 'directory', user: '', userContext: {}, assignmentBand: bin, settings: false, detailRole: null }) }))} />
+        : <p>User–Role Mapping unavailable.</p>}
+    </section>
   )
   // Reading and keyboard order follow DASHBOARD_CARDS; the grid only wraps columns.
   const cards: Record<DashboardCard, (d: DashboardData) => ReactNode> = {
-    'access-risk': d => renderGroup(d, groups[1][0], groups[1][1]),
-    sod: () => renderSod(),
-    'directory-health': d => renderGroup(d, groups[2][0], groups[2][1]),
-    'review-progress': d => renderGroup(d, groups[3][0], groups[3][1]),
+    'access-risk': renderAccessRisk,
+    sod: renderSod,
+    'directory-health': renderDirectory,
+    'review-progress': renderReviewProgress,
     'role-distribution': renderRoleDistribution,
     'assignment-distribution': renderAssignmentDistribution,
   }

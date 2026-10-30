@@ -71,3 +71,37 @@ test('multi-select shows Select all, Clear and Close with icons, and Clear is vi
   await page.keyboard.press('Escape')
   await expect(popup).toHaveCount(0)
 })
+
+test('Dashboard shows a compact key figure row, information lists and no future assignment record row', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/#session=browser-test-session')
+  const dashboard = page.getByRole('region', { name: 'Dashboard', exact: true })
+  const key = dashboard.getByRole('region', { name: 'Key figures', exact: true })
+  await expect(key.locator('.ui-kpi')).toHaveCount(3)
+  await expect(key).toContainText('SAP users'); await expect(key).toContainText('Review completion')
+  const list = dashboard.getByRole('region', { name: 'Access & Risk', exact: true }).getByRole('list')
+  await expect(list).toBeVisible()
+  await expect(list.locator('.info-row').first()).toBeVisible()
+  await expect(dashboard.getByText(/Future assignment/i)).toHaveCount(0)
+  // secondary facts are rows, not tiles: an information row is much shorter than a key figure
+  const rowHeight = (await list.locator('.info-row').first().boundingBox())!.height
+  const kpiHeight = (await key.locator('.ui-kpi').first().boundingBox())!.height
+  expect(rowHeight).toBeLessThan(kpiHeight)
+})
+
+test('Dashboard charts show real counts, expose tooltips and drill down', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/#session=browser-test-session')
+  const dashboard = page.getByRole('region', { name: 'Dashboard', exact: true })
+  const distribution = dashboard.getByRole('region', { name: 'Role Distribution', exact: true })
+  const bars = distribution.getByRole('button', { name: /^Investigate .* catalogue roles$/ })
+  await expect(bars.first()).toBeVisible()
+  await expect(bars.first()).toHaveAttribute('title', /catalogue roles/)
+  await bars.first().click()
+  await expect(page.getByRole('heading', { name: 'Role Lookup', exact: true })).toBeVisible()
+  await goTo(page, 'Dashboard')
+  const progress = dashboard.getByRole('region', { name: 'Review Progress', exact: true })
+  await expect(progress.getByRole('img', { name: /Account review progress: Completed reviews 0, Not yet reviewed 2/ })).toBeVisible()
+  await progress.getByRole('button', { name: /^Not yet reviewed/ }).click()
+  await expect(page.getByRole('region', { name: /Account Review|Key figures/ }).first()).toBeVisible()
+})

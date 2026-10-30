@@ -93,8 +93,10 @@ test('single-role zebra surfaces remain unchanged on hover without inner roundin
  const entries=page.getByRole('dialog',{name:`Role details: ${pattern}`,exact:true}).locator('.single-role-entry')
  const primary=await entries.nth(0).evaluate(el=>getComputedStyle(el).backgroundColor),secondary=await entries.nth(1).evaluate(el=>getComputedStyle(el).backgroundColor)
  expect(primary).not.toBe(secondary);await expect(entries.nth(0)).toHaveCSS('border-radius','0px');await expect(entries.nth(1)).toHaveCSS('border-radius','0px')
- await entries.nth(0).hover();await expect(entries.nth(0)).toHaveCSS('background-color',primary)
- await entries.nth(1).hover();await expect(entries.nth(1)).toHaveCSS('background-color',secondary)
+ // Hover is a distinct state on both stripes (neither the stripe nor the same colour on both), and the stripe returns when the pointer leaves.
+ await entries.nth(0).hover();const hover0=await entries.nth(0).evaluate(el=>getComputedStyle(el).backgroundColor);expect(hover0).not.toBe(primary)
+ await entries.nth(1).hover();const hover1=await entries.nth(1).evaluate(el=>getComputedStyle(el).backgroundColor);expect(hover1).not.toBe(secondary)
+ await page.mouse.move(0,0);await expect(entries.nth(0)).toHaveCSS('background-color',primary);await expect(entries.nth(1)).toHaveCSS('background-color',secondary)
  await expect(entries.nth(0).locator('.role-entry-head .transaction-count')).toHaveText('1')
 })
 test('large matrix contains scrolling, empty cells and high counts in both themes',async({page,request},info)=>{
@@ -118,7 +120,7 @@ test('compact evidence retains exact dates, horizontal identifiers and keyboard 
  const table=page.getByRole('table',{name:'User comparison evidence',exact:true});expect((await table.getByRole('columnheader').first().boundingBox())!.width).toBeLessThan(400)
  await expect(panel.getByRole('button',{name:/Saved filters/})).toHaveCount(1)
  const evidence=page.locator('.comparison-evidence-item').filter({has:page.getByRole('button',{name:'Active assignment',exact:true})}).first()
- const code=page.locator('.comparison-table .role-entry .role-identifier code').first();await expect(code).toBeVisible();expect(await code.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBeTruthy() // identifiers wrap instead of scrolling
+ const code=page.locator('.comparison-table .role-entry .role-identifier code').first();await expect(code).toBeVisible();expect(await code.evaluate(el=>getComputedStyle(el).whiteSpace)).toBe('nowrap') // identifiers never wrap; they scroll inside their codeblock when narrow
  await expect(evidence.locator('.role-identifier code')).toHaveCount(0) // the compared role is not repeated inside its own evidence
  const active=evidence.getByRole('button',{name:'Active assignment',exact:true});await active.click()
  const popup=page.getByRole('dialog',{name:`Assignment validity for ${actual}`,exact:true})

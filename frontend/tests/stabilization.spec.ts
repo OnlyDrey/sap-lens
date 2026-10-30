@@ -44,7 +44,7 @@ test('sidebar wildcard filters rows as well as roles and restores the original c
 for(const theme of ['light','dark'])test(`restored shared surfaces spacing and navigation ${theme}`,async({page,request})=>{
  await request.post('/api/configuration/theme',{headers,data:{theme}});await page.goto('/#session=browser-test-session')
  for(const name of ['Role Distribution','Assignment Distribution']){const card=page.getByRole('region',{name,exact:true});await expect(card).toHaveCSS('padding','16px');await expect(card).toHaveCSS('border-radius','12px');await expect(card).not.toHaveCSS('background-color','rgba(0, 0, 0, 0)')}
- await expect(page.locator('.dashboard-detail-metrics .ui-kpi').first()).toHaveCSS('padding-left','12px')
+ await expect(page.locator('.dashboard-section .info-row').first()).toHaveCSS('padding-left','8px')
  await expect(page.locator('.app-header-row')).toHaveCSS('min-height','72px')
  await page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('link',{name:'User Access',exact:true}).click()
  const link=page.getByRole('navigation',{name:'User Access view',exact:true}).getByRole('link',{name:'User directory',exact:true});await expect(link).toHaveCSS('border-top-width','0px');await expect(link).toHaveCSS('border-bottom-width','2px');const before=(await link.boundingBox())!;await link.hover();expect((await link.boundingBox())!.height).toBe(before.height)

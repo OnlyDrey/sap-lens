@@ -273,7 +273,7 @@ test('Dashboard coverage and account-review KPI open supported evidence filters'
     page
       .getByRole('region', { name: 'Key figures', exact: true })
       .getByRole('button'),
-  ).toHaveCount(6)
+  ).toHaveCount(3)
   expect(
     await page
       .getByRole('region', { name: 'Key figures', exact: true })
@@ -281,11 +281,8 @@ test('Dashboard coverage and account-review KPI open supported evidence filters'
       .evaluateAll((items) => items.map((el) => el.getAttribute('aria-label'))),
   ).toEqual([
     'SAP users',
-    'Catalogue roles',
-    'Release roles',
     'Accounts requiring review',
-    'Pending reviews',
-    'Missing or ambiguous directory matches',
+    'Review completion',
   ])
   await expect(
     page.getByRole('button', {
