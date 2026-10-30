@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes } from 'react'
 import { Check, Copy, ArrowUpRight } from 'lucide-react'
 
-/** SAP identifiers are rendered as one unbroken string: no soft-wrap opportunities are inserted, so a role name never splits mid-identifier and selection and copy keep the exact value. */
+/** SAP identifiers are rendered as one string: no characters are inserted, long names wrap inside the codeblock (CSS `overflow-wrap:anywhere`) and copy writes the exact value. */
 export const identifierFragments = (value: string) => value
 
 interface RoleIdentifierProps {

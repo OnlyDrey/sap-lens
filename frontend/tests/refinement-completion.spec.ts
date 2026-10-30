@@ -120,7 +120,7 @@ test('compact evidence retains exact dates, horizontal identifiers and keyboard 
  const table=page.getByRole('table',{name:'User comparison evidence',exact:true});expect((await table.getByRole('columnheader').first().boundingBox())!.width).toBeLessThan(400)
  await expect(panel.getByRole('button',{name:/Saved filters/})).toHaveCount(1)
  const evidence=page.locator('.comparison-evidence-item').filter({has:page.getByRole('button',{name:'Active assignment',exact:true})}).first()
- const code=page.locator('.comparison-table .role-entry .role-identifier code').first();await expect(code).toBeVisible();expect(await code.evaluate(el=>getComputedStyle(el).whiteSpace)).toBe('nowrap') // identifiers never wrap; they scroll inside their codeblock when narrow
+ const code=page.locator('.comparison-table .role-entry .role-identifier code').first();await expect(code).toBeVisible();expect(await code.evaluate(el=>getComputedStyle(el).whiteSpace)).toBe('normal');expect(await code.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBeTruthy() // identifiers wrap inside their codeblock and never scroll
  await expect(evidence.locator('.role-identifier code')).toHaveCount(0) // the compared role is not repeated inside its own evidence
  const active=evidence.getByRole('button',{name:'Active assignment',exact:true});await active.click()
  const popup=page.getByRole('dialog',{name:`Assignment validity for ${actual}`,exact:true})

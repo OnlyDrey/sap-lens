@@ -718,7 +718,8 @@ progress::-moz-progress-bar { background:var(--progress-fill); }
 /* Role identifier: content-sized and never scrolling. It wraps at ':' '_' '-' '.' '/' (wbr) and only as a last resort inside a token. */
 .role-identifier { display:inline-flex; align-items:center; flex-wrap:nowrap; gap:var(--space-1); width:fit-content; max-width:100%; min-width:0; padding:2px 4px 2px 8px; vertical-align:middle; }
 /* SAP identifiers are never broken: one line, scrolling horizontally inside the codeblock when the container is narrower. The copied value is always the full identifier. */
-.role-identifier code { flex:1 1 auto; min-width:0; white-space:nowrap; overflow-wrap:normal; word-break:normal; overflow-x:auto; overflow-y:hidden; scrollbar-width:thin; line-height:1.4; }
+/* Long SAP identifiers wrap inside the codeblock (never scroll); the copied value comes from the data, not from the DOM text. */
+.role-identifier code { flex:1 1 auto; min-width:0; white-space:normal; overflow-wrap:anywhere; word-break:normal; overflow:visible; line-height:1.4; }
 .role-identifier-link { min-width:0; max-width:100%; }
 .role-identifier-link code { flex:1; }
 

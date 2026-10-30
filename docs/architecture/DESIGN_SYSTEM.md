@@ -55,7 +55,7 @@ Date entry remains `NorwegianDateInput`, with Norwegian labels, Monday-first flo
 | A progress bar (`StackedBar`, `InfoRow` progress) | Always visible: the track has a border and a neutral fill so 0% reads as an empty bar; segments carry semantic tones and the percentage is also shown as text |
 | Detailed, comparable records | A table (zebra, hover and selected states) |
 | Compact status or classification | A badge or pill |
-| An exact technical identifier | A codeblock (`RoleIdentifier`): one line, scrolls horizontally, copies the full value |
+| An exact technical identifier | A codeblock (`RoleIdentifier`): the full name stays visible and wraps inside the block (no horizontal scrolling), the copy control stays aligned and copies the exact value |
 
 Identifiers are never given soft-wrap opportunities. Module icons carry no hover ring; only real controls get hover and focus treatments. Expand and collapse controls use one glyph: right when collapsed, down when expanded (`DisclosureChevron`, and the same control for native `details`), with the 34 px compact hit area shared with icon buttons.
 
