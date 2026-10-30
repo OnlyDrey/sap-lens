@@ -83,6 +83,45 @@ standards and the Phase 6 regression). The original 36-point numbering was not r
 
 The follow-up [UI/UX gap audit](UI_UX_GAP_AUDIT.md) converted the Account Review finding, classification and decision filters, the Release SAP User Group filter and the Compare users SAP area filter to multi-select, made the Release username and role name searches multi-value, and made Activity Review rows compact and expandable. Still single-choice: Release PR/PO and assignment status, Compare users validity and section.
 
+## KPI standardization and UI refinement (fourth specification)
+
+Verified against the code and behavior, not the commit messages. Evidence names the files and the specs that exercise the behavior; `kpi-standard` is the new shared-component spec.
+
+| Requirement | Status | Evidence | Notes |
+| --- | --- | --- | --- |
+| 1.1 Shared KPI component (compact and expanded, label, value, icon, note, progress, buttons with active, hover, focus, disabled, themes, responsive) | Implemented | `Shared/Kpi.tsx`, `styles/components.css`, `kpi-standard` | `FilterTile` and `MetricTile` wrap it; SoD tiles, Account Review, Dashboard and Overview use it. Informational KPIs are groups, interactive ones real buttons that keep keyboard focus while filtering |
+| 1.1 AND between dimensions, OR within one | Implemented | `AccountReview` tile toggling, `account-review-refinement` | Finding KPIs join with OR; the classification KPI adds AND |
+| 1.2 Button consistency: Compare users, Review and Edit icons, Investigate preserved | Implemented | `UserAccess`, `AccountReview`, `SodRiskSettings`, `sod-catalogue`, `position-changes` | Lucide icons throughout |
+| 1.2 Transaction count as an actionable button | Implemented | `SodRiskSettings` (Activities table), `sod-catalogue` | Other tables show transaction counts that do not open details |
+| 1.2 Equal heights beside each other | Partial | Release toolbar, risk configuration, source health (geometry specs) | Checked on the affected screens, not audited on every page |
+| 1.3 Multi-select toolbar: Select all, Clear, Close as bordered buttons in one row | Implemented | `MultiSelectFilter`, `kpi-standard`, `sod-bulk-review` | Popup minimum width 300 px; wraps only on very narrow screens |
+| 1.4 Full-width Saved filters and Assignment date filters in sidebars | Implemented | `styles/components.css`, `kpi-standard` | |
+| 1.5 One chevron disclosure pattern | Partial | Global `details > summary` style, `kpi-standard`; Technical details on source cards is a button with a chevron | The Single Roles pattern named in the specification could not be identified; the chevron control already used on review rows is the reference. Non-`details` expanders were not all audited |
+| 1.6 Status pills: vertical padding, centered content | Implemented | Matrix pills (`.matrix-pill`), `StatusBadge` minimum height, `kpi-standard` | |
+| 1.7 No thick selected borders | Implemented | `Kpi`, review rows, active period row | Callouts and detail indents keep a side rule because they are not selection |
+| 2.1 to 2.4 Dashboard KPI section and detail sections | Implemented | `Dashboard.tsx`, `account-review-refinement`, `refinement-round2`, `sod-overview-heatmap` | Detail sections no longer repeat the key figures; review progress shows only real counts and the real share reviewed |
+| 3.1 Position changes table | Implemented | `AccountReview.tsx`, `position-changes` | Previous and current position, no Status column, icon Review action; snapshot and first-detected moved to the review dialog |
+| 3.2 Review dialog limited to identity, position changes, decision | Implemented | `AccountReview.tsx`, `position-changes`, `refinement-round2` | Findings and evidence stay in the row details and behind Investigate SAP user; history and persistence unchanged |
+| 3.3 Account Review KPIs | Implemented | `AccountReview.tsx`, `account-review-refinement` | Five review KPIs, account status secondary |
+| 4.1 Compare users icon | Implemented | `UserAccess.tsx` | |
+| 4.2 Assigned role layout | Implemented | `UserAccess.tsx`, `styles/components.css`, `access-investigation` | No separate description column; badge at natural width |
+| 4.3 Release Roles toolbar | Implemented | `ReleaseRoles.tsx`, `release-roles` | Role actions and Compare SAP User Groups to the left of Export CSV |
+| 4.4 No repeated record text under the users count | Implemented | `ReleaseRoles.tsx`, `release-roles` | The count stays a button |
+| 4.5 Release filter sidebar | Implemented | Shared sidebar button styles | |
+| 5.1 Shared SoD context bar | Implemented | `SodShared.ContextBar`, `GET /api/sod/context`, `sod-layout`, `test_sod_governance` | One bar on every SoD page; pages no longer repeat it |
+| 5.2 Overview redesign | Implemented | `SodOverview.tsx` | Compact KPI groups; the existing additional metrics were kept as compact KPIs, and the evaluation date row moved to the context bar |
+| 5.3 Heatmap preserved | Implemented | `SodGroupHeatmap`, `sod-overview-heatmap` | Unchanged |
+| 5.4 Compact review period summary | Implemented | Unchanged from the earlier compact state | |
+| 6.1 Explorer role codeblock width | Implemented | `col-role` minimum width | |
+| 6.2 Status pills in SoD tables | Implemented | See 1.6 | |
+| 6.3 Work queue KPIs | Implemented | `SodReviews.tsx` | |
+| 6.4 Risk configuration | Implemented | `SodRiskSettings.tsx`, `sod-catalogue` | |
+| 6.5 Data source health buttons | Implemented | `Diagnostics.tsx`, `refinement-round2` | Side by side, wrapping when narrow |
+| 7 Cross-product consistency audit | Partial | Screenshots at 1280 and 375 (and 800) in both themes for Dashboard, Account Review, dialog, User details, Release Roles, SoD, Settings | A representative subset was inspected by eye; zebra, hover and selected rows were fixed and tested |
+| 8 Validation | See Validation | | |
+
+A defect found while validating: showing the previous result while a filter loads (needed to keep keyboard focus on KPI filters) rendered a differently shaped result after a drill-down and blanked the page; kept results are now limited to the same query shape and review context.
+
 ## Validation
 
 - Full regression on the final code, single process as in CI (`python scripts/run-tests.py regression --jobs 1`, commit `d9bf29f`): backend 775 tests, 3 skipped
