@@ -260,3 +260,17 @@ test('the release users panel lists only users inside the multi-group and multi-
   await expect(panel.locator('code', { hasText: /^U1$/ })).toHaveCount(1)
   await expect(panel.locator('code', { hasText: /^U2$/ })).toHaveCount(1)
 })
+
+test('role actions share one compact toolbar left of Export CSV and the users count has no repeated record text', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await open(page, 'Matrix')
+  const actions = page.getByRole('group', { name: 'Filtered release role actions' })
+  const names = ['Add filtered roles', 'Copy role names', 'Export role list']
+  const boxes = await Promise.all(names.map(async name => (await actions.getByRole('button', { name }).boundingBox())!))
+  const compare = (await actions.getByLabel('Compare SAP User Groups').boundingBox())!, exportCsv = (await page.getByRole('button', { name: /^Export CSV/ }).first().boundingBox())!
+  for (const box of [...boxes, compare]) expect(Math.abs(box.y + box.height / 2 - (exportCsv.y + exportCsv.height / 2))).toBeLessThan(24) // one row with Export CSV
+  expect(Math.max(...boxes.map(box => box.x + box.width))).toBeLessThan(exportCsv.x) // actions sit to its left
+  await page.getByRole('button', { name: 'Table', exact: true }).click()
+  await expect(page.getByRole('region', { name: 'Release role results' })).not.toContainText(/\d+ records?\b/)
+  await expect(page.getByRole('button', { name: /^Show \d+ users? with/ }).first()).toBeVisible()
+})

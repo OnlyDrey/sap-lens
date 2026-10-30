@@ -5,7 +5,7 @@ import { Button } from './Button'
 import { FilterChip } from './FilterChip'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, ChevronDown, ChevronUp, Search, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, FilterX, ListChecks, Search, X } from 'lucide-react'
 
 /** Searchable multi-select. The list stays open while options are toggled and closes on outside click, Escape, Tab or Close. Values combine with OR; the caller owns the AND between filters.
  * Selections are independent of the search text: narrowing the list never drops a selected value. Select all applies to the options currently shown. */
@@ -33,7 +33,7 @@ export function MultiSelectFilter({ label, values, options, onChange, onSearch, 
       const natural = Math.min(360, (popup.current?.scrollHeight || 340) + 2), down = below >= natural || below >= above
       const height = Math.min(natural, Math.max(0, down ? below : above), Math.max(0, innerHeight - 16))
       setPositioned(true)
-      setPosition({ left: Math.max(8, Math.min(box.left, window.innerWidth - Math.min(Math.max(box.width, 260), innerWidth - 16) - 8)), width: Math.min(Math.max(box.width, 260), window.innerWidth - 16),
+      setPosition({ left: Math.max(8, Math.min(box.left, window.innerWidth - Math.min(Math.max(box.width, 300), innerWidth - 16) - 8)), width: Math.min(Math.max(box.width, 300), window.innerWidth - 16),
         top: Math.max(8, Math.min(down ? box.bottom + 4 : box.top - height - 4, innerHeight - height - 8)), maxHeight: height })
     }
     place(); return anchor.current ? observeAnchorLayout(anchor.current, popup.current, place) : undefined
@@ -77,9 +77,9 @@ export function MultiSelectFilter({ label, values, options, onChange, onSearch, 
             <div className="multi-popup-head">
               <p className="multi-popup-scope" role="status">{shown.length} {shown.length === 1 ? 'value' : 'values'} {noun}{scope ? ` · ${scope}` : ''} · {values.length} selected</p>
               <div className="multi-popup-actions">
-                <Button size="compact" disabled={!unselected.length || values.length >= maxSelected} aria-label={`Select all ${unselected.length} ${noun} ${label} values`} onClick={selectShown}>Select all {unselected.length || ''}</Button>
-                <Button size="compact" disabled={!values.length} onClick={() => onChange([])}>Clear selection</Button>
-                <Button size="compact" variant="ghost" aria-label={`Close ${label} options`} onClick={() => { close(); input.current?.focus() }}><X size={14} aria-hidden="true" />Close</Button>
+                <Button size="compact" title={`Select all ${unselected.length || 0} ${noun} values`} disabled={!unselected.length || values.length >= maxSelected} aria-label={`Select all ${unselected.length} ${noun} ${label} values`} onClick={selectShown}><ListChecks size={14} aria-hidden="true" />Select all</Button>
+                <Button size="compact" aria-label="Clear selection" title="Clear the selected values" disabled={!values.length} onClick={() => onChange([])}><FilterX size={14} aria-hidden="true" />Clear</Button>
+                <Button size="compact" aria-label={`Close ${label} options`} title="Close the list" onClick={() => { close(); input.current?.focus() }}><X size={14} aria-hidden="true" />Close</Button>
               </div>
             </div>
             <div id={listId} role="listbox" aria-multiselectable="true" aria-label={`${label} options`}>

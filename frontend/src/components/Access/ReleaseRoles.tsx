@@ -221,28 +221,22 @@ export function ReleaseRoles({
           </FilterSection>
         </div>}>
       <div className="grid min-w-0 gap-4">
-      <div className="results-toolbar">
+      <div className="results-toolbar release-toolbar">
         <h2>Release assignments <span>{result.data?.total.toLocaleString() ?? '…'} {result.data?.total === 1 ? 'role' : 'roles'}</span></h2>
+        <div className="release-bulk-actions" role="group" aria-label="Filtered release role actions">
+          <Button size="compact" onClick={addFiltered} disabled={!settled || bulkBusy || !result.data?.total} title="Adds every distinct release role matching the filters, across pages, to the access package."><Plus size={14} aria-hidden="true"/>Add filtered roles</Button>
+          <Button size="compact" onClick={copyNames} disabled={!settled || bulkBusy || !result.data?.total} title="Copies the distinct filtered release role names, one per line."><Copy size={14} aria-hidden="true"/>Copy role names</Button>
+          <Button size="compact" loading={roleListExport.busy} onClick={()=>void roleListExport.download()} disabled={!settled || !result.data?.total} title="Exports the distinct filtered release roles (name, description, area, group, strategy, PR/PO). Assignment export is separate."><Download size={14} aria-hidden="true"/>Export role list</Button>
+          {matrix && (
+            <label className="filter-toggle release-compare-toggle">
+              <input type="checkbox" checked={compareGroups} onChange={(e) => setCompareGroups(e.target.checked)} />
+              Compare SAP User Groups
+            </label>
+          )}
+        </div>
         <ExportCSVButton loading={assignmentExport.busy} disabled={dataLoading||result.isFetching||!result.data?.export_assignments||username!==query.username||role!==query.role} title="Exports every release assignment matching these filters and date bounds, across pages. Table and Matrix use the same assignment set." onClick={()=>void assignmentExport.download()}/>
       </div>
       <p className="ui-description">Export scope: {result.data?.export_assignments?.toLocaleString()??'…'} matching user–release-role assignments across all pages; identical in Table and Matrix.</p>
-      <div className="release-bulk-actions" role="group" aria-label="Filtered release role actions">
-        <Button onClick={addFiltered} disabled={!settled || bulkBusy || !result.data?.total} title="Adds every distinct release role matching the filters, across pages, to the access package."><Plus size={16} aria-hidden="true"/>Add filtered roles</Button>
-        <Button onClick={copyNames} disabled={!settled || bulkBusy || !result.data?.total} title="Copies the distinct filtered release role names, one per line."><Copy size={16} aria-hidden="true"/>Copy role names</Button>
-        <Button loading={roleListExport.busy} onClick={()=>void roleListExport.download()} disabled={!settled || !result.data?.total} title="Exports the distinct filtered release roles (name, description, area, group, strategy, PR/PO). Assignment export is separate."><Download size={16} aria-hidden="true"/>Export role list</Button>
-      </div>
-      <div className="release-secondary-toolbar">
-        {matrix && (
-          <label className="filter-toggle">
-            <input
-              type="checkbox"
-              checked={compareGroups}
-              onChange={(e) => setCompareGroups(e.target.checked)}
-            />
-            Compare SAP User Groups
-          </label>
-        )}
-      </div>
       <QueryState loading={result.isLoading || (dataLoading && !result.data?.loaded)} error={result.error} />
       {result.data && !result.data.loaded && !dataLoading && (
         <p>No User Access CSV loaded. Configure it in Settings.</p>
@@ -286,7 +280,6 @@ export function ReleaseRoles({
                       <td>{r.release_strategy || "—"}</td>
                       <td data-align="end" title={`${r.assignment_count} assignment ${r.assignment_count === 1 ? "record" : "records"}`}>
                         <button type="button" className="role-count-button" aria-label={`Show ${r.assigned_users} ${r.assigned_users === 1 ? 'user' : 'users'} with ${r.role_name}`} onClick={() => setUsersOf(r.role_name)}><strong>{r.assigned_users}</strong></button>
-                        <span className="release-record-count">{r.assignment_count} {r.assignment_count === 1 ? "record" : "records"}</span>
                       </td>
                       <td>
                         <div className="release-validity">

@@ -170,3 +170,17 @@ test('the Overview sections fill the row at 800px: two columns with the third se
   expect(c.y).toBeGreaterThan(a.y + 50)
   expect(c.width).toBeGreaterThan((a.width + b.width) * 0.95) // the third spans the row
 })
+
+test('one review context bar sits beneath the SoD navigation on every SoD page', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  for (const view of ['Overview', 'Risk Matrix', 'Activity Matrix', 'Access Explorer', 'Reviews', 'Review Periods', 'Reports']) {
+    await openSod(page, view)
+    const bar = page.locator('[aria-label="Review context"].ui-toolbar, div[aria-label="Review context"]').first()
+    await expect(bar, view).toHaveCount(1)
+    await expect(bar.getByLabel('Review context')).toBeVisible()
+    await expect(bar.getByRole('status')).toContainText('Evaluation date')
+    await expect(bar.getByRole('status')).toContainText('live imported evidence')
+    const nav = (await page.getByRole('navigation', { name: 'SoD views' }).boundingBox())!, box = (await bar.boundingBox())!
+    expect(box.y, view).toBeGreaterThan(nav.y + nav.height - 1)
+  }
+})

@@ -20,7 +20,7 @@ import { Select } from '@/components/Shared/Select';
 import { formatDate } from '@/lib/dateFormat';
 import { exportAssignments } from '@/lib/accessExport';
 import { announceExport } from '@/lib/exportNotice'
-import { ArrowRight, Download } from 'lucide-react';
+import { ArrowLeftRight, ArrowRight, Download } from 'lucide-react';
 import { useHistoryValue, useViewHistory, userAccessHref } from '@/hooks/useViewHistory';
 import { useRecordNavigation, type RecordNavigationState } from "@/hooks/useRecordNavigation";
 import { DetailNavigation, LockStatus, AssignmentStatus } from "@/components/Shared/InvestigationNavigation";
@@ -377,7 +377,7 @@ function UserDetails({
   return (
     <section aria-label="User details" className="space-y-4">
       <DetailNavigation parent="User Access" current={username} onBack={onBack} previousUser={trail.length ? { name: trail[trail.length - 1], onBack: () => change({ user: trail[trail.length - 1], userTrail: trail.slice(0, -1) }) } : undefined} {...navigation}/>
-      <div className="flex flex-wrap items-center gap-3"><h1 className="text-xl font-semibold">User details</h1><Button className="settings-secondary-button" onClick={onCompare}>Compare users</Button></div>
+      <div className="flex flex-wrap items-center gap-3"><h1 className="text-xl font-semibold">User details</h1><Button className="settings-secondary-button" onClick={onCompare}><ArrowLeftRight size={16} aria-hidden="true" />Compare users</Button></div>
       <QueryState loading={result.isLoading || (dataLoading && !result.data)} error={dataLoading && !result.data ? null : result.error} />
       {user && (
         <>
@@ -455,7 +455,7 @@ function UserDetails({
               <thead>
                 <tr>
                   <th>Exact assigned role</th>
-                  {scope === 'release' ? <><th>Type</th><th>Release group</th><th>Release strategy</th></> : <th>Role description</th>}
+                  {scope === 'release' && <><th>Type</th><th>Release group</th><th>Release strategy</th></>}
                   <th>Valid from</th><th>Valid to</th>
                   <th>Assignment status</th>
                   <th>
@@ -508,12 +508,12 @@ function AssignmentRow({
   return (
     <tr>
       <td>
-        <div className="grid min-w-0 gap-1">
-          {!releaseView && <RoleModuleBadge catalogueRoles={a.match_status === "exact" || a.match_status === "wildcard" ? a.catalogue_roles : undefined} />}
+        <div className="assigned-role">
+          {!releaseView && <div className="assigned-role-head"><RoleModuleBadge catalogueRoles={a.match_status === "exact" || a.match_status === "wildcard" ? a.catalogue_roles : undefined} /><span className="assigned-role-description">{a.role_description || 'Description unavailable'}</span></div>}
           <RoleIdentifier value={a.role_name} />
         </div>
       </td>
-      {releaseView ? <><td>{a.release?.document_type || 'Unparsed'}</td><td>{a.release?.release_group || '—'}</td><td>{a.release?.release_strategy || '—'}</td></> : <td className="assignment-description">{a.role_description||'Description unavailable'}</td>}
+      {releaseView && <><td>{a.release?.document_type || 'Unparsed'}</td><td>{a.release?.release_group || '—'}</td><td>{a.release?.release_strategy || '—'}</td></>}
       <td className="assignment-date">{formatDate(a.valid_from)}</td><td className="assignment-date">{formatDate(a.valid_to)}</td>
 
       <td>

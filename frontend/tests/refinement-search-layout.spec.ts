@@ -25,7 +25,7 @@ for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(
  await page.getByRole('button',{name:'Investigate users with 1–5 currently valid roles',exact:true}).click()
  await expect(page.getByRole('button',{name:'Remove assignment count filter',exact:true})).toBeVisible()
  await expect(page.getByRole('navigation',{name:'User Access view',exact:true}).getByRole('link',{name:'User directory',exact:true})).toHaveCSS('border-bottom-width','2px')
- await page.getByRole('link', { name: 'SYN_BUY',exact:true}).click();await expect(page.getByRole('columnheader',{name:'Role description',exact:true})).toBeVisible();await expect(page.getByRole('region',{name:'User role assignments',exact:true})).toContainText('Purchasing')
+ await page.getByRole('link', { name: 'SYN_BUY',exact:true}).click();await expect(page.getByRole('columnheader',{name:'Role description',exact:true})).toHaveCount(0);await expect(page.getByRole('region',{name:'User role assignments',exact:true})).toContainText('Purchasing')
  const back=page.getByRole('button',{name:'Back to users',exact:true});await expect(back).toHaveCSS('border-top-width','1px')
  await expect(page.locator('.profile-matching-evidence')).toHaveCSS('margin-top','16px')
  await page.getByRole('button',{name:'View role details: ZC:SYN:BUY',exact:true}).click()

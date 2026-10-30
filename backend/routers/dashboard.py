@@ -44,17 +44,17 @@ def overview():
             review_rows, _ = current_rows(state, available(state), decisions(), settings.unlicensed_user_groups, date.today())
         except HTTPException:
             add('account_review', 'Accounts requiring review', None, 'review', 'Open Account Review for recovery.', 'Review annotations unavailable; other source metrics remain available.')
-            for key,label in [('reviewed','Reviewed accounts'),('pending','Pending reviews'),('outdated','Outdated reviews')]: add(key,label,None,'review','Open Account Review for recovery.','Review annotations unavailable.')
+            for key,label in [('reviewed','Completed reviews'),('pending','Pending reviews'),('outdated','Outdated reviews')]: add(key,label,None,'review','Open Account Review for recovery.','Review annotations unavailable.')
         else:
             add('account_review', 'Accounts requiring review', sum(r['needs_review'] for r in review_rows), 'review', 'Review supported account evidence and stale annotations, not effective authorization or license savings.')
             reviewed=sum(bool(r['decision']) and r['review_state']!='Needs review' and not r['stale'] for r in review_rows)
-            for key,label,value in [('reviewed','Reviewed accounts',reviewed),('pending','Pending reviews',len(review_rows)-reviewed),('outdated','Outdated reviews',sum(r['stale'] for r in review_rows))]:
+            for key,label,value in [('reviewed','Completed reviews',reviewed),('pending','Pending reviews',len(review_rows)-reviewed),('outdated','Outdated reviews',sum(r['stale'] for r in review_rows))]:
                 add(key,label,value,'review','All currently imported SAP accounts form the review population; outdated reviews are included in pending.')
             add('position_changes','Users requiring review — Position changes',sum(bool(r['position_change'] and r['position_change']['open']) for r in review_rows) if directory['loaded'] and enabled else None,'review','Department or job title changed between Employee Directory imports and not yet reviewed. Separate from SoD conflicts and other account findings; opens Account Review.','Employee Directory not loaded')
             add('ad_disabled_open','AD disabled / SAP valid and unlocked',sum('ad_disabled_open' in r['findings'] for r in review_rows) if directory['loaded'] and enabled else None,'review','Reliably matched AD and SAP account evidence.',directory['coverage_reason'])
     else:
         add('account_review', 'Accounts requiring review', None, 'review', 'Open Account Review.', reason)
-        for key,label in [('reviewed','Reviewed accounts'),('pending','Pending reviews'),('outdated','Outdated reviews')]: add(key,label,None,'review','Open Account Review.',reason)
+        for key,label in [('reviewed','Completed reviews'),('pending','Pending reviews'),('outdated','Outdated reviews')]: add(key,label,None,'review','Open Account Review.',reason)
     role_distribution=Counter((r.function_key or 'UNCLASSIFIED') for r in state.summaries) if catalogue else None
     assignment_distribution=Counter() if mapping else None
     if mapping:

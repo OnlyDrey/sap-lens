@@ -13,7 +13,7 @@ import { SodReviews } from './SodReviews'
 import { SodPeriods } from './SodPeriods'
 import { SodReports } from './SodReports'
 import { SodInvestigation } from './SodInvestigation'
-import { useSodContext, useSodSubject } from './SodShared'
+import { ContextBar, useSodContext, useSodSubject } from './SodShared'
 
 const VIEWS: [SodView, string, ReactNode][] = [
   ['overview', 'Overview', <LayoutDashboard size={16} aria-hidden="true" />], ['risk-matrix', 'Risk Matrix', <Grid3x3 size={16} aria-hidden="true" />],
@@ -48,6 +48,7 @@ function SodWorkspaceContent() {
     <section className="sod-workspace grid min-w-0 gap-3" aria-label="SoD investigation">
       <PageHeader title="Segregation of Duties" icon={<ShieldCheck size={22} aria-hidden="true" />} />
       <SecondaryNavigation label="SoD views" items={VIEWS.map(([value, label, icon]) => ({ value, label, icon, href: sodHref(value), active: view === value, onSelect: () => change({ sodView: value }) }))} />
+      <ContextBar />
       {view === 'overview' ? <SodOverview /> : view === 'risk-matrix' ? <RiskMatrix /> : view === 'activity-matrix' ? <ActivityMatrix /> : view === 'explorer' ? <SodExplorer />
         : view === 'reviews' ? <SodReviews /> : view === 'periods' ? <SodPeriods /> : <SodReports />}
       {/* One side panel at a time: it yields to the role detail panel and returns on Back. */}

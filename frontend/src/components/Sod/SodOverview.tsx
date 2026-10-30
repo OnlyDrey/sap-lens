@@ -4,7 +4,7 @@ import { AlertTriangle, CheckCircle2, CircleDashed, ClipboardCheck, Grid3x3, Lis
 import { emptyFilters, sod, type Filters } from '@/api/sod'
 import { useHistoryValue, useViewHistory, type SodView } from '@/hooks/useViewHistory'
 import { Card, ErrorState, LoadingState, SectionHeader, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
-import { MetricTile } from '@/components/Shared/MetricTile'
+import { Kpi } from '@/components/Shared/Kpi'
 import { Button } from '@/components/Shared/Button'
 import { formatDate, formatTimestamp } from '@/lib/dateFormat'
 import { AlertNote } from './SodShared'
@@ -37,8 +37,8 @@ export function SodOverview() {
   const { counts, source, coverage, governance: g } = result.data
   const go = (view: SodView, name?: string, patch: Filters = {}, extra: Record<string, unknown> = {}) =>
     change({ sodView: view, ...(name ? { sodFilters: { ...stored, [name]: { ...emptyFilters, ...patch } } } : {}), ...extra })
-  const Kpi = ({ icon, label, value, onOpen, tone }: { icon: ReactNode; label: string; value: number | string | undefined; onOpen?: () => void; tone?: 'warning' | 'error' }) => (
-    <MetricTile icon={icon} label={label} value={value} onOpen={onOpen} tone={tone} />
+  const Tile = ({ icon, label, value, onOpen, tone }: { icon: ReactNode; label: string; value: number | string | undefined; onOpen?: () => void; tone?: 'warning' | 'error' }) => (
+    <Kpi icon={icon} label={label} ariaLabel={label} value={value === undefined ? '—' : typeof value === 'number' ? value.toLocaleString() : value} onClick={onOpen} navigates tone={tone && Number(value) > 0 ? tone : 'neutral'} />
   )
   const activities = g.activities || {}, acceptance = g.acceptance || {}
   return (
@@ -48,30 +48,30 @@ export function SodOverview() {
       {g.available && <section className="dashboard-workspace sod-overview-cards" aria-label="SoD key figures">
           <section className="dashboard-section min-w-0 rounded-card bg-surface p-4" aria-label="Conflicts">
             <SectionHeader title="Conflicts" icon={<ShieldAlert size={18} aria-hidden="true" />} />
-            <div className="dashboard-metrics dashboard-secondary-metrics">
-              <Kpi icon={<UsersRound size={18} aria-hidden="true" />} label="Users with potential conflicts" value={g.users_with_conflicts} onOpen={() => go('risk-matrix', 'riskMatrix')} />
-              <Kpi icon={<Grid3x3 size={18} aria-hidden="true" />} label="Detected user-risk findings" value={g.user_risk_findings} onOpen={() => go('explorer', 'explorer', {}, { sodExplorer: 'user_risk' })} />
-              <Kpi icon={<ListChecks size={18} aria-hidden="true" />} label="Enabled risk definitions" value={counts.enabled ?? undefined} onOpen={() => change({ settings: true, settingsTarget: 'sod' })} />
+            <div className="sod-kpi-list">
+              <Tile icon={<UsersRound size={18} aria-hidden="true" />} label="Users with potential conflicts" value={g.users_with_conflicts} onOpen={() => go('risk-matrix', 'riskMatrix')} />
+              <Tile icon={<Grid3x3 size={18} aria-hidden="true" />} label="Detected user-risk findings" value={g.user_risk_findings} onOpen={() => go('explorer', 'explorer', {}, { sodExplorer: 'user_risk' })} />
+              <Tile icon={<ListChecks size={18} aria-hidden="true" />} label="Enabled risk definitions" value={counts.enabled ?? undefined} onOpen={() => change({ settings: true, settingsTarget: 'sod' })} />
             </div>
           </section>
           <section className="dashboard-section min-w-0 rounded-card bg-surface p-4" aria-label="Reviews">
             <SectionHeader title="Reviews" icon={<ClipboardCheck size={18} aria-hidden="true" />} />
-            <div className="dashboard-metrics dashboard-secondary-metrics">
-              <Kpi icon={<CircleDashed size={18} aria-hidden="true" />} label="Activities pending or outdated" value={(activities.Pending || 0) + (activities.Outdated || 0)} onOpen={() => go('activity-matrix', 'activityMatrix', { activity_decision: 'Pending' })} />
-              <Kpi icon={<CheckCircle2 size={18} aria-hidden="true" />} label="Activities approved or conditional" value={(activities.Approved || 0) + (activities.Conditional || 0)} onOpen={() => go('activity-matrix', 'activityMatrix', { activity_decision: 'Approved' })} />
-              <Kpi icon={<UserMinus size={18} aria-hidden="true" />} label="Activities marked for removal" value={activities['Removal required'] || 0} onOpen={() => go('activity-matrix', 'activityMatrix', { activity_decision: 'Removal required' })} />
-              <Kpi icon={<ShieldCheck size={18} aria-hidden="true" />} label="Risks accepted" value={acceptance.Accepted || 0} onOpen={() => go('risk-matrix', 'riskMatrix', { acceptance: 'Accepted' })} />
-              <Kpi icon={<ShieldX size={18} aria-hidden="true" />} label="Risks rejected" value={acceptance.Rejected || 0} onOpen={() => go('risk-matrix', 'riskMatrix', { acceptance: 'Rejected' })} />
-              <Kpi icon={<CircleDashed size={18} aria-hidden="true" />} label="Risk decisions pending" value={(acceptance.Pending || 0) + (acceptance.Outdated || 0)} onOpen={() => go('risk-matrix', 'riskMatrix', { acceptance: 'Pending' })} />
+            <div className="sod-kpi-list">
+              <Tile icon={<CircleDashed size={18} aria-hidden="true" />} label="Activities pending or outdated" value={(activities.Pending || 0) + (activities.Outdated || 0)} onOpen={() => go('activity-matrix', 'activityMatrix', { activity_decision: 'Pending' })} />
+              <Tile icon={<CheckCircle2 size={18} aria-hidden="true" />} label="Activities approved or conditional" value={(activities.Approved || 0) + (activities.Conditional || 0)} onOpen={() => go('activity-matrix', 'activityMatrix', { activity_decision: 'Approved' })} />
+              <Tile icon={<UserMinus size={18} aria-hidden="true" />} label="Activities marked for removal" value={activities['Removal required'] || 0} onOpen={() => go('activity-matrix', 'activityMatrix', { activity_decision: 'Removal required' })} />
+              <Tile icon={<ShieldCheck size={18} aria-hidden="true" />} label="Risks accepted" value={acceptance.Accepted || 0} onOpen={() => go('risk-matrix', 'riskMatrix', { acceptance: 'Accepted' })} />
+              <Tile icon={<ShieldX size={18} aria-hidden="true" />} label="Risks rejected" value={acceptance.Rejected || 0} onOpen={() => go('risk-matrix', 'riskMatrix', { acceptance: 'Rejected' })} />
+              <Tile icon={<CircleDashed size={18} aria-hidden="true" />} label="Risk decisions pending" value={(acceptance.Pending || 0) + (acceptance.Outdated || 0)} onOpen={() => go('risk-matrix', 'riskMatrix', { acceptance: 'Pending' })} />
             </div>
           </section>
           <section className="dashboard-section min-w-0 rounded-card bg-surface p-4" aria-label="Remediation">
             <SectionHeader title="Remediation" icon={<Wrench size={18} aria-hidden="true" />} />
-            <div className="dashboard-metrics dashboard-secondary-metrics">
-              <Kpi icon={<UserMinus size={18} aria-hidden="true" />} label="Role assignments marked for removal" value={g.assignments_marked_remove} onOpen={() => go('reviews', undefined, {}, { sodReviews: 'remediation' })} />
-              <Kpi icon={<ListChecks size={18} aria-hidden="true" />} label="Open actions" value={g.remediation?.open_actions} onOpen={() => go('reviews', undefined, {}, { sodReviews: 'remediation' })} />
-              <Kpi icon={<AlertTriangle size={18} aria-hidden="true" />} label="Overdue actions" value={g.remediation?.overdue} tone="error" onOpen={() => go('reviews', undefined, {}, { sodReviews: 'remediation' })} />
-              <Kpi icon={<Wrench size={18} aria-hidden="true" />} label="Removal recommendations without an action" value={g.remediation?.removal_without_action} onOpen={() => go('reviews', undefined, {}, { sodReviews: 'remediation' })} />
+            <div className="sod-kpi-list">
+              <Tile icon={<UserMinus size={18} aria-hidden="true" />} label="Role assignments marked for removal" value={g.assignments_marked_remove} onOpen={() => go('reviews', undefined, {}, { sodReviews: 'remediation' })} />
+              <Tile icon={<ListChecks size={18} aria-hidden="true" />} label="Open actions" value={g.remediation?.open_actions} onOpen={() => go('reviews', undefined, {}, { sodReviews: 'remediation' })} />
+              <Tile icon={<AlertTriangle size={18} aria-hidden="true" />} label="Overdue actions" value={g.remediation?.overdue} tone="error" onOpen={() => go('reviews', undefined, {}, { sodReviews: 'remediation' })} />
+              <Tile icon={<Wrench size={18} aria-hidden="true" />} label="Removal recommendations without an action" value={g.remediation?.removal_without_action} onOpen={() => go('reviews', undefined, {}, { sodReviews: 'remediation' })} />
             </div>
           </section>
         </section>}

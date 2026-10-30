@@ -164,6 +164,7 @@
    "backend": [],
    "browser": [
     "consolidated-refinement",
+      "kpi-standard",
     "a11y-audit",
     "design-system",
     "investigation-ux",

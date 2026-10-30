@@ -118,6 +118,15 @@ class MatrixTests(GovernanceCase):
         self.assertEqual(self.get('/api/sod/matrix/risk', group_by='group')['status_counts'], {'Pending': 3})
         self.assertEqual(self.get('/api/sod/matrix/activity')['status_counts'], {'Pending': 5})
 
+    def test_context_summary_describes_current_evidence_without_loading_a_matrix(self):
+        current = self.get('/api/sod/context')
+        self.assertEqual((current['context'], current['frozen'], current['period'], current['reviewable']), ('current', False, None, True))
+        self.assertTrue(current['as_of'])
+        shared = self.risk_matrix()
+        for key in ('context', 'generation', 'as_of', 'frozen', 'reviewable', 'period', 'legacy'):
+            self.assertEqual(current[key], shared[key], key)
+        self.assertEqual(self.client.get('/api/sod/context', params={'context': 'no-such-period'}, headers=H).status_code in (404, 422), True)
+
     def test_filter_options_come_from_imported_evidence_and_are_searchable(self):
         options = lambda field, **params: self.get('/api/sod/filter-options', field=field, **params)
         self.assertEqual(options('risk')['items'], ['R1', 'R2'])

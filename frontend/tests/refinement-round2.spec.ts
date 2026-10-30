@@ -45,7 +45,7 @@ test('tasks 19–21: shared source evidence, interactive feature pill and techni
  await page.getByRole('button',{name:'Apply settings',exact:true}).click();expect((await settings(request)).features.employee_directory).toBe(false)
  await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:'Health & Diagnostics',exact:true}).click()
  for(const name of ['Role Catalogue CSV','User Access CSV','Employee Directory CSV']){
-  const card=page.getByRole('region',{name,exact:true});await expect(card.locator('.source-essentials .ui-metadata-list>div')).toHaveCount(2);await card.getByText('Technical details',{exact:true}).click();await expect(card.locator('details .ui-metadata-list>div')).toHaveCount(4)
+  const card=page.getByRole('region',{name,exact:true});await expect(card.locator('.source-essentials .ui-metadata-list>div')).toHaveCount(2);await card.getByRole('button',{name:'Technical details',exact:true}).click();await expect(card.locator('.source-health-technical .ui-metadata-list>div')).toHaveCount(4);await expect(card.getByRole('button',{name:'Review source',exact:true})).toBeVisible();{const [a,b]=[await card.getByRole('button',{name:'Technical details',exact:true}).boundingBox(),await card.getByRole('button',{name:'Review source',exact:true}).boundingBox()];expect(Math.abs(a!.y-b!.y)).toBeLessThan(2);expect(Math.abs(a!.height-b!.height)).toBeLessThan(1)}
   const trigger=card.getByRole('button',{name:'Locations and diagnostics',exact:true});await trigger.click();const dialog=page.getByRole('dialog',{name:`${name} technical details`,exact:true});await expect(dialog.getByText('Configured file',{exact:true})).toBeVisible();await page.keyboard.press('Escape');await expect(trigger).toBeFocused()
  }
 })
@@ -54,11 +54,11 @@ test('tasks 22–26: dashboard uses observed distributions, review population an
  await expect(dashboard.getByRole('region',{name:'Review Progress',exact:true})).toContainText('All 2 imported SAP accounts; outdated reviews remain pending.');await expect(dashboard.getByRole('progressbar',{name:'Account review completion',exact:true})).toHaveAttribute('max','2')
  const data=await(await request.get('/api/dashboard',{headers})).json();expect(data.role_distribution).toEqual({BC:1,MM:1});expect(Object.values(data.assignment_distribution).reduce((a:any,b:any)=>a+b,0)).toBe(2)
  await expect(dashboard.getByRole('progressbar',{name:'SAP identity match coverage',exact:true})).toHaveCount(1)
- for(const name of ['SAP Overview','Access & Risk','Directory & Data Health','Review Progress','Role Distribution','Data Sources & Configuration'])await expect(dashboard.getByRole('heading',{name,exact:true}).locator('svg')).toBeVisible()
+ for(const name of ['Access & Risk','Directory & Data Health','Review Progress','Role Distribution','Data Sources & Configuration'])await expect(dashboard.getByRole('heading',{name,exact:true}).locator('svg')).toBeVisible()
  await dashboard.getByRole('button',{name:'Investigate BC catalogue roles',exact:true}).click();await expect(page.getByRole('article',{name:'Synthetic Alpha',exact:true})).toBeVisible();await expect(page.getByRole('article',{name:'Synthetic Beta',exact:true})).toBeHidden()
 })
 test('tasks 24 and 28: review findings precede decisions, saves retain real history and Cancel protects drafts',async({page,request})=>{
- await page.goto('/#session=browser-test-session');let dialog=await review(page);await expect(dialog.getByRole('region',{name:'Current review findings',exact:true})).toContainText('AD disabled / SAP valid and unlocked')
+ await page.goto('/#session=browser-test-session');let dialog=await review(page);await expect(dialog.getByRole('region',{name:'SAP identity',exact:true}).getByRole('button',{name:/Investigate SAP user/})).toBeVisible();await expect(dialog.getByRole('region',{name:'Current review findings',exact:true})).toHaveCount(0)
  await dialog.getByLabel('Reviewer',{exact:true}).fill('Synthetic reviewer');await dialog.getByLabel('Rationale',{exact:true}).fill('Reviewing current source evidence')
  page.once('dialog',d=>d.dismiss());await page.keyboard.press('Escape');await expect(dialog).toBeVisible()
  await dialog.getByRole('button',{name:'Save review decision',exact:true}).click();await expect(dialog).toBeHidden()

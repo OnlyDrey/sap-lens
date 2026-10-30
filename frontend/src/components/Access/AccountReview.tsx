@@ -1,9 +1,9 @@
 import { Dialog } from '@/components/Shared/Dialog'
 import { userHref } from '@/hooks/useViewHistory'
-import { ReviewFindings, type ReviewEvidence } from '@/components/Shared/ReviewFindings'
+import { type ReviewEvidence } from '@/components/Shared/ReviewFindings'
 import { PageHeader, MetadataList } from '@/components/Shared/Presentation'
 import { ClipboardCheck as PageIcon } from 'lucide-react'
-import { FilterTile } from '@/components/Shared/InvestigationPatterns'
+import { Kpi } from '@/components/Shared/Kpi'
 import { FilterLayout, FilterSection, PageToolbar, SortControl } from '@/components/Shared/FilterLayout'
 import { FormField } from '@/components/Shared/Controls'
 import { SearchInput } from '@/components/Shared/Controls'
@@ -12,7 +12,7 @@ import { SavedFilters } from '@/components/Shared/SavedFilters'
 import { useApplicationData } from '@/state/ApplicationData'
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowUpRight, Download, Save } from 'lucide-react'
+import { ArrowUpRight, ClipboardCheck, Download, Save } from 'lucide-react'
 import { apiRequest, applicationToken } from '@/api/client'
 import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
 import { AccountStatus } from '@/components/Shared/AccountStatus'
@@ -80,13 +80,20 @@ const changeText = (change: PositionChange) => [
   change.fields.includes('title') && `Job title ${change.previous_title} → ${change.current_title}`,
 ].filter(Boolean).join(' · ')
 
-/** Overview tiles: each applies its finding (and license classification) to the list. */
+/** KPIs: each applies its finding (and license classification) to the list. The review queue comes first; account status is secondary. */
 const TILE_GROUPS: [string, [string, string, { finding: string; license?: string }][]][] = [
-  ['Account status', [['total', 'SAP accounts', { finding: '' }], ['mismatch', 'AD disabled / SAP valid and unlocked', { finding: 'ad_disabled_open' }], ['missing', 'Missing or ambiguous directory matches', { finding: 'directory_match' }]]],
-  ['Review findings', [['requiring_review', 'Accounts requiring review', { finding: 'any' }], ['position_changes', 'Position changes', { finding: 'position_change' }], ['unlicensed', 'Classified unlicensed', { finding: '', license: 'classified' }]]],
-  ['Review progress', [['reviewed', 'Reviewed accounts', { finding: 'reviewed' }], ['outdated', 'Outdated reviews', { finding: 'stale' }], ['pending', 'Pending reviews', { finding: 'pending' }]]],
+  ['Review queue', [['requiring_review', 'Accounts requiring review', { finding: 'any' }], ['position_changes', 'Position changes', { finding: 'position_change' }], ['pending', 'Pending reviews', { finding: 'pending' }], ['reviewed', 'Completed reviews', { finding: 'reviewed' }], ['outdated', 'Outdated reviews', { finding: 'stale' }]]],
+  ['Account status', [['total', 'SAP accounts', { finding: '' }], ['mismatch', 'AD disabled / SAP valid and unlocked', { finding: 'ad_disabled_open' }], ['missing', 'Missing or ambiguous directory matches', { finding: 'directory_match' }], ['unlicensed', 'Classified unlicensed', { finding: '', license: 'classified' }]]],
 ]
-const FINDING_NAMES: Record<string, string> = { any: 'Accounts requiring review', matched: 'Reliably matched identities', reviewed: 'Reviewed accounts', pending: 'Pending reviews', position_change: 'Position changes', stale: 'Outdated reviews' }
+const FINDING_NAMES: Record<string, string> = { any: 'Accounts requiring review', matched: 'Reliably matched identities', reviewed: 'Completed reviews', pending: 'Pending reviews', position_change: 'Position changes', stale: 'Outdated reviews' }
+
+/** Department and job title together, labelled so the two are never confused. Changed values are emphasized; unchanged ones are muted. */
+function PositionCell({ department, title, changed }: { department?: string | null; title?: string | null; changed?: string[] }) {
+  const line = (label: string, value: string | null | undefined, field: string) => (
+    <p className="position-line" data-changed={changed?.includes(field) || undefined}><span className="position-label">{label}</span><span className="position-value" title={value || undefined}>{value || '—'}</span></p>
+  )
+  return <div className="position-cell">{line('Department', department, 'department')}{line('Job title', title, 'title')}</div>
+}
 
 export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
   const { loading: dataLoading } = useApplicationData()
@@ -321,10 +328,10 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
       </p>
       {data && (
         <>
-          <div className="review-metric-groups">{TILE_GROUPS.map(([title,tiles])=><section key={title} aria-label={title}><h2>{title}</h2><div className="review-metrics">{tiles.map(([key,label,target])=>{
+          <div className="review-kpi-groups">{TILE_GROUPS.map(([title,tiles],group)=><section key={title} aria-label={title} data-primary={group===0||undefined}><h2>{title}</h2><div className="review-kpis">{tiles.map(([key,label,target])=>{
             const value=data.summary[key]
             const active=target.license?licenses.includes(target.license):target.finding?findings.includes(target.finding):!findings.length&&!licenses.length
-            return <FilterTile key={key} label={label} value={value?.toLocaleString()??'Unavailable'} tone={['mismatch','missing','outdated'].includes(key)&&!!value?'warning':'neutral'} active={active} onClick={()=>toggleTile(target)}/>})}</div></section>)}</div>
+            return <Kpi key={key} layout={group===0?'expanded':'compact'} label={label} value={value?.toLocaleString()??'Unavailable'} tone={['mismatch','missing','outdated'].includes(key)&&!!value?'warning':'neutral'} active={active} onClick={()=>toggleTile(target)}/>})}</div></section>)}</div>
           {!data.directory_available && (
             <p role="status">
               Directory enrichment unavailable. Enable and import Employee
@@ -345,7 +352,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
               <table>
                 <thead>
                   <tr>
-                    <th>SAP username</th><th>Employee</th><th>Previous department</th><th>Current department</th><th>Previous job title</th><th>Current job title</th><th>Previous snapshot</th><th>First detected</th><th>Status</th><th>Priority</th><th>Review action</th>
+                    <th>SAP username</th><th>Employee</th><th>Previous position</th><th>Current position</th><th>Priority</th><th><span className="sr-only">Review action</span></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -355,15 +362,10 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
                       <tr key={row.username}>
                         <td><RoleIdentifier value={row.username} label="username" onOpen={() => onUser(row.username)} href={userHref(row.username)} openLabel={`Open SAP user ${row.username}`} openButtonProps={{ 'data-user': row.username }} /></td>
                         <td>{row.name || 'Unknown'}</td>
-                        <td className={change.fields.includes('department') ? '' : 'text-muted'}>{change.previous_department || '—'}</td>
-                        <td>{change.fields.includes('department') ? <strong>{change.current_department}</strong> : <span className="text-muted">{change.current_department || '—'} (unchanged)</span>}</td>
-                        <td className={change.fields.includes('title') ? '' : 'text-muted'}>{change.previous_title || '—'}</td>
-                        <td>{change.fields.includes('title') ? <strong>{change.current_title}</strong> : <span className="text-muted">{change.current_title || '—'} (unchanged)</span>}</td>
-                        <td>{change.previous_imported_at ? formatTimestamp(change.previous_imported_at) : <span className="text-muted">Not recorded</span>}</td>
-                        <td>{formatTimestamp(change.detected_at)}</td>
-                        <td>{row.review_state}</td>
+                        <td><PositionCell department={change.previous_department} title={change.previous_title} /></td>
+                        <td><PositionCell department={change.current_department} title={change.current_title} changed={change.fields} /></td>
                         <td><span className="evidence-badge evidence-warning">{row.priority}</span></td>
-                        <td><Button className="settings-secondary-button" disabled={busy} onClick={() => startReview(row)} aria-label={`Review position change for ${row.username}`}>Review</Button></td>
+                        <td><Button size="compact" className="settings-secondary-button" disabled={busy} onClick={() => startReview(row)} aria-label={`Review position change for ${row.username}`}><ClipboardCheck size={14} aria-hidden="true" />Review</Button></td>
                       </tr>
                     )
                   })}
@@ -532,25 +534,22 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
           className="review-dialog"
           aria-label={`Review decision for ${editing.username}`}
         >
-          <section aria-label="SAP identity and organizational context" className="review-dialog-section"><h3>SAP identity and organizational context</h3>
+          <section aria-label="SAP identity" className="review-dialog-section"><h3>SAP identity</h3>
             <MetadataList items={[
               {label:'SAP username',value:<RoleIdentifier value={editing.username} label="username"/>},
               {label:'Name',value:editing.name||'Name unavailable'},
               {label:'SAP User Group',value:editing.groups.join(', ')||'Group unavailable'},
               {label:'Directory match',value:matchLabel(editing.match_status)},
             ]}/>
+            <div className="ui-toolbar"><Button onClick={()=>{if(reviewer!==(editing.decision?.reviewer||'')||rationale!==(editing.decision?.rationale||'')||decision!==editing.review_state){if(!window.confirm('Discard unsaved review changes and investigate this user?'))return}setEditing(null);onUser(editing.username)}}><ArrowUpRight size={16} aria-hidden="true"/>Investigate SAP user</Button></div>
           </section>
-          {editing.position_change&&<section aria-label="Position change that triggered this review" className="review-dialog-section review-dialog-trigger"><h3>Position changes</h3>
+          {editing.position_change&&<section aria-label="Position change that triggered this review" className="review-dialog-section review-dialog-trigger"><h3>Organizational position changes</h3>
             <table className="review-change-table"><thead><tr><th scope="col"><span className="sr-only">Field</span></th><th scope="col">Previous (last known)</th><th scope="col">Current</th></tr></thead><tbody>
               <tr><th scope="row">Department</th><td>{editing.position_change.previous_department||'—'}</td><td data-changed={editing.position_change.fields.includes('department')||undefined}>{editing.position_change.current_department||'—'}</td></tr>
               <tr><th scope="row">Job title</th><td>{editing.position_change.previous_title||'—'}</td><td data-changed={editing.position_change.fields.includes('title')||undefined}>{editing.position_change.current_title||'—'}</td></tr>
               <tr><th scope="row">Employee Directory snapshot</th><td>{editing.position_change.previous_imported_at?`Imported ${formatTimestamp(editing.position_change.previous_imported_at)}`:'Import time not recorded'}</td><td>First detected {formatTimestamp(editing.position_change.detected_at)}</td></tr>
             </tbody></table>
             <p className="ui-description">The organizational change itself happened at an unknown time between the two imports. A position change prompts a review; it is not evidence that access is inappropriate.</p></section>}
-          <ReviewFindings positionTrigger={!!editing.position_change} row={editing} labels={data?.finding_labels||{}}/>
-          <section aria-label="Investigation actions" className="review-dialog-section"><h3>Investigation actions</h3>
-            <div className="ui-toolbar"><Button onClick={()=>{if(reviewer!==(editing.decision?.reviewer||'')||rationale!==(editing.decision?.rationale||'')||decision!==editing.review_state){if(!window.confirm('Discard unsaved review changes and investigate this user?'))return}setEditing(null);onUser(editing.username)}}><ArrowUpRight size={16} aria-hidden="true"/>Investigate SAP user</Button></div>
-          </section>
           {actionError&&feedback&&<p role="alert">{feedback}</p>}
           <section aria-label="Review decision" className="review-dialog-section"><h3>Review decision</h3>
           <div className="review-dialog-fields">

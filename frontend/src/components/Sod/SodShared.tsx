@@ -62,11 +62,14 @@ export function useSodFilters(name: string): [Filters, (value: Filters) => void]
   return [{ ...emptyFilters, ...stored?.[name] }, (value) => set((previous) => ({ ...previous, [name]: value as SodFilterState }))]
 }
 
-export const refreshKeys = ['sod-filter-options', 'sod-matrix', 'sod-subject', 'sod-queue', 'sod-explorer', 'sod-overview', 'sod-remediation', 'sod-periods', 'sod-period']
+export const refreshKeys = ['sod-filter-options', 'sod-matrix', 'sod-subject', 'sod-queue', 'sod-explorer', 'sod-overview', 'sod-remediation', 'sod-periods', 'sod-period', 'sod-context']
 export const invalidateSod = (qc: QueryClient) => Promise.all(refreshKeys.map((key) => qc.invalidateQueries({ queryKey: [key] })))
 
-export function ContextBar({ info }: { info?: ContextInfo }) {
+/** One review-context bar for every SoD view, shown beneath the SoD navigation: current evidence or a review period, its evaluation date and whether it is live or a frozen snapshot. */
+export function ContextBar() {
   const [context, setContext] = useSodContext()
+  const summary = useQuery({ queryKey: ['sod-context', context], queryFn: () => sod<ContextInfo>('/api/sod/context', new URLSearchParams({ context })) })
+  const info = summary.data
   const periods = useQuery({ queryKey: ['sod-periods'], queryFn: () => sod<{ items: { id: string; name: string; state: string }[] }>('/api/sod/periods') })
   // A period that was archived or deleted elsewhere falls back to current evidence instead of an error.
   useEffect(() => {
@@ -281,4 +284,14 @@ export function SodArea({ value }: { value?: string | null }) {
   const key = value.trim().toLowerCase()
   const module = Object.values(modules).find((item) => item.id.toLowerCase() === key || item.name.toLowerCase() === key)
   return <span className="inline-flex items-center gap-1.5 text-xs text-muted">{module && <ModuleBadge moduleId={module.id} variant="compact" />}<span>{value}</span></span>
+}
+
+/** Keeps the previous result on screen while a filter change loads (so keyboard focus and scroll position survive). It never crosses a review-context change, another query shape (table, grouping) or another view, because stale numbers or a differently shaped result must not be rendered. */
+export function keepWithinContext(key: readonly unknown[], params: URLSearchParams, shape: string[] = []) {
+  const prefix = JSON.stringify(key.slice(0, -1))
+  const same = (earlier: URLSearchParams) => (earlier.get('context') ?? '') === (params.get('context') ?? '') && shape.every((name) => earlier.get(name) === params.get(name))
+  return (previous: unknown, previousQuery?: { queryKey: readonly unknown[] }) => {
+    const earlierKey = previousQuery?.queryKey ?? []
+    return JSON.stringify(earlierKey.slice(0, -1)) === prefix && same(new URLSearchParams(String(earlierKey[earlierKey.length - 1] ?? ''))) ? previous : undefined
+  }
 }

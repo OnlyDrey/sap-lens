@@ -207,7 +207,7 @@ test('Dashboard is the default landing route and configuration links target thei
   ).toBeVisible()
   expect(new URL(page.url()).hash).toBe('#/dashboard')
   for (const name of [
-    'SAP Overview',
+    'Key figures',
     'Access & Risk',
     'Directory & Data Health',
     'Configuration',

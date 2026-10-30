@@ -1,3 +1,4 @@
+import { Kpi } from '@/components/Shared/Kpi'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Users } from 'lucide-react'
@@ -10,7 +11,7 @@ import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
 import { PAGE_SIZES, Pagination } from '@/components/Access/Shared'
 import { announceExport } from '@/lib/exportNotice'
 import { SodPill } from '@/lib/sodAppearance'
-import { ContextBar, CoverageNotice, SodFilters, lifecycleView, useSodContext, useSodFilters, useSodSubject } from './SodShared'
+import { CoverageNotice, SodFilters, keepWithinContext, lifecycleView, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 
 type Risk = MatrixResult<RiskColumn, RiskCell>
 type Activity = MatrixResult<ActivityColumn, ActivityCell>
@@ -39,7 +40,8 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
     setFiltersState(value)
   }
   const params = scopeParams(context, filters, { group_by: groupBy, offset, limit: pageSize })
-  const result = useQuery({ queryKey: ['sod-matrix', kind, params.toString()], queryFn: () => sod<Risk | Activity>(`/api/sod/matrix/${kind}`, params) })
+  const matrixKey = ['sod-matrix', kind, params.toString()],
+    result = useQuery({ queryKey: matrixKey, queryFn: () => sod<Risk | Activity>(`/api/sod/matrix/${kind}`, params), placeholderData: keepWithinContext(matrixKey, params, ['group_by']) as never })
   const data = result.data
   const byUser = new Map((data?.rows || []).map((row) => [row.user, row]))
   const risk = kind === 'risk'
@@ -92,7 +94,6 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
   const legend = risk ? ['Pending', 'Accepted', 'Rejected', 'Outdated'] : ['Pending', 'Approved', 'Conditional', 'Removal required', 'Outdated']
   return (
     <section className="grid min-w-0 gap-4" aria-label={risk ? 'SoD risk matrix' : 'SoD activity matrix'}>
-      <ContextBar info={data} />
       <SodFilters view={risk ? 'sod_risk_matrix' : 'sod_activity_matrix'} filters={filters} setFilters={setFilters}
         fields={['group', 'risk', 'activity', 'username', 'role', 'role_suffix', 'tcode', 'category', 'criticality', 'validity', 'activity_decision', 'assignment_decision', 'acceptance']}
         sorts={[{ value: 'subject', label: 'Name' }, { value: 'findings', label: risk ? 'Most risks' : 'Most activities' }]}
@@ -111,28 +112,23 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
             {(risk
               ? [['Users with conflicts', data.totals.users], ['Distinct user-risk findings', data.totals.user_risk ?? 0], ['Risks shown', data.totals.risks ?? 0]]
               : [['Users with activity evidence', data.totals.users], ['User-activity pairs', data.totals.user_activity ?? 0], ['Activities shown', data.totals.activities ?? 0]]
-            ).map(([label, value]) => <div className="sod-tile sod-tile-static" key={label}><span>{label}</span><strong>{Number(value).toLocaleString()}</strong></div>)}
+            ).map(([label, value]) => <Kpi key={label} label={String(label)} value={Number(value).toLocaleString()} />)}
             {legend.map((value) => {
               const filterName = risk ? 'acceptance' : 'activity_decision',
                 active = filters[filterName] === value,
                 view = lifecycleView(value),
                 count = data.status_counts?.[value] || 0
               return (
-                <button type="button" className="sod-tile sod-tile-button" key={value} aria-pressed={active} data-active={active || undefined}
-                  data-tone={count === 0 ? undefined : value === 'Pending' || value === 'Outdated' ? 'warning' : value === 'Rejected' || value === 'Removal required' ? 'error' : undefined}
-                  onClick={() => setFilters({ ...filters, [filterName]: active ? '' : value })}>
-                  <span>{view.text}{risk ? ' risks' : ' activities'}</span>
-                  <strong>{count.toLocaleString()}</strong>
-                </button>
+                <Kpi key={value} label={`${view.text}${risk ? ' risks' : ' activities'}`} value={count.toLocaleString()} active={active}
+                  tone={count === 0 ? 'neutral' : value === 'Pending' || value === 'Outdated' ? 'warning' : value === 'Rejected' || value === 'Removal required' ? 'error' : 'neutral'}
+                  onClick={() => setFilters({ ...filters, [filterName]: active ? '' : value })} />
               )
             })}
             {Object.entries((data as Risk).criticality || {}).map(([key, value]) => {
               const wanted = Array.isArray(filters.criticalities) ? filters.criticalities : [], active = wanted.includes(key)
               return (
-                <button type="button" className="sod-tile sod-tile-button" key={key} aria-pressed={active} data-active={active || undefined}
-                  onClick={() => setFilters({ ...filters, criticality: '', criticalities: active ? wanted.filter((item) => item !== key) : [...wanted, key] })}>
-                  <span>Criticality {key}</span><strong>{value.user_risk.toLocaleString()}</strong><small>{value.users} users</small>
-                </button>
+                <Kpi key={key} label={`Criticality ${key}`} value={value.user_risk.toLocaleString()} note={`${value.users} users`} active={active}
+                  onClick={() => setFilters({ ...filters, criticality: '', criticalities: active ? wanted.filter((item) => item !== key) : [...wanted, key] })} />
               )
             })}
             {(filters[risk ? 'acceptance' : 'activity_decision'] || (Array.isArray(filters.criticalities) && filters.criticalities.length > 0)) && <Button size="compact" variant="ghost" onClick={() => setFilters({ ...filters, [risk ? 'acceptance' : 'activity_decision']: '', criticalities: [] })}>Reset tile filters</Button>}

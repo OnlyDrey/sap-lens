@@ -271,19 +271,21 @@ test('Dashboard coverage and account-review KPI open supported evidence filters'
   await page.goto('/#session=browser-test-session')
   await expect(
     page
-      .getByRole('region', { name: 'SAP Overview', exact: true })
+      .getByRole('region', { name: 'Key figures', exact: true })
       .getByRole('button'),
-  ).toHaveCount(4)
+  ).toHaveCount(6)
   expect(
     await page
-      .getByRole('region', { name: 'SAP Overview', exact: true })
+      .getByRole('region', { name: 'Key figures', exact: true })
       .getByRole('button')
       .evaluateAll((items) => items.map((el) => el.getAttribute('aria-label'))),
   ).toEqual([
     'SAP users',
     'Catalogue roles',
     'Release roles',
-    'Role/T-code mappings',
+    'Accounts requiring review',
+    'Pending reviews',
+    'Missing or ambiguous directory matches',
   ])
   await expect(
     page.getByRole('button', {
@@ -724,4 +726,18 @@ test('review finding, classification and decision filters are multi-select; tile
   await expect(page.getByRole('button', { name: 'Remove review finding AD disabled / SAP valid and unlocked', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Remove license classification Configured unlicensed groups', exact: true })).toBeVisible()
   await expect(total).toHaveText('1 accounts')
+})
+
+test('Account Review leads with five compact KPIs and keeps account status as a secondary group', async ({ page }) => {
+  await page.goto('/#session=browser-test-session')
+  await review(page)
+  const queue = page.getByRole('region', { name: 'Review queue', exact: true }), status = page.getByRole('region', { name: 'Account status', exact: true })
+  await expect(queue.getByRole('button')).toHaveCount(5)
+  for (const name of ['Accounts requiring review', 'Position changes', 'Pending reviews', 'Completed reviews', 'Outdated reviews']) await expect(queue.getByRole('button', { name: new RegExp(`^${name}`) })).toBeVisible()
+  await expect(status.getByRole('button')).toHaveCount(4)
+  expect((await queue.getByRole('button').first().boundingBox())!.height).toBeGreaterThan((await status.getByRole('button').first().boundingBox())!.height)
+  await queue.getByRole('button', { name: /^Pending reviews/ }).click()
+  await queue.getByRole('button', { name: /^Position changes/ }).click()
+  await expect(queue.getByRole('button', { name: /^Pending reviews/ })).toHaveAttribute('aria-pressed', 'true')
+  await expect(queue.getByRole('button', { name: /^Position changes/ })).toHaveAttribute('aria-pressed', 'true')
 })

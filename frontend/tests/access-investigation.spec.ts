@@ -166,7 +166,7 @@ test("release table matrix distinct counts, group comparison and user drilldown 
     exact: true,
   });
   await expect(release).toContainText("2");
-  await expect(release).toContainText("4 records");
+  await expect(release).not.toContainText(/\d+ records?\b/); // the count button no longer repeats the record text
   await page.getByRole("button", { name: "Matrix", exact: true }).click();
   await page
     .getByRole("button", { name: "Investigate PR SH N6: 2 users", exact: true })
@@ -417,7 +417,8 @@ for (const theme of ['light', 'dark'] as const) for (const width of [1280, 600])
     await row.getByRole('link', { name: 'DEMO_ALFA', exact: true }).press('Enter')
     const detail = page.getByRole('region', { name: 'User details', exact: true })
     await expect(detail.getByRole('button', { name: 'Copy username DEMO_ALFA', exact: true })).toBeVisible()
-    await expect(detail.getByRole('columnheader',{name:'Role description',exact:true})).toBeVisible()
+    await expect(detail.getByRole('columnheader',{name:'Role description',exact:true})).toHaveCount(0);await expect(detail.locator('.assigned-role-description').first()).toBeVisible()
+    {const head=detail.locator('.assigned-role-head').first(),headBox=(await head.boundingBox())!,badge=head.locator('> *').first(),badgeBox=(await badge.boundingBox())!;expect(badgeBox.width).toBeLessThan(headBox.width/2) /* the module badge keeps its natural width */}
     await expect(detail.getByRole('columnheader',{name:'Catalogue match',exact:true})).toHaveCount(0)
     await expect(detail.locator('summary').filter({hasText:'Catalogue matching evidence'})).toHaveCount(0)
     await expect(detail.getByRole('button',{name:/View role details:/}).first()).toBeVisible()

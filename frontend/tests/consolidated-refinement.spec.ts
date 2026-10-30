@@ -140,7 +140,7 @@ test.describe('SoD views', () => {
     const tiles = page.getByRole('region', { name: 'Role assignment review progress' })
     const needs = tiles.getByRole('button', { name: /^Needs review/ }), completed = tiles.getByRole('button', { name: /^Completed/ })
     await expect(needs).toHaveAttribute('aria-pressed', 'true') // the default working view
-    await expect(tiles.locator('.sod-tile-static')).toContainText('Outdated')
+    await expect(tiles.locator('[data-static]')).toContainText('Outdated')
     await completed.click()
     await expect(completed).toHaveAttribute('aria-pressed', 'true')
     await expect(needs).toHaveAttribute('aria-pressed', 'false')

@@ -1,3 +1,4 @@
+import { Kpi } from '@/components/Shared/Kpi'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { downloadFile, scopeParams, sod, EXPORT_NAME, type ContextInfo, type UserQueueRow } from '@/api/sod'
@@ -10,7 +11,7 @@ import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
 import { ContentTabs } from '@/components/Shared/Navigation'
 import { Pagination } from '@/components/Access/Shared'
 import { announceExport } from '@/lib/exportNotice'
-import { ContextBar, CoverageNotice, SodFilters, useSodContext, useSodFilters, useSodSubject } from './SodShared'
+import { CoverageNotice, SodFilters, keepWithinContext, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 import { RemediationView } from './SodRemediation'
 
 
@@ -36,7 +37,7 @@ function Queue() {
     [busy, setBusy] = useState(false)
   const reset = () => setOffset(0)
   const params = scopeParams(context, filters, { progress, offset, limit: 50 })
-  const result = useQuery({ queryKey: ['sod-queue', 'users', params.toString()], queryFn: () => sod<UserResult>('/api/sod/queue/users', params) })
+  const result = useQuery({ queryKey: ['sod-queue', 'users', params.toString()], queryFn: () => sod<UserResult>('/api/sod/queue/users', params), placeholderData: keepWithinContext(['sod-queue', 'users', params.toString()], params) as never })
   const data = result.data
   const exportCsv = async () => {
     setBusy(true)
@@ -52,14 +53,13 @@ function Queue() {
   const part = (value: { total: number; decided: number }) => (value.total ? `${value.decided}/${value.total}` : '–')
   return (
     <section className="grid min-w-0 gap-4" aria-label="SoD review work queue">
-      <ContextBar info={data} />
       <CoverageNotice info={data} />
       <SodFilters view="sod_queue" filters={filters} setFilters={(value) => { reset(); setFiltersState(value) }}
         fields={['group', 'username', 'risk', 'activity', 'role', 'role_suffix', 'tcode', 'category', 'criticality', 'validity']}
         actions={<ExportCSVButton loading={busy} disabled={!data?.total} onClick={() => void exportCsv()} title="Exports every review item for the filtered users with its decision." />}>
       {result.isError ? <ErrorState error={result.error} onRetry={() => void result.refetch()} /> : !data ? <LoadingState /> : <>
         <section className="sod-tiles" aria-label="Review progress">
-          {PROGRESS.map(([value, label]) => <button type="button" key={value} className="sod-tile sod-tile-button" aria-pressed={progress === value} data-active={progress === value || undefined} onClick={() => { reset(); setProgress(value) }}><span>{label}</span><strong>{(data.counts[value || 'all'] ?? 0).toLocaleString()}</strong></button>)}
+          {PROGRESS.map(([value, label]) => <Kpi key={value} label={label} value={(data.counts[value || 'all'] ?? 0).toLocaleString()} active={progress === value} onClick={() => { reset(); setProgress(value) }} />)}
         </section>
         <p className="ui-description">One row per SAP user. Activity review, role assignment review and risk acceptance are independent decisions with their own progress. Open Review shows all three for the user.</p>
         {data.items.length ? <DataTable caption="SoD review work queue" tableClassName="sod-config-table">

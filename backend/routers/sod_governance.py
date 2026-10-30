@@ -74,6 +74,12 @@ def _matrix(kind, group_by, offset, limit, q):
                 total_rows=len(rows), offset=offset, limit=limit, status_counts=status_counts, **extra)
 
 
+@router.get('/context')
+def context_summary(context: str = Query('current', max_length=64)):
+    """Review context shown on every SoD page: current evidence or one period, its evaluation date and whether it is a frozen snapshot."""
+    return info(scope.load(context))
+
+
 @router.get('/matrix/risk')
 def risk_matrix(q: dict = Depends(scope_query), group_by: Literal['user', 'group'] = 'user', offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200)):
     return _matrix('risk', group_by, offset, limit, q)

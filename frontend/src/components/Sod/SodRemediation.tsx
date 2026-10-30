@@ -16,7 +16,7 @@ import { RoleEntry } from '@/components/Shared/RoleEntry'
 import { moduleOfRoles, useRoleModules } from '@/hooks/useRoleModules'
 import { announceExport } from '@/lib/exportNotice'
 import { formatDate } from '@/lib/dateFormat'
-import { AlertNote, ContextBar, CoverageNotice, SodFilters, invalidateSod, LifecycleBadge, useSodContext, useSodFilters, useSodSubject } from './SodShared'
+import { AlertNote, CoverageNotice, SodFilters, invalidateSod, LifecycleBadge, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 
 const GROUPS = ['Remove assignment', 'Investigate assignment', 'Apply compensating control', 'Maintain access', 'No action required']
 /** Handling that can carry a tracked action: removals and investigations. */
@@ -128,7 +128,6 @@ export function RemediationView() {
   }
   return (
     <section className="grid min-w-0 gap-4" aria-label="SoD remediation">
-      <ContextBar info={data} />
       <CoverageNotice info={data} />
       <SodFilters view="sod_queue" filters={filters} setFilters={(value) => { setOffset(0); setFiltersState(value) }}
         fields={['group', 'username', 'risk', 'activity', 'role', 'role_suffix', 'tcode', 'category', 'criticality', 'validity']}
