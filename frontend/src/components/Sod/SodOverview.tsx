@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, CheckCircle2, CircleDashed, ClipboardCheck, Grid3x3, ListChecks, ShieldAlert, ShieldCheck, ShieldX, UserMinus, UsersRound, Wrench } from 'lucide-react'
 import { emptyFilters, sod, type Filters } from '@/api/sod'
@@ -6,7 +6,6 @@ import { useHistoryValue, useViewHistory, type SodView } from '@/hooks/useViewHi
 import { Card, ErrorState, LoadingState, SectionHeader, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
 import { InfoList, InfoRow } from '@/components/Shared/InfoList'
 import { Button } from '@/components/Shared/Button'
-import { InfoTip } from '@/components/Shared/InfoTip'
 import { formatDate, formatTimestamp } from '@/lib/dateFormat'
 import { AlertNote } from './SodShared'
 
@@ -32,8 +31,7 @@ interface Overview {
 export function SodOverview() {
   const result = useQuery({ queryKey: ['sod-overview'], queryFn: () => sod<Overview>('/api/sod/overview') }),
     { change } = useViewHistory(),
-    [stored] = useHistoryValue('sodFilters'),
-    [allRoles, setAllRoles] = useState(false)
+    [stored] = useHistoryValue('sodFilters')
   if (result.isError) return <ErrorState error={result.error} onRetry={() => void result.refetch()} title="The SoD overview could not be loaded" />
   if (!result.data) return <LoadingState />
   const { counts, source, coverage, governance: g } = result.data
@@ -42,7 +40,7 @@ export function SodOverview() {
   const Tile = ({ icon, label, value, onOpen, tone, note, title }: { icon: ReactNode; label: string; value: number | string | undefined; onOpen?: () => void; tone?: 'warning' | 'error'; note?: ReactNode; title?: string }) => (
     <InfoRow icon={icon} label={label} note={note} title={title} value={value === undefined ? '—' : typeof value === 'number' ? value.toLocaleString() : value} onClick={onOpen} navigates tone={tone && Number(value) > 0 ? tone : 'neutral'} />
   )
-  const concentration = g.concentration, roles = concentration?.top_roles ?? [], shownRoles = allRoles ? roles.slice(0, 20) : roles.slice(0, 5), verification = g.remediation?.verification
+  const concentration = g.concentration
   const activities = g.activities || {}, acceptance = g.acceptance || {}
   return (
     <section className="grid min-w-0 gap-4" aria-label="SoD overview">
@@ -58,14 +56,6 @@ export function SodOverview() {
               <Tile icon={<Grid3x3 size={18} aria-hidden="true" />} label="Detected user-risk findings" value={g.user_risk_findings} onOpen={() => go('explorer', 'explorer', {}, { sodExplorer: 'user_risk' })} />
               <Tile icon={<ListChecks size={18} aria-hidden="true" />} label="Enabled risk definitions" value={counts.enabled ?? undefined} onOpen={() => change({ settings: true, settingsTarget: 'sod' })} />
             </InfoList>
-            {!!roles.length && <div className="overview-roles">
-              <h3 className="overview-roles-title">Most common conflicting roles<InfoTip label="About most common conflicting roles">Assigned roles ranked by the distinct user-risk findings they contribute to. A role counts once per user and risk, however many activities it supplies. Potential conflicts only, not effective authorization.</InfoTip></h3>
-              <InfoList label="Most common conflicting roles" className="overview-role-list">
-                {shownRoles.map((item) => <Tile key={item.role} icon={<UsersRound size={16} aria-hidden="true" />} label={item.role} value={item.findings} title={`${item.role}: ${item.findings} distinct user-risk findings across ${item.users} users`}
-                  note={`${item.users.toLocaleString()} ${item.users === 1 ? 'user' : 'users'}`} onOpen={() => go('explorer', 'explorer', { roles: [item.role] }, { sodExplorer: 'user_risk' })} />)}
-              </InfoList>
-              {roles.length > 5 && <Button size="compact" variant="ghost" aria-expanded={allRoles} onClick={() => setAllRoles(!allRoles)}>{allRoles ? 'Show fewer' : `Show more (${Math.min(roles.length, 20) - 5})`}</Button>}
-            </div>}
           </section>
           <section className="dashboard-section min-w-0 rounded-card bg-surface p-4" aria-label="Reviews">
             <SectionHeader title="Reviews" icon={<ClipboardCheck size={18} aria-hidden="true" />} />
@@ -86,10 +76,6 @@ export function SodOverview() {
               <Tile icon={<AlertTriangle size={18} aria-hidden="true" />} label="Overdue actions" value={g.remediation?.overdue} tone="error" onOpen={() => go('reviews', undefined, {}, { sodReviews: 'remediation' })} />
               <Tile icon={<Wrench size={18} aria-hidden="true" />} label="Remediation awaiting action" value={g.remediation?.removal_without_action} title="Role assignments recommended for removal that have no tracked remediation action yet."
                 onOpen={() => go('reviews', 'remediation', { tracking: 'untracked' }, { sodReviews: 'remediation' })} />
-              <Tile icon={<ShieldCheck size={18} aria-hidden="true" />} label="Remediation verified" value={verification?.available ? verification.verified : 'Unavailable'}
-                title="A removal counts as verified only when a User-Role import newer than the tracked action no longer contains the assignment. A completed status alone does not verify."
-                note={!verification ? 'Verification evidence is not available.' : !verification.available ? verification.reason : `${verification.verified} of ${verification.tracked} tracked ${verification.tracked === 1 ? 'removal' : 'removals'}${verification.awaiting_evidence ? ` · ${verification.awaiting_evidence} awaiting newer evidence` : ''}`}
-                onOpen={() => go('reviews', 'remediation', { tracking: 'verified' }, { sodReviews: 'remediation' })} />
             </InfoList>
           </section>
         </section>}

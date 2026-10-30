@@ -1296,12 +1296,6 @@ progress::-webkit-progress-bar,.dashboard-workspace progress::-webkit-progress-b
 .evidence-type { color:var(--text2); background:transparent; border:1px dashed color-mix(in srgb,var(--muted) 80%,transparent); }
 .sod-workspace progress,.sod-overview-cards progress { --progress-fill:var(--success); }
 
-/* SoD Overview: conflicting roles ranking inside the Conflicts group */
-.overview-roles { display:grid; gap:var(--space-2); margin-top:var(--space-3); padding-top:var(--space-3); border-top:1px solid var(--border); }
-.overview-roles-title { display:flex; align-items:center; gap:var(--space-1); margin:0; font-size:var(--text-sm, .875rem); font-weight:600; }
-.overview-role-list .info-row-label { min-width:0; overflow-wrap:anywhere; font-family:var(--font-mono, ui-monospace, monospace); font-size:.8125rem; }
-.overview-roles > button { justify-self:start; }
-
 /* Account Review action tiles: five tiles share one row from tablet width instead of leaving one alone on a second row */
 .review-overview .review-kpis { grid-template-columns:repeat(auto-fit,minmax(min(8.5rem,100%),1fr)); }
 
