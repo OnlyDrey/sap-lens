@@ -17,6 +17,7 @@ import { RoleEntry } from '@/components/Shared/RoleEntry'
 import { moduleOfRoles, useRoleModules } from '@/hooks/useRoleModules'
 import { announceExport } from '@/lib/exportNotice'
 import { formatDate } from '@/lib/dateFormat'
+import { kpiTone, stateTone } from '@/lib/kpiTone'
 import { AlertNote, CoverageNotice, SodFilters, invalidateSod, LifecycleBadge, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 
 const GROUPS = ['Remove assignment', 'Investigate assignment', 'Apply compensating control', 'Maintain access', 'No action required']
@@ -138,9 +139,9 @@ export function RemediationView() {
       {result.isError ? <ErrorState error={result.error} onRetry={() => void result.refetch()} /> : !data ? <LoadingState /> : <>
         <section className="sod-tiles" aria-label="Recommended handling">
           <Kpi label="All handling" value={GROUPS.reduce((sum, group) => sum + (data.summary[group] ?? 0), 0).toLocaleString()} active={!recommended} onClick={() => { setRecommended(''); setOffset(0) }} />
-          {GROUPS.map((group) => <Kpi key={group} label={group} value={(data.summary[group] ?? 0).toLocaleString()} active={recommended === group} onClick={() => { setRecommended(group); setOffset(0) }} />)}
-          <Kpi label="Awaiting review (not listed)" value={(data.summary.undecided ?? 0).toLocaleString()} tone="warning" title="Items without a decision are not listed until a decision is recorded." />
-          <Kpi label="Overdue" value={(data.summary.overdue ?? 0).toLocaleString()} tone="error" />
+          {GROUPS.map((group) => <Kpi key={group} label={group} value={(data.summary[group] ?? 0).toLocaleString()} tone={stateTone(group, data.summary[group] ?? 0)} active={recommended === group} onClick={() => { setRecommended(group); setOffset(0) }} />)}
+          <Kpi label="Awaiting review (not listed)" value={(data.summary.undecided ?? 0).toLocaleString()} tone={kpiTone('remediation_awaiting', data.summary.undecided ?? 0)} title="Items without a decision are not listed until a decision is recorded." />
+          <Kpi label="Overdue" value={(data.summary.overdue ?? 0).toLocaleString()} tone={kpiTone('overdue_actions', data.summary.overdue ?? 0)} />
         </section>
         <Toolbar aria-label="Remediation tracking">
           {TRACKING.map(([value, label]) => <Button key={value} variant={tracking === value ? 'primary' : 'secondary'} aria-pressed={tracking === value} onClick={() => { setFiltersState({ ...filters, tracking: value }); setOffset(0) }}>{label}</Button>)}

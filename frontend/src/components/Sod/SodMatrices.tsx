@@ -10,6 +10,7 @@ import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
 import { Pagination } from '@/components/Access/Shared'
 import { announceExport } from '@/lib/exportNotice'
 import { SodPill } from '@/lib/sodAppearance'
+import { stateTone } from '@/lib/kpiTone'
 import { CoverageNotice, SodFilters, keepWithinContext, lifecycleView, useFilterChangeReset, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 
 type Risk = MatrixResult<RiskColumn, RiskCell>
@@ -127,7 +128,7 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
                 count = data.status_counts?.[value] || 0
               return (
                 <Kpi key={value} label={`${view.text}${risk ? ' risks' : ' activities'}`} value={count.toLocaleString()} active={active}
-                  tone={count === 0 ? 'neutral' : value === 'Pending' || value === 'Outdated' ? 'warning' : value === 'Rejected' || value === 'Removal required' ? 'error' : 'neutral'}
+                  tone={stateTone(value, count)}
                   onClick={() => setFilters({ ...filters, [filterName]: active ? '' : value })} />
               )
             })}

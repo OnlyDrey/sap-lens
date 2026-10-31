@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { apiRequest } from '@/api/client'
 import { useViewHistory } from '@/hooks/useViewHistory'
+import { kpiTone } from '@/lib/kpiTone'
 import { useApplicationData } from '@/state/ApplicationData'
 import { InfoList, InfoRow } from '@/components/Shared/InfoList'
 import { BarChart, StackedBar } from '@/components/Shared/Charts'
@@ -165,7 +166,7 @@ export function Dashboard() {
   const row = (metric: Metric, opts: { primary?: boolean; label?: string } = {}) => {
     const Icon = iconFor(metric), { unavailable, value } = present(metric)
     return <InfoRow key={metric.id} primary={opts.primary} icon={<Icon size={opts.primary ? 18 : 16} aria-hidden="true" />} label={opts.label ?? metric.label} ariaLabel={opts.label ?? metric.label} title={metric.context} value={value} data={{ metric: metric.id }}
-      tone={['directory_missing', 'directory_ambiguous', 'position_changes', 'ad_disabled_open'].includes(metric.id) && !!metric.value ? 'warning' : 'neutral'}
+      tone={kpiTone(metric.id, metric.value)}
       note={unavailable ? metric.unavailable_reason : undefined} onClick={() => open(metric)} navigates />
   }
   const [allAreas,setAllAreas]=useState(false)
@@ -254,11 +255,11 @@ export function Dashboard() {
     const pending = (g.activities?.Pending || 0) + (g.activities?.Outdated || 0) + (g.acceptance?.Pending || 0) + (g.acceptance?.Outdated || 0)
     if (g.available) return card('Segregation of Duties', <ShieldAlert size={18}/>, (
       <InfoList label="Segregation of Duties">
-        <InfoRow icon={<ConflictUsers size={16} aria-hidden="true"/>} label="Users with potential conflicts" value={(g.users_with_conflicts ?? 0).toLocaleString()} tone={g.users_with_conflicts ? 'warning' : 'neutral'} onClick={() => openSod('risk-matrix')} navigates data={{ metric: 'sod_conflicts' }}/>
-        <InfoRow icon={<ShieldAlert size={16} aria-hidden="true"/>} label="User-risk findings" value={(g.user_risk_findings ?? 0).toLocaleString()} onClick={() => openSod('risk-matrix')} navigates/>
-        <InfoRow icon={<CircleDashed size={16} aria-hidden="true"/>} label="SoD reviews pending" value={pending.toLocaleString()} tone={pending ? 'warning' : 'neutral'} onClick={() => openSod('reviews')} navigates/>
-        <InfoRow icon={<ShieldCheck size={16} aria-hidden="true"/>} label="Open remediation actions" value={(g.remediation?.open_actions ?? 0).toLocaleString()} onClick={() => openSod('reviews')} navigates/>
-        <InfoRow icon={<AlertTriangle size={16} aria-hidden="true"/>} label="Overdue remediation actions" value={(g.remediation?.overdue ?? 0).toLocaleString()} tone={g.remediation?.overdue ? 'error' : 'neutral'} onClick={() => openSod('reviews')} navigates/>
+        <InfoRow icon={<ConflictUsers size={16} aria-hidden="true"/>} label="Users with potential conflicts" value={(g.users_with_conflicts ?? 0).toLocaleString()} tone={kpiTone('users_with_conflicts', g.users_with_conflicts ?? 0)} onClick={() => openSod('risk-matrix')} navigates data={{ metric: 'sod_conflicts' }}/>
+        <InfoRow icon={<ShieldAlert size={16} aria-hidden="true"/>} label="User-risk findings" value={(g.user_risk_findings ?? 0).toLocaleString()} tone={kpiTone('user_risk_findings', g.user_risk_findings ?? 0)} onClick={() => openSod('risk-matrix')} navigates/>
+        <InfoRow icon={<CircleDashed size={16} aria-hidden="true"/>} label="SoD reviews pending" value={pending.toLocaleString()} tone={kpiTone('sod_reviews_pending', pending)} onClick={() => openSod('reviews')} navigates/>
+        <InfoRow icon={<ShieldCheck size={16} aria-hidden="true"/>} label="Open remediation actions" value={(g.remediation?.open_actions ?? 0).toLocaleString()} tone={kpiTone('open_actions', g.remediation?.open_actions ?? 0)} onClick={() => openSod('reviews')} navigates/>
+        <InfoRow icon={<AlertTriangle size={16} aria-hidden="true"/>} label="Overdue remediation actions" value={(g.remediation?.overdue ?? 0).toLocaleString()} tone={kpiTone('overdue_actions', g.remediation?.overdue ?? 0)} onClick={() => openSod('reviews')} navigates/>
       </InfoList>
     ), { note })
     const names: Record<string, { label: string; target: 'roles' | 'users' | 'sod' }> = { roles: { label: 'Role Catalogue', target: 'roles' }, users: { label: 'User Access', target: 'users' }, sod: { label: 'SoD matrix', target: 'sod' } }

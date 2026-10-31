@@ -19,6 +19,7 @@ import { formatDate } from '@/lib/dateFormat'
 import { ConflictView } from './SodConflicts'
 import { SodPill } from '@/lib/sodAppearance'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
+import { kpiTone, stateTone } from '@/lib/kpiTone'
 import { type FilterField, keepWithinContext, useFilterChangeReset, reviewStatusParam, SodArea, RoleCodeList, CoverageNotice, SodFilters, LifecycleBadge, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 
 type TableName = Exclude<SodExplorerTable, 'roles'>
@@ -211,10 +212,10 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
           {([['In scope', data.progress.total, 'all', ''], ['Completed (Keep or Remove)', data.progress.completed, 'reviewed', ''], ['Pending', data.progress.pending, 'pending', ''],
             ['Under investigation', data.progress.investigating, 'investigating', ''], ['Needs review', data.progress.attention, '', ''], ['Removal recommended', data.progress.removal, 'all', 'Removal required']] as const).map(([label, count, status, decision]) => {
             const active = (filters.review_status || '') === status && (typeof filters.assignment_decision === 'string' ? filters.assignment_decision : '') === decision
-            return <Kpi key={label} label={label} value={count.toLocaleString()} active={active} tone={label === 'Needs review' && count ? 'warning' : 'neutral'}
+            return <Kpi key={label} label={label} value={count.toLocaleString()} active={active} tone={stateTone(label, count)}
               onClick={() => { setOffset(0); setFiltersState({ ...filters, review_status: active ? '' : status, assignment_decision: active ? '' : decision }) }} />
           })}
-          <Kpi label="Outdated, re-review" value={data.progress.outdated.toLocaleString()} tone={data.progress.outdated ? 'warning' : 'neutral'} />
+          <Kpi label="Outdated, re-review" value={data.progress.outdated.toLocaleString()} tone={kpiTone('outdated', data.progress.outdated)} />
           {((filters.review_status || '') !== '' || filters.assignment_decision) && <Button size="compact" variant="ghost" onClick={() => { setOffset(0); setFiltersState({ ...filters, review_status: '', assignment_decision: '' }) }}>Reset tile filters</Button>}
         </section>}
         {table === 'access_list' && data.reviewable && <>

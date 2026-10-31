@@ -4,6 +4,7 @@ import { type ReviewEvidence } from '@/components/Shared/ReviewFindings'
 import { PageHeader, MetadataList } from '@/components/Shared/Presentation'
 import { ClipboardCheck as PageIcon } from 'lucide-react'
 import { Kpi } from '@/components/Shared/Kpi'
+import { kpiTone } from '@/lib/kpiTone'
 import { InfoTip } from '@/components/Shared/InfoTip'
 import { StackedBar } from '@/components/Shared/Charts'
 import { FilterLayout, FilterSection, PageToolbar, SortControl } from '@/components/Shared/FilterLayout'
@@ -187,7 +188,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
     const activeFinding = (name: string) => findings.includes(name)
     const tile = ([key, label, icon, target]: [string, string, ReactNode, { finding: string }], extra = '') => {
       const value = data.summary[key]
-      return <Kpi key={key} className={extra} icon={icon} label={label} value={value?.toLocaleString() ?? 'Unavailable'} tone={['mismatch', 'missing', 'outdated'].includes(key) && !!value ? 'warning' : 'neutral'} active={activeFinding(target.finding)} onClick={() => toggleTile(target)} />
+      return <Kpi key={key} className={extra} icon={icon} label={label} value={value?.toLocaleString() ?? 'Unavailable'} tone={kpiTone(key, value)} active={activeFinding(target.finding)} onClick={() => toggleTile(target)} />
     }
     return (
       <div className="review-overview">
