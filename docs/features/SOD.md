@@ -103,6 +103,9 @@ Every period status can be deleted from the row action menu or the period dialog
 - Reports already issued outside SAP Lens stay valid; their log entries remain, but they cannot be regenerated afterwards. Findings first seen in a deleted
   approved period are classified as new instead of reopened in later comparisons. Other periods and current decisions are never changed (no cascade).
 
+
+The **Create SoD review period** dialog is a two-column grid (name and evaluation date, then period start and end) that stacks on narrow screens; Cancel and Capture review period carry icons. In the delete dialog, *Recorded by (self-reported)* and the period-name confirmation share a grid row, consequences and impact stay full width, and Cancel and Delete permanently (or Archive period) carry icons; the confirmation rules and audit behavior are unchanged. In the Review Periods toolbar, *Compare periods* stays disabled with fewer than two eligible periods and explains why through a tooltip and an accessible description (no inline text), and *Show archived periods* is a visible toggle button with an archive icon that only changes visibility, never a period status.
+
 ## SAP User Group heatmap
 
 One shared heatmap, **Conflicts by SAP User Group**, sits directly under the Review Context on every SoD page (Overview, Risk Matrix, Activity Matrix, Access Explorer, Reviews, Review Periods and Reports). It shows distinct users per SAP User Group and risk (or activity) for the selected review context. Darker cells have more users; the Users column and the Distinct users row are distinct counts. A user in several groups counts in each group, so group counts can exceed the distinct total. The 25 most affected columns are shown; the matrix lists all of them. Sort by group, distinct users or number of risks/activities, and export with **Export heatmap CSV** (long format: group, item, users with the item, users in the group with items).

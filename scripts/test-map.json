@@ -165,6 +165,7 @@
     "sod-shared-heatmap",
     "sod-matrix-grouping",
     "sod-shared-filters",
+    "sod-periods-dialogs",
     "sod-evidence-modals"
    ]
   },
