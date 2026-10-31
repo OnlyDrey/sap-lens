@@ -265,6 +265,32 @@ Commits are on `origin/work`; no workflow was dispatched and no tag or release w
 - The SoD inspection dialog shows its data preview before the validation results, so at 375 px the validation section needs scrolling.
 - A typed replacement path is imported when the field is left; there is no read-only pre-import preview for the SoD file.
 
+## UI consistency and SoD refinements (Round 6)
+
+Commits are on `origin/work`; no workflow was dispatched and no tag or release was created.
+
+| Phase | Requirement | Status | Evidence |
+| --- | --- | --- | --- |
+| 1 Shared UI | Shared Enabled, Disabled, Static and Dynamic badges with Lucide icons, `sentenceCase` for internal enum values, zero values always neutral in `Kpi` and `InfoRow`, one rounded token-driven focus ring | Implemented | `0c2d2ee`, `status-consistency-r6` |
+| 2 SoD Risk Configuration | Amber New badge beside the Risk ID, separators instead of coloured rows, icons on Enabled and Disabled, no per-row Source details, Activities harmonized | Implemented | `ad9f64e`, `sod-risk-config-r6` |
+| 3 SoD Matrix CSV | Verified against the checklist; no functional gap, two specs added | Verified | `854dd36`, `data-source-browse` |
+| 4 Reviews and Review Periods | Work Queue and Remediation share the Kpi filter tiles, 8 px gap before Active period | Implemented | `ef1ff11`, `sod-reviews-r6` |
+| 5 Tracker and regression | 14 R6 rows with implementation, automated validation, manual validation and remaining issues | Done | this commit |
+
+### Findings worth knowing
+
+- Most of the application already shared a token-based focus ring; the keyboard walk found only these outliers: tabs used a bottom bar instead of a ring, the navigation chevrons and matrix column buttons had square corners, and the heatmap scroll region had no ring. They now use the shared ring and `--focus-radius`.
+- A generic `:where` rule would have changed the radius of pill-shaped controls while focused, so only the specific outliers were targeted.
+- The R5 SoD inspection already satisfied the R6 checklist. A typed path is still imported when the field is left, so there is no pre-import preview of a SoD file.
+- Row heights in the Risks and Activities tables share a minimum but still differ with content (risk rows have a third line).
+
+### Validation (Round 6)
+
+- Full single-process regression (`python scripts/run-tests.py regression --jobs 1`, head `ef1ff11`): backend 814 tests, 3 skipped (PowerShell and PyInstaller only), 0 failed; build with type check, documentation links, workflow contracts, Lucide catalog, whitespace and `pip check` passed; browser 649 tests with 2 failures, both in the new `sod-risk-config-r6` spec: whether a risk counts as new depends on review history left by earlier specs of the same run, so the spec now marks the list new through a route and passes (4 tests). The complete browser suite was not repeated after that fix.
+- Visual QA after the regression: Work Queue, Remediation, Review Periods, SoD Risk Configuration (Risks and Activities) and Health and Diagnostics in light and dark at 375, 800, 1280 and 1600 px loaded without horizontal page overflow (assertion on 48 captures); the dark 1280 Remediation view was inspected, the others by the overflow assertion only.
+- Not run here: Windows/WebView2, Windows Service, installer, systemd, UNC and deployment package acceptance.
+- Keyboard focus: the new walk covers the SoD pages and Settings in both themes; Role Lookup, User Access and dialogs rely on the existing accessibility specs.
+
 ## Validation
 
 - **Round 2 final regression** (`python scripts/run-tests.py regression --jobs 1`, head `0a0e637`): backend 793 tests, 3 skipped (PowerShell and PyInstaller only), 0 failed; build with type check, documentation links, workflow contracts, Lucide catalog (1447 icons), whitespace and `pip check` passed; browser 569 tests, 553 passed and 16 failed. The 16 failures were two specs still asserting the superseded Dashboard (`refinement-27` looked for the former "Configuration" region, `refinement-search-layout` for the removed review completion progress bar and the former 1-5 range). They were updated to the v4 structure and re-run: both specs pass (29 tests). The complete suite was not re-run a second time after those two spec edits.

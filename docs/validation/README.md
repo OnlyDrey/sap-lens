@@ -19,7 +19,9 @@ A repository-maintained list of what SAP Lens should do on every page, and what 
 | Notes and evidence | What was seen, how, in which theme and viewport, with screenshots or test names. Required for every status except Not reviewed and Not applicable. |
 | Implementation reference | Guide and code files for the behavior, then fix commits or pull requests once an item has one. |
 | Implementation status | What the code does today: `Not assessed` (default), `Not implemented`, `Partially implemented`, `Implemented`. Implementing an item never changes its Status. |
-| Test evidence | The specs and tests that exercise the behavior (required for `Implemented`). Passing tests are evidence of implementation, not acceptance. |
+| Test evidence | The specs and tests that exercise the behavior (required for `Implemented`): the automated validation. Passing tests are evidence of implementation, not acceptance. |
+| Manual validation required | What a person must look at or try before the item can be Approved (visual and subjective checks are never approved by a test run). |
+| Remaining issues | Known gaps, limits and anything not covered by the automated validation. |
 | Retest status | `Not started`, `Pending retest`, `Retest passed`, `Retest failed`. |
 
 Consistency rules (enforced by `check`): an Implemented item names its test evidence; an item that is not fully implemented cannot be Approved; a Bug is a Current defect; a Current defect is a Bug, Needs improvement or Blocked; Needs improvement is an improvement opportunity or a current defect; Approved, Needs improvement, Bug and Blocked need notes; a Not reviewed item has no retest; an item whose retest failed cannot be Approved. Defects and improvement opportunities are kept apart so the backlog can be read as two lists (the workbook has a sheet for each).

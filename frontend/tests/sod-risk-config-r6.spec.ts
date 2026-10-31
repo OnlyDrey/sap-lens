@@ -14,6 +14,8 @@ const open = async (page: Page, tab: 'Risks' | 'Activities') => {
 
 for (const width of [375, 1280]) test(`new risks carry a compact amber badge beside the Risk ID, separated by rows, not coloured rows (${width}px)`, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 })
+  // whether a risk is new depends on review history kept by earlier specs of the same run, so the list is marked new here
+  await page.route(/\/api\/sod\/catalogue\?/, async (route) => { const response = await route.fetch(), body = await response.json(); body.items = body.items.map((item: object) => ({ ...item, new: true })); await route.fulfill({ response, json: body }) })
   await open(page, 'Risks')
   const table = page.getByRole('table', { name: 'SoD risk configurations' })
   const rows = table.locator('tbody tr')

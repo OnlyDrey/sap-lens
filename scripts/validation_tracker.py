@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CSV_PATH = ROOT / 'docs' / 'validation' / 'validation-items.csv'
 DEFAULT_OUTPUT = ROOT / 'build' / 'validation-tracker.xlsx'
 
-COLUMNS = ['ID', 'Area', 'Page', 'Component', 'Expected behavior', 'Status', 'Priority', 'Classification', 'Notes and evidence', 'Implementation reference', 'Implementation status', 'Test evidence', 'Retest status']
+COLUMNS = ['ID', 'Area', 'Page', 'Component', 'Expected behavior', 'Status', 'Priority', 'Classification', 'Notes and evidence', 'Implementation reference', 'Implementation status', 'Test evidence', 'Manual validation required', 'Remaining issues', 'Retest status']
 DEFINITION = COLUMNS[:5]
 REVIEWER = COLUMNS[5:]  # the columns a reviewer or implementer edits; merge never touches the others
 AREAS = ['Global UI and shared components', 'Dashboard', 'Role Lookup', 'Access Package', 'User Access', 'Account Review', 'Compare Users', 'Release Roles', 'SoD Overview',
@@ -142,7 +142,7 @@ STYLES = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xm
 def workbook(rows):
     """Bytes of an .xlsx: Items (editable), Summary, Defects and Improvements. Reproducible for the same rows."""
     table = [COLUMNS] + [[row[name] for name in COLUMNS] for row in rows]
-    widths = [10, 30, 22, 28, 60, 16, 12, 22, 50, 44, 20, 44, 16]
+    widths = [10, 30, 22, 28, 60, 16, 12, 22, 50, 44, 20, 44, 44, 44, 16]
     lists = [(_column(COLUMNS.index(name)), options) for name, options in CHOICES.items()]
     total = [['Area', 'Items', *STATUSES, 'Current defects', 'Improvement opportunities']]
     for area in AREAS:
