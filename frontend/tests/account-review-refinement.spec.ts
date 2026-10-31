@@ -742,11 +742,17 @@ for (const theme of ['light', 'dark']) test(`Review progress takes a third and r
   const [left, right] = [(await progress.boundingBox())!, (await attention.boundingBox())!]
   expect(right.width / left.width).toBeGreaterThan(1.7); expect(right.width / left.width).toBeLessThan(2.3) // about 1/3 and 2/3
   expect(Math.abs(left.y - right.y)).toBeLessThan(1); expect(Math.abs(left.height - right.height)).toBeLessThan(1) // aligned panels
-  // two columns of KPIs, each with an icon, label and right-aligned value; no row of oversized cards
-  const tiles = attention.locator('.ui-kpi:not(.review-kpi-secondary)')
-  await expect(tiles).toHaveCount(4)
-  const boxes = await tiles.evaluateAll(list => list.map(item => { const box = item.getBoundingClientRect(); return { x: Math.round(box.x), y: Math.round(box.y), height: Math.round(box.height) } }))
+  // two columns of KPIs, each with an icon, label and right-aligned value, each in exactly one grid cell; no row of oversized cards
+  const tiles = attention.locator('.ui-kpi')
+  await expect(tiles).toHaveCount(5)
+  const boxes = await tiles.evaluateAll(list => list.map(item => { const box = item.getBoundingClientRect(), style = getComputedStyle(item); return { x: Math.round(box.x), y: Math.round(box.y), width: Math.round(box.width), height: Math.round(box.height), start: style.gridColumnStart, end: style.gridColumnEnd, radius: style.borderTopLeftRadius, padding: style.paddingLeft + style.paddingTop } }))
   expect(new Set(boxes.map(item => item.x)).size).toBe(2)
+  expect(new Set(boxes.map(item => item.width)).size).toBe(1) // identical width: no tile is stretched over both columns
+  expect(new Set(boxes.map(item => item.height)).size).toBe(1)
+  expect(new Set(boxes.map(item => item.radius + item.padding)).size).toBe(1)
+  for (const item of boxes) { expect(item.start).toBe('auto'); expect(item.end).toBe('auto') } // no column span override
+  expect(boxes[4].x).toBe(boxes[0].x) // the fifth tile sits in the left column
+  expect(boxes[4].y).toBeGreaterThan(boxes[2].y) // on its own row, the right cell stays empty
   expect(Math.max(...boxes.map(item => item.height))).toBeLessThan(56)
   for (const tile of await tiles.all()) { await expect(tile.locator('.ui-kpi-icon svg')).toBeVisible(); const [value, frame] = [(await tile.locator('.ui-kpi-value').boundingBox())!, (await tile.boundingBox())!]; expect(frame.x + frame.width - (value.x + value.width)).toBeLessThan(16) }
   // the investigation notice moved to an accessible information button and is still available
