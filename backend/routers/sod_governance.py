@@ -83,13 +83,17 @@ def context_summary(context: str = Query('current', max_length=64)):
     return info(scope.load(context))
 
 
+# "All users" in the matrices is one page of up to this many users; the client says so when more match.
+MATRIX_PAGE_MAX = 5000
+
+
 @router.get('/matrix/risk')
-def risk_matrix(q: dict = Depends(scope_query), group_by: Literal['user', 'group', 'user_group'] = 'user', offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200)):
+def risk_matrix(q: dict = Depends(scope_query), group_by: Literal['user', 'group', 'user_group'] = 'user', offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=MATRIX_PAGE_MAX)):
     return _matrix('risk', group_by, offset, limit, q)
 
 
 @router.get('/matrix/activity')
-def activity_matrix(q: dict = Depends(scope_query), group_by: Literal['user', 'group', 'user_group'] = 'user', offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200)):
+def activity_matrix(q: dict = Depends(scope_query), group_by: Literal['user', 'group', 'user_group'] = 'user', offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=MATRIX_PAGE_MAX)):
     return _matrix('activity', group_by, offset, limit, q)
 
 

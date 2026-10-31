@@ -166,6 +166,7 @@
     "sod-dashboard-startup",
     "sod-shared-heatmap",
     "sod-matrix-grouping",
+    "sod-matrix-paging",
     "sod-risk-config-r6",
     "sod-shared-filters",
     "sod-periods-dialogs",

@@ -28,6 +28,8 @@ export function Pagination({
   label,
   pageSizes,
   onPageSize,
+  unit,
+  alwaysShow = false,
 }: {
   offset: number;
   total: number;
@@ -36,9 +38,13 @@ export function Pagination({
   label: string;
   pageSizes?: readonly number[];
   onPageSize?: (size: number) => void;
+  /** Names what is counted in the range, for example `users`: "1–50 of 244 users". */
+  unit?: string;
+  /** Keep the pager (range and disabled buttons) visible when everything fits on one page. */
+  alwaysShow?: boolean;
 }) {
   const sizable = !!pageSizes && !!onPageSize
-  if (total <= (sizable ? Math.min(...pageSizes!) : limit)) return null;
+  if (!alwaysShow && total <= (sizable ? Math.min(...pageSizes!) : limit)) return null;
   return (
     <nav
       aria-label={label}
@@ -62,8 +68,8 @@ export function Pagination({
       </Button>
       <span className="ui-pagination-range" role="status">
         {total
-          ? `${offset + 1}–${Math.min(offset + limit, total)} of ${total}`
-          : "0 records"}
+          ? `${offset + 1}–${Math.min(offset + limit, total)} of ${total}${unit ? ` ${unit}` : ''}`
+          : unit ? `0 ${unit}` : "0 records"}
       </span>
       <Button
         size="compact"

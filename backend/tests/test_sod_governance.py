@@ -173,6 +173,15 @@ class MatrixTests(GovernanceCase):
         self.assertEqual([(row['user'], row['group']) for row in filtered['rows']], [('SYN_D', 'ZED')])
         self.assertIsNone(self.get('/api/sod/matrix/risk')['group_summaries'])
 
+    def test_matrix_page_may_hold_every_user_but_not_more_than_the_ceiling(self):
+        from backend.routers.sod_governance import MATRIX_PAGE_MAX
+        for kind in ('risk', 'activity'):
+            everyone = self.get(f'/api/sod/matrix/{kind}', limit=MATRIX_PAGE_MAX)  # the "All users" page
+            self.assertEqual(len(everyone['rows']), everyone['total_rows'])
+            self.assertEqual(self.client.get(f'/api/sod/matrix/{kind}', params={'limit': MATRIX_PAGE_MAX + 1}, headers=H).status_code, 422)
+            half = self.get(f'/api/sod/matrix/{kind}', limit=1, offset=1)  # paging never changes the totals
+            self.assertEqual((half['total_rows'], half['totals'], half['status_counts']), (everyone['total_rows'], everyone['totals'], everyone['status_counts']))
+
     def test_user_group_grouping_pages_after_grouping_and_keeps_group_totals(self):
         paged = self.get('/api/sod/matrix/risk', group_by='user_group', limit=1, offset=1)
         self.assertEqual([row['user'] for row in paged['rows']], ['SYN_B'])

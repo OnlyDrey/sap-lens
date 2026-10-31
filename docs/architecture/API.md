@@ -282,7 +282,7 @@ Evidence and exports are bounded; see [SoD architecture](SOD.md) and the
 | GET | `/api/sod/appearance` | Display names and colors for risk and activity pills |
 | GET | `/api/sod/queue/users` | One row per SAP user with per-review-type progress |
 | GET/PUT/DELETE | `/api/sod/reports/branding` | Report-only logo (PNG/JPEG, validated and re-encoded) |
-| GET | `/api/sod/matrix/{risk,activity}` | User-by-risk and user-by-activity matrices, paged rows, `group_by=group` (aggregate rows for the shared heatmap) or `group_by=user_group` (the same users ordered under one SAP User Group each, with `group_summaries` of distinct users, finding cells and first-row index per group), distinct totals and `status_counts` (cells per review status over the whole filtered matrix) |
+| GET | `/api/sod/matrix/{risk,activity}` | User-by-risk and user-by-activity matrices, paged rows, (`limit` 1–5000, default 50; the UI's *All users* requests 5000), `group_by=group` (aggregate rows for the shared heatmap) or `group_by=user_group` (the same users ordered under one SAP User Group each, with `group_summaries` of distinct users, finding cells and first-row index per group), distinct totals and `status_counts` (cells per review status over the whole filtered matrix) |
 | GET | `/api/sod/matrix/{risk,activity}/group-export` | Long-format CSV of the SAP user group heatmap (`sap-lens-sod-group-{risk,activity}-heatmap-DATE.csv`), honoring the shared filters |
 | GET | `/api/sod/filter-options` | Searchable predefined filter values (`field`, `term`, `limit`) from the imported evidence of the context; unaffected by the other filters |
 | GET | `/api/sod/explorer/{user_risk,user_activity,access_list,lookup}` and `/export` | Explorer tables and filtered CSV |
