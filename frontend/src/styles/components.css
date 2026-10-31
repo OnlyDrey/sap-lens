@@ -958,9 +958,12 @@ progress::-moz-progress-bar { background:var(--progress-fill); }
 /* Access package footer: validity summary first, then copy and export. */
 .package-footer .package-summary { flex:1 1 100%; }
 .package-footer > :last-child { margin-left:0; }
-/* Role entries: the description is vertically centered against the module icon and code. */
-.role-entry-head { align-items:center; }
+/* Role entries: the module badge aligns with the FIRST line of the description (a long description wraps below it), and the actions stay at the top right. */
+.role-entry-head { align-items:first baseline; }
 .role-entry-head > .module-badge { margin-top:0; }
+.role-entry-head > .role-entry-actions { align-self:flex-start; }
+.role-entry-head { flex-wrap:nowrap; }  /* badge, description and actions stay on one row; only the description wraps */
+.role-entry-head > .role-entry-title { flex:1 1 0; min-width:0; }
 
 /* SoD overview heatmap: title, columns toggle, metric, sort and export share one responsive row. */
 .sod-heatmap-bar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-2) var(--space-4); margin-bottom:var(--space-3); }
@@ -1229,7 +1232,7 @@ p.dashboard-card-state { display:flex; align-items:center; gap:var(--space-2); }
 /* Independent columns, and tab strips whose scrollbar must sit below the underline, with room above them. */
 .independent-columns { display:grid; gap:var(--space-3); align-items:start; min-width:0; }
 .independent-column { display:flex; flex-direction:column; gap:var(--space-3); min-width:0; }
-.ui-content-tabs,.ui-secondary-navigation { padding-bottom:var(--space-1); scrollbar-width:thin; scroll-padding-inline:var(--space-2); }
+.ui-content-tabs,.ui-secondary-navigation { padding-bottom:var(--space-1); scroll-padding-inline:var(--space-2); }  /* no scrollbar-width here: it would switch off the application scrollbar design */
 .component-library > .ui-tabs { margin-top:var(--space-2); }
 .component-library > .ui-description { margin-bottom:0; }
 /* Padding inside the scroller keeps focus rings of the header and group buttons unclipped (ring width plus offset is 4px). */
@@ -1398,3 +1401,6 @@ summary:focus-visible,div[tabindex="0"]:focus-visible,a.role-identifier-link:foc
 .comparison-table .evidence-difference { display:inline-flex; align-items:center; min-height:1.75rem; }
 .comparison-table td > .ui-description:first-child { display:block; margin:0; line-height:1.75rem; }  /* 'No matching evidence' starts at the row top and reads on the badge line */
 .comparison-table .comparison-evidence-item > .assignment-status-control:first-child { margin-top:0; }
+
+/* Component Library: the category tabs keep the underline and the (application-styled) horizontal scrollbar about 8px apart. */
+.component-library .ui-content-tabs { padding-bottom:var(--scrollbar-gap); }
