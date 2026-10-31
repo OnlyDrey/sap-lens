@@ -39,6 +39,24 @@ test('collapsing the heatmap persists across SoD pages and reloads, and expandin
   await expect(toggle()).toHaveAttribute('aria-expanded', 'true')
 })
 
+test('the heatmap is expanded in a new session, remembers a collapse within the session and starts expanded again in the next one', async ({ page, browser }) => {
+  await openSod(page)
+  const toggle = (target = page) => heatmap(target).getByRole('button', { name: /Conflicts by SAP User Group/ })
+  await expect(toggle()).toHaveAttribute('aria-expanded', 'true')
+  await expect(toggle().locator('svg').first()).toBeVisible()
+  await toggle().click()
+  await expect(toggle()).toHaveAttribute('aria-expanded', 'false')
+  await page.getByRole('link', { name: 'Reports', exact: true }).click()
+  await expect(toggle()).toHaveAttribute('aria-expanded', 'false') // kept while moving between SoD tabs
+  const other = await browser.newContext(), next = await other.newPage() // a new session: nothing is remembered
+  await openSod(next)
+  await expect(toggle(next)).toHaveAttribute('aria-expanded', 'true')
+  await expect(heatmap(next).getByRole('table')).toBeVisible()
+  await next.keyboard.press('Shift'); await toggle(next).focus() // the toggle is one control: header text and chevron share one focus ring
+  expect(await toggle(next).evaluate((element) => { const style = getComputedStyle(element); return [style.outlineStyle !== 'none', parseFloat(style.borderTopLeftRadius) > 0] })).toEqual([true, true])
+  await other.close()
+})
+
 test('group, risk and cell selections filter the page, keep other filters, show removable filters and clear', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   await openSod(page, 'Risk Matrix')

@@ -29,7 +29,7 @@ const list = (filters: Filters, key: string) => (Array.isArray(filters[key]) ? (
  */
 export function SodGroupHeatmap() {
   const [kind, setKind] = useState<Kind>('risk'), [sort, setSort] = useState('users'), [descending, setDescending] = useState(true), [busy, setBusy] = useState(false)
-  const [preference, setPreference] = useLocalPreference(HEATMAP_PREFERENCE, 'open'), expanded = preference !== 'closed'
+  const [preference, setPreference] = useLocalPreference(HEATMAP_PREFERENCE, 'open', 'session'), expanded = preference !== 'closed'
   const { view: history, change } = useViewHistory(), [context] = useSodContext(), panel = useId()
   const sodView: SodView = history.sodView || 'overview', slot = FILTERABLE[sodView], stored = history.sodFilters
   const readSlot = slot ?? (sodView === 'overview' ? 'riskMatrix' : undefined)  // Review Periods, Reports and Settings do not inherit investigation filters
