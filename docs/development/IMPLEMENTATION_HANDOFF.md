@@ -314,6 +314,13 @@ Commits are on `origin/work`; no workflow was dispatched and no tag or release w
   by the overflow assertion only.
 - Accessibility: existing audit and keyboard specs pass; keyboard coverage added for multi-select and bulk selection. No external audit tool was run.
 
+## Follow-up: SoD matrix Users per page
+
+- Risk and Activity Matrix share one **Users per page** setting (10, 25, 50, 100, All; default 50) held in module state in `Sod/SodMatrices.tsx`, so it survives switching matrices within a session. The offset is remembered per matrix and clamped to page 1 when it no longer fits.
+- The shared `Pagination` gained `unit` and `alwaysShow`; a range pager sits above the matrix and a second one below. *All* requests one page of up to `MATRIX_PAGE_MAX` (5000) users from `/api/sod/matrix/{risk,activity}`; a notice appears if more match. Rows are not virtualized: a 2000-user page rendered within the spec's 15 s budget, more than 5000 users is the documented limit.
+- CSV exports use the Explorer export endpoints, which take only filters, so they ignore pagination.
+- Tests: `frontend/tests/sod-matrix-paging.spec.ts`, `test_matrix_page_may_hold_every_user_but_not_more_than_the_ceiling`. Tracker rows SODM-014 and SODM-015 stay Not reviewed for manual acceptance.
+
 ## Not verified
 
 - Round 2: Windows/WebView2 startup and restart restoration, native save dialogs for the new package CSV (the Windows bridge was only unit tested with the new header), Windows Service, installer, systemd and UNC paths were not run here. The startup behavior was validated by real fresh-process backend tests and by browser tests that model the restart, not on a packaged desktop app.
