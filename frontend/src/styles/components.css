@@ -1377,3 +1377,7 @@ summary:focus-visible,div[tabindex="0"]:focus-visible,a.role-identifier-link:foc
 .review-progress { align-content:start; }
 .review-progress > .progress-summary { padding:0; display:flex; flex-wrap:wrap; align-items:baseline; gap:var(--space-1) var(--space-2); margin:0; }
 .review-overview .review-kpis .ui-kpi[data-icon="true"] { grid-template-columns:auto minmax(0,1fr) auto; }
+
+/* Tabs and secondary navigation reserve the width of their bold selected label, so selecting one never shifts its neighbours. */
+.ui-tab-label { display:inline-flex; flex-direction:column; align-items:center; }
+.ui-tab-label::after { content:attr(data-text); height:0; overflow:hidden; visibility:hidden; font-weight:600; pointer-events:none; user-select:none; }

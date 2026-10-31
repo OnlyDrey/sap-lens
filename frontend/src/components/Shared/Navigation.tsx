@@ -60,7 +60,7 @@ export function SecondaryNavigation({
           }}
         >
           {item.icon}
-          <span>{item.label}</span>
+          <span className="ui-tab-label" data-text={item.label}>{item.label}</span>
         </a>
       ))}
     </NavigationStrip>
@@ -122,7 +122,7 @@ export function ContentTabList({
           }}
         >
           {item.icon}
-          <span>{item.label}</span>
+          <span className="ui-tab-label" data-text={item.label}>{item.label}</span>
         </button>
       ))}
     </NavigationStrip>

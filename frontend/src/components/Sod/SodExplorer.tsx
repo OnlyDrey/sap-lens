@@ -3,7 +3,7 @@ import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { downloadFile, scopeParams, sod, EXPORT_NAME, type AssignmentPick, type AssignmentSelection, type BulkAction, type ContextInfo, type Filters, type Lifecycle } from '@/api/sod'
 import { useHistoryValue, useViewHistory, type SodExplorerTable } from '@/hooks/useViewHistory'
-import { ArrowUpRight, ListTree, ScanSearch, UsersRound } from 'lucide-react'
+import { ArrowUpRight, Layers, ListChecks, ListTree, ScanSearch, ShieldAlert, Users, UsersRound } from 'lucide-react'
 import { Button } from '@/components/Shared/Button'
 import { Dialog } from '@/components/Shared/Dialog'
 import { ErrorState, DataTable, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
@@ -41,8 +41,9 @@ const LABELS: Record<TableName, string> = { user_risk: 'User risk table', user_a
 const pills = (kind: 'risk' | 'activity', value?: string[] | string) => <span className="id-pill-list">{(Array.isArray(value) ? value : value ? [value] : []).map((item) => <SodPill key={item} kind={kind} value={item} />)}</span>
 const list = (value?: string[] | string | number) => (Array.isArray(value) ? value.join(', ') : String(value ?? ''))
 
-const TABS: { value: string; label: string }[] = [
-  { value: 'user_risk', label: 'Users' }, { value: 'access_list', label: 'Assignments' }, { value: 'lookup', label: 'Roles' }, { value: 'roles', label: 'Role conflicts' },
+const TABS = [
+  { value: 'user_risk', label: 'Users', icon: <Users size={16} aria-hidden="true" /> }, { value: 'access_list', label: 'Assignments', icon: <ListChecks size={16} aria-hidden="true" /> },
+  { value: 'lookup', label: 'Roles', icon: <Layers size={16} aria-hidden="true" /> }, { value: 'roles', label: 'Role conflicts', icon: <ShieldAlert size={16} aria-hidden="true" /> },
 ]
 
 /** Users (grouped by risk or activity), Assignments and Roles replace four near-duplicate tables; catalogue Role conflicts stay a distinct mode. */
