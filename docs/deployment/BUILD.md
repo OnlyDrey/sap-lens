@@ -812,6 +812,19 @@ modify source, dependencies or frontend outputs concurrently in the same checkou
 Never place real SAP exports in tracked folders or add them to the package.
 
 
+### Environment variables read by the build scripts
+
+These are set by the build orchestration or an administrator for networked or managed builds; none is needed for a normal local build, and none is stored in an image layer.
+
+| Variable | Read by | Meaning |
+|---|---|---|
+| `SAP_LENS_FRONTEND_STAGE` | `Dockerfile` build argument | Docker stage that supplies `frontend/dist`; the packager passes `validated_frontend` so the image reuses the already validated frontend. |
+| `SAP_LENS_BUILD_INFO` | `Dockerfile` build argument, `scripts/package-docker.py` | Compact JSON build identity (version, commit) validated and written into the image. |
+| `SAP_LENS_BUILD_CA` | `scripts/package-docker.py` | Path of an optional CA bundle mounted as the build secret `build_ca` during networked builds only. |
+| `SAP_LENS_BUILD_PROXY_HOST` | `scripts/package-docker.py` | Optional `host:ip` entry added to the build container for a managed proxy. |
+| `SAP_LENS_AUDIT_PYTHON` | `scripts/build-deployments.py`, `package-docker.py`, `test-native-deployment.py` | Python interpreter that has `pip-audit` installed for the dependency audit step. |
+| `SAP_LENS_EXPECTED_BUILD_JSON` | `scripts/verify-windows-package.py`, `release-windows.py` | Expected build identity the Windows package verification compares with the embedded metadata. |
+
 ## 9. Troubleshooting
 
 Start with the final **failed stage**, then open that run's `build.log` and

@@ -81,7 +81,7 @@ standards and the Phase 6 regression). The original 36-point numbering was not r
 | 5.6 Review periods | Complete | Icons in the menu, trigger the same height as Open |
 | 5.7 Reports | Complete | Document details expanded by default |
 
-The follow-up [UI/UX gap audit](UI_UX_GAP_AUDIT.md) converted the Account Review finding, classification and decision filters, the Release SAP User Group filter and the Compare users SAP area filter to multi-select, made the Release username and role name searches multi-value, and made Activity Review rows compact and expandable. Still single-choice: Release PR/PO and assignment status, Compare users validity and section.
+The follow-up [UI/UX gap audit](../archive/validation/UI_UX_GAP_AUDIT.md) converted the Account Review finding, classification and decision filters, the Release SAP User Group filter and the Compare users SAP area filter to multi-select, made the Release username and role name searches multi-value, and made Activity Review rows compact and expandable. Still single-choice: Release PR/PO and assignment status, Compare users validity and section.
 
 ## KPI standardization and UI refinement (fourth specification)
 
@@ -328,6 +328,18 @@ Commits are on `origin/work`; no workflow was dispatched and no tag or release w
 - **Access Explorer icons** (`304e9dc`): `ContentTabs` items now carry icons; tabs and secondary navigation reserve the bold label width (`.ui-tab-label`).
 - **SoD CSV import** (`7dd0fec`): `sod_import` profile (delimiter, encoding, mapping) in `AppConfig`, used by imports and refreshes; read-only `POST /api/data-sources/sod/inspect`; `SodImportEditor` in the Data Sources tab. Inspection never stores anything.
 - Tests: `account-review-refinement`, `kpi-semantic-tones`, `secondary-navigation-icons`, `sod-source-import` specs and `test_sod_inspection`. Tracker rows AR-008, UI-024, SODX-006 and DATA-013 are Not reviewed for manual acceptance.
+
+## R7 polish batch
+
+Loading screen centering (one flex column in the desktop and web startup documents), Account Review fifth KPI in one grid cell, Compare users badge alignment,
+SoD heatmap expanded in each new session (session storage), Assignments KPI group without the accidental card class. Tracker R7-01 to R7-05.
+
+## R8 stabilization
+
+- Role Lookup badge aligned to the first description line; Component Library tabs use the application scrollbar (tokens `--scrollbar-*`, 8px gap).
+- Code review ([CODE_REVIEW_R8](CODE_REVIEW_R8.md)) and security review ([SECURITY_REVIEW_R8](SECURITY_REVIEW_R8.md)); `test_security_surface.py` probes every API operation.
+- Optional SoD descriptive metadata: `sod_import.py`, `sod_metadata.py`, `/api/sod/metadata`, pill popovers, coverage in the source diagnostics.
+- Documentation audit ([DOCUMENTATION_AUDIT_R8](DOCUMENTATION_AUDIT_R8.md)) and the validation tracker upgrade.
 
 ## Not verified
 

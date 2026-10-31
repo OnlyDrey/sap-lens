@@ -7,7 +7,7 @@ module preferences and theme colors retain their existing schema and behavior.
 | --- | --- | --- |
 | General | Organization & SAP System | Organization identity and SAP system/client description |
 | General | Appearance & Branding | Themes, colors, local logo and appearance |
-| Data & Modules | Data Sources | Role Catalogue, User Access, Employee Directory; mappings, validation, imports and recovery |
+| Data & Modules | Data Sources | Role Catalogue, User Access, Employee Directory and SoD Matrix; formats, mappings, validation, imports and recovery |
 | Data & Modules | SAP Modules | Module search, enabled areas, labels, icons and colors used throughout the application |
 | Application | Features | Optional capabilities and account-review group classification |
 | Application | Health & Diagnostics | Backend/storage status, refresh history, actionable recovery and safe export |
@@ -52,7 +52,7 @@ See [CSV import](../data/CSV_SCHEMAS.md), [classification](../data/CLASSIFICATIO
 
 The removed frontend environment template was unused: no VITE_API_URL setting exists. Browser requests are same-origin and development uses the Vite proxy. Keep local data paths in application settings; backend/.env.example documents optional bootstrap variables only.
 
-Role catalogue and User Access have separate CSV Import Formats and local paths. Custom presets support create, rename, duplicate and confirmed deletion; the active source falls back to its protected default. Legacy classification is archived without execution or destructive rewrite. See [access investigation](../features/USER_ACCESS.md).
+Role catalogue and User Access have separate CSV Import Formats and local paths; the SoD Matrix keeps its delimiter, encoding and optional header mapping as `sod_import` (the documented columns are fixed, see [SoD Matrix](../data/SOD_MATRIX.md)). Custom presets support create, rename, duplicate and confirmed deletion; the active source falls back to its protected default. Legacy classification is archived without execution or destructive rewrite. See [access investigation](../features/USER_ACCESS.md).
 
 
 ## Compact health information

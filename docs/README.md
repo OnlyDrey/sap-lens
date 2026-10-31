@@ -3,6 +3,7 @@
 | Start here | Purpose |
 | --- | --- |
 | [Quick Start](getting-started/QUICK_START.md) | Choose an installation and load your first sources |
+| [Troubleshooting](getting-started/TROUBLESHOOTING.md) | Symptoms, causes and recovery steps for startup, imports and server access |
 | [Build & Deployment](deployment/README.md) | Build, obtain and operate any of the four deployment targets |
 | [Features](features/README.md) | Investigate users, roles, transactions and account evidence |
 | [Data & CSV](data/README.md) | Schemas, imports, refresh, enrichment and coverage |

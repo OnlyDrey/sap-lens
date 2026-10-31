@@ -10,6 +10,7 @@ Results apply only to their recorded source and environment. Start with the
 - [UX, SoD, access management and scheduling](validation/UX_SOD_ACCESS_VALIDATION.md)
 - [UI/UX quality audit: progress and recovery record](validation/UI_UX_AUDIT_PROGRESS.md)
 - [UI/UX consolidation and functional refinement: checklist and recovery record](validation/UI_CONSOLIDATION_PROGRESS.md)
+- [UI/UX gap audit of the consolidated refinement](validation/UI_UX_GAP_AUDIT.md)
 - [Windows build performance](validation/BUILD_PERFORMANCE.md)
 - [Deployment channels and publication — Phase 2](validation/DEPLOYMENT_RELEASE_VALIDATION.md)
 - [Cross-platform deployment validation — 24 October 2026](validation/DEPLOYMENT_VALIDATION.md)

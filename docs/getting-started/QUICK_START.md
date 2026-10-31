@@ -37,3 +37,5 @@ Start at [Dashboard](../features/DASHBOARD.md), then
 [Role Lookup](../features/ROLE_LOOKUP.md) or [User Access](../features/USER_ACCESS.md).
 Role-derived transaction mappings are investigation evidence, not proof of
 effective SAP authorization. [Data Health](../data/DATA_HEALTH.md) explains coverage gaps.
+
+If something does not behave as expected, see [Troubleshooting](TROUBLESHOOTING.md).
