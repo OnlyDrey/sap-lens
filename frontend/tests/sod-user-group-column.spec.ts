@@ -11,7 +11,7 @@ test.setTimeout(120_000)
 const grid = (page: Page, kind: 'risk' | 'activity') => page.getByRole('region', { name: kind === 'risk' ? /Scrollable User by risk matrix/ : /Scrollable User by activity matrix/ })
 const groupBy = (page: Page) => page.getByRole('combobox', { name: 'Group by', exact: true })
 const sidebar = (page: Page) => page.getByRole('complementary', { name: 'Filters', exact: true })
-const headerTexts = (table: ReturnType<Page['getByRole']>) => table.locator('thead th').allInnerTexts()
+const headerTexts = async (table: ReturnType<Page['getByRole']>) => { await expect(table.locator('thead th').first()).toBeVisible(); return table.locator('thead th').allInnerTexts() }
 
 for (const kind of ['risk', 'activity'] as const) {
   const link = kind === 'risk' ? 'Risk Matrix' : 'Activity Matrix'
