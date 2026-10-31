@@ -83,10 +83,9 @@ test('SoD colors use the shared hex input with validation, preview and reset',as
 })
 test('risk and activity tables use icon Edit buttons and a consistent actionable transactions button',async({page})=>{
  await settings(page)
- const edit=page.getByRole('button',{name:'Edit SoD risk SYN01',exact:true}),source=page.getByRole('button',{name:'Source details for risk SYN01',exact:true})
+ const edit=page.getByRole('button',{name:'Edit SoD risk SYN01',exact:true})
  await expect(edit.locator('svg')).toHaveCount(1) // pencil
- const [editBox,sourceBox]=[await edit.boundingBox(),await source.boundingBox()]
- expect(Math.abs(editBox!.height-sourceBox!.height)).toBeLessThan(1) // buttons beside each other share one height
+ await expect(page.getByRole('button',{name:'Source details for risk SYN01',exact:true})).toHaveCount(0) // not repeated per row; the edit dialog has it
  await page.getByRole('tab',{name:'Activities',exact:true}).click()
  const transactions=page.getByRole('button',{name:/^Show \d+ transactions for CREATE$/}),editActivity=page.getByRole('button',{name:'Edit SoD activity CREATE',exact:true})
  await expect(editActivity.locator('svg')).toHaveCount(1)

@@ -83,6 +83,9 @@ Settings → SoD Risk Configuration has two tabs, **Risks** and **Activities**, 
 - Pills show the identifier text; the color only tints the pill. `GET /api/sod/appearance` supplies names and colors to the other SoD views. Activity endpoints: `GET /api/sod/catalogue-activities`, `POST /api/sod/catalogue-activities/{activity}` (optimistic `expected_revision`).
 - Edit dialogs have a header close button and only Cancel and Save changes in the footer.
 
+
+In the Risks table a new risk (arrived with the latest import) shows a compact amber **New** badge beside its Risk ID; rows keep the normal background and consecutive rows stay apart through separators and spacing. Enabled and Disabled carry icons (the shared `EnabledBadge`). Source details are not repeated on every row: the Edit dialog carries them, together with the imported definition. The Activities table uses the same row rhythm (alignment, separators, a common minimum row height, compact buttons) and keeps its activity-specific risk pills and transactions button.
+
 ## SoD feature toggle (Settings → Features)
 
 - Segregation of Duties has its own card in Settings → Features: a manual toggle (**Enabled**, aligned to the right edge of the card), imported-data availability, an operational status and a **Configure source** button to the SoD Matrix source.

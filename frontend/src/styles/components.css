@@ -1348,3 +1348,16 @@ summary:focus-visible,div[tabindex="0"]:focus-visible,a.role-identifier-link:foc
 .primary-nav-group > .ui-button:focus-visible { border-radius:var(--focus-radius); }
 :where([tabindex="0"]):focus-visible { outline:var(--focus-width) solid var(--focus); outline-offset:var(--focus-offset); }
 .matrix-col-button,.matrix-row-button { border-radius:var(--focus-radius); }
+
+/* SoD Risk Configuration: Risks and Activities share one compact table rhythm. New risks get an amber badge beside the Risk ID, never a coloured row; consecutive rows stay apart through separators and spacing. */
+.sod-config-table td, .sod-config-table th { vertical-align:middle; padding-block:var(--space-2); }
+.sod-config-table tbody tr { border-bottom:1px solid var(--border); }
+.sod-config-table tbody tr > td { min-height:3.25rem; }
+.sod-config-table tbody tr:last-child { border-bottom:0; }
+.sod-config-table td > p { margin:var(--space-1) 0 0; }
+.sod-id-line { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2); }
+.sod-new-badge,.sod-historical-badge { min-height:1.25rem; padding:0 var(--space-2); font-size:.6875rem; font-weight:700; line-height:1.2; white-space:nowrap; }
+.sod-new-badge { gap:var(--space-1); border:1px solid var(--warning); background:color-mix(in srgb,var(--warning) 26%,var(--surface)); color:var(--text); }
+.sod-new-badge svg { color:var(--warning); }
+.sod-config-table tbody tr { height:4.5rem; }
+.sod-config-table td:nth-child(4) { white-space:nowrap; }

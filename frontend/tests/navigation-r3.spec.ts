@@ -83,12 +83,12 @@ test('secondary navigation, explorer and SoD settings actions carry icons and re
   await page.getByRole('button', { name: 'Open settings', exact: true }).click()
   await page.getByRole('tab', { name: 'SoD Risk Configuration', exact: true }).click()
   for (const name of ['Risks', 'Activities']) await expect(page.getByRole('tab', { name, exact: true }).locator('svg')).toHaveCount(1)
-  const source = page.getByRole('button', { name: /^Source details for risk / }).first()
-  await expect(source).toHaveClass(/ui-button-outline/) // a bordered button, not text
-  await expect(source.locator('svg')).toHaveCount(1)
+  // Source details are not repeated on every row: the edit dialog carries them
+  await expect(page.getByRole('button', { name: /^Source details for risk / })).toHaveCount(0)
   const edit = page.getByRole('button', { name: /^Edit SoD risk / }).first()
-  const [a, b] = [await edit.boundingBox(), await source.boundingBox()]
-  expect(Math.abs(a!.height - b!.height)).toBeLessThanOrEqual(1); expect(Math.abs(a!.y - b!.y)).toBeLessThan(3)
+  await expect(edit.locator('svg')).toHaveCount(1)
+  await edit.click()
+  await expect(page.getByRole('dialog').getByRole('button', { name: /^Source details for risk / })).toBeVisible()
 })
 
 for (const width of [375, 800, 1280]) for (const theme of ['light', 'dark']) test(`submenu overlays the page without scrollbars, size changes or left borders (${theme} ${width})`, async ({ page, request }) => {
