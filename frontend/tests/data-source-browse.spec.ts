@@ -43,7 +43,7 @@ test.describe('with the desktop file dialog', () => {
 
   test('an invalid or empty replacement leaves the configured file and data untouched; a valid one is confirmed by name', async ({ page, request }) => {
     const area = await openSource(page, 'Role Catalogue')
-    const field = area.getByRole('textbox', { name: 'CSV file location' }), configured = await field.inputValue()
+    const field = area.getByRole('textbox', { name: 'CSV file location' })
     const before = await settings(request)
     const bad = path.join(directory, 'bad-replacement.csv'); writeFileSync(bad, 'NOT_A_ROLE_COLUMN\nx\n')
     const empty = path.join(directory, 'empty-replacement.csv'); writeFileSync(empty, 'AGR_NAME,TEXT,CHILD_AGR,TCODE\n')
@@ -52,7 +52,7 @@ test.describe('with the desktop file dialog', () => {
       await area.getByRole('button', { name: 'Browse CSV', exact: true }).click()
       await expect(area.getByRole('alert')).toContainText('No source data was replaced')
       await expect(area.getByRole('alert')).toContainText('The active file is unchanged')
-      await expect(field).toHaveValue(configured) // the field returns to the configured file
+      await expect(field).toHaveValue(file) // the attempted file stays visible for correction, the configured file stays active
       await expect(area.getByRole('button', { name: 'Browse CSV', exact: true })).toBeEnabled() // and the next attempt is possible immediately
     }
     const after = await settings(request)

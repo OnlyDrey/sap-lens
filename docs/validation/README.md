@@ -13,14 +13,16 @@ A repository-maintained list of what SAP Lens should do on every page, and what 
 | ID | Stable identifier such as `SODM-003`. Never reuse or renumber an ID; new items take the next number of their area prefix. |
 | Area, Page, Component | Where the behavior lives (area is one of the 18 fixed areas). |
 | Expected behavior | What a reviewer should observe. Written as a testable statement. |
-| Status | `Not reviewed`, `Approved`, `Needs improvement`, `Bug`, `Blocked`, `Not applicable`. |
+| Status | The **manual acceptance** status: `Not reviewed`, `Approved`, `Needs improvement`, `Bug`, `Blocked`, `Not applicable`. Only a person validating the behavior changes it. |
 | Priority | `Not set`, `Critical`, `High`, `Medium`, `Low`. |
 | Classification | `Unclassified`, `Current defect` (behavior is wrong today), `Improvement opportunity` (works, could be better), `Not an issue`. |
 | Notes and evidence | What was seen, how, in which theme and viewport, with screenshots or test names. Required for every status except Not reviewed and Not applicable. |
-| Implementation reference | Guide and test files for the behavior, then fix commits or pull requests once an item has one. |
+| Implementation reference | Guide and code files for the behavior, then fix commits or pull requests once an item has one. |
+| Implementation status | What the code does today: `Not assessed` (default), `Not implemented`, `Partially implemented`, `Implemented`. Implementing an item never changes its Status. |
+| Test evidence | The specs and tests that exercise the behavior (required for `Implemented`). Passing tests are evidence of implementation, not acceptance. |
 | Retest status | `Not started`, `Pending retest`, `Retest passed`, `Retest failed`. |
 
-Consistency rules (enforced by `check`): a Bug is a Current defect; a Current defect is a Bug, Needs improvement or Blocked; Needs improvement is an improvement opportunity or a current defect; Approved, Needs improvement, Bug and Blocked need notes; a Not reviewed item has no retest; an item whose retest failed cannot be Approved. Defects and improvement opportunities are kept apart so the backlog can be read as two lists (the workbook has a sheet for each).
+Consistency rules (enforced by `check`): an Implemented item names its test evidence; an item that is not fully implemented cannot be Approved; a Bug is a Current defect; a Current defect is a Bug, Needs improvement or Blocked; Needs improvement is an improvement opportunity or a current defect; Approved, Needs improvement, Bug and Blocked need notes; a Not reviewed item has no retest; an item whose retest failed cannot be Approved. Defects and improvement opportunities are kept apart so the backlog can be read as two lists (the workbook has a sheet for each).
 
 ## Workflow
 

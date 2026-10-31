@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CSV_PATH = ROOT / 'docs' / 'validation' / 'validation-items.csv'
 DEFAULT_OUTPUT = ROOT / 'build' / 'validation-tracker.xlsx'
 
-COLUMNS = ['ID', 'Area', 'Page', 'Component', 'Expected behavior', 'Status', 'Priority', 'Classification', 'Notes and evidence', 'Implementation reference', 'Retest status']
+COLUMNS = ['ID', 'Area', 'Page', 'Component', 'Expected behavior', 'Status', 'Priority', 'Classification', 'Notes and evidence', 'Implementation reference', 'Implementation status', 'Test evidence', 'Retest status']
 DEFINITION = COLUMNS[:5]
 REVIEWER = COLUMNS[5:]  # the columns a reviewer or implementer edits; merge never touches the others
 AREAS = ['Global UI and shared components', 'Dashboard', 'Role Lookup', 'Access Package', 'User Access', 'Account Review', 'Compare Users', 'Release Roles', 'SoD Overview',
@@ -33,7 +33,9 @@ STATUSES = ['Not reviewed', 'Approved', 'Needs improvement', 'Bug', 'Blocked', '
 PRIORITIES = ['Not set', 'Critical', 'High', 'Medium', 'Low']
 CLASSIFICATIONS = ['Unclassified', 'Current defect', 'Improvement opportunity', 'Not an issue']
 RETEST = ['Not started', 'Pending retest', 'Retest passed', 'Retest failed']
-CHOICES = {'Status': STATUSES, 'Priority': PRIORITIES, 'Classification': CLASSIFICATIONS, 'Retest status': RETEST}
+# Implementation status says what the code does today; Status is the manual acceptance decision and is never set by an implementation.
+IMPLEMENTATION = ['Not assessed', 'Not implemented', 'Partially implemented', 'Implemented']
+CHOICES = {'Status': STATUSES, 'Priority': PRIORITIES, 'Classification': CLASSIFICATIONS, 'Implementation status': IMPLEMENTATION, 'Retest status': RETEST}
 ID_PATTERN = re.compile(r'^[A-Z]{2,5}-\d{3}$')
 NEEDS_NOTES = {'Approved', 'Needs improvement', 'Bug', 'Blocked'}
 
@@ -80,6 +82,10 @@ def problems(rows):
             found.append(f'{label}: Needs improvement must be classified as an improvement opportunity or a current defect')
         if status in NEEDS_NOTES and not row['Notes and evidence'].strip():
             found.append(f'{label}: {status} needs notes or evidence')
+        if row['Implementation status'] == 'Implemented' and not row['Test evidence'].strip():
+            found.append(f'{label}: an Implemented item names its test evidence')
+        if status == 'Approved' and row['Implementation status'] in {'Not implemented', 'Partially implemented'}:
+            found.append(f'{label}: an item that is not fully implemented cannot be Approved')
         if status == 'Approved' and row['Retest status'] == 'Retest failed':
             found.append(f'{label}: an item whose retest failed cannot be Approved')
         if classification == 'Current defect' and status not in {'Bug', 'Needs improvement', 'Blocked'}:
@@ -136,7 +142,7 @@ STYLES = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xm
 def workbook(rows):
     """Bytes of an .xlsx: Items (editable), Summary, Defects and Improvements. Reproducible for the same rows."""
     table = [COLUMNS] + [[row[name] for name in COLUMNS] for row in rows]
-    widths = [10, 30, 22, 28, 60, 16, 12, 22, 50, 44, 16]
+    widths = [10, 30, 22, 28, 60, 16, 12, 22, 50, 44, 20, 44, 16]
     lists = [(_column(COLUMNS.index(name)), options) for name, options in CHOICES.items()]
     total = [['Area', 'Items', *STATUSES, 'Current defects', 'Improvement opportunities']]
     for area in AREAS:

@@ -235,6 +235,36 @@ Commit `70f1092` made role codeblocks wrap; the requirement is the opposite: alw
 - The shared info tip button is taller than the headings it sits beside (`UI-016`); at 375 px the package and selection bars stack to roughly a quarter of the viewport (`PKG-009`).
 - Windows/WebView2, Windows Service, installer, systemd and UNC acceptance, and deployment package builds, were not run here.
 
+## Shared SoD filters, Review Periods and data sources (Round 5)
+
+Commits are on `origin/work`; no workflow was dispatched and no tag or release was created.
+
+| Phase | Requirement | Status | Evidence |
+| --- | --- | --- | --- |
+| 1 Navigation and UI | Navbar scrollbar root cause fixed (the main navigation was an `overflow-x:auto` scroll container, so the SoD chevron group overflowed the header at medium widths and classic scrollbars appeared; it now wraps), Review Context evaluation text centered on the dropdown, Module and Submodule capitalized | Implemented | `5a1a498`, `navigation-r3`, `shared-ui-r5` |
+| 2 Matrices and shared filters | Compact identity column (copyable username, SAP User Group beneath), shared SoD filter context with Clear page filters and Clear all SoD filters, investigation links add to existing filters | Implemented | `3baa1ae`, `sod-shared-filters`, `sod-matrix-grouping` |
+| 3 Review Periods | Create and delete dialogs as responsive grids with icons, toolbar tooltip for Compare periods, visible archived toggle | Implemented | `5fae2b9`, `sod-periods-dialogs` |
+| 4 Data sources | Browse CSV always available with an explained alternative, failed replacements never replace active data, read-only SoD Matrix inspection | Implemented | `6abca73`, `data-source-browse`, `test_sod_inspection` |
+| 5 Regression, tracker, handoff | See Validation | Done | |
+
+### Decisions worth knowing
+
+- **Shared filters.** One shared slot (`sodFilters.shared`) holds the seven dimensions that mean the same wherever they exist (group, username, risk, activity, transaction code, business area, assigned role). Role Conflicts offers only risk, transaction code and business area; its other selections stay stored. Clear page filters clears the page's own filters and the shared dimensions it offers; Clear all SoD filters clears the whole filter context. Overview links merge into existing filters, which means a drilldown can show fewer rows than its tile counted when a filter is already active (the chips show why).
+- **Typed paths.** Typing a CSV path imports it on leaving the field (existing behavior), so a pre-import preview of a typed SoD file cannot run first; the SoD inspection therefore describes the active validated snapshot. A failed attempt keeps the attempted path in the field (needed for correction and column mapping) while the message states that the active file is unchanged.
+- **Tracker.** `docs/validation` gained the columns Implementation status and Test evidence; Status is documented as the manual acceptance status. The 11 items (UI-017, UI-018, SET-010, SODM-012, SODM-013, SODP-006 to SODP-008, DATA-010, DATA-011, SET-011) are Implemented with test evidence and stay Not reviewed.
+
+### Validation (Round 5)
+
+- Full single-process regression (`python scripts/run-tests.py regression --jobs 1`, head `6abca73`): backend 813 tests, 3 skipped (PowerShell and PyInstaller only), 0 failed; build with type check, documentation links, workflow contracts, Lucide catalog, whitespace and `pip check` passed; browser 634 tests with 3 failures, all caused by this round's changes: `enterprise` (Detect columns disabled after an early revert of the attempted path), `investigation-ux` (same cause) and `sod-catalogue` (the SoD preview dialog is now the inspection). The revert was removed, `sod-catalogue` was updated for the new dialog, and `enterprise`, `investigation-ux`, `sod-catalogue`, `data-source-browse`, `automatic-import` and `desktop` (50 tests) pass. The complete browser suite was not repeated after those fixes.
+- Visual QA: submenu, Risk Matrix, Review Periods, Create and Delete dialogs and the SoD inspection in light and dark at 375, 800, 1280 and 1600 px loaded without horizontal page overflow (assertion on 40 captures). Screenshots inspected: Risk Matrix (800 dark), SoD inspection (375 light), the Settings data source and SAP Modules views (1280 and 375), the create and delete dialogs.
+- Not run here: Windows/WebView2, Windows Service, installer, systemd, UNC and deployment package acceptance.
+
+### Remaining limitations
+
+- The navbar scrollbar could not be reproduced in Playwright's default headless Chromium (it hides scrollbars); the cause was established by measuring overflow and by running with scrollbars shown. Please confirm in the Windows desktop app.
+- The SoD inspection dialog shows its data preview before the validation results, so at 375 px the validation section needs scrolling.
+- A typed replacement path is imported when the field is left; there is no read-only pre-import preview for the SoD file.
+
 ## Validation
 
 - **Round 2 final regression** (`python scripts/run-tests.py regression --jobs 1`, head `0a0e637`): backend 793 tests, 3 skipped (PowerShell and PyInstaller only), 0 failed; build with type check, documentation links, workflow contracts, Lucide catalog (1447 icons), whitespace and `pip check` passed; browser 569 tests, 553 passed and 16 failed. The 16 failures were two specs still asserting the superseded Dashboard (`refinement-27` looked for the former "Configuration" region, `refinement-search-layout` for the removed review completion progress bar and the former 1-5 range). They were updated to the v4 structure and re-run: both specs pass (29 tests). The complete suite was not re-run a second time after those two spec edits.

@@ -88,8 +88,9 @@ also when a file is already configured; only an import in progress for that sour
 blocks it. It opens the native dialog in the desktop app, the upload chooser where browser
 uploads are supported, and otherwise explains that native browsing is desktop-only and moves
 to the file location field. A replacement that does not validate (invalid, empty or
-unreadable) never replaces the configured file or its data: the field returns to the active
-file and the message names it, while a valid replacement is confirmed by file name and counts.
+unreadable) never replaces the configured file or its data: the attempted path stays in the field
+for correction or column mapping, and the message says the active file is unchanged and names
+it, while a valid replacement is confirmed by file name and counts.
 Native Browse activates the selected server-visible file;
 browser uploads activate a private Static source. Entering a path activates on Enter
 or leaving the field. Selecting the same file again explicitly revalidates it.

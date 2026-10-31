@@ -45,6 +45,16 @@ class TrackerTests(unittest.TestCase):
                 self.assertEqual((row['Retest status'], row['Classification']), ('Not started', 'Unclassified'), row['ID'])
         self.assertEqual(sum(row['Status'] == 'Approved' for row in self.rows), 0)  # approval is a person's decision
 
+    def test_implemented_items_name_existing_test_evidence_and_stay_unaccepted_until_a_person_reviews_them(self):
+        implemented = [row for row in self.rows if row['Implementation status'] == 'Implemented']
+        self.assertGreaterEqual(len(implemented), 11)
+        for row in implemented:
+            files = re.findall(r'[\w./-]+\.(?:spec\.ts|py)', row['Test evidence'])
+            self.assertTrue(files, row['ID'])
+            for name in files:
+                self.assertTrue((ROOT / name).exists(), (row['ID'], name))
+            self.assertEqual(row['Status'], 'Not reviewed', row['ID'])  # implementation is not acceptance
+
     def test_consistency_rules_reject_contradictory_rows(self):
         def one(**change):
             rows = copy.deepcopy(self.rows)

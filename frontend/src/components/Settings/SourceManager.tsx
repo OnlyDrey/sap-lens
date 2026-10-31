@@ -42,7 +42,7 @@ export function SourceManager({source,draft,onMode,onActivated,onClear,onFeature
    // The Settings owner remains mounted when source tabs change; rebase there.
    onActivated(result)
    if(mounted.current){const change=result.refresh.sources.find(row=>row.source===source);setFeedback(`Completed · ${result.records.toLocaleString()} source records from ${chosen.split(/[\\/]/).pop()} · ${change?.added||0} added, ${change?.removed||0} removed, ${change?.modified||0} modified.`)}
-  }catch(cause){if(mounted.current){setError(cause instanceof Error?cause.message:'CSV activation failed.');setPath(savedPath);onCandidate(savedPath);lastAttempt.current=savedPath}}  // a replacement that does not validate never replaces the configured file
+  }catch(cause){if(mounted.current){setError(cause instanceof Error?cause.message:'CSV activation failed.')}}  // the attempted path stays in the field for correction or column mapping; the configured file and its data are never replaced by a failed attempt
   finally{if(mounted.current)setPending(false)}
  }
  return <section className="settings-card space-y-3" aria-label={`${names[source]} source management`}>
