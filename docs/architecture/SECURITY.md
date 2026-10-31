@@ -44,6 +44,6 @@ licensing](../../LICENSE.md). Run current [dependency checks](../development/TES
 not historical advisory counts, when assessing a new source revision.
 
 [Privacy](PRIVACY.md) records accepted unresolved historical branding P-01; current
-cleanup does not erase Git history or establish legal ownership. The [dated source
+cleanup does not erase Git history or establish legal ownership. The latest [security review (R8)](../development/SECURITY_REVIEW_R8.md) lists findings, verified controls and untested areas; the [dated source
 review](../archive/implementation/SECURITY_REVIEW.md) is historical evidence, not a
 formal penetration test or certification of the current deployment.

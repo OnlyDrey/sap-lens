@@ -209,6 +209,7 @@
     "test_desktop_browser",
     "test_desktop_installer",
     "test_linux_lifecycle",
+    "test_security_surface",
     "test_server",
     "test_windows_package",
     "test_windows_tray",
