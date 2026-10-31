@@ -105,7 +105,7 @@ export interface SubjectOverview {
   risks: { risk_id: string; criticality: string; display_name: string; source_text: string; finding_id: string; evidence_version: string; acceptance: Lifecycle; event: DecisionEvent | null }[]
 }
 export interface UserQueueRow {
-  user: string; total: number; decided: number; outstanding: number; removal: number; historical: number
+  user: string; groups?: string[]; total: number; decided: number; outstanding: number; removal: number; historical: number
   activity: { total: number; decided: number }; assignment: { total: number; decided: number }; acceptance: { total: number; decided: number }
 }
 export interface Subject extends ContextInfo {

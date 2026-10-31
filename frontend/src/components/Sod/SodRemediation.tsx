@@ -4,6 +4,7 @@ import { downloadFile, scopeParams, sod, sodPost, EXPORT_NAME, type AssignmentRo
 import { useViewHistory } from '@/hooks/useViewHistory'
 import { Button } from '@/components/Shared/Button'
 import { Kpi } from '@/components/Shared/Kpi'
+import { UserGroupCell } from '@/components/Shared/UserGroup'
 import { Dialog } from '@/components/Shared/Dialog'
 import { ErrorState, DataTable, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
 import { FormField, Input } from '@/components/Shared/Controls'
@@ -155,14 +156,14 @@ export function RemediationView() {
             <Button size="compact" onClick={() => setOpenKeys(new Set())}>Collapse all</Button>
           </Toolbar>
           <DataTable caption="Access remediation rows" density="compact" sticky>
-            <thead><tr><th>SAP user</th><th>Role assignment</th><th>Validity</th><th>Review</th><th>Recommended handling</th><th>Remediation</th><th className="col-actions">Actions</th></tr></thead>
+            <thead><tr><th>SAP user</th><th>SAP User Group</th><th>Role assignment</th><th>Validity</th><th>Review</th><th>Recommended handling</th><th>Remediation</th><th className="col-actions">Actions</th></tr></thead>
             <tbody>{parents.map((parent) => {
               const open = openKeys.has(parent.key), first = parent.rows[0], tracked = parent.rows.find((row) => row.action) ?? first
               const decided = parent.rows.filter((row) => row.activity_decision !== 'Pending').length
               return <ParentRows key={parent.key} open={open}
                 parent={<tr className="remediation-parent" data-open={open || undefined}>
-                  <td><button type="button" className="sod-expand-toggle" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} activities and risks for ${parent.user} ${first.role}`} onClick={() => toggleKey(parent.key)}>{open ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}<strong>{parent.user}</strong></button>
-                    <p className="text-xs text-muted whitespace-nowrap">SAP User Group: {first.user_group || 'Unknown'}</p></td>
+                  <td><button type="button" className="sod-expand-toggle" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} activities and risks for ${parent.user} ${first.role}`} onClick={() => toggleKey(parent.key)}>{open ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}<strong>{parent.user}</strong></button></td>
+                  <td><UserGroupCell groups={first.user_group} /></td>
                   <td><RemediationRole role={first.role} catalogueRoles={first.catalogue_roles} /></td>
                   <td className="whitespace-nowrap"><dl className="validity-dates"><div><dt>Valid from</dt><dd>{formatDate(first.valid_from)}</dd></div><div><dt>Valid to</dt><dd>{formatDate(first.valid_to)}</dd></div></dl></td>
                   <td><LifecycleBadge value={first.assignment_decision} /><p className="text-xs text-muted">{decided}/{parent.rows.length} activities decided</p></td>
@@ -174,7 +175,7 @@ export function RemediationView() {
                   </div></td>
                 </tr>}
                 children={parent.rows.map((row) => <tr key={row.activity} className="remediation-child">
-                  <td colSpan={2}><span className="remediation-child-title">Activity</span> <SodPill kind="activity" value={row.activity} /> <span className="id-pill-list" aria-label={`Risks for ${row.activity}`}>{row.risks.map((risk) => <SodPill key={risk} kind="risk" value={risk} />)}</span></td>
+                  <td colSpan={3}><span className="remediation-child-title">Activity</span> <SodPill kind="activity" value={row.activity} /> <span className="id-pill-list" aria-label={`Risks for ${row.activity}`}>{row.risks.map((risk) => <SodPill key={risk} kind="risk" value={risk} />)}</span></td>
                   <td colSpan={2}>Activity <LifecycleBadge value={row.activity_decision} /> · Risk acceptance: {row.risk_acceptance.join(', ') || '—'}</td>
                   <td><StatusBadge tone={row.recommended === 'Remove assignment' ? 'error' : row.recommended === 'Investigate assignment' ? 'warning' : 'neutral'}>{row.recommended}</StatusBadge><p className="text-xs">{row.reason || row.controls}</p></td>
                   <td className="text-xs" colSpan={2}>Verification: {row.verification}</td>
