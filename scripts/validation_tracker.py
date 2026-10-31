@@ -36,7 +36,7 @@ RETEST = ['Not started', 'Pending retest', 'Retest passed', 'Retest failed']
 # Implementation status says what the code does today; Status is the manual acceptance decision and is never set by an implementation.
 IMPLEMENTATION = ['Not assessed', 'Not implemented', 'Partially implemented', 'Implemented']
 CHOICES = {'Status': STATUSES, 'Priority': PRIORITIES, 'Classification': CLASSIFICATIONS, 'Implementation status': IMPLEMENTATION, 'Retest status': RETEST}
-ID_PATTERN = re.compile(r'^[A-Z]{2,5}-\d{3}$')
+ID_PATTERN = re.compile(r'^[A-Z][A-Z0-9]{1,4}-\d{2,3}$')  # AREA-001, or a round tag such as R7-01
 NEEDS_NOTES = {'Approved', 'Needs improvement', 'Bug', 'Blocked'}
 
 
@@ -61,7 +61,7 @@ def problems(rows):
             found.append(f'{label}: columns do not match {COLUMNS}')
             continue
         if not ID_PATTERN.match(row['ID']):
-            found.append(f'{label}: ID must look like AREA-001')
+            found.append(f'{label}: ID must look like AREA-001 or R7-01')
         elif row['ID'] in seen:
             found.append(f'{label}: duplicate ID')
         seen.add(row['ID'])
