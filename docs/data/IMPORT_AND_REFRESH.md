@@ -97,7 +97,7 @@ or leaving the field. Selecting the same file again explicitly revalidates it.
 
 Settings shows progress, committed record/change counts, source status and links to
 View changes, Preview data and technical details. Preview inspects the current
-validated snapshot without rereading the original CSV. For the **SoD Matrix** it is a read-only inspection: record, risk, activity and transaction counts, validation results (documented columns, required values, both activity sides, evaluated types, duplicates, missing descriptions, overlapping transactions), a column-interpretation table (the schema is fixed, so columns are explained and never remapped), quality warnings, import metadata (file, mode, imported, checked, snapshot, feature state) and the imported records. Employee preview retains
+validated snapshot without rereading the original CSV. For the **SoD Matrix** it is a read-only inspection: record, risk, activity and transaction counts, validation results (documented columns, required values, both activity sides, evaluated types, duplicates, missing descriptions, overlapping transactions), a column-interpretation table (the schema is fixed, so the meanings are explained; a mapping only chooses the source header), quality warnings, import metadata (file, mode, imported, checked, snapshot, feature state) and the imported records. Employee preview retains
 search, sorting, paging and quality filters. Missing emails are warnings, not a
 reason to discard otherwise valid records. Feature preferences are independent:
 importing does not enable a disabled optional feature.
@@ -118,3 +118,7 @@ for existing callers; it is no longer the normal Settings workflow.
 ## Platform validation
 
 Automated browser and backend tests use synthetic identities. Fresh-process snapshot restoration on Linux verifies persistence logic but does not prove Windows/WebView2, native file dialogs or UNC-share access. Run those checks on Windows before treating a new desktop distribution as validated. No new executable is built by these changes.
+
+## SoD Matrix import format, mapping and validation
+
+Settings → Data Sources → SoD Matrix has the same **Advanced import format and column mapping** section as the other CSV sources, in three steps: *CSV Import Format* (delimiter and encoding, both automatic by default; the documented columns RISK through TTEXT are a fixed schema), *Column mapping* (columns are matched by name; choose a source column only where a header differs, for example `Risk_ID` for RISK) and *Validation & preview* (counts, parser errors, SoD-specific checks and sample rows, in a table that scrolls inside its own container). The section inspects the selected file through `POST /api/data-sources/sod/inspect`, which parses it exactly as an import would but stores nothing: active data, risk definitions, decisions and review snapshots are never touched, and an invalid file never replaces the last valid dataset. The format and mapping are saved with the next import or **Apply settings** (`sod_import` in the configuration) and are used for static and dynamic refreshes. Browse CSV, Refresh source, Preview data, View changes, Technical source details and Clear source data are unchanged.

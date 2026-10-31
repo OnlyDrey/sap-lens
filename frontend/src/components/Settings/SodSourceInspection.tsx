@@ -7,6 +7,11 @@ import { formatTimestamp } from '@/lib/dateFormat'
 import { ImportPreview } from './ImportControls'
 
 interface Check { name: string; status: 'passed' | 'warning'; detail: string }
+
+/** SoD-specific validation results: one line per check with a status badge, shared by the active-snapshot inspection and the candidate-file inspection. */
+export function SodChecks({ checks }: { checks: Check[] }) {
+  return <ul className="sod-inspection-checks">{checks.map((check) => <li key={check.name}><StatusBadge tone={check.status === 'passed' ? 'success' : 'warning'}>{check.status === 'passed' ? 'Passed' : 'Warning'}</StatusBadge><strong>{check.name}</strong><span>{check.detail}</span></li>)}</ul>
+}
 interface Inspection {
   loaded: boolean; file_name?: string
   columns?: { column: string; detected: string; meaning: string; required: boolean }[]
@@ -18,7 +23,7 @@ interface Inspection {
 /**
  * Read-only inspection of the SoD Matrix source, matching what the other CSV sources show before and after an import: record counts, column
  * interpretation, validation checks, quality warnings, a data preview and import metadata. The matrix has a fixed schema with its own risk and
- * activity semantics, so the columns are explained, never remapped.
+ * activity semantics, so the columns are explained; a mapping only chooses which source header carries each one.
  */
 export function SodSourceInspection({ onClose, children }: { onClose: () => void; children?: React.ReactNode }) {
   const result = useQuery({
@@ -38,11 +43,11 @@ export function SodSourceInspection({ onClose, children }: { onClose: () => void
             metrics={[['Parsed rows', counts!.parsed_rows], ['Unique records', counts!.records], ['Duplicate rows', counts!.duplicate_rows], ['Risks', counts!.risks], ['Evaluated risks', counts!.evaluated_risks], ['Not evaluated risks', counts!.unsupported_risks], ['Activities', counts!.activities], ['Transactions', counts!.transactions]].map(([label, value]) => ({ label: label as string, value: value as number }))}>
             <section aria-label="Validation results" className="space-y-2">
               <h3 className="text-base font-semibold">Validation results</h3>
-              <ul className="sod-inspection-checks">{data.checks!.map((check) => <li key={check.name}><StatusBadge tone={check.status === 'passed' ? 'success' : 'warning'}>{check.status === 'passed' ? 'Passed' : 'Warning'}</StatusBadge><strong>{check.name}</strong><span>{check.detail}</span></li>)}</ul>
+              <SodChecks checks={data.checks!} />
             </section>
             <section aria-label="Column interpretation" className="space-y-2">
               <h3 className="text-base font-semibold">Column interpretation</h3>
-              <p className="ui-description">The SoD Matrix uses a fixed documented schema. Columns are interpreted as below and cannot be remapped, because the parser relies on these meanings.</p>
+              <p className="ui-description">The SoD Matrix uses a fixed documented schema. Columns are interpreted as below. A mapping in the import settings only chooses the source header; the meanings are fixed because the parser relies on them.</p>
               <DataTable caption="SoD Matrix columns" density="compact"><thead><tr><th scope="col">Documented column</th><th scope="col">Found in file</th><th scope="col">Required</th><th scope="col">Meaning</th></tr></thead>
                 <tbody>{data.columns!.map((column) => <tr key={column.column}><td><code>{column.column}</code></td><td>{column.detected ? <code>{column.detected}</code> : <StatusBadge tone="error">Missing</StatusBadge>}</td><td>{column.required ? 'Yes' : 'No'}</td><td>{column.meaning}</td></tr>)}</tbody></DataTable>
             </section>

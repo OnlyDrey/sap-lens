@@ -9,6 +9,7 @@ import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
 import { DirectoryDiagnostics, DirectorySnapshotRecovery, EmployeeBrowser, FeatureSettings } from './EmployeeDirectory'
 import {SodRiskSettings} from './SodRiskSettings'
 import {SourceManager} from './SourceManager'
+import {SodImportEditor} from './SodImportEditor'
 import {rebaseSourceDraft,type CSVSource,type SourceActivation} from '@/api/sources'
 import { MappingField, ImportPreview } from './ImportControls'
 import { RefreshHistory } from '@/components/Shared/RefreshReport'
@@ -745,9 +746,10 @@ export function SettingsView({
                           onMode={mode=>setDraft(previous=>previous?{...previous,source_modes:{roles:'dynamic',users:'dynamic',employees:'static',sod:'static',...previous.source_modes,[importSource]:mode}}:previous)}
                           onCandidate={path=>setCandidatePaths(previous=>({...previous,[importSource]:path}))} onActivated={sourceActivated} onClear={()=>clearSource(importSource)} onFeatures={()=>setSection(5)}/>
                         {importSource==='employees'&&<><DirectorySnapshotRecovery onPersisted={async()=>{const saved=await fetchConfiguration();qc.setQueryData(['configuration'],saved);setDraft(previous=>previous?rebaseSourceDraft(previous,saved.settings,'employees'):previous);await qc.invalidateQueries({predicate:query=>['diagnostics','data-health','dashboard'].includes(String(query.queryKey[0]))});setMessage('Validated directory records saved locally. The original CSV is no longer required for restart.')}}/><DirectoryDiagnostics sourceView onFeatureSettings={()=>setSection(5)}/><details className="settings-advanced mt-4"><summary>Employee Directory data preview</summary><EmployeeBrowser/></details></>}
-                      {(importSource==='roles'||importSource==='users')&&<details className="settings-advanced" onToggle={event=>setAdvancedSource(event.currentTarget.open)}>
+                      {(importSource==='roles'||importSource==='users'||importSource==='sod')&&<details className="settings-advanced" onToggle={event=>setAdvancedSource(event.currentTarget.open)}>
                         <summary>Advanced import format and column mapping</summary>
                         <p className="ui-description">Optional inspection and mapping. Selecting a file imports automatically using the selected format. Apply settings to save format-only changes.</p>
+                        {advancedSource&&importSource==='sod'&&<SodImportEditor draft={draft} path={candidatePaths.sod??draft.sod_csv_path??''} onChange={profile=>setDraft(previous=>previous?{...previous,sod_import:profile}:previous)}/>}
                         {advancedSource&&importSource==='users'&&<UserSourceEditor draft={{...draft,user_csv_path:candidatePaths.users??draft.user_csv_path}} onChange={value=>setDraft(previous=>previous?{...value,user_csv_path:previous.user_csv_path}:previous)} active/>}
                         {advancedSource&&importSource==='roles'&&<div className="import-source-panel space-y-4">
                       <ImportSection step={2} title="CSV Import Format" description="Choose a built-in format or create a reusable custom preset.">

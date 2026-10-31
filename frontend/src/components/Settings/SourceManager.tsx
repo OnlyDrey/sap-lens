@@ -36,7 +36,7 @@ export function SourceManager({source,draft,onMode,onActivated,onClear,onFeature
  const activate=async(selected:string,selectedMode=mode)=>{
   const chosen=selected.trim();if(!chosen)return
   lastAttempt.current=chosen;setPath(chosen);onCandidate(chosen);setError('');setFeedback('');setPending(true)
-  const profile:ImportProfile|undefined=source==='roles'?draft.import_profiles.find(p=>p.id===draft.active_import):source==='users'?draft.user_import_profiles.find(p=>p.id===draft.active_user_import):undefined
+  const profile:ImportProfile|undefined=source==='roles'?draft.import_profiles.find(p=>p.id===draft.active_import):source==='users'?draft.user_import_profiles.find(p=>p.id===draft.active_user_import):source==='sod'?draft.sod_import:undefined
   try{
    const result=await activateSource(source,{path:chosen,mode:selectedMode,revision:draft.revision,profile})
    // The Settings owner remains mounted when source tabs change; rebase there.

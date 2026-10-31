@@ -9,17 +9,12 @@ from pathlib import Path
 from typing import ClassVar
 
 from analysis_errors import AnalysisValidationError
-from config_models import ImportProfile
+from config_models import SOD_FIELDS, SodImportProfile
 from csv_import import CsvImport, MAX_ROWS
 
-HEADERS = ('RISK', 'CRITICITY', 'TYPE', 'TEXT', 'ACTVT1', 'ACTVT2',
-           'ACTIVITY_SLOT', 'ACTIVITY', 'TCODE', 'TTEXT')
+HEADERS = tuple(SOD_FIELDS)
 FIELDS = HEADERS
 EVALUATION_POLICY = 'sod-two-sided-v1'
-
-
-class SodImportProfile(ImportProfile):
-    fields: ClassVar[list[str]] = list(HEADERS)
 
 
 class SodCsvImport(CsvImport):
@@ -134,7 +129,7 @@ def parse_sod(path, profile=None):
     return build_sod(records, importer.report())
 
 
-# Read-only description of the fixed SoD schema: what each documented column means to the parser. There is no remapping.
+# Read-only description of the fixed SoD schema: what each documented column means to the parser. A mapping only chooses the source header that carries a column.
 COLUMN_MEANING = {
     'RISK': 'Risk identifier (case-sensitive); groups the rows of one risk definition',
     'CRITICITY': 'Source criticality label, kept and shown literally as evidence',
@@ -163,7 +158,7 @@ def inspection(sod):
     duplicates = int(report.get('duplicate_rows') or 0)
     present = sum(bool(item['detected']) for item in columns)
     checks = [
-        dict(name='Documented columns', status='passed', detail=f'{present} of {len(HEADERS)} documented columns were found; the schema is fixed and not remapped.'),
+        dict(name='Documented columns', status='passed', detail=f'{present} of {len(HEADERS)} documented columns were found; the schema is fixed; a mapping only chooses the source header of each column.'),
         dict(name='Required values', status='passed', detail='Every row has RISK, CRITICITY, TYPE, TEXT, ACTVT1, ACTVT2, ACTIVITY_SLOT, ACTIVITY and TCODE.'),
         dict(name='Activity sides', status='passed', detail='Every risk has transaction mappings for both activity sides.'),
         dict(name='Evaluated risk types', status='warning' if unsupported else 'passed', detail=f'{len(unsupported)} risks have a TYPE other than S and are kept but not evaluated.' if unsupported else 'Every risk has an evaluated TYPE (S).'),
@@ -178,3 +173,42 @@ def inspection(sod):
         criticality=dict(sorted(Counter(risk['criticality'] for risk in risks).items())), types=dict(sorted(Counter(risk['risk_type'] for risk in risks).items())),
         checks=checks, warnings=list(sod.get('warnings') or []), file_name=report.get('file_name') or '',
         samples=[{field: str(row.get(field, '')) for field in HEADERS} for row in (report.get('samples') or records)[:20]])
+
+
+def inspect_file(path, profile):
+    """Read-only inspection of a candidate SoD CSV with the given format and mapping: detected header, per-column mapping state, parser errors,
+    counts, validation checks and sample rows. Parses the file exactly as an import would but never stores anything. Raises
+    AnalysisValidationError only for an unusable path; unreadable or invalid content is reported in ``errors``."""
+    importer = SodCsvImport(Path(path), profile)
+    result = dict(valid=False, errors=[], format=dict(delimiter=profile.delimiter, encoding=profile.encoding), headers=[], issues=[], file_name=Path(path).name)
+    try:
+        head = importer.inspect_header()
+    except AnalysisValidationError as exc:
+        result['errors'].append(str(exc))
+        head = None
+    except Exception:
+        result['errors'].append('The CSV header could not be read. Check the path, encoding and delimiter.')
+        head = None
+    proposed = head['proposed_mapping'] if head else {}
+    if head:
+        result.update(headers=head['detected_columns'], issues=head['issues'], format=dict(delimiter=head['delimiter'], encoding=head['encoding']))
+    columns = []
+    for field in HEADERS:
+        manual = profile.mapping.get(field, '')
+        found = manual or proposed.get(field, '')
+        columns.append(dict(column=field, detected=found, state='manual' if manual else 'detected' if found else 'missing',
+                            meaning=COLUMN_MEANING[field], required=field != 'TTEXT'))
+    result.update(columns=columns, proposed_mapping=proposed)
+    if not head:
+        return result
+    try:
+        sod = parse_sod(path, profile)
+    except AnalysisValidationError as exc:
+        result['errors'].append(str(exc))
+        return result
+    except Exception:
+        result['errors'].append('The CSV could not be parsed. Check the delimiter, encoding, mapping and that every row has the header width.')
+        return result
+    detail = inspection(sod)
+    result.update(valid=True, **{key: detail[key] for key in ('counts', 'criticality', 'types', 'checks', 'warnings', 'samples')})
+    return result

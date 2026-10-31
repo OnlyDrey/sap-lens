@@ -274,6 +274,7 @@ Evidence and exports are bounded; see [SoD architecture](SOD.md) and the
 | Method | Route | Purpose |
 | --- | --- | --- |
 | POST | `/api/data-sources/sod/{select,preview}` | Validated SoD matrix selection and snapshot preview (shared source lifecycle) |
+| POST | `/api/data-sources/sod/inspect` | Read-only inspection of a candidate SoD CSV with `{path, delimiter, encoding, mapping}`: detected header and format, per-column mapping state, parser errors (`valid: false`, never a 4xx for content problems), counts, checks and sample rows. Stores and imports nothing |
 | GET | `/api/data-sources/sod/inspection` | Read-only SoD source inspection: counts, column interpretation, validation checks, quality warnings, import metadata (`loaded: false` when no matrix is loaded) |
 | GET | `/api/sod/overview` | Catalogue counts plus a `governance` block: conflicts (including `concentration`: users with more than one risk and the roles behind the most distinct user-risk findings), decisions, remediation (including `verification`), open period progress, changes since the last refresh |
 | GET | `/api/sod/catalogue`, `/catalogue/export` | Filtered risks with local guidance; CSV |

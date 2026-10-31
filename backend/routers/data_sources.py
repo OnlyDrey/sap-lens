@@ -76,7 +76,7 @@ def export(identity: str, source: str = Query('', pattern=r'^(roles|users|employ
 from typing import Literal
 from fastapi import Request
 from pydantic import Field
-from config_models import StrictModel, AppConfig, ImportProfile, UserImportProfile, FIELDS, USER_FIELDS
+from config_models import StrictModel, AppConfig, ImportProfile, UserImportProfile, SodImportProfile, FIELDS, USER_FIELDS
 
 
 class SourceSelection(StrictModel):
@@ -97,7 +97,16 @@ async def select_source(source:Literal['roles','users','employees','sod'], body:
     setattr(candidate,{'roles':'data_csv_path','users':'user_csv_path','employees':'employee_csv_path','sod':'sod_csv_path'}[source],body.path.strip())
     setattr(candidate.source_modes,source,body.mode)
     if body.profile is not None:
-        if source in {'employees','sod'}:raise HTTPException(400,'This source uses its fixed documented schema.')
+        if source=='employees':raise HTTPException(400,'This source uses its fixed documented schema.')
+        if source=='sod':
+            try:
+                profile=SodImportProfile.model_validate({**body.profile,'id':'default','name':'Standard SoD matrix'})
+            except ValueError:
+                raise HTTPException(400,'The SoD import format is invalid. Review its delimiter, encoding and column mapping.') from None
+            if profile.model_dump(exclude={'version'})!=candidate.sod_import.model_dump(exclude={'version'}):
+                profile.version=max(profile.version,candidate.sod_import.version+1)
+            candidate.sod_import=profile
+    if body.profile is not None and source in {'roles','users'}:
         try:
             profile=(ImportProfile if source=='roles' else UserImportProfile).model_validate(body.profile)
             field,active=('import_profiles','active_import') if source=='roles' else ('user_import_profiles','active_user_import')
@@ -142,6 +151,7 @@ def sod_metadata():
     settings = get_settings()
     reference = settings.data_lifecycle.sources.get('sod')
     return dict(path=settings.sod_csv_path, mode=settings.source_modes.sod, feature_enabled=settings.features.sod,
+                format=dict(delimiter=settings.sod_import.delimiter, encoding=settings.sod_import.encoding, mapping=settings.sod_import.mapping),
                 imported_at=reference.imported_at if reference else None, checked_at=reference.checked_at if reference else None, snapshot=reference.snapshot if reference else None)
 
 
@@ -168,3 +178,26 @@ def inspect_directory_snapshot(body:DirectoryInspection):
     if body.digest and body.digest not in {directory.digest,settings.employee_snapshot_id}:
         raise HTTPException(409,'The directory snapshot changed. Close and reopen Preview data.')
     return preview_page(directory,directory,snapshot,settings,body)
+
+
+class SodFileInspection(StrictModel):
+    path: str = Field(min_length=1, max_length=4096)
+    delimiter: Literal['auto', ',', ';', '\t', '|'] = 'auto'
+    encoding: Literal['auto', 'utf-8-sig', 'utf-16', 'cp1252'] = 'auto'
+    mapping: dict[str, str] = Field(default_factory=dict, max_length=12)
+
+
+@router.post('/sod/inspect')
+def inspect_sod_file(body: SodFileInspection):
+    """Read-only inspection of a candidate SoD CSV (format, header mapping, parser errors, counts, checks, sample rows). Nothing is imported, saved or cached."""
+    from analysis_errors import AnalysisValidationError
+    from sod_import import inspect_file
+    try:
+        profile = SodImportProfile(id='default', name='Standard SoD matrix', delimiter=body.delimiter, encoding=body.encoding, mapping=body.mapping)
+        return inspect_file(body.path.strip(), profile)
+    except ValueError:
+        raise HTTPException(400, 'The SoD import format is invalid. Review its delimiter, encoding and column mapping.') from None
+    except AnalysisValidationError as exc:
+        raise HTTPException(400, str(exc)) from None
+    except OSError:
+        raise HTTPException(400, 'The CSV could not be opened. Check the path and file permissions.') from None

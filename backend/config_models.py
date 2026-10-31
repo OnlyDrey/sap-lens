@@ -72,6 +72,14 @@ class UserImportProfile(ImportProfile):
     fields: ClassVar[list[str]] = USER_FIELDS
 
 
+SOD_FIELDS = ['RISK', 'CRITICITY', 'TYPE', 'TEXT', 'ACTVT1', 'ACTVT2', 'ACTIVITY_SLOT', 'ACTIVITY', 'TCODE', 'TTEXT']
+
+
+class SodImportProfile(ImportProfile):
+    """Format and optional header mapping of the SoD matrix CSV. The documented columns are fixed; a mapping only says which source header carries each one."""
+    fields: ClassVar[list[str]] = SOD_FIELDS
+
+
 class ThemePalette(StrictModel):
     primary: str = Field(default='#1a003b', pattern=r'^#[0-9a-fA-F]{6}$')
     accent: str = Field(default='#7c85d4', pattern=r'^#[0-9a-fA-F]{6}$')
@@ -222,6 +230,7 @@ class AppConfig(StrictModel):
     employee_snapshot_id: str | None = Field(default=None, pattern=r'^[a-f0-9]{64}$')
     employee_csv_path: str = Field(default='', max_length=4096)
     sod_csv_path: str = Field(default='', max_length=4096)
+    sod_import: SodImportProfile = Field(default_factory=lambda: SodImportProfile(id='default', name='Standard SoD matrix'))
     features: FeatureSettings = Field(default_factory=FeatureSettings)
     schema_version: Literal[3] = 3
     user_csv_path: str = Field(default='', max_length=4096)
