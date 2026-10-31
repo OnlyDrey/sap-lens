@@ -12,9 +12,9 @@ import { SearchInput } from '@/components/Shared/Controls'
 import { Button } from '@/components/Shared/Button'
 import { SavedFilters } from '@/components/Shared/SavedFilters'
 import { useApplicationData } from '@/state/ApplicationData'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowUpRight, ClipboardCheck, Download, Save } from 'lucide-react'
+import { ArrowRightLeft, ArrowUpRight, ClipboardCheck, ClipboardList, Download, History, Save, SearchX, UserMinus } from 'lucide-react'
 import { apiRequest, applicationToken } from '@/api/client'
 import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
 import { AccountStatus } from '@/components/Shared/AccountStatus'
@@ -82,14 +82,15 @@ const changeText = (change: PositionChange) => [
   change.fields.includes('title') && `Job title ${change.previous_title} → ${change.current_title}`,
 ].filter(Boolean).join(' · ')
 
-/** Secondary KPIs: each applies its finding to the list. Review progress itself (completed and pending) is the primary overview above them. */
-const ACTION_TILES: [string, string, { finding: string; license?: string }][] = [
-  ['requiring_review', 'Accounts requiring review', { finding: 'any' }],
-  ['missing', 'Missing or ambiguous directory matches', { finding: 'directory_match' }],
-  ['position_changes', 'Position changes', { finding: 'position_change' }],
-  ['mismatch', 'AD disabled / SAP valid and unlocked', { finding: 'ad_disabled_open' }],
-  ['outdated', 'Outdated reviews', { finding: 'stale' }],
+/** Review attention: each KPI applies its finding to the list. Review progress (completed and pending) is the separate panel beside it. */
+const ATTENTION_TILES: [string, string, ReactNode, { finding: string }][] = [
+  ['requiring_review', 'Accounts requiring review', <ClipboardList size={16} />, { finding: 'any' }],
+  ['missing', 'Missing or ambiguous directory matches', <SearchX size={16} />, { finding: 'directory_match' }],
+  ['position_changes', 'Position changes', <ArrowRightLeft size={16} />, { finding: 'position_change' }],
+  ['outdated', 'Outdated reviews', <History size={16} />, { finding: 'stale' }],
 ]
+/** A compact secondary indicator under the attention list; the same finding stays selectable in the Review finding filter. */
+const SECONDARY_TILE: [string, string, ReactNode, { finding: string }] = ['mismatch', 'AD disabled / SAP valid and unlocked', <UserMinus size={16} />, { finding: 'ad_disabled_open' }]
 const FINDING_NAMES: Record<string, string> = { any: 'Accounts requiring review', matched: 'Reliably matched identities', directory_missing: 'Missing directory matches', directory_ambiguous: 'Ambiguous directory matches', reviewed: 'Completed reviews', pending: 'Pending reviews', position_change: 'Position changes', stale: 'Outdated reviews' }
 
 /** Department and job title together, labelled so the two are never confused. Changed values are emphasized; unchanged ones are muted. */
@@ -177,33 +178,37 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
     else if (target.finding) setFindings(list => (list ?? []).includes(target.finding) ? (list ?? []).filter(item => item !== target.finding) : [...(list ?? []), target.finding])
     else { setFindings([]); setLicenses([]) }
   }
-  /** One progress overview (completed and pending of all SAP accounts, no account counted twice) followed by compact actionable tiles. */
+  /** Review progress (about one third) beside review attention (about two thirds); no account is counted twice in the progress. */
   const renderOverview = () => {
     if (!data) return null
     const { total, reviewed, pending } = data.summary
     const known = total != null && reviewed != null && pending != null
     const percent = known && total ? (reviewed! / total) * 100 : 0
     const activeFinding = (name: string) => findings.includes(name)
+    const tile = ([key, label, icon, target]: [string, string, ReactNode, { finding: string }], extra = '') => {
+      const value = data.summary[key]
+      return <Kpi key={key} className={extra} icon={icon} label={label} value={value?.toLocaleString() ?? 'Unavailable'} tone={['mismatch', 'missing', 'outdated'].includes(key) && !!value ? 'warning' : 'neutral'} active={activeFinding(target.finding)} onClick={() => toggleTile(target)} />
+    }
     return (
       <div className="review-overview">
         <section aria-label="Account review progress" className="review-progress" data-primary="true">
           <div className="review-progress-head">
             <h2>Account review progress</h2>
             <InfoTip label="About account review progress">Completed and pending partition all SAP users, so no account is counted twice. Outdated reviews count as pending until they are reviewed again.</InfoTip>
-            {known && <p className="progress-summary"><strong className="progress-summary-value">{percent.toFixed(1)}%</strong><span className="progress-summary-caption">{reviewed!.toLocaleString()} of {total!.toLocaleString()} reviewed</span></p>}
           </div>
+          {known && <p className="progress-summary"><strong className="progress-summary-value">{percent.toFixed(1)}%</strong><span className="progress-summary-caption">{reviewed!.toLocaleString()} of {total!.toLocaleString()} SAP users reviewed</span></p>}
           {known ? <StackedBar inline label="Account review progress" total={total!} segments={[
               { key: 'completed', label: 'Completed reviews', value: reviewed!, tone: 'success', active: activeFinding('reviewed'), onOpen: () => toggleTile({ finding: 'reviewed' }) },
               { key: 'pending', label: 'Pending reviews', value: pending!, tone: 'neutral', active: activeFinding('pending'), title: 'Accounts without a current completed review, including outdated reviews', onOpen: () => toggleTile({ finding: 'pending' }) },
-            ]} trailing={<>Total SAP users <strong>{total!.toLocaleString()}</strong></>} />
+            ]} />
             : <p className="ui-description">Review progress is unavailable until the User Access data and the review annotations are loaded.</p>}
         </section>
-        <section aria-label="Review actions">
-          <h2 className="sr-only">Review actions</h2>
-          <div className="review-kpis">{ACTION_TILES.filter(([key]) => key !== 'outdated' || data.summary.outdated != null).map(([key, label, target]) => {
-            const value = data.summary[key]
-            return <Kpi key={key} layout="expanded" label={label} value={value?.toLocaleString() ?? 'Unavailable'} tone={['mismatch', 'missing', 'outdated'].includes(key) && !!value ? 'warning' : 'neutral'} active={activeFinding(target.finding)} onClick={() => toggleTile(target)} />
-          })}</div>
+        <section aria-label="Review attention" className="review-attention">
+          <h2>Review attention</h2>
+          <div className="review-kpis">
+            {ATTENTION_TILES.filter(([key]) => key !== 'outdated' || data.summary.outdated != null).map((entry) => tile(entry))}
+            {tile(SECONDARY_TILE, 'review-kpi-secondary')}
+          </div>
         </section>
       </div>
     )
@@ -357,11 +362,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
     })
   return (
     <section aria-label="Account Review" className="space-y-4">
-      <PageHeader title="Account Review" icon={<PageIcon size={22} aria-hidden="true"/>}/>
-      <p className="text-sm text-[var(--muted)]">
-        Investigation evidence only. No SAP accounts are modified. Configured
-        unlicensed groups do not prove license entitlement or savings.
-      </p>
+      <PageHeader title="Account Review" icon={<PageIcon size={22} aria-hidden="true"/>} titleAction={<InfoTip label="About Account Review">Investigation evidence only. No SAP accounts are modified. Configured unlicensed groups do not prove license entitlement or savings.</InfoTip>}/>
       {data && (
         <>
           {renderOverview()}

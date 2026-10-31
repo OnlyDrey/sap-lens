@@ -705,13 +705,13 @@ test('review finding, classification and decision filters are multi-select; tile
   await expect(total).toHaveText('1 accounts')
 })
 
-test('Account Review leads with one progress overview followed by compact actionable tiles', async ({ page }) => {
+test('Account Review shows review progress beside a compact review attention list', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto('/#session=browser-test-session')
   await review(page)
-  const progress = page.getByRole('region', { name: 'Account review progress', exact: true }), actions = page.getByRole('region', { name: 'Review actions', exact: true })
+  const progress = page.getByRole('region', { name: 'Account review progress', exact: true }), actions = page.getByRole('region', { name: 'Review attention', exact: true })
   await expect(progress.locator('.progress-summary-value')).toContainText('%')
-  await expect(progress).toContainText('Total SAP users')
+  await expect(progress).toContainText('SAP users reviewed')
   await expect(progress.getByRole('button', { name: /^Completed reviews:/ })).toBeVisible()
   await expect(progress.getByRole('button', { name: /^Pending reviews:/ })).toBeVisible()
   // the bar stays visible at zero completion: a bordered track with the pending part filled
@@ -721,7 +721,7 @@ test('Account Review leads with one progress overview followed by compact action
   await expect(bar.locator('span[data-tone="neutral"]')).toHaveCount(1)
   // redundant tiles are gone
   for (const name of ['Classified unlicensed', 'SAP accounts', 'Pending reviews', 'Completed reviews']) await expect(actions.getByRole('button', { name: new RegExp(`^${name}`) })).toHaveCount(0)
-  for (const name of ['Accounts requiring review', 'Missing or ambiguous directory matches', 'Position changes']) await expect(actions.getByRole('button', { name: new RegExp(`^${name}`) })).toBeVisible()
+  for (const name of ['Accounts requiring review', 'Missing or ambiguous directory matches', 'Position changes', 'AD disabled / SAP valid and unlocked']) await expect(actions.getByRole('button', { name: new RegExp(`^${name}`) })).toBeVisible()
   // the progress legend and the tiles both filter the table and show an active state
   await progress.getByRole('button', { name: /^Pending reviews:/ }).click()
   await actions.getByRole('button', { name: /^Position changes/ }).click()
@@ -730,4 +730,49 @@ test('Account Review leads with one progress overview followed by compact action
   await expect(page.getByRole('button', { name: 'Remove review finding Pending reviews', exact: true })).toBeVisible()
   await progress.getByRole('button', { name: /^Pending reviews:/ }).click()
   await expect(page.getByRole('button', { name: 'Remove review finding Pending reviews', exact: true })).toHaveCount(0)
+})
+
+for (const theme of ['light', 'dark']) test(`Review progress takes a third and review attention two thirds of one row in ${theme}, and stack on narrow screens`, async ({ page, request }) => {
+  const settings = await current(request); settings.theme = theme
+  await request.post('/api/configuration', { headers, data: settings })
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto('/#session=browser-test-session')
+  await review(page)
+  const progress = page.getByRole('region', { name: 'Account review progress', exact: true }), attention = page.getByRole('region', { name: 'Review attention', exact: true })
+  const [left, right] = [(await progress.boundingBox())!, (await attention.boundingBox())!]
+  expect(right.width / left.width).toBeGreaterThan(1.7); expect(right.width / left.width).toBeLessThan(2.3) // about 1/3 and 2/3
+  expect(Math.abs(left.y - right.y)).toBeLessThan(1); expect(Math.abs(left.height - right.height)).toBeLessThan(1) // aligned panels
+  // two columns of KPIs, each with an icon, label and right-aligned value; no row of oversized cards
+  const tiles = attention.locator('.ui-kpi:not(.review-kpi-secondary)')
+  await expect(tiles).toHaveCount(4)
+  const boxes = await tiles.evaluateAll(list => list.map(item => { const box = item.getBoundingClientRect(); return { x: Math.round(box.x), y: Math.round(box.y), height: Math.round(box.height) } }))
+  expect(new Set(boxes.map(item => item.x)).size).toBe(2)
+  expect(Math.max(...boxes.map(item => item.height))).toBeLessThan(56)
+  for (const tile of await tiles.all()) { await expect(tile.locator('.ui-kpi-icon svg')).toBeVisible(); const [value, frame] = [(await tile.locator('.ui-kpi-value').boundingBox())!, (await tile.boundingBox())!]; expect(frame.x + frame.width - (value.x + value.width)).toBeLessThan(16) }
+  // the investigation notice moved to an accessible information button and is still available
+  await expect(page.getByText('Investigation evidence only', { exact: false })).toHaveCount(0)
+  await page.getByRole('button', { name: 'About Account Review', exact: true }).first().click()
+  await expect(page.getByText('Investigation evidence only. No SAP accounts are modified.', { exact: false })).toBeVisible()
+  await page.keyboard.press('Escape')
+  // the table stays the priority: it starts within the first screen
+  expect((await page.getByRole('region', { name: 'Account review results', exact: true }).boundingBox())!.y).toBeLessThan(560)
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/account-review-${theme}-1280.png` })
+  await page.setViewportSize({ width: 375, height: 800 })
+  const [narrowLeft, narrowRight] = [(await progress.boundingBox())!, (await attention.boundingBox())!]
+  expect(narrowRight.y).toBeGreaterThan(narrowLeft.y + narrowLeft.height - 1) // stacked, in reading order
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/account-review-${theme}-375.png`, fullPage: true })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
+})
+
+test('review attention KPIs filter the list, combine and are keyboard operable', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto('/#session=browser-test-session')
+  await review(page)
+  const attention = page.getByRole('region', { name: 'Review attention', exact: true })
+  const outdated = attention.getByRole('button', { name: /^Outdated reviews/ }), position = attention.getByRole('button', { name: /^Position changes/ })
+  if (await outdated.count()) { await outdated.focus(); await page.keyboard.press('Shift'); await page.keyboard.press('Enter'); await expect(outdated).toHaveAttribute('aria-pressed', 'true'); await expect(page.getByRole('button', { name: 'Remove review finding Outdated reviews', exact: true })).toBeVisible() }
+  await position.click(); await expect(position).toHaveAttribute('aria-pressed', 'true')
+  await attention.getByRole('button', { name: /^AD disabled \/ SAP valid and unlocked/ }).click()
+  await expect(page.getByRole('button', { name: 'Remove review finding AD disabled / SAP valid and unlocked', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Remove review finding Position changes', exact: true })).toBeVisible() // filters combine
 })
