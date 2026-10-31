@@ -174,7 +174,7 @@ class MatrixTests(GovernanceCase):
         self.assertIsNone(self.get('/api/sod/matrix/risk')['group_summaries'])
 
     def test_matrix_page_may_hold_every_user_but_not_more_than_the_ceiling(self):
-        from backend.routers.sod_governance import MATRIX_PAGE_MAX
+        from routers.sod_governance import MATRIX_PAGE_MAX
         for kind in ('risk', 'activity'):
             everyone = self.get(f'/api/sod/matrix/{kind}', limit=MATRIX_PAGE_MAX)  # the "All users" page
             self.assertEqual(len(everyone['rows']), everyone['total_rows'])
