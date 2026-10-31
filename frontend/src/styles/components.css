@@ -1361,3 +1361,7 @@ summary:focus-visible,div[tabindex="0"]:focus-visible,a.role-identifier-link:foc
 .sod-new-badge svg { color:var(--warning); }
 .sod-config-table tbody tr { height:4.5rem; }
 .sod-config-table td:nth-child(4) { white-space:nowrap; }
+
+/* Review Periods: the name and its Active period badge sit 8 px apart on one line and wrap together on narrow cells. */
+.sod-period-title { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-1) var(--space-2); min-width:0; }
+.sod-period-title > strong { min-width:0; overflow-wrap:anywhere; }

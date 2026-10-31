@@ -44,7 +44,7 @@ export function SodPeriods(){
   {listing.isError?<ErrorState error={listing.error} onRetry={()=>void listing.refetch()}/>:!listing.data?<LoadingState/>:
    <DataTable caption="SoD review periods" tableClassName="sod-config-table sod-periods-table"><thead><tr><th>Period</th><th>Dates</th><th>Evaluation date</th><th>Status</th><th>Review progress</th><th>Last updated</th><th>Actions</th></tr></thead>
     <tbody>{!listing.data.items.length&&<tr><td colSpan={7}><EmptyState>No review periods yet. Create a review period to capture a snapshot of the imported evidence.</EmptyState></td></tr>}{listing.data.items.map(period=>{const gone=!!period.deleted_at,isActive=period.id===activeId;return <tr key={period.id} data-active={isActive||undefined}>
-     <td><strong>{period.name}</strong>{isActive&&<> <StatusBadge tone="info">Active period</StatusBadge></>}</td>
+     <td><span className="sod-period-title"><strong>{period.name}</strong>{isActive&&<StatusBadge tone="info">Active period</StatusBadge>}</span></td>
      <td>{formatDate(period.start)} → {formatDate(period.end)}</td>
      <td>{formatDate(period.evaluation_date)}</td>
      <td><StatusBadge>{period.state}</StatusBadge>{gone&&<StatusBadge tone="neutral">Archived {formatDate(period.deleted_at)}</StatusBadge>}</td>

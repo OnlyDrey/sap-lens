@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { downloadFile, scopeParams, sod, sodPost, EXPORT_NAME, type AssignmentRow, type ContextInfo } from '@/api/sod'
 import { useViewHistory } from '@/hooks/useViewHistory'
 import { Button } from '@/components/Shared/Button'
+import { Kpi } from '@/components/Shared/Kpi'
 import { Dialog } from '@/components/Shared/Dialog'
 import { ErrorState, DataTable, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
 import { FormField, Input } from '@/components/Shared/Controls'
@@ -135,15 +136,15 @@ export function RemediationView() {
         fields={['group', 'username', 'risk', 'activity', 'role', 'role_suffix', 'tcode', 'category', 'validity']}
         actions={<ExportCSVButton loading={busy} disabled={!data?.total || verifiedOnly} onClick={() => void exportCsv()} title={verifiedOnly ? 'Verified removals are tracked actions; export the remediation report instead.' : 'Exports the filtered remediation rows.'} />}>
       {result.isError ? <ErrorState error={result.error} onRetry={() => void result.refetch()} /> : !data ? <LoadingState /> : <>
-        <Toolbar aria-label="Recommended handling">
-          <Button variant={recommended ? 'secondary' : 'primary'} aria-pressed={!recommended} onClick={() => { setRecommended(''); setOffset(0) }}>All handling</Button>
-          {GROUPS.map((group) => <Button key={group} variant={recommended === group ? 'primary' : 'secondary'} aria-pressed={recommended === group} onClick={() => { setRecommended(group); setOffset(0) }}>{group}: {data.summary[group] ?? 0}</Button>)}
-          <StatusBadge tone={data.summary.undecided ? 'warning' : 'neutral'}>{data.summary.undecided ?? 0} awaiting review (not listed)</StatusBadge>
-          <StatusBadge tone={data.summary.overdue ? 'error' : 'neutral'}>{data.summary.overdue ?? 0} overdue</StatusBadge>
-          <Button variant="ghost" onClick={() => change({ sodView: 'reports' })}>Remediation report</Button>
-        </Toolbar>
+        <section className="sod-tiles" aria-label="Recommended handling">
+          <Kpi label="All handling" value={GROUPS.reduce((sum, group) => sum + (data.summary[group] ?? 0), 0).toLocaleString()} active={!recommended} onClick={() => { setRecommended(''); setOffset(0) }} />
+          {GROUPS.map((group) => <Kpi key={group} label={group} value={(data.summary[group] ?? 0).toLocaleString()} active={recommended === group} onClick={() => { setRecommended(group); setOffset(0) }} />)}
+          <Kpi label="Awaiting review (not listed)" value={(data.summary.undecided ?? 0).toLocaleString()} tone="warning" title="Items without a decision are not listed until a decision is recorded." />
+          <Kpi label="Overdue" value={(data.summary.overdue ?? 0).toLocaleString()} tone="error" />
+        </section>
         <Toolbar aria-label="Remediation tracking">
           {TRACKING.map(([value, label]) => <Button key={value} variant={tracking === value ? 'primary' : 'secondary'} aria-pressed={tracking === value} onClick={() => { setFiltersState({ ...filters, tracking: value }); setOffset(0) }}>{label}</Button>)}
+          <Button variant="ghost" onClick={() => change({ sodView: 'reports' })}>Remediation report</Button>
         </Toolbar>
         <p className="ui-description">A proposed removal is not completed remediation. Verification compares with the latest imported evidence and is only conclusive when source coverage is complete.</p>
         {verifiedOnly ? <p className="ui-description" role="status">Verified removals need a tracked removal action and a newer User-Role import that no longer contains the assignment. A completed status alone never verifies. They are listed under Tracked actions.</p> : data.items.length ? <>
