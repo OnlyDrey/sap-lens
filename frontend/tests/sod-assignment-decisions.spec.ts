@@ -96,3 +96,26 @@ test('the assignment queue shows what needs attention by default and filters ind
   await expect(status).toHaveValue('')
   await expect.poll(shown).toEqual(['ROLE_B', 'ROLE_C'])
 })
+
+test('status KPI tiles are independent controls: no enclosing card, natural wrapping and no horizontal overflow', async ({ page }) => {
+  for (const width of [1280, 375]) {
+    await page.setViewportSize({ width, height: 900 })
+    await openSod(page, 'Access Explorer')
+    await page.getByRole('tab', { name: 'Assignments', exact: true }).click()
+    const group = page.getByRole('region', { name: 'Role assignment review progress' })
+    await expect(group).toBeVisible()
+    const frame = await group.evaluate((element) => { const style = getComputedStyle(element); return { border: style.borderTopWidth, background: style.backgroundColor, padding: style.paddingTop, radius: style.borderTopLeftRadius, shadow: style.boxShadow } })
+    expect(frame).toEqual({ border: '0px', background: 'rgba(0, 0, 0, 0)', padding: '0px', radius: '0px', shadow: 'none' })
+    const tile = group.locator('.ui-kpi').first()
+    expect(await tile.evaluate((element) => [getComputedStyle(element).borderTopWidth, parseFloat(getComputedStyle(element).borderTopLeftRadius) > 0])).toEqual(['1px', true]) // each tile keeps its own border
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
+    expect(await group.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBeTruthy()
+  }
+  // the same KPI groups elsewhere in SoD carry no card either
+  for (const [link, name] of [['Risk Matrix', /figures$/], ['Reviews', 'Review progress']] as const) {
+    await openSod(page, link)
+    const other = page.getByRole('region', { name })
+    await expect(other.first()).toBeVisible()
+    expect(await other.first().evaluate((element) => [getComputedStyle(element).borderTopWidth, getComputedStyle(element).backgroundColor])).toEqual(['0px', 'rgba(0, 0, 0, 0)'])
+  }
+})
