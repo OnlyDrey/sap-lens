@@ -7,6 +7,7 @@
 - [Documentation audit (R8)](DOCUMENTATION_AUDIT_R8.md): what was outdated, missing or superseded and what changed.
 - [Code quality review (R8)](CODE_REVIEW_R8.md): prioritized, evidence-based findings and next improvements.
 - [Security review (R8)](SECURITY_REVIEW_R8.md): findings register with severity, evidence and status, controls verified, and what was not tested.
+- [Test execution performance (R8)](TEST_PERFORMANCE_R8.md): measured durations, slowest tests, parallelism benchmark, prioritized proposal and the per-phase Fast Validation set.
 - [Validation tracker](../validation/README.md): the repository CSV checklist (22 functional areas) with validation status, separate manual approval, findings and a future-improvements backlog, and the Excel workbook generator.
 - [Dependency maintenance](DEPENDENCY_MAINTENANCE.md): dated upstream/deprecation decisions, not a current audit result.
 

@@ -69,6 +69,8 @@ processes. Within a process there is one worker and no retries, and
 opt in with `--jobs 3` on a host with spare cores. Measurements (the browser gain was
 modest and uneven on 4 vCPUs) are in the [optimization record](../archive/validation/TEST_SUITE_OPTIMIZATION.md).
 Do not raise workers inside one server without proving the fixtures cannot race.
+R8 measurements on 4 vCPUs (716 browser tests, 34.5 min serial): 2 processes 1.33x, 3 processes 1.50x, 4 processes 1.38x on a six-spec subset, with no failures; test-level
+sharding was no faster than file-level sharding. See [test execution performance](TEST_PERFORMANCE_R8.md).
 
 ## CI
 
@@ -101,6 +103,13 @@ changes. Linux unit/browser tests and mocked native bridges do not prove
 Windows/WebView2, SCM, installer, real systemd boot/recovery or UNC behavior. Never
 dispatch expensive builds or publish artifacts without approval; [dated
 evidence](../archive/README.md) is historical.
+
+## Fast Validation per phase
+
+About 1.5 to 3 minutes: `git diff --check`, `python scripts/check-docs.py` when docs changed, `npm run check:types` (20 s),
+`python scripts/run-tests.py smoke` (44 s), and `python scripts/run-tests.py targeted <feature>...` for what the phase touched
+(build first when the UI changed). The full backend and browser suites run once, after the final phase; use the default
+`auto` jobs (backend 65 s instead of 170 s) and reserve `--jobs 1` for reproducing a failure.
 
 ## Risk-based selection
 
