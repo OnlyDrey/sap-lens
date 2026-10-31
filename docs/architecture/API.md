@@ -274,7 +274,7 @@ Evidence and exports are bounded; see [SoD architecture](SOD.md) and the
 | Method | Route | Purpose |
 | --- | --- | --- |
 | POST | `/api/data-sources/sod/{select,preview}` | Validated SoD matrix selection and snapshot preview (shared source lifecycle) |
-| POST | `/api/data-sources/sod/inspect` | Read-only inspection of a candidate SoD CSV with `{path, delimiter, encoding, mapping}`: detected header and format, per-column mapping state, parser errors (`valid: false`, never a 4xx for content problems), counts, checks and sample rows. Stores and imports nothing |
+| POST | `/api/data-sources/sod/inspect` | Read-only inspection of a candidate SoD CSV with `{path, delimiter, encoding, mapping}`: detected header and format, per-column mapping state, parser errors (`valid: false`, never a 4xx for content problems), counts, checks and sample rows. Stores and imports nothing; includes `descriptions` (optional columns and metadata coverage) |
 | GET | `/api/data-sources/sod/inspection` | Read-only SoD source inspection: counts, column interpretation, validation checks, quality warnings, import metadata (`loaded: false` when no matrix is loaded) |
 | GET | `/api/sod/overview` | Catalogue counts plus a `governance` block: conflicts (including `concentration`: users with more than one risk and the roles behind the most distinct user-risk findings), decisions, remediation (including `verification`), open period progress, changes since the last refresh |
 | GET | `/api/sod/catalogue`, `/catalogue/export` | Filtered risks with local guidance; CSV |
@@ -284,6 +284,7 @@ Evidence and exports are bounded; see [SoD architecture](SOD.md) and the
 | GET | `/api/sod/queue/users` | One row per SAP user with per-review-type progress |
 | GET/PUT/DELETE | `/api/sod/reports/branding` | Report-only logo (PNG/JPEG, validated and re-encoded) |
 | GET | `/api/sod/matrix/{risk,activity}` | User-by-risk and user-by-activity matrices, `sort=subject|findings|group` (group: first SAP User Group, users without one last), paged rows, (`limit` 1–5000, default 50; the UI's *All users* requests 5000), `group_by=group` (aggregate rows for the shared heatmap) or `group_by=user_group` (the same users ordered under one SAP User Group each, with `group_summaries` of distinct users, finding cells and first-row index per group), distinct totals and `status_counts` (cells per review status over the whole filtered matrix) |
+| GET | `/api/sod/metadata` | Resolved risk and activity descriptions for pills: imported value first, local business text as fallback, `origin` per field and `alternate` when both exist and differ |
 | GET | `/api/sod/matrix/{risk,activity}/group-export` | Long-format CSV of the SAP user group heatmap (`sap-lens-sod-group-{risk,activity}-heatmap-DATE.csv`), honoring the shared filters |
 | GET | `/api/sod/filter-options` | Searchable predefined filter values (`field`, `term`, `limit`) from the imported evidence of the context; unaffected by the other filters |
 | GET | `/api/sod/explorer/{user_risk,user_activity,access_list,lookup}` and `/export` | Explorer tables and filtered CSV; user rows carry `groups` (assignment rows `user_group`) and the user-activity, queue and remediation exports include the SAP User Group |

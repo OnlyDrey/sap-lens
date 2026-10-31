@@ -189,3 +189,12 @@ The filter tiles of the Work Queue (review progress) and Remediation (recommende
 ## SAP User Group column in SoD tables
 
 SAP usernames are always one line (copy and open actions unchanged); the SAP User Group is never stacked beneath them. Wherever a row is one SAP user it has a dedicated **SAP User Group** column right after **SAP user**, rendered by the shared `UserGroupCell` (plain compact text, the full value in the tooltip, a muted dash with the accessible text "No SAP User Group" when the data has none): Risk and Activity Matrix, Access Explorer *Users* (by risk and by activity) and *Assignments* (the group of that assignment), the Reviews *Work queue* and *Remediation* (the group of the assignment). *Roles* and *Role conflicts* aggregate users of different groups, so they show no group column rather than inventing one. CSV exports carry the group (`USER_GROUPS` in the Explorer user-activity, user-risk and review-queue exports, `USER_GROUP` in the assignment and remediation exports) whatever the table shows, and keep the active filters and their unpaged scope. Sorting by group is offered where the table has a sort control (the matrices).
+
+## Risk and activity pill descriptions
+
+Every risk and activity pill keeps its own color and shows, on hover, the identifier with its name and the start of its description (or "No description
+available"). A free-standing pill is also a button: Enter or Space opens a popover with the identifier, display name, description, impact, business process,
+source criticality (risks) or type and risk count (activities), each value marked as imported from the SoD CSV or local business text, with Escape closing it.
+Pills inside controls that already have an action (matrix column headers, heatmap headings, source-detail buttons) keep the tooltip and add no second control.
+Descriptions come from one resolver: the imported value first, the local business text as a labelled fallback, never a generated one. See
+[optional descriptive columns](../data/SOD_MATRIX.md#optional-descriptive-columns).

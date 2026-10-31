@@ -1404,3 +1404,15 @@ summary:focus-visible,div[tabindex="0"]:focus-visible,a.role-identifier-link:foc
 
 /* Component Library: the category tabs keep the underline and the (application-styled) horizontal scrollbar about 8px apart. */
 .component-library .ui-content-tabs { padding-bottom:var(--scrollbar-gap); }
+
+/* Risk and activity pills with a detail popover: the trigger carries no button chrome of its own, only the pill and a visible, rounded focus ring. */
+.sod-pill { display:inline-flex; max-width:100%; }
+.ui-button.id-pill-trigger { min-height:0; height:auto; padding:2px; border:0; border-radius:999px; background:transparent; font:inherit; max-width:100%; }
+.ui-button.id-pill-trigger:hover { background:transparent; }
+.ui-button.id-pill-trigger:hover .id-pill { background:color-mix(in srgb,var(--pill) 28%,var(--surface)); }
+.sod-pill-details dl { margin:0 0 var(--space-2); }
+.sod-pill-origin { color:var(--muted); font-weight:400; }
+.sod-pill-alternate { display:block; margin-top:var(--space-1); color:var(--text2); font-size:var(--font-meta); }
+.sod-pill-details .ui-metadata-list > div { display:grid; grid-template-columns:minmax(0,1fr); gap:2px; text-align:left; }
+.sod-pill-details .ui-metadata-list dd { text-align:left; margin:0; overflow-wrap:anywhere; }
+.sod-pill-details .ui-metadata-list dt { color:var(--muted); font-size:var(--font-meta); }

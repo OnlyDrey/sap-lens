@@ -102,7 +102,7 @@ export function SodGroupHeatmap() {
                 <thead><tr><th scope="col">SAP User Group</th><th scope="col">Users</th>{columns.map((column) => {
                   const id = idOf(column), selected = items.includes(id)
                   return <th scope="col" key={id} data-selected={selected || undefined}>
-                    <button type="button" className="sod-heat-head" aria-pressed={selected} aria-label={`${id}: ${selected ? 'remove ' : 'filter to this '}${risk ? 'risk' : 'activity'}${selected ? ' filter' : ''}`} onClick={() => apply(groups, toggle(items, id))}><SodPill kind={kind} value={id} /></button>
+                    <button type="button" className="sod-heat-head" aria-pressed={selected} aria-label={`${id}: ${selected ? 'remove ' : 'filter to this '}${risk ? 'risk' : 'activity'}${selected ? ' filter' : ''}`} onClick={() => apply(groups, toggle(items, id))}><SodPill kind={kind} value={id} details={false} /></button>
                   </th>
                 })}</tr></thead>
                 <tbody>
