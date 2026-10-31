@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { ArrowUpRight } from 'lucide-react'
+import { calmZero } from '@/lib/labels'
 
 export interface KpiProps {
   label: string
@@ -39,7 +40,7 @@ export function Kpi({ label, value, icon, note, progress, layout = 'compact', to
       {progress && <progress className="ui-kpi-progress" aria-label={progress.label} max={Math.max(progress.max, 1)} value={Math.min(progress.value, Math.max(progress.max, 1))} />}
     </>
   )
-  const attrs = { className: `ui-kpi ${className}`.trim(), 'data-layout': layout, 'data-tone': tone, 'data-icon': icon ? 'true' : 'false', 'data-active': active || undefined, title, ...dataAttrs }
+  const attrs = { className: `ui-kpi ${className}`.trim(), 'data-layout': layout, 'data-tone': calmZero(tone, value), 'data-icon': icon ? 'true' : 'false', 'data-active': active || undefined, title, ...dataAttrs }
   return onClick
     ? <button type="button" {...attrs} aria-pressed={active} aria-label={ariaLabel} disabled={disabled} onClick={onClick}>{body}</button>
     : <div {...attrs} data-static="true" role="group" aria-label={ariaLabel ?? label}>{body}</div>

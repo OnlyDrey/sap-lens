@@ -177,6 +177,7 @@
    "browser": [
     "role-codeblocks",
     "shared-ui-r5",
+    "status-consistency-r6",
     "consolidated-refinement",
     "kpi-standard",
     "refinement-r2",

@@ -1,3 +1,4 @@
+import { sentenceCase } from '@/lib/labels'
 import { useRoleDescriptions } from '@/hooks/useRoleModules'
 import { useModuleDefinitions } from '@/components/Modules/ModuleRegistry'
 import { presentRoleDescription } from '@/lib/rolePresentation'
@@ -122,7 +123,7 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
             {data.frozen && <StatusBadge tone="info">Frozen snapshot, read only</StatusBadge>}
             {!data.frozen && !data.reviewable && <StatusBadge>Read only</StatusBadge>}
           </Toolbar>
-          {data.account && <p className="ui-description flex flex-wrap items-center gap-x-2 gap-y-1"><span>Directory match</span><StatusBadge tone={data.account.directory_match === 'matched' ? 'success' : ['ambiguous', 'unmatched'].includes(data.account.directory_match) ? 'warning' : 'neutral'}>{data.account.directory_match.replace(/_/g, ' ')}</StatusBadge><span>AD {data.account.ad_status}{data.account.lock_status ? ` · SAP ${data.account.lock_status}` : ''}</span></p>}
+          {data.account && <p className="ui-description flex flex-wrap items-center gap-x-2 gap-y-1"><span>Directory match</span><StatusBadge tone={data.account.directory_match === 'matched' ? 'success' : ['ambiguous', 'unmatched'].includes(data.account.directory_match) ? 'warning' : 'neutral'}>{sentenceCase(data.account.directory_match)}</StatusBadge><span>AD {data.account.ad_status}{data.account.lock_status ? ` · SAP ${data.account.lock_status}` : ''}</span></p>}
           {scoped && <p className="ui-description" role="status">Showing only {risk ? `risk ${risk}` : `activity ${activity}`} and the evidence behind it.{onScope && <> <Button variant="ghost" onClick={() => onScope({ user })}>Show all review items for {user}</Button></>}</p>}
           <p className="ui-description">Activity review, role assignment review and risk acceptance are separate decisions. None of them changes what is detected or changes SAP.</p>
         </section>

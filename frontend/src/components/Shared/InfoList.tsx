@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { ArrowUpRight } from 'lucide-react'
+import { calmZero } from '@/lib/labels'
 
 /** Where each summary belongs: Kpi for a prominent figure to scan or drill into, InfoList for secondary metrics and operational facts, charts for distributions backed by data, tables for comparable records, badges for compact status, codeblocks for exact identifiers. */
 export function InfoList({ label, children, className = '' }: { label?: string; children: ReactNode; className?: string }) {
@@ -25,7 +26,7 @@ export function InfoRow({ label, value, icon, note, tone = 'neutral', onClick, a
       {progress && <progress className="info-row-progress" data-tone={progress.tone} aria-label={progress.label} max={Math.max(progress.max, 1)} value={Math.min(progress.value, Math.max(progress.max, 1))} />}
     </>
   )
-  const attrs = { className: 'info-row', 'data-tone': tone, 'data-active': active || undefined, 'data-progress': progress ? '' : undefined, 'data-icon': icon ? '' : undefined, 'data-primary': primary || undefined, title, ...dataAttrs }
+  const attrs = { className: 'info-row', 'data-tone': calmZero(tone, value), 'data-active': active || undefined, 'data-progress': progress ? '' : undefined, 'data-icon': icon ? '' : undefined, 'data-primary': primary || undefined, title, ...dataAttrs }
   return (
     <li>
       {onClick

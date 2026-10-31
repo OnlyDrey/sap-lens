@@ -1,3 +1,4 @@
+import { sentenceCase } from '@/lib/labels'
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiRequest } from '@/api/client'
@@ -161,7 +162,7 @@ export function DirectoryPreview({
                   </summary>
                   <p>
                     {row.validation
-                      .map((v) => v.replace(/_/g, ' '))
+                      .map((v) => sentenceCase(v))
                       .join(' · ') || 'No quality warnings.'}
                   </p>
                   <p>Manager relationship: {row.manager.status}</p>

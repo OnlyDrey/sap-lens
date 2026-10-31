@@ -4,6 +4,7 @@ import { Info } from 'lucide-react'
 import { formatTimestamp } from '@/lib/dateFormat'
 import { SourceBadge } from '@/components/Shared/SourceBadge'
 import { StatusBadge, MetadataList } from '@/components/Shared/Presentation'
+import { ModeBadge } from '@/components/Shared/StatusBadges'
 import { PreviewStatus } from '@/components/Shared/InvestigationPatterns'
 import { Dialog } from '@/components/Shared/Dialog'
 import { Button } from '@/components/Shared/Button'
@@ -23,9 +24,9 @@ export function SourceDetailsDialog({source,onClose,children}:{source:SourceEvid
 }
 /** Configuration, dataset activation and refresh/check evidence are not interchangeable. */
 export function SourceHealthSummary({source,compact=false,includeSnapshot=true}:{source:SourceEvidence;compact?:boolean;includeSnapshot?:boolean}) {
- if(compact)return <span className="source-compact"><span className="ui-toolbar"><StatusBadge tone={source.mode==='static'?'neutral':'accent'}>{source.mode==='static'?'Static':source.mode==='dynamic'?'Dynamic':'Mode unavailable'}</StatusBadge><SourceBadge loaded={source.loaded} loading={source.loading} error={source.error}/>{source.enabled===false&&<StatusBadge>Disabled</StatusBadge>}</span><small>{source.records===undefined?'Records unavailable':`${source.records.toLocaleString()} records`} · Last import: {formatTimestamp(source.last_successful_load)}</small>{includeSnapshot&&<small>{source.snapshot_available?'Durable snapshot available':'No durable snapshot confirmed'} · {sourceAvailability(source.availability)}</small>}</span>
+ if(compact)return <span className="source-compact"><span className="ui-toolbar"><ModeBadge mode={source.mode}/><SourceBadge loaded={source.loaded} loading={source.loading} error={source.error}/>{source.enabled===false&&<StatusBadge>Disabled</StatusBadge>}</span><small>{source.records===undefined?'Records unavailable':`${source.records.toLocaleString()} records`} · Last import: {formatTimestamp(source.last_successful_load)}</small>{includeSnapshot&&<small>{source.snapshot_available?'Durable snapshot available':'No durable snapshot confirmed'} · {sourceAvailability(source.availability)}</small>}</span>
 
- return <div className="source-health-summary"><div className="ui-toolbar"><StatusBadge tone={source.mode==='static'?'neutral':'accent'}>{source.mode==='static'?'Static':'Dynamic'}</StatusBadge>{source.enabled===false?<StatusBadge>Disabled · retained data</StatusBadge>:<SourceBadge loaded={source.loaded} loading={source.loading} error={source.error}/>}</div><MetadataList items={[
+ return <div className="source-health-summary"><div className="ui-toolbar"><ModeBadge mode={source.mode}/>{source.enabled===false?<StatusBadge>Disabled · retained data</StatusBadge>:<SourceBadge loaded={source.loaded} loading={source.loading} error={source.error}/>}</div><MetadataList items={[
  {label:'Records',value:source.records===undefined?'Not available':source.records.toLocaleString()},
  {label:'Last import / dataset activation',value:formatTimestamp(source.last_successful_load,'Not yet loaded')},
  ...(includeSnapshot?[{label:'Snapshot',value:source.snapshot_available===undefined?'Not checked':source.snapshot_available?'Durable snapshot available':'No durable snapshot'}]:[]),

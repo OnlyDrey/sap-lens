@@ -1,3 +1,4 @@
+import { sentenceCase } from '@/lib/labels'
 import { Toggle, SearchInput } from '@/components/Shared/Controls'
 import { Button } from '@/components/Shared/Button'
 import { StatusBadge } from '@/components/Shared/Presentation'
@@ -46,7 +47,7 @@ export interface DirectoryStatus {
   coverage_reason: string
   coverage_total: number
 }
-const label = (text: string) => text.replace(/_/g, ' ')
+const label = sentenceCase
 
 export function DirectoryDiagnostics({
   onConfigure,

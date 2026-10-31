@@ -1,3 +1,4 @@
+import { sentenceCase } from '@/lib/labels'
 import { directoryDisplayName } from '@/lib/directoryDisplayName'
 export interface Employee {
   id: string
@@ -19,7 +20,7 @@ export interface Employee {
   }
 }
 
-const label = (text: string) => text.replace(/_/g, ' ')
+const label = sentenceCase
 
 export function EmployeeInformation({
   employee,
