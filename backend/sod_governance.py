@@ -249,6 +249,30 @@ def aggregate_by_group(matrix, key='cells'):
     return dict(matrix, rows=rows)
 
 
+def place_in_groups(rows, preferred=(), reverse=False):
+    """Rows ordered by SAP User Group for the grouped matrix view, each user exactly once.
+
+    A user in several groups is placed under the first of their groups that the filter selected, otherwise under
+    their first group, so the groups partition the users (no duplicates, none omitted). Returns the ordered rows
+    (each with ``group``) and one summary per group: distinct users, finding cells and the index of its first row.
+    """
+    wanted = {name.casefold() for name in preferred}
+    buckets = {}
+    for row in rows:
+        groups = row['groups']
+        pick = next((name for name in groups if name.casefold() in wanted), groups[0] if groups else '(no group)')
+        buckets.setdefault(pick, []).append(dict(row, group=pick))
+    names = sorted(buckets, key=lambda name: (name == '(no group)', name.casefold(), name))
+    if reverse:
+        names.reverse()
+    ordered, summaries = [], []
+    for name in names:
+        members = buckets[name]
+        summaries.append(dict(name=name, users=len(members), findings=sum(len(row['cells']) for row in members), start=len(ordered)))
+        ordered += members
+    return ordered, summaries
+
+
 def explorer_rows(table, model, state):
     """Flat investigation tables for the Access Explorer; every row traces back to user, risk, activity and assignment."""
     rows = []
@@ -262,7 +286,7 @@ def explorer_rows(table, model, state):
                                  acceptance=state['acceptance'][finding['finding_id']][0], finding_id=finding['finding_id']))
         elif table == 'user_activity':
             for name, activity in sorted(entry['activities'].items()):
-                rows.append(dict(user=user, activity=name, risks=sorted(activity['risks']), tcodes=sorted(activity['tcodes']), roles=len(activity['assignments']),
+                rows.append(dict(user=user, groups=sorted(entry['groups']), activity=name, risks=sorted(activity['risks']), tcodes=sorted(activity['tcodes']), roles=len(activity['assignments']),
                                  duplicate=len(activity['assignments']) > 1, decision=state['activity'][activity['key']][0], key=activity['key']))
         elif table == 'access_list':
             for aid, assignment in sorted(shown(entry).items(), key=lambda pair: (pair[1]['role'], pair[0])):
@@ -290,15 +314,15 @@ def queue_items(model, state, context_info=None):
     for user, entry in sorted(model.items()):
         for name, activity in sorted(entry['activities'].items()):
             lifecycle_name, event = state['activity'][activity['key']]
-            items.append(dict(kind='activity', key=activity['key'], user=user, ref=name, risks=sorted(activity['risks']), lifecycle=lifecycle_name,
+            items.append(dict(kind='activity', key=activity['key'], user=user, groups=sorted(entry['groups']), ref=name, risks=sorted(activity['risks']), lifecycle=lifecycle_name,
                               roles=len(activity['assignments']), event=event, evidence_version=activity['evidence_version']))
         for aid, assignment in sorted(shown(entry).items()):
             lifecycle_name, event = state['assignment'][aid]
-            items.append(dict(kind='assignment', key=aid, user=user, ref=assignment['role'], risks=sorted(assignment['risks']), lifecycle=lifecycle_name,
+            items.append(dict(kind='assignment', key=aid, user=user, groups=sorted(entry['groups']), ref=assignment['role'], risks=sorted(assignment['risks']), lifecycle=lifecycle_name,
                               roles=len(assignment['supplies']), event=event, evidence_version=assignment['evidence_version']))
         for risk_id, finding in sorted(entry['findings'].items()):
             lifecycle_name, event = state['acceptance'][finding['finding_id']]
-            items.append(dict(kind='acceptance', key=finding['finding_id'], user=user, ref=risk_id, risks=[risk_id], lifecycle=lifecycle_name,
+            items.append(dict(kind='acceptance', key=finding['finding_id'], user=user, groups=sorted(entry['groups']), ref=risk_id, risks=[risk_id], lifecycle=lifecycle_name,
                               roles=0, event=event, evidence_version=finding['evidence_version']))
     return items
 

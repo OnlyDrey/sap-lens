@@ -1,14 +1,14 @@
-import { useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, CheckCircle2, CircleDashed, ClipboardCheck, Grid3x3, ListChecks, ShieldAlert, ShieldCheck, ShieldX, UserMinus, UsersRound, Wrench } from 'lucide-react'
-import { emptyFilters, sod, type Filters } from '@/api/sod'
+import { sod, type Filters } from '@/api/sod'
 import { useHistoryValue, useViewHistory, type SodView } from '@/hooks/useViewHistory'
 import { Card, ErrorState, LoadingState, SectionHeader, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
 import { InfoList, InfoRow } from '@/components/Shared/InfoList'
 import { Button } from '@/components/Shared/Button'
-import { InfoTip } from '@/components/Shared/InfoTip'
 import { formatDate, formatTimestamp } from '@/lib/dateFormat'
-import { AlertNote } from './SodShared'
+import { kpiTone } from '@/lib/kpiTone'
+import { AlertNote, PAGE_FIELDS, readFilters, writeFilters } from './SodShared'
 
 interface Governance {
   available: boolean; reason?: string | null
@@ -32,17 +32,16 @@ interface Overview {
 export function SodOverview() {
   const result = useQuery({ queryKey: ['sod-overview'], queryFn: () => sod<Overview>('/api/sod/overview') }),
     { change } = useViewHistory(),
-    [stored] = useHistoryValue('sodFilters'),
-    [allRoles, setAllRoles] = useState(false)
+    [stored] = useHistoryValue('sodFilters')
   if (result.isError) return <ErrorState error={result.error} onRetry={() => void result.refetch()} title="The SoD overview could not be loaded" />
   if (!result.data) return <LoadingState />
   const { counts, source, coverage, governance: g } = result.data
   const go = (view: SodView, name?: string, patch: Filters = {}, extra: Record<string, unknown> = {}) =>
-    change({ sodView: view, ...(name ? { sodFilters: { ...stored, [name]: { ...emptyFilters, ...patch } } } : {}), ...extra })
-  const Tile = ({ icon, label, value, onOpen, tone, note, title }: { icon: ReactNode; label: string; value: number | string | undefined; onOpen?: () => void; tone?: 'warning' | 'error'; note?: ReactNode; title?: string }) => (
-    <InfoRow icon={icon} label={label} note={note} title={title} value={value === undefined ? '—' : typeof value === 'number' ? value.toLocaleString() : value} onClick={onOpen} navigates tone={tone && Number(value) > 0 ? tone : 'neutral'} />
+    change({ sodView: view, ...(name ? { sodFilters: writeFilters(stored, name, PAGE_FIELDS[name], { ...readFilters(stored, name), ...patch }) } : {}), ...extra })  // an investigation link adds its own selections to the existing filters instead of replacing them
+  const Tile = ({ icon, label, value, onOpen, metric, note, title }: { icon: ReactNode; label: string; value: number | string | undefined; onOpen?: () => void; metric: string; note?: ReactNode; title?: string }) => (
+    <InfoRow icon={icon} label={label} note={note} title={title} value={value === undefined ? '—' : typeof value === 'number' ? value.toLocaleString() : value} onClick={onOpen} navigates tone={kpiTone(metric, value)} />
   )
-  const concentration = g.concentration, roles = concentration?.top_roles ?? [], shownRoles = allRoles ? roles.slice(0, 20) : roles.slice(0, 5), verification = g.remediation?.verification
+  const concentration = g.concentration
   const activities = g.activities || {}, acceptance = g.acceptance || {}
   return (
     <section className="grid min-w-0 gap-4" aria-label="SoD overview">
@@ -52,44 +51,32 @@ export function SodOverview() {
           <section className="dashboard-section min-w-0 rounded-card bg-surface p-4" aria-label="Conflicts">
             <SectionHeader title="Conflicts" icon={<ShieldAlert size={18} aria-hidden="true" />} />
             <InfoList>
-              <Tile icon={<UsersRound size={18} aria-hidden="true" />} label="Users with potential conflicts" value={g.users_with_conflicts} onOpen={() => go('risk-matrix', 'riskMatrix')} />
-              <Tile icon={<ShieldAlert size={18} aria-hidden="true" />} label="Users with more than one risk" value={concentration?.multi_risk_users} title="SAP users with at least two different risk IDs. Several activities or roles for the same risk count once."
+              <Tile icon={<UsersRound size={18} aria-hidden="true" />} label="Users with potential conflicts" metric="users_with_conflicts" value={g.users_with_conflicts} onOpen={() => go('risk-matrix', 'riskMatrix')} />
+              <Tile icon={<ShieldAlert size={18} aria-hidden="true" />} label="Users with more than one risk" metric="multi_risk_users" value={concentration?.multi_risk_users} title="SAP users with at least two different risk IDs. Several activities or roles for the same risk count once."
                 onOpen={() => go('explorer', 'explorer', { multiple_risks: 'true' }, { sodExplorer: 'user_risk' })} />
-              <Tile icon={<Grid3x3 size={18} aria-hidden="true" />} label="Detected user-risk findings" value={g.user_risk_findings} onOpen={() => go('explorer', 'explorer', {}, { sodExplorer: 'user_risk' })} />
-              <Tile icon={<ListChecks size={18} aria-hidden="true" />} label="Enabled risk definitions" value={counts.enabled ?? undefined} onOpen={() => change({ settings: true, settingsTarget: 'sod' })} />
+              <Tile icon={<Grid3x3 size={18} aria-hidden="true" />} label="Detected user-risk findings" metric="user_risk_findings" value={g.user_risk_findings} onOpen={() => go('explorer', 'explorer', {}, { sodExplorer: 'user_risk' })} />
+              <Tile icon={<ListChecks size={18} aria-hidden="true" />} label="Enabled risk definitions" metric="enabled_risks" value={counts.enabled ?? undefined} onOpen={() => change({ settings: true, settingsTarget: 'sod' })} />
             </InfoList>
-            {!!roles.length && <div className="overview-roles">
-              <h3 className="overview-roles-title">Most common conflicting roles<InfoTip label="About most common conflicting roles">Assigned roles ranked by the distinct user-risk findings they contribute to. A role counts once per user and risk, however many activities it supplies. Potential conflicts only, not effective authorization.</InfoTip></h3>
-              <InfoList label="Most common conflicting roles" className="overview-role-list">
-                {shownRoles.map((item) => <Tile key={item.role} icon={<UsersRound size={16} aria-hidden="true" />} label={item.role} value={item.findings} title={`${item.role}: ${item.findings} distinct user-risk findings across ${item.users} users`}
-                  note={`${item.users.toLocaleString()} ${item.users === 1 ? 'user' : 'users'}`} onOpen={() => go('explorer', 'explorer', { roles: [item.role] }, { sodExplorer: 'user_risk' })} />)}
-              </InfoList>
-              {roles.length > 5 && <Button size="compact" variant="ghost" aria-expanded={allRoles} onClick={() => setAllRoles(!allRoles)}>{allRoles ? 'Show fewer' : `Show more (${Math.min(roles.length, 20) - 5})`}</Button>}
-            </div>}
           </section>
           <section className="dashboard-section min-w-0 rounded-card bg-surface p-4" aria-label="Reviews">
             <SectionHeader title="Reviews" icon={<ClipboardCheck size={18} aria-hidden="true" />} />
             <InfoList>
-              <Tile icon={<CircleDashed size={18} aria-hidden="true" />} label="Activities pending or outdated" value={(activities.Pending || 0) + (activities.Outdated || 0)} onOpen={() => go('activity-matrix', 'activityMatrix', { activity_decision: 'Pending' })} />
-              <Tile icon={<CheckCircle2 size={18} aria-hidden="true" />} label="Activities approved or conditional" value={(activities.Approved || 0) + (activities.Conditional || 0)} onOpen={() => go('activity-matrix', 'activityMatrix', { activity_decision: 'Approved' })} />
-              <Tile icon={<UserMinus size={18} aria-hidden="true" />} label="Activities marked for removal" value={activities['Removal required'] || 0} onOpen={() => go('activity-matrix', 'activityMatrix', { activity_decision: 'Removal required' })} />
-              <Tile icon={<ShieldCheck size={18} aria-hidden="true" />} label="Risks accepted" value={acceptance.Accepted || 0} onOpen={() => go('risk-matrix', 'riskMatrix', { acceptance: 'Accepted' })} />
-              <Tile icon={<ShieldX size={18} aria-hidden="true" />} label="Risks rejected" value={acceptance.Rejected || 0} onOpen={() => go('risk-matrix', 'riskMatrix', { acceptance: 'Rejected' })} />
-              <Tile icon={<CircleDashed size={18} aria-hidden="true" />} label="Risk decisions pending" value={(acceptance.Pending || 0) + (acceptance.Outdated || 0)} onOpen={() => go('risk-matrix', 'riskMatrix', { acceptance: 'Pending' })} />
+              <Tile icon={<CircleDashed size={18} aria-hidden="true" />} label="Activities pending or outdated" metric="activities_pending" value={(activities.Pending || 0) + (activities.Outdated || 0)} onOpen={() => go('activity-matrix', 'activityMatrix', { activity_decision: 'Pending' })} />
+              <Tile icon={<CheckCircle2 size={18} aria-hidden="true" />} label="Activities approved or conditional" metric="activities_approved" value={(activities.Approved || 0) + (activities.Conditional || 0)} onOpen={() => go('activity-matrix', 'activityMatrix', { activity_decision: 'Approved' })} />
+              <Tile icon={<UserMinus size={18} aria-hidden="true" />} label="Activities marked for removal" metric="activities_removal" value={activities['Removal required'] || 0} onOpen={() => go('activity-matrix', 'activityMatrix', { activity_decision: 'Removal required' })} />
+              <Tile icon={<ShieldCheck size={18} aria-hidden="true" />} label="Risks accepted" metric="risks_accepted" value={acceptance.Accepted || 0} onOpen={() => go('risk-matrix', 'riskMatrix', { acceptance: 'Accepted' })} />
+              <Tile icon={<ShieldX size={18} aria-hidden="true" />} label="Risks rejected" metric="risks_rejected" value={acceptance.Rejected || 0} onOpen={() => go('risk-matrix', 'riskMatrix', { acceptance: 'Rejected' })} />
+              <Tile icon={<CircleDashed size={18} aria-hidden="true" />} label="Risk decisions pending" metric="risk_decisions_pending" value={(acceptance.Pending || 0) + (acceptance.Outdated || 0)} onOpen={() => go('risk-matrix', 'riskMatrix', { acceptance: 'Pending' })} />
             </InfoList>
           </section>
           <section className="dashboard-section min-w-0 rounded-card bg-surface p-4" aria-label="Remediation">
             <SectionHeader title="Remediation" icon={<Wrench size={18} aria-hidden="true" />} />
             <InfoList>
-              <Tile icon={<UserMinus size={18} aria-hidden="true" />} label="Role assignments marked for removal" value={g.assignments_marked_remove} onOpen={() => go('reviews', undefined, {}, { sodReviews: 'remediation' })} />
-              <Tile icon={<ListChecks size={18} aria-hidden="true" />} label="Open actions" value={g.remediation?.open_actions} onOpen={() => go('reviews', undefined, {}, { sodReviews: 'remediation' })} />
-              <Tile icon={<AlertTriangle size={18} aria-hidden="true" />} label="Overdue actions" value={g.remediation?.overdue} tone="error" onOpen={() => go('reviews', undefined, {}, { sodReviews: 'remediation' })} />
-              <Tile icon={<Wrench size={18} aria-hidden="true" />} label="Remediation awaiting action" value={g.remediation?.removal_without_action} title="Role assignments recommended for removal that have no tracked remediation action yet."
+              <Tile icon={<UserMinus size={18} aria-hidden="true" />} label="Role assignments marked for removal" metric="assignments_removal" value={g.assignments_marked_remove} onOpen={() => go('reviews', undefined, {}, { sodReviews: 'remediation' })} />
+              <Tile icon={<ListChecks size={18} aria-hidden="true" />} label="Open actions" metric="open_actions" value={g.remediation?.open_actions} onOpen={() => go('reviews', undefined, {}, { sodReviews: 'remediation' })} />
+              <Tile icon={<AlertTriangle size={18} aria-hidden="true" />} label="Overdue actions" metric="overdue_actions" value={g.remediation?.overdue} onOpen={() => go('reviews', undefined, {}, { sodReviews: 'remediation' })} />
+              <Tile icon={<Wrench size={18} aria-hidden="true" />} label="Remediation awaiting action" metric="remediation_awaiting" value={g.remediation?.removal_without_action} title="Role assignments recommended for removal that have no tracked remediation action yet."
                 onOpen={() => go('reviews', 'remediation', { tracking: 'untracked' }, { sodReviews: 'remediation' })} />
-              <Tile icon={<ShieldCheck size={18} aria-hidden="true" />} label="Remediation verified" value={verification?.available ? verification.verified : 'Unavailable'}
-                title="A removal counts as verified only when a User-Role import newer than the tracked action no longer contains the assignment. A completed status alone does not verify."
-                note={!verification ? 'Verification evidence is not available.' : !verification.available ? verification.reason : `${verification.verified} of ${verification.tracked} tracked ${verification.tracked === 1 ? 'removal' : 'removals'}${verification.awaiting_evidence ? ` · ${verification.awaiting_evidence} awaiting newer evidence` : ''}`}
-                onOpen={() => go('reviews', 'remediation', { tracking: 'verified' }, { sodReviews: 'remediation' })} />
             </InfoList>
           </section>
         </section>}

@@ -8,7 +8,7 @@ export const selectSource=(source:CSVSource,selection:SourceSelection)=>apiReque
 /** Only selected-source fields are adopted. Other unsaved Settings edits survive. */
 export function rebaseSourceDraft(draft:Configuration,saved:Configuration,source:CSVSource):Configuration {
  const next={...draft,revision:saved.revision,data_lifecycle:saved.data_lifecycle,source_modes:{roles:'dynamic',users:'dynamic',employees:'static',sod:'static',...draft.source_modes,[source]:saved.source_modes?.[source]||'static'}} as Configuration
- if(source==='sod'){next.sod_csv_path=saved.sod_csv_path}
+ if(source==='sod'){next.sod_csv_path=saved.sod_csv_path;next.sod_import=saved.sod_import??draft.sod_import}
  else if(source==='employees'){next.employee_csv_path=saved.employee_csv_path;next.employee_snapshot_id=saved.employee_snapshot_id}
  else if(source==='roles'){
   next.data_csv_path=saved.data_csv_path;next.active_import=saved.active_import

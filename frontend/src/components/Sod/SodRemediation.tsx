@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { downloadFile, scopeParams, sod, sodPost, EXPORT_NAME, type AssignmentRow, type ContextInfo } from '@/api/sod'
 import { useViewHistory } from '@/hooks/useViewHistory'
 import { Button } from '@/components/Shared/Button'
+import { Kpi } from '@/components/Shared/Kpi'
+import { UserGroupCell } from '@/components/Shared/UserGroup'
 import { Dialog } from '@/components/Shared/Dialog'
 import { ErrorState, DataTable, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
 import { FormField, Input } from '@/components/Shared/Controls'
@@ -16,6 +18,7 @@ import { RoleEntry } from '@/components/Shared/RoleEntry'
 import { moduleOfRoles, useRoleModules } from '@/hooks/useRoleModules'
 import { announceExport } from '@/lib/exportNotice'
 import { formatDate } from '@/lib/dateFormat'
+import { kpiTone, stateTone } from '@/lib/kpiTone'
 import { AlertNote, CoverageNotice, SodFilters, invalidateSod, LifecycleBadge, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 
 const GROUPS = ['Remove assignment', 'Investigate assignment', 'Apply compensating control', 'Maintain access', 'No action required']
@@ -135,15 +138,15 @@ export function RemediationView() {
         fields={['group', 'username', 'risk', 'activity', 'role', 'role_suffix', 'tcode', 'category', 'validity']}
         actions={<ExportCSVButton loading={busy} disabled={!data?.total || verifiedOnly} onClick={() => void exportCsv()} title={verifiedOnly ? 'Verified removals are tracked actions; export the remediation report instead.' : 'Exports the filtered remediation rows.'} />}>
       {result.isError ? <ErrorState error={result.error} onRetry={() => void result.refetch()} /> : !data ? <LoadingState /> : <>
-        <Toolbar aria-label="Recommended handling">
-          <Button variant={recommended ? 'secondary' : 'primary'} aria-pressed={!recommended} onClick={() => { setRecommended(''); setOffset(0) }}>All handling</Button>
-          {GROUPS.map((group) => <Button key={group} variant={recommended === group ? 'primary' : 'secondary'} aria-pressed={recommended === group} onClick={() => { setRecommended(group); setOffset(0) }}>{group}: {data.summary[group] ?? 0}</Button>)}
-          <StatusBadge tone={data.summary.undecided ? 'warning' : 'neutral'}>{data.summary.undecided ?? 0} awaiting review (not listed)</StatusBadge>
-          <StatusBadge tone={data.summary.overdue ? 'error' : 'neutral'}>{data.summary.overdue ?? 0} overdue</StatusBadge>
-          <Button variant="ghost" onClick={() => change({ sodView: 'reports' })}>Remediation report</Button>
-        </Toolbar>
+        <section className="sod-tiles" aria-label="Recommended handling">
+          <Kpi label="All handling" value={GROUPS.reduce((sum, group) => sum + (data.summary[group] ?? 0), 0).toLocaleString()} active={!recommended} onClick={() => { setRecommended(''); setOffset(0) }} />
+          {GROUPS.map((group) => <Kpi key={group} label={group} value={(data.summary[group] ?? 0).toLocaleString()} tone={stateTone(group, data.summary[group] ?? 0)} active={recommended === group} onClick={() => { setRecommended(group); setOffset(0) }} />)}
+          <Kpi label="Awaiting review (not listed)" value={(data.summary.undecided ?? 0).toLocaleString()} tone={kpiTone('remediation_awaiting', data.summary.undecided ?? 0)} title="Items without a decision are not listed until a decision is recorded." />
+          <Kpi label="Overdue" value={(data.summary.overdue ?? 0).toLocaleString()} tone={kpiTone('overdue_actions', data.summary.overdue ?? 0)} />
+        </section>
         <Toolbar aria-label="Remediation tracking">
           {TRACKING.map(([value, label]) => <Button key={value} variant={tracking === value ? 'primary' : 'secondary'} aria-pressed={tracking === value} onClick={() => { setFiltersState({ ...filters, tracking: value }); setOffset(0) }}>{label}</Button>)}
+          <Button variant="ghost" onClick={() => change({ sodView: 'reports' })}>Remediation report</Button>
         </Toolbar>
         <p className="ui-description">A proposed removal is not completed remediation. Verification compares with the latest imported evidence and is only conclusive when source coverage is complete.</p>
         {verifiedOnly ? <p className="ui-description" role="status">Verified removals need a tracked removal action and a newer User-Role import that no longer contains the assignment. A completed status alone never verifies. They are listed under Tracked actions.</p> : data.items.length ? <>
@@ -153,14 +156,14 @@ export function RemediationView() {
             <Button size="compact" onClick={() => setOpenKeys(new Set())}>Collapse all</Button>
           </Toolbar>
           <DataTable caption="Access remediation rows" density="compact" sticky>
-            <thead><tr><th>SAP user</th><th>Role assignment</th><th>Validity</th><th>Review</th><th>Recommended handling</th><th>Remediation</th><th className="col-actions">Actions</th></tr></thead>
+            <thead><tr><th>SAP user</th><th>SAP User Group</th><th>Role assignment</th><th>Validity</th><th>Review</th><th>Recommended handling</th><th>Remediation</th><th className="col-actions">Actions</th></tr></thead>
             <tbody>{parents.map((parent) => {
               const open = openKeys.has(parent.key), first = parent.rows[0], tracked = parent.rows.find((row) => row.action) ?? first
               const decided = parent.rows.filter((row) => row.activity_decision !== 'Pending').length
               return <ParentRows key={parent.key} open={open}
                 parent={<tr className="remediation-parent" data-open={open || undefined}>
-                  <td><button type="button" className="sod-expand-toggle" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} activities and risks for ${parent.user} ${first.role}`} onClick={() => toggleKey(parent.key)}>{open ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}<strong>{parent.user}</strong></button>
-                    <p className="text-xs text-muted whitespace-nowrap">SAP User Group: {first.user_group || 'Unknown'}</p></td>
+                  <td><button type="button" className="sod-expand-toggle" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} activities and risks for ${parent.user} ${first.role}`} onClick={() => toggleKey(parent.key)}>{open ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}<strong>{parent.user}</strong></button></td>
+                  <td><UserGroupCell groups={first.user_group} /></td>
                   <td><RemediationRole role={first.role} catalogueRoles={first.catalogue_roles} /></td>
                   <td className="whitespace-nowrap"><dl className="validity-dates"><div><dt>Valid from</dt><dd>{formatDate(first.valid_from)}</dd></div><div><dt>Valid to</dt><dd>{formatDate(first.valid_to)}</dd></div></dl></td>
                   <td><LifecycleBadge value={first.assignment_decision} /><p className="text-xs text-muted">{decided}/{parent.rows.length} activities decided</p></td>
@@ -172,7 +175,7 @@ export function RemediationView() {
                   </div></td>
                 </tr>}
                 children={parent.rows.map((row) => <tr key={row.activity} className="remediation-child">
-                  <td colSpan={2}><span className="remediation-child-title">Activity</span> <SodPill kind="activity" value={row.activity} /> <span className="id-pill-list" aria-label={`Risks for ${row.activity}`}>{row.risks.map((risk) => <SodPill key={risk} kind="risk" value={risk} />)}</span></td>
+                  <td colSpan={3}><span className="remediation-child-title">Activity</span> <SodPill kind="activity" value={row.activity} /> <span className="id-pill-list" aria-label={`Risks for ${row.activity}`}>{row.risks.map((risk) => <SodPill key={risk} kind="risk" value={risk} />)}</span></td>
                   <td colSpan={2}>Activity <LifecycleBadge value={row.activity_decision} /> · Risk acceptance: {row.risk_acceptance.join(', ') || '—'}</td>
                   <td><StatusBadge tone={row.recommended === 'Remove assignment' ? 'error' : row.recommended === 'Investigate assignment' ? 'warning' : 'neutral'}>{row.recommended}</StatusBadge><p className="text-xs">{row.reason || row.controls}</p></td>
                   <td className="text-xs" colSpan={2}>Verification: {row.verification}</td>

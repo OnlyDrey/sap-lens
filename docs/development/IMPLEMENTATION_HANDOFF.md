@@ -191,6 +191,106 @@ Commits are on `origin/work`; no workflow was dispatched and no tag or release w
 - The info tip button beside *Most common conflicting roles* is the shared 32 px icon button, taller than the heading text.
 - Windows/WebView2, Windows Service, installer, systemd and UNC acceptance, and deployment package builds, were not run here.
 
+## UI/UX Refinement and Validation Framework (Round 4)
+
+Commits are on `origin/work`; no workflow was dispatched and no tag or release was created.
+
+| Phase | Requirement | Status | Evidence |
+| --- | --- | --- | --- |
+| 1 Access Package | Package bar only describes and clears the package (Clear package, confirmed); the selection bar shows one or more selected roles with Clear selection and offers Compare now from two; role codeblocks first wrapped long names (`70f1092`), which was corrected: names are one complete line, never wrapped, scrolled or truncated (see Codeblock correction) | Implemented, corrected | `70f1092`, correction commit, `access-package-r2`, `refinement-r2`, `role-codeblocks` |
+| 2 Navigation | Submenu is a no-scroll menu popover that overlays the page, never resizes the navbar and has no left border on hover, focus or current | Implemented | `f015008`, `navigation-r3` |
+| 3 Account Review | Compact progress section (heading, percentage, bar, one legend row; about 120 px on desktop) | Implemented | `5535c22`, `account-review-refinement` |
+| 4 SoD Overview | Most common conflicting roles and Remediation verified removed from the UI (API data and the Verified removals filter stay); card rows share one height | Implemented | `043ac7a`, `sod-overview-actionable` |
+| 5 Matrices | Username with group beneath, sticky first column, optional Group by SAP User Group (collapsible, distinct counts over the filtered scope, each user once), multi-select group filter with grouping | Implemented | `7413462`, `sod-matrix-grouping`, `test_sod_governance` |
+| 6 Validation framework | `docs/validation` CSV (138 items, 18 areas), checker, summary, workbook export and merge | Implemented | `0bf327f` (tooling and guide), the CSV itself in the final commit because `*.csv` is git-ignored; `test_validation_tracker` |
+| 7 Final validation | See below | Done | |
+
+### Decisions worth knowing
+
+- The old Rows view of the matrices (aggregated SAP User Groups) was replaced by Group by. The aggregate API (`group_by=group`) stays for the shared heatmap; `group_by=user_group` is the new presentation mode.
+- A user in several SAP User Groups is listed once, under the first selected group or else the first group, so group counts partition the users; other groups are noted under the username.
+- Grouping is presentation only: matrix exports use the Explorer export of the active filters and are identical with and without grouping (tested).
+- The validation tracker marks 133 of 138 items Not reviewed; two are recorded improvement opportunities found during visual QA plus the new floating-bar item, and three Windows checks are Blocked in Linux CI. Nothing is Approved.
+
+### Codeblock correction (single line, no scrolling)
+
+Commit `70f1092` made role codeblocks wrap; the requirement is the opposite: always the complete name on one line, no wrapping, scrolling, truncation or ellipsis, copy icon beside it. Implementation:
+
+- `.role-identifier code` is `white-space:nowrap; overflow:visible; text-overflow:clip` everywhere (the old `overflow-x:auto` and the `wrap` of the first attempt are gone). Width caps on the codeblock (260 px in the user directory and role detail heading, 360 px in SoD tables) and `overflow:hidden` on the side panel link were removed.
+- `RoleIdentifier` fits the name to its container: when the container is narrower than the name, the font scales down (not below 9 px) and grows back when space returns (shared `ResizeObserver` on the parent). Containers of a codeblock may shrink (`min-width:0`) so a long name no longer pushes neighbours, such as the Close button of the role details panel, off screen. The role card grid uses `auto-fill` with a 22 rem minimum column instead of fixed 2, 3 or 4 columns, and the role detail heading puts the name on its own row.
+- Limit, stated plainly: a name that does not fit even at 9 px (about 40 characters in a 375 px card, more on wide screens) keeps its full single line (`data-fit="overflow"`), and the immediate container of the codeblock becomes the horizontal scroll region while the page does not scroll. The codeblock itself never scrolls or clips. Tables are scroll regions of their own layout. A smaller floor would make long names fit but would not be readable.
+- `role-codeblocks.spec.ts` checks, at 375, 800 and 1280 px in Role Lookup, role details, the Access Package panel, User Access, the Access Explorer and Reviews: `nowrap`, no overflow or ellipsis, one line of text height, no internal scrolling, the complete text, the copy icon beside the name and not clipped, exact clipboard value, scaling down and growing back, and that realistic names (42 characters) are fully on screen. Three existing specs that asserted wrapping were corrected back.
+
+### Validation (Round 4)
+
+- Codeblock correction: the first full regression after the change found 19 browser failures (role detail Close button pushed off screen by an overlong name, Component Library and role cards overflowing, three specs that still asserted wrapping); after the fixes a second full run had 6 failures, all in `refinement-search-layout` (the role detail name must stay right-aligned with the Close button), fixed by one rule. The affected specs (`refinement-search-layout`, `role-codeblocks`, `refinement-27`, `role-visuals`, 47 tests) pass; the complete suite was not repeated after that last rule. Backend: 810 tests, 3 skipped, 0 failed in both runs.
+- Single-process full regression (`python scripts/run-tests.py regression --jobs 1`, head `0bf327f`, before the tracker CSV was un-ignored and committed): backend 809 tests, 3 skipped (PowerShell and PyInstaller only), 0 failed; browser 593 tests, 0 skipped, 0 failed; build with type check, documentation links, workflow contracts, Lucide catalog, whitespace and `pip check` passed. `a11y-audit` and `navigation-a11y` are part of that run.
+- `npm audit --omit=dev`: 0 vulnerabilities. `pip-audit` on `requirements.txt` and `requirements-dev.txt`: none.
+- Visual QA after the regression: submenu, Role Lookup with a long role name and both floating bars, SoD Overview, grouped Risk and Activity Matrix and Account Review in light and dark at 375, 800, 1280 and 1600 px loaded without horizontal page overflow (assertion on all 64 captures). Screenshots inspected: submenu (1280 light), Role Lookup (375 light), grouped Risk Matrix (800 dark). The other combinations were checked by the overflow assertion only.
+- The workbook export was opened with openpyxl and converted by LibreOffice; it was not opened in Excel.
+
+### Remaining limitations
+
+- Remediation at 1280 px with the filter sidebar open scrolls the table horizontally inside its card (tracker `SODR-006`).
+- The shared info tip button is taller than the headings it sits beside (`UI-016`); at 375 px the package and selection bars stack to roughly a quarter of the viewport (`PKG-009`).
+- Windows/WebView2, Windows Service, installer, systemd and UNC acceptance, and deployment package builds, were not run here.
+
+## Shared SoD filters, Review Periods and data sources (Round 5)
+
+Commits are on `origin/work`; no workflow was dispatched and no tag or release was created.
+
+| Phase | Requirement | Status | Evidence |
+| --- | --- | --- | --- |
+| 1 Navigation and UI | Navbar scrollbar root cause fixed (the main navigation was an `overflow-x:auto` scroll container, so the SoD chevron group overflowed the header at medium widths and classic scrollbars appeared; it now wraps), Review Context evaluation text centered on the dropdown, Module and Submodule capitalized | Implemented | `5a1a498`, `navigation-r3`, `shared-ui-r5` |
+| 2 Matrices and shared filters | Compact identity column (copyable username, SAP User Group beneath), shared SoD filter context with Clear page filters and Clear all SoD filters, investigation links add to existing filters | Implemented | `3baa1ae`, `sod-shared-filters`, `sod-matrix-grouping` |
+| 3 Review Periods | Create and delete dialogs as responsive grids with icons, toolbar tooltip for Compare periods, visible archived toggle | Implemented | `5fae2b9`, `sod-periods-dialogs` |
+| 4 Data sources | Browse CSV always available with an explained alternative, failed replacements never replace active data, read-only SoD Matrix inspection | Implemented | `6abca73`, `data-source-browse`, `test_sod_inspection` |
+| 5 Regression, tracker, handoff | See Validation | Done | |
+
+### Decisions worth knowing
+
+- **Shared filters.** One shared slot (`sodFilters.shared`) holds the seven dimensions that mean the same wherever they exist (group, username, risk, activity, transaction code, business area, assigned role). Role Conflicts offers only risk, transaction code and business area; its other selections stay stored. Clear page filters clears the page's own filters and the shared dimensions it offers; Clear all SoD filters clears the whole filter context. Overview links merge into existing filters, which means a drilldown can show fewer rows than its tile counted when a filter is already active (the chips show why).
+- **Typed paths.** Typing a CSV path imports it on leaving the field (existing behavior), so a pre-import preview of a typed SoD file cannot run first; the SoD inspection therefore describes the active validated snapshot. A failed attempt keeps the attempted path in the field (needed for correction and column mapping) while the message states that the active file is unchanged.
+- **Tracker.** `docs/validation` gained the columns Implementation status and Test evidence; Status is documented as the manual acceptance status. The 11 items (UI-017, UI-018, SET-010, SODM-012, SODM-013, SODP-006 to SODP-008, DATA-010, DATA-011, SET-011) are Implemented with test evidence and stay Not reviewed.
+
+### Validation (Round 5)
+
+- Full single-process regression (`python scripts/run-tests.py regression --jobs 1`, head `6abca73`): backend 813 tests, 3 skipped (PowerShell and PyInstaller only), 0 failed; build with type check, documentation links, workflow contracts, Lucide catalog, whitespace and `pip check` passed; browser 634 tests with 3 failures, all caused by this round's changes: `enterprise` (Detect columns disabled after an early revert of the attempted path), `investigation-ux` (same cause) and `sod-catalogue` (the SoD preview dialog is now the inspection). The revert was removed, `sod-catalogue` was updated for the new dialog, and `enterprise`, `investigation-ux`, `sod-catalogue`, `data-source-browse`, `automatic-import` and `desktop` (50 tests) pass. The complete browser suite was not repeated after those fixes.
+- Visual QA: submenu, Risk Matrix, Review Periods, Create and Delete dialogs and the SoD inspection in light and dark at 375, 800, 1280 and 1600 px loaded without horizontal page overflow (assertion on 40 captures). Screenshots inspected: Risk Matrix (800 dark), SoD inspection (375 light), the Settings data source and SAP Modules views (1280 and 375), the create and delete dialogs.
+- Not run here: Windows/WebView2, Windows Service, installer, systemd, UNC and deployment package acceptance.
+
+### Remaining limitations
+
+- The navbar scrollbar could not be reproduced in Playwright's default headless Chromium (it hides scrollbars); the cause was established by measuring overflow and by running with scrollbars shown. Please confirm in the Windows desktop app.
+- The SoD inspection dialog shows its data preview before the validation results, so at 375 px the validation section needs scrolling.
+- A typed replacement path is imported when the field is left; there is no read-only pre-import preview for the SoD file.
+
+## UI consistency and SoD refinements (Round 6)
+
+Commits are on `origin/work`; no workflow was dispatched and no tag or release was created.
+
+| Phase | Requirement | Status | Evidence |
+| --- | --- | --- | --- |
+| 1 Shared UI | Shared Enabled, Disabled, Static and Dynamic badges with Lucide icons, `sentenceCase` for internal enum values, zero values always neutral in `Kpi` and `InfoRow`, one rounded token-driven focus ring | Implemented | `0c2d2ee`, `status-consistency-r6` |
+| 2 SoD Risk Configuration | Amber New badge beside the Risk ID, separators instead of coloured rows, icons on Enabled and Disabled, no per-row Source details, Activities harmonized | Implemented | `ad9f64e`, `sod-risk-config-r6` |
+| 3 SoD Matrix CSV | Verified against the checklist; no functional gap, two specs added | Verified | `854dd36`, `data-source-browse` |
+| 4 Reviews and Review Periods | Work Queue and Remediation share the Kpi filter tiles, 8 px gap before Active period | Implemented | `ef1ff11`, `sod-reviews-r6` |
+| 5 Tracker and regression | 14 R6 rows with implementation, automated validation, manual validation and remaining issues | Done | this commit |
+
+### Findings worth knowing
+
+- Most of the application already shared a token-based focus ring; the keyboard walk found only these outliers: tabs used a bottom bar instead of a ring, the navigation chevrons and matrix column buttons had square corners, and the heatmap scroll region had no ring. They now use the shared ring and `--focus-radius`.
+- A generic `:where` rule would have changed the radius of pill-shaped controls while focused, so only the specific outliers were targeted.
+- The R5 SoD inspection already satisfied the R6 checklist. A typed path is still imported when the field is left, so there is no pre-import preview of a SoD file.
+- Row heights in the Risks and Activities tables share a minimum but still differ with content (risk rows have a third line).
+
+### Validation (Round 6)
+
+- Full single-process regression (`python scripts/run-tests.py regression --jobs 1`, head `ef1ff11`): backend 814 tests, 3 skipped (PowerShell and PyInstaller only), 0 failed; build with type check, documentation links, workflow contracts, Lucide catalog, whitespace and `pip check` passed; browser 649 tests with 2 failures, both in the new `sod-risk-config-r6` spec: whether a risk counts as new depends on review history left by earlier specs of the same run, so the spec now marks the list new through a route and passes (4 tests). The complete browser suite was not repeated after that fix.
+- Visual QA after the regression: Work Queue, Remediation, Review Periods, SoD Risk Configuration (Risks and Activities) and Health and Diagnostics in light and dark at 375, 800, 1280 and 1600 px loaded without horizontal page overflow (assertion on 48 captures); the dark 1280 Remediation view was inspected, the others by the overflow assertion only.
+- Not run here: Windows/WebView2, Windows Service, installer, systemd, UNC and deployment package acceptance.
+- Keyboard focus: the new walk covers the SoD pages and Settings in both themes; Role Lookup, User Access and dialogs rely on the existing accessibility specs.
+
 ## Validation
 
 - **Round 2 final regression** (`python scripts/run-tests.py regression --jobs 1`, head `0a0e637`): backend 793 tests, 3 skipped (PowerShell and PyInstaller only), 0 failed; build with type check, documentation links, workflow contracts, Lucide catalog (1447 icons), whitespace and `pip check` passed; browser 569 tests, 553 passed and 16 failed. The 16 failures were two specs still asserting the superseded Dashboard (`refinement-27` looked for the former "Configuration" region, `refinement-search-layout` for the removed review completion progress bar and the former 1-5 range). They were updated to the v4 structure and re-run: both specs pass (29 tests). The complete suite was not re-run a second time after those two spec edits.
@@ -213,6 +313,21 @@ Commits are on `origin/work`; no workflow was dispatched and no tag or release w
   inspected for SoD Overview, Assignments, Account Review, the review panel (a narrow-row defect was fixed) and the Component Library; the other combinations were checked
   by the overflow assertion only.
 - Accessibility: existing audit and keyboard specs pass; keyboard coverage added for multi-select and bulk selection. No external audit tool was run.
+
+## Follow-up: SoD matrix Users per page
+
+- Risk and Activity Matrix share one **Users per page** setting (10, 25, 50, 100, All; default 50) held in module state in `Sod/SodMatrices.tsx`, so it survives switching matrices within a session. The offset is remembered per matrix and clamped to page 1 when it no longer fits.
+- The shared `Pagination` gained `unit` and `alwaysShow`; a range pager sits above the matrix and a second one below. *All* requests one page of up to `MATRIX_PAGE_MAX` (5000) users from `/api/sod/matrix/{risk,activity}`; a notice appears if more match. Rows are not virtualized: a 2000-user page rendered within the spec's 15 s budget, more than 5000 users is the documented limit.
+- CSV exports use the Explorer export endpoints, which take only filters, so they ignore pagination.
+- Tests: `frontend/tests/sod-matrix-paging.spec.ts`, `test_matrix_page_may_hold_every_user_but_not_more_than_the_ceiling`. Tracker rows SODM-014 and SODM-015 stay Not reviewed for manual acceptance.
+
+## R6 correction batch (four outstanding items)
+
+- **Account Review** (`381333e`): progress (1/3) and Review attention (2/3, two-column icon KPIs, compact AD disabled row) in one aligned row; the investigation notice is an info popover in the page header. The earlier rounds only compacted the progress card and kept the five-tile grid.
+- **Shared KPI tones** (`c150eff`): `lib/kpiTone.ts` maps metric or review state to tone; pages no longer choose colors. Zero is neutral for warning, danger and success. Matrix Rejected and Removal tiles are now warning (were danger).
+- **Access Explorer icons** (`304e9dc`): `ContentTabs` items now carry icons; tabs and secondary navigation reserve the bold label width (`.ui-tab-label`).
+- **SoD CSV import** (`7dd0fec`): `sod_import` profile (delimiter, encoding, mapping) in `AppConfig`, used by imports and refreshes; read-only `POST /api/data-sources/sod/inspect`; `SodImportEditor` in the Data Sources tab. Inspection never stores anything.
+- Tests: `account-review-refinement`, `kpi-semantic-tones`, `secondary-navigation-icons`, `sod-source-import` specs and `test_sod_inspection`. Tracker rows AR-008, UI-024, SODX-006 and DATA-013 are Not reviewed for manual acceptance.
 
 ## Not verified
 

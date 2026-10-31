@@ -92,7 +92,7 @@ test('the assignment queue shows what needs attention by default and filters ind
   await expect.poll(shown).toEqual(['ROLE_A1', 'ROLE_A2', 'ROLE_B', 'ROLE_C'])
   await expect(page.getByRole('status').filter({ hasText: /of 7|7 rows/ }).first()).toBeVisible().catch(() => undefined)
   // Reset restores the documented default view.
-  await page.getByRole('complementary', { name: 'Filters' }).getByRole('button', { name: 'Clear filters', exact: true }).click()
+  await page.getByRole('complementary', { name: 'Filters' }).getByRole('button', { name: 'Clear page filters', exact: true }).click()
   await expect(status).toHaveValue('')
   await expect.poll(shown).toEqual(['ROLE_B', 'ROLE_C'])
 })

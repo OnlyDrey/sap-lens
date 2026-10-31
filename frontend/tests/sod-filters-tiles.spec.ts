@@ -15,7 +15,7 @@ test('search and every filter live in the sidebar; the toolbar keeps sort, expor
     await expect(toolbar.getByRole('searchbox')).toHaveCount(0)
     await expect(toolbar.getByRole('combobox', { name: 'Sort', exact: true })).toBeVisible()
     await expect(toolbar.getByRole('button', { name: /Export CSV/ })).toBeVisible()
-    await expect(sidebar.getByRole('button', { name: 'Clear filters', exact: true })).toBeVisible()
+    await expect(sidebar.getByRole('button', { name: 'Clear page filters', exact: true })).toBeVisible()
   }
 })
 
@@ -77,5 +77,5 @@ test('Role Conflicts uses the shared filter sidebar and toolbar', async ({ page 
   const toolbar = page.getByRole('toolbar', { name: 'Page actions' })
   await expect(toolbar.getByRole('combobox', { name: 'Sort', exact: true })).toBeVisible()
   await expect(toolbar.getByRole('button', { name: /Export CSV/ })).toBeVisible()
-  await expect(sidebar.getByRole('button', { name: 'Clear filters', exact: true })).toBeVisible()
+  await expect(sidebar.getByRole('button', { name: 'Clear page filters', exact: true })).toBeVisible()
 })

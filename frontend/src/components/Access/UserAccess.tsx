@@ -22,7 +22,7 @@ import { Select } from '@/components/Shared/Select';
 import { formatDate } from '@/lib/dateFormat';
 import { exportAssignments } from '@/lib/accessExport';
 import { announceExport } from '@/lib/exportNotice'
-import { ArrowLeftRight, ArrowRight, Download } from 'lucide-react';
+import { ArrowLeftRight, ArrowRight, Briefcase, Download, FileCheck2, Layers } from 'lucide-react';
 import { useHistoryValue, useViewHistory, userAccessHref } from '@/hooks/useViewHistory';
 import { useRecordNavigation, type RecordNavigationState } from "@/hooks/useRecordNavigation";
 import { DetailNavigation, LockStatus, AssignmentStatus } from "@/components/Shared/InvestigationNavigation";
@@ -419,7 +419,7 @@ function UserDetails({
             Validity evaluated on {formatDate(user.as_of)}. {user.retained_assignments}{" "}
             assignment records retained.
           </p>
-          <ContentTabs label="User role sections" value={scope} onChange={setScope} items={[{value:'all',label:'All roles'},{value:'business',label:'Business Roles — ZC:*'},{value:'release',label:'Release Roles — ZO:*'}]}>
+          <ContentTabs label="User role sections" value={scope} onChange={setScope} items={[{value:'all',label:'All roles',icon:<Layers size={16} aria-hidden="true"/>},{value:'business',label:'Business Roles — ZC:*',icon:<Briefcase size={16} aria-hidden="true"/>},{value:'release',label:'Release Roles — ZO:*',icon:<FileCheck2 size={16} aria-hidden="true"/>}]}>
           <form aria-label="User role toolbar" className="user-role-toolbar" onSubmit={event => event.preventDefault()}>
             <Filter label="Assignment status">
               <Select aria-label="Assignment status"

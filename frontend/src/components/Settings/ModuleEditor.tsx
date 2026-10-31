@@ -30,6 +30,8 @@ const IconPicker = lazy(() =>
   }))
 )
 const control = controlClass
+/** Classification values (module, submodule, functional-area) are stored lowercase; the interface shows them capitalized. */
+const sentenceCase = (value: string) => value.charAt(0).toUpperCase() + value.slice(1)
 
 export function ModuleEditor({
   modules,
@@ -88,7 +90,7 @@ export function ModuleEditor({
                     <span title={(savedOverrides[m.id]?.enabled??m.enabled??true)===(overrides[m.id]?.enabled??m.enabled??true)?'Saved setting':'Pending setting change'}><StatusPill enabled={overrides[m.id]?.enabled ?? m.enabled ?? true}/></span>
                   </span>
                   <span className="text-sm font-medium">{override.display_name || defaultName}</span>
-                  <span className="flex items-center justify-between gap-2 text-xs text-muted"><span>{m.category.replace(/-/g,' ')}{m.parent?` · Parent: ${m.parent}`:''}</span><ChevronDown size={16} className={expanded===m.id?'rotate-180':''}/></span>
+                  <span className="flex items-center justify-between gap-2 text-xs text-muted"><span>{sentenceCase(m.category.replace(/-/g,' '))}{m.parent?` · Parent: ${m.parent}`:''}</span><ChevronDown size={16} className={expanded===m.id?'rotate-180':''}/></span>
                 </span>
               </button>
               {expanded === m.id && (

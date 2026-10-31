@@ -76,7 +76,7 @@ def configuration_router(loader, desktop_preferences=None):
             if config.revision != current.revision or expected != current.revision:
                 raise HTTPException(409,'Settings changed. Reload before applying your edits.')
             with desktop_preferences(current.desktop,config.desktop) if desktop_preferences else nullcontext():
-                analysis_fields = ['data_csv_path','import_profiles','active_import','user_csv_path','user_import_profiles','active_user_import','module_overrides','source_modes','sod_csv_path']
+                analysis_fields = ['data_csv_path','import_profiles','active_import','user_csv_path','user_import_profiles','active_user_import','module_overrides','source_modes','sod_csv_path','sod_import']
                 changed = any(getattr(config,k) != getattr(current,k) for k in analysis_fields)
                 # Profile versions increase automatically on content changes.
                 for field in ['import_profiles','user_import_profiles']:

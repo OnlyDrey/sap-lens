@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { cleanup, openSod, seedGovernance } from './sod-fixture'
+import { cleanup, headers, openSod, seedGovernance } from './sod-fixture'
 
 let directory = ''
 test.beforeEach(async ({ request }) => { directory = await seedGovernance(request, 'static') })
@@ -83,10 +83,58 @@ test('secondary navigation, explorer and SoD settings actions carry icons and re
   await page.getByRole('button', { name: 'Open settings', exact: true }).click()
   await page.getByRole('tab', { name: 'SoD Risk Configuration', exact: true }).click()
   for (const name of ['Risks', 'Activities']) await expect(page.getByRole('tab', { name, exact: true }).locator('svg')).toHaveCount(1)
-  const source = page.getByRole('button', { name: /^Source details for risk / }).first()
-  await expect(source).toHaveClass(/ui-button-outline/) // a bordered button, not text
-  await expect(source.locator('svg')).toHaveCount(1)
+  // Source details are not repeated on every row: the edit dialog carries them
+  await expect(page.getByRole('button', { name: /^Source details for risk / })).toHaveCount(0)
   const edit = page.getByRole('button', { name: /^Edit SoD risk / }).first()
-  const [a, b] = [await edit.boundingBox(), await source.boundingBox()]
-  expect(Math.abs(a!.height - b!.height)).toBeLessThanOrEqual(1); expect(Math.abs(a!.y - b!.y)).toBeLessThan(3)
+  await expect(edit.locator('svg')).toHaveCount(1)
+  await edit.click()
+  await expect(page.getByRole('dialog').getByRole('button', { name: /^Source details for risk / })).toBeVisible()
+})
+
+for (const width of [375, 800, 1280]) for (const theme of ['light', 'dark']) test(`submenu overlays the page without scrollbars, size changes or left borders (${theme} ${width})`, async ({ page, request }) => {
+  const settings = (await (await request.get('/api/configuration', { headers })).json()).settings; settings.theme = theme
+  expect((await request.post('/api/configuration', { headers, data: settings })).ok()).toBeTruthy()
+  await page.setViewportSize({ width, height: 800 })
+  await page.goto('/#session=browser-test-session')
+  const header = page.locator('header').first(), before = await header.boundingBox()
+  await main(page).getByRole('button', { name: 'SoD pages' }).click()
+  const menu = page.getByRole('dialog', { name: 'SoD pages' })
+  await expect(menu).toBeVisible()
+  expect(await menu.evaluate((element) => ({ y: getComputedStyle(element).overflow, fits: element.scrollHeight <= element.clientHeight && element.scrollWidth <= element.clientWidth }))).toEqual({ y: 'visible', fits: true })
+  expect(await header.boundingBox()).toEqual(before) // the navbar keeps its size
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
+  const link = menu.getByRole('link', { name: 'Risk Matrix' })
+  for (const action of ['hover', 'focus'] as const) {
+    await link[action]()
+    expect(await link.evaluate((element) => { const style = getComputedStyle(element); return [style.borderLeftWidth, style.boxShadow] })).toEqual(['0px', 'none'])
+  }
+  await menu.getByRole('link', { name: 'Overview' }).evaluate((element) => element.setAttribute('aria-current', 'page')) // the active entry
+  const active = menu.getByRole('link', { name: 'Overview' })
+  expect(await active.evaluate((element) => { const style = getComputedStyle(element); return [style.borderLeftWidth, style.boxShadow, style.backgroundColor !== 'rgba(0, 0, 0, 0)'] })).toEqual(['0px', 'none', true])
+  await page.keyboard.press('Escape')
+  await expect(menu).toHaveCount(0)
+})
+
+for (const width of [320, 375, 430, 480, 560, 640, 800, 1000, 1280]) test(`the main navigation never becomes a scroll container, opening a submenu changes nothing and the chevron shows its state (${width}px)`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 700 })
+  await page.goto('/#session=browser-test-session')
+  const scrollers = () => page.evaluate(() => [...document.querySelectorAll('header *')].filter((element) => {
+    const style = getComputedStyle(element)
+    return !element.closest('.sr-only') && !element.classList.contains('sr-only') && (style.overflowX !== 'visible' || style.overflowY !== 'visible') && (element.scrollWidth > element.clientWidth + 0.5 || element.scrollHeight > element.clientHeight + 0.5)
+  }).map((element) => `${element.tagName.toLowerCase()}.${element.className}`))
+  const header = page.locator('header').first(), nav = main(page), chevron = nav.getByRole('button', { name: 'SoD pages' })
+  expect(await nav.evaluate((element) => [getComputedStyle(element).overflowX, getComputedStyle(element).overflowY])).toEqual(['visible', 'visible'])
+  expect(await scrollers()).toEqual([])
+  const before = await header.boundingBox(), svg = () => chevron.locator('svg').first().evaluate((element) => getComputedStyle(element).transform)
+  await expect(chevron).toHaveAttribute('aria-expanded', 'false')
+  const closed = await svg()
+  await chevron.click()
+  await expect(chevron).toHaveAttribute('aria-expanded', 'true')
+  await expect.poll(svg).not.toBe(closed) // the chevron is turned while the submenu is open
+  expect(await scrollers()).toEqual([])
+  expect(await header.boundingBox()).toEqual(before)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
+  await page.keyboard.press('Escape')
+  await expect(chevron).toHaveAttribute('aria-expanded', 'false')
+  expect(await svg()).toBe(closed)
 })

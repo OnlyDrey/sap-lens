@@ -5,6 +5,7 @@ import { downloadFile, scopeParams, sod, EXPORT_NAME, type ContextInfo, type Use
 import { useHistoryValue } from '@/hooks/useViewHistory'
 import { Button } from '@/components/Shared/Button'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
+import { UserGroupCell } from '@/components/Shared/UserGroup'
 import { ClipboardCheck, ListChecks, Wrench } from 'lucide-react'
 import { ErrorState, DataTable, EmptyState, LoadingState } from '@/components/Shared/Presentation'
 import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
@@ -12,6 +13,7 @@ import { ContentTabs } from '@/components/Shared/Navigation'
 import { Pagination } from '@/components/Access/Shared'
 import { announceExport } from '@/lib/exportNotice'
 import { CoverageNotice, SodFilters, keepWithinContext, useFilterChangeReset, useSodContext, useSodFilters, useSodSubject } from './SodShared'
+import { stateTone } from '@/lib/kpiTone'
 import { RemediationView } from './SodRemediation'
 
 
@@ -60,15 +62,16 @@ function Queue() {
         actions={<ExportCSVButton loading={busy} disabled={!data?.total} onClick={() => void exportCsv()} title="Exports every review item for the filtered users with its decision." />}>
       {result.isError ? <ErrorState error={result.error} onRetry={() => void result.refetch()} /> : !data ? <LoadingState /> : <>
         <section className="sod-tiles" aria-label="Review progress">
-          {PROGRESS.map(([value, label]) => <Kpi key={value} label={label} value={(data.counts[value || 'all'] ?? 0).toLocaleString()} active={progress === value} onClick={() => { reset(); setProgress(value) }} />)}
+          {PROGRESS.map(([value, label]) => <Kpi key={value} label={label} value={(data.counts[value || 'all'] ?? 0).toLocaleString()} tone={stateTone(label, data.counts[value || 'all'] ?? 0)} active={progress === value} onClick={() => { reset(); setProgress(value) }} />)}
         </section>
         <p className="ui-description">One row per SAP user. Activity review, role assignment review and risk acceptance are independent decisions with their own progress. Open Review shows all three for the user.</p>
         {data.items.length ? <DataTable caption="SoD review work queue" tableClassName="sod-config-table">
-          <thead><tr><th>SAP user</th><th>Progress</th><th>Activities</th><th>Role assignments</th><th>Risk acceptance</th><th>Open</th></tr></thead>
+          <thead><tr><th>SAP user</th><th>SAP User Group</th><th>Progress</th><th>Activities</th><th>Role assignments</th><th>Risk acceptance</th><th>Open</th></tr></thead>
           <tbody>{data.items.map((row) => (
             <tr key={row.user}>
-              <td><RoleIdentifier value={row.user} label="SAP username" />{row.removal > 0 && <p className="text-xs text-muted">{row.removal} removal recommended</p>}</td>
-              <td><progress max={Math.max(row.total, 1)} value={row.decided} aria-label={`${row.user} decided ${row.decided} of ${row.total}`} /> <span className="text-xs">{row.decided}/{row.total}</span></td>
+              <td><RoleIdentifier value={row.user} label="SAP username" /></td>
+              <td><UserGroupCell groups={row.groups} /></td>
+              <td><progress max={Math.max(row.total, 1)} value={row.decided} aria-label={`${row.user} decided ${row.decided} of ${row.total}`} /> <span className="text-xs">{row.decided}/{row.total}</span>{row.removal > 0 && <span className="text-xs text-muted"> · {row.removal} removal recommended</span>}</td>
               <td>{part(row.activity)}</td>
               <td>{part(row.assignment)}</td>
               <td>{part(row.acceptance)}</td>

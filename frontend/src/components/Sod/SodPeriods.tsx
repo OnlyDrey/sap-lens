@@ -2,7 +2,7 @@ import {useState} from 'react'
 import {useQuery,useQueryClient} from '@tanstack/react-query'
 import {apiRequest} from '@/api/client'
 import {useViewHistory} from '@/hooks/useViewHistory'
-import {Activity,GitCompare,Grid3x3,ListChecks,MoreHorizontal,Plus,Trash2} from 'lucide-react'
+import {Activity,Archive,ArchiveRestore,Camera,GitCompare,Grid3x3,ListChecks,MoreHorizontal,Plus,Trash2,X} from 'lucide-react'
 import {Button} from '@/components/Shared/Button'
 import {Popover} from '@/components/Shared/Popover'
 import {Card,DataTable,Toolbar,StatusBadge,LoadingState,EvidenceDisclosure,ErrorState,EmptyState} from '@/components/Shared/Presentation'
@@ -33,17 +33,18 @@ export function SodPeriods(){
  const activeId=[...active].filter(period=>!FROZEN_STATES.includes(period.state)).sort((x,y)=>y.modified.localeCompare(x.modified))[0]?.id
  const reviewIn=(period:Period,view:'risk-matrix'|'activity-matrix'|'reviews')=>change({sodContext:period.id,sodView:view})
  const compareWith=(period:Period)=>{setLeft(period.id);setRight('');setComparing(true)}
+ const compareReason='Create at least two review periods to compare them.'
  return <section className="grid min-w-0 gap-3" aria-label="SoD review periods">
   <Toolbar className="sod-periods-header"><h2>Review periods</h2>
    <Button variant="primary" onClick={()=>setCreating(true)}><Plus size={16} aria-hidden="true"/>Create review period</Button>
-   <Button onClick={()=>{setComparing(true)}} disabled={active.length<2} title={active.length<2?'Create at least two review periods to compare them.':undefined} aria-describedby={active.length<2?'compare-periods-why':undefined}><GitCompare size={16} aria-hidden="true"/>Compare periods</Button>{active.length<2&&<span id="compare-periods-why" className="sod-meta">Needs at least two periods.</span>}
-   <Button variant="ghost" size="compact" aria-pressed={archived} onClick={()=>setArchived(!archived)}>{archived?'Hide archived periods':'Show archived periods'}</Button></Toolbar>
+   <span className="inline-flex" title={active.length<2?compareReason:undefined}><Button onClick={()=>{setComparing(true)}} disabled={active.length<2} aria-describedby={active.length<2?'compare-periods-why':undefined}><GitCompare size={16} aria-hidden="true"/>Compare periods</Button></span>{active.length<2&&<span id="compare-periods-why" className="sr-only">{compareReason}</span>}
+   <Button variant={archived?'primary':'secondary'} aria-pressed={archived} onClick={()=>setArchived(!archived)}>{archived?<ArchiveRestore size={16} aria-hidden="true"/>:<Archive size={16} aria-hidden="true"/>}{archived?'Hide archived periods':'Show archived periods'}</Button></Toolbar>
   <EvidenceDisclosure title="Period snapshots and approval">Each period captures explicit imported source versions and an evaluation date. Refresh does not update it. Recapture is an intentional action available only for open periods. Approved snapshots stay immutable together with their decisions. Reviewer and approver are separate people; names are self-reported and are not verified digital signatures. Historical evaluation does not reconstruct unexported SAP authorizations.</EvidenceDisclosure>
   {notice&&<p role="status">{notice}</p>}{error&&<p role="alert">{error}</p>}
   {listing.isError?<ErrorState error={listing.error} onRetry={()=>void listing.refetch()}/>:!listing.data?<LoadingState/>:
    <DataTable caption="SoD review periods" tableClassName="sod-config-table sod-periods-table"><thead><tr><th>Period</th><th>Dates</th><th>Evaluation date</th><th>Status</th><th>Review progress</th><th>Last updated</th><th>Actions</th></tr></thead>
     <tbody>{!listing.data.items.length&&<tr><td colSpan={7}><EmptyState>No review periods yet. Create a review period to capture a snapshot of the imported evidence.</EmptyState></td></tr>}{listing.data.items.map(period=>{const gone=!!period.deleted_at,isActive=period.id===activeId;return <tr key={period.id} data-active={isActive||undefined}>
-     <td><strong>{period.name}</strong>{isActive&&<> <StatusBadge tone="info">Active period</StatusBadge></>}</td>
+     <td><span className="sod-period-title"><strong>{period.name}</strong>{isActive&&<StatusBadge tone="info">Active period</StatusBadge>}</span></td>
      <td>{formatDate(period.start)} → {formatDate(period.end)}</td>
      <td>{formatDate(period.evaluation_date)}</td>
      <td><StatusBadge>{period.state}</StatusBadge>{gone&&<StatusBadge tone="neutral">Archived {formatDate(period.deleted_at)}</StatusBadge>}</td>
@@ -59,7 +60,7 @@ export function SodPeriods(){
        {active.length<2&&<p id={`compare-why-${period.id}`} className="ui-description action-menu-note">Create a second period to compare against.</p>}
        <hr className="action-menu-separator" aria-hidden="true"/>
        <Button variant="ghost" className="action-menu-destructive" onClick={()=>{close();setDeleting(period)}}><Trash2 size={16} aria-hidden="true"/>Delete…</Button></div>}}</Popover></div>}</td></tr>})}</tbody></DataTable>}
-  {creating&&<Dialog title="Create SoD review period" onClose={()=>setCreating(false)} footer={<><Button onClick={()=>setCreating(false)}>Cancel</Button><Button variant="primary" loading={busy} disabled={!name.trim()} onClick={()=>void create()}>Capture review period</Button></>}><FormField label="Review period name"><Input value={name} maxLength={120} onChange={e=>setName(e.target.value)}/></FormField><NorwegianDateInput label="Period start" value={start} onChange={setStart}/><NorwegianDateInput label="Period end" value={end} onChange={setEnd}/><NorwegianDateInput label="Evaluation date" value={evaluation} onChange={setEvaluation}/>{error&&<p role="alert">{error}</p>}</Dialog>}
+  {creating&&<Dialog title="Create SoD review period" onClose={()=>setCreating(false)} footer={<><Button onClick={()=>setCreating(false)}><X size={16} aria-hidden="true"/>Cancel</Button><Button variant="primary" loading={busy} disabled={!name.trim()} onClick={()=>void create()}><Camera size={16} aria-hidden="true"/>Capture review period</Button></>}><div className="grid gap-3 sm:grid-cols-2"><FormField label="Review period name"><Input value={name} maxLength={120} onChange={e=>setName(e.target.value)}/></FormField><NorwegianDateInput label="Evaluation date" value={evaluation} onChange={setEvaluation}/><NorwegianDateInput label="Period start" value={start} onChange={setStart}/><NorwegianDateInput label="Period end" value={end} onChange={setEnd}/></div>{error&&<p role="alert">{error}</p>}</Dialog>}
   {comparing&&<Dialog title="Compare review periods" onClose={()=>setComparing(false)}><div className="grid gap-3 sm:grid-cols-2"><FormField label="Previous period"><Select value={left} onChange={e=>setLeft(e.target.value)}><option value="">Choose period</option>{active.map(period=><option key={period.id} value={period.id}>{period.name}</option>)}</Select></FormField><FormField label="Following period"><Select value={right} onChange={e=>setRight(e.target.value)}><option value="">Choose period</option>{active.map(period=><option key={period.id} value={period.id}>{period.name}</option>)}</Select></FormField></div>{left&&right&&left!==right?<PeriodComparison left={left} right={right}/>:<p className="ui-description">Choose two different periods to compare findings and decisions.</p>}</Dialog>}
   {selected&&<PeriodDetail identifier={selected} onClose={()=>setSelected('')} onUpdated={refresh}/>}
   {deleting&&<Dialog title={`Delete review period ${deleting.name}`} onClose={()=>setDeleting(null)}><DeletePanel identifier={deleting.id} onCancel={()=>setDeleting(null)} onDeleted={async(archivedResult)=>{setDeleting(null);setNotice(archivedResult?`Period “${deleting.name}” archived. Its evidence, decisions and report log are retained for audit.`:`Period “${deleting.name}” deleted permanently.`);await refresh()}}/></Dialog>}
@@ -106,13 +107,13 @@ function DeletePanel({identifier,actor:initialActor='',onCancel,onDeleted}:{iden
   <p><strong>{data.name}</strong> · {data.state}</p><p>{data.consequences}</p>
   <ul className="text-sm"><li>{data.counts.decisions} decision events, {data.counts.legacy_risk_decisions} legacy risk decisions</li><li>{data.counts.actions} remediation actions</li><li>{data.reports.length} exported report(s){data.reports.length?`: ${data.reports.map(item=>`${item.kind} ${item.status}`).join(', ')}`:''}</li><li>{data.counts.dependents} report(s) comparing against this period</li><li>{data.counts.snapshots} retained snapshot(s)</li></ul>
   {data.warnings.length>0&&<ul className="text-sm" aria-label="Consequences">{data.warnings.map(item=><li key={item}>{item}</li>)}</ul>}
-  <FormField label="Recorded by (self-reported)"><Input value={actor} maxLength={120} onChange={e=>setActor(e.target.value)} autoComplete="off"/></FormField>
+  <div className="grid gap-3 sm:grid-cols-2"><FormField label="Recorded by (self-reported)"><Input value={actor} maxLength={120} onChange={e=>setActor(e.target.value)} autoComplete="off"/></FormField>
+  <FormField label={`Type the period name “${data.name}” to confirm`}><Input value={typed} onChange={e=>setTyped(e.target.value)} autoComplete="off"/></FormField></div>
   {data.mode==='archive'&&<FormField label={data.requires_reason?'Reason for deleting (required)':'Reason for deleting (optional)'}><textarea className="ui-control min-h-16" value={reason} maxLength={2000} onChange={e=>setReason(e.target.value)}/></FormField>}
-  <FormField label={`Type the period name “${data.name}” to confirm`}><Input value={typed} onChange={e=>setTyped(e.target.value)} autoComplete="off"/></FormField>
   {data.mode==='archive'&&<Checkbox checked={impact_} onChange={e=>setImpact(e.target.checked)}>I understand the period will be archived and hidden, with its recorded work retained for audit</Checkbox>}
   {data.requires_history_confirmation&&<Checkbox checked={history} onChange={e=>setHistory(e.target.checked)}>I understand approved evidence, issued reports and dependent comparisons are retained but no longer available for active work</Checkbox>}
   {error&&<p role="alert">{error}</p>}
-  <Toolbar><Button onClick={onCancel}>Cancel</Button><Button variant="destructive" loading={busy} disabled={!ready} onClick={()=>void remove()}>{data.mode==='permanent'?'Delete permanently':'Archive period'}</Button></Toolbar></>}</section>
+  <Toolbar><Button onClick={onCancel}><X size={16} aria-hidden="true"/>Cancel</Button><Button variant="destructive" loading={busy} disabled={!ready} onClick={()=>void remove()}>{data.mode==='permanent'?<Trash2 size={16} aria-hidden="true"/>:<Archive size={16} aria-hidden="true"/>}{data.mode==='permanent'?'Delete permanently':'Archive period'}</Button></Toolbar></>}</section>
 }
 function LegacyPeriodDetail({identifier,onClose,onUpdated}:{identifier:string;onClose:()=>void;onUpdated:()=>Promise<void>}){
  const qc=useQueryClient(),[offset,setOffset]=useState(0),[editing,setEditing]=useState<Row|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[closing,setClosing]=useState(false),[reviewer,setReviewer]=useState(remembered),[approver,setApprover]=useState(''),[approvalDate,setApprovalDate]=useState(today()),[confirmed,setConfirmed]=useState(false)

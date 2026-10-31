@@ -153,7 +153,7 @@ def build_cache(path=None, configuration=None):
                     state.loaded_sources['users'] = settings.user_csv_path
     if settings.sod_csv_path:
         from sod_import import parse_sod
-        state.sod = read_source('sod', lambda: parse_sod(settings.sod_csv_path))
+        state.sod = read_source('sod', lambda: parse_sod(settings.sod_csv_path, settings.sod_import))
         state.loaded_sources['sod'] = settings.sod_csv_path
     state.last_loaded = datetime.now(timezone.utc) if catalogue_path or settings.user_csv_path else None
     return state

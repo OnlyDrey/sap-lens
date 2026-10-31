@@ -101,6 +101,7 @@
     "test_loading_publication"
    ],
    "browser": [
+    "data-source-browse",
     "automatic-import",
     "csv-lifecycle",
     "loading-consolidation",
@@ -133,6 +134,7 @@
     "test_sod_catalogue",
     "test_sod_feature",
     "test_sod_governance",
+    "test_sod_inspection",
     "test_sod_import",
     "test_sod_integration",
     "test_sod_lifecycle",
@@ -163,6 +165,12 @@
     "sod-stability",
     "sod-dashboard-startup",
     "sod-shared-heatmap",
+    "sod-matrix-grouping",
+    "sod-matrix-paging",
+    "sod-risk-config-r6",
+    "sod-shared-filters",
+    "sod-periods-dialogs",
+    "sod-reviews-r6",
     "sod-evidence-modals"
    ]
   },
@@ -170,8 +178,15 @@
    "description": "Shared components, navigation, accessibility, visual consistency",
    "backend": [],
    "browser": [
+    "role-codeblocks",
+    "shared-ui-r5",
+    "status-consistency-r6",
     "consolidated-refinement",
     "kpi-standard",
+    "kpi-semantic-tones",
+    "secondary-navigation-icons",
+    "sod-source-import",
+    "sod-user-group-column",
     "refinement-r2",
     "a11y-audit",
     "design-system",
@@ -225,6 +240,7 @@
     "test_repository_integrity",
     "test_repository_privacy",
     "test_test_profiles",
+    "test_validation_tracker",
     "test_workflows"
    ],
    "browser": []

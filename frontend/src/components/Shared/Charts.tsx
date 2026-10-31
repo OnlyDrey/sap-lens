@@ -33,10 +33,10 @@ export function BarChart({ label, data, empty = 'No data', max: scale }: { label
 export interface Segment { key: string; label: string; value: number; tone: 'success' | 'neutral' | 'warning' | 'error'; title?: string; onOpen?: () => void; /** Marks the legend entry as the active filter. */ active?: boolean }
 
 /** One stacked bar of mutually exclusive parts of a known total, with a legend whose entries open the matching list. Parts with no records take no width. */
-export function StackedBar({ label, segments, total, caption }: { label: string; segments: Segment[]; total: number; caption?: ReactNode }) {
+export function StackedBar({ label, segments, total, caption, inline, trailing }: { label: string; segments: Segment[]; total: number; caption?: ReactNode; /** Legend entries share one wrapping row instead of a list. */ inline?: boolean; /** Plain fact shown after the legend entries (inline only). */ trailing?: ReactNode }) {
   const sum = Math.max(1, total)
   return (
-    <div className="chart-stack">
+    <div className="chart-stack" data-inline={inline || undefined}>
       <div className="chart-stack-bar" role="img" aria-label={`${label}: ${segments.map(item => `${item.label} ${item.value}`).join(', ')} of ${total}`}>
         {segments.filter(item => item.value > 0).map(item => <span key={item.key} data-tone={item.tone} title={item.title ?? `${item.label}: ${item.value.toLocaleString()} of ${total.toLocaleString()}`} style={{ width: `${(item.value / sum) * 100}%` }} />)}
       </div>
@@ -45,6 +45,7 @@ export function StackedBar({ label, segments, total, caption }: { label: string;
           const body = <><span className="chart-swatch" data-tone={item.tone} aria-hidden="true" /><span className="chart-label">{item.label}</span><strong className="chart-value">{item.value.toLocaleString()}</strong>{item.onOpen && <ArrowUpRight size={14} aria-hidden="true" className="chart-arrow" />}</>
           return <li key={item.key}>{item.onOpen ? <button type="button" className="chart-row" aria-label={`${item.label}: ${item.value.toLocaleString()}`} aria-pressed={item.active} data-active={item.active || undefined} title={item.title} onClick={item.onOpen}>{body}</button> : <div className="chart-row">{body}</div>}</li>
         })}
+        {trailing && <li className="chart-trailing">{trailing}</li>}
       </ul>
       {caption && <p className="ui-description">{caption}</p>}
     </div>

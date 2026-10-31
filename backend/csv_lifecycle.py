@@ -250,7 +250,7 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
         for source, fields in [('roles', ('data_csv_path', 'import_profiles', 'active_import')),
                                ('users', ('user_csv_path', 'user_import_profiles', 'active_user_import')),
                                ('employees', ('employee_csv_path',)),
-                               ('sod', ('sod_csv_path',))]:
+                               ('sod', ('sod_csv_path', 'sod_import'))]:
             if any(getattr(settings, key) != getattr(current, key) for key in fields): forced.add(source)
         if old.source_records and settings.module_overrides != current.module_overrides:
             state = cache._build_catalog(settings.data_csv_path, settings, records=old.source_records, report=old.import_report)
@@ -288,7 +288,7 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
                 before, after = old.users.source_records, candidate.source_records
             elif source == 'sod':
                 from sod_import import parse_sod
-                candidate = parse_sod(path)
+                candidate = parse_sod(path, settings.sod_import)
                 before, after = old.sod.get('records', []), candidate['records']
             else:
                 from employee_directory import parse_directory

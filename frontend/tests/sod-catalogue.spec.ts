@@ -18,7 +18,7 @@ test('SoD source uses shared automatic import and snapshot preview controls',asy
  await settings(page);await page.getByRole('button',{name:'Configure SoD source',exact:true}).click()
  await expect(page.getByRole('tab',{name:'SoD Matrix',exact:true})).toHaveAttribute('aria-selected','true')
  const source=page.getByRole('region',{name:'SoD Matrix source management',exact:true});await expect(source.getByRole('textbox',{name:'SoD Matrix CSV location',exact:true})).toHaveValue(path.join(directory,'synthetic-sod.csv'))
- await source.getByRole('button',{name:'Preview data',exact:true}).click();const dialog=page.getByRole('dialog',{name:'SoD Matrix snapshot preview',exact:true});await expect(dialog.getByRole('columnheader',{name:'ACTIVITY_SLOT',exact:true})).toBeVisible();await expect(dialog.getByRole('cell',{name:'ACTVT1',exact:true})).toBeVisible();await page.keyboard.press('Escape')
+ await source.getByRole('button',{name:'Preview data',exact:true}).click();const dialog=page.getByRole('dialog',{name:'SoD Matrix source inspection',exact:true});await expect(dialog.getByRole('columnheader',{name:'ACTIVITY_SLOT',exact:true}).first()).toBeVisible();await expect(dialog.getByRole('table',{name:'Imported source records'}).getByRole('cell',{name:'ACTVT1',exact:true}).first()).toBeVisible();await page.keyboard.press('Escape')
  const replacement=path.join(directory,'replacement.csv');writeFileSync(replacement,matrix.replaceAll('SYN01','SYN02'))
  await source.getByRole('textbox',{name:'SoD Matrix CSV location',exact:true}).fill(replacement);await source.getByRole('textbox',{name:'SoD Matrix CSV location',exact:true}).press('Enter');await expect(source.getByRole('status').filter({hasText:'Completed · 2 source records'})).toBeVisible()
  const result=await(await request.get('/api/sod/catalogue?current=current',{headers})).json();expect(result.items.map((item:any)=>item.risk_id)).toEqual(['SYN02'])
@@ -83,10 +83,9 @@ test('SoD colors use the shared hex input with validation, preview and reset',as
 })
 test('risk and activity tables use icon Edit buttons and a consistent actionable transactions button',async({page})=>{
  await settings(page)
- const edit=page.getByRole('button',{name:'Edit SoD risk SYN01',exact:true}),source=page.getByRole('button',{name:'Source details for risk SYN01',exact:true})
+ const edit=page.getByRole('button',{name:'Edit SoD risk SYN01',exact:true})
  await expect(edit.locator('svg')).toHaveCount(1) // pencil
- const [editBox,sourceBox]=[await edit.boundingBox(),await source.boundingBox()]
- expect(Math.abs(editBox!.height-sourceBox!.height)).toBeLessThan(1) // buttons beside each other share one height
+ await expect(page.getByRole('button',{name:'Source details for risk SYN01',exact:true})).toHaveCount(0) // not repeated per row; the edit dialog has it
  await page.getByRole('tab',{name:'Activities',exact:true}).click()
  const transactions=page.getByRole('button',{name:/^Show \d+ transactions for CREATE$/}),editActivity=page.getByRole('button',{name:'Edit SoD activity CREATE',exact:true})
  await expect(editActivity.locator('svg')).toHaveCount(1)

@@ -567,10 +567,10 @@ export function RoleList({
 
       </div>
       </FilterLayout>
-      {(cart.items.length > 0 || selectedRoles.length >= 2) && (
+      {(cart.items.length > 0 || selectedRoles.length >= 1) && (
       <div className="floating-action-stack">
-      <AccessPackageBar onOpen={() => setPackageOpen(true)} selection={{ count: selectedRoles.length, onClear: clearSel }} />
-      {selectedRoles.length >= 2 && (
+      <AccessPackageBar onOpen={() => setPackageOpen(true)} />
+      {selectedRoles.length >= 1 && (
         <div
           className="comparison-selection-bar floating-bar"
           style={{
@@ -586,17 +586,18 @@ export function RoleList({
               <span style={{ color:'var(--accent2)' }}>
                 {selectedRoles.length}
               </span>{' '}
-              roles selected
+              {selectedRoles.length === 1 ? 'role selected' : 'roles selected'}
             </p>
 
             <p
               className="text-[10px] mt-0.5"
               style={{ color:'var(--muted)' }}
             >
-              up to 5 total
+              {selectedRoles.length >= 2 ? 'up to 5 total' : 'select one more to compare'}
             </p>
           </div>
 
+          {selectedRoles.length >= 2 && <>
           <div
             className="w-px h-8"
             style={{ backgroundColor:'var(--border)' }}
@@ -611,6 +612,7 @@ export function RoleList({
             Compare now
           </button>
 
+          </>}
           <ClearFilterButton onClick={clearSel}>Clear selection</ClearFilterButton>
         </div>
       )}

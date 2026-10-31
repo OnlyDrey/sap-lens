@@ -22,11 +22,14 @@ export function Popover({
   onOpenChange,
   preferredWidth=380,
   triggerSize='default',
+  className='',
 }: {
   label: string
   trigger: ReactNode
   preferredWidth?:number
   triggerSize?: 'default' | 'compact' | 'icon'
+  /** Extra class for the panel, for menu-like popovers that must never scroll. */
+  className?: string
   onOpenChange?: (open: boolean) => void
   children: ReactNode | ((close: () => void) => ReactNode)
 }) {
@@ -128,7 +131,7 @@ export function Popover({
             role="dialog"
             aria-modal="false"
             aria-label={label}
-            className="ui-popover"
+            className={`ui-popover ${className}`.trim()}
             style={{ position: 'fixed', width:Math.min(preferredWidth,innerWidth-16), visibility:position?'visible':'hidden', ...position }}
             onBlur={(e) => {
               if (

@@ -37,7 +37,9 @@ test('package rows show one codeblock, the suffix field right of it and a compac
   const [a, b] = [await code.boundingBox(), await field.boundingBox()]
   expect(b!.x).toBeGreaterThan(a!.x + a!.width - 1) // right of the codeblock
   expect(Math.abs((b!.y + b!.height / 2) - (a!.y + a!.height / 2))).toBeLessThan(a!.height) // on the same line
-  await expect(code).toHaveCSS('white-space', 'nowrap')
+  await expect(code).toHaveCSS('white-space', 'nowrap') // one complete line: never wrapped, scrolled or truncated
+  await expect(code).toHaveCSS('overflow-x', 'visible')
+  expect(await code.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBeTruthy()
   // compact on a narrow panel too: the suffix field keeps its width when the row wraps and the status stays small
   await page.setViewportSize({ width: 375, height: 800 })
   expect((await field.boundingBox())!.width).toBeLessThanOrEqual(140)
@@ -112,22 +114,28 @@ test('a catalogue pattern alone gives Pattern match, never Confirmed; an exact i
   await expect(panel.locator('.package-summary')).toContainText(/pattern match/)
 })
 
-test('Clear selection in the package bar clears only the role selection, and Clear package leaves the comparison alone', async ({ page }) => {
+test('Clear selection belongs to the role selection and Clear package to the package, each acting only on its own state', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto('/#session=browser-test-session'); await goTo(page, 'Role Lookup')
   const tile = (title: string) => page.getByRole('article', { name: new RegExp(title) })
+  const packageBar = page.getByRole('region', { name: 'Access package selection' })
+  const selectionBar = page.locator('.comparison-selection-bar')
+  await expect(page.getByRole('button', { name: 'Clear selection' })).toHaveCount(0) // nothing selected, nothing to clear
   await tile('Buyer plant').getByRole('button', { name: 'Add to access package' }).click()
-  for (const title of ['Buyer plant', 'Finance view$']) await tile(title).getByRole('button', { name: 'Add to comparison' }).click()
-  const bar = page.getByRole('region', { name: 'Access package selection' })
-  await expect(bar).toContainText('2 selected')
-  await expect(page.getByRole('button', { name: /Compare now/ })).toBeVisible()
-  await bar.getByRole('button', { name: 'Clear selection' }).click()
-  await expect(page.getByRole('button', { name: /Compare now/ })).toHaveCount(0) // the selection is cleared ...
+  await expect(packageBar).toContainText('1 role in access package')
+  await expect(packageBar.getByRole('button', { name: 'Clear selection' })).toHaveCount(0)
+  await tile('Buyer plant').getByRole('button', { name: 'Add to comparison' }).click()
+  await expect(selectionBar).toContainText('1 role selected')
+  await expect(selectionBar.getByRole('button', { name: /Compare now/ })).toHaveCount(0)
+  await tile('Finance view$').getByRole('button', { name: 'Add to comparison' }).click()
+  await expect(selectionBar).toContainText('2 roles selected')
+  await expect(selectionBar.getByRole('button', { name: /Compare now/ })).toBeVisible()
+  await selectionBar.getByRole('button', { name: 'Clear selection' }).click()
+  await expect(selectionBar).toHaveCount(0) // the selection is cleared ...
   await expect(page.getByRole('button', { name: 'Access package (1)' })).toBeVisible() // ... the package is not
-  await expect(bar.getByRole('button', { name: 'Clear selection' })).toBeDisabled()
   for (const title of ['Buyer plant', 'Finance view$']) await tile(title).getByRole('button', { name: 'Add to comparison' }).click()
-  await page.getByRole('button', { name: 'Access package (1)' }).click()
-  await page.getByRole('dialog', { name: 'Proposed access package' }).getByRole('button', { name: 'Clear package' }).click()
+  await packageBar.getByRole('button', { name: 'Clear package' }).click()
   await page.getByRole('dialog', { name: 'Clear the access package?' }).getByRole('button', { name: 'Clear package' }).click()
-  await expect(page.getByRole('button', { name: /Compare now/ })).toBeVisible() // the comparison selection survives Clear package
+  await expect(packageBar).toHaveCount(0)
+  await expect(selectionBar.getByRole('button', { name: /Compare now/ })).toBeVisible() // the selection survives Clear package
 })

@@ -63,6 +63,8 @@ htmlcov/
 !examples/role-catalogue.example.csv
 !examples/user-access.example.csv
 !examples/employee-directory.example.csv
+# The validation tracker lists expected behavior only (no SAP data) and is the source of truth for the review workflow
+!docs/validation/validation-items.csv
 **/settings.json
 **/classification-profiles.json
 **/import-profiles.json

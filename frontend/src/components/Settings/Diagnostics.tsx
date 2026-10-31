@@ -1,6 +1,6 @@
 import { SourceEssentials, SourceTechnicalFacts, SourceDetailsDialog, type SourceEvidence } from './SourceStatus'
 import { IndependentColumns } from '@/components/Shared/IndependentColumns'
-import { StatusBadge } from '@/components/Shared/Presentation'
+import { EnabledBadge } from '@/components/Shared/StatusBadges'
 import { StatusCard } from '@/components/Shared/InvestigationPatterns'
 import { RefreshHistory } from '@/components/Shared/RefreshReport'
 import { Button } from '@/components/Shared/Button'
@@ -274,7 +274,7 @@ function SourceHealthCard({ source, onDetail, onSource }: { source: SourceEviden
     <section className="settings-card source-health-card" aria-label={source.name}>
       <header className="source-health-header">
         <h3 className="font-semibold">{SOURCE_ICONS[source.id] || <FileText size={18} aria-hidden="true"/>}{source.name}</h3>
-        {source.enabled !== undefined && <StatusBadge tone={source.enabled ? 'success' : 'neutral'}>{source.enabled ? 'Enabled' : 'Disabled'}</StatusBadge>}
+        {source.enabled !== undefined && <EnabledBadge enabled={!!source.enabled} />}
       </header>
       <SourceEssentials source={source}/>
       <div className="source-health-actions">

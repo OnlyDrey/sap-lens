@@ -5,7 +5,8 @@ import { Popover } from './Popover'
 function NavigationStrip({ variant, label, children, className = '' }: {
   variant: 'main' | 'secondary' | 'tabs'; label: string; children: ReactNode; className?: string
 }) {
-  const classes = `ui-navigation flex min-w-0 items-stretch gap-2 overflow-x-auto ${variant === 'main' ? '' : 'mb-3'} ${variant === 'main' ? 'primary-navigation' : variant === 'secondary' ? 'ui-secondary-navigation' : 'ui-content-tabs'} ${className}`
+  /** The main navigation never scrolls: a scroll container shows classic scrollbars the moment its items exceed the header (SoD adds a chevron group), so it wraps instead. Secondary strips and tabs stay horizontal scroll strips. */
+  const classes = `ui-navigation flex min-w-0 items-stretch gap-2 ${variant === 'main' ? 'flex-wrap overflow-visible' : 'overflow-x-auto mb-3'} ${variant === 'main' ? 'primary-navigation' : variant === 'secondary' ? 'ui-secondary-navigation' : 'ui-content-tabs'} ${className}`
   return variant === 'tabs'
     ? <div role="tablist" aria-label={label} className={classes}>{children}</div>
     : <nav aria-label={label} className={classes}>{children}</nav>
@@ -59,7 +60,7 @@ export function SecondaryNavigation({
           }}
         >
           {item.icon}
-          <span>{item.label}</span>
+          <span className="ui-tab-label" data-text={item.label}>{item.label}</span>
         </a>
       ))}
     </NavigationStrip>
@@ -121,7 +122,7 @@ export function ContentTabList({
           }}
         >
           {item.icon}
-          <span>{item.label}</span>
+          <span className="ui-tab-label" data-text={item.label}>{item.label}</span>
         </button>
       ))}
     </NavigationStrip>
@@ -207,7 +208,7 @@ export function MainNavigationGroup({ label, icon, active, href, onNavigate, ite
   return (
     <div className="primary-nav-group" data-active={active || undefined}>
       <MainNavigationItem label={label} icon={icon} active={active} href={href} onNavigate={onNavigate} />
-      <Popover label={`${label} pages`} preferredWidth={240} triggerSize="icon"
+      <Popover label={`${label} pages`} preferredWidth={240} triggerSize="icon" className="ui-popover-menu"
         trigger={<span className="relative inline-flex"><ChevronDown size={16} aria-hidden="true" /><span className="sr-only">{label} pages</span></span>}>
         {(close) => (
           <ul className="primary-submenu" aria-label={`${label} pages`}>

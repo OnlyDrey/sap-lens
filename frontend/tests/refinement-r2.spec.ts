@@ -53,7 +53,9 @@ test('SAP role identifiers never wrap and the copied value is the complete ident
   const code = page.locator('.role-identifier code', { hasText: LONG }).first()
   await expect(code).toBeVisible()
   expect(await code.evaluate(element => getComputedStyle(element).whiteSpace)).toBe('nowrap')
+  expect(await code.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBeTruthy() // no internal scrolling
   expect((await code.boundingBox())!.height).toBeLessThan(32) // one line
+  expect(await code.evaluate(element => element.textContent)).toBe(LONG)
   await page.getByRole('button', { name: `Copy role identifier ${LONG}`, exact: true }).first().click()
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(LONG)
 })
@@ -273,7 +275,8 @@ test('User Access role rows keep a compact module badge beside the description a
   expect(Math.abs(badge!.y - description!.y)).toBeLessThan(14) // description adjacent, same line
   expect(description!.x).toBeGreaterThanOrEqual(badge!.x + badge!.width - 1)
   const code = page.locator('.assigned-role .role-identifier code').first()
-  await expect(code).toHaveCSS('white-space', 'nowrap') // identifiers are never broken
+  await expect(code).toHaveCSS('white-space', 'nowrap') // identifiers are never wrapped
+  expect(await code.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBeTruthy()
   expect(await code.evaluate(el => el.textContent)).toBe(LONG) // the complete value is present, not truncated
 })
 

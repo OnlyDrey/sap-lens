@@ -20,7 +20,7 @@ test('wide screens show a collapsible filter sidebar that keeps filter state and
   await page.getByRole('button', { name: /^Filters/ }).click()
   await expect(sidebar.getByRole('button', { name: 'Remove Risk ID R1', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: /^Hide filters/ })).toContainText('1')
-  await sidebar.getByRole('button', { name: 'Clear filters', exact: true }).click()
+  await sidebar.getByRole('button', { name: 'Clear page filters', exact: true }).click()
   await expect(sidebar.getByRole('button', { name: 'Remove Risk ID R1', exact: true })).toHaveCount(0)
 })
 
@@ -29,7 +29,7 @@ test('every SoD page has the same toolbar and only the filters it needs', async 
   for (const view of views) {
     await openSod(page, view)
     await expect(page.getByRole('searchbox', { name: 'Search SoD data', exact: true })).toBeVisible()
-    await expect(page.getByRole('complementary', { name: 'Filters', exact: true }).getByRole('button', { name: 'Clear filters', exact: true })).toBeVisible()
+    await expect(page.getByRole('complementary', { name: 'Filters', exact: true }).getByRole('button', { name: 'Clear page filters', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: /Export CSV/ }).first()).toBeVisible()
     await expect(page.getByRole('complementary', { name: 'Filters', exact: true })).toBeVisible()
   }
