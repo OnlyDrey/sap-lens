@@ -1373,7 +1373,6 @@ summary:focus-visible,div[tabindex="0"]:focus-visible,a.role-identifier-link:foc
 .review-overview .review-kpis { grid-template-columns:minmax(0,1fr); gap:var(--space-1) var(--space-3); }
 @media (min-width:640px) { .review-overview .review-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 .review-overview .review-kpis .ui-kpi { min-height:var(--control-compact); }
-.review-overview .review-kpis .review-kpi-secondary { grid-column:1/-1; }
 .review-progress { align-content:start; }
 .review-progress > .progress-summary { padding:0; display:flex; flex-wrap:wrap; align-items:baseline; gap:var(--space-1) var(--space-2); margin:0; }
 .review-overview .review-kpis .ui-kpi[data-icon="true"] { grid-template-columns:auto minmax(0,1fr) auto; }
@@ -1391,3 +1390,11 @@ summary:focus-visible,div[tabindex="0"]:focus-visible,a.role-identifier-link:foc
 .matrix-grid .matrix-corner-group { z-index:3; background:var(--surface2); }
 .matrix-grid[data-group-column] .matrix-row-head { box-shadow:none; }
 @media (max-width:640px) { .matrix-grid .matrix-identity-group,.matrix-grid .matrix-corner-group { position:static; } .matrix-grid .matrix-corner-group { position:sticky; left:auto; } }
+
+/* Comparison table: every cell starts at the top of its row. The first evidence entry carries no top padding, so its status badge starts level with the Difference badge, and both badges share one height. */
+.comparison-table th,.comparison-table td { vertical-align:top; }
+.comparison-table .comparison-evidence-item:first-child { padding-top:0; }
+.comparison-table .comparison-evidence-item:last-child { padding-bottom:0; }
+.comparison-table .evidence-difference { display:inline-flex; align-items:center; min-height:1.75rem; }
+.comparison-table td > .ui-description:first-child { display:block; margin:0; line-height:1.75rem; }  /* 'No matching evidence' starts at the row top and reads on the badge line */
+.comparison-table .comparison-evidence-item > .assignment-status-control:first-child { margin-top:0; }
