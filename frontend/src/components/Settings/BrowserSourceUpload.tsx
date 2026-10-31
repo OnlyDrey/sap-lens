@@ -1,17 +1,17 @@
-import { useState } from 'react'
+import { useState, type Ref } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Upload } from 'lucide-react'
 import { apiRequest, applicationToken } from '@/api/client'
 
-export function BrowserSourceUpload({ source, onUploaded, disabled=false }: {
-  source:'roles'|'users'|'employees'|'sod'; onUploaded:(path:string)=>void|Promise<void>; disabled?:boolean
+export function BrowserSourceUpload({ source, onUploaded, disabled=false, fileInput }: {
+  source:'roles'|'users'|'employees'|'sod'; onUploaded:(path:string)=>void|Promise<void>; disabled?:boolean; /** Lets Browse CSV open this chooser where native browsing is unavailable. */fileInput?:Ref<HTMLInputElement>
 }) {
   const runtime=useQuery({queryKey:['runtime-capabilities'],queryFn:()=>apiRequest<{browser_upload:boolean}>('/api/runtime'),staleTime:Infinity,retry:false})
   const [busy,setBusy]=useState(false),[message,setMessage]=useState(''),[error,setError]=useState('')
   if(!runtime.data?.browser_upload)return null
   const name={roles:'Role Catalogue',users:'User Access',employees:'Employee Directory',sod:'SoD Matrix'}[source]
   return <section className="space-y-2" aria-label={`${name} browser upload`}>
-    <label className="ui-field"><span className="flex items-center gap-2"><Upload size={16} aria-hidden="true"/>Upload {name} CSV</span><input type="file" accept=".csv,text/csv" disabled={disabled||busy} onChange={async e=>{
+    <label className="ui-field"><span className="flex items-center gap-2"><Upload size={16} aria-hidden="true"/>Upload {name} CSV</span><input ref={fileInput} type="file" accept=".csv,text/csv" disabled={disabled||busy} onChange={async e=>{
       const input=e.currentTarget,file=input.files?.[0];if(!file)return
       setBusy(true);setMessage('');setError('')
       try{

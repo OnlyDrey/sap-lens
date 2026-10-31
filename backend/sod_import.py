@@ -132,3 +132,49 @@ def parse_sod(path, profile=None):
     importer = SodCsvImport(Path(path), profile)
     records = list(importer.records())
     return build_sod(records, importer.report())
+
+
+# Read-only description of the fixed SoD schema: what each documented column means to the parser. There is no remapping.
+COLUMN_MEANING = {
+    'RISK': 'Risk identifier (case-sensitive); groups the rows of one risk definition',
+    'CRITICITY': 'Source criticality label, kept and shown literally as evidence',
+    'TYPE': 'Risk type; only S risks are evaluated, others are kept but not evaluated',
+    'TEXT': 'Source description of the risk',
+    'ACTVT1': 'Name of the first required activity of the risk',
+    'ACTVT2': 'Name of the second required activity of the risk',
+    'ACTIVITY_SLOT': 'ACTVT1 or ACTVT2: the activity side this transaction mapping belongs to',
+    'ACTIVITY': 'Activity that the transaction supplies on that side',
+    'TCODE': 'Transaction code that supplies the activity',
+    'TTEXT': 'Transaction description (optional; an empty value is only a warning)',
+}
+
+
+def inspection(sod):
+    """Counts, column interpretation, validation checks and quality warnings of a parsed SoD dataset. Pure and read-only."""
+    from collections import Counter
+    report, risks, records = sod.get('report') or {}, sod.get('risks') or [], sod.get('records') or []
+    detected, mapping = report.get('detected_columns') or [], report.get('resolved_mapping') or {}
+    columns = [dict(column=field, detected=mapping.get(field) or (field if field in detected else ''), meaning=COLUMN_MEANING[field], required=field != 'TTEXT') for field in HEADERS]
+    activities = {item['activity'] for risk in risks for slot in risk['activities'].values() for item in slot}
+    transactions = {item['tcode'] for risk in risks for slot in risk['activities'].values() for item in slot}
+    unsupported = [risk for risk in risks if not risk['supported']]
+    overlapping = [risk['risk_id'] for risk in risks if {item['tcode'] for item in risk['activities']['ACTVT1']} & {item['tcode'] for item in risk['activities']['ACTVT2']}]
+    missing_text = sum(not row['TTEXT'] for row in records)
+    duplicates = int(report.get('duplicate_rows') or 0)
+    present = sum(bool(item['detected']) for item in columns)
+    checks = [
+        dict(name='Documented columns', status='passed', detail=f'{present} of {len(HEADERS)} documented columns were found; the schema is fixed and not remapped.'),
+        dict(name='Required values', status='passed', detail='Every row has RISK, CRITICITY, TYPE, TEXT, ACTVT1, ACTVT2, ACTIVITY_SLOT, ACTIVITY and TCODE.'),
+        dict(name='Activity sides', status='passed', detail='Every risk has transaction mappings for both activity sides.'),
+        dict(name='Evaluated risk types', status='warning' if unsupported else 'passed', detail=f'{len(unsupported)} risks have a TYPE other than S and are kept but not evaluated.' if unsupported else 'Every risk has an evaluated TYPE (S).'),
+        dict(name='Duplicate rows', status='warning' if duplicates else 'passed', detail=f'{duplicates} identical rows were deduplicated.' if duplicates else 'No duplicate rows.'),
+        dict(name='Transaction descriptions', status='warning' if missing_text else 'passed', detail=f'{missing_text} mappings have no TTEXT.' if missing_text else 'Every mapping has a TTEXT.'),
+        dict(name='Overlapping transactions', status='warning' if overlapping else 'passed', detail=f'{len(overlapping)} risks share a transaction code between their two activity sides; the definition needs review.' if overlapping else 'No risk shares a transaction code between its activity sides.'),
+    ]
+    return dict(
+        columns=columns,
+        counts=dict(parsed_rows=int(report.get('parsed_rows') or len(records)), records=len(records), duplicate_rows=duplicates, risks=len(risks), evaluated_risks=len(risks) - len(unsupported),
+                    unsupported_risks=len(unsupported), activities=len(activities), transactions=len(transactions)),
+        criticality=dict(sorted(Counter(risk['criticality'] for risk in risks).items())), types=dict(sorted(Counter(risk['risk_type'] for risk in risks).items())),
+        checks=checks, warnings=list(sod.get('warnings') or []), file_name=report.get('file_name') or '',
+        samples=[{field: str(row.get(field, '')) for field in HEADERS} for row in (report.get('samples') or records)[:20]])

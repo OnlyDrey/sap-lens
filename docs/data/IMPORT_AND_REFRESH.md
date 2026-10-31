@@ -83,13 +83,20 @@ The older `operational_status` directory API field remains a compatibility descr
 
 For all four sources, selecting a file automatically reads, validates, stages and
 activates a complete non-empty dataset. There is no separate normal-flow Validate,
-Confirm or Import action. Native Browse activates the selected server-visible file;
+Confirm or Import action. **Browse CSV** (one label for every source) is always available,
+also when a file is already configured; only an import in progress for that source
+blocks it. It opens the native dialog in the desktop app, the upload chooser where browser
+uploads are supported, and otherwise explains that native browsing is desktop-only and moves
+to the file location field. A replacement that does not validate (invalid, empty or
+unreadable) never replaces the configured file or its data: the field returns to the active
+file and the message names it, while a valid replacement is confirmed by file name and counts.
+Native Browse activates the selected server-visible file;
 browser uploads activate a private Static source. Entering a path activates on Enter
 or leaving the field. Selecting the same file again explicitly revalidates it.
 
 Settings shows progress, committed record/change counts, source status and links to
 View changes, Preview data and technical details. Preview inspects the current
-validated snapshot without rereading the original CSV. Employee preview retains
+validated snapshot without rereading the original CSV. For the **SoD Matrix** it is a read-only inspection: record, risk, activity and transaction counts, validation results (documented columns, required values, both activity sides, evaluated types, duplicates, missing descriptions, overlapping transactions), a column-interpretation table (the schema is fixed, so columns are explained and never remapped), quality warnings, import metadata (file, mode, imported, checked, snapshot, feature state) and the imported records. Employee preview retains
 search, sorting, paging and quality filters. Missing emails are warnings, not a
 reason to discard otherwise valid records. Feature preferences are independent:
 importing does not enable a disabled optional feature.

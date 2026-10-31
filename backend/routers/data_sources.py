@@ -138,6 +138,24 @@ def snapshot_preview(source:Literal['roles','users','employees','sod'],offset:in
     return dict(source=source,loaded=loaded,columns=columns,items=[{key:row.get(key,'') for key in columns} for row in rows[offset:offset+limit]],total=len(rows),offset=offset,limit=limit)
 
 
+def sod_metadata():
+    settings = get_settings()
+    reference = settings.data_lifecycle.sources.get('sod')
+    return dict(path=settings.sod_csv_path, mode=settings.source_modes.sod, feature_enabled=settings.features.sod,
+                imported_at=reference.imported_at if reference else None, checked_at=reference.checked_at if reference else None, snapshot=reference.snapshot if reference else None)
+
+
+@router.get('/sod/inspection')
+def sod_snapshot_inspection():
+    """Read-only inspection of the active SoD snapshot: counts, column interpretation, validation checks, warnings and import metadata."""
+    import cache
+    from sod_import import inspection
+    snapshot = cache.get_snapshot()
+    if not snapshot.sod:
+        return dict(loaded=False, metadata=sod_metadata())
+    return dict(loaded=True, metadata=sod_metadata(), **inspection(snapshot.sod))
+
+
 from routers.employees import ImportRequest as DirectoryInspection
 
 @router.post('/employees/inspect')
