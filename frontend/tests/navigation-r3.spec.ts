@@ -114,3 +114,27 @@ for (const width of [375, 800, 1280]) for (const theme of ['light', 'dark']) tes
   await page.keyboard.press('Escape')
   await expect(menu).toHaveCount(0)
 })
+
+for (const width of [320, 375, 430, 480, 560, 640, 800, 1000, 1280]) test(`the main navigation never becomes a scroll container, opening a submenu changes nothing and the chevron shows its state (${width}px)`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 700 })
+  await page.goto('/#session=browser-test-session')
+  const scrollers = () => page.evaluate(() => [...document.querySelectorAll('header *')].filter((element) => {
+    const style = getComputedStyle(element)
+    return !element.closest('.sr-only') && !element.classList.contains('sr-only') && (style.overflowX !== 'visible' || style.overflowY !== 'visible') && (element.scrollWidth > element.clientWidth + 0.5 || element.scrollHeight > element.clientHeight + 0.5)
+  }).map((element) => `${element.tagName.toLowerCase()}.${element.className}`))
+  const header = page.locator('header').first(), nav = main(page), chevron = nav.getByRole('button', { name: 'SoD pages' })
+  expect(await nav.evaluate((element) => [getComputedStyle(element).overflowX, getComputedStyle(element).overflowY])).toEqual(['visible', 'visible'])
+  expect(await scrollers()).toEqual([])
+  const before = await header.boundingBox(), svg = () => chevron.locator('svg').first().evaluate((element) => getComputedStyle(element).transform)
+  await expect(chevron).toHaveAttribute('aria-expanded', 'false')
+  const closed = await svg()
+  await chevron.click()
+  await expect(chevron).toHaveAttribute('aria-expanded', 'true')
+  await expect.poll(svg).not.toBe(closed) // the chevron is turned while the submenu is open
+  expect(await scrollers()).toEqual([])
+  expect(await header.boundingBox()).toEqual(before)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
+  await page.keyboard.press('Escape')
+  await expect(chevron).toHaveAttribute('aria-expanded', 'false')
+  expect(await svg()).toBe(closed)
+})

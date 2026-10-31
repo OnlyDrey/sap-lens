@@ -1324,3 +1324,7 @@ progress::-webkit-progress-bar,.dashboard-workspace progress::-webkit-progress-b
 /* A name too long even at the smallest readable size stays one complete line; the surrounding region (not the codeblock) scrolls to it. */
 *:has(> .role-identifier[data-fit="overflow"]) { min-width:0; max-width:100%; overflow-x:auto; overflow-y:hidden; scrollbar-gutter:stable; }
 *:has(> .role-identifier[data-fit="overflow"]) > .role-identifier { overflow:visible; }
+
+/* Review context: the evaluation information sits on the dropdown's row and is centered on the control, not on label plus control. */
+.sod-context-bar { align-items:flex-end; }
+.sod-context-info { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-1) var(--space-2); min-height:var(--control-height); margin:0; min-width:0; }

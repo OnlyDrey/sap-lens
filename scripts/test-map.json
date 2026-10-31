@@ -172,6 +172,7 @@
    "backend": [],
    "browser": [
     "role-codeblocks",
+    "shared-ui-r5",
     "consolidated-refinement",
     "kpi-standard",
     "refinement-r2",

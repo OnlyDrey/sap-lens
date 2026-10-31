@@ -82,7 +82,7 @@ export function ContextBar() {
     if (periods.data && context !== 'current' && !periods.data.items.some((period) => period.id === context)) setContext('current')
   }, [periods.data, context, setContext])
   return (
-    <Toolbar aria-label="Review context">
+    <Toolbar aria-label="Review context" className="sod-context-bar">
       <FormField label="Review context">
         <Select value={context} onChange={(event) => setContext(event.target.value)}>
           <option value="current">Current evidence</option>
@@ -90,7 +90,7 @@ export function ContextBar() {
         </Select>
       </FormField>
       {info && (
-        <p className="ui-description" role="status">
+        <p className="ui-description sod-context-info" role="status">
           Evaluation date {formatDate(info.as_of)}
           {info.period ? ` · ${info.period.state}` : ' · live imported evidence'}
           {info.frozen && <StatusBadge tone="info"><Lock size={size} aria-hidden="true" />Frozen snapshot, read only</StatusBadge>}
