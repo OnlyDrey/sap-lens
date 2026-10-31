@@ -41,7 +41,7 @@ test('a risk without any description says so neutrally and local business text f
   await expect(dialog).toContainText('No description available')
   await expect(dialog).toContainText('Unnamed approval') // the imported display name exists, the description does not
   await page.keyboard.press('Escape')
-  const catalogue = await (await request.get('/api/sod/catalogue', { headers })).json(), r2 = catalogue.items.find((item: { risk_id: string }) => item.risk_id === 'R2')
+  const catalogue = await (await request.get('/api/sod/catalogue', { headers, params: { search: 'R2', current: 'current', limit: '100' } })).json(), r2 = catalogue.items.find((item: { risk_id: string }) => item.risk_id === 'R2')  // the local catalogue keeps risks of earlier tests, so ask for this one
   expect((await request.post('/api/sod/catalogue/R2', { headers, data: { expected_revision: catalogue.revision, definition_version: r2.definition_version, metadata: { ...r2.local, explanation_en: 'Local business description', display_name: 'Local name' } } })).ok()).toBeTruthy()
   await page.reload(); await expect(page.getByRole('table', { name: 'User risk table' })).toBeVisible()
   await pill(page, 'Risk', 'R2').click()
@@ -49,7 +49,7 @@ test('a risk without any description says so neutrally and local business text f
   await expect(again).toContainText('Local business description'); await expect(again).toContainText('Local business text')
   await expect(again).toContainText('Unnamed approval'); await expect(again).toContainText('differs: Local name') // both kept, origins identifiable
   // local annotations survive configuration resets by design, so leave none behind for the other tests
-  const latest = await (await request.get('/api/sod/catalogue', { headers })).json(), current = latest.items.find((item: { risk_id: string }) => item.risk_id === 'R2')
+  const latest = await (await request.get('/api/sod/catalogue', { headers, params: { search: 'R2', current: 'current', limit: '100' } })).json(), current = latest.items.find((item: { risk_id: string }) => item.risk_id === 'R2')
   expect((await request.post('/api/sod/catalogue/R2', { headers, data: { expected_revision: latest.revision, definition_version: current.definition_version, metadata: { ...current.local, explanation_en: '', display_name: '' } } })).ok()).toBeTruthy()
 })
 
