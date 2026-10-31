@@ -66,6 +66,45 @@ test.describe('with the desktop file dialog', () => {
   })
 })
 
+test.describe('SoD Matrix replacement with the desktop file dialog', () => {
+  test.beforeEach(async ({ page }) => { await page.addInitScript(() => { (window as any).selectedCSV = ''; (window as any).pywebview = { api: { choose_csv: async () => (window as any).selectedCSV, desktop_runtime: async () => ({ windows: true, startup_supported: true, tray_available: false, warning: null }) } } }) })
+  const HEADER = 'RISK,CRITICITY,TYPE,TEXT,ACTVT1,ACTVT2,ACTIVITY_SLOT,ACTIVITY,TCODE,TTEXT\n'
+
+  test('a failed SoD import keeps the last valid matrix and its inspection', async ({ page, request }) => {
+    const area = await openSource(page, 'SoD Matrix')
+    const before = await (await request.get('/api/data-sources/sod/inspection', { headers })).json()
+    const bad = path.join(directory, 'sod-bad.csv'); writeFileSync(bad, 'RISK,TYPE\nR1,S\n')
+    const empty = path.join(directory, 'sod-empty.csv'); writeFileSync(empty, HEADER)
+    for (const file of [bad, empty]) {
+      await page.evaluate((value) => { (window as any).selectedCSV = value }, file)
+      await area.getByRole('button', { name: 'Browse CSV', exact: true }).click()
+      await expect(area.getByRole('alert')).toContainText('No source data was replaced')
+      await expect(area.getByRole('button', { name: 'Browse CSV', exact: true })).toBeEnabled()
+    }
+    const after = await (await request.get('/api/data-sources/sod/inspection', { headers })).json()
+    expect(after.counts).toEqual(before.counts)
+    expect(after.metadata.snapshot).toBe(before.metadata.snapshot)
+    expect((await settings(request)).sod_csv_path).toBe(before.metadata.path)
+  })
+
+  test('validation warnings of a valid import are visible in the inspection', async ({ page }) => {
+    const area = await openSource(page, 'SoD Matrix')
+    const rows = [['R9', 'H', 'S', 'Synthetic', 'A', 'B', 'ACTVT1', 'A', 'X1', ''], ['R9', 'H', 'S', 'Synthetic', 'A', 'B', 'ACTVT2', 'B', 'X1', ''], ['R8', 'M', 'X', 'Other type', 'C', 'D', 'ACTVT1', 'C', 'X2', 'Described'], ['R8', 'M', 'X', 'Other type', 'C', 'D', 'ACTVT2', 'D', 'X3', 'Described']]
+    const file = path.join(directory, 'sod-warnings.csv'); writeFileSync(file, HEADER + rows.map((row) => row.join(',')).join('\n') + '\n')
+    await page.evaluate((value) => { (window as any).selectedCSV = value }, file)
+    await area.getByRole('button', { name: 'Browse CSV', exact: true }).click()
+    await expect(area.getByRole('status').filter({ hasText: /Completed · 4 source records from sod-warnings\.csv/ })).toBeVisible()
+    await area.getByRole('button', { name: 'Preview data', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'SoD Matrix source inspection', exact: true })
+    const checks = dialog.getByRole('region', { name: 'Validation results' })
+    await expect(checks).toContainText('Warning')
+    await expect(checks).toContainText('1 risks have a TYPE other than S')
+    await expect(checks).toContainText('2 mappings have no TTEXT')
+    await expect(checks).toContainText('share a transaction code between their two activity sides')
+    await expect(dialog.getByText(/validation warnings?/)).toBeVisible() // the preview's own warning list
+  })
+})
+
 test('the SoD Matrix source offers the same inspection as the other sources, read-only', async ({ page, request }) => {
   const area = await openSource(page, 'SoD Matrix')
   const before = await (await request.get('/api/data-sources/sod/inspection', { headers })).json()
