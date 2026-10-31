@@ -161,7 +161,10 @@ class SodLifecycleTests(unittest.TestCase):
             preview=client.get('/api/data-sources/sod/preview',headers=headers).json()
             self.assertTrue(preview['loaded']);self.assertEqual(preview['columns'],HEADERS)
             self.assertEqual(preview['total'],2)
+            # The SoD format (delimiter, encoding, header mapping) is configurable; the documented columns are not.
             response=client.post('/api/data-sources/sod/select',json={**body,'revision':config.get_settings().revision,'profile':{}},headers=headers)
+            self.assertEqual(response.status_code,200,response.text)
+            response=client.post('/api/data-sources/sod/select',json={**body,'revision':config.get_settings().revision,'profile':{'mapping':{'NOT_A_COLUMN':'x'}}},headers=headers)
             self.assertEqual(response.status_code,400)
 
     def test_browser_upload_soD_remains_static_and_referenced_upload_is_retained(self):
