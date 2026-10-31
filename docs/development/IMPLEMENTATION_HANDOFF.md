@@ -321,6 +321,14 @@ Commits are on `origin/work`; no workflow was dispatched and no tag or release w
 - CSV exports use the Explorer export endpoints, which take only filters, so they ignore pagination.
 - Tests: `frontend/tests/sod-matrix-paging.spec.ts`, `test_matrix_page_may_hold_every_user_but_not_more_than_the_ceiling`. Tracker rows SODM-014 and SODM-015 stay Not reviewed for manual acceptance.
 
+## R6 correction batch (four outstanding items)
+
+- **Account Review** (`381333e`): progress (1/3) and Review attention (2/3, two-column icon KPIs, compact AD disabled row) in one aligned row; the investigation notice is an info popover in the page header. The earlier rounds only compacted the progress card and kept the five-tile grid.
+- **Shared KPI tones** (`c150eff`): `lib/kpiTone.ts` maps metric or review state to tone; pages no longer choose colors. Zero is neutral for warning, danger and success. Matrix Rejected and Removal tiles are now warning (were danger).
+- **Access Explorer icons** (`304e9dc`): `ContentTabs` items now carry icons; tabs and secondary navigation reserve the bold label width (`.ui-tab-label`).
+- **SoD CSV import** (`7dd0fec`): `sod_import` profile (delimiter, encoding, mapping) in `AppConfig`, used by imports and refreshes; read-only `POST /api/data-sources/sod/inspect`; `SodImportEditor` in the Data Sources tab. Inspection never stores anything.
+- Tests: `account-review-refinement`, `kpi-semantic-tones`, `secondary-navigation-icons`, `sod-source-import` specs and `test_sod_inspection`. Tracker rows AR-008, UI-024, SODX-006 and DATA-013 are Not reviewed for manual acceptance.
+
 ## Not verified
 
 - Round 2: Windows/WebView2 startup and restart restoration, native save dialogs for the new package CSV (the Windows bridge was only unit tested with the new header), Windows Service, installer, systemd and UNC paths were not run here. The startup behavior was validated by real fresh-process backend tests and by browser tests that model the restart, not on a packaged desktop app.
