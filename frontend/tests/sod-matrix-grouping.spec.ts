@@ -11,15 +11,19 @@ const groupBy = (page: Page) => page.getByRole('combobox', { name: 'Group by', e
 const pageName = { risk: 'Risk Matrix', activity: 'Activity Matrix' } as const
 
 for (const kind of ['risk', 'activity'] as const) {
-  test(`${kind} matrix: the first column shows the username with its SAP User Group beneath`, async ({ page }) => {
+  test(`${kind} matrix: the SAP username sits on one line and its SAP User Group has its own column right after it`, async ({ page }) => {
     await openSod(page, pageName[kind])
-    const head = grid(page, kind).locator('tbody th.matrix-row-head', { hasText: names.a })
+    const matrix = grid(page, kind)
+    const head = matrix.locator('tbody th.matrix-row-head', { hasText: names.a })
     await expect(head.getByRole('button', { name: `Copy SAP username ${names.a}` })).toBeVisible()
-    const [code, small] = [await head.locator('code').boundingBox(), await head.locator('small').boundingBox()]
-    await expect(head.locator('small')).toHaveText('FIN')
-    expect((await head.boundingBox())!.height).toBeLessThan(66) // compact rows
-    expect(small!.y).toBeGreaterThanOrEqual(code!.y + code!.height - 1) // beneath the username
-    expect(await head.locator('small').evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeLessThan(await head.locator('code').evaluate((el) => parseFloat(getComputedStyle(el).fontSize)) + 0.5)
+    await expect(head.locator('small')).toHaveCount(0) // no group text beneath the username
+    const headers = await matrix.locator('thead th.matrix-corner').allInnerTexts()
+    expect(headers).toEqual(['SAP user', 'SAP User Group'])
+    const row = matrix.locator('tbody tr').filter({ hasText: names.a })
+    await expect(row.locator('td.matrix-identity-group')).toHaveText('FIN')
+    const [code, group] = [(await head.locator('code').boundingBox())!, (await row.locator('td.matrix-identity-group .user-group-text').boundingBox())!]
+    expect(code.height).toBeLessThan(32) // the username is one line, not a stack
+    expect(Math.abs((code.y + code.height / 2) - (group.y + group.height / 2))).toBeLessThan(6) // aligned on the same line
   })
 
   test(`${kind} matrix: grouping is optional, collapsible, counts distinct users and findings, and changes no data`, async ({ page }) => {

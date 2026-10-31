@@ -182,6 +182,38 @@ class MatrixTests(GovernanceCase):
             half = self.get(f'/api/sod/matrix/{kind}', limit=1, offset=1)  # paging never changes the totals
             self.assertEqual((half['total_rows'], half['totals'], half['status_counts']), (everyone['total_rows'], everyone['totals'], everyone['status_counts']))
 
+    def test_sap_user_group_is_available_for_sorting_tables_and_exports_without_changing_calculations(self):
+        cache._cache = snapshot({'SYN_Z': user('ROLE_AB', group='')})  # a user with a conflict but without a SAP User Group
+        for kind in ('risk', 'activity'):
+            plain = self.get(f'/api/sod/matrix/{kind}')
+            ascending = self.get(f'/api/sod/matrix/{kind}', sort='group')
+            descending = self.get(f'/api/sod/matrix/{kind}', sort='group', descending='true')
+            self.assertEqual([row['user'] for row in ascending['rows']], ['SYN_A', 'SYN_B', 'SYN_Z'])
+            self.assertEqual([row['user'] for row in descending['rows']], ['SYN_B', 'SYN_A', 'SYN_Z'])  # users without a group stay last in both directions
+            self.assertEqual(ascending['rows'][-1]['groups'], [])
+            for result in (ascending, descending):  # sorting only orders: the same users, cells and totals
+                self.assertEqual({row['user']: row['cells'] for row in result['rows']}, {row['user']: row['cells'] for row in plain['rows']})
+                self.assertEqual((result['totals'], result['status_counts'], result['total_rows']), (plain['totals'], plain['status_counts'], plain['total_rows']))
+        rows = {row['user']: row for row in self.get('/api/sod/explorer/user_activity')['items']}
+        self.assertEqual((rows['SYN_A']['groups'], rows['SYN_B']['groups'], rows['SYN_Z']['groups']), (['FIN'], ['P2P'], []))
+        queue = {row['user']: row for row in self.get('/api/sod/queue/users')['items']}
+        self.assertEqual((queue['SYN_A']['groups'], queue['SYN_B']['groups'], queue['SYN_Z']['groups']), (['FIN'], ['P2P'], []))
+
+    def test_exports_carry_the_sap_user_group(self):
+        def table(path, **params):
+            text = self.client.get(path, params=params, headers=H).text.replace('\ufeff', '')
+            lines = [line.split(';') for line in text.strip().split('\r\n')]
+            return [item.strip('"') for item in lines[0]], [[item.strip('"') for item in line] for line in lines[1:]]
+        for path, group_column in (('/api/sod/explorer/user_risk/export', 'USER_GROUPS'), ('/api/sod/explorer/user_activity/export', 'USER_GROUPS'), ('/api/sod/explorer/access_list/export', 'USER_GROUP'),
+                                   ('/api/sod/queue/export', 'USER_GROUPS'), ('/api/sod/remediation/export', 'USER_GROUP')):
+            header, rows = table(path)
+            self.assertIn(group_column, header, path)
+            if rows:
+                index, user_index = header.index(group_column), header.index('USERNAME')
+                self.assertEqual({row[user_index]: row[index] for row in rows}.get('SYN_B', 'P2P'), 'P2P', path)
+        header, rows = table('/api/sod/explorer/user_activity/export', username='SYN_A')  # filters still scope the export; the group is exported whatever the page shows
+        self.assertEqual({row[header.index('USER_GROUPS')] for row in rows}, {'FIN'})
+
     def test_user_group_grouping_pages_after_grouping_and_keeps_group_totals(self):
         paged = self.get('/api/sod/matrix/risk', group_by='user_group', limit=1, offset=1)
         self.assertEqual([row['user'] for row in paged['rows']], ['SYN_B'])

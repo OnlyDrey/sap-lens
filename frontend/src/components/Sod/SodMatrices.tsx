@@ -101,7 +101,7 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
     <section className="grid min-w-0 gap-4" aria-label={risk ? 'SoD risk matrix' : 'SoD activity matrix'}>
       <SodFilters view={risk ? 'sod_risk_matrix' : 'sod_activity_matrix'} filters={filters} setFilters={setFilters}
         fields={['group', 'risk', 'activity', 'username', 'role', 'role_suffix', 'tcode', 'category', 'validity', 'activity_decision', 'assignment_decision', 'acceptance']}
-        sorts={[{ value: 'subject', label: 'Name' }, { value: 'findings', label: risk ? 'Most risks' : 'Most activities' }]}
+        sorts={[{ value: 'subject', label: 'Name' }, { value: 'group', label: 'SAP User Group' }, { value: 'findings', label: risk ? 'Most risks' : 'Most activities' }]}
         actions={<>
           <Select aria-label="Users per page" value={String(pageSize)} onChange={(event) => setPageSize(event.target.value === 'all' ? 'all' : (Number(event.target.value) as MatrixSize))} title="How many users the matrix lists per page">
             {MATRIX_SIZES.map((size) => <option key={size} value={size}>{size === 'all' ? 'All users' : `${size} users per page`}</option>)}
@@ -147,9 +147,9 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
                 <Button size="compact" onClick={() => setCollapsed(new Set())}>Expand all</Button>
                 <Button size="compact" onClick={() => setCollapsed(new Set((data.group_summaries || []).map((item) => item.name)))}>Collapse all</Button>
               </Toolbar>}
-              <MatrixGrid scrollKey={`sod-${kind}-${groupBy}`} caption={risk ? 'User by risk matrix' : 'User by activity matrix'} rowLabel="SAP user" codeRows columns={columns}
-                rows={data.rows.filter((row) => !grouped || !collapsed.has(row.group || '')).map((row) => ({ id: row.user, label: row.user, group: row.group,
-                  sub: grouped ? (row.groups.length > 1 ? `Also in ${row.groups.filter((name) => name !== row.group).join(', ')}` : '') : row.groups.join(', ') }))}
+              <MatrixGrid scrollKey={`sod-${kind}-${groupBy}`} caption={risk ? 'User by risk matrix' : 'User by activity matrix'} rowLabel="SAP user" codeRows columns={columns} groupColumn={!grouped}
+                rows={data.rows.filter((row) => !grouped || !collapsed.has(row.group || '')).map((row) => ({ id: row.user, label: row.user, group: row.group, groups: row.groups,
+                  sub: grouped && row.groups.length > 1 ? `Also in ${row.groups.filter((name) => name !== row.group).join(', ')}` : '' }))}
                 groups={grouped ? summaries.map((item) => ({ id: item.name, label: item.name, collapsed: collapsed.has(item.name), onToggle: () => toggle(item.name),
                   summary: `${item.users.toLocaleString()} ${item.users === 1 ? 'user' : 'users'} · ${item.findings.toLocaleString()} ${risk ? 'risk' : 'activity'} ${item.findings === 1 ? 'finding' : 'findings'}${item.continued ? ' · continued' : ''}` })) : undefined}
                 cell={cell} onSelect={open} onRow={(row) => setSelected({ user: row })}

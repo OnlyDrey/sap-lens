@@ -38,7 +38,7 @@ def scope_query(context: str = Query('current', pattern=legacy.CONTEXT_PATTERN),
                 account_status: Literal['', 'locked', 'unlocked', 'ad_disabled', 'ad_enabled', 'unknown'] = '', multiple_risks: bool = False,
                 activity_decision: Lifecycle = '', assignment_decision: Lifecycle = '', acceptance: Lifecycle = '',
                 review_status: Literal['', 'attention', 'pending', 'investigating', 'reviewed', 'all'] = '',
-                sort: Literal['subject', 'findings'] = 'subject', descending: bool = False):
+                sort: Literal['subject', 'findings', 'group'] = 'subject', descending: bool = False):
     return locals()
 
 
@@ -50,6 +50,13 @@ def _built(kind, q):
     bundle, _, state, view = scope.scoped(q['context'], q)
     builder = governance.risk_matrix if kind == 'risk' else governance.activity_matrix
     return bundle, builder(view, state)
+
+
+def _by_group(rows, descending):
+    """Order users by their first SAP User Group, then name. Users without a group always come last, in either direction."""
+    key = lambda row: (row['groups'][0].casefold(), row['user'].casefold())
+    with_group = sorted((row for row in rows if row['groups']), key=key, reverse=descending)
+    return with_group + sorted((row for row in rows if not row['groups']), key=lambda row: row['user'].casefold(), reverse=descending)
 
 
 def _matrix(kind, group_by, offset, limit, q):
@@ -64,6 +71,8 @@ def _matrix(kind, group_by, offset, limit, q):
     rows = matrix['rows']
     if q['sort'] == 'findings':
         rows = sorted(rows, key=lambda row: (-len(row['cells']), row['user']), reverse=q['descending'])
+    elif q['sort'] == 'group':
+        rows = _by_group(rows, q['descending'])
     elif q['descending']:
         rows = list(reversed(rows))
     summaries = None
@@ -214,8 +223,8 @@ def _dates(row):
 EXPLORER_COLUMNS = {
     'user_risk': (['USERNAME', 'RISK', 'CRITICITY', 'BUSINESS_AREA', 'USER_GROUPS', 'ACTIVITIES', 'ROLES', 'RISK_ACCEPTANCE'],
                   lambda r: [r['user'], r['risk_id'], r['criticality'], r['category'], ', '.join(r['groups']), ', '.join(r['activities']), ', '.join(r['roles']), r['acceptance']]),
-    'user_activity': (['USERNAME', 'ACTIVITY', 'RISKS', 'TRANSACTIONS', 'ROLE_ASSIGNMENTS', 'DUPLICATE_COVERAGE', 'ACTIVITY_REVIEW'],
-                      lambda r: [r['user'], r['activity'], ', '.join(r['risks']), ', '.join(r['tcodes']), r['roles'], 'Yes' if r['duplicate'] else 'No', r['decision']]),
+    'user_activity': (['USERNAME', 'USER_GROUPS', 'ACTIVITY', 'RISKS', 'TRANSACTIONS', 'ROLE_ASSIGNMENTS', 'DUPLICATE_COVERAGE', 'ACTIVITY_REVIEW'],
+                      lambda r: [r['user'], ', '.join(r['groups']), r['activity'], ', '.join(r['risks']), ', '.join(r['tcodes']), r['roles'], 'Yes' if r['duplicate'] else 'No', r['decision']]),
     'access_list': (['USERNAME', 'ROLE', 'VALID_FROM', 'VALID_TO', 'ASSIGNMENT_STATUS', 'USER_GROUP', 'ACTIVITIES', 'RISKS', 'ASSIGNMENT_REVIEW', 'ASSIGNMENT_ID', 'ROLE_SUFFIX'],
                     lambda r: [r['user'], r['role'], *_dates(r), r['interval_status'], r['user_group'], ', '.join(r['activities']), ', '.join(r['risks']), r['decision'], r['id'], r['suffix']]),
     'lookup': (['ROLE', 'USERS', 'CATALOGUE_ROLES', 'ACTIVITIES', 'RISKS'],
@@ -352,7 +361,7 @@ def _queue(q, kind, status):
     return bundle, items, counts
 
 
-QUEUE_COLUMNS = ['CONTEXT', 'REVIEW_TYPE', 'USERNAME', 'REFERENCE', 'RISKS', 'LIFECYCLE', 'DECISION', 'REVIEWER', 'APPROVER', 'TIMESTAMP',
+QUEUE_COLUMNS = ['CONTEXT', 'REVIEW_TYPE', 'USERNAME', 'USER_GROUPS', 'REFERENCE', 'RISKS', 'LIFECYCLE', 'DECISION', 'REVIEWER', 'APPROVER', 'TIMESTAMP',
                  'JUSTIFICATION', 'CONTROLS', 'EXPIRES', 'EVIDENCE_VERSION']
 
 
@@ -395,7 +404,7 @@ def queue_users(q: dict = Depends(scope_query), progress: Literal['', 'outstandi
     bundle, items, _ = _queue(q, '', '')
     rows = {}
     for item in items:
-        row = rows.setdefault(item['user'], dict(user=item['user'], activity=dict(total=0, decided=0), assignment=dict(total=0, decided=0), acceptance=dict(total=0, decided=0), removal=0, historical=0))
+        row = rows.setdefault(item['user'], dict(user=item['user'], groups=item.get('groups', []), activity=dict(total=0, decided=0), assignment=dict(total=0, decided=0), acceptance=dict(total=0, decided=0), removal=0, historical=0))
         if item['lifecycle'] in {'Historical', 'Resolved'}:
             row['historical'] += 1
             continue
@@ -430,7 +439,7 @@ def queue_export(q: dict = Depends(scope_query), kind: Literal['', 'activity', '
     def rows():
         for item in items:
             event = item['event']
-            yield [q['context'], item['kind'], item['user'], item['ref'], ', '.join(item['risks']), item['lifecycle'], event.decision if event else '',
+            yield [q['context'], item['kind'], item['user'], ', '.join(item.get('groups', [])), item['ref'], ', '.join(item['risks']), item['lifecycle'], event.decision if event else '',
                    event.reviewer if event else '', event.approver if event else '', event.timestamp if event else '', event.justification if event else '',
                    event.controls if event else '', event.expires.isoformat() if event and event.expires else '', event.evidence_version if event else '']
     return csv_response(QUEUE_COLUMNS, rows(), 'review-queue')
@@ -655,13 +664,13 @@ def remediation(q: dict = Depends(scope_query), recommended: REMEDIATION_FILTER 
     return dict(info(bundle), items=rows[offset:offset + limit], total=len(rows), summary=summary, offset=offset, limit=limit, actions=tracked, tracking=tracking)
 
 
-REMEDIATION_COLUMNS = ['USERNAME', 'ACTIVITY', 'RISKS', 'ROLE', 'ASSIGNMENT_ID', 'VALID_FROM', 'VALID_TO', 'ACTIVITY_REVIEW', 'ASSIGNMENT_REVIEW', 'RISK_ACCEPTANCE',
+REMEDIATION_COLUMNS = ['USERNAME', 'USER_GROUP', 'ACTIVITY', 'RISKS', 'ROLE', 'ASSIGNMENT_ID', 'VALID_FROM', 'VALID_TO', 'ACTIVITY_REVIEW', 'ASSIGNMENT_REVIEW', 'RISK_ACCEPTANCE',
                        'RECOMMENDED_ACTION', 'JUSTIFICATION', 'OWNER', 'DUE_DATE', 'ACTION_STATUS', 'VERIFICATION']
 
 
 def remediation_csv_rows(rows):
     for row in rows:
-        yield [row['user'], row['activity'], ', '.join(row['risks']), row['role'], row['assignment_id'], row['valid_from'] or '', row['valid_to'] or '',
+        yield [row['user'], row.get('user_group', ''), row['activity'], ', '.join(row['risks']), row['role'], row['assignment_id'], row['valid_from'] or '', row['valid_to'] or '',
                row['activity_decision'], row['assignment_decision'], ', '.join(row['risk_acceptance']), row['recommended'],
                row['reason'] or row['controls'], row['owner'], row['due_date'] or '', row['action_status'] + (' (overdue)' if row['overdue'] else ''), row['verification']]
 
