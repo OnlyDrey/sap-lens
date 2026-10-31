@@ -6,7 +6,6 @@ permissions. Other TYPE values remain importable but are never evaluated by v1.
 import hashlib
 import json
 from pathlib import Path
-from typing import ClassVar
 
 from analysis_errors import AnalysisValidationError
 from config_models import SOD_FIELDS, SodImportProfile

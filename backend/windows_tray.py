@@ -7,7 +7,6 @@ import ctypes
 from ctypes import wintypes as w
 from contextlib import contextmanager
 import logging
-from pathlib import Path
 import subprocess
 import sys
 import threading

@@ -131,17 +131,6 @@ export interface Subject extends ContextInfo {
   related_risks: string[]
   impact: null | { options: RemovalOption[]; per_assignment: Record<string, AssignmentImpact> }
 }
-export interface QueueItem {
-  kind: 'activity' | 'assignment' | 'acceptance'
-  key: string
-  user: string
-  ref: string
-  risks: string[]
-  lifecycle: Lifecycle
-  roles: number
-  evidence_version: string
-  event: DecisionEvent | null
-}
 
 const SCALAR_KEYS = ['search', 'risk', 'criticality', 'risk_type', 'category', 'username', 'group', 'composite_role', 'single_role', 'tcode', 'role', 'role_suffix', 'activity', 'account_status', 'multiple_risks', 'tracking',
   'activity_decision', 'assignment_decision', 'acceptance', 'validity', 'as_of', 'sort']
