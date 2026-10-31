@@ -130,6 +130,14 @@ def appearance():
         return store.appearance()
 
 
+@router.get('/metadata')
+def metadata():
+    """Resolved risk and activity descriptions (imported first, local fallback, origin identified) for pills and detail popovers."""
+    import sod_metadata
+    with store.lock:
+        return sod_metadata.lookup()
+
+
 @router.post('/catalogue/bulk')
 def bulk(request: CatalogueBulk):
     return store.bulk(request.enabled, request.expected_revision, request.confirm)

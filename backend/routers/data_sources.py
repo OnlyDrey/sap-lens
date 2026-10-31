@@ -182,7 +182,7 @@ class SodFileInspection(StrictModel):
     path: str = Field(min_length=1, max_length=4096)
     delimiter: Literal['auto', ',', ';', '\t', '|'] = 'auto'
     encoding: Literal['auto', 'utf-8-sig', 'utf-16', 'cp1252'] = 'auto'
-    mapping: dict[str, str] = Field(default_factory=dict, max_length=12)
+    mapping: dict[str, str] = Field(default_factory=dict, max_length=40)
 
 
 @router.post('/sod/inspect')

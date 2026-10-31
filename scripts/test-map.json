@@ -135,6 +135,7 @@
     "test_sod_feature",
     "test_sod_governance",
     "test_sod_inspection",
+    "test_sod_metadata",
     "test_sod_import",
     "test_sod_integration",
     "test_sod_lifecycle",

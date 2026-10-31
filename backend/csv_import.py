@@ -17,6 +17,7 @@ class CsvImport:
     fields = FIELDS
     required = 'AGR_NAME'
     identifier_fields = ['AGR_NAME','CHILD_AGR','PARENT_AGR','Effective_Role']
+    lenient_fields = frozenset()  # fields whose oversized values the subclass handles itself (optional metadata is skipped, never fatal)
 
     def __init__(self, path: Path, profile: ImportProfile):
         if not path.is_absolute() or path.suffix.lower() != '.csv' or '://' in str(path):
@@ -103,7 +104,7 @@ class CsvImport:
                 row = {field:(raw.get(source,'').strip() if source else '') for field,source in self.mapping.items()}
                 if not any(row.values()): self.blank_rows += 1; continue
                 if not row[self.required]: raise AnalysisValidationError(f'A nonempty record has no {self.required}; no data was applied.')
-                if any(len(value) > 4096 for value in row.values()): raise AnalysisValidationError('A CSV field exceeds its length limit.')
+                if any(len(value) > 4096 for key, value in row.items() if key not in self.lenient_fields): raise AnalysisValidationError('A CSV field exceeds its length limit.')
                 if any(len(row[f]) > 512 for f in self.identifier_fields):
                     raise AnalysisValidationError('A role identifier is too long.')
                 digest = hashlib.blake2b(repr(tuple(row.items())).encode(), digest_size=16).digest()

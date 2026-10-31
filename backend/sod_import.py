@@ -8,26 +8,90 @@ import json
 from pathlib import Path
 
 from analysis_errors import AnalysisValidationError
-from config_models import SOD_FIELDS, SodImportProfile
+from config_models import SOD_FIELDS, SOD_OPTIONAL_FIELDS, SodImportProfile
 from csv_import import CsvImport, MAX_ROWS
 
 HEADERS = tuple(SOD_FIELDS)
+OPTIONAL_FIELDS = tuple(SOD_OPTIONAL_FIELDS)
 FIELDS = HEADERS
 EVALUATION_POLICY = 'sod-two-sided-v1'
 
 
+# Which stored key each optional column feeds: risk-level and activity-level descriptions, and dataset-level source facts.
+RISK_METADATA = {'RISK_NAME': 'name', 'RISK_DESCRIPTION': 'description', 'RISK_IMPACT': 'impact', 'BUSINESS_PROCESS': 'business_process'}
+ACTIVITY_METADATA = {'ACTIVITY_NAME': 'name', 'ACTIVITY_DESCRIPTION': 'description', 'ACTIVITY_TYPE': 'type', 'ACTIVITY_BUSINESS_PROCESS': 'business_process'}
+SOURCE_METADATA = {'RULESET_ID': 'ruleset_ids', 'RULESET_VERSION': 'ruleset_versions', 'SOURCE_SYSTEM': 'source_systems', 'LANGUAGE': 'languages', 'LAST_CHANGED': 'last_changed'}
+MAX_METADATA_VALUE = 4096
+MAX_SOURCE_VALUES = 20
+
+
 class SodCsvImport(CsvImport):
-    fields = HEADERS
+    """The ten documented columns are required and unchanged. Optional descriptive columns are mapped when present and collected apart from the
+    records, so they never change a record, a risk definition, a duplicate or a detection result."""
+    fields = HEADERS + OPTIONAL_FIELDS
     required = 'RISK'
     identifier_fields = ['RISK', 'ACTVT1', 'ACTVT2', 'ACTIVITY', 'TCODE']
+    lenient_fields = frozenset(OPTIONAL_FIELDS)
 
     def records(self):
+        self.risk_metadata, self.activity_metadata, self.source_metadata = {}, {}, {field: set() for field in SOURCE_METADATA}
+        self.metadata_conflicts = self.metadata_ignored = 0
         for row in super().records():
             if any(not self.mapping.get(field) for field in HEADERS):
                 raise AnalysisValidationError('SoD requires all documented headers, including TTEXT.')
-            yield row
+            self._collect(row)
+            yield {field: row[field] for field in HEADERS}
         if any(not self.mapping.get(field) for field in HEADERS):
             raise AnalysisValidationError('SoD requires all documented headers, including TTEXT.')
+
+    def _clean(self, value):
+        value = (value or '').strip()
+        if not value:
+            return ''
+        if len(value) > MAX_METADATA_VALUE or any(ord(char) < 32 and char not in '\n\r\t' for char in value):
+            self.metadata_ignored += 1  # optional metadata never fails an import; it is skipped and reported
+            return ''
+        return value
+
+    def _keep(self, store, key, field, value):
+        value = self._clean(value)
+        if not value:
+            return
+        entry = store.setdefault(key, {})
+        if field in entry and entry[field] != value:
+            self.metadata_conflicts += 1  # the first value wins; the conflict is reported
+        else:
+            entry.setdefault(field, value)
+
+    def _collect(self, row):
+        for column, field in RISK_METADATA.items():
+            self._keep(self.risk_metadata, row['RISK'], field, row.get(column))
+        for column, field in ACTIVITY_METADATA.items():
+            self._keep(self.activity_metadata, row['ACTIVITY'], field, row.get(column))
+        for column in SOURCE_METADATA:
+            value = self._clean(row.get(column))
+            if value and len(self.source_metadata[column]) < MAX_SOURCE_VALUES:
+                self.source_metadata[column].add(value)
+
+    def optional_columns(self):
+        detected = [field for field in OPTIONAL_FIELDS if self.mapping.get(field)]
+        return dict(detected=detected, missing=[field for field in OPTIONAL_FIELDS if field not in detected])
+
+    def report(self):
+        base = super().report()
+        # An unmapped optional column is normal; it is listed under optional_columns instead of as a warning.
+        base['warnings'] = [item for item in base['warnings'] if item not in {f'Optional field {field} is not mapped.' for field in OPTIONAL_FIELDS}]
+        base['optional_columns'] = self.optional_columns()
+        if self.metadata_conflicts:
+            base['warnings'].append(f'{self.metadata_conflicts} optional SoD metadata values conflict for the same risk or activity; the first value was kept.')
+        if self.metadata_ignored:
+            base['warnings'].append(f'{self.metadata_ignored} optional SoD metadata values were ignored (longer than {MAX_METADATA_VALUE} characters or containing control characters).')
+        if base['optional_columns']['detected']:
+            base['metadata'] = dict(
+                risks={key: value for key, value in sorted(self.risk_metadata.items())},
+                activities={key: value for key, value in sorted(self.activity_metadata.items())},
+                source={SOURCE_METADATA[column]: sorted(values) for column, values in self.source_metadata.items() if values})
+        return base
 
 
 def build_sod(records, report=None):
@@ -111,7 +175,9 @@ def build_sod(records, report=None):
     final_report.setdefault('unique_records', len(rows))
     final_report.setdefault('duplicate_rows', duplicates)
     final_report['warnings'] = warnings.copy()
-    digest = hashlib.sha256(json.dumps(rows, ensure_ascii=False, separators=(',', ':'), sort_keys=True).encode()).hexdigest()
+    # Imported descriptions belong to the content identity only when the source provides them, so files without optional columns keep their hash.
+    imported = final_report.get('metadata')
+    digest = hashlib.sha256(json.dumps(rows if not imported else dict(records=rows, metadata=imported), ensure_ascii=False, separators=(',', ':'), sort_keys=True).encode()).hexdigest()
     return dict(version=1, source='sod', records=rows, risks=definitions,
                 content_hash=digest, warnings=warnings, report=final_report)
 
@@ -170,8 +236,19 @@ def inspection(sod):
         counts=dict(parsed_rows=int(report.get('parsed_rows') or len(records)), records=len(records), duplicate_rows=duplicates, risks=len(risks), evaluated_risks=len(risks) - len(unsupported),
                     unsupported_risks=len(unsupported), activities=len(activities), transactions=len(transactions)),
         criticality=dict(sorted(Counter(risk['criticality'] for risk in risks).items())), types=dict(sorted(Counter(risk['risk_type'] for risk in risks).items())),
-        checks=checks, warnings=list(sod.get('warnings') or []), file_name=report.get('file_name') or '',
+        checks=checks, warnings=list(sod.get('warnings') or []), file_name=report.get('file_name') or '', descriptions=metadata_overview(sod),
         samples=[{field: str(row.get(field, '')) for field in HEADERS} for row in (report.get('samples') or records)[:20]])
+
+
+def metadata_overview(sod):
+    """Optional-column detection and descriptive-metadata coverage of a parsed dataset, against the current local annotations. None when the local store is unreadable."""
+    from types import SimpleNamespace
+    from fastapi import HTTPException
+    from sod_metadata import coverage
+    try:
+        return coverage(SimpleNamespace(sod=sod))
+    except HTTPException:
+        return None
 
 
 def inspect_file(path, profile):
@@ -210,4 +287,5 @@ def inspect_file(path, profile):
         return result
     detail = inspection(sod)
     result.update(valid=True, **{key: detail[key] for key in ('counts', 'criticality', 'types', 'checks', 'warnings', 'samples')})
+    result['descriptions'] = metadata_overview(sod)
     return result
