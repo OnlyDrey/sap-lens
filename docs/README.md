@@ -9,7 +9,7 @@
 | [Data & CSV](data/README.md) | Schemas, imports, refresh, enrichment and coverage |
 | [Architecture](architecture/README.md) | Runtime boundaries, APIs, security and shared UI |
 | [Development & Testing](development/README.md) | Source setup, checks and CI |
-| [Validation tracker](validation/README.md) | Per-page expected behavior, review status, defects and improvements |
+| [Validation tracker](validation/README.md) | Checklist per functional area: validation status, manual approval, findings and improvements (CSV and Excel workbook) |
 | [Future Proposals](proposals/README.md) | Evidence-based assessments; not promised features |
 | [Historical Evidence](archive/README.md) | Dated validation and implementation decisions |
 
