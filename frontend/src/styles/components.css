@@ -259,8 +259,8 @@ main h1,.settings-content h1 { font-size:var(--font-title); font-weight:600; }
 .role-metadata-title {min-width:0;overflow-wrap:anywhere;flex:1 1 150px}
 .role-detail-heading-content {display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--space-2);align-items:start}
 .role-detail-heading-content nav {grid-column:1/-1}
-.role-detail-heading-content .role-detail-identifier {grid-column:2;grid-row:2;margin:0;max-width:100%;justify-self:end;align-self:center}
-.role-detail-heading-content .role-detail-identifier .role-identifier {max-width:260px}
+.role-detail-heading-content .role-detail-identifier {grid-column:1/-1;grid-row:auto;margin:0;min-width:0;max-width:100%;justify-self:end;align-self:center}
+.role-detail-heading-content .role-detail-identifier .role-identifier {max-width:100%}
 .role-detail-header {container-type:inline-size}
 @container (max-width:480px) {
  .role-detail-heading-content {grid-template-columns:minmax(0,1fr)}
@@ -515,10 +515,10 @@ progress::-moz-progress-bar { background:var(--progress-fill); }
 .sod-workspace .access-table table { min-width:760px; }
 .sod-workspace .access-table th,.sod-workspace .access-table td { overflow-wrap:normal; word-break:normal; max-width:420px; }
 .sod-workspace .access-table th,.sod-workspace .access-table .ui-button { white-space:nowrap; }
-.sod-workspace .access-table td:has(.role-identifier) { min-width:200px; max-width:360px; }
+.sod-workspace .access-table td:has(.role-identifier) { min-width:200px; }
 .sod-workspace .access-table td:has(input[type="checkbox"]) { width:44px; min-width:44px; }
 .ui-side-panel .role-identifier { max-width:100%; min-width:0; }
-.ui-side-panel .role-identifier-link { min-width:0; max-width:100%; overflow:hidden; }
+.ui-side-panel .role-identifier-link { min-width:0; max-width:100%; overflow:visible; }
 .ui-side-panel-body > * { min-width:0; }
 .sod-workspace .sod-break { overflow-wrap:anywhere; word-break:break-all; }
 
@@ -718,10 +718,13 @@ progress::-moz-progress-bar { background:var(--progress-fill); }
 /* Role identifier: content-sized and never scrolling. It wraps at ':' '_' '-' '.' '/' (wbr) and only as a last resort inside a token. */
 .role-identifier { display:inline-flex; align-items:center; flex-wrap:nowrap; gap:var(--space-1); width:fit-content; max-width:100%; min-width:0; padding:2px 4px 2px 8px; vertical-align:middle; }
 /* SAP identifiers are never broken: one line, scrolling horizontally inside the codeblock when the container is narrower. The copied value is always the full identifier. */
-/* Long SAP identifiers wrap inside the codeblock (never scroll); the copied value comes from the data, not from the DOM text. */
-.role-identifier code { flex:1 1 auto; min-width:0; white-space:normal; overflow-wrap:anywhere; word-break:normal; overflow:visible; line-height:1.4; }
+/* A SAP identifier is one complete line (no wrapping, scrolling, clipping or ellipsis); RoleIdentifier scales the font down in narrow layouts. */
+.role-identifier code { flex:0 0 auto; min-width:0; white-space:nowrap; overflow-wrap:normal; word-break:normal; overflow:visible; text-overflow:clip; line-height:1.4; font-size:var(--role-code-size,var(--font-label)); }
 .role-identifier-link { min-width:0; max-width:100%; }
-.role-identifier-link code { flex:1; }
+.role-identifier-link code { flex:0 0 auto; }
+/* the container of a role codeblock may shrink below the name so the name is fitted to it instead of pushing its neighbours out */
+*:has(> .role-identifier) { min-width:0; }
+.role-identifier > .role-identifier-link { flex:0 0 auto; }
 
 /* Shared role presentation (RoleEntry). Line 1: module badge, description, counts and actions. Line 2: identifier. Line 3: supporting metadata. */
 .role-entry { display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-2); flex:1; min-width:0; width:100%; }
@@ -762,10 +765,7 @@ progress::-moz-progress-bar { background:var(--progress-fill); }
 .transaction-count { padding:3px var(--space-2); line-height:1.35; }
 
 /* Role cards: three per row beside the filter sidebar, four when it is hidden; fewer on smaller screens. */
-.role-card-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:var(--space-4); align-items:stretch; }
-@media(min-width:640px){ .role-card-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-@media(min-width:768px){ .role-card-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
-@media(min-width:1100px){ .filter-layout[data-wide='true'][data-open='false'] .role-card-grid { grid-template-columns:repeat(4,minmax(0,1fr)); } }
+.role-card-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,22rem),1fr)); gap:var(--space-4); align-items:stretch; } /* the column count follows the width a role name needs, not only the viewport */
 .role-entry-title { overflow-wrap:break-word; }
 
 /* Access package panel: configuration, compact role rows with a one-line suffix and generated name, sticky footer actions. */
@@ -1320,3 +1320,7 @@ progress::-webkit-progress-bar,.dashboard-workspace progress::-webkit-progress-b
 .matrix-group-toggle:focus-visible { outline:var(--focus-width) solid var(--focus); outline-offset:var(--focus-offset); }
 .matrix-grid .matrix-row-head small { margin-top:var(--space-1); }
 .matrix-grid .matrix-row-head { box-shadow:1px 0 0 var(--border); }
+
+/* A name too long even at the smallest readable size stays one complete line; the surrounding region (not the codeblock) scrolls to it. */
+*:has(> .role-identifier[data-fit="overflow"]) { min-width:0; max-width:100%; overflow-x:auto; overflow-y:hidden; scrollbar-gutter:stable; }
+*:has(> .role-identifier[data-fit="overflow"]) > .role-identifier { overflow:visible; }

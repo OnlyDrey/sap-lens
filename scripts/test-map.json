@@ -171,6 +171,7 @@
    "description": "Shared components, navigation, accessibility, visual consistency",
    "backend": [],
    "browser": [
+    "role-codeblocks",
     "consolidated-refinement",
     "kpi-standard",
     "refinement-r2",

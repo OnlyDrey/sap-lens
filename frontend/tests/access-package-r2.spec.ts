@@ -37,7 +37,8 @@ test('package rows show one codeblock, the suffix field right of it and a compac
   const [a, b] = [await code.boundingBox(), await field.boundingBox()]
   expect(b!.x).toBeGreaterThan(a!.x + a!.width - 1) // right of the codeblock
   expect(Math.abs((b!.y + b!.height / 2) - (a!.y + a!.height / 2))).toBeLessThan(a!.height) // on the same line
-  await expect(code).toHaveCSS('white-space', 'normal') // long names wrap, never scroll
+  await expect(code).toHaveCSS('white-space', 'nowrap') // one complete line: never wrapped, scrolled or truncated
+  await expect(code).toHaveCSS('overflow-x', 'visible')
   expect(await code.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBeTruthy()
   // compact on a narrow panel too: the suffix field keeps its width when the row wraps and the status stays small
   await page.setViewportSize({ width: 375, height: 800 })
