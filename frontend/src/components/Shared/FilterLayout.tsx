@@ -19,7 +19,7 @@ function useWide() {
 }
 
 /** Collapsible left filter sidebar on wide screens, an overlay drawer on narrow ones. Filter state belongs to the caller, so hiding never resets it. */
-export function FilterLayout({ activeCount, toolbar, sidebar, children, label = 'Filters', onClear, clearDisabled = false }: { activeCount: number; toolbar?: ReactNode; sidebar: ReactNode; children: ReactNode; label?: string; onClear?: () => void; clearDisabled?: boolean }) {
+export function FilterLayout({ activeCount, toolbar, sidebar, children, label = 'Filters', onClear, clearDisabled = false, clearLabel = 'Clear filters' }: { activeCount: number; toolbar?: ReactNode; sidebar: ReactNode; children: ReactNode; label?: string; onClear?: () => void; clearDisabled?: boolean; /** Accessible name of the Clear action where it clears something narrower than every filter of the view. */ clearLabel?: string }) {
   const wide = useWide(),
     id = useId(),
     [open, setOpen] = useState(() => { try { return localStorage.getItem(storageKey) !== 'closed' } catch { return true } }),
@@ -53,7 +53,7 @@ export function FilterLayout({ activeCount, toolbar, sidebar, children, label = 
           <header>
             <h2>{label}</h2>
             <div className="filter-sidebar-actions">
-              {onClear && <Button size="compact" className="filter-clear-all" aria-label="Clear filters" title="Clear all filters in this view" disabled={clearDisabled} onClick={onClear}><FilterX size={14} aria-hidden="true" />Clear</Button>}
+              {onClear && <Button size="compact" className="filter-clear-all" aria-label={clearLabel} title={clearLabel === 'Clear filters' ? 'Clear all filters in this view' : clearLabel} disabled={clearDisabled} onClick={onClear}><FilterX size={14} aria-hidden="true" />Clear</Button>}
               <IconButton label={`Close ${label.toLowerCase()}`} onClick={close}><X size={16} /></IconButton>
             </div>
           </header>

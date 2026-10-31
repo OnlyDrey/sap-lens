@@ -1,13 +1,13 @@
 import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, CheckCircle2, CircleDashed, ClipboardCheck, Grid3x3, ListChecks, ShieldAlert, ShieldCheck, ShieldX, UserMinus, UsersRound, Wrench } from 'lucide-react'
-import { emptyFilters, sod, type Filters } from '@/api/sod'
+import { sod, type Filters } from '@/api/sod'
 import { useHistoryValue, useViewHistory, type SodView } from '@/hooks/useViewHistory'
 import { Card, ErrorState, LoadingState, SectionHeader, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
 import { InfoList, InfoRow } from '@/components/Shared/InfoList'
 import { Button } from '@/components/Shared/Button'
 import { formatDate, formatTimestamp } from '@/lib/dateFormat'
-import { AlertNote } from './SodShared'
+import { AlertNote, PAGE_FIELDS, readFilters, writeFilters } from './SodShared'
 
 interface Governance {
   available: boolean; reason?: string | null
@@ -36,7 +36,7 @@ export function SodOverview() {
   if (!result.data) return <LoadingState />
   const { counts, source, coverage, governance: g } = result.data
   const go = (view: SodView, name?: string, patch: Filters = {}, extra: Record<string, unknown> = {}) =>
-    change({ sodView: view, ...(name ? { sodFilters: { ...stored, [name]: { ...emptyFilters, ...patch } } } : {}), ...extra })
+    change({ sodView: view, ...(name ? { sodFilters: writeFilters(stored, name, PAGE_FIELDS[name], { ...readFilters(stored, name), ...patch }) } : {}), ...extra })  // an investigation link adds its own selections to the existing filters instead of replacing them
   const Tile = ({ icon, label, value, onOpen, tone, note, title }: { icon: ReactNode; label: string; value: number | string | undefined; onOpen?: () => void; tone?: 'warning' | 'error'; note?: ReactNode; title?: string }) => (
     <InfoRow icon={icon} label={label} note={note} title={title} value={value === undefined ? '—' : typeof value === 'number' ? value.toLocaleString() : value} onClick={onOpen} navigates tone={tone && Number(value) > 0 ? tone : 'neutral'} />
   )

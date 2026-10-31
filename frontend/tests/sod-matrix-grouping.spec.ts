@@ -17,6 +17,7 @@ for (const kind of ['risk', 'activity'] as const) {
     await expect(head.getByRole('button', { name: `Copy SAP username ${names.a}` })).toBeVisible()
     const [code, small] = [await head.locator('code').boundingBox(), await head.locator('small').boundingBox()]
     await expect(head.locator('small')).toHaveText('FIN')
+    expect((await head.boundingBox())!.height).toBeLessThan(66) // compact rows
     expect(small!.y).toBeGreaterThanOrEqual(code!.y + code!.height - 1) // beneath the username
     expect(await head.locator('small').evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeLessThan(await head.locator('code').evaluate((el) => parseFloat(getComputedStyle(el).fontSize)) + 0.5)
   })

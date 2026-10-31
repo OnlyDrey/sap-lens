@@ -164,6 +164,7 @@
     "sod-dashboard-startup",
     "sod-shared-heatmap",
     "sod-matrix-grouping",
+    "sod-shared-filters",
     "sod-evidence-modals"
    ]
   },

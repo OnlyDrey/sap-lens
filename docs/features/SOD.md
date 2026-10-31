@@ -120,6 +120,17 @@ One shared heatmap, **Conflicts by SAP User Group**, sits directly under the Rev
 - A matrix cell opens the investigation drawer for that one user-risk or user-activity: only the matching activities, role assignments and risk acceptance are listed, with **Show all review items** to widen it. A user row opens everything. The business area reuses the configured module icon and color when it names a module.
 - CSV exports use exactly the filters shown, including assignment validity (active, expired, future, unknown, all).
 
+## Shared SoD filters
+
+Compatible filters follow the user from one SoD page to the next with no Apply step. One source of truth (`sodFilters.shared` in the view history; nothing is persisted by the backend) holds the dimensions that mean the same on every page that offers them: **SAP User Group, SAP username, risk, activity, transaction code, business area and assigned role** (single and multi-select values). Everything else (decision filters, role suffix, validity, search, sort, status tiles, the Remediation tracking toggle, *Risks per user*) is local to its page.
+
+- **Pages.** Risk Matrix, Activity Matrix, the Access Explorer tabs Users, Assignments and Roles, Reviews (Work queue) and Remediation share all seven dimensions; Role Conflicts offers risk, transaction code and business area only (it filters catalogue roles, so assigned-role, user and activity selections do not apply). Overview shows the shared group and risk selection in the heatmap and its investigation links add their own selection to the existing filters instead of replacing them. Review Periods, Reports and Settings do not read investigation filters.
+- **Unsupported selections** stay stored, do not narrow results on a page that does not offer them, show no chip there and come back on a page that does.
+- **Clear page filters** (the sidebar's Clear) empties the page's own filters and the shared dimensions that page offers; shared dimensions it does not offer, and other pages' local filters, stay. **Clear all SoD filters** empties the whole filter context (shared and every page's local filters); decisions, Saved Filter definitions, imported data and the review context are untouched.
+- **Saved Filters** store and load the page's filters including the shared dimensions, so loading one updates the shared context.
+- **Review context** (Current evidence or a review period) is separate state: it stays selected across SoD pages and changing it keeps the scope filters, which never alter detection, decisions, snapshots, approvals or evidence. Exports use the same filters and the selected context.
+- **History.** Filter changes are history steps, so browser Back and Forward restore the filters of each step.
+
 ## Matrix cells and scope
 
 - Cells show one status pill and one short count: for the Risk Matrix the acceptance status and reviewed/total activities, for the Activity Matrix the review status and ×roles supplying the activity (⧉ marks overlapping coverage). Full wording stays in each cell's accessible name. Criticality and type are in the column tooltip and the investigation, not in the grid.

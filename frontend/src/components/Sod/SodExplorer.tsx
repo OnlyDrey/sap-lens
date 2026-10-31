@@ -145,7 +145,7 @@ const pickKey = (pick: AssignmentPick) => pick.key
 
 function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: SodExplorerTable) => void }) {
   const [context] = useSodContext(),
-    [filters, setFiltersState] = useSodFilters('explorer'),
+    [filters, setFiltersState] = useSodFilters('explorer', FIELDS[table]),
     [offset, setOffset] = useState(0),
     [, setSelected] = useSodSubject(),
     [busy, setBusy] = useState(false),

@@ -1328,3 +1328,10 @@ progress::-webkit-progress-bar,.dashboard-workspace progress::-webkit-progress-b
 /* Review context: the evaluation information sits on the dropdown's row and is centered on the control, not on label plus control. */
 .sod-context-bar { align-items:flex-end; }
 .sod-context-info { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-1) var(--space-2); min-height:var(--control-height); margin:0; min-width:0; }
+
+/* Matrix identity column: username (copyable) with the SAP User Group beneath in small secondary text, kept compact. */
+.matrix-grid .matrix-row-head { padding-block:var(--space-1); }
+.matrix-grid .matrix-row-head .role-identifier { padding-block:0; gap:2px; }
+.matrix-grid .matrix-row-head .role-identifier button[aria-label^="Copy "] { width:24px; min-width:24px; min-height:24px; }
+.matrix-grid .matrix-row-head .role-identifier .role-identifier-link { min-height:24px; }
+.matrix-grid .matrix-row-head > small { margin-top:2px; font-size:var(--font-micro,.6875rem); line-height:1.2; }

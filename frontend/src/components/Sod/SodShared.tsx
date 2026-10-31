@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { keepPreviousData, useQuery, type QueryClient } from '@tanstack/react-query'
-import { AlertTriangle, CheckCircle2, CircleDashed, CircleDot, History, Lock, RefreshCw, Search, ShieldCheck, ShieldX, UserMinus } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, FilterX, CircleDashed, CircleDot, History, Lock, RefreshCw, Search, ShieldCheck, ShieldX, UserMinus } from 'lucide-react'
 import { sod, scopeParams, emptyFilters, type ContextInfo, type Filters, type Lifecycle } from '@/api/sod'
 import { useHistoryValue, useViewHistory, type SodFilterState } from '@/hooks/useViewHistory'
 import { Card, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
@@ -57,9 +57,55 @@ export function useSodSubject(): [SodSubject | null, (value: SodSubject | null) 
   return [view.sodSubject || null, (value) => change({ sodSubject: value }, value === null)]
 }
 
-export function useSodFilters(name: string): [Filters, (value: Filters) => void] {
+/**
+ * Shared SoD filter context. Dimensions with the same meaning on every SoD page that offers them (SAP User Group, SAP username, risk,
+ * activity, transaction code, business area and assigned role) live once under `sodFilters.shared`; everything else (decision filters,
+ * suffix, validity, search, sort, tiles) stays in the page's own slot. A page reads only the shared dimensions it supports and writes
+ * only those, so an unsupported selection stays stored (and is restored on a page that supports it) without affecting results elsewhere.
+ * Filters never touch the review context (`sodContext`), decisions, snapshots or evidence: they only scope what is shown and exported.
+ */
+export const SHARED_DIMENSIONS: Partial<Record<FilterField, [string, string]>> = {
+  group: ['group', 'groups'], username: ['username', 'usernames'], risk: ['risk', 'risks'], activity: ['activity', 'activities'],
+  tcode: ['tcode', 'tcodes'], category: ['category', 'categories'], role: ['role', 'roles'],
+}
+const SCOPE_FIELDS: FilterField[] = ['group', 'username', 'risk', 'activity', 'role', 'tcode', 'category']
+/** Which shared dimensions each page applies. Role conflicts filter catalogue roles, so assigned-role, user and activity selections do not apply there. */
+export const PAGE_FIELDS: Record<string, FilterField[]> = {
+  riskMatrix: SCOPE_FIELDS, activityMatrix: SCOPE_FIELDS, explorer: SCOPE_FIELDS, queue: SCOPE_FIELDS, remediation: SCOPE_FIELDS, roles: ['risk', 'tcode', 'category'],
+}
+const SHARED_KEYS = Object.values(SHARED_DIMENSIONS).flat()
+const sharedPairs = (fields: FilterField[]) => fields.flatMap((field) => (SHARED_DIMENSIONS[field] ? [SHARED_DIMENSIONS[field]!] : []))
+
+/** A page's filters: its own slot plus the shared dimensions it supports. */
+export function readFilters(stored: Record<string, SodFilterState> | undefined, name: string, fields: FilterField[] = PAGE_FIELDS[name] ?? [], base: Filters = emptyFilters): Filters {
+  const shared = stored?.shared ?? {}, result: Filters = { ...base, ...stored?.[name] }
+  for (const [single, plural] of sharedPairs(fields)) {
+    if (single in shared) result[single] = shared[single]
+    if (plural in shared) result[plural] = shared[plural]
+  }
+  return result
+}
+/** Splits a page's filters back into the shared context (only the dimensions the page supports) and its own slot. */
+export function writeFilters(stored: Record<string, SodFilterState> | undefined, name: string, fields: FilterField[], value: Filters): Record<string, SodFilterState> {
+  const shared: SodFilterState = { ...stored?.shared }
+  for (const [single, plural] of sharedPairs(fields)) { shared[single] = (value[single] as string) ?? ''; shared[plural] = (value[plural] as string[]) ?? [] }
+  const local = Object.fromEntries(Object.entries(value).filter(([key]) => !SHARED_KEYS.includes(key))) as SodFilterState
+  return { ...stored, shared, [name]: local }
+}
+/** Does any slot, shared or local, hold a selection that differs from the empty filters? */
+export function hasStoredFilters(stored: Record<string, SodFilterState> | undefined) {
+  return Object.values(stored ?? {}).some((slot) => Object.entries(slot).some(([key, value]) => (Array.isArray(value) ? value.length > 0 : value !== '' && value !== false && value !== (emptyFilters[key] ?? ''))))
+}
+
+export function useSodFilters(name: string, fields: FilterField[] = PAGE_FIELDS[name] ?? [], base: Filters = emptyFilters): [Filters, (value: Filters) => void] {
   const [stored, set] = useHistoryValue('sodFilters')
-  return [{ ...emptyFilters, ...stored?.[name] }, (value) => set((previous) => ({ ...previous, [name]: value as SodFilterState }))]
+  return [readFilters(stored, name, fields, base), (value) => set((previous) => writeFilters(previous, name, fields, value))]
+}
+
+/** Clears the whole SoD filter context: shared dimensions and every page's own filters. Review decisions, Saved Filters and the review context are untouched. */
+export function useClearAllSodFilters(): [boolean, () => void] {
+  const { view, change } = useViewHistory()
+  return [hasStoredFilters(view.sodFilters), () => change({ sodFilters: {} })]
 }
 
 /** A filter change made from outside the page (for example the shared heatmap) must not leave the results on a page that no longer exists. */
@@ -173,7 +219,7 @@ export function SodFilters({ view, filters, setFilters, fields, sorts, actions, 
   const text = (name: string) => (typeof filters[name] === 'string' ? (filters[name] as string) : '')
   const update = (name: string, value: string | boolean) => setFilters({ ...filters, [name]: value })
   const clear = () => { onReset?.(); setFilters({ ...defaults }) }
-  const shown = new Set<string>(fields)
+  const shown = new Set<string>(fields), [anyStored, clearEverywhere] = useClearAllSodFilters()
   const apply = (value: Record<string, unknown>) => {
     onReset?.()
     const next = { ...defaults, ...value } as Filters
@@ -252,6 +298,10 @@ export function SodFilters({ view, filters, setFilters, fields, sorts, actions, 
         return visible.length ? <FilterSection key={section.title} title={section.title}>{visible.map(field)}</FilterSection> : null
       })}
       {extra}
+      <FilterSection title="Shared SoD filters">
+        <p className="ui-description">SAP User Group, SAP username, risk, activity, transaction code, business area and assigned role stay selected on the other SoD pages that offer them. Clear page filters empties this page's filters and its shared selections only; the review context is never changed.</p>
+        <Button size="compact" variant="outline" disabled={!anyStored} onClick={clearEverywhere}><FilterX size={14} aria-hidden="true" />Clear all SoD filters</Button>
+      </FilterSection>
     </div>
   )
   const toolbar = (
@@ -261,7 +311,7 @@ export function SodFilters({ view, filters, setFilters, fields, sorts, actions, 
 
     </PageToolbar>
   )
-  return <FilterLayout activeCount={active} sidebar={sidebar} toolbar={toolbar} onClear={clear} clearDisabled={!active && !text('search')}>{children}</FilterLayout>
+  return <FilterLayout activeCount={active} sidebar={sidebar} toolbar={toolbar} onClear={clear} clearLabel="Clear page filters" clearDisabled={!active && !text('search')}>{children}</FilterLayout>
 }
 
 export function AlertNote({ children }: { children: ReactNode }) {

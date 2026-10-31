@@ -4,7 +4,7 @@ import { announceExport } from '@/lib/exportNotice'
 import {useQuery} from '@tanstack/react-query'
 import {Eye} from 'lucide-react'
 import {apiRequest,applicationToken,fetchRoles} from '@/api/client'
-import {useHistoryValue,useViewHistory,type SodFilterState} from '@/hooks/useViewHistory'
+import {useViewHistory,type SodFilterState} from '@/hooks/useViewHistory'
 import {Card,DataTable,Toolbar,StatusBadge,LoadingState,EmptyState,EvidenceDisclosure} from '@/components/Shared/Presentation'
 import {Button} from '@/components/Shared/Button'
 import {FormField} from '@/components/Shared/Controls'
@@ -20,7 +20,7 @@ import {formatDate} from '@/lib/dateFormat'
 import {NorwegianDateInput,parseNorwegianDate} from '@/components/Shared/NorwegianDateInput'
 import {ModuleBadge} from '@/components/Modules/ModuleBadge'
 import {moduleOfRoles,useRoleModules} from '@/hooks/useRoleModules'
-import {SodFilters,type FilterField} from './SodShared'
+import {PAGE_FIELDS,SodFilters,useSodFilters,type FilterField} from './SodShared'
 import {SodPill} from '@/lib/sodAppearance'
 import {FilterSection} from '@/components/Shared/FilterLayout'
 import type {Filters} from '@/api/sod'
@@ -34,9 +34,9 @@ function parameters(kind:string,state:SodFilterState){const params=new URLSearch
 
 /** Catalogue role and role-combination conflicts; user-level investigation moved to the matrices and Access Explorer. */
 export function ConflictView({kind}:{kind:'users'|'roles'}){
- const [historyFilters,setHistoryFilters]=useHistoryValue('sodFilters'),{change}=useViewHistory(),filters={...initial,...historyFilters?.[kind]},[offset,setOffset]=useState(0),[active,setActive]=useState<Finding|null>(null),[roleSearch,setRoleSearch]=useState(''),[busy,setBusy]=useState(false),[,setMessage]=useState(''),[,setFailed]=useState(false),[dateText,setDateText]=useState(formatDate(text(filters,'as_of'),'')),[dateError,setDateError]=useState(false)
+ const [sharedFilters,setSharedFilters]=useSodFilters(kind,PAGE_FIELDS[kind]??[],initial as Filters),{change}=useViewHistory(),filters=sharedFilters as SodFilterState,[offset,setOffset]=useState(0),[active,setActive]=useState<Finding|null>(null),[roleSearch,setRoleSearch]=useState(''),[busy,setBusy]=useState(false),[,setMessage]=useState(''),[,setFailed]=useState(false),[dateText,setDateText]=useState(formatDate(text(filters,'as_of'),'')),[dateError,setDateError]=useState(false)
  const controller=useRef<AbortController|null>(null),query=parameters(kind,filters),key=query.toString(),current=useRef(key);current.current=key
- const setFilters=(value:SodFilterState)=>{setOffset(0);setHistoryFilters(previous=>({...previous,[kind]:value}))}
+ const setFilters=(value:SodFilterState)=>{setOffset(0);setSharedFilters(value as Filters)}
  const update=(name:string,value:string|boolean|string[])=>setFilters({...filters,[name]:value})
  const result=useQuery({queryKey:['sod-analysis',key,offset],queryFn:()=>apiRequest<Result>(`/api/sod/analysis?${query}&offset=${offset}&limit=25`)})
  const roles=useQuery({queryKey:['sod-role-options',roleSearch],queryFn:()=>fetchRoles(undefined,roleSearch),enabled:kind==='roles'})

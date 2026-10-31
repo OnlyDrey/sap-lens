@@ -11,7 +11,7 @@ import { useViewHistory, type SodView } from '@/hooks/useViewHistory'
 import { announceExport } from '@/lib/exportNotice'
 import { useLocalPreference } from '@/lib/localPreference'
 import { SodPill } from '@/lib/sodAppearance'
-import { useSodContext } from './SodShared'
+import { PAGE_FIELDS, readFilters, useSodContext, writeFilters } from './SodShared'
 
 type Kind = 'risk' | 'activity'
 type Heat = MatrixResult<RiskColumn | ActivityColumn, GroupCell>
@@ -32,7 +32,8 @@ export function SodGroupHeatmap() {
   const [preference, setPreference] = useLocalPreference(HEATMAP_PREFERENCE, 'open'), expanded = preference !== 'closed'
   const { view: history, change } = useViewHistory(), [context] = useSodContext(), panel = useId()
   const sodView: SodView = history.sodView || 'overview', slot = FILTERABLE[sodView], stored = history.sodFilters
-  const current: Filters = slot ? { ...emptyFilters, ...stored?.[slot] } : emptyFilters
+  const readSlot = slot ?? (sodView === 'overview' ? 'riskMatrix' : undefined)  // Review Periods, Reports and Settings do not inherit investigation filters
+  const current: Filters = readSlot ? readFilters(stored, readSlot) : emptyFilters
   const risk = kind === 'risk', itemKey = risk ? 'risks' : 'activities', singleKey = risk ? 'risk' : 'activity'
   const groups = [...list(current, 'groups'), ...(typeof current.group === 'string' && current.group ? [current.group] : [])]
   const items = [...list(current, itemKey), ...(typeof current[singleKey] === 'string' && current[singleKey] ? [current[singleKey] as string] : [])]
@@ -51,9 +52,9 @@ export function SodGroupHeatmap() {
   /** Apply a group and item selection, keeping every other filter. Pages without these filters hand the selection to the matching matrix. */
   const apply = (nextGroups: string[], nextItems: string[]) => {
     const target = slot ?? (risk ? 'riskMatrix' : 'activityMatrix')
-    const base: Filters = { ...emptyFilters, ...stored?.[target] }
+    const base = readFilters(stored, target)
     const next: Filters = { ...base, group: '', groups: nextGroups, [singleKey]: '', [itemKey]: nextItems }
-    change({ sodFilters: { ...stored, [target]: next as never }, ...(slot ? {} : { sodView: risk ? 'risk-matrix' as const : 'activity-matrix' as const }) })
+    change({ sodFilters: writeFilters(stored, target, PAGE_FIELDS[target], next), ...(slot ? {} : { sodView: risk ? 'risk-matrix' as const : 'activity-matrix' as const }) })
   }
   const toggle = (values: string[], value: string) => (values.includes(value) ? values.filter((item) => item !== value) : [...values, value])
   const exportCsv = async () => {
