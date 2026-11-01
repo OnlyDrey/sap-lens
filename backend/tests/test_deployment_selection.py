@@ -87,7 +87,7 @@ class PlanningJobTests(unittest.TestCase):
         self.assertIn('Build selection rejected', summary); self.assertIn('No package was built or published', summary)
 
     def test_the_summary_states_when_publication_is_enabled(self):
-        done, values, summary = run_plan('linux-all', PUBLISH_RELEASE='true')
+        done, values, summary = run_plan('linux-all', PUBLISH_RELEASE='true', DEPLOYMENT_CHANNEL='Beta')
         self.assertEqual(done.returncode, 0); self.assertIn('only the selected packages that pass verification are published', summary)
 
     def test_the_publisher_accepts_only_the_planned_list_of_the_same_target(self):

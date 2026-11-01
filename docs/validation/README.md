@@ -6,6 +6,7 @@ results are listed separately and never approve an item.
 
 - Source of truth: [`validation-items.csv`](validation-items.csv): one row per item in 22 functional areas.
 - Workbook for reviewers: [`validation-tracker.xlsx`](validation-tracker.xlsx), generated from the CSV (a test fails if it is stale).
+- CI/CD workflows: [workflow validation matrix](WORKFLOW_MATRIX.md), with GitHub run evidence per scenario.
 - Tooling: `python scripts/validation_tracker.py` with `check`, `summary`, `export`, `merge` and `migrate`.
 
 ## Functional areas

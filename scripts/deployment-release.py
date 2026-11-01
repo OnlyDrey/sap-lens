@@ -63,9 +63,17 @@ def plan_summary(build_target, chosen):
             f'{len(chosen)} of {len(PACKAGES)} packages selected. {publish}\n\n| Package | Runner | Decision |\n| --- | --- | --- |\n{rows}\n')
 
 
+def require_release_ref(mode, ref):
+    """Stable / Production is published only from main (the legacy Windows release enforces the same rule); other channels may come from any branch."""
+    if mode == 'stable' and ref != 'refs/heads/main':
+        raise DeliveryError('Stable / Production releases may only be published from the main branch.')
+
+
 def plan():
     build_target = os.environ.get('DEPLOYMENT_TARGET', '')
     chosen = resolve(build_target)
+    if os.environ.get('PUBLISH_RELEASE') == 'true':  # fail before any runner is spent on a release that could never be published
+        require_release_ref(channel(os.environ.get('DEPLOYMENT_CHANNEL', '')), os.environ.get('GITHUB_REF', ''))
     output(packages=','.join(chosen), count=len(chosen), **{row[0]: 'true' if name in chosen else 'false' for name, row in PACKAGES.items()})
     summary = plan_summary(build_target, chosen)
     print(summary)
@@ -148,6 +156,7 @@ def context():
             or info['run_number'] != os.environ.get('GITHUB_RUN_NUMBER')
             or info['attempt'] != int(os.environ.get('GITHUB_RUN_ATTEMPT', '0'))):
         raise DeliveryError('Publication requires this workflow commit, run and attempt.')
+    require_release_ref(info['mode'], os.environ.get('GITHUB_REF', ''))
     return info
 
 

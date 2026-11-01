@@ -115,6 +115,9 @@ bypass restrictions where supported, and main-only deployment branches before
 relying on approval enforcement. Both privileged jobs can require approval;
 GitHub may request a second approval at publication after the build.
 
+Deployment publication of Stable / Production is also refused in code unless the workflow runs on `main` (checked by the plan job, so
+no runner is spent, and again before publishing); the other channels may be published from any branch.
+
 The workflow only references environments; it does not configure settings.
 A missing/unprotected environment can be created by GitHub without review rules.
 The name alone therefore does not enforce approval. Main-only/version rules are

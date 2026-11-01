@@ -208,6 +208,28 @@ class DeploymentVersionTests(unittest.TestCase):
                 release.main()
 
 
+class DeploymentReleaseRefTests(unittest.TestCase):
+    ENV = dict(GITHUB_ACTIONS='true', GITHUB_EVENT_NAME='workflow_dispatch', GITHUB_SHA=SHA, GITHUB_RUN_ID='123', GITHUB_RUN_NUMBER='12', GITHUB_RUN_ATTEMPT='1')
+
+    def test_stable_is_published_only_from_main_and_other_channels_from_any_branch(self):
+        for channel, ref, allowed in [('stable', 'refs/heads/main', True), ('stable', 'refs/heads/work', False), ('stable', 'refs/tags/v1', False), ('stable', '', False),
+                                      ('beta', 'refs/heads/work', True), ('rc', 'refs/heads/feature/x', True), ('alpha', 'refs/heads/work', True)]:
+            env = {**self.ENV, 'GITHUB_REF': ref, 'DEPLOYMENT_IDENTITY': json.dumps(identity(channel))}
+            with self.subTest(channel=channel, ref=ref), patch.dict(os.environ, env, clear=True):
+                if allowed:
+                    self.assertEqual(release.context()['mode'], channel)
+                else:
+                    with self.assertRaises(release.DeliveryError): release.context()
+
+    def test_the_plan_rejects_an_unpublishable_stable_release_before_any_runner_starts(self):
+        base = dict(DEPLOYMENT_TARGET='linux-native', DEPLOYMENT_CHANNEL='Stable / Production')
+        with patch.dict(os.environ, {**base, 'PUBLISH_RELEASE': 'true', 'GITHUB_REF': 'refs/heads/work'}, clear=True):
+            with self.assertRaises(release.DeliveryError): release.plan()
+        for extra in ({'PUBLISH_RELEASE': 'true', 'GITHUB_REF': 'refs/heads/main'}, {'PUBLISH_RELEASE': 'false', 'GITHUB_REF': 'refs/heads/work'}):
+            with self.subTest(extra=extra), patch.dict(os.environ, {**base, **extra}, clear=True):
+                self.assertEqual(release.plan(), ['linux-native'])  # a build-only run from any branch is unaffected
+
+
 class DeploymentCollectionTests(unittest.TestCase):
     def test_all_selected_targets_must_succeed_and_validation_is_required(self):
         info = identity()
@@ -252,6 +274,30 @@ class DeploymentCollectionTests(unittest.TestCase):
             with self.subTest(bad=bad), self.assertRaises(release.DeliveryError):
                 release.eligible(info, bad, needs(info))
 
+    def test_a_missing_or_unverified_artifact_stops_publication_before_any_release_exists(self):
+        info = identity(); data = needs(info)
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            for key in (row[0] for row in release.PACKAGES.values()):
+                row = data[key]['outputs']; name = row['package_name']
+                (directory / name).write_bytes(key.encode()); (directory / (name + '.sha256')).write_text(row['package_sha'] + '  ' + name + '\n')
+            rows = release.eligible(info, ALL, data)
+            for suffix in ('', '.sha256'):  # the package or its checksum never arrived
+                victim = directory / (rows[0]['package_name'] + suffix); content = victim.read_bytes(); victim.unlink()
+                with self.subTest(missing=suffix or 'package'), self.assertRaises(release.DeliveryError):
+                    release.collect(directory, info, rows)
+                victim.write_bytes(content)
+            package = directory / rows[0]['package_name']; package.write_bytes(b'')  # corrupted: no longer matches the verified digest
+            with self.assertRaises(release.DeliveryError):
+                release.collect(directory, info, rows)
+
+    def test_a_failed_smoke_test_leaves_no_verified_output_and_blocks_the_package(self):
+        info = identity(); data = needs(info)
+        data['docker'] = {'result': 'failure', 'outputs': {}}  # smoke failure fails the job; its outputs are never trusted
+        with self.assertRaises(release.DeliveryError):
+            release.eligible(info, ALL, data)
+        self.assertEqual(len(release.eligible(info, [n for n in ALL if n != 'linux-docker'], {**data, 'docker': {'result': 'skipped', 'outputs': {}}})), len(ALL) - 1)
+
     def test_exact_asset_collection_checksum_source_manifest_and_tampering(self):
         info = identity(); data = needs(info)
         with tempfile.TemporaryDirectory() as temporary:
@@ -288,6 +334,18 @@ class DeploymentCollectionTests(unittest.TestCase):
         mutate(lambda w: w['jobs']['publish']['permissions'].update(actions='write'))
         mutate(lambda w: w['jobs']['publish']['steps'][-1].update(**{'if': 'success()'}))
         mutate(lambda w: w['jobs']['desktop']['steps'][next(i for i,s in enumerate(w['jobs']['desktop']['steps']) if s.get('id')=='integrity')].update(**{'if': 'success()'}))
+        # A cancelled run, a missing publish switch or a missing protected environment must never publish.
+        mutate(lambda w: w['jobs']['publish'].update(**{'if': w['jobs']['publish']['if'].replace(' && !cancelled()', '')}))
+        mutate(lambda w: w['jobs']['publish'].update(**{'if': w['jobs']['publish']['if'].replace(' && inputs.publish_release', '')}))
+        mutate(lambda w: w['jobs']['publish'].pop('environment'))
+        mutate(lambda w: w['jobs']['publish'].update(**{'if': w['jobs']['publish']['if'] + " && needs.full-validation.result == 'success'"}))
+
+    def test_build_only_runs_need_no_publication_permission_or_environment(self):
+        workflow = contracts.load_workflows()['build-deployments.yml']
+        self.assertEqual(workflow['permissions'], {'contents': 'read'})
+        for job in ('plan', 'validation', 'desktop', 'service', 'docker', 'native'):
+            self.assertNotIn('environment', workflow['jobs'][job]); self.assertNotEqual(workflow['jobs'][job].get('permissions', {}).get('contents'), 'write')
+        self.assertIn('inputs.publish_release', workflow['jobs']['publish']['if'])
 
 
 class DeploymentPublicationTests(unittest.TestCase):

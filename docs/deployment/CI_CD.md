@@ -84,6 +84,34 @@ merges, after shared or security-sensitive changes, or when diagnosing a regress
 - Release publication needs `publish_release`, a valid version and channel, verified packages and, for Beta and Stable, the
   matching protected environment.
 
+### Security audit (workflows)
+
+Checked from the repository on the current head. Repository and environment settings cannot be read from here and are listed as unverified.
+
+| Area | Result |
+| --- | --- |
+| Action pinning | Every `uses:` is a full commit SHA |
+| Checkout credentials | `persist-credentials: false` on every checkout |
+| Triggers | No `pull_request_target`; Fast Validation is the only automatic workflow and runs with `contents: read` |
+| Token permissions | Read-only by default; `contents: write` only in the publish job (and the legacy version reservation and release jobs) |
+| Untrusted input | Workflow inputs reach scripts through `env`, never interpolated into `run` text; versions and channels are validated by the planner |
+| Secrets | None referenced; publication uses the scoped `github.token` |
+| Caches | Download caches only, keyed by lock files; nothing from a cache is promoted into a release |
+| Artifacts | Same-run IDs with digest checks, sealed receipt bound to commit, run and attempt, receipt expiry 24 hours |
+| Docker image | Runs as UID 10001 with a health check; base images are pinned by tag, not digest |
+
+**Confirmed issue, fixed:** Stable / Production publication from the deployment pipeline was restricted to `main` only by an optional
+administrator environment rule, not in code (the legacy Windows release did enforce it). The plan job and the publish step now refuse
+Stable from any other ref, and a build-only run is unaffected.
+
+**Hardening recommendations (not vulnerabilities, not applied):**
+
+- Add Dependabot for the `github-actions` ecosystem so SHA pins do not go stale (no `.github/dependabot.yml` exists).
+- Pin the Docker base images by digest once an update process exists.
+- Confirm in repository settings that `sap-lens-stable` has required reviewers and a main-only branch rule, and `sap-lens-beta` exists (unverified).
+- Consider retiring the legacy `build-windows.yml` once Build Deployment Packages has a verified Windows Desktop run, to remove a second privileged release path.
+- Optional build provenance attestation (`actions/attest-build-provenance`) would add a signed record; the sealed receipt and digests cover integrity within a run.
+
 ## Local commands
 
 | Command | Use |
@@ -96,9 +124,9 @@ merges, after shared or security-sensitive changes, or when diagnosing a regress
 
 ## Runtime validation status
 
-Offline contract tests cover every workflow. GitHub runtime behavior is tracked per item in the
-[validation tracker](../validation/README.md); a workflow counts as verified on GitHub only after a completed run is recorded
-there. Changes in this architecture are validated offline until such a run exists.
+Offline contract tests cover every workflow. Per-scenario status, with run URLs, is kept in the
+[workflow validation matrix](../validation/WORKFLOW_MATRIX.md); a scenario counts as verified on GitHub only after a completed run
+is recorded there. No workflow is dispatched and no test release is published without explicit approval.
 
 ## Troubleshooting
 

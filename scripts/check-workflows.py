@@ -124,6 +124,7 @@ def validate(workflows):
     require(deployment_publish['if']=="${{ always() && !cancelled() && inputs.publish_release && needs.plan.result == 'success' && needs.validation.result == 'success' }}", 'Publication must be manual, explicit, planned and validated')
     require(deployment_publish['env'].get('DEPLOYMENT_PACKAGES')=='${{ needs.plan.outputs.packages }}' and deployment_publish['env'].get('DEPLOYMENT_TARGET')=='${{ inputs.build_target }}', 'Publication may collect only the planned packages')
     require(deployment_publish['concurrency']=={'group':'sap-lens-deployment-publication','cancel-in-progress':'false'}, 'Publication must be serialized without cancellation')
+    require(isinstance(deployment_publish.get('environment'),dict),'Publication must run in a protected environment')
     require(deployment_publish['environment']['name']=="${{ inputs.release_channel == 'Stable / Production' && 'sap-lens-stable' || 'sap-lens-beta' }}", 'Stable release protection must be retained')
     commands=[s.get('run','') for s in deployment_publish['steps']]
     require('python scripts/deployment-release.py preflight' in commands and 'python scripts/deployment-release.py publish --directory dist/publication' in commands, 'Publication eligibility and asset verification are mandatory')
