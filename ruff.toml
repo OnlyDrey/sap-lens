@@ -1,0 +1,20 @@
+# Ruff baseline: correctness rules only. The code base is deliberately dense (several statements per line, compact
+# conditionals), so no formatting, style or line-length rule is selected and nothing is reformatted.
+# Run from the repository root: `ruff check backend scripts` (pinned in backend/requirements-dev.txt).
+target-version = "py312"
+extend-exclude = ["frontend", "build", "dist", "docs", "deploy", "node_modules"]
+
+[lint]
+select = [
+    "F",       # pyflakes: unused imports and variables, undefined names, f-strings without placeholders
+    "E9",      # syntax and I/O errors
+    "PLE",     # pylint errors
+    "B006",    # mutable default argument
+    "B015",    # pointless comparison
+    "B018",    # useless expression
+    "B023",    # closure that does not bind a loop variable
+    "B904",    # raise inside except without `from`
+    "S506",    # unsafe YAML loader
+    "ASYNC",   # blocking calls inside async functions
+    "RUF006",  # asyncio task reference not kept
+]

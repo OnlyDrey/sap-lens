@@ -338,6 +338,7 @@ export function SettingsView({
     const path = roleInspectionPath
     const profileId = imports.id
     setInspecting(true)
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises -- the whole body is wrapped in try/catch/finally
     const timer = window.setTimeout(async () => {
       try {
         const result = await detectHeaders(path, {

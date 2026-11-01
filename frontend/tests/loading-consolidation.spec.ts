@@ -1,9 +1,9 @@
 import { directoryDisplayName } from '../src/lib/directoryDisplayName'
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers, goTo, setDescending, sortDirection, openFilters, closeFilters } from './support'
+import { headers, goTo, setDescending, sortDirection, openFilters } from './support'
 let directory: string, roles: string, users: string
 const roleCSV =
   'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,TCODE\nMM,ZC:DEMO:A,Demo purchasing,ZS:A,MIGO\n'
@@ -34,7 +34,6 @@ test.afterEach(async ({ request }) => {
 
 test('startup load completion refreshes every route cache without revisiting Settings', async ({
   page,
-  request,
 }) => {
   let loading = true
   await page.route('**/api/configuration', async (route) => {
@@ -92,7 +91,6 @@ test('startup load completion refreshes every route cache without revisiting Set
 
 test('navigation during refresh cancels a late old route response and updates all pages', async ({
   page,
-  request,
 }) => {
   await page.goto('/#session=browser-test-session')
   await goTo(page, 'Dashboard')

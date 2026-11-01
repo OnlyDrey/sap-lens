@@ -28,7 +28,9 @@ class DeploymentContracts(unittest.TestCase):
         self.assertIn('workers=1',(ROOT/'backend/server.py').read_text())
         unit=(ROOT/'deploy/linux/sap-lens.service').read_text()
         for expected in ['User=saplens','NoNewPrivileges=true','ProtectSystem=strict','Restart=on-failure',
-                         'ReadWritePaths=/var/lib/sap-lens','WantedBy=multi-user.target']:
+                         'ReadWritePaths=/var/lib/sap-lens','WantedBy=multi-user.target','PrivateDevices=true','ProtectKernelTunables=true',
+                         'ProtectKernelModules=true','ProtectControlGroups=true','LockPersonality=true','RestrictRealtime=true','RestrictSUIDSGID=true',
+                         'RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6']:
             self.assertIn(expected,unit)
     def test_service_and_build_preserve_independent_runtime_and_verification(self):
         service=(ROOT/'scripts/manage-server-service.ps1').read_text()

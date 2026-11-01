@@ -62,6 +62,9 @@ not implicitly load it: systemd, WinSW or the invoking shell supplies environmen
 | `SAP_LENS_AUTH` | `local`, `basic` or `proxy`; see security guide |
 | `SAP_LENS_AUTH_SECRET_FILE` | Required private file for basic/proxy, never sent to browser settings |
 | `SAP_LENS_AUTH_USER` | `saplens`, shared Basic username |
+| `SAP_LENS_AUTH_SECRET_GROUP_READ` | `1` accepts a group-readable (0640) secret whose group the service account belongs to; default requires owner-only |
+| `SAP_LENS_AUTH_MAX_FAILURES` | `5` (3 to 50) failed Basic sign-ins per client before a lock-out |
+| `SAP_LENS_AUTH_LOCKOUT_SECONDS` | `60` (10 to 3600) first lock-out; doubles up to 15 minutes |
 | `SAP_LENS_TRUSTED_PROXIES` | Explicit peer CIDRs required in proxy mode; no `/0` |
 | `SAP_LENS_LOG_LEVEL` | `info`, also `warning`/`error` |
 

@@ -285,6 +285,8 @@ export function ComponentLibrary() {
             >
               <option value="all">All demo values</option>
               <option value="active">Active demo values</option>
+              <option value="archived" disabled>Archived demo values (not available)</option>
+              <option value="long">A deliberately long demo value that wraps inside the list instead of widening it or leaving the viewport</option>
             </Select>
           </FormField>
           <FormField label="Demo multi-select filter">
@@ -377,6 +379,10 @@ export function ComponentLibrary() {
           <SidePanel title="Isolated side panel" subtitle="Docked, non-modal detail" onClose={() => setPanelOpen(false)}>
             <p>The side panel keeps the list behind it in place. Escape closes it and restores focus to the trigger.</p>
             <Input aria-label="Demo side panel input" />
+            <Select aria-label="Demo side panel select" value={select} onChange={(e) => setSelect(e.target.value)}>
+              <option value="all">All demo values</option>
+              <option value="active">Active demo values</option>
+            </Select>
           </SidePanel>
         )}
         {dialogOpen && (
@@ -389,6 +395,11 @@ export function ComponentLibrary() {
               closes it and restores focus.
             </p>
             <Input aria-label="Demo dialog input" />
+            <Select aria-label="Demo dialog select" value={select} onChange={(e) => setSelect(e.target.value)}>
+              <option value="all">All demo values</option>
+              <option value="active">Active demo values</option>
+              <option value="archived" disabled>Archived demo values (not available)</option>
+            </Select>
           </Dialog>
         )}
       </Card>}

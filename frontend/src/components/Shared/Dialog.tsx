@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { openListOwnsEscape } from '@/lib/openListOwnsEscape'
 import { X } from 'lucide-react'
 import { Button, IconButton } from './Button'
 
@@ -29,6 +30,7 @@ export function Dialog({
     dialog.current?.focus()
     const key = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        if (openListOwnsEscape(event)) return
         event.preventDefault()
         event.stopPropagation()
         close.current()

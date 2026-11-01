@@ -311,7 +311,7 @@ def notes(
         )
         + f'Source commit: `{sha}`\n\nBuild date (UTC): {datetime.now(timezone.utc).isoformat(timespec="seconds")}\n\n'
         + f"Application/EXE version: `{source_version}` (embedded build identity).\n\n"
-        + f"Platform: Windows x64; one-file EXE, WebView2. Unsigned.\n\n"
+        + "Platform: Windows x64; one-file EXE, WebView2. Unsigned.\n\n"
         + f"EXE SHA-256: `{exe_sha}`\n\nZIP SHA-256: `{zip_sha}`\n\n"
         + "The ZIP contains SAP-Lens.exe and its SHA-256 manifest. The adjacent ZIP checksum covers the download.\n\n"
         + f"Originating build: https://github.com/{REPOSITORY}/actions/runs/{run_id}\n"
@@ -356,8 +356,7 @@ def allocate(client, env, progress):
 
 def publish(client, env, download, output, metadata, progress):
     mode, version, ref = env["RELEASE_MODE"], env["RELEASE_VERSION"], env["GITHUB_REF"]
-    attempt = int(env["GITHUB_RUN_ATTEMPT"])
-    info = identity_for_environment(env, metadata)
+    info = identity_for_environment(env, metadata)  # also validates GITHUB_RUN_ATTEMPT
     progress["application_version"] = info["version"]
     if mode == "build" or env.get("GITHUB_EVENT_NAME") != "workflow_dispatch":
         raise ReleaseError(
@@ -603,7 +602,7 @@ def main():
             else "Release operation failed; inspect reserved tag/draft and run logs before recovery."
         )
         print("Release stopped: " + message)
-        raise SystemExit(1)
+        raise SystemExit(1) from None
     finally:
         if args.command in {"allocate", "publish"} and env.get("GITHUB_STEP_SUMMARY"):
             state = (

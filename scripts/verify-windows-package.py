@@ -248,7 +248,7 @@ def inspect_archive(executable, frontend):
                 if len(contents) > 4096: raise ValueError('Build identity is oversized.')
                 embedded_version = parse_build_info(json.loads(contents))
             except (ValueError, TypeError, KeyError):
-                raise PackageValidationError('Embedded build version is invalid.')
+                raise PackageValidationError('Embedded build version is invalid.') from None
             if embedded_version != metadata_module().BUILD_INFO:
                 raise PackageValidationError('Embedded build version differs from the resolved build.')
         if canonical_name(name) == 'assets/sap-lens.ico' and contents != (ROOT / 'assets/sap-lens.ico').read_bytes():

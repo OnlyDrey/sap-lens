@@ -17,7 +17,6 @@ from config_models import SourceSnapshot
 from main import create_app
 from sod_import import build_sod
 import sod_decisions as decisions
-import sod_governance as governance
 from user_access import UserState
 from test_sod_analysis_api import role, assignment
 

@@ -3,7 +3,6 @@ import argparse
 import base64
 import hashlib
 import http.client
-import importlib.util
 import json
 from pathlib import Path
 import shutil

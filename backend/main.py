@@ -32,7 +32,7 @@ class DataSettings(BaseModel):
 
 def create_app(origin: str | None = None, session_token: str | None = None,
                instance_id: str | None = None, server=None, browser_access: bool = False, desktop_preferences=None) -> FastAPI:
-    from deployment import server_mode, ServerSettings
+    from deployment import server_mode, ServerSettings, AuthThrottle
     if server is None and server_mode():
         server = ServerSettings.from_env()
     loader = DataLoader()
@@ -48,6 +48,7 @@ def create_app(origin: str | None = None, session_token: str | None = None,
         allowed_origins = [f'http://127.0.0.1:{port}', f'http://localhost:{port}']
     desktop_hosts = {urlsplit(value).netloc for value in allowed_origins} if browser_access else set()
     request_header = session_token or '1'
+    throttle = AuthThrottle(server.max_failures, server.lockout_seconds) if server and server.auth == 'basic' else None
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -84,6 +85,7 @@ def create_app(origin: str | None = None, session_token: str | None = None,
         logging.getLogger('sap-lens').error('Unhandled %s on %s', type(error).__name__, request.url.path)
         return JSONResponse({'detail': 'The operation failed unexpectedly. Retry, and check the application logs if it persists.'}, status_code=500)
     app.state.deployment = server
+    app.state.auth_throttle = throttle
     app.add_middleware(RequestBodyLimit)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(server.hosts) if server else ['127.0.0.1', 'localhost'])
     app.add_middleware(
@@ -98,9 +100,18 @@ def create_app(origin: str | None = None, session_token: str | None = None,
                                or not request.client or request.client.host not in {'127.0.0.1','::1'}):
             return JSONResponse({'detail':'Desktop access requires its exact loopback listener.'},status_code=403)
         if server and request.url.path not in {'/health/live','/health/ready'}:
+            offered = bool(request.headers.get('authorization'))
+            client = server.client_address(request) if throttle is not None else None
+            if throttle is not None and offered and (wait := throttle.blocked_for(client)):
+                # Credentials from a locked-out client are not evaluated at all; a request without credentials is just challenged.
+                return JSONResponse({'detail':'Too many failed sign-in attempts. Try again later.'},status_code=429,headers={'Retry-After':str(wait)})
             if not server.authorized(request):
+                if throttle is not None and offered and (cooldown := throttle.failure(client)):
+                    import logging
+                    logging.getLogger('sap-lens-server').warning('Sign-in throttled for client %s for %s seconds after repeated failures',client,cooldown)
                 return JSONResponse({'detail':'Server access is not authorized.'},status_code=401,
                                     headers={'WWW-Authenticate':'Basic realm="SAP Lens", charset="UTF-8"'} if server.auth=='basic' else {})
+            if throttle is not None and offered: throttle.success(client)
             if request.method not in {'GET','HEAD','POST','OPTIONS'}:
                 return JSONResponse({'detail':'Method not allowed.'},status_code=405)
             if request.url.path == '/api/branding/preview':
@@ -123,6 +134,7 @@ def create_app(origin: str | None = None, session_token: str | None = None,
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'no-referrer'
         response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=()'
         if request.url.path.startswith(('/api/', '/health')):
             response.headers['Cache-Control'] = 'no-store'
         nonce = getattr(request.state,'desktop_nonce',None)
@@ -130,7 +142,7 @@ def create_app(origin: str | None = None, session_token: str | None = None,
         response.headers['Content-Security-Policy'] = (
             f"default-src 'self'; script-src {script_policy}; style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data:; font-src 'self'; connect-src 'self'; "
-            "frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+            "object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
         )
         return response
 

@@ -341,6 +341,13 @@ SoD heatmap expanded in each new session (session storage), Assignments KPI grou
 - Optional SoD descriptive metadata: `sod_import.py`, `sod_metadata.py`, `/api/sod/metadata`, pill popovers, coverage in the source diagnostics.
 - Documentation audit ([DOCUMENTATION_AUDIT_R8](DOCUMENTATION_AUDIT_R8.md)) and the validation tracker upgrade.
 
+## R8.1 stabilization
+
+- Failed Basic sign-ins are throttled per client; the access secret must be owner-only unless group read is enabled explicitly (SEC-02, SEC-03); SEC-04 and SEC-07 partly applied.
+- PDF and DOCX reports use the shared metadata resolver; review snapshots freeze their own descriptions; older snapshots say what was not retained.
+- Ruff and ESLint (correctness baselines) run locally and in both workflows; the standard select shares the Combobox list; Role Lookup headers are one line with the full text on demand.
+- Test tooling: leak-free browser servers, up to three isolated browser processes, the `fast` profile and a split accessibility audit. Record: [R8.1 stabilization](R8_1_STABILIZATION.md).
+
 ## Not verified
 
 - Round 2: Windows/WebView2 startup and restart restoration, native save dialogs for the new package CSV (the Windows bridge was only unit tested with the new header), Windows Service, installer, systemd and UNC paths were not run here. The startup behavior was validated by real fresh-process backend tests and by browser tests that model the restart, not on a packaged desktop app.

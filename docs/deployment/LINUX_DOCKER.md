@@ -21,7 +21,7 @@ mkdir -p local-config
 sudo install -d -m 0750 -o "$(id -u)" -g 10001 local-config
 (umask 077; openssl rand -hex 32 > local-config/server-access.secret)
 sudo chgrp 10001 local-config/server-access.secret
-chmod 0640 local-config/server-access.secret
+chmod 0640 local-config/server-access.secret   # group read for the container user only; compose.yml sets SAP_LENS_AUTH_SECRET_GROUP_READ=1
 docker compose up -d
 docker compose ps
 docker compose logs -f

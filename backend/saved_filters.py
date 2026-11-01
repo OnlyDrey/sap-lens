@@ -23,14 +23,14 @@ def read():
         if len({i['id'] for i in data['items']}) != len(data['items']): raise ValueError()
         return data['items']
     except (OSError, ValueError, TypeError):
-        raise HTTPException(409, 'Saved filters are unreadable or unsupported. The original file has been preserved; restore a local backup.')
+        raise HTTPException(409, 'Saved filters are unreadable or unsupported. The original file has been preserved; restore a local backup.') from None
 
 
 def write(items):
     content = json.dumps(dict(schema_version=1,items=items),ensure_ascii=False).encode('utf-8')
     if len(content)>MAX_BYTES: raise HTTPException(422,'Saved filters exceed the local storage limit.')
     try: atomic_write(config_dir() / 'saved-filters.json',content)
-    except OSError: raise HTTPException(409,'Saved filters could not be saved; the previous file is retained.')
+    except OSError: raise HTTPException(409,'Saved filters could not be saved; the previous file is retained.') from None
 
 
 def save(name, view, filters, identifier='', expected='', rename=False):

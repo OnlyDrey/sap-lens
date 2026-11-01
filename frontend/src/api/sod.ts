@@ -202,7 +202,7 @@ export async function downloadFile(path: string, options: { method?: 'GET' | 'PO
       if (!save) throw Error('Update the desktop application for CSV export.')
       const text = new TextDecoder('utf-8', { fatal: true })
       const content = blocks.map((block, index) => text.decode(block, { stream: index < blocks.length - 1 })).join('')
-      return (await save(applicationToken(), name, '﻿' + content.replace(/^﻿/, ''))) ? name : ''
+      return (await save(applicationToken(), name, '\uFEFF' + content.replace(/^\uFEFF/, ''))) ? name : ''
     }
     if (!api.save_sod_document) throw Error('Update the desktop application for SoD document export.')
     const blob = new Blob(blocks as BlobPart[])

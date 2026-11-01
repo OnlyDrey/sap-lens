@@ -1,8 +1,6 @@
 """Verify downloaded inner archives and checksums; print an honest per-platform summary."""
 import argparse
-import hashlib
 import importlib.util
-import json
 import os
 from pathlib import Path
 import re

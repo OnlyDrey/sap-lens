@@ -15,7 +15,7 @@ import re
 import cache
 from config import ensure_content_file, config_dir, get_settings, save_configuration
 from config_models import FIELDS, USER_FIELDS, SourceSnapshot, RefreshMetadata
-from employee_directory import HEADERS, Directory, store, persist_directory
+from employee_directory import store, persist_directory
 
 NAMES = {'roles': 'Role Catalogue', 'users': 'User–Role Mapping', 'employees': 'Employee Directory', 'sod': 'SoD Matrix'}
 MAX_PRIVATE_BYTES = 256 * 1024 * 1024

@@ -11,6 +11,8 @@ services:
       SAP_LENS_ALLOWED_HOSTS: ${SAP_LENS_ALLOWED_HOSTS:-127.0.0.1}
       SAP_LENS_AUTH: ${SAP_LENS_AUTH:-basic}
       SAP_LENS_AUTH_SECRET_FILE: /run/secrets/access
+      # The host file is owned by the installing user and readable by the container's group (0640, group 10001); see docs/deployment/LINUX_DOCKER.md.
+      SAP_LENS_AUTH_SECRET_GROUP_READ: "1"
       SAP_LENS_TRUSTED_PROXIES: ${SAP_LENS_TRUSTED_PROXIES:-}
     volumes:
       - sap-lens-data:/data

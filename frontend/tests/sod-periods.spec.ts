@@ -4,7 +4,6 @@ let directory:string
 test.beforeEach(async({request})=>{directory=await seedGovernance(request)})
 test.afterEach(async({request})=>{await cleanup(request,directory)})
 void _bridge
-const open=async(page:any,name:string)=>{await openSod(page,'Review Periods');await page.getByRole('button',{name:`Open ${name}`,exact:true}).click();return page.getByRole('dialog',{name:'SoD period',exact:true})}
 
 test('review period is gated, approved by a different person, then frozen; deletion is still possible with a reason and is an audited archive',async({page,request})=>{
  await openSod(page,'Review Periods');await page.getByRole('button',{name:'Create review period',exact:true}).click();const create=page.getByRole('dialog',{name:'Create SoD review period',exact:true});await create.getByRole('textbox',{name:'Review period name',exact:true}).fill('Synthetic Browser Period');await create.getByRole('button',{name:'Capture review period',exact:true}).click()

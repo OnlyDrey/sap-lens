@@ -4,6 +4,8 @@ Priority: (1) the value imported with the SoD CSV, when populated; (2) the local
 (3) a neutral missing state. The two stores stay separate: imports never overwrite local text and local text never edits an import. When both
 exist and differ, both are kept and the origin of each is reported. Nothing here is generated from identifiers, and nothing here is read by detection.
 """
+from types import SimpleNamespace
+
 from sod_catalogue import read as read_local
 
 # Resolved field -> (key in the imported metadata, attribute of the local annotation).
@@ -121,3 +123,38 @@ def coverage(snapshot=None, saved=None):
         sample=[dict(id=key, kind='risk', **{name: entry[name] for name in ('name', 'description') if name in entry}, origin=entry['origin'])
                 for key, entry in list(lookup(snapshot, saved)['risks'].items()) if 'name' in entry or 'description' in entry][:5],
         note='Counts use distinct risks, activities and transaction codes. Local descriptions only fill gaps; no description is generated.')
+
+
+# ----------------------------------------------------------------------------------------------- review snapshots and reports
+
+SNAPSHOT_VERSION = 1
+
+
+def frozen(snapshot, saved, risk_ids):
+    """The resolved descriptions of the given risks and of their activities, as they are when a review snapshot is captured.
+
+    The copy is stored inside the immutable snapshot, so a period's report never reads descriptions that were imported or edited later.
+    Origins and differing alternates are kept; nothing is generated, and detection never reads this.
+    """
+    resolved = lookup(snapshot, saved)
+    wanted = set(risk_ids)
+    activity_ids = {mapping['activity'] for risk in (snapshot.sod or {}).get('risks', []) if risk['risk_id'] in wanted for slot in ('ACTVT1', 'ACTVT2') for mapping in risk['activities'][slot]}
+    risks = {key: {name: value for name, value in entry.items() if name not in ('criticality', 'type', 'risks')} for key, entry in resolved['risks'].items() if key in wanted}
+    activities = {key: {name: value for name, value in entry.items() if name != 'risks'} for key, entry in resolved['activities'].items() if key in activity_ids}
+    return dict(version=SNAPSHOT_VERSION, risks={key: entry for key, entry in risks.items() if len(entry) > 1}, activities={key: entry for key, entry in activities.items() if len(entry) > 1},
+                source=_imported(snapshot)[2])
+
+
+def for_period(saved):
+    """Descriptions for a stored review snapshot. `basis` is 'captured' when the snapshot carries its own copy; a snapshot from before descriptions were
+    retained ('legacy') offers only the local business text that was frozen with its risk records, never imported text and never today's values."""
+    copy = saved.get('metadata')
+    if isinstance(copy, dict) and copy.get('version') == SNAPSHOT_VERSION:
+        return dict(basis='captured', risks=copy.get('risks') or {}, activities=copy.get('activities') or {}, source=copy.get('source') or {})
+    risks = {}
+    for item in saved.get('risks', []):
+        local = item.get('local') or {}
+        entry = _entry(RISK_FIELDS, {}, SimpleNamespace(**{attribute: local.get(attribute, '') for _, attribute in RISK_FIELDS.values()}))
+        if len(entry) > 1:
+            risks[item['risk_id']] = entry
+    return dict(basis='legacy', risks=risks, activities={}, source={})

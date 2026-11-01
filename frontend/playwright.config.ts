@@ -21,6 +21,8 @@ export default defineConfig({
     command: 'python ../scripts/serve-browser-tests.py',
     url: `http://127.0.0.1:${port}/health`,
     reuseExistingServer: false,
+    // SIGTERM lets the server remove its temporary configuration directory; the default is SIGKILL, which leaks it.
+    gracefulShutdown: { signal: 'SIGTERM', timeout: 10_000 },
     timeout: 20000,
   },
 })

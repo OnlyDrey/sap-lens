@@ -1,8 +1,5 @@
 """Synthetic local access, release and compatibility regressions."""
 
-import asyncio
-import csv
-import io
 import json
 import os
 from pathlib import Path
@@ -15,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastapi.testclient import TestClient
 import cache
 import config
-from config_models import AppConfig, ImportProfile, UserImportProfile, ModuleOverride
+from config_models import AppConfig, ImportProfile, UserImportProfile
 from main import create_app
 from portable_config import export_configuration, read_portable, PortableConfig
 from role_matching import RoleMatcher, normalize_role, role_scope

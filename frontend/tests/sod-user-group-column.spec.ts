@@ -34,7 +34,7 @@ for (const kind of ['risk', 'activity'] as const) {
   })
 
   test(`${kind} matrix: sorting by SAP User Group, a missing group and the pinned columns`, async ({ page }) => {
-    const rows = (p: Page) => grid(page, kind).locator('tbody th.matrix-row-head code')
+    const rows = (_p: Page) => grid(page, kind).locator('tbody th.matrix-row-head code')
     await openSod(page, link)
     await page.getByRole('combobox', { name: 'Sort', exact: true }).selectOption('group')
     await expect(rows(page)).toHaveText([names.a, names.b]) // FIN before P2P

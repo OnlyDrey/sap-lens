@@ -11,13 +11,14 @@ selects tests from [`scripts/test-map.json`](../../scripts/test-map.json).
 
 | Profile | Run it | Covers | Typical use |
 | --- | --- | --- | --- |
+| `fast` | `python scripts/run-tests.py fast [feature ...]` | The cheap checks of one phase: `git diff --check`, documentation links, workflow contracts, Ruff, ESLint, the TypeScript check, then `smoke`, then `targeted` for the features you name | After every phase, before committing (about 2 to 4 minutes) |
 | `smoke` | `python scripts/run-tests.py smoke` | Critical backend tests (startup, import, role/user lookup, access package, SoD, security boundary, privacy) and browser tests tagged `@smoke` (launch/import, navigation, dashboard, investigation, comparison, package, SoD, account review) | Seconds-to-a-minute check after any edit |
 | `targeted` | `python scripts/run-tests.py targeted sod access-package` | Backend modules and browser specs owned by the named features | While changing a feature |
 | `regression` | `python scripts/run-tests.py regression` | Every backend module and browser spec, TypeScript check and production build, documentation links, workflow contracts, icon catalog, whitespace, `pip check` | Before a push of a finished phase or PR |
 | `release` | `python scripts/run-tests.py release` | Regression plus `npm audit`, `pip-audit`, PowerShell and workflow lint when those tools exist | Before a release decision |
 
 Useful switches: `--backend` / `--browser` (one side), `--jobs N` (parallel processes;
-`auto` by default, `1` disables), `--grep TEXT` (Playwright title filter), `--no-build`
+`auto` by default, `1` disables), `--browser-jobs N|auto` (browser processes, at most 3; see below), `--grep TEXT` (Playwright title filter), `--no-build`
 (trust an existing `frontend/dist`), `--list-tests`, `--report FILE` (JSON summary).
 `python scripts/run-tests.py list` shows the features; `check` validates the map.
 The runner rebuilds the frontend for browser profiles only when sources are newer than
@@ -69,6 +70,17 @@ processes. Within a process there is one worker and no retries, and
 opt in with `--jobs 3` on a host with spare cores. Measurements (the browser gain was
 modest and uneven on 4 vCPUs) are in the [optimization record](../archive/validation/TEST_SUITE_OPTIMIZATION.md).
 Do not raise workers inside one server without proving the fixtures cannot race.
+Browser processes: `--browser-jobs N` (or `SAP_LENS_BROWSER_JOBS`) runs the browser tests in up to three isolated processes; `auto` uses one per spare CPU (CPUs minus one, between 1 and 3), so a
+1 or 2 CPU host runs one process and a 4 CPU host three. The default stays one process. Spec files are assigned deterministically, longest first, from the measured seconds in
+`browser_seconds_hint` of the test map (a new spec gets a 35 s default; refresh the hints from a regression report when specs change a lot). Every process owns its server, port
+(18745 upward), configuration directory and Chromium; the runner reports busy ports instead of colliding, starts each process in its own process group and, on completion, error or interrupt,
+stops only the groups it started (SIGTERM first, so servers remove their directories), never with a name-based kill. A failure names its process (index, port, spec file count), the failing
+tests and the log tail; the regression report lists seconds per process and the ten slowest tests.
+
+Recommended settings: local development on 4 or more CPUs: `regression --browser-jobs auto`; a 1 or 2 CPU host or a memory-constrained container: leave the default; CI: unchanged until it is
+measured on the runner you use (hosted runners have 4 CPUs, but Chromium saturates them, and one load-dependent failure appeared in a three-process run). Backend `auto` (min(3, CPUs)
+processes) is safe everywhere: each test builds its own storage. Reproduce any failure of a parallel run with `--browser-jobs 1 --grep TITLE` before classifying it.
+
 R8 measurements on 4 vCPUs (716 browser tests, 34.5 min serial): 2 processes 1.33x, 3 processes 1.50x, 4 processes 1.38x on a six-spec subset, with no failures; test-level
 sharding was no faster than file-level sharding. See [test execution performance](TEST_PERFORMANCE_R8.md).
 
@@ -106,7 +118,7 @@ evidence](../archive/README.md) is historical.
 
 ## Fast Validation per phase
 
-About 1.5 to 3 minutes: `git diff --check`, `python scripts/check-docs.py` when docs changed, `npm run check:types` (20 s),
+About 1.5 to 3 minutes: `git diff --check`, `python scripts/check-docs.py` when docs changed, `python -m ruff check backend scripts` and `npm run lint` in `frontend` (a few seconds each), `npm run check:types` (20 s),
 `python scripts/run-tests.py smoke` (44 s), and `python scripts/run-tests.py targeted <feature>...` for what the phase touched
 (build first when the UI changed). The full backend and browser suites run once, after the final phase; use the default
 `auto` jobs (backend 65 s instead of 170 s) and reserve `--jobs 1` for reproducing a failure.
@@ -128,3 +140,14 @@ Validation once after the final phase ([repository guidance](../../AGENTS.md)).
 
 Inspect imports, callers and fixtures before selecting; this table is guidance, not a
 filename-based exemption.
+
+## Linting
+
+- **Python:** `python -m ruff check backend scripts` (Ruff pinned in `backend/requirements-dev.txt`, configured in `ruff.toml`). The baseline selects correctness rules only
+  (pyflakes, syntax, pylint errors, mutable defaults, useless expressions, loop closures, `raise` without `from` in `except`, unsafe YAML, blocking calls in async code). It selects no
+  formatting or line-length rule because the code base is deliberately dense; nothing was reformatted. A finding is fixed, or silenced on its own line with a reason (`# noqa: CODE (reason)`),
+  never ignored globally.
+- **Frontend:** `npm run lint` in `frontend` (ESLint 10, flat config in `eslint.config.js`): recommended JavaScript and TypeScript rules, `react-hooks/rules-of-hooks` as an error,
+  `react-hooks/exhaustive-deps` as a warning, and two type-aware rules (`no-floating-promises`, `no-misused-promises`) for `src`. The script is `eslint . --max-warnings N`, where N is the
+  current backlog (30 hook-dependency warnings in `src`, 81 `any` uses in `tests`): fixing warnings lets you lower N, adding one fails the run. Errors fail it outright.
+- Both run in Fast and Full Validation (`ruff`, `eslint` steps), in the `regression` profile's static stage and belong in every phase's Fast Validation.

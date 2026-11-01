@@ -67,29 +67,42 @@ async function audit(page: Page, name: string, stops = 60) {
   return problems
 }
 
-test('major views have names, sane tab order and visible, unclipped focus indicators', async ({ page }) => {
-  const problems: string[] = []
-  for (const width of [1280, 375]) {
-    await page.setViewportSize({ width, height: 900 })
-    const tag = (label: string) => `${label}@${width}`
+/** One test per viewport and view group (the same views, sections, widths and checks as one long walk), so a failure names its group and a rerun can target it. */
+const WIDTHS = [1280, 375]
+const GROUPS = {
+  'dashboard and main views': async (page: Page, tag: (label: string) => string) => {
+    const problems: string[] = []
     await page.goto('/#session=browser-test-session')
     problems.push(...await audit(page, tag('dashboard')))
     for (const label of ['Role Lookup', 'User Access', 'Release Roles']) {
       await main(page).getByRole('link', { name: label, exact: true }).click()
       problems.push(...await audit(page, tag(label)))
     }
+    return problems
+  },
+  'SoD views': async (page: Page, tag: (label: string) => string) => {
+    const problems: string[] = []
     for (const view of ['Overview', 'Risk Matrix', 'Activity Matrix', 'Access Explorer', 'Reviews', 'Review Periods', 'Reports']) {
       await openSod(page, view)
       problems.push(...await audit(page, tag('SoD ' + view)))
     }
+    return problems
+  },
+  'Settings sections': async (page: Page, tag: (label: string) => string) => {
+    const problems: string[] = []
     await page.goto('/#session=browser-test-session')
     await page.getByRole('button', { name: 'Open settings', exact: true }).click()
     for (const section of ['Organization & SAP System', 'Data Sources', 'SAP Modules', 'SoD Risk Configuration', 'Features', 'Runtime & Scheduling', 'Health & Diagnostics']) {
       await page.getByRole('tab', { name: section, exact: true }).click()
       problems.push(...await audit(page, tag('Settings ' + section), 40))
     }
-  }
-  const unique = [...new Set(problems)]
+    return problems
+  },
+}
+
+for (const width of WIDTHS) for (const [group, walk] of Object.entries(GROUPS)) test(`major views have names, sane tab order and visible, unclipped focus indicators: ${group} at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 900 })
+  const unique = [...new Set(await walk(page, (label) => `${label}@${width}`))]
   console.log('A11Y_PROBLEMS', unique.length)
   for (const problem of unique) console.log('A11Y', problem)
   expect(unique).toEqual([])

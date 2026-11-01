@@ -137,7 +137,7 @@ class InspectionTests(unittest.TestCase):
         good = cache.get_snapshot().sod['content_hash']
         revision = config.get_settings().revision
         body = dict(path=str(self.path), revision=revision, mode='static', profile=dict(delimiter=',', encoding='utf-8-sig', mapping={}))
-        saved = self.post('/api/data-sources/sod/select', body)
+        self.post('/api/data-sources/sod/select', body)
         self.assertEqual(config.get_settings().sod_import.encoding, 'utf-8-sig')
         self.assertTrue(config.get_settings().sod_import.version >= 1)
         self.path.write_text('RISK\nSYN01\n', encoding='utf-8')  # an invalid replacement

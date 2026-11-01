@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "dev:backend": "cd ../backend && python -m uvicorn main:app --host 127.0.0.1 --port 18744 --reload",
     "test:browser": "playwright test",
-    "check:types": "tsc --noEmit"
+    "check:types": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 111"
   },
   "dependencies": {
     "@radix-ui/react-scroll-area": "^1.0.5",
@@ -22,6 +23,7 @@
     "tailwind-merge": "^2.2.0"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
     "@playwright/test": "^1.64.1",
     "@types/node": "^26.6.5",
     "@types/react": "^18.2.0",
@@ -29,9 +31,13 @@
     "@vitejs/plugin-react": "^6.1.2",
     "autoprefixer": "^10.4.0",
     "concurrently": "^10.0.6",
+    "eslint": "10.14.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.13.0",
     "postcss": "^8.4.0",
     "tailwindcss": "^3.4.19",
     "typescript": "^5.2.0",
+    "typescript-eslint": "8.72.1",
     "vite": "^8.3.4"
   },
   "engines": {

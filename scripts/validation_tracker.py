@@ -254,7 +254,7 @@ def _summary_sheet(rows):
     body = [f'<row r="1">{_cell("A1", "SAP Lens validation checklist", 3)}</row>',
             f'<row r="2">{_cell("A2", "Generated from docs/validation/validation-items.csv. Status and Manual approval are recorded by people; automated test evidence is listed separately on the Items sheet. Nothing is approved automatically.", 6)}</row>',
             f'<row r="3">{_cell("A3", "Completion = Passed, Failed and Needs improvement over applicable items. Approved = manually approved over applicable items. Defects and Future Improvements are snapshots taken when the workbook was generated.", 6)}</row>']
-    table_rows = [f'<row r="5">' + ''.join(_cell(f'{_column(c)}5', value, 1) for c, value in enumerate(header)) + '</row>']
+    table_rows = ['<row r="5">' + ''.join(_cell(f'{_column(c)}5', value, 1) for c, value in enumerate(header)) + '</row>']
     first = 6
     for offset, area in enumerate(AREAS + ['All areas']):
         r, total = first + offset, area == 'All areas'

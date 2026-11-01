@@ -14,6 +14,7 @@ from pydantic import Field,model_validator,field_validator
 from config_models import StrictModel
 from branding import logo_bytes
 import report_branding
+import sod_metadata
 import sod_periods as periods
 import sod_decisions as decisions
 import sod_governance as governance
@@ -92,6 +93,32 @@ LIMITATION='Potential conflicts are based on role-derived transaction evidence, 
 
 def _table(header,rows):
     return [header,*rows] if rows else []
+
+
+DESCRIPTION_SOURCES={'imported':'Imported','local':'Local fallback',None:'Not available'}
+DESCRIPTION_LEGEND=('Sources: Imported = text supplied in the SoD Matrix CSV when the evidence was captured; Local fallback = business description maintained in SAP Lens, '
+                    'used only where the import has none; Not available = no description exists. SAP Lens does not write descriptions from identifiers.')
+BASIS_NOTES={'captured':'These descriptions were frozen with this review period and do not change when data is imported or edited later.',
+             'legacy':'This review period was captured before imported descriptions were retained. Only business descriptions maintained in SAP Lens at capture time are shown; no imported descriptions are available for this period.',
+             'current':'Current evidence: descriptions reflect the data loaded now and can change after the next import. A review period freezes them.'}
+
+
+def _described(entry):
+    """Name, description and where they come from; an alternate text of the other source is reported, never mixed in."""
+    entry=entry or {};origins=entry.get('origin',{})
+    parts={field:DESCRIPTION_SOURCES[origins.get(field)] for field in ('name','description') if entry.get(field)}
+    labels=set(parts.values())
+    label='Not available' if not parts else next(iter(labels)) if len(labels)==1 else ' · '.join(f'{field.capitalize()}: {value}' for field,value in parts.items())
+    if origins.get('description')=='imported' and (entry.get('alternate') or {}).get('description'):label+=' (a different local description exists)'
+    return entry.get('name') or '—',entry.get('description') or '—',label
+
+
+def _term_tables(metadata,risk_ids,activity_ids):
+    """Risk and activity definition tables, only when the data carries any description (reports for plain files stay as they were)."""
+    risks=[[key,*_described(metadata['risks'].get(key))] for key in sorted(risk_ids)]
+    activities=[[key,*_described(metadata['activities'].get(key))] for key in sorted(activity_ids)]
+    shown=lambda rows:any(row[1]!='—' or row[2]!='—' for row in rows)
+    return (_table(['Risk','Name','Description','Source'],risks) if shown(risks) else []),(_table(['Activity','Name','Description','Source'],activities) if shown(activities) else [])
 
 
 def _event_text(item):
@@ -188,8 +215,12 @@ def model(identifier,options):
     section('methodology',[f"Evaluation date: {localized_date(saved['evaluation_date'])}. Review period: {localized_date(period['start'])} - {localized_date(period['end'])}. Policy: {saved['analysis']['methodology']['policy']}.",
         'Method: potential conflicts are calculated from imported role and transaction evidence and the enabled risk rules. Reviewers decide whether each user needs a conflict-relevant activity, whether each role assignment that supplies it is necessary, and separately whether each remaining risk is accepted. Review decisions never change the calculation.',
         saved['limitation'],'Unsupported and locally disabled risks are excluded; unknown assignment validity is not treated as active.'],[GLOSSARY,_table(['Scope','Count'],[[key,str(value)] for key,value in saved['source_counts'].items()])])
-    section('risk_overview',['Criticality codes come from the imported risk definitions and are shown as supplied; no additional severity rating is applied. Transaction codes are listed only in the technical appendices.'],
-            [_table(['Source criticality','Findings'],[[key,str(value)] for key,value in sorted(by_criticality.items())]),_table(['Risk','Potential findings'],[[key,str(value)] for key,value in sorted(by_risk.items())]),_table(['Business area','Findings'],[[key,str(value)] for key,value in sorted(by_category.items())])])
+    described=sod_metadata.for_period(saved)
+    scope_activities={mapping['activity'] for row in risks for rows_ in row['source']['activities'].values() for mapping in rows_}
+    risk_terms,activity_terms=_term_tables(described,set(by_risk),scope_activities if options.include_appendices and 'appendices' in options.sections else set())
+    term_notes=[DESCRIPTION_LEGEND,BASIS_NOTES[described['basis']]] if risk_terms or activity_terms else []
+    section('risk_overview',['Criticality codes come from the imported risk definitions and are shown as supplied; no additional severity rating is applied. Transaction codes are listed only in the technical appendices.',*([term_notes[0],term_notes[1]] if risk_terms else [])],
+            [_table(['Source criticality','Findings'],[[key,str(value)] for key,value in sorted(by_criticality.items())]),_table(['Risk','Potential findings'],[[key,str(value)] for key,value in sorted(by_risk.items())]),risk_terms,_table(['Business area','Findings'],[[key,str(value)] for key,value in sorted(by_category.items())])])
     detail_note='Each decision with its reviewer, time and justification is listed in the technical appendices.' if options.include_appendices and 'appendices' in options.sections else 'Decision details are not included because the technical appendices are excluded.'
     if v2:
         a_items=by_kind['activity'];s_items=by_kind['assignment'];r_items=by_kind['acceptance']
@@ -239,7 +270,7 @@ def model(identifier,options):
         remediation_detail=[['SAP user','Activity / risks','Role / assignment','Recommended / owner / status','Verification']]+[[row['user'],row['activity']+' / '+', '.join(row['risks']),row['role']+'\n'+row['assignment_id'][:12],row['recommended']+' / '+(row['owner'] or '—')+' / '+row['action_status'],row['verification']] for row in rows]
         technical=[['Item','Value'],['Snapshot SHA-256',details['checksum']],['Review period identifier',period['id']],['Evaluation policy',saved['analysis']['methodology']['policy']],['Snapshot captured (UTC)',localized_stamp(saved['captured_at'])],
                    *[['Source version: '+names.get(key,key),value] for key,value in saved['source_versions'].items()],*[['Period transition: '+item['to_state'],localized_stamp(item['timestamp'])+' / '+item['actor']+(' / '+item['note'] if item['note'] else '')] for item in period.get('history',[])]]
-        section('appendices',[f"Source capture: {localized_stamp(saved['captured_at'])} UTC. Methodology: {saved['analysis']['methodology']['policy']}.",limitation],[catalogue_rows,transaction_rows,evidence_rows,decision_rows if len(decision_rows)>1 else [],remediation_detail if len(remediation_detail)>1 else [],technical])
+        section('appendices',[f"Source capture: {localized_stamp(saved['captured_at'])} UTC. Methodology: {saved['analysis']['methodology']['policy']}.",limitation,*(term_notes if activity_terms else [])],[catalogue_rows,activity_terms,transaction_rows,evidence_rows,decision_rows if len(decision_rows)>1 else [],remediation_detail if len(remediation_detail)>1 else [],technical])
     sections=[built[key] for key in SECTIONS if key in built]
     total=sum(len(table) for item in sections for table in item['tables'])
     if total>MAX_ROWS:raise HTTPException(413,'Detailed report exceeds 20,000 rows. Exclude appendices and use complete CSV exports for detailed evidence.')
@@ -278,6 +309,12 @@ def remediation_model(context,options):
     sections=[dict(key='summary',title='Summary',paragraphs=['This operational list shows what should happen to each access that is part of a detected conflict. A proposed removal is not completed remediation. Verification reflects source evidence only after a refresh and only when source coverage is complete.',LIMITATION],
                     tables=[[['Recommended handling','Rows'],*[[titles[key],str(summary.get(key,0))] for key in (*governance.GROUPS,'Awaiting review')],['Overdue tracked actions',str(summary.get('overdue',0))]],_status_table(state),_followup_table(all_rows)])]
     if not actions:sections[0]['paragraphs'].insert(1,'No remediation actions have been recorded for this scope. Rows below show what is recommended or still awaiting review; nothing here means access was removed.')
+    if bundle['period']:described=sod_metadata.for_period(periods.details(context)['snapshot'])
+    else:found=sod_metadata.lookup();described=dict(basis='current',risks=found['risks'],activities=found['activities'])
+    risk_terms,activity_terms=_term_tables(described,{risk for row in rows for risk in row['risks']},{row['activity'] for row in rows})
+    if risk_terms or activity_terms:
+        sections[0]['paragraphs'].extend([DESCRIPTION_LEGEND,BASIS_NOTES[described['basis']]]);sections[0]['tables'].extend([risk_terms,activity_terms])
+    sections[0]['tables']=[table for table in sections[0]['tables'] if table]
     for key in (*governance.GROUPS,'Awaiting review'):
         if key not in options.recommended:continue
         group=[row for row in rows if row['recommended']==key]

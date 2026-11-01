@@ -10,7 +10,7 @@ import cache
 import sod_decisions as decisions
 from user_access import UserState
 from test_sod_analysis_api import role, assignment
-from test_sod_governance import GovernanceCase, H, matrix, user
+from test_sod_governance import GovernanceCase, H, matrix
 
 BUY, SEL = 'ZC:MM:BUY:ENP', 'ZC:MM:SEL:ENP'
 
