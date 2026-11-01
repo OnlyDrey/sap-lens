@@ -88,6 +88,10 @@ mode; installer restricts its ACL. Do not put domain passwords in this file.
 Service failure recovery restarts after 10/30 seconds with a one-hour reset window.
 The backend refuses a duplicate data store or occupied port rather than silently
 moving. Stop timeout is 25 seconds; review wrapper/SCM logs for forced termination.
+After a successful WinSW command, management waits up to 40 seconds for SCM to
+confirm the expected state (Stopped, Running or removed). A timeout fails the
+operation and reports the last observed state. Backup, upgrade and uninstall do
+not proceed merely because the wrapper's stop command returned successfully.
 
 ## UNC and service identity
 

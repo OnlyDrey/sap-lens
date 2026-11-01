@@ -38,9 +38,41 @@ if ($PurgeData -and ($Action -ne 'Uninstall' -or -not $ConfirmPurge)) { throw 'P
 if ($Action -eq 'Status') { & $wrapper status; exit $LASTEXITCODE }
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 if (-not ([Security.Principal.WindowsPrincipal]$identity).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'Open an elevated PowerShell for SCM management.' }
+function Wait-ServiceState([string]$State, [int]$TimeoutSeconds = 40) {
+    $watch = [Diagnostics.Stopwatch]::StartNew()
+    $observed = 'absent'
+    do {
+        $service = Get-Service SAPLens -ErrorAction SilentlyContinue
+        try {
+            if ($service) {
+                $service.Refresh()
+                $observed = [string]$service.Status
+                if ($State -ne 'Absent' -and $observed -eq $State) { return }
+            } else {
+                $observed = 'absent'
+                if ($State -eq 'Absent') { return }
+            }
+        } finally {
+            # Open ServiceController handles can delay SCM deletion themselves.
+            if ($service) { $service.Dispose() }
+        }
+        if ($watch.Elapsed.TotalSeconds -ge $TimeoutSeconds) { break }
+        Start-Sleep -Milliseconds 250
+    } while ($true)
+    throw "SCM did not reach $State within $TimeoutSeconds seconds (last state: $observed). Inspect service logs and Event Viewer."
+}
 function Invoke-ServiceCommand([string]$Command) {
     & $wrapper $Command
     if ($LASTEXITCODE -ne 0) { throw "Windows service $Command failed. Inspect the service logs and Event Viewer." }
+    # WinSW returning is not sufficient evidence that SCM finished transitioning.
+    # Backup, upgrade and uninstall must never race an outstanding stop.
+    switch ($Command.ToLowerInvariant()) {
+        'install' { Wait-ServiceState 'Stopped' }
+        'start' { Wait-ServiceState 'Running' }
+        'stop' { Wait-ServiceState 'Stopped' }
+        'restart' { Wait-ServiceState 'Running' }
+        'uninstall' { Wait-ServiceState 'Absent' }
+    }
 }
 function Read-ServiceConfiguration {
     $settings = New-Object System.Xml.XmlReaderSettings

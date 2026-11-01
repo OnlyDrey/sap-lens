@@ -8,20 +8,22 @@ from unittest.mock import patch
 
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'backend'))
-from version import BUILD_INFO
+from version import BUILD_INFO, make_deployment_info
 spec=importlib.util.spec_from_file_location('installer_resources',ROOT/'scripts/verify-desktop-installer.py')
 rules=importlib.util.module_from_spec(spec);spec.loader.exec_module(rules)
 
 
 class InstallerResourceTests(unittest.TestCase):
-    def image(self,version=None,signed=False,numeric=None,subsystem=2):
+    def image(self,version=None,signed=False,numeric=None,subsystem=2,product_numeric=None):
         values=numeric or BUILD_INFO['file_version']
+        product=product_numeric or BUILD_INFO['file_version']
         strings={b'ProductName':b'SAP Lens',b'ProductVersion':(version or BUILD_INFO['version']).encode()}
         self.closed=False
         def close():self.closed=True
         return SimpleNamespace(OPTIONAL_HEADER=SimpleNamespace(Subsystem=subsystem,DATA_DIRECTORY=[SimpleNamespace(VirtualAddress=1 if signed else 0,Size=1 if signed else 0)]),
                                FileInfo=[[SimpleNamespace(StringTable=[SimpleNamespace(entries=strings)])]],
-                               VS_FIXEDFILEINFO=[SimpleNamespace(FileVersionMS=values[0]<<16|values[1],FileVersionLS=values[2]<<16|values[3])],close=close)
+                               VS_FIXEDFILEINFO=[SimpleNamespace(FileVersionMS=values[0]<<16|values[1],FileVersionLS=values[2]<<16|values[3],
+                                   ProductVersionMS=product[0]<<16|product[1],ProductVersionLS=product[2]<<16|product[3])],close=close)
 
     def verify(self,image):
         parser=SimpleNamespace(PE=lambda _:image,DIRECTORY_ENTRY={'IMAGE_DIRECTORY_ENTRY_SECURITY':0})
@@ -31,9 +33,23 @@ class InstallerResourceTests(unittest.TestCase):
         self.verify(self.image());self.assertTrue(self.closed)
 
     def test_changed_version_signature_numeric_or_console_resources_rejected(self):
-        for values in [dict(version='99.0.0'),dict(signed=True),dict(numeric=[99,0,0,0]),dict(subsystem=3)]:
+        for values in [dict(version='99.0.0'),dict(signed=True),dict(numeric=[99,0,0,0]),dict(product_numeric=[99,0,0,0]),dict(subsystem=3)]:
             with self.subTest(values=values),self.assertRaises(ValueError):self.verify(self.image(**values))
             self.assertTrue(self.closed)
+
+    def test_installer_channels_keep_numeric_resources_and_full_text_versions(self):
+        source=(ROOT/'deploy/windows/desktop-installer.iss').read_text()
+        setup=source.split('[Setup]',1)[1].split('[Tasks]',1)[0]
+        directives=dict(line.split('=',1) for line in setup.splitlines() if '=' in line)
+        for channel in ('alpha','beta','rc','stable'):
+            info=make_deployment_info('0.1.0',channel,'1','a'*40,'123','12',1)
+            with self.subTest(channel=channel):
+                values={key:value.replace('{#NumericVersion}','.'.join(map(str,info['file_version'])))
+                        .replace('{#FullVersion}',info['version']) for key,value in directives.items()}
+                for key in ('VersionInfoVersion','VersionInfoProductVersion'):
+                    self.assertEqual(list(map(int,values[key].split('.'))),info['file_version'])
+                for key in ('AppVersion','VersionInfoTextVersion','VersionInfoProductTextVersion'):
+                    self.assertEqual(values[key],info['version'])
 
     def test_installer_recipe_preserves_data_and_requires_webview_without_downloading_it(self):
         source=(ROOT/'deploy/windows/desktop-installer.iss').read_text()

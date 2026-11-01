@@ -25,6 +25,8 @@ def verify(path):
         fixed=pe.VS_FIXEDFILEINFO[0]
         numbers=[fixed.FileVersionMS>>16,fixed.FileVersionMS&65535,fixed.FileVersionLS>>16,fixed.FileVersionLS&65535]
         if numbers!=BUILD_INFO['file_version']:raise ValueError('Installer numeric version differs.')
+        product=[fixed.ProductVersionMS>>16,fixed.ProductVersionMS&65535,fixed.ProductVersionLS>>16,fixed.ProductVersionLS&65535]
+        if product!=BUILD_INFO['file_version']:raise ValueError('Installer numeric product version differs.')
         print('Installer PE resources/version verified; signing disabled. Native installed-payload checks remain mandatory.')
     finally:pe.close()
 

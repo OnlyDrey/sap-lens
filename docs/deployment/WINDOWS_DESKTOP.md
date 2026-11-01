@@ -30,6 +30,11 @@ the inner ZIP. It contains:
 - Application and Inno Setup licenses, this guide, exact package manifest and
   native installer validation report.
 
+Installer binary file/product versions use the four numeric components from the
+validated build identity. Displayed versions retain the full version string,
+including Alpha, Beta or RC suffixes. The package verifier checks both numeric
+versions and the textual product identity against that same build identity.
+
 Use a trusted distribution source. An unsigned package plus its own checksum
 provides integrity, not an independently authenticated publisher identity.
 
