@@ -183,6 +183,10 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,su
 .combobox-option svg { flex-shrink:0; }
 .combobox-option.highlighted { background:var(--hover); outline:1px solid var(--focus); outline-offset:-1px; }
 .combobox-option[aria-selected="true"] { color:var(--accent2); font-weight:600; }
+.combobox-option[aria-disabled="true"] { opacity:.5; cursor:not-allowed; }
+.select-popup .select-group { margin:0; padding:8px 10px 4px; color:var(--muted); font-size:var(--font-meta); font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+.select-popup .select-empty { margin:0; padding:12px; color:var(--muted); font-size:var(--font-body); }
+.shared-select[data-open] > svg { transform:translateY(-50%) rotate(180deg); }
 
 @media (max-width:640px) { .source-file-row { align-items:stretch; flex-direction:column; } header img { max-width:48px !important; } header [title] { max-width:90px; } header button { padding-left:6px; padding-right:6px; } .primary-navigation { gap:0; } .account-summary { grid-template-columns:1fr; } }
 

@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { openListOwnsEscape } from '@/lib/openListOwnsEscape'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { IconButton } from './Button'
@@ -13,7 +14,7 @@ export function SidePanel({ title, subtitle, children, onClose, footer, headerAc
     const previous = document.activeElement as HTMLElement | null
     panel.current?.focus()
     const key = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !document.querySelector('.ui-dialog')) {
+      if (event.key === 'Escape' && !document.querySelector('.ui-dialog') && !openListOwnsEscape(event)) {
         event.preventDefault()
         close.current()
       }

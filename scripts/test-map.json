@@ -181,6 +181,7 @@
    "backend": [],
    "browser": [
     "role-codeblocks",
+    "select-family",
     "shared-ui-r5",
     "status-consistency-r6",
     "consolidated-refinement",
