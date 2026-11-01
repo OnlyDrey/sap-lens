@@ -90,8 +90,8 @@ const ATTENTION_TILES: [string, string, ReactNode, { finding: string }][] = [
   ['position_changes', 'Position changes', <ArrowRightLeft size={16} />, { finding: 'position_change' }],
   ['outdated', 'Outdated reviews', <History size={16} />, { finding: 'stale' }],
 ]
-/** A compact secondary indicator under the attention list; the same finding stays selectable in the Review finding filter. */
-const SECONDARY_TILE: [string, string, ReactNode, { finding: string }] = ['mismatch', 'AD disabled / SAP valid and unlocked', <UserMinus size={16} />, { finding: 'ad_disabled_open' }]
+/** The fifth attention KPI; like the others it occupies one grid cell, so the last cell on the right stays empty. */
+const FINAL_TILE: [string, string, ReactNode, { finding: string }] = ['mismatch', 'AD disabled / SAP valid and unlocked', <UserMinus size={16} />, { finding: 'ad_disabled_open' }]
 const FINDING_NAMES: Record<string, string> = { any: 'Accounts requiring review', matched: 'Reliably matched identities', directory_missing: 'Missing directory matches', directory_ambiguous: 'Ambiguous directory matches', reviewed: 'Completed reviews', pending: 'Pending reviews', position_change: 'Position changes', stale: 'Outdated reviews' }
 
 /** Department and job title together, labelled so the two are never confused. Changed values are emphasized; unchanged ones are muted. */
@@ -208,7 +208,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
           <h2>Review attention</h2>
           <div className="review-kpis">
             {ATTENTION_TILES.filter(([key]) => key !== 'outdated' || data.summary.outdated != null).map((entry) => tile(entry))}
-            {tile(SECONDARY_TILE, 'review-kpi-secondary')}
+            {tile(FINAL_TILE)}
           </div>
         </section>
       </div>

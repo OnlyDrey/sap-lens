@@ -1,9 +1,11 @@
 # UI/UX gap audit
 
+> Archived (R8): a dated verification of the consolidated refinement. Current behavior is described in the [feature guides](../../features/README.md).
+
 Verification of the consolidated refinement against its checklist (32 requirements, A01 to E07), starting from `a054d7c`.
 Status values: **Implemented** (verified in code and behavior), **Partial**, **Missing**, **Regression**, **Not verified**.
 Evidence is the code or behavior inspected in this run, not a commit message or the earlier handoff. Related guides:
-[implementation handoff](IMPLEMENTATION_HANDOFF.md), [component APIs](../architecture/COMPONENTS.md), [testing](TESTING.md).
+[implementation handoff](../../development/IMPLEMENTATION_HANDOFF.md), [component APIs](../../architecture/COMPONENTS.md), [testing](../../development/TESTING.md).
 
 ## Counts
 

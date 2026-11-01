@@ -958,9 +958,12 @@ progress::-moz-progress-bar { background:var(--progress-fill); }
 /* Access package footer: validity summary first, then copy and export. */
 .package-footer .package-summary { flex:1 1 100%; }
 .package-footer > :last-child { margin-left:0; }
-/* Role entries: the description is vertically centered against the module icon and code. */
-.role-entry-head { align-items:center; }
+/* Role entries: the module badge aligns with the FIRST line of the description (a long description wraps below it), and the actions stay at the top right. */
+.role-entry-head { align-items:first baseline; }
 .role-entry-head > .module-badge { margin-top:0; }
+.role-entry-head > .role-entry-actions { align-self:flex-start; }
+.role-entry-head { flex-wrap:nowrap; }  /* badge, description and actions stay on one row; only the description wraps */
+.role-entry-head > .role-entry-title { flex:1 1 0; min-width:0; }
 
 /* SoD overview heatmap: title, columns toggle, metric, sort and export share one responsive row. */
 .sod-heatmap-bar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-2) var(--space-4); margin-bottom:var(--space-3); }
@@ -1229,7 +1232,7 @@ p.dashboard-card-state { display:flex; align-items:center; gap:var(--space-2); }
 /* Independent columns, and tab strips whose scrollbar must sit below the underline, with room above them. */
 .independent-columns { display:grid; gap:var(--space-3); align-items:start; min-width:0; }
 .independent-column { display:flex; flex-direction:column; gap:var(--space-3); min-width:0; }
-.ui-content-tabs,.ui-secondary-navigation { padding-bottom:var(--space-1); scrollbar-width:thin; scroll-padding-inline:var(--space-2); }
+.ui-content-tabs,.ui-secondary-navigation { padding-bottom:var(--space-1); scroll-padding-inline:var(--space-2); }  /* no scrollbar-width here: it would switch off the application scrollbar design */
 .component-library > .ui-tabs { margin-top:var(--space-2); }
 .component-library > .ui-description { margin-bottom:0; }
 /* Padding inside the scroller keeps focus rings of the header and group buttons unclipped (ring width plus offset is 4px). */
@@ -1373,7 +1376,6 @@ summary:focus-visible,div[tabindex="0"]:focus-visible,a.role-identifier-link:foc
 .review-overview .review-kpis { grid-template-columns:minmax(0,1fr); gap:var(--space-1) var(--space-3); }
 @media (min-width:640px) { .review-overview .review-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 .review-overview .review-kpis .ui-kpi { min-height:var(--control-compact); }
-.review-overview .review-kpis .review-kpi-secondary { grid-column:1/-1; }
 .review-progress { align-content:start; }
 .review-progress > .progress-summary { padding:0; display:flex; flex-wrap:wrap; align-items:baseline; gap:var(--space-1) var(--space-2); margin:0; }
 .review-overview .review-kpis .ui-kpi[data-icon="true"] { grid-template-columns:auto minmax(0,1fr) auto; }
@@ -1391,3 +1393,26 @@ summary:focus-visible,div[tabindex="0"]:focus-visible,a.role-identifier-link:foc
 .matrix-grid .matrix-corner-group { z-index:3; background:var(--surface2); }
 .matrix-grid[data-group-column] .matrix-row-head { box-shadow:none; }
 @media (max-width:640px) { .matrix-grid .matrix-identity-group,.matrix-grid .matrix-corner-group { position:static; } .matrix-grid .matrix-corner-group { position:sticky; left:auto; } }
+
+/* Comparison table: every cell starts at the top of its row. The first evidence entry carries no top padding, so its status badge starts level with the Difference badge, and both badges share one height. */
+.comparison-table th,.comparison-table td { vertical-align:top; }
+.comparison-table .comparison-evidence-item:first-child { padding-top:0; }
+.comparison-table .comparison-evidence-item:last-child { padding-bottom:0; }
+.comparison-table .evidence-difference { display:inline-flex; align-items:center; min-height:1.75rem; }
+.comparison-table td > .ui-description:first-child { display:block; margin:0; line-height:1.75rem; }  /* 'No matching evidence' starts at the row top and reads on the badge line */
+.comparison-table .comparison-evidence-item > .assignment-status-control:first-child { margin-top:0; }
+
+/* Component Library: the category tabs keep the underline and the (application-styled) horizontal scrollbar about 8px apart. */
+.component-library .ui-content-tabs { padding-bottom:var(--scrollbar-gap); }
+
+/* Risk and activity pills with a detail popover: the trigger carries no button chrome of its own, only the pill and a visible, rounded focus ring. */
+.sod-pill { display:inline-flex; max-width:100%; }
+.ui-button.id-pill-trigger { min-height:0; height:auto; padding:2px; border:0; border-radius:999px; background:transparent; font:inherit; max-width:100%; }
+.ui-button.id-pill-trigger:hover { background:transparent; }
+.ui-button.id-pill-trigger:hover .id-pill { background:color-mix(in srgb,var(--pill) 28%,var(--surface)); }
+.sod-pill-details dl { margin:0 0 var(--space-2); }
+.sod-pill-origin { color:var(--muted); font-weight:400; }
+.sod-pill-alternate { display:block; margin-top:var(--space-1); color:var(--text2); font-size:var(--font-meta); }
+.sod-pill-details .ui-metadata-list > div { display:grid; grid-template-columns:minmax(0,1fr); gap:2px; text-align:left; }
+.sod-pill-details .ui-metadata-list dd { text-align:left; margin:0; overflow-wrap:anywhere; }
+.sod-pill-details .ui-metadata-list dt { color:var(--muted); font-size:var(--font-meta); }

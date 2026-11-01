@@ -112,6 +112,35 @@ test('comparison entry from details retains User A and original comparison on Ba
     page.getByRole('combobox', { name: 'User B', exact: true }),
   ).toHaveValue(/DEMO_B/)
 })
+test('comparison difference and evidence indicators start at the same vertical position in every row', async ({ page, request }) => {
+  if (process.env.THEME) { const settings = (await (await request.get('/api/configuration', { headers })).json()).settings; settings.theme = process.env.THEME; await request.post('/api/configuration', { headers, data: settings }) }
+  await page.goto('/#session=browser-test-session')
+  await goTo(page, 'User Access')
+  await page.getByRole('link', { name: 'DEMO_A', exact: true }).click()
+  await page.getByRole('button', { name: 'Compare users', exact: true }).click()
+  await choose(page, 'User B', 'DEMO_B')
+  const table = page.getByRole('table', { name: 'User comparison evidence' })
+  const rows = table.locator('tbody tr')
+  await expect(rows.first()).toBeVisible()
+  expect(await rows.count()).toBeGreaterThan(0)
+  for (const row of await rows.all()) {
+    const difference = (await row.locator('.evidence-difference').boundingBox())!
+    for (const index of [2, 3]) {
+      const first = row.locator('td').nth(index).locator('.comparison-evidence-item, span.ui-description').first()
+      const box = (await first.boundingBox())!
+      expect(Math.abs(box.y - difference.y), `row ${await row.innerText()} column ${index}`).toBeLessThan(1.5)
+      const control = row.locator('td').nth(index).locator('.assignment-status-control').first()
+      if (await control.count()) {
+        const [badge, group] = [(await control.boundingBox())!, (await row.locator('td').nth(index).locator('.comparison-evidence-item > p').first().boundingBox())!]
+        expect(Math.abs(badge.y - difference.y)).toBeLessThan(1.5) // the status badge starts level with the difference badge
+        expect(group.y).toBeGreaterThanOrEqual(badge.y + badge.height - 1) // the SAP User Group sits directly beneath it
+        expect(group.y - (badge.y + badge.height)).toBeLessThan(14)
+      }
+    }
+  }
+  expect(await table.locator('tbody td').evaluateAll((cells) => cells.every((cell) => getComputedStyle(cell).verticalAlign === 'top'))).toBe(true)
+  if (process.env.SHOTS) await table.scrollIntoViewIfNeeded().then(() => page.screenshot({ path: `${process.env.SHOTS}/compare-${process.env.THEME || 'default'}.png` }))
+})
 test('comparison filters roles, validity and derived transactions with inspectable evidence', async ({
   page,
 }) => {

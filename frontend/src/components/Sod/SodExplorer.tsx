@@ -209,7 +209,7 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
         <Toolbar>
           <h2 className="text-base font-semibold">{data.total} {table === 'lookup' ? 'roles' : 'rows'}</h2>
         </Toolbar>
-        {table === 'access_list' && data.progress && <section className="sod-tiles review-progress" aria-label="Role assignment review progress">
+        {table === 'access_list' && data.progress && <section className="sod-tiles" aria-label="Role assignment review progress">
           {([['In scope', data.progress.total, 'all', ''], ['Completed (Keep or Remove)', data.progress.completed, 'reviewed', ''], ['Pending', data.progress.pending, 'pending', ''],
             ['Under investigation', data.progress.investigating, 'investigating', ''], ['Needs review', data.progress.attention, '', ''], ['Removal recommended', data.progress.removal, 'all', 'Removal required']] as const).map(([label, count, status, decision]) => {
             const active = (filters.review_status || '') === status && (typeof filters.assignment_decision === 'string' ? filters.assignment_decision : '') === decision

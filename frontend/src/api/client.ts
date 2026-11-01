@@ -109,16 +109,6 @@ export async function refreshData(): Promise<HealthResponse & {refresh?: import(
   return data
 }
 
-export async function fetchRolesByTcode(
-  tcode: string
-): Promise<RoleSummary[]> {
-  const { data } = await apiClient.get<RoleSummary[]>(
-    '/api/roles',
-    { params: { tcode } }
-  )
-
-  return data
-}
 export async function apiRequest<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
   return (await apiClient.request<T>(path, method, body)).data
 }

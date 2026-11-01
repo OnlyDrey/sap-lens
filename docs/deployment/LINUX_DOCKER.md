@@ -28,6 +28,8 @@ docker compose logs -f
 ```
 
 Open `http://127.0.0.1:18743`; username `saplens`, password from the private secret.
+
+The compose file reads optional `compose.env.example` values: `SAP_LENS_PUBLISH_ADDRESS` (default `127.0.0.1`, keep it on loopback unless a TLS proxy fronts it) and `SAP_LENS_PUBLISH_PORT` (default `18743`), plus `SAP_LENS_PUBLIC_ORIGIN`, `SAP_LENS_ALLOWED_HOSTS`, `SAP_LENS_AUTH` and `SAP_LENS_TRUSTED_PROXIES`; see the [deployment security guide](SECURITY.md).
 No Python/Node installation or React compilation is needed on the Docker host.
 The image embeds the same workflow version/source identity as other platform builds.
 Docker amd64 is the tested build target; ARM/multi-architecture images are not claimed.

@@ -75,9 +75,15 @@ class UserImportProfile(ImportProfile):
 SOD_FIELDS = ['RISK', 'CRITICITY', 'TYPE', 'TEXT', 'ACTVT1', 'ACTVT2', 'ACTIVITY_SLOT', 'ACTIVITY', 'TCODE', 'TTEXT']
 
 
+# Optional descriptive columns. They are never required and never change detection; recognized headers are mapped automatically.
+SOD_OPTIONAL_FIELDS = ['RISK_NAME', 'RISK_DESCRIPTION', 'RISK_IMPACT', 'BUSINESS_PROCESS', 'ACTIVITY_NAME', 'ACTIVITY_DESCRIPTION', 'ACTIVITY_TYPE',
+                       'ACTIVITY_BUSINESS_PROCESS', 'RULESET_ID', 'RULESET_VERSION', 'SOURCE_SYSTEM', 'LANGUAGE', 'LAST_CHANGED']
+
+
 class SodImportProfile(ImportProfile):
     """Format and optional header mapping of the SoD matrix CSV. The documented columns are fixed; a mapping only says which source header carries each one."""
-    fields: ClassVar[list[str]] = SOD_FIELDS
+    fields: ClassVar[list[str]] = SOD_FIELDS + SOD_OPTIONAL_FIELDS
+    mapping: dict[str, str] = Field(default_factory=dict, max_length=40)
 
 
 class ThemePalette(StrictModel):

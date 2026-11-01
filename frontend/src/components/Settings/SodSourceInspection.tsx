@@ -5,6 +5,7 @@ import { DataTable, StatusBadge } from '@/components/Shared/Presentation'
 import { apiRequest } from '@/api/client'
 import { formatTimestamp } from '@/lib/dateFormat'
 import { ImportPreview } from './ImportControls'
+import { SodMetadataCoverage, type MetadataCoverage } from './SodMetadataCoverage'
 
 interface Check { name: string; status: 'passed' | 'warning'; detail: string }
 
@@ -16,7 +17,7 @@ interface Inspection {
   loaded: boolean; file_name?: string
   columns?: { column: string; detected: string; meaning: string; required: boolean }[]
   counts?: { parsed_rows: number; records: number; duplicate_rows: number; risks: number; evaluated_risks: number; unsupported_risks: number; activities: number; transactions: number }
-  criticality?: Record<string, number>; types?: Record<string, number>; checks?: Check[]; warnings?: string[]; samples?: Record<string, string>[]
+  criticality?: Record<string, number>; types?: Record<string, number>; checks?: Check[]; warnings?: string[]; samples?: Record<string, string>[]; descriptions?: MetadataCoverage | null
   metadata: { path: string; mode: string; feature_enabled: boolean; imported_at: string | null; checked_at: string | null; snapshot: string | null }
 }
 
@@ -45,6 +46,7 @@ export function SodSourceInspection({ onClose, children }: { onClose: () => void
               <h3 className="text-base font-semibold">Validation results</h3>
               <SodChecks checks={data.checks!} />
             </section>
+            <SodMetadataCoverage data={data.descriptions} />
             <section aria-label="Column interpretation" className="space-y-2">
               <h3 className="text-base font-semibold">Column interpretation</h3>
               <p className="ui-description">The SoD Matrix uses a fixed documented schema. Columns are interpreted as below. A mapping in the import settings only chooses the source header; the meanings are fixed because the parser relies on them.</p>

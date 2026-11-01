@@ -17,7 +17,7 @@ import sod_decisions as decisions
 import sod_governance as governance
 import sod_reviews as legacy
 import sod_scope as scope
-from .sod_analysis import context_key, publication_guard
+from .sod_analysis import publication_guard
 
 router = APIRouter(prefix='/api/sod', tags=['SoD governance'])
 Lifecycle = Literal['', 'Pending', 'Approved', 'Keep', 'Accepted', 'Conditional', 'Removal required', 'Investigate', 'Rejected', 'Outdated']

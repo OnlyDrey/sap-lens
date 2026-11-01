@@ -3,12 +3,13 @@
 | Start here | Purpose |
 | --- | --- |
 | [Quick Start](getting-started/QUICK_START.md) | Choose an installation and load your first sources |
+| [Troubleshooting](getting-started/TROUBLESHOOTING.md) | Symptoms, causes and recovery steps for startup, imports and server access |
 | [Build & Deployment](deployment/README.md) | Build, obtain and operate any of the four deployment targets |
 | [Features](features/README.md) | Investigate users, roles, transactions and account evidence |
 | [Data & CSV](data/README.md) | Schemas, imports, refresh, enrichment and coverage |
 | [Architecture](architecture/README.md) | Runtime boundaries, APIs, security and shared UI |
 | [Development & Testing](development/README.md) | Source setup, checks and CI |
-| [Validation tracker](validation/README.md) | Per-page expected behavior, review status, defects and improvements |
+| [Validation tracker](validation/README.md) | Checklist per functional area: validation status, manual approval, findings and improvements (CSV and Excel workbook) |
 | [Future Proposals](proposals/README.md) | Evidence-based assessments; not promised features |
 | [Historical Evidence](archive/README.md) | Dated validation and implementation decisions |
 

@@ -58,8 +58,8 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
   const columns = (data?.columns || []).map((column) => {
     const id = risk ? (column as RiskColumn).risk_id : (column as ActivityColumn).activity
     return risk
-      ? { id, label: id, node: <SodPill kind="risk" value={id} />, sub: `${column.users} users`, title: `${(column as RiskColumn).display_name || (column as RiskColumn).source_text || id} · criticality ${(column as RiskColumn).criticality}`, onFilter: () => setFilters({ ...filters, risk: '', risks: [id] }) }
-      : { id, label: id, node: <SodPill kind="activity" value={id} />, sub: `${column.users} users`, title: `Activity ${id} · ${(column as ActivityColumn).risks.length} risks`, onFilter: () => setFilters({ ...filters, activity: '', activities: [id] }) }
+      ? { id, label: id, node: <SodPill kind="risk" value={id} details={false} />, sub: `${column.users} users`, title: `${(column as RiskColumn).display_name || (column as RiskColumn).source_text || id} · criticality ${(column as RiskColumn).criticality}`, onFilter: () => setFilters({ ...filters, risk: '', risks: [id] }) }
+      : { id, label: id, node: <SodPill kind="activity" value={id} details={false} />, sub: `${column.users} users`, title: `Activity ${id} · ${(column as ActivityColumn).risks.length} risks`, onFilter: () => setFilters({ ...filters, activity: '', activities: [id] }) }
   })
   const cell = (row: string, column: string): MatrixCellView | null => {
     const entry = byUser.get(row)?.cells[column]

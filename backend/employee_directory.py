@@ -7,7 +7,6 @@ import re
 import threading
 from collections import defaultdict
 from datetime import datetime, timezone
-from pathlib import Path
 
 HEADERS = 'Site;Name;SamAccountName;UserPrincipalName;Mail;Department;Title;Enabled;DistinguishedName;ManagerDN;ManagerName;ManagerSamAccountName;ManagerMail;ManagerDepartment;ManagerTitle;ManagerLookupStatus'.split(';')
 MAX_BYTES = 50 * 1024 * 1024

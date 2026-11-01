@@ -38,6 +38,7 @@
  --font-code:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
  --radius-control:.5rem; --radius-card:.75rem; --radius-popover:.625rem; --radius-badge:.25rem;
  --copy-hit-size:2rem;
+ --scrollbar-size:5px; --scrollbar-radius:4px; --scrollbar-thumb:var(--accent2); --scrollbar-track:transparent; --scrollbar-gap:.5rem;
  --focus-width:2px; --focus-offset:2px; --focus-radius:var(--radius-control, .5rem); --control-height:2.625rem; --control-compact:2.125rem; --icon-size:1rem; --toolbar-gap:.75rem;
  --shadow-color:#182c5333;
  --elevation:none;

@@ -29,7 +29,7 @@ const list = (filters: Filters, key: string) => (Array.isArray(filters[key]) ? (
  */
 export function SodGroupHeatmap() {
   const [kind, setKind] = useState<Kind>('risk'), [sort, setSort] = useState('users'), [descending, setDescending] = useState(true), [busy, setBusy] = useState(false)
-  const [preference, setPreference] = useLocalPreference(HEATMAP_PREFERENCE, 'open'), expanded = preference !== 'closed'
+  const [preference, setPreference] = useLocalPreference(HEATMAP_PREFERENCE, 'open', 'session'), expanded = preference !== 'closed'
   const { view: history, change } = useViewHistory(), [context] = useSodContext(), panel = useId()
   const sodView: SodView = history.sodView || 'overview', slot = FILTERABLE[sodView], stored = history.sodFilters
   const readSlot = slot ?? (sodView === 'overview' ? 'riskMatrix' : undefined)  // Review Periods, Reports and Settings do not inherit investigation filters
@@ -102,7 +102,7 @@ export function SodGroupHeatmap() {
                 <thead><tr><th scope="col">SAP User Group</th><th scope="col">Users</th>{columns.map((column) => {
                   const id = idOf(column), selected = items.includes(id)
                   return <th scope="col" key={id} data-selected={selected || undefined}>
-                    <button type="button" className="sod-heat-head" aria-pressed={selected} aria-label={`${id}: ${selected ? 'remove ' : 'filter to this '}${risk ? 'risk' : 'activity'}${selected ? ' filter' : ''}`} onClick={() => apply(groups, toggle(items, id))}><SodPill kind={kind} value={id} /></button>
+                    <button type="button" className="sod-heat-head" aria-pressed={selected} aria-label={`${id}: ${selected ? 'remove ' : 'filter to this '}${risk ? 'risk' : 'activity'}${selected ? ' filter' : ''}`} onClick={() => apply(groups, toggle(items, id))}><SodPill kind={kind} value={id} details={false} /></button>
                   </th>
                 })}</tr></thead>
                 <tbody>

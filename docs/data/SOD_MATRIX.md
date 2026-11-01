@@ -31,6 +31,28 @@ cannot be inferred from an unexported field.
 Transaction mappings support potential conflict investigation. They do not prove
 effective authorization or a confirmed security violation.
 
+## Optional descriptive columns
+
+The ten documented columns above are the only required ones and keep their meaning. A file may also carry any of these optional columns, which
+SAP Lens maps automatically by name (or by hand under *Advanced import format and column mapping*): `RISK_NAME`, `RISK_DESCRIPTION`, `RISK_IMPACT`,
+`BUSINESS_PROCESS`, `ACTIVITY_NAME`, `ACTIVITY_DESCRIPTION`, `ACTIVITY_TYPE`, `ACTIVITY_BUSINESS_PROCESS`, `RULESET_ID`, `RULESET_VERSION`,
+`SOURCE_SYSTEM`, `LANGUAGE` and `LAST_CHANGED`. These are proposed export fields, **not verified SAP columns**; nothing is generated from identifiers.
+
+- **Compatibility.** Existing files import without modification and keep the same content identity. A missing optional column is neither an error nor
+  a warning; unknown extra columns are ignored with the existing notice. Optional values never change a record, a duplicate, a risk definition, the
+  `ACTVT1`/`ACTVT2` distinction or any detection result.
+- **Storage.** Optional values are kept apart from the records, in the import report of the private snapshot. Per risk and per activity the first value in
+  file order is kept (a conflict is counted in a warning); values longer than 4096 characters or with control characters are skipped and counted, never fatal.
+  A change that touches only these descriptions is staged as a new snapshot so refreshes do not ignore it.
+- **Priority and provenance.** SAP Lens shows the imported value when it is populated, otherwise the locally maintained business text (Settings → SoD Risk
+  Configuration), otherwise "No description available". Both stores stay separate: a refresh or import never overwrites local text, and local text never edits
+  the import. Where they differ both are kept and the popover and Settings name the origin of each. One resolver (`backend/sod_metadata.py`) serves pills,
+  popovers, Settings and the diagnostics.
+- **Coverage.** The SoD source inspection and the pre-import validation list, for risk names and descriptions, activity names and descriptions and transaction
+  descriptions, the available and total counts, the percentage, the missing count, imported versus local-fallback counts and a status: *Complete*,
+  *Values missing* (column present) or *Column not in CSV*. Counts use distinct risks, activities and transaction codes, not CSV rows. Detected and missing
+  optional columns, source facts such as `RULESET_ID` and a small sample of resolved metadata are shown beside it.
+
 ## Source lifecycle
 
 Authenticated backend selection uses `/api/data-sources/sod/select`; preview uses

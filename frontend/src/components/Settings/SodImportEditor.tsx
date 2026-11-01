@@ -7,12 +7,13 @@ import { SettingsSelect } from './Controls'
 import { ImportSection } from './ImportSection'
 import { ImportPreview, MappingField } from './ImportControls'
 import { SodChecks } from './SodSourceInspection'
+import { SodMetadataCoverage, type MetadataCoverage } from './SodMetadataCoverage'
 
 interface Inspection {
   valid: boolean; errors: string[]; issues: string[]; file_name: string; headers: string[]; format: { delimiter: string; encoding: string }
   columns: { column: string; detected: string; state: 'manual' | 'detected' | 'missing'; meaning: string; required: boolean }[]
   counts?: { parsed_rows: number; records: number; duplicate_rows: number; risks: number; evaluated_risks: number; unsupported_risks: number; activities: number; transactions: number }
-  checks?: { name: string; status: 'passed' | 'warning'; detail: string }[]; warnings?: string[]; samples?: Record<string, string>[]
+  checks?: { name: string; status: 'passed' | 'warning'; detail: string }[]; warnings?: string[]; samples?: Record<string, string>[]; descriptions?: MetadataCoverage | null
 }
 const DELIMITERS: [string, string][] = [['auto', 'Auto detect'], [',', 'Comma'], [';', 'Semicolon'], ['\t', 'Tab'], ['|', 'Pipe']]
 const ENCODINGS = ['auto', 'utf-8-sig', 'utf-16', 'cp1252']
@@ -86,6 +87,7 @@ export function SodImportEditor({ draft, path, onChange }: { draft: Configuratio
               metrics={[{ label: 'Parsed rows', value: result.counts.parsed_rows }, { label: 'Unique records', value: result.counts.records }, { label: 'Duplicate rows', value: result.counts.duplicate_rows }, { label: 'Risks', value: result.counts.risks }, { label: 'Evaluated risks', value: result.counts.evaluated_risks }, { label: 'Not evaluated risks', value: result.counts.unsupported_risks }, { label: 'Activities', value: result.counts.activities }, { label: 'Transactions', value: result.counts.transactions }]} />}
             {!result.valid && <ImportPreview fileName={result.file_name} errors={result.errors.length ? result.errors : ['The file did not validate.']} metrics={[]} />}
             {result.valid && result.checks && <section aria-label="SoD validation results" className="space-y-2"><h3 className="text-base font-semibold">Validation results</h3><SodChecks checks={result.checks} /></section>}
+            {result.valid && <SodMetadataCoverage data={result.descriptions} />}
           </>}
       </ImportSection>
     </section>

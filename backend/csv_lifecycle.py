@@ -303,6 +303,8 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
             checked_files.append((source,path,initial_signature))
             delta = diff_records(source, before, after)
             has_changes = bool(delta['added'] or delta['removed'] or delta['modified'])
+            if source == 'sod' and ((old.sod.get('report') or {}).get('metadata') or None) != (candidate['report'].get('metadata') or None):
+                has_changes = True  # descriptive metadata changed without any record changing: stage it, so the new descriptions are not silently ignored
             result.update(status='updated' if has_changes else 'unchanged', records=len(after), **delta)
             if source == 'sod':
                 result['risk_change_summary'] = sod_risk_changes(old.sod.get('risks', []), candidate['risks'])

@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { Button } from './Button'
+import { Button, type ButtonProps } from './Button'
 const PopoverOwners = createContext<string|undefined>(undefined)
 export const usePopoverOwners=()=>useContext(PopoverOwners)
 
@@ -22,12 +22,17 @@ export function Popover({
   onOpenChange,
   preferredWidth=380,
   triggerSize='default',
+  triggerVariant='outline',
+  triggerClassName='',
   className='',
 }: {
   label: string
   trigger: ReactNode
   preferredWidth?:number
   triggerSize?: 'default' | 'compact' | 'icon'
+  /** Visual weight of the trigger button; `ghost` for triggers that carry their own look (for example a pill). */
+  triggerVariant?: ButtonProps['variant']
+  triggerClassName?: string
   /** Extra class for the panel, for menu-like popovers that must never scroll. */
   className?: string
   onOpenChange?: (open: boolean) => void
@@ -113,7 +118,8 @@ export function Popover({
     <>
       <Button
         ref={anchor}
-        variant="outline"
+        variant={triggerVariant}
+        className={triggerClassName}
         size={triggerSize}
         aria-expanded={open}
         aria-haspopup="dialog"

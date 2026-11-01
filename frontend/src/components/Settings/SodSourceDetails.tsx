@@ -22,7 +22,7 @@ export function SourceMeta({ criticality, riskType }: { criticality: string; ris
 
 /** A risk or activity identifier that opens its read-only details. */
 export function PillButton({ kind, value, onOpen, label }: { kind: 'risk' | 'activity'; value: string; onOpen: () => void; label: string }) {
-  return <button type="button" className="id-pill-button" aria-label={label} onClick={onOpen}><SodPill kind={kind} value={value} /></button>
+  return <button type="button" className="id-pill-button" aria-label={label} onClick={onOpen}><SodPill kind={kind} value={value} details={false} /></button>
 }
 
 /** Searchable, read-only transaction list for one activity or risk side. */

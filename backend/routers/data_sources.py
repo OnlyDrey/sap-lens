@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from csv_lifecycle import history, read_private
 from config import get_settings
+from csv_exports import spreadsheet_cell
 
 router = APIRouter(prefix='/api/data-sources', tags=['Data Sources'])
 
@@ -50,16 +51,13 @@ def details(identity: str, source: str = Query('', pattern=r'^(roles|users|emplo
 def export(identity: str, source: str = Query('', pattern=r'^(roles|users|employees|sod)?$'),
            kind: str = Query('', pattern=r'^(added|removed|modified)?$'), search: str = Query('', max_length=256)):
     data = report(identity)
-    def safe(value):
-        value = str(value)
-        return "'" + value if value.lstrip().startswith(('=', '+', '-', '@', '\t', '\r')) else value
     def stream():
         yield '\ufeff'
         buffer = io.StringIO()
         writer = csv.writer(buffer, quoting=csv.QUOTE_ALL)
         def line(values):
             buffer.seek(0); buffer.truncate(0)
-            writer.writerow([safe(v) for v in values])
+            writer.writerow([spreadsheet_cell(v) for v in values])
             return buffer.getvalue()
         yield line(['Timestamp', 'Source', 'Change', 'Identifier', 'Field', 'Before', 'After'])
         for row in changes(data, source, kind, search):
@@ -184,7 +182,7 @@ class SodFileInspection(StrictModel):
     path: str = Field(min_length=1, max_length=4096)
     delimiter: Literal['auto', ',', ';', '\t', '|'] = 'auto'
     encoding: Literal['auto', 'utf-8-sig', 'utf-16', 'cp1252'] = 'auto'
-    mapping: dict[str, str] = Field(default_factory=dict, max_length=12)
+    mapping: dict[str, str] = Field(default_factory=dict, max_length=40)
 
 
 @router.post('/sod/inspect')
