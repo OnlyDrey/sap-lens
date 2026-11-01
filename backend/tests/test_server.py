@@ -12,6 +12,7 @@ import tempfile
 import time
 import unittest
 from unittest.mock import patch
+from urllib.parse import quote
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import cache
@@ -82,7 +83,10 @@ class ServerTests(ServerTestBase):
         self.assertEqual(client.post('/api/server/uploads/roles',content=content,headers={**headers,'X-Upload-Filename':'%ff.csv'}).status_code,400)
         uploaded=client.post('/api/server/uploads/roles',content=content,headers=headers)
         self.assertEqual(uploaded.status_code,200,uploaded.text)
-        path=uploaded.json()['path'];self.assertTrue(Path(path).is_relative_to(self.data/'uploads'))
+        path=uploaded.json()['path']
+        # Confinement is judged on canonical paths: the data directory is resolved once (on Windows runners the temporary directory is an 8.3 short path
+        # that resolves to a different spelling), so the unresolved fixture path is never the right yardstick.
+        self.assertTrue(Path(path).resolve().is_relative_to((self.data/'uploads').resolve()))
         self.assertEqual(client.get('/api/roles').json(),[])
         self.assertEqual(client.post('/api/import/preview',headers={'X-SAP-Lens':'1'},json={'data_csv_path':path}).status_code,200)
         settings=client.get('/api/configuration').json()['settings'];settings['data_csv_path']=path
@@ -124,6 +128,91 @@ class ServerTests(ServerTestBase):
         finally:first.close()
         with self.assertRaises(RuntimeError):StorageLease(self.data,'desktop').acquire()
         second=StorageLease(self.data,'server').acquire();second.close()
+
+
+
+CONTENT=b'AGR_NAME,TEXT,TCODE\nZC:DEMO,Synthetic,MIGO\n'
+LOCAL={'X-SAP-Lens':'1'}
+
+
+class UploadPathTests(ServerTestBase):
+    """Upload staging and source confinement on canonical paths (Linux and Windows)."""
+    def stage(self,client,name='synthetic.csv',content=CONTENT):
+        header=name if name.isascii() else quote(name)  # a browser sends non-ASCII names percent-encoded
+        return client.post('/api/server/uploads/roles',content=content,headers={**LOCAL,'X-Upload-Filename':header,'Content-Type':'text/csv'})
+
+    def preview(self,client,path):
+        return client.post('/api/import/preview',headers=LOCAL,json={'data_csv_path':str(path)})
+
+    def alias(self):
+        """The data directory reached through a second spelling (a symlink here; an 8.3 short name on Windows runners)."""
+        self.data.mkdir(parents=True,exist_ok=True);alias=self.root/'alias'
+        try: alias.symlink_to(self.data,target_is_directory=True)
+        except OSError: self.skipTest('Native Windows symlink privilege is not guaranteed.')
+        return alias
+
+    def test_the_staged_file_is_canonical_absolute_and_directly_inside_the_canonical_uploads_directory(self):
+        client=self.client();staged=self.stage(client,'Mixed Case Name.CSV')
+        self.assertEqual(staged.status_code,200,staged.text)
+        path=Path(staged.json()['path'])
+        self.assertTrue(path.is_absolute());self.assertEqual(path,path.resolve(),'the returned path is already canonical')
+        self.assertEqual(path.parent,(self.data/'uploads').resolve());self.assertTrue(path.is_file())
+        self.assertRegex(path.name,r'^[0-9a-f]{32}-Mixed Case Name\.csv$')  # an opaque prefix, the sanitised stem and a lower-case extension
+        self.assertEqual(self.preview(client,path).status_code,200)
+
+    def test_a_data_directory_reached_through_an_alias_is_stored_and_checked_canonically(self):
+        alias=self.alias()
+        with patch.dict(os.environ,{'SAP_LENS_DATA_DIR':str(alias),'SAP_LENS_CONFIG_DIR':str(alias)}):
+            config.get_settings.cache_clear();client=self.client();staged=self.stage(client)
+            self.assertEqual(staged.status_code,200,staged.text)
+            path=Path(staged.json()['path'])
+            self.assertEqual(path.parent,(self.data/'uploads').resolve(),'stored under the real directory, not under the alias')
+            self.assertFalse(path.is_relative_to(alias),'the alias spelling is not what the application reports')
+            self.assertEqual(self.preview(client,path).status_code,200)
+            self.assertEqual(self.preview(client,alias/'uploads'/path.name).status_code,200,'the alias spelling resolves to the same confined file')
+            self.assertEqual(self.preview(client,alias/'uploads'/'..'/'..'/'external.csv').status_code,400)
+
+    def test_invalid_and_traversing_names_never_create_a_file(self):
+        client=self.client()
+        names=['../private.csv','..\\private.csv','a/../b.csv','a\\b.csv','%2e%2e%2fx.csv','a%5Cb.csv','a%2Fb.csv','C%3Aevil.csv','c:evil.csv','x.csv:stream',
+               'x.csv.','x.csv%00.txt','%00.csv','a<b.csv','a%7Cb.csv','x*.csv','bad.txt','csv','.csv.exe','%ff.csv','x'*201+'.csv','']
+        for name in names:
+            with self.subTest(name=name[:30]):
+                self.assertEqual(self.stage(client,name).status_code,400)
+        uploads=self.data/'uploads'
+        self.assertEqual(list(uploads.glob('**/*')) if uploads.exists() else [],[],'a refused name leaves nothing staged')
+
+    def test_names_with_spaces_unicode_and_upper_case_extensions_are_staged_safely(self):
+        client=self.client()
+        for name in ('Roles Q1 2026.csv','roles-æøå.csv','ROLES.CSV'):
+            with self.subTest(name=name):
+                staged=self.stage(client,name);self.assertEqual(staged.status_code,200,staged.text)
+                path=Path(staged.json()['path']);self.assertEqual(path.parent,(self.data/'uploads').resolve());self.assertTrue(path.suffix=='.csv')
+
+    def test_preview_and_confirmation_accept_only_canonical_paths_inside_the_roots(self):
+        client=self.client();path=Path(self.stage(client).json()['path'])
+        self.assertEqual(self.preview(client,path).status_code,200)
+        outside=self.root/'external.csv';outside.write_bytes(CONTENT)
+        inside_source=self.sources/'roles.csv';inside_source.write_bytes(CONTENT)
+        self.assertEqual(self.preview(client,inside_source).status_code,200,'the configured source directory is a root too')
+        self.assertEqual(self.preview(client,outside).status_code,400)
+        self.assertEqual(self.preview(client,path.parent/'..'/'..'/'external.csv').status_code,400,'a parent segment cannot leave the root')
+        self.assertEqual(self.preview(client,Path('uploads')/path.name).status_code,400,'a relative path is refused')
+        self.assertEqual(self.preview(client,self.data/'uploads'/'missing.csv').status_code,400)
+        if sys.platform=='win32':
+            self.assertEqual(self.preview(client,str(path).upper()).status_code,200,'Windows paths compare case-insensitively')
+        settings=client.get('/api/configuration').json()['settings'];settings['data_csv_path']=str(outside);settings['source_modes']['roles']='static'
+        self.assertEqual(client.post('/api/configuration',headers=LOCAL,json=settings).status_code,400,'an outside path cannot be confirmed')
+        settings['data_csv_path']=str(path)
+        self.assertEqual(client.post('/api/configuration',headers=LOCAL,json=settings).status_code,200)
+        self.assertEqual(client.get('/api/roles').json()[0]['agr_name'],'ZC:DEMO')
+
+    def test_a_link_inside_the_uploads_directory_cannot_reach_outside(self):
+        client=self.client();path=Path(self.stage(client).json()['path'])
+        outside=self.root/'external.csv';outside.write_bytes(CONTENT);link=path.parent/'escape.csv'
+        try: link.symlink_to(outside)
+        except OSError: self.skipTest('Native Windows symlink privilege is not guaranteed.')
+        self.assertEqual(self.preview(client,link).status_code,400)
 
 
 class ServerProcessTests(ServerTestBase):
