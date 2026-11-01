@@ -25,6 +25,8 @@ export function Popover({
   triggerVariant='outline',
   triggerClassName='',
   className='',
+  reveal='click',
+  isolateClicks=false,
 }: {
   label: string
   trigger: ReactNode
@@ -35,6 +37,10 @@ export function Popover({
   triggerClassName?: string
   /** Extra class for the panel, for menu-like popovers that must never scroll. */
   className?: string
+  /** `hover` also opens on mouse hover and keyboard focus (a transient description); a click or Enter pins it open. */
+  reveal?: 'click' | 'hover'
+  /** React bubbles portal events to the owner's ancestors: keep clicks inside the panel from reaching them. */
+  isolateClicks?: boolean
   onOpenChange?: (open: boolean) => void
   children: ReactNode | ((close: () => void) => ReactNode)
 }) {
@@ -43,9 +49,16 @@ export function Popover({
     [position, setPosition] = useState<{top:number;left:number;width:number;maxHeight:number}|null>(null),
     id = useId(),
     anchor = useRef<HTMLButtonElement>(null),
-    panel = useRef<HTMLDivElement>(null)
+    panel = useRef<HTMLDivElement>(null),
+    pinned = useRef(false),
+    timer = useRef<number>()
   const owned=(target:EventTarget|null)=>target instanceof Element&&!!target.closest(`[data-popover-owner~="${id}"]`)
+  const openNow = () => { if (!open) { setOpen(true); onOpenChange?.(true) } }
+  const later = (action: () => void, delay: number) => { window.clearTimeout(timer.current); timer.current = window.setTimeout(action, delay) }
+  useEffect(() => () => window.clearTimeout(timer.current), [])
   const close = (restore = true) => {
+    window.clearTimeout(timer.current)
+    pinned.current = false
     setOpen(false)
     setPosition(null)
     onOpenChange?.(false)
@@ -124,7 +137,16 @@ export function Popover({
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-controls={open ? id : undefined}
-        onClick={() => (open ? close() : (setOpen(true), onOpenChange?.(true)))}
+        onClick={() => {
+          if (reveal === 'hover' && open && !pinned.current) { pinned.current = true; return } // a transient reveal becomes a pinned one
+          if (open) return close()
+          pinned.current = true
+          openNow()
+        }}
+        onPointerEnter={reveal === 'hover' ? (event) => { if (event.pointerType === 'mouse') later(openNow, 250) } : undefined}
+        onPointerLeave={reveal === 'hover' ? () => { window.clearTimeout(timer.current); if (open && !pinned.current) later(() => close(false), 200) } : undefined}
+        onFocus={reveal === 'hover' ? (event) => { if (event.currentTarget.matches(':focus-visible')) openNow() } : undefined}
+        onBlur={reveal === 'hover' ? (event) => { if (!pinned.current && !panel.current?.contains(event.relatedTarget as Node)) close(false) } : undefined}
       >
         {trigger}
       </Button>
@@ -139,6 +161,9 @@ export function Popover({
             aria-label={label}
             className={`ui-popover ${className}`.trim()}
             style={{ position: 'fixed', width:Math.min(preferredWidth,innerWidth-16), visibility:position?'visible':'hidden', ...position }}
+            onPointerEnter={reveal === 'hover' ? () => window.clearTimeout(timer.current) : undefined}
+            onPointerLeave={reveal === 'hover' ? () => { if (!pinned.current) later(() => close(false), 200) } : undefined}
+            onClick={isolateClicks ? (event) => event.stopPropagation() : undefined}
             onBlur={(e) => {
               if (
                 e.relatedTarget &&

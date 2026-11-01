@@ -4,6 +4,7 @@ import { ModuleBadge } from '@/components/Modules/ModuleBadge'
 import { useModuleDefinitions } from '@/components/Modules/ModuleRegistry'
 import { presentRoleDescription } from '@/lib/rolePresentation'
 import { RoleIdentifier } from './RoleIdentifier'
+import { TruncatedText } from './TruncatedText'
 import { TransactionCount } from './TransactionCount'
 import { cn } from '@/lib/utils'
 
@@ -12,7 +13,8 @@ export type RoleEntryDensity = 'compact' | 'standard' | 'detailed'
 /**
  * Shared presentation of a role record, used by Role Lookup, Single Roles, the Access Package, comparison and review lists.
  *
- * Line 1: module icon and code, the role description, then optional counts and contextual actions on the right.
+ * Line 1: module icon and code, the role description, then optional counts and contextual actions on the right. The header is
+ * one line: a description that does not fit ends in an ellipsis and reveals its full text on demand (hover, focus, click).
  * Line 2: the copyable SAP role identifier.
  * Line 3 (optional): supporting metadata such as counts, validity or review status.
  *
@@ -62,7 +64,7 @@ export function RoleEntry({
     <div className={cn('role-entry', className)} data-density={level} data-selected={selected || undefined}>
       <div className="role-entry-head">
         <ModuleBadge moduleId={resolved || presentation.area} showUnclassified={showUnclassified} />
-        <p className="role-entry-title" data-empty={!name || undefined}>{name || 'No description'}</p>
+        <p className="role-entry-title" data-empty={!name || undefined}>{name ? <TruncatedText text={name} label="Role description" /> : 'No description'}</p>
         {(actions || (countPlacement === 'top' && count)) && (
           <div className="role-entry-actions">{countPlacement === 'top' && count}{actions}</div>
         )}

@@ -728,10 +728,12 @@ progress::-moz-progress-bar { background:var(--progress-fill); }
 
 /* Shared role presentation (RoleEntry). Line 1: module badge, description, counts and actions. Line 2: identifier. Line 3: supporting metadata. */
 .role-entry { display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-2); flex:1; min-width:0; width:100%; }
-.role-entry-head { display:flex; align-items:flex-start; gap:var(--space-2); width:100%; min-width:0; }
-.role-entry-head > .module-badge { margin-top:1px; }
-.role-entry-title { margin:0; flex:1 1 0; min-width:0; font-size:var(--font-body); font-weight:700; line-height:1.4; color:var(--text); overflow-wrap:anywhere; }
-.role-entry-title[data-empty] { font-style:italic; color:var(--muted); font-weight:500; }
+/* Role entry header: icon and module pill, description and actions share one centered axis on a single line. The description takes the remaining
+   width and ends in an ellipsis; the pill and the actions never shrink. One minimum height keeps every card header the same. */
+.role-entry-head { display:flex; align-items:center; flex-wrap:nowrap; gap:var(--space-2); width:100%; min-width:0; min-height:var(--control-compact); }
+.role-entry-head > .module-badge { flex:none; }
+.role-entry-title { margin:0; flex:1 1 0; min-width:0; font-size:var(--font-body); font-weight:700; line-height:1.4; color:var(--text); }
+.role-entry-title[data-empty] { overflow-wrap:anywhere; font-style:italic; color:var(--muted); font-weight:500; }
 .role-entry-actions { display:flex; align-items:center; gap:var(--space-2); margin-left:auto; flex-shrink:0; }
 .role-entry[data-density="compact"] .role-entry-title { font-size:var(--font-label); font-weight:600; }
 .role-entry[data-density="detailed"] .role-entry-title { font-size:var(--font-title); font-weight:700; }
@@ -936,10 +938,7 @@ progress::-moz-progress-bar { background:var(--progress-fill); }
 @media(max-width:700px){ .dashboard-workspace.sod-overview-cards { grid-template-columns:minmax(0,1fr); } }
 .dashboard-workspace.sod-overview-cards > .dashboard-section:first-child,.dashboard-workspace.sod-overview-cards > .dashboard-section:last-child,.dashboard-workspace.sod-overview-cards > .dashboard-section { grid-column:auto; }
 @media(max-width:700px){ .dashboard-workspace.sod-overview-cards > .dashboard-section { grid-column:1/-1; } }
-/* Role entries wrap their contextual actions below the title when the row is narrow instead of squeezing the description. */
-.role-entry-head { flex-wrap:wrap; }
-.role-entry-title { flex:1 1 8rem; min-width:min(8rem,100%); }
-.role-entry-actions { flex-wrap:wrap; justify-content:flex-end; }
+.role-entry-actions { flex:none; flex-wrap:nowrap; justify-content:flex-end; }
 
 /* Filter sidebar header: title on the left, compact Clear and Close aligned on the right with the same height. */
 .filter-sidebar > header { display:flex; align-items:center; justify-content:space-between; gap:var(--space-2); min-height:var(--control-height); }
@@ -958,12 +957,14 @@ progress::-moz-progress-bar { background:var(--progress-fill); }
 /* Access package footer: validity summary first, then copy and export. */
 .package-footer .package-summary { flex:1 1 100%; }
 .package-footer > :last-child { margin-left:0; }
-/* Role entries: the module badge aligns with the FIRST line of the description (a long description wraps below it), and the actions stay at the top right. */
-.role-entry-head { align-items:first baseline; }
-.role-entry-head > .module-badge { margin-top:0; }
-.role-entry-head > .role-entry-actions { align-self:flex-start; }
-.role-entry-head { flex-wrap:nowrap; }  /* badge, description and actions stay on one row; only the description wraps */
-.role-entry-head > .role-entry-title { flex:1 1 0; min-width:0; }
+/* One-line text that reveals its full content on demand (TruncatedText). */
+.truncated-text { display:block; min-width:0; }
+.truncated-text-slot { display:block; min-width:0; }
+.truncated-text-line { display:block; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ui-button.truncated-trigger { display:block; width:100%; min-width:0; min-height:0; height:auto; padding:0; border:0; border-radius:var(--radius-sm,.25rem); background:transparent; font:inherit; color:inherit; text-align:left; cursor:pointer; }
+.ui-button.truncated-trigger:hover:not(:disabled) { background:transparent; text-decoration:underline dotted; text-underline-offset:3px; }
+.truncated-popover { max-height:min(60vh,24rem); }
+.truncated-full { margin:0; white-space:normal; overflow-wrap:anywhere; font-size:var(--font-body); line-height:1.5; }
 
 /* SoD overview heatmap: title, columns toggle, metric, sort and export share one responsive row. */
 .sod-heatmap-bar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-2) var(--space-4); margin-bottom:var(--space-3); }
