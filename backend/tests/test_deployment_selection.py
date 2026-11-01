@@ -35,7 +35,8 @@ EXPECTED = {  # build_target -> the packages it builds; the seven values of the 
 def run_plan(build_target, **extra):
     with tempfile.TemporaryDirectory() as directory:
         output, summary = Path(directory, 'output'), Path(directory, 'summary.md')
-        env = dict(DEPLOYMENT_TARGET=build_target, GITHUB_OUTPUT=str(output), GITHUB_STEP_SUMMARY=str(summary), **extra)
+        env = dict(BASE_VERSION='0.1.0', DEPLOYMENT_CHANNEL='Beta', DEPLOYMENT_SEQUENCE='1', PUBLISH_RELEASE='false')
+        env.update(DEPLOYMENT_TARGET=build_target, GITHUB_OUTPUT=str(output), GITHUB_STEP_SUMMARY=str(summary), **extra)
         done = subprocess.run([sys.executable, str(ROOT / 'scripts/deployment-release.py'), 'plan'], env={**os.environ, **env}, capture_output=True, text=True)
         values = dict(line.split('=', 1) for line in output.read_text().splitlines()) if output.exists() else {}
         return done, values, summary.read_text() if summary.exists() else ''
@@ -65,6 +66,23 @@ class SelectionTests(unittest.TestCase):
 
 
 class PlanningJobTests(unittest.TestCase):
+    def test_invalid_version_inputs_are_rejected_before_outputs_or_expensive_jobs(self):
+        for extra in ({'BASE_VERSION':'1.2'}, {'BASE_VERSION':'65536.0.0'}, {'DEPLOYMENT_CHANNEL':'invalid'},
+                      {'DEPLOYMENT_SEQUENCE':''}, {'DEPLOYMENT_SEQUENCE':'01'}, {'DEPLOYMENT_SEQUENCE':'65536'},
+                      {'PUBLISH_RELEASE':'yes'}):
+            with self.subTest(extra=extra):
+                done,values,summary=run_plan('windows-desktop',**extra)
+                self.assertEqual(done.returncode,1);self.assertEqual(values,{})
+                self.assertIn('No package was built or published',summary)
+
+    def test_stable_ignores_the_prerelease_field_as_the_dispatch_form_promises(self):
+        for sequence in ('','0','01','65536','unused'):
+            with self.subTest(sequence=sequence):
+                done,values,_=run_plan('windows-desktop',DEPLOYMENT_CHANNEL='Stable / Production',DEPLOYMENT_SEQUENCE=sequence)
+                self.assertEqual(done.returncode,0,done.stderr)
+                self.assertEqual(values['desktop'],'true')
+                info=packages.make_deployment_info('0.1.0','stable',sequence,'a'*40,'1','1',1)
+                self.assertEqual(info['version'],'0.1.0');self.assertEqual(info['file_version'],[0,1,0,0])
     def test_the_plan_exposes_each_job_flag_once_and_a_summary(self):
         for target, expected in EXPECTED.items():
             done, values, summary = run_plan(target, BASE_VERSION='0.1.0', DEPLOYMENT_CHANNEL='Beta', PUBLISH_RELEASE='false')

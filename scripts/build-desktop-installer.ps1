@@ -30,6 +30,17 @@ if ($CompileCheck) {
     # Compile the complete production recipe, including Pascal code, before any
     # Python dependencies or application packaging. This compiler-as-payload
     # fixture is never executed, packaged for distribution or marked accepted.
+    # pefile is the existing Windows package verifier dependency. Provision the
+    # same pinned tool in a separate disposable check environment, never in the
+    # application environment. Compilation alone cannot test the PE reader.
+    $checkEnvironment = Join-Path $root 'backend/build/installer-check-env'
+    & python -m venv $checkEnvironment
+    if ($LASTEXITCODE -ne 0) { throw 'Installer check environment creation failed.' }
+    $checkPython = Join-Path $checkEnvironment 'Scripts/python.exe'
+    $pefilePin = @(Get-Content (Join-Path $root 'backend/requirements-build.txt') | Where-Object { $_ -match '^pefile==[0-9.]+$' })
+    if ($pefilePin.Count -ne 1) { throw 'The existing PE verifier requires one canonical dependency pin.' }
+    & $checkPython -m pip install --disable-pip-version-check $pefilePin[0]
+    if ($LASTEXITCODE -ne 0) { throw 'Installer verifier dependency provisioning failed.' }
     $temporary = Join-Path $OutputDirectory ('recipe-'+[guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Force $temporary | Out-Null
     try {
@@ -42,7 +53,9 @@ if ($CompileCheck) {
             New-Item -ItemType Directory $destination | Out-Null
             Invoke-InstallerCompiler $payload $full $numeric $destination
             if (-not (Test-Path -LiteralPath (Join-Path $destination 'SAP-Lens-Setup.exe') -PathType Leaf)) { throw 'Inno Setup did not produce the compiler-check fixture.' }
-            Write-Host "Installer recipe compiled: $channel. Application installation was not tested."
+            & $checkPython (Join-Path $root 'scripts/verify-desktop-installer.py') --installer (Join-Path $destination 'SAP-Lens-Setup.exe') --compiler-fixture-channel $channel
+            if ($LASTEXITCODE -ne 0) { throw 'Compiled installer fixture resource verification failed.' }
+            Write-Host "Installer recipe compiled and PE resources verified: $channel. Application installation was not tested."
         }
     } finally { Remove-Item -LiteralPath $temporary -Recurse -Force }
     return

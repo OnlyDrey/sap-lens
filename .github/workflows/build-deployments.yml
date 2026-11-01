@@ -54,6 +54,7 @@ jobs:
       DEPLOYMENT_TARGET: ${{ inputs.build_target }}
       BASE_VERSION: ${{ inputs.version }}
       DEPLOYMENT_CHANNEL: ${{ inputs.release_channel }}
+      DEPLOYMENT_SEQUENCE: ${{ inputs.prerelease_number }}
       PUBLISH_RELEASE: ${{ inputs.publish_release }}
     outputs:
       packages: ${{ steps.selection.outputs.packages }}
@@ -446,7 +447,7 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 25
     needs: [plan, validation, desktop, service, docker, native]
-    if: ${{ always() && !cancelled() && inputs.publish_release && needs.plan.result == 'success' && needs.validation.result == 'success' }}
+    if: ${{ always() && !cancelled() && inputs.publish_release && needs.plan.result == 'success' && needs.validation.result == 'success' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
     permissions:
       contents: write
     concurrency:

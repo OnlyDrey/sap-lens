@@ -188,22 +188,27 @@ def require_inputs():
 
 
 def finish(directory,platform,output):
-    info=identity();manifest=files(directory);privacy(manifest)
-    write(directory/'package-manifest.json',dict(schema=1,platform=platform,identity=info,files=manifest))
+    info=identity()
+    if output.resolve().is_relative_to(directory.resolve()):
+        raise ValueError('Keep deployment archive output outside its input bundle.')
     output.mkdir(parents=True,exist_ok=True)
     stem=f'SAP-Lens-{platform}-{info["version"]}'
+    archive=output/(stem+('.zip' if platform.startswith('Windows') else '.tar.gz'))
+    checksum=archive.with_name(archive.name+'.sha256')
+    if any(path.exists() or path.is_symlink() for path in (archive,checksum)):
+        raise ValueError('Deployment output already exists; choose a new output directory. Existing packages were preserved.')
+    manifest=files(directory);manifest.pop('package-manifest.json',None);privacy(manifest)
+    write(directory/'package-manifest.json',dict(schema=1,platform=platform,identity=info,files=manifest))
     if platform.startswith('Windows'):
-        archive=output/(stem+'.zip')
-        with zipfile.ZipFile(archive,'w',zipfile.ZIP_DEFLATED) as z:
+        with zipfile.ZipFile(archive,'x',zipfile.ZIP_DEFLATED) as z:
             for path in sorted(directory.rglob('*')):
                 if path.is_file():z.write(path,path.relative_to(directory).as_posix())
     else:
-        archive=output/(stem+'.tar.gz')
-        with tarfile.open(archive,'w:gz') as z:
+        with tarfile.open(archive,'x:gz') as z:
             for path in sorted(directory.rglob('*')):
                 if path.is_file():z.add(path,arcname=path.relative_to(directory).as_posix(),recursive=False)
-    archive.with_name(archive.name+'.sha256').write_text(sha(archive)+'  '+archive.name+'\n',encoding='ascii')
     with tempfile.TemporaryDirectory() as temp:verify_extract(archive,Path(temp),sha(archive))
+    with checksum.open('x',encoding='ascii') as stream:stream.write(sha(archive)+'  '+archive.name+'\n')
     print('Verified deployment archive: '+archive.name+' SHA-256 '+sha(archive))
     return archive
 

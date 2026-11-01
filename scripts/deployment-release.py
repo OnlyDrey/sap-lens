@@ -17,7 +17,7 @@ from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'backend'))
-from version import parse_build_info
+from version import parse_build_info, deployment_version
 
 CHANNELS = {'Alpha': 'alpha', 'Beta': 'beta', 'Release Candidate (RC)': 'rc',
             'Stable / Production': 'stable'}
@@ -72,8 +72,13 @@ def require_release_ref(mode, ref):
 def plan():
     build_target = os.environ.get('DEPLOYMENT_TARGET', '')
     chosen = resolve(build_target)
+    mode=channel(os.environ.get('DEPLOYMENT_CHANNEL',''))
+    try:deployment_version(os.environ.get('BASE_VERSION',''),mode,os.environ.get('DEPLOYMENT_SEQUENCE',''))
+    except ValueError as error:raise DeliveryError(str(error)) from None
+    if os.environ.get('PUBLISH_RELEASE') not in {'true','false'}:
+        raise DeliveryError('Explicit true/false publication choice is required.')
     if os.environ.get('PUBLISH_RELEASE') == 'true':  # fail before any runner is spent on a release that could never be published
-        require_release_ref(channel(os.environ.get('DEPLOYMENT_CHANNEL', '')), os.environ.get('GITHUB_REF', ''))
+        require_release_ref(mode, os.environ.get('GITHUB_REF', ''))
     output(packages=','.join(chosen), count=len(chosen), **{row[0]: 'true' if name in chosen else 'false' for name, row in PACKAGES.items()})
     summary = plan_summary(build_target, chosen)
     print(summary)

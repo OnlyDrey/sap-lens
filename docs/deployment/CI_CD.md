@@ -41,6 +41,12 @@ upload nothing.
 
 Pipeline: `plan` -> `validation` (lightweight, once per run) -> selected package jobs (`desktop`, `service`, `docker`, `native`) -> `publish` (only if `publish_release`).
 
+The stdlib planning job rejects invalid base versions, channels, prerelease
+numbers and publication choices before installing validation dependencies.
+Stable ignores the prerelease field, as the dispatch form states. Publication
+does not allocate a runner when any dependency failed or was cancelled; its
+independent package/identity/digest preflight remains mandatory when it runs.
+
 Shared validation contains only lightweight checks: type check, production build, icon catalogue, Python and JavaScript
 dependency audits, `pip check`, Ruff, workflow contracts and lint, PowerShell parsing. These sealed checks form the receipt in
 `scripts/deployment-package.py` (`CHECKS`). Package jobs add platform builds, package audits, native or container smoke tests and
@@ -64,7 +70,9 @@ See [releases](RELEASES.md) for channels and permissions.
 
 The selected Windows Desktop job first runs the pinned Inno Setup compiler on
 the complete production recipe for every release channel, using disposable
-compiler-as-payload fixtures. This catches installer/Pascal compilation errors
+compiler-as-payload fixtures. Each resulting PE is then read by the canonical
+installer verifier in a separate check environment using the existing pinned
+`pefile` dependency. This catches installer/Pascal and PE-reader incompatibilities
 before application packaging. It is separate from actual installer execution,
 installed payload verification, application lifecycle and artifact roundtrip.
 
@@ -81,6 +89,30 @@ The portable helper fixture includes this filename and rejects tampering.
 Fast Validation now runs the portable PowerShell checks before backend tests.
 These checks do not certify Windows SCM, GUI or installer acceptance; the selected
 Windows package jobs must complete those tests and the artifact roundtrip.
+
+### Build audit coverage and limits
+
+The review following deployment run `41351429385` covered all four workflow
+definitions and their build, validation, packaging, verification and publication
+entry points. Passing local checks are evidence for the paths below, not a claim
+that every operating-system workflow was executed.
+
+| Area | Reviewed contracts and executable local evidence | Remaining native boundary |
+| --- | --- | --- |
+| Four workflows | Triggers, selections, input propagation, job graph, failure/cancellation gates, caches, permissions and same-run artifact IDs; actionlint and positive/negative workflow tests | Runner image and protected-environment behavior |
+| Windows desktop/service | PowerShell parsing, fail-fast checks, identity/resource handling, installer recipe, SCM transitions, backup/restore and cleanup; portable helper tests and real PE parsing with generated non-runnable resource fixtures | Compiler execution, WebView2, GUI, setup/reinstall/uninstall and SCM on Windows |
+| Linux/Docker | Root launchers, native/Docker packagers, immutable releases, offline wheelhouse, lifecycle management, persistent data and configuration boundaries; archive and lifecycle unit tests | Docker engine/Compose and real systemd/reboot/UNC acceptance |
+| Publication | Both release engines, source/version checks, selected-package eligibility, digest verification, draft/tag ownership and failure reconciliation; mocked API transactions without remote writes | Actual GitHub release publication |
+| Distribution | ZIP/tar exact contents, privacy checks, checksums, manifest identity, repeated packaging and output paths; real archive roundtrips and corruption/rejection tests | Final platform-built artifacts |
+
+Confirmed repairs from this review: accept only Inno's trailing space/NUL resource
+padding while retaining exact product/version comparisons; expose bounded verifier
+failure categories; verify compiler-fixture PE resources before application builds;
+reject invalid dispatch inputs early; skip publication after failed dependencies;
+and preserve existing archives/checksums instead of overwriting them on repeated
+packaging. Archive output inside its input bundle is also rejected to prevent
+self-inclusion. Tests reproduce the old padded-resource rejection and archive
+overwrite using local bytes, without a GitHub Actions build.
 
 ## Level C: Full Regression
 

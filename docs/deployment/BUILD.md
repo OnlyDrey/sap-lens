@@ -5,6 +5,12 @@ claims. The scripts/workflow below implement packaging; a downloadable Actions
 artifact exists **only after an approved run succeeds**. No run is started by these
 documents. See [actual validation](../archive/validation/PACKAGING_VALIDATION.md).
 
+Deployment archives and checksum sidecars are never overwritten by a repeated
+packaging command. Choose a new output directory after reviewing an existing
+package. Keep archive output outside the input bundle; nesting it inside the
+bundle would make the archive include itself. Checksums are written only after
+the new archive passes its extraction/content verification.
+
 ## Find your build path
 
 - [Actions: one build target dropdown](#manual-build), [artifact names and download](#outputs).

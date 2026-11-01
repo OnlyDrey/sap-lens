@@ -76,6 +76,17 @@ class PackagingTests(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory();self.root=Path(self.temp.name)
         self.info=pkg.make_build_info('build','0.1.0','a'*40,'123','9',1)
     def tearDown(self):self.temp.cleanup()
+    def test_repeated_packaging_preserves_existing_archive_and_rejects_output_inside_bundle(self):
+        for platform in ('Windows-Desktop-x64','Linux-Native-x64'):
+            source=self.root/platform;source.mkdir();(source/'README.md').write_text('synthetic')
+            with patch.object(pkg,'identity',return_value=self.info):
+                archive=pkg.finish(source,platform,self.root/'out')
+                sidecar=archive.with_name(archive.name+'.sha256');before=(archive.read_bytes(),sidecar.read_bytes())
+                (source/'README.md').write_text('changed')
+                with self.assertRaisesRegex(ValueError,'already exists'):pkg.finish(source,platform,self.root/'out')
+                self.assertEqual((archive.read_bytes(),sidecar.read_bytes()),before)
+                for output in (source,source/'nested'):
+                    with self.assertRaisesRegex(ValueError,'outside'):pkg.finish(source,platform,output)
     def test_archive_roundtrip_checksum_extra_members_and_private_inputs(self):
         source=self.root/'source';source.mkdir();(source/'README.md').write_text('synthetic')
         with patch.object(pkg,'identity',return_value=self.info):archive=pkg.finish(source,'Linux-Native-x64',self.root/'out')

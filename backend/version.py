@@ -105,13 +105,15 @@ def deployment_version(base, channel, sequence=""):
     base_numbers(base)
     if channel not in {"alpha", "beta", "rc", "stable"}:
         raise ValueError("Choose alpha, beta, rc or stable.")
+    if channel == "stable":
+        return base  # The dispatch UI explicitly says prerelease_number is ignored.
     if not isinstance(sequence, str) or (sequence and not re.fullmatch(r"[1-9][0-9]{0,4}", sequence)):
         raise ValueError("Prerelease number must be a positive integer without leading zeros.")
     if sequence and int(sequence) > 65535:
         raise ValueError("Prerelease number exceeds Windows FileVersion limits.")
-    if channel != "stable" and not sequence:
+    if not sequence:
         raise ValueError("A prerelease number is required for alpha, beta and rc.")
-    return base if channel == "stable" else f"{base}-{channel}.{sequence}"
+    return f"{base}-{channel}.{sequence}"
 
 
 def make_deployment_info(base, channel, sequence, source_sha, run_id, run_number, attempt=1):

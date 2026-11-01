@@ -151,7 +151,14 @@ Do not delete its tool receipt or bypass a changed-compiler error blindly.
 
 Before application packaging, the selected Windows Desktop job compiles the
 complete installer definition (including Pascal code) for Alpha, Beta, RC and
-Stable. It uses a temporary compiler-as-payload fixture, deletes the outputs and
+Stable and verifies each resulting PE with the canonical installer verifier.
+The existing `pefile` verifier dependency is pinned in build requirements and
+provisioned in an isolated compiler-check environment. Inno's fixed-width text
+resources contain trailing spaces; the verifier removes only trailing space/NUL
+padding and still rejects different product names, versions, numeric resources,
+signatures or duplicate metadata. Controlled failures identify the rejected
+field without printing private third-party parser errors.
+The check uses a temporary compiler-as-payload fixture, deletes the outputs and
 does not run or approve an application installer. Normal packaging still requires
 the validated application inputs and the native installation/lifecycle tests.
 PowerShell parsing and Python recipe checks alone do not compile Inno's `[Code]`

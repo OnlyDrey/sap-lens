@@ -1,4 +1,6 @@
 -r requirements-desktop.txt
 pyinstaller==6.22.3
+# Existing Windows PE verifier, pinned explicitly for cross-platform resource tests.
+pefile==2024.8.26
 # Upgrade the vulnerable pip bundled with Python 3.12 in the same dependency install.
 pip==26.2.2

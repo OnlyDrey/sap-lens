@@ -110,6 +110,8 @@ def validate(workflows):
     require(set(plan['outputs'])=={'packages','desktop','service','docker','native'}, 'The plan must expose the resolved packages once')
     require(deployment['jobs']['validation']['needs']=='plan', 'Expensive validation may only start after a valid selection')
     require(plan['env']['DEPLOYMENT_TARGET']=='${{ inputs.build_target }}', 'The plan resolves exactly the dispatched build target')
+    require(plan['env'].get('BASE_VERSION')=='${{ inputs.version }}' and plan['env'].get('DEPLOYMENT_CHANNEL')=='${{ inputs.release_channel }}'
+            and plan['env'].get('DEPLOYMENT_SEQUENCE')=='${{ inputs.prerelease_number }}', 'Version inputs must be validated in the stdlib planning job')
     for key in ('desktop','service','docker','native'):
         job=deployment['jobs'][key]
         require(job['needs']==['plan','validation'], 'Platform jobs must depend only on the selection and shared validation')
@@ -136,7 +138,7 @@ def validate(workflows):
     require(len(audit_steps)==len(smoke_steps)==1 and audit_steps[0]<smoke_steps[0] and 'if' not in native_steps[audit_steps[0]], 'Native package auditing must be provisioned before the mandatory smoke test')
     deployment_publish=deployment['jobs']['publish']
     require(set(deployment_publish['needs'])=={'plan','validation','desktop','service','docker','native'}, 'Publication must await the plan and all platform results')
-    require(deployment_publish['if']=="${{ always() && !cancelled() && inputs.publish_release && needs.plan.result == 'success' && needs.validation.result == 'success' }}", 'Publication must be manual, explicit, planned and validated')
+    require(deployment_publish['if']=="${{ always() && !cancelled() && inputs.publish_release && needs.plan.result == 'success' && needs.validation.result == 'success' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}", 'Publication must be manual, explicit, planned and validated')
     require(deployment_publish['env'].get('DEPLOYMENT_PACKAGES')=='${{ needs.plan.outputs.packages }}' and deployment_publish['env'].get('DEPLOYMENT_TARGET')=='${{ inputs.build_target }}', 'Publication may collect only the planned packages')
     require(deployment_publish['concurrency']=={'group':'sap-lens-deployment-publication','cancel-in-progress':'false'}, 'Publication must be serialized without cancellation')
     require(isinstance(deployment_publish.get('environment'),dict),'Publication must run in a protected environment')

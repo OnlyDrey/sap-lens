@@ -222,7 +222,7 @@ class DeploymentReleaseRefTests(unittest.TestCase):
                     with self.assertRaises(release.DeliveryError): release.context()
 
     def test_the_plan_rejects_an_unpublishable_stable_release_before_any_runner_starts(self):
-        base = dict(DEPLOYMENT_TARGET='linux-native', DEPLOYMENT_CHANNEL='Stable / Production')
+        base = dict(DEPLOYMENT_TARGET='linux-native', DEPLOYMENT_CHANNEL='Stable / Production', BASE_VERSION='0.1.0', DEPLOYMENT_SEQUENCE='')
         with patch.dict(os.environ, {**base, 'PUBLISH_RELEASE': 'true', 'GITHUB_REF': 'refs/heads/work'}, clear=True):
             with self.assertRaises(release.DeliveryError): release.plan()
         for extra in ({'PUBLISH_RELEASE': 'true', 'GITHUB_REF': 'refs/heads/main'}, {'PUBLISH_RELEASE': 'false', 'GITHUB_REF': 'refs/heads/work'}):
