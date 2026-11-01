@@ -3,3 +3,5 @@
 httpx2==2.16.0
 # Parse workflow contracts in the offline repository regression suite.
 PyYAML==6.0.3
+# Correctness lint (ruff.toml); run `python -m ruff check backend scripts`.
+ruff==0.17.3

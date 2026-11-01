@@ -13,8 +13,6 @@ import cache
 import config
 from main import create_app
 from routers import data_health
-from user_access import build_users
-from config_models import UserImportProfile
 
 H={'X-SAP-Lens':'investigation-test'}
 CAT='FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,TCODE\nFI,ZC:SHARED:*,Shared viewer,ZS:SHARED,FB03\nMM,ZC:ONLY_A,Materials,ZS:A,ME23N\nMM,ZC:ONLY_A,Materials,ZS:A,FB03\nFI,ZC:NO_CODES,,ZS:EMPTY,\n'
@@ -80,7 +78,7 @@ class InvestigationTools(unittest.TestCase):
         self.assertEqual(self.compare(validity='unknown')['items'][0]['identifier'],'ZC:UNKNOWN')
         self.assertEqual(self.compare(validity='all')['total'],6)
     def test_search_area_difference_and_pagination(self):
-        r=self.compare(difference='a',area='Materials Management',search='ONLY')
+        self.compare(difference='a',area='Materials Management',search='ONLY')
         # Use actual module labels rather than assume a translated SAP name.
         area=self.compare()['areas'][0]
         self.assertTrue(all(area in i['areas'] for i in self.compare(area=area)['items']))

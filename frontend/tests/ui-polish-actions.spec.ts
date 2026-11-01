@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { seedGovernance } from './sod-fixture'
 import { headers, openSettings, seedSources, type SeededSources } from './support'
 

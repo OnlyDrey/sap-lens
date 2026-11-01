@@ -1,6 +1,5 @@
 """Desktop deployment bundle wraps the unchanged, exactly verified portable pair."""
 import argparse
-import hashlib
 import importlib.util
 import json
 from pathlib import Path

@@ -66,7 +66,7 @@ export default function IconPicker({
                 const columns = getComputedStyle(
                   e.currentTarget.parentElement!
                 ).gridTemplateColumns.split(' ').length
-                let next = index
+                let next: number
                 if (e.key === 'ArrowRight') next = index + 1
                 else if (e.key === 'ArrowLeft') next = index - 1
                 else if (e.key === 'ArrowDown') next = index + columns
@@ -76,9 +76,7 @@ export default function IconPicker({
                 else return
                 e.preventDefault()
                 const group = e.currentTarget.parentElement
-                group
-                  ?.querySelectorAll('button')
-                  [Math.max(0, Math.min(keys.length - 1, next))]?.focus()
+                group?.querySelectorAll('button')[Math.max(0, Math.min(keys.length - 1, next))]?.focus()
               }}
               onClick={() => onChange(key)}
               className={`icon-choice ${value === key ? 'selected' : ''}`}

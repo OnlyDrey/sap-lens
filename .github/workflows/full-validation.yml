@@ -33,6 +33,9 @@ jobs:
       - name: Check Python dependencies
         id: pip_check
         run: python scripts/ci.py run pip_check -- python -m pip check
+      - name: Lint Python with Ruff
+        id: ruff
+        run: python scripts/ci.py run ruff -- python -m ruff check backend scripts
       - name: Validate workflow schemas, expressions and shell commands
         id: workflow_lint
         run: python scripts/ci.py run workflow_lint -- python scripts/ci.py lint
@@ -49,7 +52,7 @@ jobs:
         if: always()
         env:
           CI_STEPS: ${{ toJSON(steps) }}
-          CI_REQUIRED: checkout setup_python dependencies pip_check workflow_lint powershell backend python_audit
+          CI_REQUIRED: checkout setup_python dependencies pip_check ruff workflow_lint powershell backend python_audit
           CI_JOB_NAME: ${{ github.job }}
         run: |
           if [ -f scripts/ci.py ]; then
@@ -93,6 +96,9 @@ jobs:
       - name: Run frontend type checks
         id: types
         run: python scripts/ci.py run types -- npm --prefix frontend run check:types
+      - name: Lint frontend with ESLint
+        id: eslint
+        run: python scripts/ci.py run eslint -- npm --prefix frontend run lint
       - name: Verify module icon catalog
         id: catalog
         run: python scripts/ci.py run catalog -- node scripts/sync-lucide-catalog.mjs --check
@@ -121,7 +127,7 @@ jobs:
         if: always()
         env:
           CI_STEPS: ${{ toJSON(steps) }}
-          CI_REQUIRED: checkout setup_node setup_python dependencies npm_install types catalog build javascript_audit browser_path browser_cache browser_setup browser
+          CI_REQUIRED: checkout setup_node setup_python dependencies npm_install types eslint catalog build javascript_audit browser_path browser_cache browser_setup browser
           CI_JOB_NAME: ${{ github.job }}
         run: |
           if [ -f scripts/ci.py ]; then

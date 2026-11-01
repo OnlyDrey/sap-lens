@@ -61,3 +61,18 @@ middleware now compares with `is not None`.
 - Compatibility: no migration; existing snapshots, decisions, approvals and checksums are untouched. Detection reads no description (`test_detection_results_do_not_depend_on_descriptions`).
 - Evidence: `test_sod_report_metadata` (13 tests: imported, local fallback, missing, differing alternates, source labels, approved-period immutability and identical model checksum, open period, legacy snapshot, plain datasets, special characters, long text, markup escaping, PDF font limit, remediation current versus frozen) and all 275 SoD backend tests.
 - Limit: a description with characters outside the bundled PDF font fails the PDF with the existing explicit 422 message; the DOCX is unaffected.
+
+## Phase 4: Ruff and ESLint
+
+| Tool | Configuration | Result |
+| --- | --- | --- |
+| Ruff 0.17.3 | `ruff.toml`: correctness rules only (see [Testing](TESTING.md#linting)); frontend, docs, deploy and build output excluded | 193 candidate findings were triaged. Fixed: 28 unused imports, 3 f-strings without placeholders, 3 unused variables, 9 `raise` without `from` (all hide internal detail on purpose, so `from None`), 1 useless expression (the `url.port` validation is now an explicit assignment), 4 loop-variable closures in a test. Silenced on the line with a reason: 1 blocking path call in a bounded upload staging scan, 1 `yaml.load` with a `BaseLoader` subclass. Not selected on purpose: `B008` (71 FastAPI default-call idiom hits), `PLW1510`, `B905`, formatting rules. Result: clean |
+| ESLint 10.14.0 + typescript-eslint 8.72.1 + react-hooks 7.1.1 | `frontend/eslint.config.js`, `npm run lint` | 145 findings at first. Fixed or justified: unused imports and variables in 8 specs, a literal BOM made explicit, an unused initial assignment and a confusing line break in `IconPicker`, two regex escapes, a justified control-character rule and an async timer callback with its own `try/catch`. Browser globals for `public/theme.js`, `_` prefix for intentionally unused parameters. Result: 0 errors, 111 warnings (30 `exhaustive-deps` in 16 `src` files, 81 `no-explicit-any` in `tests`), enforced as a ceiling |
+
+CI: both workflows gained `ruff` and `eslint` steps (reported through `CI_REQUIRED`; `check-workflows.py` requires them), `ruff` is pinned in `requirements-dev.txt`, and `run-tests.py` runs both in its static stage.
+`npm audit --omit=dev` stays clean. `npm audit` for development dependencies reports 11 moderate advisories, all from `minimatch` below 11.0.1 inside the ESLint toolchain (a denial of service for untrusted glob patterns, which
+ESLint never receives here); the suggested automatic fix is a downgrade to ESLint 4 and is not applied. They are recorded, not suppressed.
+
+Existing debt (CQ-04 to CQ-06) was re-verified, not changed: `MetricTile`, `FilterTile`, `EvidenceBadge`, `AccountEvidence` and `SourceStatusSummary` are still defined without a consumer outside their own files;
+`SettingsView.tsx` has 1158 lines and three other components exceed 640 lines; the long backend functions are unchanged. Recommendation: remove or adopt the five components together with their documentation rows, and split `SettingsView`
+by tab when a feature next touches it. Deferred: they need behaviour-preserving refactors with browser coverage, not lint fixes.

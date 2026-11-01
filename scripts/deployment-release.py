@@ -17,7 +17,7 @@ from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'backend'))
-from version import deployment_version, parse_build_info
+from version import parse_build_info
 
 CHANNELS = {'Alpha': 'alpha', 'Beta': 'beta', 'Release Candidate (RC)': 'rc',
             'Stable / Production': 'stable'}
@@ -264,4 +264,4 @@ if __name__ == '__main__':
         if os.environ.get('GITHUB_STEP_SUMMARY'):
             with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as stream:
                 stream.write('### Deployment publication stopped\n\n' + message + '\n')
-        raise SystemExit(1)
+        raise SystemExit(1) from None

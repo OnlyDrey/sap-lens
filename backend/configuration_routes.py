@@ -97,7 +97,7 @@ def configuration_router(loader, desktop_preferences=None):
                 return read_config()
         except HTTPException: raise
         except (OSError,ValueError):
-            raise HTTPException(400,'Configuration could not be applied. Validate profiles, file access, logo and current revision; previous settings remain intact.')
+            raise HTTPException(400,'Configuration could not be applied. Validate profiles, file access, logo and current revision; previous settings remain intact.') from None
 
     async def apply(config, expected):
         if desktop_preferences:
@@ -150,7 +150,7 @@ def configuration_router(loader, desktop_preferences=None):
     @router.post('/configuration/import')
     async def import_config(package: PortableConfig):
         try: candidate = read_portable(package,get_settings().data_csv_path,get_settings().user_csv_path)
-        except (OSError,ValueError): raise HTTPException(400,'Invalid configuration package or logo; nothing was applied.')
+        except (OSError,ValueError): raise HTTPException(400,'Invalid configuration package or logo; nothing was applied.') from None
         candidate.desktop = get_settings().desktop.model_copy(deep=True)
         candidate.sod_csv_path = get_settings().sod_csv_path
         candidate.employee_csv_path = get_settings().employee_csv_path
@@ -192,7 +192,7 @@ def configuration_router(loader, desktop_preferences=None):
         profile = request.profile or next(p for p in get_settings().import_profiles if p.id == get_settings().active_import)
         try: return await daemon_call(CsvImport(Path(request.data_csv_path),profile).inspect_header)
         except HTTPException: raise
-        except Exception: raise HTTPException(400,'Could not inspect the CSV header. Check path, encoding and delimiter.')
+        except Exception: raise HTTPException(400,'Could not inspect the CSV header. Check path, encoding and delimiter.') from None
 
     @router.post('/import/preview')
     async def preview_import(request: ImportPreview):
@@ -208,7 +208,7 @@ def configuration_router(loader, desktop_preferences=None):
     @router.post('/branding/preview')
     async def preview_logo(request: LogoSelection):
         try: return await daemon_call(image_from_path,request.path)
-        except (OSError,ValueError): raise HTTPException(400,'Choose a valid PNG, JPEG or WebP up to 2 MB and 4096 pixels per side. SVG is not supported.')
+        except (OSError,ValueError): raise HTTPException(400,'Choose a valid PNG, JPEG or WebP up to 2 MB and 4096 pixels per side. SVG is not supported.') from None
 
     @router.get('/branding/logo')
     def logo():

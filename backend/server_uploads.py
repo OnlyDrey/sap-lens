@@ -23,7 +23,7 @@ def upload_router(settings):
         directory.mkdir(parents=True,exist_ok=True,mode=0o700)
         async with lock:
             current=get_settings()
-            referenced={Path(v).resolve() for v in (current.data_csv_path,current.user_csv_path,current.employee_csv_path,current.sod_csv_path) if v}
+            referenced={Path(v).resolve() for v in (current.data_csv_path,current.user_csv_path,current.employee_csv_path,current.sod_csv_path) if v}  # noqa: ASYNC240 (a staging directory of at most a few files, scanned under the upload lock)
             pending=[p for p in directory.glob('*.csv') if p.resolve() not in referenced]
             # Bounded staging. Active source paths are never deleted here.
             for stale in sorted(pending,key=lambda p:p.stat().st_mtime)[:-2]: stale.unlink()

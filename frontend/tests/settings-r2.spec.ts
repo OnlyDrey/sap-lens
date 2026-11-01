@@ -7,7 +7,6 @@ const openHealth = async (page: Page, width = 1280) => {
   await page.getByRole('tab', { name: 'Health & Diagnostics', exact: true }).click()
   await expect(page.getByRole('region', { name: 'Data source health', exact: true })).toBeVisible()
 }
-const card = (page: Page, name: RegExp) => page.getByRole('region', { name: 'Data source health', exact: true }).locator('section.source-health-card').filter({ has: page.getByRole('heading', { name }) })
 
 test('Data Source Health cards sit in independent columns: expanding one moves only its own column', async ({ page }) => {
   await openHealth(page)

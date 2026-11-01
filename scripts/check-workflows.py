@@ -32,7 +32,7 @@ UniqueLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, map
 
 
 def load_workflows(directory=ROOT / '.github/workflows'):
-    return {path.name: yaml.load(path.read_text(encoding='utf-8'), Loader=UniqueLoader)
+    return {path.name: yaml.load(path.read_text(encoding='utf-8'), Loader=UniqueLoader)  # noqa: S506 (UniqueLoader extends BaseLoader: scalars stay strings, nothing is instantiated)
             for path in directory.iterdir() if path.suffix in {'.yml', '.yaml'}}
 
 
@@ -168,6 +168,8 @@ def validate(workflows):
     artifact_command = next(command for command in commands if '-Stage Artifact ' in command)
     require('-ArtifactDownloadDirectory' in artifact_command and '-ArtifactDigest' in artifact_command, 'Raw ZIP verification inputs are mandatory')
     for workflow in (fast, full):
+        steps = {step['id'] for job in workflow['jobs'].values() for step in job['steps'] if 'id' in step}
+        require({'ruff', 'eslint'} <= steps, 'Both workflows must lint Python with Ruff and the frontend with ESLint')
         for job in workflow['jobs'].values():
             require(job['steps'][-1].get('if') == 'always()', 'Validation report must run after failures')
             identifiers = {step['id']: step for step in job['steps'] if 'id' in step}

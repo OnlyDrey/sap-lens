@@ -1,6 +1,5 @@
 """Offline build metadata and PE version identity; never build/run a Windows EXE."""
 
-import copy
 import importlib.util
 import json
 from pathlib import Path

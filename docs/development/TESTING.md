@@ -106,7 +106,7 @@ evidence](../archive/README.md) is historical.
 
 ## Fast Validation per phase
 
-About 1.5 to 3 minutes: `git diff --check`, `python scripts/check-docs.py` when docs changed, `npm run check:types` (20 s),
+About 1.5 to 3 minutes: `git diff --check`, `python scripts/check-docs.py` when docs changed, `python -m ruff check backend scripts` and `npm run lint` in `frontend` (a few seconds each), `npm run check:types` (20 s),
 `python scripts/run-tests.py smoke` (44 s), and `python scripts/run-tests.py targeted <feature>...` for what the phase touched
 (build first when the UI changed). The full backend and browser suites run once, after the final phase; use the default
 `auto` jobs (backend 65 s instead of 170 s) and reserve `--jobs 1` for reproducing a failure.
@@ -128,3 +128,14 @@ Validation once after the final phase ([repository guidance](../../AGENTS.md)).
 
 Inspect imports, callers and fixtures before selecting; this table is guidance, not a
 filename-based exemption.
+
+## Linting
+
+- **Python:** `python -m ruff check backend scripts` (Ruff pinned in `backend/requirements-dev.txt`, configured in `ruff.toml`). The baseline selects correctness rules only
+  (pyflakes, syntax, pylint errors, mutable defaults, useless expressions, loop closures, `raise` without `from` in `except`, unsafe YAML, blocking calls in async code). It selects no
+  formatting or line-length rule because the code base is deliberately dense; nothing was reformatted. A finding is fixed, or silenced on its own line with a reason (`# noqa: CODE (reason)`),
+  never ignored globally.
+- **Frontend:** `npm run lint` in `frontend` (ESLint 10, flat config in `eslint.config.js`): recommended JavaScript and TypeScript rules, `react-hooks/rules-of-hooks` as an error,
+  `react-hooks/exhaustive-deps` as a warning, and two type-aware rules (`no-floating-promises`, `no-misused-promises`) for `src`. The script is `eslint . --max-warnings N`, where N is the
+  current backlog (30 hook-dependency warnings in `src`, 81 `any` uses in `tests`): fixing warnings lets you lower N, adding one fails the run. Errors fail it outright.
+- Both run in Fast and Full Validation (`ruff`, `eslint` steps), in the `regression` profile's static stage and belong in every phase's Fast Validation.

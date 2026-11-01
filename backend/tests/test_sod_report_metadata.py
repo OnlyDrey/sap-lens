@@ -15,7 +15,7 @@ import sod_catalogue as catalogue
 import sod_metadata
 import sod_periods as periods
 import sod_reports as reports
-from test_sod_reports import H, ReportCase
+from test_sod_reports import ReportCase
 
 IMPORTED_RISKS = {'R1': dict(name='Payables posting', description='Posting and approving a vendor invoice is incompatible. ÆØÅ é ü'), 'R2': dict(name='Vendor master', description='')}
 IMPORTED_ACTIVITIES = {'A': dict(name='Post invoice', description='Creates a vendor invoice.')}

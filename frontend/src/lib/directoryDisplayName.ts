@@ -1,7 +1,7 @@
 /** Display only: recognize exactly two letter-only name parts in 'Surname, Given names' form. */
 export function directoryDisplayName(value: string): string {
   const parts = value.trim().split(',')
-  const name = /^[\p{L}\p{M}]+(?:[\s'’\-][\p{L}\p{M}]+)*$/u
+  const name = /^[\p{L}\p{M}]+(?:[\s'’-][\p{L}\p{M}]+)*$/u
   const comma =
     parts.length === 2 &&
     !/^(Jr|Sr|II|III|IV)\.?$/i.test(parts[1].trim()) &&
@@ -15,7 +15,7 @@ export function directoryDisplayName(value: string): string {
   if (comma) return comma
   const tokens = value.trim().split(/\s+/)
   const upper = (v: string) =>
-    /^[\p{Lu}\p{M}]+(?:[’'\-][\p{Lu}\p{M}]+)*$/u.test(v) && v.length > 1
+    /^[\p{Lu}\p{M}]+(?:[’'-][\p{Lu}\p{M}]+)*$/u.test(v) && v.length > 1
   const boundary = tokens.findIndex((token) => !upper(token))
   return boundary > 0 &&
     tokens

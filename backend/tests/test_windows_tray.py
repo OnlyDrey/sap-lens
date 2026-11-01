@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 import sys
 import tempfile
-import threading
 import unittest
 from unittest.mock import Mock,patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
@@ -149,7 +148,7 @@ class TrayPolicyTests(unittest.TestCase):
 class TrayPersistenceTests(unittest.TestCase):
     def test_actual_config_restart_portable_import_and_native_auth(self):
         import config
-        from portable_config import export_configuration,PortableConfig
+        from portable_config import export_configuration
         from main import create_app
         from fastapi.testclient import TestClient
         from desktop import NativeDialogs

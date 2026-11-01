@@ -1,14 +1,11 @@
 """SoD 2.0 review periods: approval workflow, frozen decisions, comparisons and guarded deletion."""
-from datetime import date
 import os
 from pathlib import Path
 import sys
-import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import cache
 import sod_decisions as decisions
-import sod_periods as periods
 from test_sod_governance import GovernanceCase, snapshot
 
 
@@ -85,7 +82,7 @@ class WorkflowTests(PeriodV2Case):
         for state in ('In review', 'Ready for approval'):
             self.move(pid, state)
         approved = self.approve(pid)['period']
-        frozen = self.get(f'/api/sod/matrix/risk', context=pid)
+        frozen = self.get('/api/sod/matrix/risk', context=pid)
         self.assertTrue(frozen['frozen'])
         self.assertFalse(frozen['reviewable'])
         self.assertEqual(frozen['rows'][0]['cells']['R1']['acceptance'], 'Accepted')

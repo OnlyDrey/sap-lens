@@ -1,5 +1,4 @@
 """Private backup/restore use disposable data only; never operate on a real installation."""
-import hashlib
 import io
 import json
 import os

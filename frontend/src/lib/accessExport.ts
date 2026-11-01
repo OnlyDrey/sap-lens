@@ -4,7 +4,8 @@ import { applicationToken } from '@/api/client'
 // Quote every field; neutralise spreadsheet formulas without changing normal SAP identifiers.
 export function csvField(value: unknown): string {
   let text = value == null ? '' : String(value)
-  if (/^[\s\u0000-\u001f]*[=+@\-]/u.test(text) || /^[\t\r\n]/u.test(text)) text = "'" + text
+  // eslint-disable-next-line no-control-regex -- control characters before a formula marker must be caught too
+  if (/^[\s\u0000-\u001f]*[=+@-]/u.test(text) || /^[\t\r\n]/u.test(text)) text = "'" + text
   return '"' + text.replace(/"/g, '""') + '"'
 }
 const csvHeader = ['Username', 'User group', 'Full name', 'Role', 'Role description', 'Role family', 'Valid from', 'Valid to', 'Assignment status', 'Document type', 'Release group', 'Release strategy'].map(csvField).join(',')

@@ -9,7 +9,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import shutil
 import socket
 import subprocess
@@ -213,6 +212,8 @@ def static_checks() -> list[dict]:
         ('documentation links', [py, 'scripts/check-docs.py']),
         ('workflow contracts', [py, 'scripts/check-workflows.py']),
         ('Lucide catalog', ['node', 'scripts/sync-lucide-catalog.mjs', '--check']),
+        ('Python lint (ruff)', [py, '-m', 'ruff', 'check', 'backend', 'scripts']),
+        ('frontend lint (ESLint)', [npm(), '--prefix', str(FRONTEND), 'run', 'lint']),
         ('whitespace (git diff --check)', ['git', 'diff', '--check']),
         ('pip check', [py, '-m', 'pip', 'check']),
     ]

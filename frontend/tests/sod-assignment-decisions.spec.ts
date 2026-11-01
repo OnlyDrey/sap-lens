@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { cellButton, cleanup, headers, names, openSod, seedGovernance } from './sod-fixture'
+import { cleanup, headers, names, openSod, seedGovernance } from './sod-fixture'
 
 let directory: string
 test.beforeEach(async ({ request }) => { directory = await seedGovernance(request) })

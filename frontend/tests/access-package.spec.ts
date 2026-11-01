@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
-import { goTo, headers, seedSources, type SeededSources } from './support'
+import { goTo, seedSources, type SeededSources } from './support'
 let seeded: SeededSources
 const roles = `FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT
 MM,ZC:MM:BUY:ENP,Buyer plant,ZS:SH,MM - Shared purchasing,MIGO,Goods movement

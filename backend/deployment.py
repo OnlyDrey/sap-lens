@@ -54,7 +54,7 @@ class ServerSettings:
         url = urlsplit(origin)
         if url.scheme not in {'http','https'} or not url.hostname or url.path or url.query or url.fragment or url.username or url.password:
             raise ValueError('Public origin must be an explicit HTTP(S) origin without a path or credentials.')
-        try: url.port
+        try: _ = url.port  # raises ValueError for an invalid port
         except ValueError: raise ValueError('Invalid public origin port.') from None
         hosts = tuple(x.strip().lower() for x in os.environ.get('SAP_LENS_ALLOWED_HOSTS', url.hostname).split(',') if x.strip())
         if not hosts or url.hostname.lower() not in hosts or any('*' in h or '/' in h or '://' in h for h in hosts):

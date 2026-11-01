@@ -47,7 +47,7 @@ class DesktopBoundaryTests(Isolated):
         with TestClient(app, base_url=ORIGIN) as client:
             for method, path in found:
                 body = {} if method != 'GET' else None
-                call = lambda headers: client.request(method, path, headers=headers, **({'json': body} if body is not None else {}))
+                call = lambda headers, method=method, path=path, body=body: client.request(method, path, headers=headers, **({'json': body} if body is not None else {}))
                 if path.startswith('/api/'):
                     self.assertEqual(call({'Origin': ORIGIN}).status_code, 403, f'{method} {path} answered without the launch capability')
                     self.assertEqual(call({'Origin': 'https://evil.example', 'X-SAP-Lens': TOKEN}).status_code, 403, f'{method} {path} accepted a foreign origin')

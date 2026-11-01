@@ -1,4 +1,3 @@
-import copy
 import sys
 import unittest
 from datetime import date, datetime

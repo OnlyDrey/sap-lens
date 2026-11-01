@@ -78,7 +78,7 @@ export function Select({ className = 'ui-control', onMouseDown, onKeyDown, onBlu
     window.addEventListener('popstate', dismiss)
     return () => { document.removeEventListener('pointerdown', outside); window.removeEventListener('popstate', dismiss) }
   }, [open])
-  useEffect(() => { if (open) document.getElementById(optionId(index))?.scrollIntoView({ block: 'nearest' }) }, [open, index])
+  useEffect(() => { if (open) document.getElementById(`${uid}-option-${index}`)?.scrollIntoView({ block: 'nearest' }) }, [open, index, uid])
   useEffect(() => { if (props.disabled) close() }, [props.disabled])
 
   const keys = (event: KeyboardEvent<HTMLSelectElement>) => {
@@ -114,7 +114,7 @@ export function Select({ className = 'ui-control', onMouseDown, onKeyDown, onBlu
       <select {...props} ref={select} className={className}
         aria-haspopup={enhanced ? 'listbox' : undefined} aria-expanded={enhanced ? open : undefined} aria-controls={enhanced && open ? listId : undefined}
         aria-activedescendant={enhanced && open && choices[index] ? optionId(index) : undefined}
-        onMouseDown={event => { onMouseDown?.(event); if (enhanced && !event.defaultPrevented && event.button === 0 && !event.currentTarget.disabled) { event.preventDefault(); event.currentTarget.focus(); open ? close() : show() } }}
+        onMouseDown={event => { onMouseDown?.(event); if (enhanced && !event.defaultPrevented && event.button === 0 && !event.currentTarget.disabled) { event.preventDefault(); event.currentTarget.focus(); if (open) close(); else show() } }}
         onKeyDown={keys}
         onBlur={event => { onBlur?.(event); if (!popup.current?.contains(event.relatedTarget as Node)) close() }}>
         {children}

@@ -21,7 +21,7 @@ from employee_directory import store as directory_store
 from main import create_app
 import sod_catalogue as catalogue
 import sod_metadata
-from sod_import import HEADERS, OPTIONAL_FIELDS, build_sod, parse_sod
+from sod_import import HEADERS, OPTIONAL_FIELDS, parse_sod
 
 H = {'X-SAP-Lens': 'synthetic-metadata-session'}
 RISK_COLUMNS = ['RISK_NAME', 'RISK_DESCRIPTION', 'RISK_IMPACT', 'BUSINESS_PROCESS']
