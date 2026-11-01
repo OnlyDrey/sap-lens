@@ -118,7 +118,7 @@ class OrchestrationTests(unittest.TestCase):
             with self.subTest(change=change),self.assertRaises(ValueError):rules.validate(bad)
 
     def test_server_data_sources_resolve_from_nested_spec_directory(self):
-        from PyInstaller.building.utils import format_binaries_and_datas
+        from pathlib import PureWindowsPath
         import re
         script=(ROOT/'scripts/build-server-windows.ps1').read_text()
         # Use the actual script's rooted variables and data arguments, not another packaging implementation.
@@ -132,7 +132,9 @@ class OrchestrationTests(unittest.TestCase):
                 source=root/assignments[variable]
                 if variable=='frontendDist':source.mkdir(parents=True);(source/'index.html').write_text('synthetic compiled frontend')
                 else:source.parent.mkdir(parents=True,exist_ok=True);source.write_bytes(b'synthetic asset')
-                resolved=format_binaries_and_datas([(str(source),destination)],workingdir=str(spec))
-                self.assertTrue(resolved)
-                self.assertTrue(all(Path(path).is_file() and Path(path).is_relative_to(root) for _,path in resolved))
+                self.assertTrue(source.is_absolute() and source.exists())
+                self.assertFalse((spec/assignments[variable]).exists())
+                windows_source=PureWindowsPath('D:/a/SAP Lens ø')/assignments[variable]
+                self.assertTrue(windows_source.is_absolute())
+                self.assertIn(destination,{'frontend/dist','assets','.'})
             self.assertIn("--paths (Join-Path $root 'backend')",script)

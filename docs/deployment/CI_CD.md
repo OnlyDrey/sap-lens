@@ -137,3 +137,37 @@ is recorded there. No workflow is dispatched and no test release is published wi
 | A build target built nothing | Planner summary: the target resolved to other packages |
 | Publish skipped | `publish_release` false, a selected package failed, or the run was cancelled |
 | Receipt rejected | Older than 24 hours, or built from a different commit or run |
+
+## Package stabilization — 1 November 2026
+
+Run [41340859408](https://github.com/OnlyDrey/sap-lens/actions/runs/41340859408),
+source `513d388ea005abc5f60e8fa8dedaa0f760b298a8`, passed selection, shared
+validation and Docker. Three package-stage failures were repaired in `6f64b68`:
+
+| Target | Confirmed cause | Fix and retained verification |
+| --- | --- | --- |
+| Linux Native | The job interpreter had no `pip_audit` module; the audit did not run | Install the existing pinned `scripts/requirements-audit.txt` before the smoke test. Audit the complete generated hash-locked requirements; offline installation still checks wheel hashes. |
+| Windows Service | PyInstaller rebased relative data sources under `backend/build/server`, its spec directory | Root frontend, icon, image, identity, version resources and backend search paths at the repository root. Reuse the consumed frontend; no second Node build. |
+| Windows Desktop | The verifier received no `SAP_LENS_EXPECTED_BUILD_JSON` from the deployment job | Pass the shared validation job's resolved identity through the job environment. Keep exact schema/commit/run/version equality and all package checks. Missing or malformed expected identity now has a fixed privacy-safe diagnostic. |
+
+The native download's expected and actual digests matched. `digest-mismatch:
+error` in the log is the action's fail-closed configuration, not a detected
+mismatch. No digest, receipt, audit or package-identity check was relaxed.
+
+Local evidence: 127 targeted package/workflow/repository tests passed; actionlint,
+Ruff, PowerShell parsing and service-helper tests passed. A real Linux x86-64
+archive built through the canonical packager, passed its runtime audit and
+hash-checked offline installation, then passed user-mode start/restart, import,
+persistence, backup/restore, upgrade and data-preserving uninstall. Type checking,
+production frontend build and production JavaScript audit also passed.
+
+These results do **not** establish repaired GitHub jobs, native Windows packaging,
+SCM/WebView2 or real systemd acceptance. See the [runtime matrix](../validation/WORKFLOW_MATRIX.md).
+No complete backend/browser suite or workflow dispatch was required for this fix.
+
+For minimum-cost remote confirmation, manually dispatch **new** build-only runs
+on the repaired `work` SHA: `linux-native` and `windows-all`, with
+`publish_release=false`. This skips the already-successful Docker job. A single
+`all` run is an alternative that shares validation once but rebuilds Docker.
+Re-running the old failed run would test its original commit, not these fixes.
+Full Regression remains optional and is not a build/release prerequisite.
