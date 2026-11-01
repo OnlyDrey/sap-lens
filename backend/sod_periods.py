@@ -130,10 +130,12 @@ def capture(identifier,evaluation_date,legacy=False):
     baseline['summary']={name:sum(row['lifecycle']==name for row in baseline['items']) for name in ('Pending','Reviewed','Action required','Outdated','Historical')}
     complete=[key for key,user in state.users.users.items() if all(a['match_status'] in {'exact','wildcard'} for a in user['assignments'] if a.get('scope','business')!='other')]
     marker={} if legacy else dict(model=2)
+    import sod_metadata
+    described=sod_metadata.frozen(state,local,[item['risk_id'] for item in risk_items])
     return dict(version=1,source='sod-period',**marker,period_id=identifier,captured_at=now(),evaluation_date=evaluation_date.isoformat(),analysis=result,risks=risk_items,reviews=baseline,
                 source_versions=versions,source_metadata={name:dict(imported_at=ref.imported_at,checked_at=ref.checked_at) for name,ref in config.data_lifecycle.sources.items()},
                 source_counts=dict(users=len(state.users.users),roles=len(state.roles),matrix_records=len(state.sod['records'])),
-                complete_users=complete,organization=config.organization.model_dump(),logo_id=config.logo_id,
+                complete_users=complete,metadata=described,organization=config.organization.model_dump(),logo_id=config.logo_id,
                 identity_notice=reviews.IDENTITY_NOTICE,limitation='Evaluation uses retained imported evidence at an explicit date; it does not reconstruct unexported historical SAP authorizations.')
 
 def overlaid(period,saved):

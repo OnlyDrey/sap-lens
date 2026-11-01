@@ -136,6 +136,7 @@
     "test_sod_governance",
     "test_sod_inspection",
     "test_sod_metadata",
+    "test_sod_report_metadata",
     "test_sod_import",
     "test_sod_integration",
     "test_sod_lifecycle",

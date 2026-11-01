@@ -52,3 +52,12 @@ by service provisioning and are not verified by the runtime.
 
 The tests found one defect in the first implementation: `AuthThrottle` defines `__len__`, so an empty throttle was falsy and the middleware skipped it; the
 middleware now compares with `is not None`.
+
+## Phase 3: SoD descriptions in PDF and DOCX reports
+
+- `sod_metadata.frozen` stores a compact copy of the resolved descriptions (risks and activities of the snapshot, origins and differing alternates included) in every newly captured review snapshot (`metadata`, version 1). It is part of the immutable, content-addressed snapshot.
+- `sod_metadata.for_period` returns that copy (`basis: captured`) or, for a snapshot captured before R8.1, only the local business text frozen with its risk records (`basis: legacy`). Imported descriptions are never reconstructed for a legacy period and current values are never shown as history.
+- `sod_reports` uses the same resolver output in the formal report (risk table in the findings section, activity table and source legend in the appendices) and in the remediation report (terms table; current evidence is labelled as current). Reports for data without descriptions keep their tables and text.
+- Compatibility: no migration; existing snapshots, decisions, approvals and checksums are untouched. Detection reads no description (`test_detection_results_do_not_depend_on_descriptions`).
+- Evidence: `test_sod_report_metadata` (13 tests: imported, local fallback, missing, differing alternates, source labels, approved-period immutability and identical model checksum, open period, legacy snapshot, plain datasets, special characters, long text, markup escaping, PDF font limit, remediation current versus frozen) and all 275 SoD backend tests.
+- Limit: a description with characters outside the bundled PDF font fails the PDF with the existing explicit 422 message; the DOCX is unaffected.
