@@ -76,3 +76,29 @@ ESLint never receives here); the suggested automatic fix is a downgrade to ESLin
 Existing debt (CQ-04 to CQ-06) was re-verified, not changed: `MetricTile`, `FilterTile`, `EvidenceBadge`, `AccountEvidence` and `SourceStatusSummary` are still defined without a consumer outside their own files;
 `SettingsView.tsx` has 1158 lines and three other components exceed 640 lines; the long backend functions are unchanged. Recommendation: remove or adopt the five components together with their documentation rows, and split `SettingsView`
 by tab when a feature next touches it. Deferred: they need behaviour-preserving refactors with browser coverage, not lint fixes.
+
+## Phase 5: test execution
+
+| Change | Detail |
+| --- | --- |
+| Backend | Unchanged default: `auto` runs `min(3, CPUs)` processes (each test builds its own storage, so there is no shared state). The R8 evidence run used `--jobs 1`, which also serialised the backend: 849 tests took 170 s serially and 65 s with three processes; the 891 tests of R8.1 take 74 s |
+| Browser processes | `--browser-jobs N|auto` or `SAP_LENS_BROWSER_JOBS`, at most 3; `auto` = CPUs minus one, 1 to 3 (a 1 or 2 CPU host stays at one process). The default stays one process |
+| Distribution | Spec files are assigned deterministically, longest first, from measured seconds (`browser_seconds_hint` in `scripts/test-map.json`, checked against the spec list); replaces Playwright's `--shard`, which balanced by test count |
+| Isolation and cleanup | Each process owns its server, port (18745 upward), configuration directory and Chromium. Processes start in their own process group; on completion, error or interrupt the runner stops only those groups (SIGTERM, then SIGKILL after 20 s), never by name. Busy ports are reported, not cleared |
+| Reporting | A failure names its process (index, port, spec files), the failing tests and the log tail. The regression report adds seconds per process and the ten slowest tests (also in `--report` JSON: `shard_detail`, `slowest`, `failed`) |
+| Fast Validation | New `fast [feature ...]` profile: whitespace, documentation links, workflow contracts, Ruff, ESLint, TypeScript, smoke and the named features' tests. `fast access-package` took 128 s (ESLint 22 s, TypeScript 19 s, smoke 47 s, feature tests 40 s) |
+| Accessibility audit | The 97 s test is now six tests (dashboard and main views, SoD views, Settings sections, each at 1280 and 375 px) with identical views, widths and checks. They take 8.7, 20.2, 10.9, 7.0, 19.5 and 10.6 s (77 s together), so a failure names its group and one group can be rerun |
+
+Measured on the six-spec, 93-test benchmark subset of R8 (4 vCPUs, one worker per process, no failures in any run):
+
+| Processes | R8 | R8.1 runner | Process seconds (R8.1) | Speed-up against the same-day serial run |
+| --- | --- | --- | --- | --- |
+| 1 | 308 s | 359 s | 358 | 1.00x |
+| 2 | 232 s | 227 s | 225, 223 | 1.58x |
+| 3 | 206 s | 207 s | 206, 202, 197 | 1.73x |
+
+The serial run was 16% slower than the R8 serial run on this host and day; the speed-up is quoted against the same-day figure and the absolute figures are shown so the variance is visible. Balancing
+the processes (within 5% instead of 3.4, 3.3 and 2.8 minutes) did not shorten the wall time, which stays CPU-bound, but it makes the result independent of which process finishes last.
+
+Observed flake: in a three-process run of 395 select-related tests, one test (`release-roles` multiple user groups) failed while other work shared the host and passed in seven isolated runs. No retry was added; the
+documented rule is to reproduce a parallel failure with `--browser-jobs 1 --grep TITLE` before classifying it.

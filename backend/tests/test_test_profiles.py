@@ -117,5 +117,58 @@ class BrowserProcessHygieneTests(unittest.TestCase):
                     process.kill(); process.wait()
 
 
+class ParallelExecutionTests(unittest.TestCase):
+    """The browser suite can use up to three isolated processes: deterministic, balanced, bounded and always cleaned up."""
+
+    def test_spec_distribution_is_deterministic_complete_and_balanced(self):
+        files = [f'tests/{name}.spec.ts' for name in runner.browser_specs()]
+        for jobs in (2, 3):
+            groups = runner.split_specs(files, jobs)
+            self.assertEqual(groups, runner.split_specs(list(reversed(files)), jobs), 'independent of the input order')
+            self.assertEqual(sorted(file for group in groups for file in group), sorted(files), 'every spec file runs exactly once')
+            hints = runner.load_map()['browser_seconds_hint']
+            loads = [sum(hints.get(Path(file).name[:-8], runner.DEFAULT_SPEC_SECONDS) for file in group) for group in groups]
+            self.assertLess(max(loads), 1.1 * sum(loads) / len(loads), f'{jobs} processes are balanced within 10 percent: {loads}')
+
+    def test_every_hint_names_a_spec_and_new_specs_get_a_default(self):
+        self.assertEqual(runner.coverage_problems(), [])
+        groups = runner.split_specs(['tests/brand-new.spec.ts', 'tests/a11y-audit.spec.ts'], 2)
+        self.assertEqual(sorted(len(group) for group in groups), [1, 1])
+
+    def test_browser_processes_are_bounded_and_fall_back_conservatively(self):
+        from unittest.mock import patch
+        for cpus, expected in ((1, 1), (2, 1), (3, 2), (4, 3), (16, 3)):
+            with patch.object(runner.os, 'cpu_count', return_value=cpus):
+                self.assertEqual(runner.browser_jobs_value('auto', 1), expected, f'{cpus} CPUs')
+        self.assertEqual(runner.browser_jobs_value('8', 1), runner.BROWSER_JOBS_MAX, 'never more than three')
+        self.assertEqual(runner.browser_jobs_value('2', 1), 2)
+        self.assertEqual(runner.browser_jobs_value(None, 1), 1, 'one process unless asked')
+        with patch.dict(os.environ, {'SAP_LENS_BROWSER_JOBS': '2'}):
+            self.assertEqual(runner.browser_jobs_value(None, 1), 2)
+            self.assertEqual(runner.browser_jobs_value('1', 1), 1, 'the option wins over the environment')
+        self.assertEqual(runner.jobs_value('auto', 'browser'), 1)
+
+    def test_playwright_reports_are_summarised_per_test(self):
+        report = {'suites': [{'file': 'a.spec.ts', 'suites': [{'specs': [{'file': 'a.spec.ts', 'title': 'slow', 'tests': [{'status': 'expected', 'results': [{'duration': 4000}]}]},
+                                                                      {'file': 'a.spec.ts', 'title': 'broken', 'tests': [{'status': 'unexpected', 'results': [{'duration': 500}, {'duration': 250}]}]}]}]}]}
+        self.assertEqual(runner.playwright_tests(report), [(4.0, 'a.spec.ts', 'slow', 'expected'), (0.75, 'a.spec.ts', 'broken', 'unexpected')])
+
+    @unittest.skipIf(sys.platform == 'win32', 'process groups are POSIX')
+    def test_cleanup_stops_only_the_processes_the_runner_started(self):
+        owned = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'], start_new_session=True)
+        stranger = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'], start_new_session=True)
+        try:
+            runner.OWNED.append(owned)
+            runner.stop_owned(grace=10)
+            self.assertIsNotNone(owned.poll(), 'the owned process was stopped')
+            self.assertIsNone(stranger.poll(), 'a process the runner did not start is never signalled')
+            self.assertEqual(runner.OWNED, [])
+        finally:
+            for process in (owned, stranger):
+                if process.poll() is None:
+                    process.kill()
+                process.wait()
+
+
 if __name__ == '__main__':
     unittest.main()
