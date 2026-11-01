@@ -61,6 +61,12 @@ class InstallerResourceTests(unittest.TestCase):
         self.assertIn('86.0.622.0',source)
         self.assertNotIn('DownloadTemporaryFile',source)
 
+    def test_pascal_section_cannot_use_ini_style_comment_lines(self):
+        source=(ROOT/'deploy/windows/desktop-installer.iss').read_text()
+        code=source.split('[Code]',1)[1]
+        self.assertFalse(any(line.lstrip().startswith(';') for line in code.splitlines()),
+                         'INI comments in Pascal code break the native Inno compiler.')
+
 
 class DesktopDistributionTests(unittest.TestCase):
     def test_outer_bundle_still_requires_canonical_portable_and_installer_verifiers(self):

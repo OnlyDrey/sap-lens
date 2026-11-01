@@ -208,9 +208,20 @@ jobs:
         digest-mismatch: error
     - name: Verify and consume validated inputs
       run: python scripts/deployment-package.py consume --archive backend/build/shared/validated-inputs.zip
+    - name: Compile complete installer recipe for every release channel
+      run: ./scripts/build-desktop-installer.ps1 -CompileCheck -OutputDirectory "$env:RUNNER_TEMP/installer-compile-check"
+      shell: pwsh
     - name: Build and smoke-test platform package
       run: ./scripts/package-windows-deployment.ps1 -Target Desktop
       shell: pwsh
+    - name: Preserve isolated installer setup diagnostics on failure
+      if: failure()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: Windows-Desktop-installer-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/SAP Lens installer */setup.log
+        if-no-files-found: ignore
+        retention-days: 7
     - name: Upload verified platform distribution
       id: distribution
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9

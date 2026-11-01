@@ -120,6 +120,16 @@ def validate(workflows):
         integrity=next((s for s in job['steps'] if s.get('id')=='integrity'),{})
         require('if' not in integrity and 'check-deployment-download.py --directory' in integrity.get('run',''), 'Integrity verification cannot be skipped')
     require(deployment['jobs']['desktop']['env'].get('SAP_LENS_EXPECTED_BUILD_JSON')=='${{ needs.validation.outputs.identity }}', 'Desktop verification requires the shared resolved build identity')
+    desktop_steps=deployment['jobs']['desktop']['steps']
+    compiler_steps=[i for i,step in enumerate(desktop_steps) if 'build-desktop-installer.ps1 -CompileCheck' in step.get('run','')]
+    package_steps=[i for i,step in enumerate(desktop_steps) if 'package-windows-deployment.ps1 -Target Desktop' in step.get('run','')]
+    require(len(compiler_steps)==len(package_steps)==1 and compiler_steps[0]<package_steps[0]
+            and 'if' not in desktop_steps[compiler_steps[0]] and desktop_steps[compiler_steps[0]].get('shell')=='pwsh',
+            'The complete installer recipe must compile before the desktop package build')
+    diagnostics=next((step for step in desktop_steps if step.get('name')=='Preserve isolated installer setup diagnostics on failure'),{})
+    require(diagnostics.get('if')=='failure()' and diagnostics.get('uses','').startswith('actions/upload-artifact@')
+            and diagnostics.get('with',{}).get('path')=='${{ runner.temp }}/SAP Lens installer */setup.log',
+            'Installer diagnostics must be failure-only and limited to synthetic setup logs')
     native_steps=deployment['jobs']['native']['steps']
     audit_steps=[i for i,step in enumerate(native_steps) if step.get('run')=='python -m pip install -r scripts/requirements-audit.txt']
     smoke_steps=[i for i,step in enumerate(native_steps) if 'test-native-deployment.py' in step.get('run','')]

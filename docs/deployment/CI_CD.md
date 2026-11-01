@@ -62,6 +62,12 @@ See [releases](RELEASES.md) for channels and permissions.
 
 ### Windows smoke-test regression coverage
 
+The selected Windows Desktop job first runs the pinned Inno Setup compiler on
+the complete production recipe for every release channel, using disposable
+compiler-as-payload fixtures. This catches installer/Pascal compilation errors
+before application packaging. It is separate from actual installer execution,
+installed payload verification, application lifecycle and artifact roundtrip.
+
 Desktop smoke requires an actual HTTP 403 when the session capability is absent.
 The helper accepts HTTP error responses from Windows PowerShell 5.1 and PowerShell 7;
 connection failures and other status codes still fail. Backend packaging tests use a

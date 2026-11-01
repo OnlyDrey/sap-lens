@@ -139,6 +139,21 @@ class PackagingTests(unittest.TestCase):
 
 
 class OrchestrationTests(unittest.TestCase):
+    def test_native_installer_compiler_preflight_cannot_be_removed_skipped_or_delayed(self):
+        spec=importlib.util.spec_from_file_location('installer_workflow_rules',ROOT/'scripts/check-workflows.py')
+        rules=importlib.util.module_from_spec(spec);spec.loader.exec_module(rules)
+        current=rules.load_workflows();rules.validate(current)
+        for change in ('removed','conditional','late','broad-diagnostics','always-diagnostics'):
+            bad=copy.deepcopy(current);steps=bad['build-deployments.yml']['jobs']['desktop']['steps']
+            compiler=next(step for step in steps if 'build-desktop-installer.ps1 -CompileCheck' in step.get('run',''))
+            diagnostics=next(step for step in steps if step.get('name')=='Preserve isolated installer setup diagnostics on failure')
+            if change=='removed':steps.remove(compiler)
+            elif change=='conditional':compiler['if']='false'
+            elif change=='broad-diagnostics':diagnostics['with']['path']='${{ runner.temp }}/**'
+            elif change=='always-diagnostics':diagnostics['if']='always()'
+            else:steps.remove(compiler);steps.append(compiler)
+            with self.subTest(change=change),self.assertRaises(ValueError):rules.validate(bad)
+
     def test_all_platforms_are_independent_and_build_only(self):
         spec=importlib.util.spec_from_file_location('workflow_rules',ROOT/'scripts/check-workflows.py')
         rules=importlib.util.module_from_spec(spec);spec.loader.exec_module(rules)
