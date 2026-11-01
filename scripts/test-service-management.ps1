@@ -20,16 +20,21 @@ function Assert-Rejected([scriptblock]$Operation) {
 try {
     $bundle = Join-Path $temporary 'bundle'; New-Item -ItemType Directory $bundle | Out-Null
     $files = @{}
-    foreach ($name in @('SAPLensService.exe','manage-server-service.ps1','README.md','LICENSE-WinSW.txt')) {
+    foreach ($name in @('SAPLensService.exe','manage-server-service.ps1','README.md','LICENSE-WinSW.txt','[Content_Types].xml')) {
         $path = Join-Path $bundle $name; [IO.File]::WriteAllText($path,'synthetic')
-        $files[$name] = (Microsoft.PowerShell.Utility\Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()
+        $files[$name] = (Microsoft.PowerShell.Utility\Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
     }
     # The official wrapper's download/digest belongs to native package verification.
     # Only its digest result is mocked in this filesystem-focused helper test.
     function Get-FileHash {
-        param([string]$Path,[string]$Algorithm)
-        if ([IO.Path]::GetFileName($Path) -eq 'SAPLensService.exe') { return @{Hash='05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da'} }
-        Microsoft.PowerShell.Utility\Get-FileHash $Path -Algorithm $Algorithm
+        param([string]$Path,[string]$Algorithm,[string]$LiteralPath)
+        $selected = if ($PSBoundParameters.ContainsKey('LiteralPath')) { $LiteralPath } else { $Path }
+        if ([IO.Path]::GetFileName($selected) -eq 'SAPLensService.exe') { return @{Hash='05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da'} }
+        if ($PSBoundParameters.ContainsKey('LiteralPath')) {
+            Microsoft.PowerShell.Utility\Get-FileHash -LiteralPath $LiteralPath -Algorithm $Algorithm
+        } else {
+            Microsoft.PowerShell.Utility\Get-FileHash -Path $Path -Algorithm $Algorithm
+        }
     }
     $files['SAPLensService.exe']='05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da'
     $report = @{verification='passed';signing='disabled';format='onedir-console-service';identity=@{version='0.1.0'};files=$files}
@@ -38,6 +43,9 @@ try {
     [IO.File]::WriteAllText((Join-Path $bundle 'unexpected.csv'),'synthetic')
     Assert-Rejected { Assert-NewBundle $bundle }
     Remove-Item (Join-Path $bundle 'unexpected.csv')
+    [IO.File]::WriteAllText((Join-Path $bundle '[Content_Types].xml'),'tampered')
+    Assert-Rejected { Assert-NewBundle $bundle }
+    [IO.File]::WriteAllText((Join-Path $bundle '[Content_Types].xml'),'synthetic')
     [IO.File]::WriteAllText((Join-Path $bundle 'README.md'),'tampered')
     Assert-Rejected { Assert-NewBundle $bundle }
     $InstallDirectory = $bundle; $wrapper = Join-Path $bundle 'SAPLensService.exe'

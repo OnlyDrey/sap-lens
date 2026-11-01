@@ -54,6 +54,11 @@ jobs:
       - name: Validate workflow schemas, expressions and shell commands
         id: workflow_lint
         run: python scripts/ci.py run workflow_lint -- python scripts/ci.py lint
+      - name: Parse PowerShell and check portable service helpers
+        # Portable helpers catch shell/runtime defects before a native package build.
+        # This does not run Windows SCM, installers or the desktop GUI.
+        id: powershell
+        run: python scripts/ci.py run powershell -- pwsh -NoProfile -File scripts/check-powershell.ps1
       - name: Run the selected backend tests
         id: backend
         run: python scripts/ci.py run backend -- python scripts/run-tests.py changed --stage backend
@@ -113,7 +118,7 @@ jobs:
         if: always()
         env:
           CI_STEPS: ${{ toJSON(steps) }}
-          CI_REQUIRED: checkout setup_python plan dependencies pip_check ruff workflow_contracts workflow_lint backend
+          CI_REQUIRED: checkout setup_python plan dependencies pip_check ruff workflow_contracts workflow_lint powershell backend
           CI_OPTIONAL: setup_node npm_install types eslint catalog build javascript_audit browser_path browser_cache browser_setup browser
           CI_JOB_NAME: ${{ github.job }}
         run: |

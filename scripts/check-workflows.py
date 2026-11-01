@@ -195,6 +195,9 @@ def validate(workflows):
     require(download['with'].get('skip-decompress') == 'true', 'Raw ZIP must be checked before extraction')
     artifact_command = next(command for command in commands if '-Stage Artifact ' in command)
     require('-ArtifactDownloadDirectory' in artifact_command and '-ArtifactDigest' in artifact_command, 'Raw ZIP verification inputs are mandatory')
+    fast_helpers = next((step for step in fast['jobs']['fast']['steps'] if step.get('id') == 'powershell'), {})
+    require(fast_helpers.get('run') == 'python scripts/ci.py run powershell -- pwsh -NoProfile -File scripts/check-powershell.ps1'
+            and 'if' not in fast_helpers, 'Fast Validation must execute portable PowerShell regressions unconditionally')
     for workflow in (fast, full):
         steps = {step['id'] for job in workflow['jobs'].values() for step in job['steps'] if 'id' in step}
         require({'ruff', 'eslint'} <= steps, 'Both workflows must lint Python with Ruff and the frontend with ESLint')

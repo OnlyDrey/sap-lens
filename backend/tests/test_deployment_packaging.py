@@ -3,12 +3,15 @@ import copy
 import importlib.util
 import json
 import os
+import http.server
 from pathlib import Path
+import shutil
 import sys
 import subprocess
 import tarfile
 import tempfile
 import time
+import threading
 import unittest
 from unittest.mock import patch
 import zipfile
@@ -16,6 +19,56 @@ import zipfile
 ROOT=Path(__file__).resolve().parents[2]
 spec=importlib.util.spec_from_file_location('deploy_packages',ROOT/'scripts/deployment-package.py')
 pkg=importlib.util.module_from_spec(spec);spec.loader.exec_module(pkg)
+
+
+@unittest.skipUnless(shutil.which('pwsh'), 'PowerShell 7 is required for HTTP exception regressions')
+class DesktopHttpTests(unittest.TestCase):
+    def test_only_a_real_forbidden_response_passes_the_session_check(self):
+        class Handler(http.server.BaseHTTPRequestHandler):
+            code = 403
+
+            def do_GET(self):
+                self.send_response(self.code)
+                self.end_headers()
+
+            def log_message(self, *_args):
+                pass
+
+        # Extract the production helper without launching a Windows GUI or
+        # changing caller configuration. Exercise real HTTP exceptions in pwsh.
+        script = r'''
+$ErrorActionPreference = 'Stop'
+$tokens = $null; $errors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile(
+    (Join-Path $env:SMOKE_TEST_ROOT 'scripts/test-windows-exe.ps1'), [ref]$tokens, [ref]$errors)
+if ($errors.Count) { throw 'Desktop smoke syntax failed.' }
+$definition = $ast.FindAll({ param($node)
+    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+    $node.Name -eq 'Assert-DesktopSessionDenied'
+}, $false)
+if ($definition.Count -ne 1) { throw 'Desktop HTTP helper is missing.' }
+. ([scriptblock]::Create($definition[0].Extent.Text))
+Assert-DesktopSessionDenied $env:SMOKE_TEST_ORIGIN
+'''
+        with http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler) as server:
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            env = {**os.environ, 'SMOKE_TEST_ROOT': str(ROOT),
+                   'SMOKE_TEST_ORIGIN': f'http://127.0.0.1:{server.server_port}'}
+            try:
+                for code in (403, 200, 401, 500):
+                    Handler.code = code
+                    with self.subTest(status=code):
+                        result = subprocess.run(['pwsh', '-NoProfile', '-Command', script],
+                                                env=env, capture_output=True, timeout=20)
+                        self.assertEqual(result.returncode == 0, code == 403, result.stderr.decode(errors='replace'))
+            finally:
+                server.shutdown()
+                thread.join(timeout=5)
+        # A connection failure must never count as evidence of denied access.
+        result = subprocess.run(['pwsh', '-NoProfile', '-Command', script],
+                                env=env, capture_output=True, timeout=20)
+        self.assertNotEqual(result.returncode, 0)
 
 
 class PackagingTests(unittest.TestCase):

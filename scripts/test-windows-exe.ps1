@@ -7,6 +7,20 @@ $testRoot = Join-Path $tempRoot ('sap-lens-smoke/' + [guid]::NewGuid())
 New-Item -ItemType Directory -Force $testRoot | Out-Null
 $owned = @{}
 
+function Assert-DesktopSessionDenied([string]$Origin) {
+    $status = $null
+    try {
+        $status = [int](Invoke-WebRequest "$Origin/api/settings" -UseBasicParsing -TimeoutSec 5).StatusCode
+    } catch {
+        # Windows PowerShell 5.1 throws WebException; PowerShell 7 throws
+        # HttpResponseException. Both expose Response.StatusCode. Transport
+        # failures have no response and must still fail the smoke test.
+        if ($null -eq $_.Exception.Response) { throw }
+        $status = [int]$_.Exception.Response.StatusCode
+    }
+    if ($status -ne 403) { throw 'Desktop session capability was not enforced.' }
+}
+
 function Track-Owned([int]$rootId) {
     $snapshot = @(Get-CimInstance Win32_Process)
     $ids = [System.Collections.Generic.HashSet[int]]::new()
@@ -114,14 +128,7 @@ MM,DEMO:B,Synthetic B,SHARED,Shared,DEMO,Demo
             if ($html.Content -notmatch 'id="root"') { throw 'Bundled production frontend is missing.' }
             $icon = Invoke-WebRequest "$($record.origin)/sap-lens.png" -UseBasicParsing
             if ($icon.StatusCode -ne 200) { throw 'Bundled branding is missing.' }
-            $blocked = $null
-            try {
-                $blocked = Invoke-WebRequest "$($record.origin)/api/settings" -UseBasicParsing
-            } catch [System.Net.WebException] {
-                if ($null -eq $_.Exception.Response) { throw }
-                $blocked = $_.Exception.Response
-            }
-            if ($blocked.StatusCode -ne 403) { throw 'Desktop session capability was not enforced.' }
+            Assert-DesktopSessionDenied $record.origin
             $cors = Invoke-WebRequest "$($record.origin)/api/settings" -UseBasicParsing -Method Options -Headers @{
                 Origin = $record.origin; 'Access-Control-Request-Method' = 'GET'; 'Access-Control-Request-Headers' = 'X-SAP-Lens'
             }

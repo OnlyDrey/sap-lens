@@ -29,7 +29,7 @@ $InstallDirectory = [IO.Path]::GetFullPath($InstallDirectory).TrimEnd('\')
 $wrapper = Join-Path $InstallDirectory 'SAPLensService.exe'
 function Assert-Wrapper {
     $expected = '05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da'
-    if (-not (Test-Path $wrapper) -or (Get-FileHash $wrapper -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) {
+    if (-not (Test-Path $wrapper) -or (Get-FileHash -LiteralPath $wrapper -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) {
         throw 'Provide the official WinSW v2.12.0 x64 wrapper from the verified server bundle.'
     }
 }
@@ -63,9 +63,9 @@ function Assert-NewBundle([string]$Directory) {
     if (@(Compare-Object $expected $actual).Count -or @(Get-ChildItem $Directory -Recurse -Force | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint }).Count) { throw 'Unexpected files or links in replacement bundle.' }
     foreach ($file in $report.files.PSObject.Properties) {
         if ($file.Name -match '(^/|\\|:|(^|/)\.\.(/|$))' -or $file.Value -notmatch '^[a-f0-9]{64}$') { throw 'Invalid replacement manifest.' }
-        if ((Get-FileHash (Join-Path $Directory $file.Name) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $file.Value) { throw 'Replacement package checksum mismatch.' }
+        if ((Get-FileHash -LiteralPath (Join-Path $Directory $file.Name) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $file.Value) { throw 'Replacement package checksum mismatch.' }
     }
-    if ((Get-FileHash (Join-Path $Directory 'SAPLensService.exe') -Algorithm SHA256).Hash.ToLowerInvariant() -ne '05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da') { throw 'Replacement WinSW is not the pinned wrapper.' }
+    if ((Get-FileHash -LiteralPath (Join-Path $Directory 'SAPLensService.exe') -Algorithm SHA256).Hash.ToLowerInvariant() -ne '05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da') { throw 'Replacement WinSW is not the pinned wrapper.' }
     return $report
 }
 function Invoke-PrivateBackup([string]$Executable,[string]$Version,[string]$Data) {
@@ -134,7 +134,7 @@ if ($Action -in @('Upgrade','Backup','Restore')) {
     $staged = Join-Path $InstallDirectory ('app.pending.'+$suffix)
     Copy-Item (Join-Path $newRoot 'app') $staged -Recurse
     foreach ($file in $replacement.files.PSObject.Properties | Where-Object { $_.Name.StartsWith('app/') }) {
-        if ((Get-FileHash (Join-Path $staged $file.Name.Substring(4)) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $file.Value) { throw 'Staged application hash mismatch. Existing application remains selected.' }
+        if ((Get-FileHash -LiteralPath (Join-Path $staged $file.Name.Substring(4)) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $file.Value) { throw 'Staged application hash mismatch. Existing application remains selected.' }
     }
     $previous = Join-Path $InstallDirectory ('app.previous.'+$suffix)
     Move-Item (Join-Path $InstallDirectory 'app') $previous
@@ -155,7 +155,7 @@ if ($Action -eq 'Install') {
     if ($report.verification -ne 'passed' -or $report.signing -ne 'disabled') { throw 'Missing approved server verification report.' }
     foreach ($file in $report.files.PSObject.Properties) {
         if ($file.Name -match '(^/|\\|:|(^|/)\.\.(/|$))') { throw 'Unsafe bundle manifest path.' }
-        if ((Get-FileHash (Join-Path $InstallDirectory $file.Name) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $file.Value) { throw 'Bundle integrity mismatch. Do not install.' }
+        if ((Get-FileHash -LiteralPath (Join-Path $InstallDirectory $file.Name) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $file.Value) { throw 'Bundle integrity mismatch. Do not install.' }
     }
     if (-not (Test-Path (Join-Path $InstallDirectory 'app\SAP-Lens.exe'))) { throw 'Use the headless server bundle; the desktop EXE is not a service host.' }
     if ($Authentication -eq 'local' -and $ListenHost -notin @('127.0.0.1','::1')) { throw 'Network binding requires basic or proxy authentication.' }

@@ -28,7 +28,7 @@ require its result. A passing run is evidence for milestones and troubleshooting
 | Anything else (backend source, scripts, workflows, dependencies, unmapped paths) | The whole backend suite |
 | Unusable base commit | Full baseline selection |
 
-Mandatory on every run: dependency install, `pip check`, Ruff, workflow contracts, actionlint and the selected backend tests (which include the repository integrity and privacy tests whenever backend or repository files change). Optional steps (frontend and browser) depend only on the plan outputs, and the summary
+Mandatory on every run: dependency install, `pip check`, Ruff, workflow contracts, actionlint, portable PowerShell checks and the selected backend tests (which include the repository integrity and privacy tests whenever backend or repository files change). Optional steps (frontend and browser) depend only on the plan outputs, and the summary
 labels a skipped optional step "not needed for this change". A step that ran must succeed.
 
 Local equivalent: `python scripts/run-tests.py changed --plan` shows the selection; `python scripts/run-tests.py changed` runs it.
@@ -59,6 +59,22 @@ Build-only runs (`publish_release` false) need no publication permission, enviro
 `publish` takes exactly the planned packages after each is verified. It never reuses artifacts from another run or commit. Versions
 use the channels Alpha, Beta, Release Candidate (RC) and Stable; a duplicate release version is rejected before publication.
 See [releases](RELEASES.md) for channels and permissions.
+
+### Windows smoke-test regression coverage
+
+Desktop smoke requires an actual HTTP 403 when the session capability is absent.
+The helper accepts HTTP error responses from Windows PowerShell 5.1 and PowerShell 7;
+connection failures and other status codes still fail. Backend packaging tests use a
+real loopback HTTP server to exercise PowerShell 7 responses (403, 200, 401, 500 and
+connection failure). Those tests explicitly skip when `pwsh` is unavailable.
+
+Service bundle hashes use `Get-FileHash -LiteralPath` during install, replacement
+verification and staged upgrade. Bundled python-docx templates include
+`[Content_Types].xml`; interpreting that name as a wildcard yields no hash.
+The portable helper fixture includes this filename and rejects tampering.
+Fast Validation now runs the portable PowerShell checks before backend tests.
+These checks do not certify Windows SCM, GUI or installer acceptance; the selected
+Windows package jobs must complete those tests and the artifact roundtrip.
 
 ## Level C: Full Regression
 

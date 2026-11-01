@@ -81,6 +81,17 @@ class WorkflowTests(unittest.TestCase):
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                 contracts.validate(changed)
 
+    def test_fast_validation_cannot_remove_or_replace_portable_powershell_checks(self):
+        for mutation in ('removed', 'replaced', 'conditional'):
+            changed = copy.deepcopy(self.workflows)
+            steps = changed['validate.yml']['jobs']['fast']['steps']
+            helper = next(step for step in steps if step.get('id') == 'powershell')
+            if mutation == 'removed': steps.remove(helper)
+            if mutation == 'replaced': helper['run'] = 'echo skipped'
+            if mutation == 'conditional': helper['if'] = "${{ steps.plan.outputs.frontend == 'true' }}"
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                contracts.validate(changed)
+
     def test_the_sealed_release_receipt_requires_no_complete_suite(self):
         source = (Path(__file__).resolve().parents[2] / 'scripts/deployment-package.py').read_text(encoding='utf-8')
         checks = source.split('CHECKS={', 1)[1].split('}', 1)[0]
