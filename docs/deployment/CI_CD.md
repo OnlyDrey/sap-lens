@@ -1,0 +1,111 @@
+# CI/CD architecture
+
+SAP Lens separates validation from packaging. Three levels exist, and only the first runs automatically.
+
+| Level | Workflow | Trigger | Purpose |
+| --- | --- | --- | --- |
+| A. Fast Validation | `validate.yml` | push to `work` or `main`; pull request to `main` | Cheap, change-based feedback |
+| B. Build & Release | `build-deployments.yml` (all targets), `build-windows.yml` (legacy Windows desktop) | `workflow_dispatch` only | Build, verify and optionally publish selected packages |
+| C. Full Regression | `full-validation.yml` | `workflow_dispatch` only | Complete backend and browser regression |
+
+## Policy
+
+Full Regression is **never** a prerequisite for building or publishing. It has no push, pull request or schedule trigger,
+no workflow calls it, and neither the sealed validation receipt, the publish job, `release-windows.py` nor the build report
+require its result. A passing run is evidence for milestones and troubleshooting, not a gate. Contract tests
+(`scripts/check-workflows.py`, `backend/tests/test_workflows.py`) reject any change that reintroduces such a dependency.
+
+## Level A: Fast Validation
+
+`python scripts/run-tests.py changed` compares the pushed range (`BASE_SHA`, default `HEAD~1`) and selects checks from the
+`change_rules` in `scripts/test-map.json`.
+
+| Changed paths | Runs |
+| --- | --- |
+| Documentation only (`docs/**`, `*.md`, `assets/**`) | Mandatory checks only; no Node, no browser |
+| Frontend source or configuration | Adds Node setup, type check, ESLint, icon catalogue check, production build, production `npm audit`, and the `@smoke` and changed browser specs (Playwright is installed only then) |
+| Backend tests, frontend tests | The affected feature tests |
+| Anything else (backend source, scripts, workflows, dependencies, unmapped paths) | The whole backend suite |
+| Unusable base commit | Full baseline selection |
+
+Mandatory on every run: dependency install, `pip check`, Ruff, workflow contracts, actionlint and the selected backend tests (which include the repository integrity and privacy tests whenever backend or repository files change). Optional steps (frontend and browser) depend only on the plan outputs, and the summary
+labels a skipped optional step "not needed for this change". A step that ran must succeed.
+
+Local equivalent: `python scripts/run-tests.py changed --plan` shows the selection; `python scripts/run-tests.py changed` runs it.
+
+## Level B: Build & Release
+
+`build-deployments.yml` takes one `build_target`: `all`, `windows-all`, `windows-desktop`, `windows-service`, `linux-all`,
+`linux-docker`, `linux-native`. A planning job resolves it into the packages to build; unselected package jobs are skipped and
+upload nothing.
+
+Pipeline: `plan` -> `validation` (lightweight, once per run) -> selected package jobs (`desktop`, `service`, `docker`, `native`) -> `publish` (only if `publish_release`).
+
+Shared validation contains only lightweight checks: type check, production build, icon catalogue, Python and JavaScript
+dependency audits, `pip check`, Ruff, workflow contracts and lint, PowerShell parsing. These sealed checks form the receipt in
+`scripts/deployment-package.py` (`CHECKS`). Package jobs add platform builds, package audits, native or container smoke tests and
+a distribution round trip.
+
+| Result | Meaning |
+| --- | --- |
+| selected, success | Built, verified, artifact uploaded |
+| selected, failed | The job failed; nothing from it is publishable |
+| unselected, skipped | Not part of the target; no runner used |
+| cancelled | Run cancelled; nothing is published |
+| not executed (dependency failed) | A needed job failed, so this one did not run |
+
+Build-only runs (`publish_release` false) need no publication permission, environment approval or release token. The
+`publish` job and its environments (`sap-lens-beta`, `sap-lens-stable`) apply only when publication is requested, and
+`publish` takes exactly the planned packages after each is verified. It never reuses artifacts from another run or commit. Versions
+use the channels Alpha, Beta, Release Candidate (RC) and Stable; a duplicate release version is rejected before publication.
+See [releases](RELEASES.md) for channels and permissions.
+
+## Level C: Full Regression
+
+Manual only. Runs `Backend & Repository` and `Frontend & Browser` in parallel: complete backend suite, workflow contracts,
+audits, type check, build, ESLint, the complete browser suite, with reports uploaded as 7-day artifacts. Use it before large
+merges, after shared or security-sensitive changes, or when diagnosing a regression. Local equivalent:
+`python scripts/run-tests.py regression --browser-jobs 3 --report <file>`.
+
+## Caching and artifacts
+
+- Caches hold only package-manager downloads (pip, npm) and the Playwright download directory, keyed by lock or requirement
+  files. No virtual environment, `node_modules`, executable, credential or unverified artifact is cached.
+- Package artifacts are produced and consumed within one run. Artifact identity is checked by ID and digest, and the sealed
+  receipt records the commit, run and file hashes. Receipts expire after 24 hours.
+- Only the selected packages are uploaded; checksums are verified before publication.
+
+## Security gates
+
+- Token permissions are `contents: read` by default. Write permission exists only in the isolated publish (and legacy
+  version-reservation) jobs.
+- Actions are pinned to full commit SHAs and checkout does not persist credentials.
+- No `pull_request_target`. Fork pull requests cannot reach secrets, environments or release jobs.
+- Release publication needs `publish_release`, a valid version and channel, verified packages and, for Beta and Stable, the
+  matching protected environment.
+
+## Local commands
+
+| Command | Use |
+| --- | --- |
+| `python scripts/check-workflows.py` | Workflow contracts |
+| `python scripts/ci.py lint` | actionlint |
+| `python scripts/run-tests.py changed --plan` | Fast Validation selection |
+| `python scripts/run-tests.py targeted <feature>...` | Feature tests |
+| `python scripts/run-tests.py regression` | Full Regression |
+
+## Runtime validation status
+
+Offline contract tests cover every workflow. GitHub runtime behavior is tracked per item in the
+[validation tracker](../validation/README.md); a workflow counts as verified on GitHub only after a completed run is recorded
+there. Changes in this architecture are validated offline until such a run exists.
+
+## Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| Fast Validation runs more than expected | `changed --plan`; shared or unmapped paths select the whole backend by design |
+| Optional step missing from the summary | Expected when the plan says "not needed for this change" |
+| A build target built nothing | Planner summary: the target resolved to other packages |
+| Publish skipped | `publish_release` false, a selected package failed, or the run was cancelled |
+| Receipt rejected | Older than 24 hours, or built from a different commit or run |

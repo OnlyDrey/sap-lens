@@ -1,7 +1,13 @@
 name: Fast Validation
+# Level 1 of three: automatic, cheap feedback on work and main. It selects what to run from the change (scripts/run-tests.py changed,
+# rules in scripts/test-map.json): documentation-only pushes skip Node and the browser, frontend changes add build, lint and the @smoke browser
+# tests, and any backend source, script, workflow, dependency or unmapped path runs the whole backend suite. The complete browser suite
+# belongs to the manual Full Regression workflow; Build & Release never depends on either.
 on:
   push:
+    branches: [work, main]
   pull_request:
+    branches: [main]
 permissions:
   contents: read
 concurrency:
@@ -12,21 +18,15 @@ jobs:
   fast:
     name: Backend & Frontend
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
     steps:
       - name: Check out source
         id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Set up Node and npm download cache
-        id: setup_node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: '24'
-          package-manager-cache: false
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
       - name: Set up Python and pip download cache
         id: setup_python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -36,6 +36,9 @@ jobs:
           cache-dependency-path: |
             backend/requirements*.txt
             scripts/requirements-audit.txt
+      - name: Select the checks this change needs
+        id: plan
+        run: python scripts/ci.py run plan -- python scripts/run-tests.py changed --plan
       - name: Install backend test dependencies
         id: dependencies
         run: python scripts/ci.py run dependencies -- python -m pip install --disable-pip-version-check -r backend/requirements-dev.txt
@@ -45,26 +48,73 @@ jobs:
       - name: Lint Python with Ruff
         id: ruff
         run: python scripts/ci.py run ruff -- python -m ruff check backend scripts
+      - name: Validate workflow contracts
+        id: workflow_contracts
+        run: python scripts/ci.py run workflow_contracts -- python scripts/check-workflows.py
       - name: Validate workflow schemas, expressions and shell commands
         id: workflow_lint
         run: python scripts/ci.py run workflow_lint -- python scripts/ci.py lint
-      - name: Run backend and repository regressions with deprecations as errors
+      - name: Run the selected backend tests
         id: backend
-        run: python scripts/ci.py run backend -- python scripts/run-tests.py regression --backend
+        run: python scripts/ci.py run backend -- python scripts/run-tests.py changed --stage backend
+      - name: Set up Node and npm download cache
+        id: setup_node
+        if: ${{ steps.plan.outputs.frontend == 'true' }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
       - name: Install frontend dependencies
         id: npm_install
+        if: ${{ steps.plan.outputs.frontend == 'true' }}
         run: python scripts/ci.py run npm_install -- npm --prefix frontend ci --no-audit --no-fund
       - name: Run frontend type checks
         id: types
+        if: ${{ steps.plan.outputs.frontend == 'true' }}
         run: python scripts/ci.py run types -- npm --prefix frontend run check:types
       - name: Lint frontend with ESLint
         id: eslint
+        if: ${{ steps.plan.outputs.frontend == 'true' }}
         run: python scripts/ci.py run eslint -- npm --prefix frontend run lint
+      - name: Verify module icon catalog
+        id: catalog
+        if: ${{ steps.plan.outputs.frontend == 'true' }}
+        run: python scripts/ci.py run catalog -- node scripts/sync-lucide-catalog.mjs --check
+      - name: Build production frontend
+        id: build
+        if: ${{ steps.plan.outputs.frontend == 'true' }}
+        run: python scripts/ci.py run build -- npm --prefix frontend run build
+      - name: Audit production JavaScript dependencies
+        id: javascript_audit
+        if: ${{ steps.plan.outputs.frontend == 'true' }}
+        run: python scripts/ci.py run javascript_audit -- npm --prefix frontend audit --omit=dev
+      - name: Configure browser cache location
+        id: browser_path
+        if: ${{ steps.plan.outputs.browser == 'true' }}
+        run: echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/sap-lens-playwright" >> "$GITHUB_ENV"
+      - name: Cache pinned Playwright headless browser
+        id: browser_cache
+        if: ${{ steps.plan.outputs.browser == 'true' }}
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ${{ runner.temp }}/sap-lens-playwright
+          key: playwright-headless-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/package-lock.json') }}
+      - name: Install Playwright headless browser and system libraries
+        id: browser_setup
+        if: ${{ steps.plan.outputs.browser == 'true' }}
+        run: python scripts/ci.py run browser_setup -- node frontend/node_modules/playwright/cli.js install --with-deps chromium --only-shell
+      - name: Run browser smoke and changed specs
+        id: browser
+        if: ${{ steps.plan.outputs.browser == 'true' }}
+        run: python scripts/ci.py run browser -- python scripts/run-tests.py changed --stage browser --no-build
       - name: Write validation summary
         if: always()
         env:
           CI_STEPS: ${{ toJSON(steps) }}
-          CI_REQUIRED: checkout setup_node setup_python dependencies pip_check ruff workflow_lint backend npm_install types eslint
+          CI_REQUIRED: checkout setup_python plan dependencies pip_check ruff workflow_contracts workflow_lint backend
+          CI_OPTIONAL: setup_node npm_install types eslint catalog build javascript_audit browser_path browser_cache browser_setup browser
           CI_JOB_NAME: ${{ github.job }}
         run: |
           if [ -f scripts/ci.py ]; then

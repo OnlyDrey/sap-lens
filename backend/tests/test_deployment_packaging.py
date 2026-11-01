@@ -59,7 +59,7 @@ class PackagingTests(unittest.TestCase):
             if mutation=='attempt':env['GITHUB_RUN_ATTEMPT']='2'
             if mutation=='commit':current['identity']=pkg.make_build_info('build','0.1.0','b'*40,'123','9',1)
             if mutation=='tamper':payload=b'changed'
-            if mutation=='checks':current['checks'].remove('browser')
+            if mutation=='checks':current['checks'].remove('types')
             if mutation=='expired':current['validated_at']-=90000
             archive=self.root/'validation.zip'
             with zipfile.ZipFile(archive,'w') as out:out.writestr('validation.json',json.dumps(current));out.writestr('frontend/index.html',payload)
@@ -71,7 +71,7 @@ class PackagingTests(unittest.TestCase):
 
     def test_failed_shared_stage_cannot_issue_attestation(self):
         temp=self.root/'timings';temp.mkdir()
-        records=[dict(stage=name,status='failed' if name=='browser' else 'passed') for name in pkg.CHECKS]
+        records=[dict(stage=name,status='failed' if name=='types' else 'passed') for name in pkg.CHECKS]
         (temp/'sap-lens-ci-timings.jsonl').write_text('\n'.join(map(json.dumps,records)))
         with patch.dict(os.environ,{'RUNNER_TEMP':str(temp)}),self.assertRaises(ValueError):pkg.seal(self.root/'sealed.zip')
 

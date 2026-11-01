@@ -20,6 +20,8 @@ machines do not need Node.js or React compilation. Desktop/service contain their
 Python runtime; Linux Native requires Python 3.12 and system libraries.
 Linux client support is browser-based, not a standalone GUI.
 
+How validation relates to building and publishing (Fast Validation, Build & Release, manual Full Regression) is in [CI/CD](CI_CD.md).
+
 Read [security](SECURITY.md) before remote access. Application preferences and
 recovery live in [Configuration](../getting-started/CONFIGURATION.md); server hosting
 variables are defined below. [Releases](RELEASES.md) separates deployment publication

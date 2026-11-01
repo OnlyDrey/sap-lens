@@ -18,7 +18,8 @@ import zipfile
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'backend'))
 from version import make_build_info,make_local_package_info,parse_build_info,make_deployment_info
-CHECKS={'backend','browser','types','build','catalog','python_audit','javascript_audit','pip_check','workflow_lint','powershell'}
+# Lightweight package-integrity checks only. Neither the full backend suite nor the browser suite is a prerequisite for building or publishing; see docs/deployment/CI_CD.md.
+CHECKS={'types','build','catalog','python_audit','javascript_audit','pip_check','workflow_lint','powershell'}
 
 
 def sha(path):

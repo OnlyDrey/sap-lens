@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('All', 'Environment', 'Frontend', 'FrontendInstall', 'FrontendBuild', 'Python', 'Audit', 'Backend', 'Browser', 'Package', 'Verify', 'Smoke', 'Artifact')]
+    [ValidateSet('All', 'Environment', 'Frontend', 'FrontendInstall', 'FrontendBuild', 'Python', 'Audit', 'JavaScriptAudit', 'Backend', 'Browser', 'Package', 'Verify', 'Smoke', 'Artifact')]
     [string]$Stage = 'All',
     [string]$ArtifactDirectory,
     [string]$ArtifactDownloadDirectory,
@@ -97,6 +97,16 @@ try {
             & $AuditPython -m pip_audit --path $sitePackages --vulnerability-service pypi --progress-spinner off
             Assert-Success 'Audit Windows dependencies'
         }
+    }
+    Invoke-Stage JavaScriptAudit {
+        # The release workflow audits production JavaScript without running the browser suite (Full Regression is manual and never a release prerequisite).
+        Push-Location frontend
+        try {
+            Measure-Task 'Production JavaScript audit' {
+                npm audit --omit=dev
+                Assert-Success 'Audit production JavaScript dependencies'
+            }
+        } finally { Pop-Location }
     }
     Invoke-Stage Backend {
         Measure-Task 'Backend tests' {

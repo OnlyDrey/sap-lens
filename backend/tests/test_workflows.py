@@ -16,35 +16,77 @@ class WorkflowTests(unittest.TestCase):
     def test_actual_workflows_satisfy_contract(self):
         contracts.validate(self.workflows)
 
-    def test_push_and_pull_request_trigger_matrix(self):
+    def test_trigger_matrix_fast_is_automatic_and_everything_else_is_manual(self):
+        # (Fast Validation, Full Validation, Build Windows Application, Build Deployment Packages); a pull request's branch is its target.
         for event, branch, expected in [
-            ('push', 'work', (True, False, False)),
-            ('push', 'main', (True, False, False)),
-            ('push', 'feature/synthetic', (True, False, False)),
-            ('pull_request', 'main', (True, True, False)),
-            ('pull_request', 'work', (True, False, False)),
-            ('pull_request', 'feature/target', (True, False, False)),
-            ('workflow_dispatch', 'work', (False, False, True)),
-            ('workflow_dispatch', 'main', (False, False, True)),
-            ('release', 'main', (False, False, False)),
+            ('push', 'work', (True, False, False, False)),
+            ('push', 'main', (True, False, False, False)),
+            ('push', 'feature/synthetic', (False, False, False, False)),
+            ('pull_request', 'main', (True, False, False, False)),
+            ('pull_request', 'work', (False, False, False, False)),
+            ('pull_request', 'feature/target', (False, False, False, False)),
+            ('workflow_dispatch', 'work', (False, True, True, True)),
+            ('workflow_dispatch', 'main', (False, True, True, True)),
+            ('release', 'main', (False, False, False, False)),
+            ('schedule', 'main', (False, False, False, False)),
+            ('workflow_run', 'main', (False, False, False, False)),
         ]:
             with self.subTest(event=event, branch=branch):
-                self.assertEqual(tuple(contracts.triggered(self.workflows[name], event, branch)
-                                       for name in contracts.EXPECTED), (*expected,event=='workflow_dispatch'))
+                self.assertEqual(tuple(contracts.triggered(self.workflows[name], event, branch) for name in contracts.EXPECTED), expected)
 
     def test_branch_path_or_manual_trigger_drift_rejected(self):
         for filename, event, value in [
             ('validate.yml', 'push', {'branches': ['work']}),
+            ('validate.yml', 'push', ''),
             ('validate.yml', 'pull_request', {'paths': ['backend/**']}),
             ('full-validation.yml', 'push', ''),
-            ('full-validation.yml', 'workflow_dispatch', ''),
-            ('full-validation.yml', 'pull_request', {'branches': ['work']}),
+            ('full-validation.yml', 'pull_request', {'branches': ['main']}),
+            ('full-validation.yml', 'schedule', [{'cron': '0 3 * * *'}]),
+            ('full-validation.yml', 'workflow_call', ''),
+            ('full-validation.yml', 'workflow_run', {'workflows': ['Fast Validation']}),
             ('build-windows.yml', 'push', ''),
+            ('build-windows.yml', 'workflow_run', {'workflows': ['Full Validation']}),
+            ('build-deployments.yml', 'push', ''),
+            ('build-deployments.yml', 'workflow_run', {'workflows': ['Full Validation']}),
         ]:
             changed = copy.deepcopy(self.workflows)
             changed[filename]['on'][event] = value
             with self.subTest(filename=filename, event=event), self.assertRaises(ValueError):
                 contracts.validate(changed)
+
+    def test_full_regression_is_never_a_prerequisite_of_building_or_publishing(self):
+        for filename, job, step in [('build-deployments.yml', 'validation', {'name': 'x', 'run': 'python scripts/run-tests.py regression --backend'}),
+                                    ('build-deployments.yml', 'validation', {'name': 'x', 'run': 'python -m unittest discover -s backend/tests -v'}),
+                                    ('build-deployments.yml', 'desktop', {'name': 'x', 'run': 'npm --prefix frontend run test:browser'}),
+                                    ('build-windows.yml', 'windows-exe', {'name': 'x', 'run': './scripts/build-windows.ps1 -Stage Backend'}),
+                                    ('build-windows.yml', 'windows-exe', {'name': 'x', 'run': './scripts/build-windows.ps1 -Stage Browser'})]:
+            changed = copy.deepcopy(self.workflows)
+            changed[filename]['jobs'][job]['steps'].append(step)
+            with self.subTest(filename=filename, run=step['run']), self.assertRaises(ValueError):
+                contracts.validate(changed)
+        changed = copy.deepcopy(self.workflows)
+        changed['build-deployments.yml']['jobs']['publish']['if'] += " && needs.full-validation.result == 'success'"
+        with self.assertRaises(ValueError):
+            contracts.validate(changed)
+
+    def test_fast_validation_optional_steps_depend_only_on_the_change_plan(self):
+        for mutation in ('always', 'other_output', 'mandatory_conditional', 'unreported'):
+            changed = copy.deepcopy(self.workflows)
+            steps = changed['validate.yml']['jobs']['fast']['steps']
+            by_id = {step.get('id'): step for step in steps}
+            if mutation == 'always': by_id['types']['if'] = 'always()'
+            if mutation == 'other_output': by_id['build']['if'] = "${{ github.event_name == 'push' }}"
+            if mutation == 'mandatory_conditional': by_id['ruff']['if'] = "${{ steps.plan.outputs.frontend == 'true' }}"
+            if mutation == 'unreported': steps[-1]['env']['CI_OPTIONAL'] = steps[-1]['env']['CI_OPTIONAL'].replace(' eslint', '')
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                contracts.validate(changed)
+
+    def test_the_sealed_release_receipt_requires_no_complete_suite(self):
+        source = (Path(__file__).resolve().parents[2] / 'scripts/deployment-package.py').read_text(encoding='utf-8')
+        checks = source.split('CHECKS={', 1)[1].split('}', 1)[0]
+        self.assertNotIn("'backend'", checks); self.assertNotIn("'browser'", checks)
+        for required in ('types', 'build', 'catalog', 'python_audit', 'javascript_audit', 'pip_check', 'workflow_lint', 'powershell'):
+            self.assertIn(f"'{required}'", checks)
 
     def test_security_permissions_actions_and_checkout_credentials_rejected(self):
         for mutation in ('permissions', 'pin', 'credentials', 'failure'):
@@ -82,7 +124,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('install --with-deps chromium --only-shell', commands)
 
     def test_browser_cache_is_exact_platform_architecture_and_lockfile(self):
-        for filename, job in [('full-validation.yml', 'frontend'), ('build-windows.yml', 'windows-exe')]:
+        for filename, job in [('full-validation.yml', 'frontend'), ('validate.yml', 'fast')]:
             steps = self.workflows[filename]['jobs'][job]['steps']
             cache = next(step['with'] for step in steps if step.get('uses', '').startswith('actions/cache@'))
             self.assertNotIn('restore-keys', cache)
@@ -91,7 +133,7 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(cache['path'], '${{ runner.temp }}/sap-lens-playwright')
 
     def test_integrity_or_test_stage_cannot_be_skipped(self):
-        for stage in ('Backend', 'Browser', 'Verify', 'Smoke', 'Artifact'):
+        for stage in ('JavaScriptAudit', 'Verify', 'Smoke', 'Artifact'):
             changed = copy.deepcopy(self.workflows)
             steps = changed['build-windows.yml']['jobs']['windows-exe']['steps']
             next(step for step in steps if f'-Stage {stage}' in step.get('run', ''))['if'] = 'false'

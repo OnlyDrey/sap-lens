@@ -151,7 +151,7 @@ class LocalDeploymentReceiptTests(unittest.TestCase):
         timing=self.temporary/'sap-lens-ci-timings.jsonl'
         data=[json.loads(line) for line in timing.read_text().splitlines()]
         for row in data:
-            if row['stage']=='browser':row['status']='failed'
+            if row['stage']=='types':row['status']='failed'
         timing.write_text('\n'.join(map(json.dumps,data)))
         with self.assertRaises(ValueError):pkg.record_local()
         for row in data:row['status']='passed'

@@ -62,17 +62,23 @@ def safe(value):
 
 def render(steps, records, env):
     mandatory = env.get('CI_REQUIRED', '').split()
-    result = 'Passed' if mandatory and all(steps.get(key, {}).get('outcome') == 'success' for key in mandatory) else 'Incomplete'
-    if any(steps.get(key, {}).get('outcome') in {'failure', 'cancelled'} for key in mandatory):
+    # Optional steps run only when the change needs them (see scripts/run-tests.py changed). A skipped optional step is "not needed", never a pass or a gap;
+    # one that ran must have succeeded.
+    optional = [key for key in env.get('CI_OPTIONAL', '').split() if steps.get(key, {}).get('outcome') not in {None, 'skipped'}]
+    checked = mandatory + optional
+    result = 'Passed' if mandatory and all(steps.get(key, {}).get('outcome') == 'success' for key in checked) else 'Incomplete'
+    if any(steps.get(key, {}).get('outcome') in {'failure', 'cancelled'} for key in checked):
         result = 'Failed'
     rows = [f"# SAP Lens — {safe(env.get('GITHUB_WORKFLOW', 'Local validation'))}", '',
             f"{safe(env.get('CI_JOB_NAME', env.get('GITHUB_JOB', 'local')))}: **{result}**  ",
             f"Source: {safe(env.get('GITHUB_REF_NAME', 'local'))} @ {safe(env.get('GITHUB_SHA', 'Unavailable'))}", '',
             '| Check | Result | Duration | Tests |', '|---|---|---:|---|']
     timings = {record['stage']: record for record in records}
-    for stage in mandatory:
+    for stage in checked + [key for key in env.get('CI_OPTIONAL', '').split() if key not in optional]:
         record = timings.get(stage, {})
         state = steps.get(stage, {}).get('outcome', 'not run')
+        if stage not in checked:
+            state = 'not needed for this change'
         elapsed = f"{record['seconds']:.2f} s" if 'seconds' in record else 'Not timed (action/setup)'
         tests = str(record['tests']) if record.get('tests') is not None else '—'
         if record.get('skipped'):

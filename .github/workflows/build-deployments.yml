@@ -123,15 +123,18 @@ jobs:
     - name: Check Python dependencies
       run: python scripts/ci.py run pip_check -- python -m pip check
       id: pip_check
+    - name: Lint Python with Ruff
+      run: python scripts/ci.py run ruff -- python -m ruff check backend scripts
+      id: ruff
+    - name: Validate workflow contracts
+      run: python scripts/ci.py run workflow_contracts -- python scripts/check-workflows.py
+      id: workflow_contracts
     - name: Validate workflows
       run: python scripts/ci.py run workflow_lint -- python scripts/ci.py lint
       id: workflow_lint
     - name: Validate PowerShell scripts
       run: python scripts/ci.py run powershell -- pwsh -NoProfile -File scripts/check-powershell.ps1
       id: powershell
-    - name: Run shared backend regressions
-      run: python scripts/ci.py run backend -- python -W error::DeprecationWarning -m unittest discover -s backend/tests -v
-      id: backend
     - name: Install locked frontend dependencies
       run: npm --prefix frontend ci --no-audit --no-fund
       id: s9
@@ -150,21 +153,6 @@ jobs:
     - name: Audit production JavaScript
       run: python scripts/ci.py run javascript_audit -- npm --prefix frontend audit --omit=dev
       id: javascript_audit
-    - name: Configure browser cache
-      id: browser_path
-      run: echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/sap-lens-playwright" >> "$GITHUB_ENV"
-    - name: Cache pinned browser
-      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
-      with:
-        path: ${{ runner.temp }}/sap-lens-playwright
-        key: playwright-headless-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/package-lock.json') }}
-      id: s15
-    - name: Install Chromium and system libraries
-      run: node frontend/node_modules/playwright/cli.js install --with-deps chromium --only-shell
-      id: s16
-    - name: Run shared browser regressions
-      run: python scripts/ci.py run browser -- npm --prefix frontend run test:browser -- --reporter=line,github
-      id: browser
     - name: Seal same-commit validated inputs
       run: python scripts/deployment-package.py seal --output backend/build/validated-inputs.zip
       id: s18
@@ -181,8 +169,8 @@ jobs:
       if: always()
       env:
         CI_STEPS: ${{ toJSON(steps) }}
-        CI_REQUIRED: browser_path s0 s1 s2 s3 identity pip_check workflow_lint powershell backend s9 types catalog build python_audit javascript_audit
-          s15 s16 browser s18 s19
+        CI_REQUIRED: s0 s1 s2 s3 identity pip_check ruff workflow_contracts workflow_lint powershell s9 types catalog build python_audit javascript_audit
+          s18 s19
         CI_JOB_NAME: Shared validation
   desktop:
     name: Windows Desktop Packaging & Verification

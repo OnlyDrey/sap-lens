@@ -101,24 +101,16 @@ jobs:
         env:
           RELEASE_ALLOCATION_JSON: ${{ needs.reserve-version.outputs.metadata }}
         run: python scripts/release-windows.py prepare-build
-      - name: Configure browser cache location
+      - name: Configure cold-cache benchmark locations
         shell: pwsh
         env:
           COLD_CACHE: ${{ inputs.cold_cache }}
         run: |
-          "PLAYWRIGHT_BROWSERS_PATH=$env:RUNNER_TEMP/sap-lens-playwright" | Add-Content $env:GITHUB_ENV
           if ($env:COLD_CACHE -eq 'true') {
             # Use empty job-local directories instead of any runner-image download cache.
             "npm_config_cache=$env:RUNNER_TEMP/sap-lens-cold-npm" | Add-Content $env:GITHUB_ENV
             "PIP_CACHE_DIR=$env:RUNNER_TEMP/sap-lens-cold-pip" | Add-Content $env:GITHUB_ENV
           }
-      - name: Cache pinned Playwright headless browser
-        if: ${{ !inputs.cold_cache }}
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
-        with:
-          path: ${{ runner.temp }}/sap-lens-playwright
-          # Exact lockfile includes Playwright version and its browser revision. No fallback keys.
-          key: playwright-headless-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/package-lock.json') }}
       - name: Create isolated Python build environment
         shell: pwsh
         run: ./scripts/build-windows.ps1 -Stage Environment
@@ -131,12 +123,9 @@ jobs:
       - name: Audit Windows Python dependencies
         shell: pwsh
         run: ./scripts/build-windows.ps1 -Stage Audit
-      - name: Run backend and repository regressions
+      - name: Audit production JavaScript dependencies
         shell: pwsh
-        run: ./scripts/build-windows.ps1 -Stage Backend
-      - name: Audit JavaScript and run browser regressions
-        shell: pwsh
-        run: ./scripts/build-windows.ps1 -Stage Browser
+        run: ./scripts/build-windows.ps1 -Stage JavaScriptAudit
       - name: Package Windows executable
         shell: pwsh
         env:

@@ -373,5 +373,36 @@
   "ui-polish-actions": 27,
   "user-role-export": 24,
   "ux": 30
+ },
+ "change_rules": {
+  "_comment": "Fast Validation selection (run-tests.py changed). First matching category wins; `**` crosses directories, `*` does not. Anything unmatched is core and runs the whole backend suite, so an unknown path can never skip tests.",
+  "docs": [
+   "docs/**",
+   "*.md",
+   "assets/**",
+   ".gitignore",
+   ".dockerignore"
+  ],
+  "backend_tests": [
+   "backend/tests/**"
+  ],
+  "frontend_tests": [
+   "frontend/tests/**"
+  ],
+  "frontend": [
+   "frontend/src/**",
+   "frontend/public/**",
+   "frontend/index.html",
+   "frontend/package.json",
+   "frontend/package-lock.json",
+   "frontend/*.ts",
+   "frontend/*.js",
+   "frontend/tsconfig*.json",
+   "scripts/sync-lucide-catalog.mjs",
+   "scripts/frontend-licenses.mjs"
+  ],
+  "always": [
+   "repository"
+  ]
  }
 }

@@ -132,14 +132,25 @@ def validate(workflows):
     require(download['with']=={'artifact-ids':'${{ steps.eligible.outputs.artifact_ids }}','path':'dist/publication','merge-multiple':'true','digest-mismatch':'error'}, 'Collect only selected immutable same-run artifacts with strict digests')
     require(deployment_publish['env'].get('DEPLOYMENT_IDENTITY')=='${{ needs.validation.outputs.identity }}' and deployment_publish['env'].get('DEPLOYMENT_NEEDS')=='${{ toJSON(needs) }}' and deployment_publish['env'].get('PUBLISH_RELEASE')=='${{ inputs.publish_release }}', 'Publication context must come from validated job results')
     require(not any(s.get('uses','').startswith('actions/') and 'login' in s.get('uses','') or 'release-windows.py publish' in s.get('run','') or ('deployment-release.py' in s.get('run','') and key!='publish' and not (key=='plan' and s.get('run','').strip()=='python scripts/deployment-release.py plan')) for key,j in deployment['jobs'].items() for s in j['steps']), 'Build jobs may not publish releases or images')
-    require(fast['on'] == {'push': '', 'pull_request': ''}, 'Fast must run on every push and PR without filters')
-    require(full['on'] == {'pull_request': {'branches': ['main']}}, 'Full must run only on PRs targeting main')
+    require(fast['on'] == {'push': {'branches': ['work', 'main']}, 'pull_request': {'branches': ['main']}}, 'Fast runs on pushes to work and main and on pull requests to main')
+    require(set(full['on']) == {'workflow_dispatch'}, 'Full Regression is manual only: no push, pull request, schedule or workflow_call trigger')
+    require(int(fast['jobs']['fast']['timeout-minutes']) <= 15, 'Fast Validation must stay a short job')
+    # Full Regression is evidence, never a prerequisite: nothing that builds or publishes may run the complete suites or consult a regression result.
+    for name in ('build-deployments.yml', 'build-windows.yml'):
+        text = '\n'.join(str(step) for job in workflows[name]['jobs'].values() for step in job['steps'])
+        require('run-tests.py regression' not in text and 'unittest discover' not in text and 'test:browser' not in text and '-Stage Backend' not in text and '-Stage Browser' not in text,
+                f'{name} may not run the complete backend or browser suites')
+        require(all('workflow_run' not in job.get('if', '') and 'full-validation' not in str(job).lower() for job in workflows[name]['jobs'].values()), f'{name} may not depend on a Full Regression result')
+        require('workflow_run' not in workflows[name]['on'] and 'workflow_call' not in workflows[name]['on'], f'{name} is dispatched by hand only')
+    for script in ('deployment-release.py', 'release-windows.py', 'deployment-package.py'):
+        source = (ROOT / 'scripts' / script).read_text(encoding='utf-8').lower()
+        require('full-validation' not in source and 'full validation' not in source and "'backend', 'browser'" not in source, f'{script} may not require a Full Regression result or the complete suites')
+    require(not ({'backend', 'browser'} & set(re.findall(r"CHECKS=\{([^}]*)\}", (ROOT / 'scripts/deployment-package.py').read_text(encoding='utf-8'))[0].replace("'", '').split(','))), 'The sealed validation receipt may not require the complete suites')
     require(set(windows['on']) == {'workflow_dispatch'}, 'Windows must be manual-only')
     require(fast['concurrency']['cancel-in-progress'] == 'true' and
             'github.event_name' in fast['concurrency']['group'] and
             'github.event.pull_request.number' in fast['concurrency']['group'], 'Fast push and PR concurrency must be isolated')
-    require(full['concurrency']['cancel-in-progress'] == 'true' and
-            'github.event.pull_request.number' in full['concurrency']['group'], 'Full concurrency must be per PR')
+    require(full['concurrency']['cancel-in-progress'] == 'false' and 'github.ref' in full['concurrency']['group'], 'A manual Full Regression is never cancelled by another dispatch')
     require(windows['concurrency'] == {'group': 'sap-lens-windows-distribution', 'cancel-in-progress': 'false'}, 'Manual builds must be serialized without cancelling active builds')
     require(set(windows['jobs']) == {'reserve-version', 'windows-exe', 'publish-release'}, 'Keep the complete Windows build together; isolate publication')
     allocator = windows['jobs']['reserve-version']
@@ -163,7 +174,7 @@ def validate(workflows):
     require(publication_download['with'].get('artifact-ids') == '${{ needs.windows-exe.outputs.artifact_id }}' and publication_download['with'].get('digest-mismatch') == 'error' and publication_download['with'].get('skip-decompress') == 'true', 'Publication must revalidate the exact raw build artifact')
     steps = windows['jobs']['windows-exe']['steps']
     commands = [s.get('run', '') for s in steps]
-    for stage in ('Environment', 'Frontend', 'Python', 'Audit', 'Backend', 'Browser', 'Package', 'Verify', 'Smoke', 'Artifact'):
+    for stage in ('Environment', 'Frontend', 'Python', 'Audit', 'JavaScriptAudit', 'Package', 'Verify', 'Smoke', 'Artifact'):
         matches = [i for i, command in enumerate(commands) if re.search(r'-Stage '+stage+r'\b', command)]
         require(len(matches) == 1, 'Each canonical Windows stage must run exactly once')
         require('if' not in steps[matches[0]], 'Windows validation stages cannot be conditionally skipped')
@@ -184,9 +195,12 @@ def validate(workflows):
         for job in workflow['jobs'].values():
             require(job['steps'][-1].get('if') == 'always()', 'Validation report must run after failures')
             identifiers = {step['id']: step for step in job['steps'] if 'id' in step}
-            mandatory = job['steps'][-1]['env']['CI_REQUIRED'].split()
-            require(set(mandatory) == set(identifiers), 'Every validation/setup step must be represented in the report')
-            require(all('if' not in step for step in identifiers.values()), 'Mandatory validation cannot be skipped')
+            report = job['steps'][-1]['env']
+            mandatory, optional = report['CI_REQUIRED'].split(), report.get('CI_OPTIONAL', '').split()
+            require(not set(mandatory) & set(optional) and set(mandatory) | set(optional) == set(identifiers), 'Every validation/setup step must be represented in the report')
+            require(all('if' not in identifiers[key] for key in mandatory), 'Mandatory validation cannot be skipped')
+            # Optional steps are the change-selected frontend and browser steps: each is gated only by the plan of the same job.
+            require(all(re.fullmatch(r"\$\{\{ steps\.plan\.outputs\.(frontend|browser) == 'true' \}\}", identifiers[key].get('if', '')) for key in optional), 'Optional steps may only depend on the change plan')
 
 
 if __name__ == '__main__':
