@@ -18,8 +18,8 @@ def run():
     parser.add_argument('--init-secret',type=Path,help='Create a new private shared-access secret, without printing it')
     args=parser.parse_args()
     if args.init_secret:
-        with args.init_secret.open('x',encoding='ascii') as stream:
-            if os.name!='nt': os.chmod(args.init_secret,0o600)
+        # Created owner-only from the start (never briefly readable under a permissive umask) and never over an existing file.
+        with os.fdopen(os.open(args.init_secret,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w',encoding='ascii') as stream:
             stream.write(secrets.token_urlsafe(48)+'\n')
         return 0
     stage='configuration'

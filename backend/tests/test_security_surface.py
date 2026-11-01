@@ -66,6 +66,8 @@ class DesktopBoundaryTests(Isolated):
         self.assertEqual(response.headers['cache-control'], 'no-store')
         policy = response.headers['content-security-policy']
         self.assertIn("frame-ancestors 'none'", policy)
+        self.assertIn("object-src 'none'", policy)
+        self.assertIn('camera=()', response.headers['permissions-policy'])  # the application uses no device capability
         script = next(part for part in policy.split(';') if part.strip().startswith('script-src'))
         self.assertNotIn('unsafe', script)  # no unsafe-inline or unsafe-eval for scripts
 
@@ -102,6 +104,7 @@ class ServerBoundaryTests(Isolated):
                 if path in PUBLIC: continue
                 body = {'json': {}} if method != 'GET' else {}
                 self.assertEqual(client.request(method, path, **body).status_code, 401, f'{method} {path} answered without credentials')
+                app.state.auth_throttle.success('127.0.0.1')  # every probe is judged on its credentials, not on the lock-out of the probes before it
                 self.assertEqual(client.request(method, path, headers={'Authorization': 'Basic ' + wrong}, **body).status_code, 401, f'{method} {path} accepted wrong credentials')
             for method in ('PUT', 'DELETE', 'PATCH'):
                 refused = client.request(method, '/api/configuration', headers={'Authorization': 'Basic ' + credentials, 'X-SAP-Lens': '1'}, json={})

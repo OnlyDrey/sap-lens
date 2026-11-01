@@ -36,3 +36,19 @@ matched its own command line, not from repository code. A search of all scripts,
 - Tests in `backend/tests/test_test_profiles.py`: stale-directory sweep, busy-port report, SIGTERM cleanup of the real server.
 
 After the change a Playwright run leaves no directory and no process behind (checked with a two-test spec).
+
+## Phase 2: security hardening
+
+| Finding | Change | Evidence |
+| --- | --- | --- |
+| SEC-02 failed Basic sign-ins | `AuthThrottle` in `backend/deployment.py`, applied in the server middleware: per-client counters, doubling cooldown, 429 with `Retry-After`, bounded state (1024 clients), trusted-proxy aware client identity, both credential parts always compared | `test_auth_throttle` (18 tests: threshold, expiry, cap, window, success reset, bounded state under flooding, 16-thread exact counting, spoofed `X-Forwarded-For`, IPv6 /64, malformed headers, log content, configuration bounds, local and desktop modes unthrottled) |
+| SEC-03 secret file | `check_secret_permissions`: owner-only by default; group read only with `SAP_LENS_AUTH_SECRET_GROUP_READ=1` and a group the service account belongs to; other access and group write or execute always refused; judged on the opened file; never chmod; `--init-secret` creates the file with mode 0600 atomically | `test_secret_file_policy` (8 tests incl. symlink target, proxy mode, umask 0 creation, no overwrite) |
+| SEC-04 headers | Added `Permissions-Policy` (no device capabilities) and CSP `object-src 'none'`; `unsafe-inline` styles stay (measured portal coordinates); HSTS stays at the TLS proxy because the application also serves HTTP loopback and cannot know that the proxy terminates TLS for every client | `test_security_surface` |
+| SEC-07 systemd | Added `PrivateDevices`, `ProtectKernelTunables`, `ProtectKernelModules`, `ProtectControlGroups`, `LockPersonality`, `RestrictRealtime`, `RestrictSUIDSGID`, `RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6`. Not added: `SystemCallFilter` and `MemoryDenyWriteExecute` (can break Python extensions; need a real boot) | `systemd-analyze verify` accepts the unit; `test_deployment_contracts`. A real systemd start is not tested here |
+
+Compatibility: an existing 0640 secret now stops the server at start with a message that names the file, its mode and both remedies. The Docker installer
+and `compose.yml` keep their 0640 file (the container user is not the host owner) and set the opt-in. SEC-05 and SEC-06 stay accepted. Windows ACLs are applied
+by service provisioning and are not verified by the runtime.
+
+The tests found one defect in the first implementation: `AuthThrottle` defines `__len__`, so an empty throttle was falsy and the middleware skipped it; the
+middleware now compares with `is not None`.

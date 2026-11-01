@@ -26,8 +26,13 @@ python backend/server.py --init-secret /absolute/private/access.secret
 Configure `SAP_LENS_AUTH=basic`, `SAP_LENS_AUTH_SECRET_FILE`, and optionally
 `SAP_LENS_AUTH_USER` (default `saplens`). Read the secret locally in a trusted editor
 when entering the browser's HTTP authentication prompt; never commit or log it.
-For POSIX, file permissions must exclude other users (0600 or restricted 0640).
-Windows installation grants the dedicated service SID read permission.
+On POSIX the secret must be owner-only (0600 or 0400); `--init-secret` creates it that way. Group read (0640 or 0440) is refused unless you set
+`SAP_LENS_AUTH_SECRET_GROUP_READ=1` because another account has to read the file (a container user reading a host file, a dedicated service
+group) **and** the file's group is one the service account belongs to. Any access for other users, and group write or execute, is always refused,
+and the file is never changed by SAP Lens. A refusal names the file, its mode and the fix (`chmod 600`). Existing installations with a 0640 secret
+must either run `chmod 600` (when the service user owns the file) or add the variable; the Docker installer and `compose.yml` already do.
+Windows has no POSIX modes: provisioning (`manage-server-service.ps1`) replaces the ACL with SYSTEM, Administrators and read for the service SID; the
+runtime does not verify an ACL, so confirm it with `icacls` after manual changes.
 
 For network browser access set `SAP_LENS_PUBLIC_ORIGIN=https://lens.example.test`,
 `SAP_LENS_ALLOWED_HOSTS=lens.example.test` and terminate TLS at a reverse proxy.
@@ -37,9 +42,24 @@ send Basic credentials over an unencrypted LAN. HTTP loopback origins are suppor
 for local testing only; the backend rejects nonlocal HTTP public origins.
 
 Basic access is intentionally minimal: one shared administrator credential, no
-logout/session management, brute-force throttling or per-user permissions. All
-people with access can import, export and change settings. Prefer an enterprise
-gateway for real organizational deployments, with throttling and access auditing.
+logout/session management or per-user permissions. All people with access can import,
+export and change settings. Prefer an enterprise gateway for real organizational
+deployments, with throttling and access auditing.
+
+### Failed sign-in throttling
+
+A client that sends wrong Basic credentials `SAP_LENS_AUTH_MAX_FAILURES` times (default 5, range 3 to 50) within 15 minutes is locked out for
+`SAP_LENS_AUTH_LOCKOUT_SECONDS` (default 60, range 10 to 3600); every further lock-out doubles the cooldown up to 15 minutes. While locked out
+the client receives `429 Too Many Requests` with `Retry-After`, even for correct credentials, which are not evaluated. A correct sign-in clears the
+client's record; requests without an Authorization header are only challenged and never counted; health probes are exempt. The wrong username and
+the wrong password are indistinguishable, nothing secret is logged (the log line names only the client address and the cooldown).
+
+The client is the TCP peer, or, when the peer is in `SAP_LENS_TRUSTED_PROXIES`, the first address from the right in `X-Forwarded-For` that is not
+itself a trusted proxy; a header from any other peer is ignored, so it cannot be spoofed. IPv6 clients count per /64. Limits to know:
+
+- State is per process and bounded (1024 clients, idle records dropped after 30 minutes); a restart or a second worker starts with empty counters, and the headless runtime uses one worker.
+- Behind a reverse proxy that is **not** listed in `SAP_LENS_TRUSTED_PROXIES`, every user shares the proxy's address, so one attacker can lock everyone out. List the proxy and make it set `X-Forwarded-For`, or throttle at the gateway.
+- People behind one NAT address share a lock-out. An attacker with many addresses is slowed, not stopped; the 32 character minimum for the secret is the real defence.
 
 ## Authenticated identity gateway
 
