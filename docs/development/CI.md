@@ -52,7 +52,7 @@ required merely to skip one explicitly authorized push.
 | Workflow / file | Exact triggers | Jobs and responsibility |
 | --- | --- | --- |
 | Fast Validation / `.github/workflows/validate.yml` | Every push (including all branches/tags); every pull_request with no branch/path filters | Backend & Frontend: all backend/repository tests through `scripts/run-tests.py regression --backend` (parallel processes, deprecations as errors), pip consistency, workflow contracts/actionlint and frontend type checks |
-| Build Deployment Packages / `.github/workflows/build-deployments.yml` | workflow_dispatch only; platform selector and All | Shared Validation & Frontend, followed by independent Desktop, Service, Docker and native packaging jobs |
+| Build Deployment Packages / `.github/workflows/build-deployments.yml` | workflow_dispatch only; operating system (`all`, `windows`, `linux`) and package (`all` or one package) inputs | A planning job resolves and validates the selection, then Shared Validation & Frontend, then the selected independent Desktop, Service, Docker and native packaging jobs (unselected ones are skipped); publication takes only the planned, verified packages |
 | Full Validation / `.github/workflows/full-validation.yml` | pull_request targeting main only; no push/manual/tag/release trigger | Backend & Repository and Frontend & Browser run independently in parallel |
 | Build Windows Application / `.github/workflows/build-windows.yml` | workflow_dispatch only; caller selects branch/ref | Optional Reserve Release Version job before Windows Build & Verification; optional dependent Publish Verified Windows Release job for explicit beta/stable mode |
 

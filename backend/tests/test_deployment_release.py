@@ -35,12 +35,20 @@ def identity(channel='beta'):
     return make_deployment_info('0.1.0', channel, '1', SHA, '123', '12', 1)
 
 
-def needs(info, platform='All'):
-    result = {'validation': {'result': 'success'}}
-    for index, (key, stem, ext) in enumerate(release.selected(platform), 1):
-        result[key] = {'result': 'success', 'outputs': {
-            'artifact_id': str(index), 'package_name': f'SAP-Lens-{stem}-{info["version"]}{ext}',
-            'package_sha': hashlib.sha256(key.encode()).hexdigest()}}
+ALL = list(release.PACKAGES)
+
+
+def needs(info, chosen=None):
+    """The `needs` context after a run: selected jobs succeeded with verified outputs, unselected jobs were skipped."""
+    chosen = ALL if chosen is None else chosen
+    result = {'plan': {'result': 'success'}, 'validation': {'result': 'success'}}
+    for index, (name, (key, _label, stem, ext, *_rest)) in enumerate(release.PACKAGES.items(), 1):
+        if name in chosen:
+            result[key] = {'result': 'success', 'outputs': {
+                'artifact_id': str(index), 'package_name': f'SAP-Lens-{stem}-{info["version"]}{ext}',
+                'package_sha': hashlib.sha256(key.encode()).hexdigest()}}
+        else:
+            result[key] = {'result': 'skipped', 'outputs': {}}
     return result
 
 
@@ -148,7 +156,7 @@ class DeploymentVersionTests(unittest.TestCase):
 
     def test_build_only_prepare_resolves_identity_without_any_network_call(self):
         env = dict(GITHUB_ACTIONS='true', GITHUB_RUN_ID='123', GITHUB_RUN_NUMBER='12', GITHUB_RUN_ATTEMPT='1',
-                   DEPLOYMENT_PLATFORM='All', DEPLOYMENT_CHANNEL='Beta', DEPLOYMENT_SEQUENCE='1', PUBLISH_RELEASE='false')
+                   DEPLOYMENT_OS='all', DEPLOYMENT_PACKAGE='all', DEPLOYMENT_CHANNEL='Beta', DEPLOYMENT_SEQUENCE='1', PUBLISH_RELEASE='false')
         with patch.dict(os.environ, env, clear=True), patch.object(packages, 'git_sha', return_value=SHA), \
                 patch.object(packages, 'write') as write, patch('urllib.request.urlopen') as network:
             packages.prepare('0.1.0')
@@ -203,37 +211,56 @@ class DeploymentVersionTests(unittest.TestCase):
 class DeploymentCollectionTests(unittest.TestCase):
     def test_all_selected_targets_must_succeed_and_validation_is_required(self):
         info = identity()
-        for platform in [*release.TARGETS, 'All']:
-            data = needs(info, platform)
-            self.assertEqual(len(release.eligible(info, platform, data)), 4 if platform == 'All' else 1)
-            for key, _, _ in release.selected(platform):
+        for chosen in [*([name] for name in ALL), ALL, ALL[:2], ALL[2:]]:
+            data = needs(info, chosen)
+            self.assertEqual(len(release.eligible(info, chosen, data)), len(chosen))
+            for name in chosen:
+                key = release.PACKAGES[name][0]
                 for result in ('failure', 'cancelled', 'skipped'):
                     changed = copy.deepcopy(data); changed[key]['result'] = result
-                    with self.subTest(platform=platform, key=key, result=result), self.assertRaises(release.DeliveryError):
-                        release.eligible(info, platform, changed)
-            data['validation']['result'] = 'failure'
-            with self.assertRaises(release.DeliveryError):
-                release.eligible(info, platform, data)
+                    with self.subTest(chosen=chosen, key=key, result=result), self.assertRaises(release.DeliveryError):
+                        release.eligible(info, chosen, changed)
+            for gate in ('validation', 'plan'):
+                changed = copy.deepcopy(data); changed[gate]['result'] = 'failure'
+                with self.subTest(gate=gate), self.assertRaises(release.DeliveryError):
+                    release.eligible(info, chosen, changed)
+
+    def test_unselected_packages_are_skipped_never_collected_and_never_tolerated_if_they_ran(self):
+        info = identity()
+        for chosen in ([ALL[0]], ALL[:2], ALL[2:]):
+            data = needs(info, chosen)
+            rows = release.eligible(info, chosen, data)
+            self.assertEqual({row['package_name'] for row in rows}, {f'SAP-Lens-{release.PACKAGES[name][2]}-{info["version"]}{release.PACKAGES[name][3]}' for name in chosen})
+            for name in set(ALL) - set(chosen):
+                key = release.PACKAGES[name][0]
+                self.assertEqual(data[key]['result'], 'skipped')  # a skipped job is not a failure of verification or publication
+                for result in ('success', 'failure', 'cancelled'):
+                    changed = copy.deepcopy(data); changed[key]['result'] = result
+                    with self.subTest(chosen=chosen, unselected=name, result=result), self.assertRaises(release.DeliveryError):
+                        release.eligible(info, chosen, changed)  # an artifact of an unselected package (or an earlier run) is never published
 
     def test_invalid_platform_outputs_and_duplicates_are_rejected(self):
         info = identity()
         for field, value in [('artifact_id', ''), ('package_name', '../private.zip'), ('package_sha', 'wrong')]:
             data = needs(info); data['desktop']['outputs'][field] = value
             with self.subTest(field=field), self.assertRaises(release.DeliveryError):
-                release.eligible(info, 'All', data)
+                release.eligible(info, ALL, data)
         data = needs(info); data['service']['outputs']['artifact_id'] = '1'
         with self.assertRaises(release.DeliveryError):
-            release.eligible(info, 'All', data)
+            release.eligible(info, ALL, data)
+        for bad in ([], ['windows-desktop', 'unknown']):
+            with self.subTest(bad=bad), self.assertRaises(release.DeliveryError):
+                release.eligible(info, bad, needs(info))
 
     def test_exact_asset_collection_checksum_source_manifest_and_tampering(self):
         info = identity(); data = needs(info)
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
-            for key, _, _ in release.selected('All'):
+            for key in (row[0] for row in release.PACKAGES.values()):
                 row = data[key]['outputs']; name = row['package_name']
                 (directory / name).write_bytes(key.encode())
                 (directory / (name + '.sha256')).write_text(row['package_sha'] + '  ' + name + '\n')
-            rows = release.eligible(info, 'All', data)
+            rows = release.eligible(info, ALL, data)
             assets = release.collect(directory, info, rows)
             self.assertEqual(len(assets), 9)
             manifest = assets[-1]

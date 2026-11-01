@@ -2,16 +2,25 @@ name: Build Deployment Packages
 'on':
   workflow_dispatch:
     inputs:
-      platform:
-        description: Build one deployment or all independently
+      operating_system:
+        description: 'Operating system to build for: all (default), windows or linux. A specific package below must belong to it.'
         type: choice
         options:
-        - Windows Desktop
-        - Windows Server Service
-        - Linux Docker
-        - Linux Native/systemd
-        - All
-        default: All
+        - all
+        - windows
+        - linux
+        default: all
+        required: true
+      package:
+        description: 'Package: all (default; every package of the operating system above) or one of windows-desktop (Windows Desktop), windows-service (Windows Server Service), linux-docker (Linux Docker), linux-native (Linux Native/systemd)'
+        type: choice
+        options:
+        - all
+        - windows-desktop
+        - windows-service
+        - linux-docker
+        - linux-native
+        default: all
         required: true
       version:
         description: Base MAJOR.MINOR.PATCH without prerelease suffix
@@ -34,7 +43,7 @@ name: Build Deployment Packages
         default: '1'
         required: false
       publish_release:
-        description: Publish only after every selected platform passes verification
+        description: Publish only the selected packages, and only after every one of them passes verification
         type: boolean
         default: false
         required: true
@@ -44,13 +53,44 @@ concurrency:
   group: sap-lens-deployment-${{ github.ref }}
   cancel-in-progress: false
 jobs:
+  plan:
+    name: Resolve Build Selection
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    env:
+      DEPLOYMENT_OS: ${{ inputs.operating_system }}
+      DEPLOYMENT_PACKAGE: ${{ inputs.package }}
+      BASE_VERSION: ${{ inputs.version }}
+      DEPLOYMENT_CHANNEL: ${{ inputs.release_channel }}
+      PUBLISH_RELEASE: ${{ inputs.publish_release }}
+    outputs:
+      packages: ${{ steps.selection.outputs.packages }}
+      desktop: ${{ steps.selection.outputs.desktop }}
+      service: ${{ steps.selection.outputs.service }}
+      docker: ${{ steps.selection.outputs.docker }}
+      native: ${{ steps.selection.outputs.native }}
+    steps:
+    - name: Check out exact source
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.sha }}
+        persist-credentials: false
+    - name: Set up Python 3.12
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+      with:
+        python-version: '3.12'
+    - name: Validate the operating system and package choice and resolve the packages to build
+      id: selection
+      run: python scripts/deployment-release.py plan
   validation:
     name: Shared Validation & Frontend
     runs-on: ubuntu-22.04
     timeout-minutes: 25
+    needs: plan
     env:
       BASE_VERSION: ${{ inputs.version }}
-      DEPLOYMENT_PLATFORM: ${{ inputs.platform }}
+      DEPLOYMENT_OS: ${{ inputs.operating_system }}
+      DEPLOYMENT_PACKAGE: ${{ inputs.package }}
       DEPLOYMENT_CHANNEL: ${{ inputs.release_channel }}
       DEPLOYMENT_SEQUENCE: ${{ inputs.prerelease_number }}
       PUBLISH_RELEASE: ${{ inputs.publish_release }}
@@ -161,8 +201,8 @@ jobs:
       artifact_id: ${{ steps.distribution.outputs.artifact-id }}
       package_name: ${{ steps.integrity.outputs.package_name }}
       package_sha: ${{ steps.integrity.outputs.package_sha }}
-    needs: validation
-    if: ${{ inputs.platform == 'All' || inputs.platform == 'Windows Desktop' }}
+    needs: [plan, validation]
+    if: ${{ needs.plan.outputs.desktop == 'true' }}
     env:
       RELEASE_MODE: build
       RELEASE_VERSION: ${{ inputs.version }}
@@ -224,8 +264,8 @@ jobs:
       artifact_id: ${{ steps.distribution.outputs.artifact-id }}
       package_name: ${{ steps.integrity.outputs.package_name }}
       package_sha: ${{ steps.integrity.outputs.package_sha }}
-    needs: validation
-    if: ${{ inputs.platform == 'All' || inputs.platform == 'Windows Server Service' }}
+    needs: [plan, validation]
+    if: ${{ needs.plan.outputs.service == 'true' }}
     env:
       RELEASE_MODE: build
       RELEASE_VERSION: ${{ inputs.version }}
@@ -287,8 +327,8 @@ jobs:
       artifact_id: ${{ steps.distribution.outputs.artifact-id }}
       package_name: ${{ steps.integrity.outputs.package_name }}
       package_sha: ${{ steps.integrity.outputs.package_sha }}
-    needs: validation
-    if: ${{ inputs.platform == 'All' || inputs.platform == 'Linux Docker' }}
+    needs: [plan, validation]
+    if: ${{ needs.plan.outputs.docker == 'true' }}
     env:
       RELEASE_MODE: build
       RELEASE_VERSION: ${{ inputs.version }}
@@ -351,8 +391,8 @@ jobs:
       artifact_id: ${{ steps.distribution.outputs.artifact-id }}
       package_name: ${{ steps.integrity.outputs.package_name }}
       package_sha: ${{ steps.integrity.outputs.package_sha }}
-    needs: validation
-    if: ${{ inputs.platform == 'All' || inputs.platform == 'Linux Native/systemd' }}
+    needs: [plan, validation]
+    if: ${{ needs.plan.outputs.native == 'true' }}
     env:
       RELEASE_MODE: build
       RELEASE_VERSION: ${{ inputs.version }}
@@ -412,8 +452,8 @@ jobs:
     name: Publish Complete Deployment Release
     runs-on: ubuntu-22.04
     timeout-minutes: 25
-    needs: [validation, desktop, service, docker, native]
-    if: ${{ always() && !cancelled() && inputs.publish_release && needs.validation.result == 'success' }}
+    needs: [plan, validation, desktop, service, docker, native]
+    if: ${{ always() && !cancelled() && inputs.publish_release && needs.plan.result == 'success' && needs.validation.result == 'success' }}
     permissions:
       contents: write
     concurrency:
@@ -423,7 +463,9 @@ jobs:
       name: ${{ inputs.release_channel == 'Stable / Production' && 'sap-lens-stable' || 'sap-lens-beta' }}
     env:
       PUBLISH_RELEASE: ${{ inputs.publish_release }}
-      DEPLOYMENT_PLATFORM: ${{ inputs.platform }}
+      DEPLOYMENT_OS: ${{ inputs.operating_system }}
+      DEPLOYMENT_PACKAGE: ${{ inputs.package }}
+      DEPLOYMENT_PACKAGES: ${{ needs.plan.outputs.packages }}
       DEPLOYMENT_IDENTITY: ${{ needs.validation.outputs.identity }}
       DEPLOYMENT_NEEDS: ${{ toJSON(needs) }}
       GITHUB_TOKEN: ${{ github.token }}
@@ -437,10 +479,10 @@ jobs:
       uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
       with:
         python-version: '3.12'
-    - name: Require all selected verified platforms and unused version
+    - name: Require every selected verified package, no unselected package and an unused version
       id: eligible
       run: python scripts/deployment-release.py preflight
-    - name: Collect only selected same-run platform artifacts
+    - name: Collect only the selected same-run package artifacts
       uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         artifact-ids: ${{ steps.eligible.outputs.artifact_ids }}

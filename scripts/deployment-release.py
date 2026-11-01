@@ -25,18 +25,60 @@ class DeliveryError(RuntimeError):
     """Bounded operational message safe for workflow logs."""
 
 
-TARGETS = {'Windows Desktop': ('desktop', 'Windows-Desktop-x64', '.zip'),
-           'Windows Server Service': ('service', 'Windows-Service-x64', '.zip'),
-           'Linux Docker': ('docker', 'Linux-Docker-amd64', '.tar.gz'),
-           'Linux Native/systemd': ('native', 'Linux-Native-x64', '.tar.gz')}
+OPERATING_SYSTEMS = ('all', 'windows', 'linux')
+# package id -> (job key, label, artifact stem, extension, operating system, runner). The order is the build and report order.
+PACKAGES = {
+    'windows-desktop': ('desktop', 'Windows Desktop', 'Windows-Desktop-x64', '.zip', 'windows', 'windows-latest'),
+    'windows-service': ('service', 'Windows Server Service', 'Windows-Service-x64', '.zip', 'windows', 'windows-latest'),
+    'linux-docker': ('docker', 'Linux Docker', 'Linux-Docker-amd64', '.tar.gz', 'linux', 'ubuntu-22.04'),
+    'linux-native': ('native', 'Linux Native/systemd', 'Linux-Native-x64', '.tar.gz', 'linux', 'ubuntu-22.04'),
+}
 
 
-def selected(platform):
-    if platform == 'All':
-        return list(TARGETS.values())
-    if platform not in TARGETS:
-        raise DeliveryError('Invalid deployment platform.')
-    return [TARGETS[platform]]
+def resolve(operating_system, package):
+    """The package ids to build for an operating system and package choice. GitHub choice inputs cannot depend on each other, so this is
+    the single place that resolves them (the planning job) and rejects incompatible pairs before any expensive job starts."""
+    if operating_system not in OPERATING_SYSTEMS:
+        raise DeliveryError(f"Invalid operating system '{operating_system}'. Choose all, windows or linux.")
+    if package != 'all' and package not in PACKAGES:
+        raise DeliveryError(f"Invalid package '{package}'. Choose all, {', '.join(PACKAGES)}.")
+    if package == 'all':
+        return [name for name, row in PACKAGES.items() if operating_system in ('all', row[4])]
+    if operating_system not in ('all', PACKAGES[package][4]):
+        raise DeliveryError(f"Package '{package}' is a {PACKAGES[package][4]} package and cannot be built when the operating system is '{operating_system}'. "
+                            f"Choose operating system 'all' or '{PACKAGES[package][4]}', or package 'all'.")
+    return [package]
+
+
+def plan_summary(operating_system, package, chosen):
+    rows = '\n'.join(f"| {label} (`{name}`) | {runner} | {'Selected: built, verified and eligible for publication' if name in chosen else 'Not selected: skipped, never built or published'} |"
+                     for name, (_, label, _, _, _, runner) in PACKAGES.items())
+    publish = 'Publication is enabled: only the selected packages that pass verification are published.' if os.environ.get('PUBLISH_RELEASE') == 'true' \
+        else 'Build only: Actions artifacts are created, nothing is published.'
+    return (f'### Build selection\n\nOperating system: `{operating_system}` | Package: `{package}` | Version: `{os.environ.get("BASE_VERSION", "")}` '
+            f'| Channel: {os.environ.get("DEPLOYMENT_CHANNEL", "")}\n\n{len(chosen)} of {len(PACKAGES)} packages selected. {publish}\n\n'
+            f'| Package | Runner | Decision |\n| --- | --- | --- |\n{rows}\n')
+
+
+def plan():
+    operating_system, package = os.environ.get('DEPLOYMENT_OS', ''), os.environ.get('DEPLOYMENT_PACKAGE', '')
+    chosen = resolve(operating_system, package)
+    output(packages=','.join(chosen), count=len(chosen), **{row[0]: 'true' if name in chosen else 'false' for name, row in PACKAGES.items()})
+    summary = plan_summary(operating_system, package, chosen)
+    print(summary)
+    if os.environ.get('GITHUB_STEP_SUMMARY'):
+        with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as stream:
+            stream.write(summary)
+    return chosen
+
+
+def planned(environment=None):
+    """The package ids the publisher may collect: the planning job's output, which must equal a fresh resolution of the same inputs."""
+    environment = os.environ if environment is None else environment
+    chosen = resolve(environment.get('DEPLOYMENT_OS', ''), environment.get('DEPLOYMENT_PACKAGE', ''))
+    if [item for item in environment.get('DEPLOYMENT_PACKAGES', '').split(',') if item] != chosen:
+        raise DeliveryError('The planned package list does not match the selected operating system and package.')
+    return chosen
 
 
 def channel(value):
@@ -106,17 +148,26 @@ def context():
     return info
 
 
-def eligible(info, platform, needs):
-    """All chosen jobs must have completed roundtrip verification, not merely upload."""
+def eligible(info, chosen, needs):
+    """Every selected package must have completed roundtrip verification, not merely upload. Unselected jobs must have been skipped, so a
+    package nobody selected can never be collected, whatever an earlier run produced."""
     if needs.get('validation', {}).get('result') != 'success':
         raise DeliveryError('Shared validation did not succeed.')
+    if needs.get('plan', {}).get('result', 'success') != 'success':
+        raise DeliveryError('Build selection did not succeed.')
+    if not chosen or any(name not in PACKAGES for name in chosen):
+        raise DeliveryError('Invalid deployment package selection.')
+    for name, (key, *_rest) in PACKAGES.items():
+        if name not in chosen and needs.get(key, {}).get('result', 'skipped') != 'skipped':
+            raise DeliveryError(f'Unselected package {name} ran; publication is forbidden.')
     rows = []
-    for key, stem, extension in selected(platform):
+    for name in (name for name in PACKAGES if name in chosen):
+        key, _label, stem, extension, *_rest = PACKAGES[name]
         job = needs.get(key, {})
         values = job.get('outputs', {})
         expected = f'SAP-Lens-{stem}-{info["version"]}{extension}'
         if job.get('result') != 'success':
-            raise DeliveryError(f'Selected platform {key} did not succeed; publication is forbidden.')
+            raise DeliveryError(f'Selected package {name} did not succeed; publication is forbidden.')
         if (values.get('package_name') != expected
                 or not re.fullmatch(r'[0-9a-f]{64}', values.get('package_sha', ''))
                 or not re.fullmatch(r'[1-9][0-9]*', values.get('artifact_id', ''))):
@@ -231,13 +282,16 @@ def publish(api, info, assets):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('operation', choices=['preflight', 'publish'])
+    parser.add_argument('operation', choices=['plan', 'preflight', 'publish'])
     parser.add_argument('--directory', type=Path)
     args = parser.parse_args()
+    if args.operation == 'plan':
+        plan()
+        return
     if os.environ.get('PUBLISH_RELEASE') != 'true':
         raise DeliveryError('Publication must be explicitly enabled by manual dispatch.')
     info = context()
-    rows = eligible(info, os.environ['DEPLOYMENT_PLATFORM'], json.loads(os.environ['DEPLOYMENT_NEEDS']))
+    rows = eligible(info, planned(), json.loads(os.environ['DEPLOYMENT_NEEDS']))
     api = GitHub(os.environ['GITHUB_REPOSITORY'], os.environ['GITHUB_TOKEN'])
     api.available(info['tag'])
     if args.operation == 'preflight':
@@ -257,6 +311,12 @@ if __name__ == '__main__':
     try:
         main()
     except Exception as error:
+        if sys.argv[1:2] == ['plan']:  # a rejected selection: nothing expensive has started
+            print(f'::error::Build selection rejected: {error}', file=sys.stderr)
+            if os.environ.get('GITHUB_STEP_SUMMARY'):
+                with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as stream:
+                    stream.write(f'### Build selection rejected\n\n{error}\n\nNo package was built or published.\n')
+            raise SystemExit(1) from None
         # No exception string, API body, credentials or signed download URL.
         detail = str(error) if isinstance(error, DeliveryError) else 'Inspect the preceding phase and release/tag state.'
         message = f'Deployment publication stopped ({type(error).__name__}): {detail} No automatic retry.'

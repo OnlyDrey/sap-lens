@@ -91,8 +91,14 @@ class OrchestrationTests(unittest.TestCase):
         rules=importlib.util.module_from_spec(spec);spec.loader.exec_module(rules)
         current=rules.load_workflows();rules.validate(current)
         for key in ('desktop','service','docker','native'):
-            self.assertEqual(current['build-deployments.yml']['jobs'][key]['needs'],'validation')
+            self.assertEqual(current['build-deployments.yml']['jobs'][key]['needs'],['plan','validation'])
         bad=copy.deepcopy(current);bad['build-deployments.yml']['jobs']['native']['needs']='docker'
         with self.assertRaises(ValueError):rules.validate(bad)
+        bad=copy.deepcopy(current);bad['build-deployments.yml']['jobs']['native']['needs']=['plan','validation','docker']
+        with self.assertRaises(ValueError):rules.validate(bad)  # packages never wait for one another
+        bad=copy.deepcopy(current);bad['build-deployments.yml']['jobs']['docker']['if']="${{ inputs.package == 'all' }}"
+        with self.assertRaises(ValueError):rules.validate(bad)  # selection is decided by the plan alone
+        bad=copy.deepcopy(current);bad['build-deployments.yml']['jobs']['validation']['needs']=[]
+        with self.assertRaises(ValueError):rules.validate(bad)  # an invalid selection must stop before validation
         bad=copy.deepcopy(current);bad['build-deployments.yml']['on']['push']=''
         with self.assertRaises(ValueError):rules.validate(bad)

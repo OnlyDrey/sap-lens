@@ -142,3 +142,15 @@ New or environment-dependent behaviour: three-process load exposes timing-sensit
 
 Deployment-specific recommendations: throttle and audit sign-ins at the gateway for organisational deployments as well; list the reverse proxy in `SAP_LENS_TRUSTED_PROXIES` and make it set `X-Forwarded-For`; use `chmod 600` secrets and set `SAP_LENS_AUTH_SECRET_GROUP_READ=1` only where another account must read the file;
 confirm the Windows secret ACL with `icacls` after any manual change; boot the hardened systemd unit once before relying on it.
+
+## Follow-up: build selection by operating system and package
+
+`build-deployments.yml` replaces the single `platform` input with `operating_system` (`all`, `windows`, `linux`) and `package` (`all`, `windows-desktop`, `windows-service`, `linux-docker`, `linux-native`). A new first job,
+**Resolve Build Selection**, runs `scripts/deployment-release.py plan` (standard library only), rejects an incompatible pair with a clear message before shared validation or any packaging runner starts, exposes the selected packages once
+(`packages` and one flag per job) and writes a selection summary. Shared validation needs the plan; each package job runs only when `needs.plan.outputs.<job> == 'true'`, so unselected packages are skipped and start no runner. The publisher
+takes the package list from the plan, checks it against a fresh resolution of the same inputs, requires every selected job to have succeeded with verified outputs and every unselected job to have been skipped, and collects only same-run artifact IDs of the
+selected packages. Artifact names, versioning, channel rules, verification and the publication environment gates are unchanged.
+
+Evidence (nothing was dispatched): `test_deployment_selection` (all 15 combinations, planner outputs and summary for each, rejected pairs, planned-list check, the workflow's job conditions evaluated per selection including that a Linux selection starts no Windows runner
+and a Windows selection no Linux packaging runner, publication gating with skipped siblings and an unselected artifact that must not ride along), the ported `test_deployment_release`, the workflow contract (`check-workflows.py`) and the pinned actionlint (`scripts/ci.py lint`, exit 0).
+Not validated: a real GitHub run of the new workflow; the `plan` job, the skipped-job behaviour on GitHub's runners and a publication with a partial selection are verified only through these offline models.

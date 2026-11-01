@@ -95,23 +95,34 @@ def validate(workflows):
     deployment=workflows['build-deployments.yml']
     require(set(deployment['on'])=={'workflow_dispatch'}, 'Deployment packaging must be manual-only')
     require(deployment['concurrency']['cancel-in-progress']=='false' and 'github.ref' in deployment['concurrency']['group'], 'Deployment runs must not cancel active builds')
-    require(deployment['on']['workflow_dispatch']['inputs']['platform']['options']==['Windows Desktop','Windows Server Service','Linux Docker','Linux Native/systemd','All'], 'Deployment platform choices changed')
+    selection=deployment['on']['workflow_dispatch']['inputs']
+    require('platform' not in selection, 'The single platform input was replaced by operating_system and package')
+    require(selection['operating_system']['options']==['all','windows','linux'] and selection['operating_system']['default']=='all', 'Operating system choices changed')
+    require(selection['package']['options']==['all','windows-desktop','windows-service','linux-docker','linux-native'] and selection['package']['default']=='all', 'Package choices changed')
     inputs=deployment['on']['workflow_dispatch']['inputs']
     require(inputs['release_channel']['options']==['Alpha','Beta','Release Candidate (RC)','Stable / Production'], 'Deployment channel options changed')
     require(inputs['publish_release']['type']=='boolean' and inputs['publish_release']['default']=='false', 'Publication must be explicit and off by default')
-    require(set(deployment['jobs'])=={'validation','desktop','service','docker','native','publish'}, 'Deployment job architecture changed')
+    require(set(deployment['jobs'])=={'plan','validation','desktop','service','docker','native','publish'}, 'Deployment job architecture changed')
+    plan=deployment['jobs']['plan']
+    plan_commands='\n'.join(step.get('run','') for step in plan['steps'])
+    require('needs' not in plan and plan['runs-on']=='ubuntu-22.04' and int(plan['timeout-minutes'])<=5, 'Selection must be resolved first by a lightweight job')
+    require('deployment-release.py plan' in plan_commands and 'pip install' not in plan_commands and 'npm' not in plan_commands, 'The planning job may only run the stdlib planner')
+    require(set(plan['outputs'])=={'packages','desktop','service','docker','native'}, 'The plan must expose the resolved packages once')
+    require(deployment['jobs']['validation']['needs']=='plan', 'Expensive validation may only start after a valid selection')
+    require(plan['env']['DEPLOYMENT_OS']=='${{ inputs.operating_system }}' and plan['env']['DEPLOYMENT_PACKAGE']=='${{ inputs.package }}', 'The plan resolves exactly the dispatched inputs')
     for key in ('desktop','service','docker','native'):
         job=deployment['jobs'][key]
-        require(job['needs']=='validation', 'Platform jobs must depend only on shared validation')
-        require('inputs.platform' in job['if'] and 'All' in job['if'], 'Platform selection must include All')
+        require(job['needs']==['plan','validation'], 'Platform jobs must depend only on the selection and shared validation')
+        require(job['if']==f"${{{{ needs.plan.outputs.{key} == 'true' }}}}", 'A platform job runs only when the plan selected it')
         commands='\n'.join(s.get('run','') for s in job['steps'])
         require('deployment-package.py consume' in commands and 'check-deployment-download.py --directory' in commands, 'Attestation and distribution roundtrip are mandatory')
         require(job['outputs']=={'artifact_id':'${{ steps.distribution.outputs.artifact-id }}','package_name':'${{ steps.integrity.outputs.package_name }}','package_sha':'${{ steps.integrity.outputs.package_sha }}'}, 'Publication must use roundtrip-verified outputs')
         integrity=next((s for s in job['steps'] if s.get('id')=='integrity'),{})
         require('if' not in integrity and 'check-deployment-download.py --directory' in integrity.get('run',''), 'Integrity verification cannot be skipped')
     deployment_publish=deployment['jobs']['publish']
-    require(set(deployment_publish['needs'])=={'validation','desktop','service','docker','native'}, 'Publication must await all platform results')
-    require(deployment_publish['if']=="${{ always() && !cancelled() && inputs.publish_release && needs.validation.result == 'success' }}", 'Publication must be manual, explicit and validated')
+    require(set(deployment_publish['needs'])=={'plan','validation','desktop','service','docker','native'}, 'Publication must await the plan and all platform results')
+    require(deployment_publish['if']=="${{ always() && !cancelled() && inputs.publish_release && needs.plan.result == 'success' && needs.validation.result == 'success' }}", 'Publication must be manual, explicit, planned and validated')
+    require(deployment_publish['env'].get('DEPLOYMENT_PACKAGES')=='${{ needs.plan.outputs.packages }}' and deployment_publish['env'].get('DEPLOYMENT_OS')=='${{ inputs.operating_system }}' and deployment_publish['env'].get('DEPLOYMENT_PACKAGE')=='${{ inputs.package }}', 'Publication may collect only the planned packages')
     require(deployment_publish['concurrency']=={'group':'sap-lens-deployment-publication','cancel-in-progress':'false'}, 'Publication must be serialized without cancellation')
     require(deployment_publish['environment']['name']=="${{ inputs.release_channel == 'Stable / Production' && 'sap-lens-stable' || 'sap-lens-beta' }}", 'Stable release protection must be retained')
     commands=[s.get('run','') for s in deployment_publish['steps']]
@@ -120,7 +131,7 @@ def validate(workflows):
     download=next(s for s in deployment_publish['steps'] if s.get('uses','').startswith('actions/download-artifact@'))
     require(download['with']=={'artifact-ids':'${{ steps.eligible.outputs.artifact_ids }}','path':'dist/publication','merge-multiple':'true','digest-mismatch':'error'}, 'Collect only selected immutable same-run artifacts with strict digests')
     require(deployment_publish['env'].get('DEPLOYMENT_IDENTITY')=='${{ needs.validation.outputs.identity }}' and deployment_publish['env'].get('DEPLOYMENT_NEEDS')=='${{ toJSON(needs) }}' and deployment_publish['env'].get('PUBLISH_RELEASE')=='${{ inputs.publish_release }}', 'Publication context must come from validated job results')
-    require(not any(s.get('uses','').startswith('actions/') and 'login' in s.get('uses','') or 'release-windows.py publish' in s.get('run','') or ('deployment-release.py' in s.get('run','') and key!='publish') for key,j in deployment['jobs'].items() for s in j['steps']), 'Build jobs may not publish releases or images')
+    require(not any(s.get('uses','').startswith('actions/') and 'login' in s.get('uses','') or 'release-windows.py publish' in s.get('run','') or ('deployment-release.py' in s.get('run','') and key!='publish' and not (key=='plan' and s.get('run','').strip()=='python scripts/deployment-release.py plan')) for key,j in deployment['jobs'].items() for s in j['steps']), 'Build jobs may not publish releases or images')
     require(fast['on'] == {'push': '', 'pull_request': ''}, 'Fast must run on every push and PR without filters')
     require(full['on'] == {'pull_request': {'branches': ['main']}}, 'Full must run only on PRs targeting main')
     require(set(windows['on']) == {'workflow_dispatch'}, 'Windows must be manual-only')

@@ -235,6 +235,7 @@
     "test_deployment_contracts",
     "test_deployment_packaging",
     "test_deployment_release",
+    "test_deployment_selection",
     "test_local_build",
     "test_local_deployments",
     "test_release_automation"

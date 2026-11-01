@@ -61,8 +61,11 @@ def privacy(names):
 
 
 def prepare(version):
-    selected=os.environ.get('DEPLOYMENT_PLATFORM')
-    if selected and selected not in {'Windows Desktop','Windows Server Service','Linux Docker','Linux Native/systemd','All'}:raise ValueError('Invalid deployment platform.')
+    if os.environ.get('DEPLOYMENT_OS') or os.environ.get('DEPLOYMENT_PACKAGE'):
+        release_spec=importlib.util.spec_from_file_location('deployment_release',ROOT/'scripts/deployment-release.py')
+        release=importlib.util.module_from_spec(release_spec);release_spec.loader.exec_module(release)
+        try:release.resolve(os.environ.get('DEPLOYMENT_OS',''),os.environ.get('DEPLOYMENT_PACKAGE',''))
+        except release.DeliveryError as error:raise ValueError(str(error)) from None
     if os.environ.get('GITHUB_ACTIONS')=='true':
         if os.environ.get('DEPLOYMENT_CHANNEL'):
             release_spec=importlib.util.spec_from_file_location('deployment_release',ROOT/'scripts/deployment-release.py')
