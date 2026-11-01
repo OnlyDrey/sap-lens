@@ -96,9 +96,9 @@ def validate(workflows):
     require(set(deployment['on'])=={'workflow_dispatch'}, 'Deployment packaging must be manual-only')
     require(deployment['concurrency']['cancel-in-progress']=='false' and 'github.ref' in deployment['concurrency']['group'], 'Deployment runs must not cancel active builds')
     selection=deployment['on']['workflow_dispatch']['inputs']
-    require('platform' not in selection, 'The single platform input was replaced by operating_system and package')
-    require(selection['operating_system']['options']==['all','windows','linux'] and selection['operating_system']['default']=='all', 'Operating system choices changed')
-    require(selection['package']['options']==['all','windows-desktop','windows-service','linux-docker','linux-native'] and selection['package']['default']=='all', 'Package choices changed')
+    require({'platform','operating_system','package'}.isdisjoint(selection), 'Build selection is one build_target dropdown')
+    require(selection['build_target']['type']=='choice' and selection['build_target']['default']=='all' and
+            selection['build_target']['options']==['all','windows-all','windows-desktop','windows-service','linux-all','linux-docker','linux-native'], 'Build target choices changed')
     inputs=deployment['on']['workflow_dispatch']['inputs']
     require(inputs['release_channel']['options']==['Alpha','Beta','Release Candidate (RC)','Stable / Production'], 'Deployment channel options changed')
     require(inputs['publish_release']['type']=='boolean' and inputs['publish_release']['default']=='false', 'Publication must be explicit and off by default')
@@ -109,7 +109,7 @@ def validate(workflows):
     require('deployment-release.py plan' in plan_commands and 'pip install' not in plan_commands and 'npm' not in plan_commands, 'The planning job may only run the stdlib planner')
     require(set(plan['outputs'])=={'packages','desktop','service','docker','native'}, 'The plan must expose the resolved packages once')
     require(deployment['jobs']['validation']['needs']=='plan', 'Expensive validation may only start after a valid selection')
-    require(plan['env']['DEPLOYMENT_OS']=='${{ inputs.operating_system }}' and plan['env']['DEPLOYMENT_PACKAGE']=='${{ inputs.package }}', 'The plan resolves exactly the dispatched inputs')
+    require(plan['env']['DEPLOYMENT_TARGET']=='${{ inputs.build_target }}', 'The plan resolves exactly the dispatched build target')
     for key in ('desktop','service','docker','native'):
         job=deployment['jobs'][key]
         require(job['needs']==['plan','validation'], 'Platform jobs must depend only on the selection and shared validation')
@@ -122,7 +122,7 @@ def validate(workflows):
     deployment_publish=deployment['jobs']['publish']
     require(set(deployment_publish['needs'])=={'plan','validation','desktop','service','docker','native'}, 'Publication must await the plan and all platform results')
     require(deployment_publish['if']=="${{ always() && !cancelled() && inputs.publish_release && needs.plan.result == 'success' && needs.validation.result == 'success' }}", 'Publication must be manual, explicit, planned and validated')
-    require(deployment_publish['env'].get('DEPLOYMENT_PACKAGES')=='${{ needs.plan.outputs.packages }}' and deployment_publish['env'].get('DEPLOYMENT_OS')=='${{ inputs.operating_system }}' and deployment_publish['env'].get('DEPLOYMENT_PACKAGE')=='${{ inputs.package }}', 'Publication may collect only the planned packages')
+    require(deployment_publish['env'].get('DEPLOYMENT_PACKAGES')=='${{ needs.plan.outputs.packages }}' and deployment_publish['env'].get('DEPLOYMENT_TARGET')=='${{ inputs.build_target }}', 'Publication may collect only the planned packages')
     require(deployment_publish['concurrency']=={'group':'sap-lens-deployment-publication','cancel-in-progress':'false'}, 'Publication must be serialized without cancellation')
     require(deployment_publish['environment']['name']=="${{ inputs.release_channel == 'Stable / Production' && 'sap-lens-stable' || 'sap-lens-beta' }}", 'Stable release protection must be retained')
     commands=[s.get('run','') for s in deployment_publish['steps']]

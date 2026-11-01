@@ -156,7 +156,7 @@ class DeploymentVersionTests(unittest.TestCase):
 
     def test_build_only_prepare_resolves_identity_without_any_network_call(self):
         env = dict(GITHUB_ACTIONS='true', GITHUB_RUN_ID='123', GITHUB_RUN_NUMBER='12', GITHUB_RUN_ATTEMPT='1',
-                   DEPLOYMENT_OS='all', DEPLOYMENT_PACKAGE='all', DEPLOYMENT_CHANNEL='Beta', DEPLOYMENT_SEQUENCE='1', PUBLISH_RELEASE='false')
+                   DEPLOYMENT_TARGET='all', DEPLOYMENT_CHANNEL='Beta', DEPLOYMENT_SEQUENCE='1', PUBLISH_RELEASE='false')
         with patch.dict(os.environ, env, clear=True), patch.object(packages, 'git_sha', return_value=SHA), \
                 patch.object(packages, 'write') as write, patch('urllib.request.urlopen') as network:
             packages.prepare('0.1.0')

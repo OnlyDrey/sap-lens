@@ -61,10 +61,10 @@ def privacy(names):
 
 
 def prepare(version):
-    if os.environ.get('DEPLOYMENT_OS') or os.environ.get('DEPLOYMENT_PACKAGE'):
+    if os.environ.get('DEPLOYMENT_TARGET'):
         release_spec=importlib.util.spec_from_file_location('deployment_release',ROOT/'scripts/deployment-release.py')
         release=importlib.util.module_from_spec(release_spec);release_spec.loader.exec_module(release)
-        try:release.resolve(os.environ.get('DEPLOYMENT_OS',''),os.environ.get('DEPLOYMENT_PACKAGE',''))
+        try:release.resolve(os.environ['DEPLOYMENT_TARGET'])
         except release.DeliveryError as error:raise ValueError(str(error)) from None
     if os.environ.get('GITHUB_ACTIONS')=='true':
         if os.environ.get('DEPLOYMENT_CHANNEL'):

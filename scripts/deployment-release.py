@@ -25,8 +25,6 @@ class DeliveryError(RuntimeError):
     """Bounded operational message safe for workflow logs."""
 
 
-OPERATING_SYSTEMS = ('all', 'windows', 'linux')
-# package id -> (job key, label, artifact stem, extension, operating system, runner). The order is the build and report order.
 PACKAGES = {
     'windows-desktop': ('desktop', 'Windows Desktop', 'Windows-Desktop-x64', '.zip', 'windows', 'windows-latest'),
     'windows-service': ('service', 'Windows Server Service', 'Windows-Service-x64', '.zip', 'windows', 'windows-latest'),
@@ -35,36 +33,41 @@ PACKAGES = {
 }
 
 
-def resolve(operating_system, package):
-    """The package ids to build for an operating system and package choice. GitHub choice inputs cannot depend on each other, so this is
-    the single place that resolves them (the planning job) and rejects incompatible pairs before any expensive job starts."""
-    if operating_system not in OPERATING_SYSTEMS:
-        raise DeliveryError(f"Invalid operating system '{operating_system}'. Choose all, windows or linux.")
-    if package != 'all' and package not in PACKAGES:
-        raise DeliveryError(f"Invalid package '{package}'. Choose all, {', '.join(PACKAGES)}.")
-    if package == 'all':
-        return [name for name, row in PACKAGES.items() if operating_system in ('all', row[4])]
-    if operating_system not in ('all', PACKAGES[package][4]):
-        raise DeliveryError(f"Package '{package}' is a {PACKAGES[package][4]} package and cannot be built when the operating system is '{operating_system}'. "
-                            f"Choose operating system 'all' or '{PACKAGES[package][4]}', or package 'all'.")
-    return [package]
+# The single `build_target` choice and the packages each value builds (all seven are valid; there is nothing to combine or reject).
+BUILD_TARGETS = {
+    'all': ['windows-desktop', 'windows-service', 'linux-docker', 'linux-native'],
+    'windows-all': ['windows-desktop', 'windows-service'],
+    'windows-desktop': ['windows-desktop'],
+    'windows-service': ['windows-service'],
+    'linux-all': ['linux-docker', 'linux-native'],
+    'linux-docker': ['linux-docker'],
+    'linux-native': ['linux-native'],
+}
 
 
-def plan_summary(operating_system, package, chosen):
+def resolve(build_target):
+    """The package ids to build for the `build_target` choice. A planning job resolves it once; only an unknown value (a manual API dispatch
+    can send any string) is rejected, before any expensive job starts."""
+    if build_target not in BUILD_TARGETS:
+        raise DeliveryError(f"Invalid build target '{build_target}'. Choose one of: {', '.join(BUILD_TARGETS)}.")
+    return list(BUILD_TARGETS[build_target])
+
+
+def plan_summary(build_target, chosen):
     rows = '\n'.join(f"| {label} (`{name}`) | {runner} | {'Selected: built, verified and eligible for publication' if name in chosen else 'Not selected: skipped, never built or published'} |"
                      for name, (_, label, _, _, _, runner) in PACKAGES.items())
     publish = 'Publication is enabled: only the selected packages that pass verification are published.' if os.environ.get('PUBLISH_RELEASE') == 'true' \
         else 'Build only: Actions artifacts are created, nothing is published.'
-    return (f'### Build selection\n\nOperating system: `{operating_system}` | Package: `{package}` | Version: `{os.environ.get("BASE_VERSION", "")}` '
-            f'| Channel: {os.environ.get("DEPLOYMENT_CHANNEL", "")}\n\n{len(chosen)} of {len(PACKAGES)} packages selected. {publish}\n\n'
-            f'| Package | Runner | Decision |\n| --- | --- | --- |\n{rows}\n')
+    return (f'### Build selection\n\nBuild target: `{build_target}` | Resolved packages: {", ".join(f"`{name}`" for name in chosen)} '
+            f'| Version: `{os.environ.get("BASE_VERSION", "")}` | Channel: {os.environ.get("DEPLOYMENT_CHANNEL", "")}\n\n'
+            f'{len(chosen)} of {len(PACKAGES)} packages selected. {publish}\n\n| Package | Runner | Decision |\n| --- | --- | --- |\n{rows}\n')
 
 
 def plan():
-    operating_system, package = os.environ.get('DEPLOYMENT_OS', ''), os.environ.get('DEPLOYMENT_PACKAGE', '')
-    chosen = resolve(operating_system, package)
+    build_target = os.environ.get('DEPLOYMENT_TARGET', '')
+    chosen = resolve(build_target)
     output(packages=','.join(chosen), count=len(chosen), **{row[0]: 'true' if name in chosen else 'false' for name, row in PACKAGES.items()})
-    summary = plan_summary(operating_system, package, chosen)
+    summary = plan_summary(build_target, chosen)
     print(summary)
     if os.environ.get('GITHUB_STEP_SUMMARY'):
         with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as stream:
@@ -73,11 +76,11 @@ def plan():
 
 
 def planned(environment=None):
-    """The package ids the publisher may collect: the planning job's output, which must equal a fresh resolution of the same inputs."""
+    """The package ids the publisher may collect: the planning job's output, which must equal a fresh resolution of the same input."""
     environment = os.environ if environment is None else environment
-    chosen = resolve(environment.get('DEPLOYMENT_OS', ''), environment.get('DEPLOYMENT_PACKAGE', ''))
+    chosen = resolve(environment.get('DEPLOYMENT_TARGET', ''))
     if [item for item in environment.get('DEPLOYMENT_PACKAGES', '').split(',') if item] != chosen:
-        raise DeliveryError('The planned package list does not match the selected operating system and package.')
+        raise DeliveryError('The planned package list does not match the selected build target.')
     return chosen
 
 

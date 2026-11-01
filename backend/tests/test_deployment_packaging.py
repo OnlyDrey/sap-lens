@@ -96,7 +96,7 @@ class OrchestrationTests(unittest.TestCase):
         with self.assertRaises(ValueError):rules.validate(bad)
         bad=copy.deepcopy(current);bad['build-deployments.yml']['jobs']['native']['needs']=['plan','validation','docker']
         with self.assertRaises(ValueError):rules.validate(bad)  # packages never wait for one another
-        bad=copy.deepcopy(current);bad['build-deployments.yml']['jobs']['docker']['if']="${{ inputs.package == 'all' }}"
+        bad=copy.deepcopy(current);bad['build-deployments.yml']['jobs']['docker']['if']="${{ inputs.build_target == 'all' }}"
         with self.assertRaises(ValueError):rules.validate(bad)  # selection is decided by the plan alone
         bad=copy.deepcopy(current);bad['build-deployments.yml']['jobs']['validation']['needs']=[]
         with self.assertRaises(ValueError):rules.validate(bad)  # an invalid selection must stop before validation

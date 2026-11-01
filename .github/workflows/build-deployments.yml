@@ -2,22 +2,15 @@ name: Build Deployment Packages
 'on':
   workflow_dispatch:
     inputs:
-      operating_system:
-        description: 'Operating system to build for: all (default), windows or linux. A specific package below must belong to it.'
+      build_target:
+        description: 'Packages to build: all, a whole operating system (windows-all, linux-all) or one package'
         type: choice
         options:
         - all
-        - windows
-        - linux
-        default: all
-        required: true
-      package:
-        description: 'Package: all (default; every package of the operating system above) or one of windows-desktop (Windows Desktop), windows-service (Windows Server Service), linux-docker (Linux Docker), linux-native (Linux Native/systemd)'
-        type: choice
-        options:
-        - all
+        - windows-all
         - windows-desktop
         - windows-service
+        - linux-all
         - linux-docker
         - linux-native
         default: all
@@ -58,8 +51,7 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     env:
-      DEPLOYMENT_OS: ${{ inputs.operating_system }}
-      DEPLOYMENT_PACKAGE: ${{ inputs.package }}
+      DEPLOYMENT_TARGET: ${{ inputs.build_target }}
       BASE_VERSION: ${{ inputs.version }}
       DEPLOYMENT_CHANNEL: ${{ inputs.release_channel }}
       PUBLISH_RELEASE: ${{ inputs.publish_release }}
@@ -79,7 +71,7 @@ jobs:
       uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
       with:
         python-version: '3.12'
-    - name: Validate the operating system and package choice and resolve the packages to build
+    - name: Resolve the build target into the packages to build
       id: selection
       run: python scripts/deployment-release.py plan
   validation:
@@ -89,8 +81,7 @@ jobs:
     needs: plan
     env:
       BASE_VERSION: ${{ inputs.version }}
-      DEPLOYMENT_OS: ${{ inputs.operating_system }}
-      DEPLOYMENT_PACKAGE: ${{ inputs.package }}
+      DEPLOYMENT_TARGET: ${{ inputs.build_target }}
       DEPLOYMENT_CHANNEL: ${{ inputs.release_channel }}
       DEPLOYMENT_SEQUENCE: ${{ inputs.prerelease_number }}
       PUBLISH_RELEASE: ${{ inputs.publish_release }}
@@ -463,8 +454,7 @@ jobs:
       name: ${{ inputs.release_channel == 'Stable / Production' && 'sap-lens-stable' || 'sap-lens-beta' }}
     env:
       PUBLISH_RELEASE: ${{ inputs.publish_release }}
-      DEPLOYMENT_OS: ${{ inputs.operating_system }}
-      DEPLOYMENT_PACKAGE: ${{ inputs.package }}
+      DEPLOYMENT_TARGET: ${{ inputs.build_target }}
       DEPLOYMENT_PACKAGES: ${{ needs.plan.outputs.packages }}
       DEPLOYMENT_IDENTITY: ${{ needs.validation.outputs.identity }}
       DEPLOYMENT_NEEDS: ${{ toJSON(needs) }}
