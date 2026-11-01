@@ -102,3 +102,43 @@ the processes (within 5% instead of 3.4, 3.3 and 2.8 minutes) did not shorten th
 
 Observed flake: in a three-process run of 395 select-related tests, one test (`release-roles` multiple user groups) failed while other work shared the host and passed in seven isolated runs. No retry was added; the
 documented rule is to reproduce a parallel failure with `--browser-jobs 1 --grep TITLE` before classifying it.
+
+## Phase 6: full regression, limits and recommendations
+
+Final full regression (`regression --browser-jobs 3`, commit `9409ec9`, 4 vCPUs, Python 3.12, Node 22 in this sandbox, headless Chromium): **passed**.
+
+| Stage | Result | Time |
+| --- | --- | --- |
+| Backend (3 processes) | 896 tests, 3 skipped (PowerShell x2, PyInstaller), 0 failed | 73.6 s (processes 56.9, 50.9, 72.0 s) |
+| Production build including TypeScript | passed | 25.2 s |
+| Browser (3 processes) | 731 tests, 0 failed | 1415.8 s (processes 1369.5, 1397.5, 1413.7 s) |
+| Documentation links, workflow contracts, Lucide catalog, Ruff, ESLint, `git diff --check`, `pip check` | passed | 25 s together (ESLint 23.7 s) |
+| Total | OK | 1539.8 s (25.7 min) |
+
+Dependency audits: `npm audit --omit=dev` found 0 vulnerabilities; `pip-audit` of `backend/requirements.txt` found none. `npm audit` for development dependencies reports the 11 moderate `minimatch` advisories described under Phase 4.
+
+Against the R8 baseline (serial, `--jobs 1`: backend 170 s, browser 716 tests in 34.5 min, about 38 min in total): the browser suite now has 731 tests and finishes in 23.6 min (31% shorter wall time, 1.94 s instead of 2.89 s per test),
+the backend in 74 s, and the whole regression in 25.7 min. The three processes finished within 3% of one another. Parallelism helped; it is CPU-bound, and the gain (about 1.5x on the whole suite) matches the subset benchmark, not a
+linear speed-up.
+
+The first full run of this configuration failed three tests, which were investigated rather than retried:
+
+| Test | Cause | Outcome |
+| --- | --- | --- |
+| `settings-refinement` shared navigation and dropdown geometry | A real regression of the new Select: a plain Arrow key opened the list where the browser changes the value (failed 3 of 3 serial reruns) | Fixed: a closed select opens on Enter, Space or Alt+Arrow and leaves Arrow, Home, End and typing to the browser |
+| `release-roles` several user groups and usernames | A racy test: it read the table right after typing, before the 250 ms debounce and request applied the filter (failed about one in three runs, serial or parallel) | Fixed: the read waits until the table stops changing; the final assertion is unchanged; 10 of 10 repeated runs pass |
+| `data-aware-ux` loading and reconnect during Back and Forward | Reached the 120 s timeout under three-process load; passed 3 of 3 serial reruns and in the final full run. It is the intermittent failure noted since R6 | Not changed: no trace of a failure is retained to show the cause. Recommended: keep a retained Playwright trace for it in CI |
+
+New or environment-dependent behaviour: three-process load exposes timing-sensitive tests that a serial run hides (two of the three failures above were visible in an earlier three-process batch too). Keep `retries: 0`, reproduce a parallel failure with
+`--browser-jobs 1 --grep TITLE`, and fix racy reads at the test.
+
+### Known limitations and deferred improvements
+
+- Native Windows desktop, WebView2, the Windows service and ACLs, real systemd boot and Docker were not run; tracker items R81-03, R81-14 and R81-15 stay Not tested.
+- Sign-in throttling is per process (no shared state across workers or restarts); behind an unlisted reverse proxy every user shares the proxy's address. SEC-04 `unsafe-inline` styles and HSTS stay (HSTS belongs to the TLS proxy); `SystemCallFilter` and `MemoryDenyWriteExecute` are not applied.
+- A report description with characters outside the bundled PDF font fails the PDF explicitly; older snapshots have no imported descriptions and say so.
+- ESLint backlog: 30 hook-dependency warnings and 81 `any` uses in specs (ceiling enforced). CQ-04 to CQ-06 (unused shared components, long functions, `SettingsView`) remain.
+- No Windows or manual UI acceptance was performed by a person; every R8.1 tracker item is Not tested with approval Pending.
+
+Deployment-specific recommendations: throttle and audit sign-ins at the gateway for organisational deployments as well; list the reverse proxy in `SAP_LENS_TRUSTED_PROXIES` and make it set `X-Forwarded-For`; use `chmod 600` secrets and set `SAP_LENS_AUTH_SECRET_GROUP_READ=1` only where another account must read the file;
+confirm the Windows secret ACL with `icacls` after any manual change; boot the hardened systemd unit once before relying on it.
