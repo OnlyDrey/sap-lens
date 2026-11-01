@@ -223,11 +223,21 @@ class WindowsPackageTests(unittest.TestCase):
             distribution.assert_not_called()
         self.assertIn('Build metadata changed',output.getvalue())
 
+    def test_missing_or_malformed_expected_identity_is_diagnosable_and_private(self):
+        import io,json,sys
+        from contextlib import redirect_stderr
+        for value,reason in [('', 'missing from CI environment'),('SENSITIVE_SENTINEL','invalid'),(json.dumps({'private':'SENSITIVE_SENTINEL'}),'invalid')]:
+            with self.subTest(reason=reason),patch.dict(package.os.environ,{'GITHUB_ACTIONS':'true','SAP_LENS_EXPECTED_BUILD_JSON':value}),patch.object(package,'validate_distribution') as distribution,patch.object(sys,'argv',['verify-windows-package.py']),redirect_stderr(io.StringIO()) as output:
+                with self.assertRaises(SystemExit):package.main()
+                distribution.assert_not_called()
+                self.assertIn(reason,output.getvalue());self.assertIn('phase=build-identity',output.getvalue())
+                self.assertNotIn('SENSITIVE_SENTINEL',output.getvalue())
+
     def test_direct_ci_cli_resolves_beta_identity_without_test_pythonpath(self):
         """Reproduce the Windows CLI process, not the test runner's import context."""
         import json, os, shutil, subprocess
-        from version import make_build_info
-        identity = make_build_info('beta', '0.1.0', 'a'*40, '39751089179', '23', 1, 1)
+        from version import make_deployment_info
+        identity = make_deployment_info('1.0.0', 'beta', '1', 'a'*40, '41340859408', '23', 1)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root/'scripts').mkdir()

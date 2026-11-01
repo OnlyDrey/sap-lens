@@ -102,3 +102,37 @@ class OrchestrationTests(unittest.TestCase):
         with self.assertRaises(ValueError):rules.validate(bad)  # an invalid selection must stop before validation
         bad=copy.deepcopy(current);bad['build-deployments.yml']['on']['push']=''
         with self.assertRaises(ValueError):rules.validate(bad)
+
+    def test_native_auditor_and_desktop_identity_are_required_on_package_jobs(self):
+        spec=importlib.util.spec_from_file_location('workflow_package_rules',ROOT/'scripts/check-workflows.py')
+        rules=importlib.util.module_from_spec(spec);spec.loader.exec_module(rules)
+        current=rules.load_workflows();rules.validate(current)
+        for change in ('missing-audit','late-audit','conditional-audit','missing-identity','wrong-identity'):
+            bad=copy.deepcopy(current);jobs=bad['build-deployments.yml']['jobs'];steps=jobs['native']['steps']
+            audit=next(step for step in steps if step.get('run')=='python -m pip install -r scripts/requirements-audit.txt')
+            if change=='missing-audit':steps.remove(audit)
+            elif change=='late-audit':steps.remove(audit);steps.append(audit)
+            elif change=='conditional-audit':audit['if']='false'
+            elif change=='missing-identity':jobs['desktop']['env'].pop('SAP_LENS_EXPECTED_BUILD_JSON')
+            else:jobs['desktop']['env']['SAP_LENS_EXPECTED_BUILD_JSON']='${{ inputs.version }}'
+            with self.subTest(change=change),self.assertRaises(ValueError):rules.validate(bad)
+
+    def test_server_data_sources_resolve_from_nested_spec_directory(self):
+        from PyInstaller.building.utils import format_binaries_and_datas
+        import re
+        script=(ROOT/'scripts/build-server-windows.ps1').read_text()
+        # Use the actual script's rooted variables and data arguments, not another packaging implementation.
+        assignments=dict(re.findall(r"\$(\w+)=Join-Path \$root '([^']+)'",script))
+        sources=re.findall(r'--add-data "\$(\w+);([^"\n]+)"',script)
+        self.assertEqual(len(sources),4)
+        with tempfile.TemporaryDirectory(prefix='SAP Lens server ø ') as directory:
+            root=Path(directory);spec=root/'backend/build/server';spec.mkdir(parents=True)
+            for variable,destination in sources:
+                self.assertIn(variable,assignments)
+                source=root/assignments[variable]
+                if variable=='frontendDist':source.mkdir(parents=True);(source/'index.html').write_text('synthetic compiled frontend')
+                else:source.parent.mkdir(parents=True,exist_ok=True);source.write_bytes(b'synthetic asset')
+                resolved=format_binaries_and_datas([(str(source),destination)],workingdir=str(spec))
+                self.assertTrue(resolved)
+                self.assertTrue(all(Path(path).is_file() and Path(path).is_relative_to(root) for _,path in resolved))
+            self.assertIn("--paths (Join-Path $root 'backend')",script)

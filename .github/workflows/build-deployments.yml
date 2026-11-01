@@ -184,6 +184,7 @@ jobs:
     if: ${{ needs.plan.outputs.desktop == 'true' }}
     env:
       RELEASE_MODE: build
+      SAP_LENS_EXPECTED_BUILD_JSON: ${{ needs.validation.outputs.identity }}
       RELEASE_VERSION: ${{ inputs.version }}
     steps:
     - name: Check out exact source
@@ -397,6 +398,8 @@ jobs:
         digest-mismatch: error
     - name: Verify and consume validated inputs
       run: python scripts/deployment-package.py consume --archive backend/build/shared/validated-inputs.zip
+    - name: Install pinned package audit tooling
+      run: python -m pip install -r scripts/requirements-audit.txt
     - name: Build and smoke-test platform package
       run: 'python scripts/deployment-package.py native
 

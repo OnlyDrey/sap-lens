@@ -119,6 +119,11 @@ def validate(workflows):
         require(job['outputs']=={'artifact_id':'${{ steps.distribution.outputs.artifact-id }}','package_name':'${{ steps.integrity.outputs.package_name }}','package_sha':'${{ steps.integrity.outputs.package_sha }}'}, 'Publication must use roundtrip-verified outputs')
         integrity=next((s for s in job['steps'] if s.get('id')=='integrity'),{})
         require('if' not in integrity and 'check-deployment-download.py --directory' in integrity.get('run',''), 'Integrity verification cannot be skipped')
+    require(deployment['jobs']['desktop']['env'].get('SAP_LENS_EXPECTED_BUILD_JSON')=='${{ needs.validation.outputs.identity }}', 'Desktop verification requires the shared resolved build identity')
+    native_steps=deployment['jobs']['native']['steps']
+    audit_steps=[i for i,step in enumerate(native_steps) if step.get('run')=='python -m pip install -r scripts/requirements-audit.txt']
+    smoke_steps=[i for i,step in enumerate(native_steps) if 'test-native-deployment.py' in step.get('run','')]
+    require(len(audit_steps)==len(smoke_steps)==1 and audit_steps[0]<smoke_steps[0] and 'if' not in native_steps[audit_steps[0]], 'Native package auditing must be provisioned before the mandatory smoke test')
     deployment_publish=deployment['jobs']['publish']
     require(set(deployment_publish['needs'])=={'plan','validation','desktop','service','docker','native'}, 'Publication must await the plan and all platform results')
     require(deployment_publish['if']=="${{ always() && !cancelled() && inputs.publish_release && needs.plan.result == 'success' && needs.validation.result == 'success' }}", 'Publication must be manual, explicit, planned and validated')
