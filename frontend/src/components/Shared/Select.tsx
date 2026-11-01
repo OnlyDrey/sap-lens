@@ -24,7 +24,7 @@ const commit = (select: HTMLSelectElement, value: string) => {
  * browser-drawn popup with the list used by the searchable Combobox and the multi-select filter: same surface, spacing, highlight, accent
  * and check mark for the selected option. The list is a portal, so scrolling containers, dialogs and sidebars never clip it.
  *
- * Keyboard (closed): Enter, Space, Arrow Up/Down or Alt+Arrow Down open it. Keyboard (open): Arrow Up/Down, Home, End, Page Up/Down move,
+ * Keyboard (closed): Enter, Space or Alt+Arrow open it; a plain Arrow key still changes the value, as in the browser. Keyboard (open): Arrow Up/Down, Home, End, Page Up/Down move,
  * Enter or Space choose, typing jumps to a matching label, Escape and Tab close it (Escape does not reach a surrounding dialog).
  * Multiple or sized selects keep the browser control. Use `Combobox` when the user needs to search or enter a value.
  */
@@ -86,7 +86,8 @@ export function Select({ className = 'ui-control', onMouseDown, onKeyDown, onBlu
     if (event.defaultPrevented || !enhanced) return
     const { key } = event
     if (!open) {
-      if (key === 'Enter' || key === ' ' || key === 'ArrowDown' || key === 'ArrowUp') { event.preventDefault(); show() }
+      // Closed: Enter, Space and Alt+Arrow open the list; a plain Arrow, Home, End and typing keep the browser's behaviour (they change the value and fire `change`).
+      if (key === 'Enter' || key === ' ' || (event.altKey && (key === 'ArrowDown' || key === 'ArrowUp'))) { event.preventDefault(); show() }
       return
     }
     if (key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); return }

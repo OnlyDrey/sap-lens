@@ -83,7 +83,7 @@ test('standard select: keyboard operation, Escape stays local and typing jumps t
   const select = page.getByRole('combobox', { name: 'Demo select', exact: true })
   await select.scrollIntoViewIfNeeded(); await page.keyboard.press('Shift'); await select.focus()
   const list = page.locator('.select-popup').getByRole('listbox')
-  await page.keyboard.press('ArrowDown'); await expect(list).toBeVisible()
+  await page.keyboard.press('Alt+ArrowDown'); await expect(list).toBeVisible()
   await expect(select).toHaveAttribute('aria-activedescendant', /option-0$/)
   await page.keyboard.press('ArrowDown'); await expect(select).toHaveAttribute('aria-activedescendant', /option-1$/)
   await page.keyboard.press('ArrowDown'); await expect(select).toHaveAttribute('aria-activedescendant', /option-3$/)  // the disabled option is skipped
@@ -95,7 +95,8 @@ test('standard select: keyboard operation, Escape stays local and typing jumps t
   await page.keyboard.type('al'); await expect(select).toHaveAttribute('aria-activedescendant', /option-0$/) // typeahead: "All demo values"
   await page.keyboard.press('Escape'); await expect(list).toHaveCount(0); await expect(select).toHaveValue('active'); await expect(select).toBeFocused()
   await page.keyboard.press('Enter'); await page.keyboard.press('ArrowUp'); await page.keyboard.press(' '); await expect(select).toHaveValue('all') // Enter opens, Space chooses the highlighted option
-  await page.keyboard.press('ArrowUp'); await expect(list).toBeVisible(); await page.keyboard.press('Tab'); await expect(list).toHaveCount(0)
+  await page.keyboard.press('ArrowDown'); await expect(select).toHaveValue('active'); await expect(list).toHaveCount(0) // closed: a plain arrow key changes the value like a browser select
+  await page.keyboard.press('Alt+ArrowUp'); await expect(list).toBeVisible(); await page.keyboard.press('Tab'); await expect(list).toHaveCount(0)
   // Escape closes only the list while a dialog is open
   await page.getByRole('button', { name: 'Open demo dialog' }).scrollIntoViewIfNeeded(); await page.getByRole('button', { name: 'Open demo dialog' }).click()
   const dialog = page.getByRole('dialog', { name: 'Isolated component dialog' })

@@ -29,6 +29,12 @@ const pick = async (page: Page, label: string, option: string) => {
   await box.click(); await box.fill(option)
   await page.getByRole('option', { name: option, exact: true }).click()
 }
+/** The query applies after a 250 ms debounce and one request: read the table only once it has stopped changing. */
+const settledRoles = async (page: Page) => {
+  let last = '', stable = 0
+  await expect.poll(async () => { const now = JSON.stringify(await tableRoles(page)); stable = now === last ? stable + 1 : 0; last = now; return stable }, { intervals: [200], timeout: 20_000 }).toBeGreaterThanOrEqual(4)
+  return JSON.parse(last) as string[]
+}
 const tableRoles = (page: Page) => page.getByRole('region', { name: 'Release role results' }).getByRole('button', { name: 'Release role details' }).allInnerTexts().then(list => list.sort())
 const E2 = 'ZO:MM:M:PR_REL_ST_E2_N1:ALL', E3 = 'ZO:MM:M:PO_REL_ST_E3_N2:ALL', N1 = 'ZO:MM:M:PR_REL_ST_N1_N1:ALL'
 
@@ -234,10 +240,10 @@ test('SAP User Groups are multi-select and username or role search accepts sever
   const username = page.getByRole('combobox', { name: 'Release username', exact: true })
   await username.fill('u1')
   await username.press('Escape')
-  const one = await names()
+  const one = await settledRoles(page)
   await username.fill('u2')
   await username.press('Escape')
-  const two = await names()
+  const two = await settledRoles(page)
   await username.fill('u1, u2')
   await username.press('Escape')
   await expect.poll(names).toEqual([...new Set([...one, ...two])].sort())
