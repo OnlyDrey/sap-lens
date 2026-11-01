@@ -11,6 +11,7 @@ import json
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -145,10 +146,24 @@ def build_frontend(force: bool = False) -> dict | None:
     return step('build (includes TypeScript check)', [npm(), '--prefix', str(FRONTEND), 'run', 'build'])
 
 
+def busy_ports(jobs: int) -> list[int]:
+    """Ports of this run that another process already listens on. The runner reports them; it never stops a process."""
+    busy = []
+    for port in range(BASE_PORT, BASE_PORT + jobs):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            if probe.connect_ex(('127.0.0.1', port)) == 0:
+                busy.append(port)
+    return busy
+
+
 def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str, extra: list[str]) -> dict:
     """Shard across `jobs` independent Playwright processes, each with its own server, port and storage."""
     started = time.perf_counter()
     files = [f'tests/{name}.spec.ts' for name in specs] if specs is not None else []
+    if (busy := busy_ports(jobs)):
+        sys.stderr.write(f"Browser test port(s) {', '.join(map(str, busy))} already in use by another process (a stale test server?). "
+                         "Stop that process yourself (find it with `ss -ltnp`); the runner never signals processes it did not start.\n")
+        return {'name': label, 'tests': 0, 'failures': 0, 'errors': 1, 'skipped': [], 'seconds': 0.0, 'ok': False}
     if specs is not None and not files:
         return {'name': label, 'tests': 0, 'failures': 0, 'errors': 0, 'skipped': [], 'seconds': 0.0, 'ok': True}
     with tempfile.TemporaryDirectory(prefix='sap-lens-browser-') as scratch:
