@@ -65,6 +65,7 @@ test('Risk Acceptance rows put checkbox, Risk ID, status and a right-aligned Dec
   await openSod(page, 'Risk Matrix')
   await page.getByRole('button', { name: new RegExp(`^${names.a}, risk R1:`) }).click()
   const panel = page.getByRole('dialog', { name: new RegExp(`${names.a} · R1`) })
+  await panel.getByRole('tab', { name: /^Risks/ }).click()
   const row = panel.locator('.sod-review-row').filter({ has: page.getByRole('button', { name: /^Decide risk acceptance / }) }).first()
   await expect(row).toBeVisible()
   const [box, decide, check, status] = [await row.locator('.sod-review-compact').boundingBox(), await row.getByRole('button', { name: /^Decide risk acceptance / }).boundingBox(), await row.getByRole('checkbox').boundingBox(), await row.locator('.sod-review-compact .evidence-badge').first().boundingBox()]

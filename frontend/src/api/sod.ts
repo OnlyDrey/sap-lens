@@ -232,6 +232,8 @@ export const REPORT_NAME = /^sap-lens-(sod-report-[a-f0-9]{32}|access-remediatio
 
 /** One filtered assignment, identified by its stable assignment id and carrying the evidence version the review is bound to. */
 export interface AssignmentPick {
+  has_review?: boolean
+  previous_decision?: string
   key: string
   user: string
   ref: string

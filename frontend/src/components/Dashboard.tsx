@@ -99,7 +99,7 @@ export function Dashboard() {
   const sourceEvidence=useSourceEvidence('roles')
   const configuration=useQuery({queryKey:['configuration'],queryFn:fetchConfiguration})
   const sodEnabled=configuration.data?.settings.features?.sod===true
-  const sodSummary=useQuery({queryKey:['sod-overview'],enabled:sodEnabled,queryFn:()=>apiRequest<{governance:{available:boolean;reason?:string|null;missing?:string[];users_with_conflicts?:number;user_risk_findings?:number;activities?:Record<string,number>;acceptance?:Record<string,number>;remediation?:{open_actions:number;overdue:number}}}>('/api/sod/overview')})
+  const sodSummary=useQuery({queryKey:['sod-overview'],enabled:sodEnabled,queryFn:()=>apiRequest<{governance:{available:boolean;reason?:string|null;missing?:string[];users_with_conflicts?:number;user_risk_findings?:number;activities?:Record<string,number>;acceptance?:Record<string,number>;review_coverage?:Record<string,{total:number;reviewed:number}>;remediation?:{open_actions:number;overdue:number}}}>('/api/sod/overview')})
   const openSod=(sodView:'overview'|'risk-matrix'|'activity-matrix'|'reviews')=>change({page:'sod',sodView,settings:false,detailRole:null})
   const query = useQuery({
     queryKey: ['dashboard'],
@@ -252,7 +252,9 @@ export function Dashboard() {
     if (!g || (!g.available && loading)) return card('Segregation of Duties', <ShieldAlert size={18}/>, (
       <p className="dashboard-card-state ui-description" role="status"><Loader2 size={14} className="animate-spin" aria-hidden="true"/>Preparing SoD analysis…</p>
     ), { note })
-    const pending = (g.activities?.Pending || 0) + (g.activities?.Outdated || 0) + (g.acceptance?.Pending || 0) + (g.acceptance?.Outdated || 0)
+    const pending = g.review_coverage
+      ? Object.values(g.review_coverage).reduce((total,item)=>total+Math.max(0,item.total-item.reviewed),0)
+      : (g.activities?.Pending || 0) + (g.activities?.Outdated || 0) + (g.acceptance?.Pending || 0) + (g.acceptance?.Outdated || 0)
     if (g.available) return card('Segregation of Duties', <ShieldAlert size={18}/>, (
       <InfoList label="Segregation of Duties">
         <InfoRow icon={<ConflictUsers size={16} aria-hidden="true"/>} label="Users with potential conflicts" value={(g.users_with_conflicts ?? 0).toLocaleString()} tone={kpiTone('users_with_conflicts', g.users_with_conflicts ?? 0)} onClick={() => openSod('risk-matrix')} navigates data={{ metric: 'sod_conflicts' }}/>

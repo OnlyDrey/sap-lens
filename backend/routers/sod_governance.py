@@ -447,8 +447,8 @@ def queue_users(q: dict = Depends(scope_query), progress: Literal['', 'outstandi
         if queue_sort=='risk':return ratio(row['acceptance'])
         if queue_sort=='acceptance':return ratio(row['formal_acceptance'])
         if queue_sort=='removal':return row['removal']
-        return -row['outstanding']
-    result.sort(key=order,reverse=q['descending'])
+        return row['outstanding']==0
+    result.sort(key=order,reverse=q['descending'] if queue_sort else False)
     return dict(info(bundle), items=result[offset:offset + limit], total=len(result), counts=counts, offset=offset, limit=limit)
 
 
@@ -537,10 +537,12 @@ SELECTION_LIMIT = 5000
 @router.get('/explorer/access_list/selection')
 def assignment_selection(q: dict = Depends(scope_query)):
     """Stable identifiers of every filtered assignment (all pages) for bulk review; the same dataset as rows, counts and CSV export."""
+    before=scope.revision()
     bundle, rows = _explorer('access_list', q)
+    if scope.revision()!=before: raise HTTPException(409,'Review decisions changed during preview. Reload before selecting assignments.')
     items = [dict(key=row['id'], user=row['user'], ref=row['role'], suffix=row['suffix'], evidence_version=row['evidence_version'],
-                  decision=row['decision'], user_group=row['user_group']) for row in rows[:SELECTION_LIMIT]]
-    return dict(info(bundle), items=items, matching_users=len({row['user'] for row in rows}), matching_roles=len({row['role'] for row in rows}), total=len(rows), truncated=len(rows) > SELECTION_LIMIT, limit=SELECTION_LIMIT)
+                  decision=row['decision'], user_group=row['user_group'],has_review=row['has_review'],previous_decision=row['previous_decision']) for row in rows[:SELECTION_LIMIT]]
+    return dict(info(bundle), revision=before, items=items, matching_users=len({row['user'] for row in rows}), matching_roles=len({row['role'] for row in rows}), total=len(rows), truncated=len(rows) > SELECTION_LIMIT, limit=SELECTION_LIMIT)
 
 
 BULK_MAX = 1000
@@ -609,7 +611,9 @@ def _bulk_assignment_review(body: BulkAssignmentBody):
         if body.action == 'Investigate' and current == 'Investigate':
             skipped.append(dict(key=item.key, user=item.user, ref=item.ref, reason='Already under investigation.'))
             continue
-        if current in PROTECTED and not body.replace_existing:
+        previous=state['assignment'][key][1]
+        protected=current in PROTECTED or body.atomic and previous is not None and previous.decision!='Pending'
+        if protected and not body.replace_existing:
             skipped.append(dict(key=item.key, user=item.user, ref=item.ref, reason=f'Already reviewed ({current}); replacing needs explicit confirmation.'))
             continue
         ready.append(dict(key=key, user=item.user, ref=item.ref, evidence_version=version, evidence=evidence))

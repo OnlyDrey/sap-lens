@@ -334,7 +334,9 @@ def explorer_rows(table, model, state):
                 rows.append(dict(user=user, id=aid, role=assignment['role'], suffix=role_suffix(assignment['role']), evidence_version=assignment['evidence_version'], valid_from=assignment['valid_from'], valid_to=assignment['valid_to'],
                                  interval_status=assignment['interval_status'], user_group=assignment['user_group'],
                                  activities=sorted(assignment['supplies']), risks=sorted(assignment['risks']),
-                                 catalogue_roles=sorted(assignment['catalogue_roles']), decision=state['assignment'][aid][0]))
+                                 catalogue_roles=sorted(assignment['catalogue_roles']), decision=state['assignment'][aid][0],
+                                 has_review=bool(state['assignment'][aid][1] and state['assignment'][aid][1].decision!='Pending'),
+                                 previous_decision=state['assignment'][aid][1].decision if state['assignment'][aid][1] else ''))
     if table == 'lookup':
         roles = {}
         for user, entry in model.items():

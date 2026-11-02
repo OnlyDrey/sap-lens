@@ -47,3 +47,10 @@ class ExactGroupTests(fixture.GovernanceCase):
         self.assertEqual(default[-1]['user'],subject)
         page=self.get('/api/sod/queue/users',groups=self.groups,queue_sort='username',offset=2,limit=1)
         self.assertEqual(page['items'][0]['user'],'SYN_FILTER_2')
+
+    def test_default_queue_prioritizes_pending_users_then_username_not_item_count(self):
+        cache._cache=fixture.snapshot(extra_users={'SYN_00':fixture.user('ROLE_AB')})
+        for descending in (False,True):
+            rows=self.get('/api/sod/queue/users',group='FIN',descending=descending)['items']
+            self.assertEqual([row['user'] for row in rows],['SYN_00','SYN_A'])
+            self.assertLess(rows[0]['outstanding'],rows[1]['outstanding'])

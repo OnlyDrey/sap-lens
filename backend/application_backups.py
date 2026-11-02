@@ -30,9 +30,14 @@ FORBIDDEN = {'.exe','.dll','.py','.pyc','.ps1','.sh','.bat','.cmd','.so'}
 def stamp(): return datetime.now(timezone.utc).isoformat()
 
 
-def area(data=None):
-    data = engine.directory(data or config_dir())
+def area(data=None, *, create=True):
+    configured=Path(data or config_dir()).expanduser()
+    if not configured.is_absolute(): raise engine.MaintenanceError('Use an absolute application data directory.')
+    # The configured runtime root may be an administrator-selected alias. Resolve
+    # it once; archive/staging members and the private operation directory may not be links.
+    data = engine.directory(configured.resolve())
     root = engine.directory(data / '.application-backups')
+    if not create: return root
     root.mkdir(mode=0o700,parents=True,exist_ok=True)
     if os.name != 'nt': root.chmod(0o700)
     elif (str(root),root.stat().st_ino) not in _secured:
@@ -48,7 +53,7 @@ def area(data=None):
 def path_for(identity, data=None):
     if not ID.fullmatch(identity): raise engine.MaintenanceError('Invalid backup operation.')
     path=area(data)/identity
-    if path.is_symlink(): raise engine.MaintenanceError('Backup operation cannot be a link.')
+    if engine.linked(path): raise engine.MaintenanceError('Backup operation cannot be a link.')
     return path
 
 
@@ -58,9 +63,9 @@ def write(path,value):
 
 
 def read(data=None):
-    path=area(data)/'operation.json'
+    path=area(data,create=False)/'operation.json'
     if not path.exists(): return {'status':'idle'}
-    if path.is_symlink() or path.stat().st_size>32000: raise engine.MaintenanceError('Backup operation metadata is invalid.')
+    if engine.linked(path) or path.stat().st_size>32000: raise engine.MaintenanceError('Backup operation metadata is invalid.')
     return json.loads(path.read_text())
 
 
@@ -77,7 +82,7 @@ def protected(data, server=None):
     values.extend(os.environ.get(key,'') for key in ('SAP_LENS_TLS_CERT_FILE','SAP_LENS_TLS_KEY_FILE'))
     for value in values:
         if value:
-            candidate=Path(value).absolute()
+            candidate=Path(value).expanduser().resolve()
             if candidate.is_relative_to(data): roots.add(candidate.relative_to(data).parts[0])
     for item in engine.walk_files(data,{'.application-backups'}):
         if item.suffix.lower() in SECRET_SUFFIXES or item.name in {'.env','server.env','users.json','accounts.json'}:
@@ -131,7 +136,7 @@ def validate_store(root, exclude=()):
     assets=set()
     parsed=[]
     for item in engine.walk_files(root,exclude):
-        if item.is_symlink() or item.suffix.lower() in SECRET_SUFFIXES|FORBIDDEN or item.name in {'.env','server.env','users.json','accounts.json'}:
+        if engine.linked(item) or item.suffix.lower() in SECRET_SUFFIXES|FORBIDDEN or item.name in {'.env','server.env','users.json','accounts.json'}:
             raise engine.MaintenanceError('Archive contains security configuration or executable content; use an application-data backup.')
         if re.fullmatch(r'[a-f0-9]{64}',item.stem):
             if engine.digest(item)!=item.stem: raise engine.MaintenanceError('Immutable file digest does not match.')
@@ -315,7 +320,7 @@ def download(identity,kind='backup',data=None):
     if kind not in {'backup','destination-before-restore'}: raise engine.MaintenanceError('Unknown backup download.')
     operation=path_for(identity,data)
     path=operation/(kind+'.tar.gz')
-    if path.is_symlink() or not path.is_file(): raise engine.MaintenanceError('Backup is not available. Restart to complete a pending backup.')
+    if engine.linked(path) or not path.is_file(): raise engine.MaintenanceError('Backup is not available. Restart to complete a pending backup.')
     return path
 
 
@@ -323,7 +328,7 @@ def download(identity,kind='backup',data=None):
 def uploaded(data=None):
     with lock:
         idle_required(data)
-        previews=sorted((p for p in area(data).iterdir() if p.is_dir() and not p.is_symlink() and (p/'preview.json').is_file() and not (p/'destination-before-restore.tar.gz').exists()),key=lambda p:p.stat().st_mtime)
+        previews=sorted((p for p in area(data).iterdir() if p.is_dir() and not engine.linked(p) and (p/'preview.json').is_file() and not (p/'destination-before-restore.tar.gz').exists()),key=lambda p:p.stat().st_mtime)
         for stale in previews[:-2]: shutil.rmtree(stale)
         identity=uuid4().hex;operation=path_for(identity,data);operation.mkdir(mode=0o700)
     try: yield identity,operation/'archive.tar.gz'

@@ -15,7 +15,7 @@ const pressed = async (page: Page, role: string) => ({
 async function openUser(page: Page) {
   await openSod(page, 'Risk Matrix')
   await page.getByRole('button', { name: new RegExp(`^Open ${names.a}`) }).click()
-  const quick = section(page).getByRole('group', { name: 'Quick review details' })
+  const quick = page.getByRole('dialog', { name: new RegExp(`^${names.a}`) })
   await quick.getByRole('textbox', { name: 'Reviewer (self-reported)', exact: true }).fill('Synthetic Reviewer')
 }
 

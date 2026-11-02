@@ -93,3 +93,36 @@ The `digest-mismatch: error` line was configuration. Native artifact download
 reported identical expected/actual SHA-256 and succeeded. No retries or weaker
 integrity policies were introduced. No corrected GitHub package run has been
 started or marked passed.
+
+## Local stabilization checkpoint — 2 November 2026
+
+The Work Queue/filter, canonical review-coverage and restart-based Backup & Restore
+implementation is delivered incrementally; this is **not** a full-regression pass.
+
+- Full backend recheck: **993 tests, OK, four tool-dependent skips**. All four
+  skipped PowerShell/PE-parser checks subsequently passed separately. No native
+  Windows installer, WebView2, SCM, real systemd, reboot or UNC acceptance is claimed.
+- Final directly affected bulk safety: **nine tests passed**, including protection
+  of earlier Investigate/outdated decisions and revision changes during preview.
+  The initial synthetic outdated-event fixture attempted mutation of a frozen model;
+  it was corrected to construct an immutable prior-version fixture.
+- Essential browser checks: **three passed** across the corrected shared-reviewer
+  workflow, atomic bulk overwrite/history and Dashboard/queue coverage synchronization.
+  The Dashboard check's initial navigation selector incorrectly requested a button;
+  the real navigation link is now used. These checks used an isolated server/build,
+  without restarting or replacing assets for the full run.
+- Types and isolated production frontend build passed. Existing workflow/actionlint,
+  PowerShell helper, Ruff, documentation, Lucide and dependency checks passed.
+  Production npm and installed-Python audits: no known vulnerabilities. The broader
+  development npm audit reports **11 moderate lint-toolchain findings** related to
+  `GHSA-g3hv-75wg-m249`; no forced dependency changes were applied.
+- The existing full browser run finished **733 passed / 20 failed**. Several SoD
+  tests still used the former stacked-panel/reviewer-field contract and require
+  targeted rechecks of the updated tab-aware selectors. Four startup-document
+  cases were blocked by the managed browser's `file://` administrator policy.
+  Unreviewed failures remain unresolved evidence; do not report this run as green.
+- Outgoing privacy review found no new private artifacts, credential signatures or
+  non-reserved email domains. Previously accepted historical branding is unchanged.
+  The 230-item tracker retains its manual approval fields unchanged.
+
+No packaging workflow, release, tag or native deployment run was manually dispatched.

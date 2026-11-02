@@ -1,0 +1,28 @@
+import {test,expect} from '@playwright/test'
+import {cleanup,seedGovernance,openSod,headers} from './sod-fixture'
+let directory=''
+test.beforeEach(async({request})=>{directory=await seedGovernance(request)})
+test.afterEach(async({request})=>{await cleanup(request,directory)})
+for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`Work Queue bulk review ${theme} ${width}`,async({page,request},info)=>{
+ await request.post('/api/configuration/theme',{headers,data:{theme}})
+ await page.setViewportSize({width,height:1000});await openSod(page,'Reviews')
+ const trigger=page.getByRole('button',{name:'Bulk review',exact:true});await trigger.click()
+ const panel=page.getByRole('dialog',{name:'Bulk role assignment review',exact:true})
+ await expect(panel.getByRole('table',{name:'Bulk assignment preview'}).locator('tbody tr')).toHaveCount(5)
+ const selectAll=panel.getByRole('button',{name:/^Select all 5 matching assignments/});await selectAll.click()
+ await expect(panel.getByRole('button',{name:'Continue to confirmation (5)'})).toBeEnabled()
+ const bounds=await panel.boundingBox();expect(bounds!.x).toBeGreaterThanOrEqual(0);expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(width)
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
+ await page.screenshot({path:info.outputPath(`queue-bulk-${theme}-${width}.png`)})
+ await page.keyboard.press('Escape');await expect(panel).toBeHidden();await expect(trigger).toBeFocused()
+})
+
+test('Dashboard and Work Queue agree after bulk role assessment without formal risk acceptance',async({page,request})=>{
+ const selection=await(await request.get('/api/sod/explorer/access_list/selection',{headers})).json() as import('../src/api/sod').AssignmentSelection
+ const result=await request.post('/api/sod/decisions/assignment/bulk',{headers,data:{context:'current',expected_revision:selection.revision,expected_generation:selection.generation,items:selection.items.map(({key,user,ref,evidence_version})=>({key,user,ref,evidence_version})),action:'Keep',atomic:true,reviewer:'Synthetic Reviewer',justification:'Synthetic full assignment assessment'}})
+ expect(result.ok()).toBeTruthy()
+ await page.goto('/#session=browser-test-session');await page.getByRole('link',{name:'Dashboard',exact:true}).click()
+ const metric=page.getByRole('button',{name:'SoD reviews pending',exact:true});await expect(metric.locator('strong')).toHaveText('0')
+ const overview=await(await request.get('/api/sod/overview',{headers})).json();expect(overview.governance.acceptance.Pending).toBe(3)
+ await metric.click();const queue=page.getByRole('table',{name:'SoD review work queue',exact:true});await expect(queue).toContainText('9/9');await expect(queue).toContainText('4/4')
+})

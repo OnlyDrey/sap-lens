@@ -178,7 +178,8 @@
     "sod-shared-filters",
     "sod-periods-dialogs",
     "sod-reviews-r6",
-    "sod-evidence-modals"
+    "sod-evidence-modals",
+    "sod-work-queue-visual"
    ]
   },
   "shared-ui": {

@@ -12,6 +12,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
@@ -41,9 +42,18 @@ def ensure_upgrade(installed, target):
     if version_key(target) < version_key(installed): raise MaintenanceError('Downgrades are not supported. Restore the matching application and a compatible backup explicitly.')
 
 
+def linked(path):
+    """Reject symbolic links and Windows reparse points, including junctions."""
+    try:
+        status=Path(path).lstat()
+    except FileNotFoundError:
+        return False
+    return stat.S_ISLNK(status.st_mode) or bool(getattr(status,'st_file_attributes',0)&getattr(stat,'FILE_ATTRIBUTE_REPARSE_POINT',0x400))
+
+
 def directory(value):
     value = Path(value).expanduser()
-    if not value.is_absolute() or any(part.is_symlink() for part in [value, *value.parents]):
+    if not value.is_absolute() or any(linked(part) for part in [value, *value.parents]):
         raise MaintenanceError('Use an absolute dedicated directory without links.')
     value = value.resolve()
     protected = {Path(p).resolve() for p in ('/', '/etc', '/var', '/var/lib', '/usr', '/opt', '/home', '/tmp')}
@@ -70,7 +80,7 @@ def private_file(path):
 
 def owned(data, mode, allow_legacy=False):
     marker = data / 'deployment.json'
-    if marker.is_file() and not marker.is_symlink():
+    if marker.is_file() and not linked(marker):
         if json.loads(marker.read_text(encoding='utf-8')) == {'version': 1, 'mode': mode}: return
     if allow_legacy and mode == 'desktop' and (data / 'settings.json').is_file():
         settings = json.loads((data / 'settings.json').read_text(encoding='utf-8'))
@@ -81,7 +91,7 @@ def owned(data, mode, allow_legacy=False):
 @contextmanager
 def stopped(data, mode, allow_legacy=False):
     owned(data, mode, allow_legacy)
-    if (data / '.sap-lens-instance.lock').is_symlink(): raise MaintenanceError('Storage lock may not be a link.')
+    if linked(data / '.sap-lens-instance.lock'): raise MaintenanceError('Storage lock may not be a link.')
     instance = None
     lease = None
     try:
@@ -103,11 +113,11 @@ def walk_files(root, exclude=()):
         parent=Path(base)
         if parent==root: directories[:]=[name for name in directories if name not in exclude]
         for name in directories:
-            if (parent/name).is_symlink(): raise MaintenanceError('Application storage cannot follow links.')
+            if linked(parent/name): raise MaintenanceError('Application storage cannot follow links.')
         for name in sorted(files):
             path=parent/name
             if parent==root and name in exclude: continue
-            if path.is_symlink(): raise MaintenanceError('Application storage cannot follow links.')
+            if linked(path): raise MaintenanceError('Application storage cannot follow links.')
             if path.is_file(): yield path
 
 
@@ -139,7 +149,7 @@ def backup(data, output, mode, application_version, config=None, allow_legacy=Fa
     if not output.name.endswith('.tar.gz'): raise MaintenanceError('Choose a private .tar.gz backup file.')
     version_key(application_version)
     inside_operation = _lease is not None and output.is_relative_to(data / '.application-backups') and '.application-backups' in _exclude
-    if output.exists() or output.is_symlink() or output.is_relative_to(data) and not inside_operation:
+    if output.exists() or linked(output) or output.is_relative_to(data) and not inside_operation:
         raise MaintenanceError('Choose a new backup file outside the application data directory.')
     output.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     if config is not None:
@@ -188,7 +198,7 @@ def backup(data, output, mode, application_version, config=None, allow_legacy=Fa
 
 def verify(archive, mode, target_version):
     archive = Path(archive)
-    if archive.is_symlink(): raise MaintenanceError('Backup archives may not be links.')
+    if linked(archive): raise MaintenanceError('Backup archives may not be links.')
     with tarfile.open(archive, 'r:gz') as source:
         members = []
         total = 0
@@ -261,7 +271,7 @@ def restore(archive, data, mode, target_version, config=None, confirm=False, *, 
 
 @contextmanager
 def empty_store_lock(data, mode, *, _staging=False):
-    if (data / '.sap-lens-instance.lock').is_symlink(): raise MaintenanceError('Storage lock may not be a link.')
+    if linked(data / '.sap-lens-instance.lock'): raise MaintenanceError('Storage lock may not be a link.')
     from storage_lease import StorageLease
     instance = None
     lease = None
@@ -284,7 +294,7 @@ def purge(data, mode, confirm=False):
     data = directory(data)
     with stopped(data, mode):
         paths = list(data.rglob('*'))
-        if any(path.is_symlink() or not (path.is_file() or path.is_dir()) for path in paths):
+        if any(linked(path) or not (path.is_file() or path.is_dir()) for path in paths):
             raise MaintenanceError('Unrecognized links or file types; no private data was removed.')
         files = [path for path in paths if path.is_file() and path != data / '.sap-lens-instance.lock']
         for path in files: path.unlink()

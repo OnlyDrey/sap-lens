@@ -224,3 +224,36 @@ class NativeBackupDownloadTests(unittest.TestCase):
         with patch.dict(sys.modules,{'webview':SimpleNamespace(FileDialog=SimpleNamespace(SAVE=1))}):
             self.assertTrue(owner.save_application_backup('synthetic-native-backup-token',result['id']))
         self.assertEqual(destination.read_bytes(),backups.download(result['id'],data=self.data).read_bytes())
+
+class PendingStateReadTests(unittest.TestCase):
+    def test_status_check_does_not_create_first_run_configuration(self):
+        with tempfile.TemporaryDirectory() as folder:
+            data=Path(folder)/'not-created'
+            self.assertFalse(backups.pending(data))
+            self.assertFalse(data.exists())
+
+    def test_configured_runtime_alias_reads_the_same_private_operation(self):
+        with tempfile.TemporaryDirectory() as folder:
+            data=Path(folder)/'data';data.mkdir();alias=Path(folder)/'alias'
+            try:alias.symlink_to(data,target_is_directory=True)
+            except OSError:self.skipTest('Creating directory aliases is unavailable.')
+            result=backups.request_backup(data)
+            self.assertEqual(backups.read(alias)['id'],result['id'])
+            self.assertTrue(backups.pending(alias))
+            from types import SimpleNamespace
+            server=SimpleNamespace(accounts=str(alias/'custom-auth.json'),tls_cert='',tls_key='')
+            self.assertIn('custom-auth.json',backups.protected(data,server))
+
+class ReparseBoundaryTests(unittest.TestCase):
+    def test_windows_reparse_attributes_are_rejected_without_following_the_entry(self):
+        import stat
+        from types import SimpleNamespace
+        entry=SimpleNamespace(st_mode=stat.S_IFDIR,st_file_attributes=0x400)
+        with patch.object(Path,'lstat',return_value=entry):
+            self.assertTrue(maintenance.linked(Path('/synthetic-junction')))
+
+    def test_inventory_rejects_a_reparse_directory_before_entering_it(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);redirect=root/'redirect';redirect.mkdir()
+            with patch.object(maintenance,'linked',side_effect=lambda path:Path(path)==redirect):
+                with self.assertRaises(ValueError):maintenance.inventory(root,'data')

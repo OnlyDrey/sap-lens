@@ -179,7 +179,8 @@ test.describe('SoD views', () => {
     await page.getByRole('button', { name: new RegExp(`^Open ${names.a}`) }).click()
     const panel = page.getByRole('dialog', { name: new RegExp(`^${names.a}`) })
     const section = panel.getByRole('region', { name: 'Role Assignment Review', exact: true })
-    const quick = section.getByRole('group', { name: 'Quick review details' }).getByRole('textbox', { name: 'Reviewer (self-reported)' })
+    const quick = panel.getByRole('textbox', { name: 'Reviewer (self-reported)', exact: true })
+    await expect(quick).toHaveCount(1) // shared across the Roles, Activities and Risks tabs
     await quick.fill('Session Reviewer')
     await section.getByRole('button', { name: 'Keep ROLE_B', exact: true }).click()
     await expect(section.getByRole('button', { name: 'Keep ROLE_B', exact: true })).toHaveAttribute('aria-pressed', 'true')

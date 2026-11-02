@@ -439,3 +439,32 @@ class AtomicQueueReviewTests(GovernanceCase):
                 'Keep','SpoofedReviewer','Synthetic authentication evidence',0,bulk_operation_id='c'*32)
             self.assertEqual(result['events'][0]['reviewer'],'SyntheticAuthenticated')
         finally:ACTOR.reset(token)
+    def test_atomic_investigation_requires_explicit_replacement(self):
+        self.decide('assignment',[self.assignment_item('SYN_B','ROLE_AB')],'Investigate')
+        selected=self.selection(usernames=['SYN_B'])
+        self.assertTrue(selected['items'][0]['has_review'])
+        self.assertEqual(selected['items'][0]['previous_decision'],'Investigate')
+        revision=decisions.read().revision
+        self.post('/api/sod/decisions/assignment/bulk',self.body(selected),409)
+        self.assertEqual(decisions.read().revision,revision)
+        self.post('/api/sod/decisions/assignment/bulk',self.body(selected,replace_existing=True))
+        self.assertEqual(decisions.history('assignment','current',selected['items'][0]['key'])[0]['previous_decision'],'Investigate')
+
+    def test_atomic_outdated_review_is_not_silently_overwritten(self):
+        self.decide('assignment',[self.assignment_item('SYN_B','ROLE_AB')],'Keep')
+        data=decisions.read();key=self.assignment_item('SYN_B','ROLE_AB')['key']
+        previous=data.contexts['current']['assignment'][key][-1]
+        data.contexts['current']['assignment'][key][-1]=previous.model_copy(update={'evidence_version':'f'*64})
+        decisions._write(data) # synthetic prior evidence version, never a production history edit
+        selected=self.selection(usernames=['SYN_B'])
+        self.assertEqual(selected['items'][0]['decision'],'Outdated')
+        self.assertTrue(selected['items'][0]['has_review'])
+        self.post('/api/sod/decisions/assignment/bulk',self.body(selected),409)
+        self.assertEqual(decisions.read().revision,data.revision)
+
+    def test_selection_rejects_revision_change_during_preview(self):
+        from unittest.mock import patch
+        import sod_scope as scope
+        with patch.object(scope,'revision',side_effect=[0,1]):
+            response=self.client.get('/api/sod/explorer/access_list/selection',headers=H)
+        self.assertEqual(response.status_code,409,response.text)

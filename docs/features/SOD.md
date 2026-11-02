@@ -227,7 +227,7 @@ conflict remains present until refreshed evidence verifies removal.
 Click a column heading to sort the complete filtered queue before pagination;
 click again to reverse it. Progress categories sort by reviewed/total, with an
 empty category treated as 0% and SAP username as the stable tie-break. The default
-is outstanding review count first, then username ascending. Sort state is retained
+puts users requiring review first, then username ascending (regardless of their outstanding item counts). Sort state is retained
 in navigation history and Saved Filters. Formal acceptance stays distinct from
 risk access-review completion.
 
@@ -245,8 +245,8 @@ uses the complete server-filtered scope, not just the visible preview page;
 explicit selections remain selected when filters change. Scopes above 5000 preview
 records must be narrowed, and each confirmed operation is limited to 1000 changes.
 
-Preview shows current/proposed decisions and excluded assignments. Completed
-Keep/Removal decisions are excluded by default. Including them requires the
+Preview shows current/proposed decisions and excluded assignments. Previously recorded decisions, including outdated and Investigate decisions, are
+excluded by default. Including them requires the
 additional overwrite confirmation; unchanged decisions are not written. Keep
 approves retention; Remove recommends removal, without modifying SAP. A rationale
 and reviewer are required. Authenticated server reviewers use their actual account.

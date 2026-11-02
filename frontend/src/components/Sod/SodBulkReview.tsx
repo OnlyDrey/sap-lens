@@ -28,7 +28,7 @@ export function BulkReviewDialog({ action, picks: livePicks, info, atomic=false,
   const runtime=useQuery({queryKey:['review-runtime-identity'],queryFn:()=>apiRequest<{username:string}>('/api/runtime'),retry:false})
   const effectiveReviewer=runtime.data?.username||reviewer
   const users = counted(picks.map((pick) => pick.user)), suffixes = counted(picks.map((pick) => pick.suffix || 'No suffix')), roles = new Set(picks.map((pick) => pick.ref)).size
-  const reviewed = picks.filter((pick) => pick.decision === 'Keep' || pick.decision === 'Removal required')
+  const reviewed = picks.filter((pick) => atomic&&pick.has_review || pick.decision === 'Keep' || pick.decision === 'Removal required')
   const ready = !!effectiveReviewer.trim() && !!rationale.trim() && (!reviewed.length || replace) && !busy
   const apply = async () => {
     setBusy(true); setError('')
