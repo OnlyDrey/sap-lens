@@ -1,5 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { writeFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import path from 'node:path'
 import { cleanup, enableSod, headers, openSod, seedGovernance } from './sod-fixture'
 import { openSettings } from './support'
 
@@ -47,7 +49,7 @@ test('a risk without any description says so neutrally and local business text f
   await pill(page, 'Risk', 'R2').click()
   const again = page.getByRole('dialog', { name: 'Risk R2 details' })
   await expect(again).toContainText('Local business description'); await expect(again).toContainText('Local business text')
-  await expect(again).toContainText('Unnamed approval'); await expect(again).toContainText('differs: Local name') // both kept, origins identifiable
+  await expect(again).toContainText('Unnamed approval'); await expect(again).toContainText('differs: Unnamed approval') // both kept, origins identifiable
   // local annotations survive configuration resets by design, so leave none behind for the other tests
   const latest = await (await request.get('/api/sod/catalogue', { headers, params: { search: 'R2', current: 'current', limit: '100' } })).json(), current = latest.items.find((item: { risk_id: string }) => item.risk_id === 'R2')
   expect((await request.post('/api/sod/catalogue/R2', { headers, data: { expected_revision: latest.revision, definition_version: current.definition_version, metadata: { ...current.local, explanation_en: '', display_name: '' } } })).ok()).toBeTruthy()
@@ -115,4 +117,52 @@ test('an existing file shows absent optional columns as normal, and the candidat
   const active = await (await request.get('/api/data-sources/sod/inspection', { headers })).json()
   expect(active.descriptions.optional_columns.detected).toEqual([]) // the active data was not touched
   await enableSod(request)
+})
+
+
+test('reference workbook upload enriches exact active IDs with provenance and coverage without activating unmatched definitions', async ({ page, request }, testInfo) => {
+  await reseed(request, plain)
+  const workbook = (inactive = false) => execFileSync(process.env.PYTHON || 'python', ['-c',
+    "import sys;sys.path[:0]=['backend','backend/tests'];from test_sod_reference import workbook;sys.stdout.buffer.write(workbook(risks=[('REF_UNUSED','Unused')] if sys.argv[1]=='yes' else [('R1','Curated risk'),('REF_UNUSED','Unused')],activities=[('REF_UNUSED_ACTIVITY','Unused')] if sys.argv[1]=='yes' else [('A','Curated activity')]))", inactive ? 'yes' : 'no'], { cwd: path.resolve('..'), env: { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('SAP_LENS_') && key !== 'DATA_CSV_PATH')), SAP_LENS_CONFIG_DIR: path.join(directory, 'reference-generator'), DATA_CSV_PATH: '' } })
+  try {
+    await openSettings(page, 'SoD Risk Configuration')
+    const library = page.getByRole('region', { name: 'SoD reference library' })
+    await expect(library.getByRole('button', { name: 'Import reference workbook' })).toBeEnabled()
+    await library.getByLabel('SoD reference workbook').setInputFiles({ name: 'synthetic-reference.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: workbook() })
+    await expect(library.getByRole('status')).toContainText('2 risks and 1 activities')
+    const resolved = await (await request.get('/api/sod/metadata', { headers })).json()
+    expect(resolved.risks.R1.name).toBe('Curated risk'); expect(resolved.risks.R1.origin.name).toBe('reference')
+    expect(resolved.risks.REF_UNUSED).toBeUndefined()
+    await library.getByLabel('SoD reference workbook').setInputFiles({ name: 'invalid.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: Buffer.from('invalid workbook') })
+    await expect(library.getByRole('alert')).toContainText('not a supported reference XLSX workbook')
+    await explorer(page)
+    await pill(page, 'Risk', 'R1').click()
+    const details = page.getByRole('dialog', { name: 'Risk R1 details' })
+    await expect(details).toContainText('Curated risk'); await expect(details).toContainText('Curated reference library')
+    await expect(details).toContainText('Synthetic controls'); await expect(details).toContainText('Synthetic guidance')
+    await page.keyboard.press('Escape')
+    await openSettings(page, 'Data Sources')
+    await page.getByRole('tab', { name: 'SoD Matrix', exact: true }).click()
+    await page.getByRole('region', { name: 'SoD Matrix source management', exact: true }).getByRole('button', { name: 'Preview data', exact: true }).click()
+    const inspection = page.getByRole('dialog', { name: 'SoD Matrix source inspection' })
+    await expect(inspection).toContainText('1 active risks and 1 active activities matched')
+    await expect(inspection).toContainText('REF_UNUSED')
+    for (const [width, theme] of [[375, 'light'], [1280, 'dark']] as const) {
+      await page.setViewportSize({ width, height: 900 })
+      expect((await request.post('/api/configuration/theme', { headers, data: { theme } })).ok()).toBeTruthy()
+      await page.reload()
+      await openSettings(page, 'Data Sources')
+      await page.getByRole('tab', { name: 'SoD Matrix', exact: true }).click()
+      await page.getByRole('region', { name: 'SoD Matrix source management', exact: true }).getByRole('button', { name: 'Preview data', exact: true }).click()
+      await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+      await expect(inspection).toBeVisible()
+      await inspection.getByRole('region', { name: 'Metadata coverage', exact: true }).scrollIntoViewIfNeeded()
+      expect(await inspection.getByLabel('Optional columns').locator('dd').evaluateAll(elements => elements.every(element => element.scrollWidth <= element.clientWidth))).toBeTruthy()
+      await page.screenshot({ path: testInfo.outputPath(`reference-${width}-${theme}.png`), fullPage: true })
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
+    }
+  } finally {
+    const current = await (await request.get('/api/sod/reference', { headers })).json()
+    expect((await request.put('/api/sod/reference', { headers, data: { expected_revision: current.revision, workbook_base64: workbook(true).toString('base64') } })).ok()).toBeTruthy()
+  }
 })

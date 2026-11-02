@@ -95,9 +95,9 @@ def _table(header,rows):
     return [header,*rows] if rows else []
 
 
-DESCRIPTION_SOURCES={'imported':'Imported','local':'Local fallback',None:'Not available'}
-DESCRIPTION_LEGEND=('Sources: Imported = text supplied in the SoD Matrix CSV when the evidence was captured; Local fallback = business description maintained in SAP Lens, '
-                    'used only where the import has none; Not available = no description exists. SAP Lens does not write descriptions from identifiers.')
+DESCRIPTION_SOURCES={'imported':'Imported','local':'Local override','reference':'Curated reference library',None:'Not available'}
+DESCRIPTION_LEGEND=('Sources: Imported = text supplied in the SoD Matrix CSV when the evidence was captured; Local override = business description maintained in SAP Lens, '
+                    'takes priority over imported metadata; Curated reference library = non-authoritative business guidance used when neither has text; Not available = no description exists. SAP Lens does not write descriptions from identifiers.')
 BASIS_NOTES={'captured':'These descriptions were frozen with this review period and do not change when data is imported or edited later.',
              'legacy':'This review period was captured before imported descriptions were retained. Only business descriptions maintained in SAP Lens at capture time are shown; no imported descriptions are available for this period.',
              'current':'Current evidence: descriptions reflect the data loaded now and can change after the next import. A review period freezes them.'}
@@ -109,7 +109,7 @@ def _described(entry):
     parts={field:DESCRIPTION_SOURCES[origins.get(field)] for field in ('name','description') if entry.get(field)}
     labels=set(parts.values())
     label='Not available' if not parts else next(iter(labels)) if len(labels)==1 else ' · '.join(f'{field.capitalize()}: {value}' for field,value in parts.items())
-    if origins.get('description')=='imported' and (entry.get('alternate') or {}).get('description'):label+=' (a different local description exists)'
+    if (entry.get('alternate') or {}).get('description'):label+=' (a different '+DESCRIPTION_SOURCES[entry['alternate']['description']['origin']]+' description exists)'
     return entry.get('name') or '—',entry.get('description') or '—',label
 
 

@@ -185,3 +185,30 @@ No full suite was restarted; native Windows/WebView2 acceptance is still separat
 For independent complete local validation, activate the development environment and
 run `python scripts/validate.py --level full --reports` (Windows/Linux). Native
 acceptance still requires the actual target platform.
+
+
+### SoD reference definitions — workbook integration (2026-11-02)
+
+The previously missing workbook is now available. Its schema was inspected: 11 risk
+records, 13 activity records and six terminology entries. The original file and its business
+contents remain outside Git. A bounded, formula-free XLSX importer uses the existing lxml
+dependency, a separate versioned private library and compare-and-swap atomic replacement.
+Metadata resolution now follows the requested field precedence: non-empty local override,
+imported metadata, curated reference. Only exact active matrix IDs are enriched; unmatched
+library entries cannot activate access rules. Review captures retain values and library identity.
+
+Validation: 137 distinct affected backend/runner tests passed across targeted runs
+(catalogue, metadata, reference import, reports, periods, application request limits and
+profile ownership). The existing seven-case metadata browser spec passed; its expanded
+reference upload/visual workflow was rechecked successfully after correcting the test's
+same-document navigation and exact region locator. Screenshots reviewed at 375 px/light
+and 1280 px/dark; optional-column identifiers now wrap without clipping. Generated test
+workbooks use isolated temporary configuration, not user paths.
+
+TypeScript and production Vite build passed. Targeted ESLint and Ruff passed; the full
+lint invocation also passed with its existing 111 warnings. Documentation links: 94 files,
+zero failures. No dependencies or packaging files changed; prior audits/packaging evidence
+is retained. Original workbook contents and generated screenshots are excluded from Git.
+No new personal/company data or credentials were introduced. FULL regression and native
+Windows/WebView2 acceptance were not run. This section is delivered with the focused
+`feat(sod): integrate versioned reference definitions with provenance` commit.

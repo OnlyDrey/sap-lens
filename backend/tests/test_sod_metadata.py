@@ -153,14 +153,14 @@ class ResolutionTests(Case):
         write(self.path, rows(extra)); return type('Snapshot', (), dict(sod=parse_sod(self.path)))()
 
     def test_priority_and_provenance(self):
-        self.assertEqual(sod_metadata.resolve('Imported', 'Local'), dict(value='Imported', origin='imported', alternate='Local', alternate_origin='local'))
+        self.assertEqual(sod_metadata.resolve('Imported', 'Local'), dict(value='Local', origin='local', alternate='Imported', alternate_origin='imported'))
         self.assertEqual(sod_metadata.resolve('Same', 'Same')['alternate'], '')
         self.assertEqual(sod_metadata.resolve('', 'Local'), dict(value='Local', origin='local', alternate='', alternate_origin=None))
         self.assertEqual(sod_metadata.resolve('  ', None)['origin'], None)
         saved = self.local(risks={'R1': dict(display_name='Local name', explanation_en='Local words'), 'R3': dict(explanation_en='Local only')})
         found = sod_metadata.lookup(self.snapshot(described), saved)['risks']
-        self.assertEqual((found['R1']['name'], found['R1']['origin']['name']), ('Name R1', 'imported'))  # imported wins
-        self.assertEqual(found['R1']['alternate']['name'], dict(value='Local name', origin='local'))  # both values kept, origins identifiable
+        self.assertEqual((found['R1']['name'], found['R1']['origin']['name']), ('Local name', 'local'))  # explicit local override wins
+        self.assertEqual(found['R1']['alternate']['name'], dict(value='Name R1', origin='imported'))  # both values kept, origins identifiable
         self.assertEqual((found['R3']['description'], found['R3']['origin']['description']), ('Local only', 'local'))  # local fills an imported gap
         self.assertEqual(found['R1']['criticality'], 'H')
 
@@ -211,7 +211,7 @@ class LifecycleAndApiTests(Case):
         write(self.path, rows(described)); self.activate()  # the source now supplies its own descriptions
         self.assertEqual(catalogue.read().entries['R1'].metadata.model_dump(), before)  # local store untouched
         found = self.client.get('/api/sod/metadata', headers=H).json()['risks']['R1']
-        self.assertEqual((found['name'], found['origin']['name'], found['alternate']['name']['value']), ('Name R1', 'imported', 'Our name'))
+        self.assertEqual((found['name'], found['origin']['name'], found['alternate']['name']['value']), ('Our name', 'local', 'Name R1'))
         write(self.path, rows()); self.activate()  # the source drops them again
         found = self.client.get('/api/sod/metadata', headers=H).json()['risks']['R1']
         self.assertEqual((found['name'], found['origin']['name']), ('Our name', 'local'))

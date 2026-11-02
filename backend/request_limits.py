@@ -11,9 +11,9 @@ class RequestBodyLimit:
         if scope.get('path','').startswith('/api/server/uploads/') or scope.get('path')=='/api/backups/upload':
             # Authenticated endpoint streams and enforces its source-specific bound.
             return await self.app(scope,receive,send)
-        if scope['type'] != 'http' or scope['method'] != 'POST':
+        if scope['type'] != 'http' or (scope['method'] != 'POST' and not (scope['method'] == 'PUT' and scope.get('path') == '/api/sod/reference')):
             return await self.app(scope, receive, send)
-        limits = {'/api/configuration/import':4_000_000, '/api/configuration':1_000_000,
+        limits = {'/api/sod/reference':2_800_512, '/api/configuration/import':4_000_000, '/api/configuration':1_000_000,
                   '/api/classification/preview':128_000, '/api/sod/decisions/assignment/bulk':2_000_000}
         maximum = limits.get(scope.get('path'), self.maximum)
         chunks = []

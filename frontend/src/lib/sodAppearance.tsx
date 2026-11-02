@@ -6,12 +6,12 @@ import { Popover } from '@/components/Shared/Popover'
 interface Appearance { risks: Record<string, { name: string; color: string }>; activities: Record<string, { name: string; color: string }> }
 const none: Appearance = { risks: {}, activities: {} }
 
-/** A resolved description of a risk or activity: the imported value when the SoD CSV supplies one, otherwise the local business text, with the origin of each. */
+/** A resolved description of a risk or activity: non-empty local overrides, then imported metadata, then curated references, with each value’s provenance. */
 export interface SodDescription {
-  name?: string; description?: string; impact?: string; business_process?: string; type?: string
+  name?: string; description?: string; impact?: string; controls?: string; guidance?: string; notes?: string; business_process?: string; type?: string
   criticality?: string; risks?: number
-  origin: Record<string, 'imported' | 'local'>
-  alternate?: Record<string, { value: string; origin: 'imported' | 'local' }>
+  origin: Record<string, 'imported' | 'local' | 'reference'>
+  alternate?: Record<string, { value: string; origin: 'imported' | 'local' | 'reference' }>
 }
 interface Described { risks: Record<string, SodDescription>; activities: Record<string, SodDescription> }
 const empty: Described = { risks: {}, activities: {} }
@@ -26,7 +26,7 @@ export function useSodMetadata(): Described {
   return useQuery({ queryKey: ['sod-metadata'], queryFn: () => apiRequest<Described>('/api/sod/metadata'), staleTime: 60_000, retry: false }).data || empty
 }
 
-const ORIGIN = { imported: 'Imported from the SoD CSV', local: 'Local business text' } as const
+const ORIGIN = { imported: 'Imported from the SoD CSV', local: 'Local business text', reference: 'Curated reference library' } as const
 const MISSING = 'No description available'
 const concise = (value: string, length = 150) => (value.length > length ? `${value.slice(0, length - 1).trimEnd()}…` : value)
 
@@ -37,7 +37,7 @@ export function pillSummary(kind: 'risk' | 'activity', value: string, entry?: So
   return `${kind === 'risk' ? 'Risk' : 'Activity'} ${value}${parts.length ? ` — ${parts.join(': ')}` : ` — ${MISSING}`}`
 }
 
-function Detail({ entry, field, label, required = false }: { entry: SodDescription; field: 'name' | 'description' | 'impact' | 'business_process' | 'type'; label: string; required?: boolean }) {
+function Detail({ entry, field, label, required = false }: { entry: SodDescription; field: 'name' | 'description' | 'impact' | 'business_process' | 'type' | 'controls' | 'guidance' | 'notes'; label: string; required?: boolean }) {
   const text = entry[field], origin = entry.origin[field], other = entry.alternate?.[field]
   if (!text && !other) return required ? <div><dt>{label}</dt><dd className="ui-description">{MISSING}</dd></div> : null  // a missing description is stated, never invented
   return (
@@ -61,6 +61,9 @@ function Details({ kind, value, entry }: { kind: 'risk' | 'activity'; value: str
           <Detail entry={shown} field="name" label="Display name" />
           <Detail entry={shown} field="description" label="Description" required />
           {kind === 'risk' && <Detail entry={shown} field="impact" label="Impact" />}
+          <Detail entry={shown} field="controls" label="Compensating controls" />
+          <Detail entry={shown} field="guidance" label="Review guidance" />
+          <Detail entry={shown} field="notes" label="Notes" />
           <Detail entry={shown} field="business_process" label="Business process" />
           {kind === 'activity' && <Detail entry={shown} field="type" label="Type" />}
           {kind === 'risk' && shown.criticality && <div><dt>Source criticality</dt><dd>{shown.criticality}</dd></div>}

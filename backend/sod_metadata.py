@@ -1,8 +1,6 @@
-"""One resolution of SoD descriptions for pills, investigations, Settings and diagnostics.
+"""Field-level local overrides, imported metadata, then curated reference guidance.
 
-Priority: (1) the value imported with the SoD CSV, when populated; (2) the locally maintained business value as a clearly identified fallback;
-(3) a neutral missing state. The two stores stay separate: imports never overwrite local text and local text never edits an import. When both
-exist and differ, both are kept and the origin of each is reported. Nothing here is generated from identifiers, and nothing here is read by detection.
+Detection never reads this resolver; review snapshots retain resolved values and provenance.
 """
 from types import SimpleNamespace
 
@@ -10,20 +8,22 @@ from sod_catalogue import read as read_local
 
 # Resolved field -> (key in the imported metadata, attribute of the local annotation).
 RISK_FIELDS = {'name': ('name', 'display_name'), 'description': ('description', 'explanation_en'),
-               'impact': ('impact', 'consequence_en'), 'business_process': ('business_process', 'business_category')}
+               'impact': ('impact', 'consequence_en'), 'business_process': ('business_process', 'business_category'),
+               'controls': ('controls', 'mitigating_controls_en'), 'guidance': ('guidance', 'review_guidance_en'), 'notes': ('notes', 'notes')}
 ACTIVITY_FIELDS = {'name': ('name', 'display_name'), 'description': ('description', 'explanation_en'),
-                   'business_process': ('business_process', 'business_category')}
+                   'business_process': ('business_process', 'business_category'), 'guidance': ('guidance', 'review_guidance_en'), 'notes': ('notes', 'notes')}
 IMPORTED_ONLY_ACTIVITY = ('type',)
 
 
-def resolve(imported, local):
-    """Return value, its origin ('imported', 'local' or None) and, when the other store differs, that alternate value and its origin."""
-    imported, local = (imported or '').strip(), (local or '').strip()
-    if imported:
-        return dict(value=imported, origin='imported', alternate=local if local and local != imported else '', alternate_origin='local' if local and local != imported else None)
-    if local:
-        return dict(value=local, origin='local', alternate='', alternate_origin=None)
-    return dict(value='', origin=None, alternate='', alternate_origin=None)
+def resolve(imported, local, reference=''):
+    """Non-empty local overrides win; retain the next differing source as an alternate."""
+    values = [(origin, (value or '').strip()) for origin, value in (('local', local), ('imported', imported), ('reference', reference))]
+    values = [(origin, value) for origin, value in values if value]
+    if not values:
+        return dict(value='', origin=None, alternate='', alternate_origin=None)
+    origin, value = values[0]
+    alternate = next(((other_origin, other) for other_origin, other in values[1:] if other != value), (None, ''))
+    return dict(value=value, origin=origin, alternate=alternate[1], alternate_origin=alternate[0])
 
 
 def _imported(snapshot):
@@ -32,8 +32,8 @@ def _imported(snapshot):
     return metadata.get('risks') or {}, metadata.get('activities') or {}, metadata.get('source') or {}, report.get('optional_columns') or {}
 
 
-def _entry(fields, imported, local):
-    resolved = {name: resolve(imported.get(source), getattr(local, attribute, '') if local is not None else '') for name, (source, attribute) in fields.items()}
+def _entry(fields, imported, local, reference=None):
+    resolved = {name: resolve(imported.get(source), getattr(local, attribute, '') if local is not None else '', (reference or {}).get(attribute, '')) for name, (source, attribute) in fields.items()}
     entry = {name: item['value'] for name, item in resolved.items() if item['value']}
     entry['origin'] = {name: item['origin'] for name, item in resolved.items() if item['value']}
     differing = {name: dict(value=item['alternate'], origin=item['alternate_origin']) for name, item in resolved.items() if item['alternate']}
@@ -42,11 +42,13 @@ def _entry(fields, imported, local):
     return entry
 
 
-def lookup(snapshot=None, saved=None):
+def lookup(snapshot=None, saved=None, reference=None):
     """Resolved descriptions for every risk and activity that has any: `{risks: {id: {...}}, activities: {id: {...}}}`. Empty entries are omitted."""
     import cache
     snapshot = snapshot if snapshot is not None else cache.get_snapshot()
     saved = saved if saved is not None else read_local()
+    from sod_reference import read as read_reference
+    reference = reference if reference is not None else read_reference()
     imported_risks, imported_activities, _, _ = _imported(snapshot)
     definitions = {risk['risk_id']: risk for risk in (snapshot.sod or {}).get('risks', [])}
     activities = {}
@@ -57,7 +59,7 @@ def lookup(snapshot=None, saved=None):
     risks_out, activities_out = {}, {}
     for risk_id in sorted(set(definitions) | set(saved.entries) | set(imported_risks)):
         stored = saved.entries.get(risk_id)
-        entry = _entry(RISK_FIELDS, imported_risks.get(risk_id, {}), stored.metadata if stored else None)
+        entry = _entry(RISK_FIELDS, imported_risks.get(risk_id, {}), stored.metadata if stored else None, reference.risks.get(risk_id) if risk_id in definitions else None)
         definition = definitions.get(risk_id)
         if definition:
             entry.update(criticality=definition['criticality'], type=definition['risk_type'])
@@ -65,7 +67,7 @@ def lookup(snapshot=None, saved=None):
             risks_out[risk_id] = entry
     for name in sorted(set(activities) | set(saved.activities) | set(imported_activities)):
         stored = saved.activities.get(name)
-        entry = _entry(ACTIVITY_FIELDS, imported_activities.get(name, {}), stored.metadata if stored else None)
+        entry = _entry(ACTIVITY_FIELDS, imported_activities.get(name, {}), stored.metadata if stored else None, reference.activities.get(name) if name in activities else None)
         for key in IMPORTED_ONLY_ACTIVITY:
             if imported_activities.get(name, {}).get(key):
                 entry[key] = imported_activities[name][key]
@@ -102,11 +104,18 @@ def coverage(snapshot=None, saved=None):
                 activity_ids.add(mapping['activity'])
                 transactions[mapping['tcode']] = transactions.get(mapping['tcode'], False) or bool(mapping.get('ttext'))
 
+    from sod_reference import read as read_reference, summary
+    reference = read_reference()
+    resolved = lookup(snapshot, saved, reference)
+
     def over(ids, imported, stored, source_key, local_attribute, column):
-        have = {key for key in ids if (imported.get(key) or {}).get(source_key)}
-        local = {key for key in ids - have if key in stored and getattr(stored[key].metadata, local_attribute, '').strip()}
-        differ = sum(1 for key in have if key in stored and getattr(stored[key].metadata, local_attribute, '').strip() not in ('', imported[key][source_key]))
-        return _indicator('', len(ids), len(have), len(local), column in detected, differ)
+        library = reference.risks if stored is saved.entries else reference.activities
+        origins = [resolve((imported.get(key) or {}).get(source_key), getattr(stored[key].metadata, local_attribute, '') if key in stored else '', library.get(key, {}).get(local_attribute, ''))['origin'] for key in ids]
+        imported_count, local_count, reference_count = (origins.count(origin) for origin in ('imported', 'local', 'reference'))
+        differing = sum(bool(key in stored and getattr(stored[key].metadata, local_attribute, '') and imported.get(key, {}).get(source_key) and getattr(stored[key].metadata, local_attribute) != imported[key][source_key]) for key in ids)
+        result = _indicator('', len(ids), imported_count, local_count + reference_count, column in detected, differing)
+        result.update(local_fallback=local_count, reference=reference_count)
+        return result
 
     rows = [
         dict(over(risk_ids, imported_risks, saved.entries, 'name', 'display_name', 'RISK_NAME'), id='risk_names', label='Risk display names', column='RISK_NAME'),
@@ -118,11 +127,13 @@ def coverage(snapshot=None, saved=None):
     from sod_import import OPTIONAL_FIELDS, SOURCE_METADATA
     return dict(
         indicators=rows,
+        reference={**summary(reference), 'matched_risks': len(risk_ids & reference.risks.keys()), 'matched_activities': len(activity_ids & reference.activities.keys()),
+                   'unmatched_risks': sorted(reference.risks.keys() - risk_ids), 'unmatched_activities': sorted(reference.activities.keys() - activity_ids)},
         optional_columns=dict(detected=[field for field in OPTIONAL_FIELDS if field in detected], missing=[field for field in OPTIONAL_FIELDS if field not in detected]),
         source_facts=[dict(field=column, detected=column in detected, values=source.get(key, [])) for column, key in SOURCE_METADATA.items()],
         sample=[dict(id=key, kind='risk', **{name: entry[name] for name in ('name', 'description') if name in entry}, origin=entry['origin'])
-                for key, entry in list(lookup(snapshot, saved)['risks'].items()) if 'name' in entry or 'description' in entry][:5],
-        note='Counts use distinct risks, activities and transaction codes. Local descriptions only fill gaps; no description is generated.')
+                for key, entry in list(resolved['risks'].items()) if 'name' in entry or 'description' in entry][:5],
+        note='Counts use distinct risks, activities and transaction codes. Priority: non-empty local overrides, imported metadata, then curated reference definitions. Reference records never activate risks or activities; no description is generated.')
 
 
 # ----------------------------------------------------------------------------------------------- review snapshots and reports
@@ -136,13 +147,15 @@ def frozen(snapshot, saved, risk_ids):
     The copy is stored inside the immutable snapshot, so a period's report never reads descriptions that were imported or edited later.
     Origins and differing alternates are kept; nothing is generated, and detection never reads this.
     """
-    resolved = lookup(snapshot, saved)
+    from sod_reference import read as read_reference, summary
+    reference = read_reference()
+    resolved = lookup(snapshot, saved, reference)
     wanted = set(risk_ids)
     activity_ids = {mapping['activity'] for risk in (snapshot.sod or {}).get('risks', []) if risk['risk_id'] in wanted for slot in ('ACTVT1', 'ACTVT2') for mapping in risk['activities'][slot]}
     risks = {key: {name: value for name, value in entry.items() if name not in ('criticality', 'type', 'risks')} for key, entry in resolved['risks'].items() if key in wanted}
     activities = {key: {name: value for name, value in entry.items() if name != 'risks'} for key, entry in resolved['activities'].items() if key in activity_ids}
     return dict(version=SNAPSHOT_VERSION, risks={key: entry for key, entry in risks.items() if len(entry) > 1}, activities={key: entry for key, entry in activities.items() if len(entry) > 1},
-                source=_imported(snapshot)[2])
+                source={**_imported(snapshot)[2], 'reference': summary(reference)})
 
 
 def for_period(saved):

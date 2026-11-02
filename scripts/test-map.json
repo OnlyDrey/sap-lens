@@ -139,6 +139,7 @@
     "test_sod_review_coverage",
     "test_sod_inspection",
     "test_sod_metadata",
+    "test_sod_reference",
     "test_sod_report_metadata",
     "test_sod_import",
     "test_sod_integration",

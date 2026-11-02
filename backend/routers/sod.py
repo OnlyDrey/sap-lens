@@ -182,3 +182,27 @@ def governance_overview():
                                  removal_without_action=len({(row['user'],row['assignment_id']) for row in rows if row['recommended']=='Remove assignment' and not row['action']}),
                                  verification=scope.removal_verification(actions)[0]),
                 periods=progress,change=change,as_of=bundle['as_of'])
+
+
+class ReferenceUpload(StrictModel):
+    expected_revision: int = Field(ge=0)
+    workbook_base64: str = Field(max_length=2800000)
+
+
+@router.get('/reference')
+def reference_library():
+    import sod_reference
+    return sod_reference.summary()
+
+
+@router.put('/reference')
+def replace_reference(request: ReferenceUpload):
+    import base64
+    import binascii
+    import sod_reference
+    from fastapi import HTTPException
+    try:
+        raw = base64.b64decode(request.workbook_base64, validate=True)
+    except (ValueError, binascii.Error):
+        raise HTTPException(422, 'Workbook must be valid base64.') from None
+    return sod_reference.summary(sod_reference.install(raw, request.expected_revision))

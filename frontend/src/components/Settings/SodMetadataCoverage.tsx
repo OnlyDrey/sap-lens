@@ -2,13 +2,14 @@ import { DataTable, StatusBadge } from '@/components/Shared/Presentation'
 
 export interface MetadataIndicator {
   id: string; label: string; column: string; total: number; imported: number; local_fallback: number; available: number; missing: number
-  percent: number; column_present: boolean; differing: number; state: 'complete' | 'values_missing' | 'column_absent' | 'empty'
+  reference?: number; percent: number; column_present: boolean; differing: number; state: 'complete' | 'values_missing' | 'column_absent' | 'empty'
 }
 export interface MetadataCoverage {
   indicators: MetadataIndicator[]
   optional_columns: { detected: string[]; missing: string[] }
   source_facts: { field: string; detected: boolean; values: string[] }[]
-  sample: { id: string; kind: string; name?: string; description?: string; origin: Record<string, 'imported' | 'local'> }[]
+  sample: { id: string; kind: string; name?: string; description?: string; origin: Record<string, 'imported' | 'local' | 'reference'> }[]
+  reference?: { revision: number; matched_risks: number; matched_activities: number; unmatched_risks: string[]; unmatched_activities: string[] }
   note: string
 }
 
@@ -18,11 +19,11 @@ const STATE = {
   column_absent: { tone: 'neutral', label: 'Column not in CSV' },
   empty: { tone: 'neutral', label: 'No entities' },
 } as const
-const ORIGIN = { imported: 'Imported', local: 'Local' } as const
+const ORIGIN = { imported: 'Imported', local: 'Local override', reference: 'Curated reference' } as const
 
 /**
  * Descriptive-metadata completeness of the SoD dataset over distinct risks, activities and transaction codes (not CSV rows). It separates a column the
- * CSV does not carry (normal, never an error) from a column whose values are missing, and imported values from local business text used as a fallback.
+ * CSV does not carry (normal, never an error) from a column whose values are missing, and imported values from explicit local overrides and curated reference guidance.
  */
 export function SodMetadataCoverage({ data }: { data?: MetadataCoverage | null }) {
   if (!data) return <p className="ui-description" role="status">Metadata coverage is unavailable until the local annotations can be read.</p>
@@ -37,11 +38,12 @@ export function SodMetadataCoverage({ data }: { data?: MetadataCoverage | null }
           <td className="whitespace-nowrap">{item.available.toLocaleString()} / {item.total.toLocaleString()}</td>
           <td className="whitespace-nowrap">{item.percent.toFixed(1)}%</td>
           <td className="whitespace-nowrap">{item.missing.toLocaleString()}</td>
-          <td>{item.imported.toLocaleString()} imported{item.local_fallback > 0 && <> · {item.local_fallback.toLocaleString()} local fallback</>}{item.differing > 0 && <small className="block text-muted">{item.differing.toLocaleString()} differ from local text (both kept)</small>}</td>
+          <td>{item.imported.toLocaleString()} imported{item.local_fallback > 0 && <> · {item.local_fallback.toLocaleString()} local override</>}{(item.reference ?? 0) > 0 && <> · {item.reference} curated reference</>}{item.differing > 0 && <small className="block text-muted">{item.differing.toLocaleString()} differ from local text (both kept)</small>}</td>
           <td><StatusBadge tone={STATE[item.state].tone}>{STATE[item.state].label}</StatusBadge></td>
         </tr>)}</tbody>
       </DataTable>
-      <dl className="preview-metrics" aria-label="Optional columns">
+      {data.reference && <p className="ui-description">Reference revision {data.reference.revision}: {data.reference.matched_risks} active risks and {data.reference.matched_activities} active activities matched. Unmatched reference IDs (inactive): {data.reference.unmatched_risks.concat(data.reference.unmatched_activities).join(', ') || 'None'}.</p>}
+      <dl className="preview-metrics [&_div]:min-w-0 [&_dd]:[overflow-wrap:anywhere]" aria-label="Optional columns">
         <div><dt>Optional columns detected</dt><dd>{data.optional_columns.detected.length ? data.optional_columns.detected.join(', ') : 'None'}</dd></div>
         <div><dt>Optional columns not in the CSV</dt><dd>{data.optional_columns.missing.length ? data.optional_columns.missing.join(', ') : 'None'}</dd></div>
         {data.source_facts.filter((fact) => fact.detected).map((fact) => <div key={fact.field}><dt>{fact.field}</dt><dd>{fact.values.length ? fact.values.join(', ') : 'Column present, no values'}</dd></div>)}

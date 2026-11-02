@@ -53,10 +53,10 @@ class ResolutionInReportTests(MetadataCase):
         data = self.report(pid)
         risks = self.term_rows(data, 'risk_overview', 'Risk')
         self.assertEqual(risks['R1'], ['Payables posting', 'Posting and approving a vendor invoice is incompatible. ÆØÅ é ü', 'Imported'])
-        self.assertEqual(risks['R2'], ['Vendor master', 'Local words for R2', 'Name: Imported · Description: Local fallback'])
+        self.assertEqual(risks['R2'], ['Vendor master', 'Local words for R2', 'Name: Imported · Description: Local override'])
         activities = self.term_rows(data, 'appendices', 'Activity')
         self.assertEqual(activities['A'], ['Post invoice', 'Creates a vendor invoice.', 'Imported'])
-        self.assertEqual(activities['B'], ['Approve invoice', 'Local activity B', 'Local fallback'])
+        self.assertEqual(activities['B'], ['Approve invoice', 'Local activity B', 'Local override'])
         self.assertEqual(activities['C'], ['—', '—', 'Not available'])
         text = ' '.join(self.section(data, 'risk_overview')['paragraphs'])
         self.assertIn('Imported = text supplied in the SoD Matrix CSV', text); self.assertIn('frozen with this review period', text)
@@ -65,8 +65,22 @@ class ResolutionInReportTests(MetadataCase):
         self.put_imported(); self.put_local('R1', explanation_en='Our own wording', display_name='Our name')
         data = self.report(self.period())
         row = self.term_rows(data, 'risk_overview', 'Risk')['R1']
-        self.assertEqual(row[:2], ['Payables posting', 'Posting and approving a vendor invoice is incompatible. ÆØÅ é ü'])
-        self.assertIn('a different local description exists', row[2]); self.assertNotIn('Our own wording', str(self.section(data, 'risk_overview')))  # the appendix guidance table already lists local business text under its own heading
+        self.assertEqual(row[:2], ['Our name', 'Our own wording'])
+        self.assertIn('a different Imported description exists', row[2]); self.assertIn('Our own wording', str(self.section(data, 'risk_overview')))  # the appendix guidance table already lists local business text under its own heading
+
+    def test_reference_descriptions_render_in_both_formats_and_remain_frozen(self):
+        from test_sod_reference import workbook
+        import sod_reference
+        sod_reference.install(workbook(), 0)
+        pid = self.period()
+        data = self.report(pid)
+        row = self.term_rows(data, 'risk_overview', 'Risk')['R1']
+        self.assertEqual(row[:2], ['Reference R1', 'Synthetic description'])
+        self.assertEqual(row[2], 'Curated reference library')
+        for kind in ('docx', 'pdf'):
+            self.assertTrue(reports.render(data, kind))
+        sod_reference.install(workbook(risks=[('R1', 'Replacement')]), 1)
+        self.assertEqual(self.term_rows(self.report(pid), 'risk_overview', 'Risk')['R1'], row)
 
     def test_reports_without_any_description_are_unchanged(self):
         data = self.report()
@@ -124,7 +138,7 @@ class FrozenHistoryTests(MetadataCase):
         self.assertNotIn('metadata', {key for key, value in saved.items() if value})
         data = self.report(pid)
         row = self.term_rows(data, 'risk_overview', 'Risk')['R1']
-        self.assertEqual(row, ['Local R1', 'Local words captured with the period', 'Local fallback'])
+        self.assertEqual(row, ['Local R1', 'Local words captured with the period', 'Local override'])
         text = str(data['sections'])
         self.assertIn('captured before imported descriptions were retained', text); self.assertNotIn('Payables posting', text)
         for kind in ('docx', 'pdf'): self.assertTrue(reports.render(data, kind))

@@ -1,3 +1,4 @@
+import {SodReferenceLibrary} from './SodReferenceLibrary'
 import {ExportCSVButton} from '@/components/Shared/ExportCSVButton'
 import {useState} from 'react'
 import {useQuery,useQueryClient} from '@tanstack/react-query'
@@ -26,7 +27,7 @@ const validColor=(value:string)=>value===''||/^#[0-9a-fA-F]{6}$/.test(value)
 const explanationFields=[['explanation_en','Business explanation',12000],['consequence_en','Risk consequence',8000],['mitigating_controls_en','Mitigating controls',12000],['review_guidance_en','Review guidance',8000]] as const
 export function SodRiskSettings({onConfigure}:{onConfigure:()=>void}) {
  const [tab,setTab]=useState('risks')
- return <ContentTabs label="SoD configuration" value={tab} onChange={setTab} items={[{value:'risks',label:'Risks',icon:<ShieldAlert size={16} aria-hidden="true"/>},{value:'activities',label:'Activities',icon:<Activity size={16} aria-hidden="true"/>}]}>{tab==='risks'?<RiskTab onConfigure={onConfigure}/>:<ActivityTab/>}</ContentTabs>
+ return <><SodReferenceLibrary/><ContentTabs label="SoD configuration" value={tab} onChange={setTab} items={[{value:'risks',label:'Risks',icon:<ShieldAlert size={16} aria-hidden="true"/>},{value:'activities',label:'Activities',icon:<Activity size={16} aria-hidden="true"/>}]}>{tab==='risks'?<RiskTab onConfigure={onConfigure}/>:<ActivityTab/>}</ContentTabs></>
 }
 function RiskTab({onConfigure}:{onConfigure:()=>void}) {
  const qc=useQueryClient(),[search,setSearch]=useState(''),enabled='',current='',status='',criticality='',riskType='',category='',[offset,setOffset]=useState(0),[editing,setEditing]=useState<Risk|null>(null),[error,setError]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false)

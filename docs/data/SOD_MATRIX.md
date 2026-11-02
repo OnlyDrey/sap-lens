@@ -44,12 +44,11 @@ SAP Lens maps automatically by name (or by hand under *Advanced import format an
 - **Storage.** Optional values are kept apart from the records, in the import report of the private snapshot. Per risk and per activity the first value in
   file order is kept (a conflict is counted in a warning); values longer than 4096 characters or with control characters are skipped and counted, never fatal.
   A change that touches only these descriptions is staged as a new snapshot so refreshes do not ignore it.
-- **Priority and provenance.** SAP Lens shows the imported value when it is populated, otherwise the locally maintained business text (Settings → SoD Risk
-  Configuration), otherwise "No description available". Both stores stay separate: a refresh or import never overwrites local text, and local text never edits
+- **Priority and provenance.** SAP Lens uses non-empty explicit local overrides first, imported metadata second, curated reference definitions third, otherwise "No description available". Local guidance is maintained in Settings → SoD Risk Configuration. Both stores stay separate: a refresh or import never overwrites local text, and local text never edits
   the import. Where they differ both are kept and the popover and Settings name the origin of each. One resolver (`backend/sod_metadata.py`) serves pills,
   popovers, Settings and the diagnostics.
 - **Coverage.** The SoD source inspection and the pre-import validation list, for risk names and descriptions, activity names and descriptions and transaction
-  descriptions, the available and total counts, the percentage, the missing count, imported versus local-fallback counts and a status: *Complete*,
+  descriptions, the available and total counts, the percentage, the missing count, imported, local-override and reference counts and a status: *Complete*,
   *Values missing* (column present) or *Column not in CSV*. Counts use distinct risks, activities and transaction codes, not CSV rows. Detected and missing
   optional columns, source facts such as `RULESET_ID` and a small sample of resolved metadata are shown beside it.
 
@@ -220,3 +219,41 @@ The risk catalogue (including its CSV export, both activity mappings and local
 English/Norwegian guidance) lives only in Settings → SoD Risk Configuration. A
 [synthetic matrix](../../examples/sod-matrix.example.csv) is provided for the linked example
 catalogue; its invented pairs are not production risk guidance.
+
+
+## Curated reference workbook
+
+Settings → SoD Risk Configuration → **Import reference workbook** accepts the supplied
+`SAP_SoD_Risk_and_Activity_Definitions.xlsx` schema (up to 2 MB). This is a separate,
+private business reference library, not an active matrix import or verified SAP-standard content.
+No reference definitions or original workbooks are bundled in the repository or packages.
+Select the workbook on each installation that should use it; no Node/Python tooling is required for this import.
+
+Required sheets and exact headers:
+
+| Sheet | Headers |
+|---|---|
+| Risks | Risk, Display name, Business area, Business explanation, Risk consequence, Mitigating controls, Review Guidance, Local notes |
+| Activities | Activity, Display name, Business area, Business explanation, Review Guidance, Local notes |
+| Definitions (optional) | Term, Definition |
+
+`Risk` and `Activity` are exact, case-sensitive identifiers; no fuzzy, prefix or wildcard
+matching is used. Blank optional values remain missing. Duplicate or invalid IDs, missing
+headers, formulas, external links, macros and oversized files fail before replacement.
+The Definitions sheet is retained as reference terminology and never interpreted as executable rules.
+
+A complete valid import atomically replaces `sod-reference.json` in the private configuration
+directory. Schema version, content SHA-256, import time and monotonically increasing revision
+identify its provenance. Concurrent stale replacements return 409; importing identical bytes
+is a no-op. Failed validation or writes retain the previous library. Include the private data
+directory in backups; uninstall/upgrade persistence follows the existing deployment policy.
+Local annotations, decisions, matrix snapshots and review history are never written by this operation.
+
+Only exact IDs already present in the active imported matrix receive reference enrichment.
+Unmatched definitions remain in the library without activating risks, activities, mappings or
+findings. Refresh/reimport of the matrix does not replace the library or local overrides.
+Settings → Data Sources → SoD Matrix → Preview data shows matched active counts, unmatched
+reference IDs, missing descriptions and per-field provenance. Empty local text means no override;
+non-empty local text wins. Differing imported text remains available as an alternate.
+Review-period captures freeze resolved metadata and reference identity; later library replacements
+do not alter historical evidence or reports. Existing optional CSV columns remain backward-compatible.
