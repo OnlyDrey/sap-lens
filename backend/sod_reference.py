@@ -1,6 +1,8 @@
 """Versioned private business reference library; never an active SoD source."""
 import hashlib
 import io
+import sys
+from pathlib import Path
 import re
 import zipfile
 from datetime import datetime, timezone
@@ -23,6 +25,9 @@ ACTIVITY = {key: value for key, value in RISK.items() if key not in ('Risk conse
 
 
 class Library(StrictModel):
+    origin: Literal['custom','bundled'] = 'custom'
+    library_version: str = Field(default='', max_length=40)
+    source: str = Field(default='', max_length=200)
     version: Literal[1] = 1
     revision: int = Field(default=0, ge=0)
     digest: str = Field(default='', pattern=r'^(?:[a-f0-9]{64})?$')
@@ -54,10 +59,48 @@ def _decode(raw):
     return Library.model_validate_json(raw)
 
 
+def default_path():
+    root = Path(sys._MEIPASS) if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent
+    return root / 'resources/reference-defaults.json'
+
+
+def defaults():
+    path = default_path()
+    if not path.exists(): return None
+    try:
+        raw = path.read_bytes()
+        if len(raw) > MAX_EXPANDED: raise ValueError('Oversized defaults')
+        value = _decode(raw).model_copy(deep=True)
+        if value.origin != 'bundled' or not value.library_version or value.revision != 0:
+            raise ValueError('Invalid default identity')
+        value.digest = hashlib.sha256(raw).hexdigest()
+        return value
+    except (OSError, ValueError, TypeError, RecursionError):
+        raise HTTPException(409, 'Bundled reference definitions are invalid. Existing private data is retained; repair the application package.') from None
+
+
+def reset(expected_revision):
+    with lock:
+        previous = read()
+        if previous.revision != expected_revision:
+            raise HTTPException(409, 'Reference library changed. Reload before resetting defaults.')
+        value = defaults()
+        if value is None:
+            raise HTTPException(503, 'Bundled reference definitions are unavailable. Existing data is retained; repair the application package.')
+        if previous.origin == 'bundled' and previous.digest == value.digest: return previous
+        value.revision = previous.revision + 1
+        value.imported_at = datetime.now(timezone.utc).isoformat()
+        try:
+            atomic_write(config_dir() / 'sod-reference.json', value.model_dump_json().encode())
+        except OSError:
+            raise HTTPException(409, 'Defaults could not be restored. Previous definitions are retained.') from None
+        return value
+
+
 def read():
     path = config_dir() / 'sod-reference.json'
     if not path.exists():
-        return Library()
+        return defaults() or Library()
     try:
         with path.open('rb') as stream:
             raw = stream.read(MAX_EXPANDED + 1)
@@ -185,7 +228,7 @@ def install(raw, expected_revision):
 
 def summary(library=None):
     value = library if library is not None else read()
-    return dict(version=value.version, revision=value.revision, digest=value.digest, imported_at=value.imported_at,
+    return dict(origin=value.origin, library_version=value.library_version, source=value.source, version=value.version, revision=value.revision, digest=value.digest, imported_at=value.imported_at,
                 risks=len(value.risks), activities=len(value.activities), terms=len(value.terms))
 
 
@@ -196,7 +239,8 @@ def status(library=None, snapshot=None):
     risks = (snapshot.sod or {}).get('risks', [])
     risk_ids = {item['risk_id'] for item in risks}
     activity_ids = {row['activity'] for item in risks for slot in ('ACTVT1', 'ACTVT2') for row in item['activities'][slot]}
-    return {**summary(library), 'installed': bool(library.digest),
+    bundled = defaults()
+    return {**summary(library), 'defaults_available': bundled is not None, 'default_version': bundled.library_version if bundled else '', 'warning': '' if bundled else 'Bundled defaults are unavailable; custom imports remain supported.', 'installed': bool(library.digest),
             'matched_risks': len(risk_ids & library.risks.keys()), 'matched_activities': len(activity_ids & library.activities.keys()),
             'unmatched_risks': sorted(library.risks.keys() - risk_ids), 'unmatched_activities': sorted(library.activities.keys() - activity_ids),
             'missing_risks': sorted(risk_ids - library.risks.keys()), 'missing_activities': sorted(activity_ids - library.activities.keys())}

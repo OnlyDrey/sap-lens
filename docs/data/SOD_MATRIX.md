@@ -226,8 +226,10 @@ catalogue; its invented pairs are not production risk guidance.
 Settings → SoD Risk Configuration → **Import reference workbook** accepts the supplied
 `SAP_SoD_Risk_and_Activity_Definitions.xlsx` schema (up to 2 MB). This is a separate,
 private business reference library, not an active matrix import or verified SAP-standard content.
-No reference definitions or original workbooks are bundled in the repository or packages.
-Select the workbook on each installation that should use it; no Node/Python tooling is required for this import.
+The application bundles curated JSON defaults (11 risks, 13 activities, six terms) in
+`backend/resources/reference-defaults.json`; the original workbook is never included.
+Fresh installations inherit this library automatically, without importing a workbook.
+Existing private/custom libraries remain unchanged on upgrade.
 
 Required sheets and exact headers:
 
@@ -283,3 +285,25 @@ marked Reviewed by a reference import.
 The workbook browser picker uses bounded authenticated multipart at
 `POST /api/sod/reference/upload`; the existing JSON/base64 PUT API remains compatible.
 Both delegate to the same exact-ID parser, private atomic library and revision checks.
+
+
+### Bundled defaults and reset
+
+Default reference content is a separate versioned business resource (currently 1.0.0),
+not the SAP Lens product version or an active matrix. It contains guidance/terms only,
+no user assignments, transactions or employee identities. It is available lazily without
+writing private configuration; existing custom libraries take precedence as the active
+reference source. Non-empty local annotations and imported metadata still take precedence
+at field level. The supplied workbook was used only to produce this curated resource.
+
+**Reset defaults** asks for confirmation and replaces only the reference library, with
+revision checks and atomic persistence. Active data, local guidance, decisions and review
+history are untouched. Backups preserve custom/reset libraries through the existing private
+storage backup mechanism. A later application/library upgrade never overwrites a private
+custom library; reset can explicitly select the newly bundled version. Review snapshots
+retain their captured text and provenance, not tomorrow's default resource.
+
+Windows desktop and service builds include resources under the PyInstaller resource root;
+Linux native and Docker builds carry backend/resources. A missing default resource is
+reported in reference status and disables reset; custom imports and existing private data
+remain available. Invalid bundled data returns a controlled error without changing data.

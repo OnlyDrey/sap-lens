@@ -424,7 +424,8 @@
     "backend/routers/sod*",
     "frontend/src/components/Sod/**",
     "frontend/src/api/sod.ts",
-    "frontend/src/components/Settings/Sod*"
+    "frontend/src/components/Settings/Sod*",
+    "backend/resources/reference-defaults.json"
    ],
    "areas": [
     "sod"

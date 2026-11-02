@@ -212,6 +212,26 @@ test('risk and activity dialogs inherit reference fields without creating overri
     await activity.getByRole('button',{name:'Save changes',exact:true}).click();await expect(activity).toHaveCount(0)
     const stored=await(await request.get('/api/sod/catalogue-activities',{headers,params:{search:'AP01',limit:'100'}})).json()
     expect(stored.items.find((item:{activity:string})=>item.activity==='AP01').local.explanation_en).toBe('')
+    const latest=await(await request.get('/api/sod/catalogue',{headers,params:{search:'F019',limit:'100'}})).json()
+    const currentRisk=latest.items.find((item:{risk_id:string})=>item.risk_id==='F019')
+    expect((await request.post('/api/sod/catalogue/F019',{headers,data:{expected_revision:latest.revision,definition_version:currentRisk.definition_version,metadata:{...currentRisk.local,display_name:'Preserved explicit override'}}})).ok()).toBeTruthy()
+    await library.getByRole('button',{name:'Reset defaults',exact:true}).click()
+    const confirmation=page.getByRole('dialog',{name:'Reset reference defaults',exact:true})
+    await expect(confirmation).toContainText('review decisions and immutable history will be preserved')
+    await confirmation.getByRole('button',{name:'Cancel',exact:true}).click()
+    expect((await(await request.get('/api/sod/reference',{headers})).json()).origin).toBe('custom')
+    await library.getByRole('button',{name:'Reset defaults',exact:true}).click()
+    await confirmation.getByRole('button',{name:'Reset defaults',exact:true}).click()
+    await expect(confirmation).toHaveCount(0)
+    await expect(library).toContainText('Active bundled 1.0.0')
+    const resolved=await(await request.get('/api/sod/metadata',{headers})).json()
+    expect(resolved.risks.F019.name).toBe('Preserved explicit override')
+    expect(resolved.risks.F019.reference.name).toBe('Payment Processing vs. Period Control')
+    // Remove this test's explicit text, retaining the separate bundled/custom reset semantics.
+    const updated=await(await request.get('/api/sod/catalogue',{headers,params:{search:'F019',limit:'100'}})).json()
+    const updatedRisk=updated.items.find((item:{risk_id:string})=>item.risk_id==='F019')
+    expect((await request.post('/api/sod/catalogue/F019',{headers,data:{expected_revision:updated.revision,definition_version:updatedRisk.definition_version,metadata:{...updatedRisk.local,display_name:''}}})).ok()).toBeTruthy()
+
   }finally{
     const current=await(await request.get('/api/sod/reference',{headers})).json()
     // Leave no active reference matches for unrelated tests sharing this disposable server.

@@ -180,6 +180,18 @@ class BackupTests(unittest.TestCase):
         self.assertTrue((self.data/'destination-only.json').exists())
         self.assertEqual(backups.read(self.data)['status'],'failed')
 
+    def test_reference_library_is_preserved_by_existing_backup_restore(self):
+        from sod_reference import Library
+        library=Library(library_version='synthetic-custom',risks={'SYN':{'display_name':'Synthetic reference'}})
+        raw=library.model_dump_json().encode()
+        (self.source/'sod-reference.json').write_bytes(raw)
+        other=self.root/'exports'/'reference.tar.gz'
+        maintenance.backup(self.source,other,'desktop',VERSION)
+        self.archive=other
+        self.confirm();self.activate()
+        self.assertEqual((self.data/'sod-reference.json').read_bytes(),raw)
+
+
 from test_sod_periods_v2 import PeriodV2Case
 
 
@@ -257,3 +269,5 @@ class ReparseBoundaryTests(unittest.TestCase):
             root=Path(folder);redirect=root/'redirect';redirect.mkdir()
             with patch.object(maintenance,'linked',side_effect=lambda path:Path(path)==redirect):
                 with self.assertRaises(ValueError):maintenance.inventory(root,'data')
+
+

@@ -343,3 +343,10 @@ accepts one XLSX `file` and a `revision` in bounded authenticated multipart (2 M
 Resolved entries from `/api/sod/metadata` carry `inherited`, `inherited_origin` and `reference`
 fields separately from effective text and its `origin`. Editors display those values without
 copying them into local annotations; immutable review snapshots retain the captured values.
+
+
+`POST /api/sod/reference/reset` takes `expected_revision` and atomically restores the
+bundled reference library only. The UI requires explicit confirmation. Reference status
+includes `origin`, `library_version`, `default_version`, `defaults_available` and any
+resource warning. Fresh installations resolve the bundled resource without a private copy;
+existing private libraries survive upgrades unchanged.

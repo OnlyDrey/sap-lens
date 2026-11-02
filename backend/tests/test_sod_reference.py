@@ -120,7 +120,8 @@ class ReferenceTests(Case):
             for field in ('ACTVT1','ACTVT2','ACTIVITY'):
                 if row[field] == 'A': row[field] = 'AP01'
         write(self.path, data); self.activate()
-        self.assertFalse(reference.status()['installed'])
+        self.assertTrue(reference.status()['installed'])
+        self.assertEqual(reference.status()['origin'],'bundled')
         reference.install(workbook(risks=[('F019','Synthetic reference risk'),('INACTIVE','Unused')],activities=[('AP01','Synthetic reference activity')]),0)
         status=reference.status()
         self.assertTrue(status['installed'])
@@ -155,3 +156,39 @@ class ReferenceTests(Case):
             self.assertEqual(send(raw=workbook(risks=[('R2','Replacement')]),revision='0').status_code,409)
             self.assertEqual(client.post('/api/sod/reference/upload',headers=H,content=b' ' * 2_162_689).status_code,413)
             self.assertEqual((config.config_dir()/'sod-reference.json').read_bytes(),before)
+
+    def test_bundled_defaults_are_available_without_writing_private_data(self):
+        value=reference.read()
+        self.assertEqual((value.origin,value.library_version,len(value.risks),len(value.activities),len(value.terms)),('bundled','1.0.0',11,13,6))
+        self.assertFalse((config.config_dir()/'sod-reference.json').exists())
+        self.assertIn('F019',value.risks);self.assertIn('AP01',value.activities)
+
+    def test_reset_restores_only_library_and_keeps_local_overrides_and_matrix(self):
+        write(self.path,rows());self.activate()
+        local=metadata_tests.ResolutionTests.local(self,risks={'R1':{'display_name':'Explicit local guidance'}})
+        import sod_catalogue
+        sod_catalogue.write(local)
+        original=(config.config_dir()/'sod-catalogue.json').read_bytes()
+        active=json.dumps(cache.get_snapshot().sod,sort_keys=True)
+        reference.install(workbook(),0)
+        restored=reference.reset(1)
+        self.assertEqual((restored.origin,restored.revision,len(restored.risks)),('bundled',2,11))
+        self.assertEqual((config.config_dir()/'sod-catalogue.json').read_bytes(),original)
+        self.assertEqual(json.dumps(cache.get_snapshot().sod,sort_keys=True),active)
+        self.assertEqual(sod_metadata.lookup()['risks']['R1']['name'],'Explicit local guidance')
+        with self.assertRaises(HTTPException):reference.reset(1)
+
+    def test_existing_custom_library_survives_upgrade_and_missing_default_resource_is_safe(self):
+        custom=reference.install(workbook(),0)
+        before=(config.config_dir()/'sod-reference.json').read_bytes()
+        with patch.object(reference,'default_path',return_value=self.root/'missing-resource.json'):
+            self.assertEqual(reference.read().digest,custom.digest)
+            self.assertFalse(reference.status()['defaults_available'])
+            with self.assertRaises(HTTPException) as error:reference.reset(custom.revision)
+            self.assertEqual(error.exception.status_code,503)
+        self.assertEqual((config.config_dir()/'sod-reference.json').read_bytes(),before)
+
+    def test_frozen_windows_resource_path_uses_meipass(self):
+        import sys
+        with patch.object(sys,'frozen',True,create=True),patch.object(sys,'_MEIPASS',str(self.root),create=True):
+            self.assertEqual(reference.default_path(),self.root/'resources/reference-defaults.json')

@@ -231,3 +231,13 @@ async def upload_reference(request: Request):
             raise HTTPException(422, 'Choose the current reference revision.') from None
         library = await run_in_threadpool(sod_reference.install, await file.read(sod_reference.MAX_BYTES + 1), revision)
         return sod_reference.status(library)
+
+
+class ReferenceReset(StrictModel):
+    expected_revision: int = Field(ge=0)
+
+
+@router.post('/reference/reset')
+def reset_reference(request: ReferenceReset):
+    import sod_reference
+    return sod_reference.status(sod_reference.reset(request.expected_revision))

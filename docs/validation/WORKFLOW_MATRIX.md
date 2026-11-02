@@ -280,3 +280,21 @@ release rechecks passed (one existing platform skip). Final publication/policy t
 was compared with backend and package mirrors. Workflow contracts, actionlint,
 PowerShell parser/service-helper checks, Ruff and documentation links passed. Windows
 native packaging/runtime and a real release were not executed. FULL was not run.
+
+
+### Bundled reference defaults (2026-11-02)
+
+The supplied curated business definitions now ship as versioned JSON (11 risks, 13
+activities, six terms), with no original workbook/author metadata, employees, assignments
+or private paths. Fresh installations inherit defaults; existing private libraries survive
+upgrades. Exact active-ID enrichment and field-level local/imported precedence are unchanged.
+Reset defaults is confirmed, CAS/atomic, and limited to the reference library. Immutable
+history, local annotations and active matrix are preserved.
+
+Targeted reference/metadata/backup/packaging modules passed after correcting a new backup
+fixture's class placement; the corrected backup and reference recheck passed 13 tests.
+A dedicated resource archive roundtrip passed. Windows frozen-path and missing-resource
+behavior, custom upgrade preservation and existing backup/restore are covered. The browser
+inheritance/reset/cancel/override-preservation workflow passed. TypeScript/production build,
+Ruff and documentation links passed. Windows/Linux resource copy contracts are checked;
+native Windows, actual Docker image and real systemd acceptance remain unexecuted.

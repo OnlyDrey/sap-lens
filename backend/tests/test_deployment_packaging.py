@@ -191,6 +191,21 @@ class PackagingTests(unittest.TestCase):
             with patch.object(pkg.subprocess,'run'),self.assertRaises(ValueError):pkg.require_ci()
 
 
+    def test_curated_defaults_survive_archive_roundtrip_and_all_runtime_copy_contracts(self):
+        resource=ROOT/'backend/resources/reference-defaults.json'
+        source=self.root/'defaults-source';destination=source/'backend/resources/reference-defaults.json'
+        destination.parent.mkdir(parents=True);destination.write_bytes(resource.read_bytes())
+        with patch.object(pkg,'identity',return_value=self.info):
+            archive=pkg.finish(source,'Linux-Native-x64',self.root/'default-output')
+        extracted=self.root/'defaults-extracted'
+        pkg.verify_extract(archive,extracted,pkg.sha(archive))
+        self.assertEqual((extracted/'backend/resources/reference-defaults.json').read_bytes(),resource.read_bytes())
+        self.assertIn('COPY backend/resources/',(ROOT/'Dockerfile').read_text())
+        self.assertIn("shutil.copytree(ROOT/'backend/resources',target/'backend/resources')",(ROOT/'scripts/deployment-package.py').read_text())
+        for script in ('build-windows.ps1','build-server-windows.ps1'):
+            self.assertIn("Join-Path $root 'backend/resources'",(ROOT/'scripts'/script).read_text())
+
+
 class OrchestrationTests(unittest.TestCase):
     def test_native_installer_compiler_preflight_cannot_be_removed_skipped_or_delayed(self):
         spec=importlib.util.spec_from_file_location('installer_workflow_rules',ROOT/'scripts/check-workflows.py')
