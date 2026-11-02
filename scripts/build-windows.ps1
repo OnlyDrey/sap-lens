@@ -155,6 +155,7 @@ try {
             '--add-data', ($buildIdentity + ';.'),
             '--add-data', ($frontendDist + ';frontend/dist'), '--specpath', 'backend',
             '--collect-data', 'docx', '--collect-data', 'reportlab',
+            '--hidden-import', 'tzdata', '--collect-data', 'tzdata', '--copy-metadata', 'tzdata',
             '--copy-metadata', 'python-docx', '--copy-metadata', 'reportlab', '--copy-metadata', 'lxml', '--copy-metadata', 'charset-normalizer',
             '--distpath', 'backend/dist', '--workpath', 'backend/build', 'backend/desktop.py'
         )

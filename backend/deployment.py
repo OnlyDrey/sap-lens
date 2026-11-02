@@ -21,6 +21,22 @@ def default_server_data():
     return Path(os.environ.get('XDG_DATA_HOME', Path.home()/'.local/share')) / 'sap-lens-server'
 
 
+def certificate_has_name(certificate, name):
+    """Match typed SAN entries only; never accept a DNS SAN as an IP SAN."""
+    try: address = ipaddress.ip_address(name)
+    except ValueError: address = None
+    for kind, value in certificate.get('subjectAltName', ()):
+        if address is not None and kind == 'IP Address':
+            try:
+                if ipaddress.ip_address(value) == address: return True
+            except ValueError: pass
+        elif address is None and kind == 'DNS':
+            value = value.lower().rstrip('.')
+            if value == name: return True
+            if value.startswith('*.') and value.count('*') == 1 and name.count('.') == value.count('.') and name.endswith(value[1:]): return True
+    return False
+
+
 @dataclass(frozen=True)
 class ServerSettings:
     host: str
@@ -36,6 +52,15 @@ class ServerSettings:
     log_level: str
     max_failures: int = 5
     lockout_seconds: int = 60
+    tls_cert: str = ''
+    tls_key: str = ''
+    accounts: str = ''
+
+    @property
+    def origins(self):
+        url = urlsplit(self.origin)
+        port = f':{url.port}' if url.port else ''
+        return tuple(f'{url.scheme}://{("[" + host + "]") if ":" in host else host}{port}' for host in self.hosts)
 
     @classmethod
     def from_env(cls):
@@ -57,16 +82,21 @@ class ServerSettings:
         try: _ = url.port  # raises ValueError for an invalid port
         except ValueError: raise ValueError('Invalid public origin port.') from None
         hosts = tuple(x.strip().lower() for x in os.environ.get('SAP_LENS_ALLOWED_HOSTS', url.hostname).split(',') if x.strip())
-        if not hosts or url.hostname.lower() not in hosts or any('*' in h or '/' in h or '://' in h for h in hosts):
+        import re
+        def valid_host(value):
+            try: return not ipaddress.ip_address(value).is_unspecified
+            except ValueError:
+                return len(value) <= 253 and all(re.fullmatch(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?', label) for label in value.split('.'))
+        if not hosts or len(hosts)>32 or url.hostname.lower() not in hosts or any(not valid_host(h) for h in hosts):
             raise ValueError('Allowed hosts must explicitly include the public hostname; wildcards are forbidden.')
         auth = os.environ.get('SAP_LENS_AUTH', 'local')
-        if auth not in {'local','basic','proxy'}: raise ValueError('Choose local, basic or proxy authentication boundary.')
+        if auth not in {'local','basic','proxy','users'}: raise ValueError('Choose local, basic, users or proxy authentication boundary.')
         if auth == 'local' and (not address.is_loopback or url.hostname not in {'localhost','127.0.0.1','::1'}):
             raise ValueError('Local access requires both a loopback binding and a loopback public origin.')
         if url.scheme != 'https' and url.hostname not in {'localhost','127.0.0.1','::1'}:
             raise ValueError('Network browser origins require HTTPS termination.')
         secret = ''
-        if auth != 'local':
+        if auth in {'basic', 'proxy'}:
             path = Path(os.environ.get('SAP_LENS_AUTH_SECRET_FILE',''))
             if not path.is_absolute(): raise ValueError('Configure an absolute authentication secret-file path.')
             with path.open('rb') as stream:
@@ -85,12 +115,41 @@ class ServerSettings:
         if level not in {'error','warning','info'}: raise ValueError('Use error, warning or info operational logging.')
         max_failures = bounded_int('SAP_LENS_AUTH_MAX_FAILURES', 5, 3, 50)
         lockout = bounded_int('SAP_LENS_AUTH_LOCKOUT_SECONDS', 60, 10, 3600)
-        return cls(host,port,data.resolve(),sources.resolve(),origin,hosts,auth,secret,username,proxies,level,max_failures,lockout)
+        cert = os.environ.get('SAP_LENS_TLS_CERT_FILE', '')
+        key = os.environ.get('SAP_LENS_TLS_KEY_FILE', '')
+        if bool(cert) != bool(key): raise ValueError('Provide both TLS certificate and private key.')
+        if cert:
+            import ssl
+            if url.scheme != 'https' or any(not Path(p).is_absolute() or not Path(p).is_file() for p in (cert,key)):
+                raise ValueError('Direct TLS requires HTTPS and absolute certificate/key files.')
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.minimum_version = ssl.TLSVersion.TLSv1_2
+            context.load_cert_chain(cert, key)
+            # Validate every advertised alias, not just the primary URL. An untrusted
+            # self-signed issuer is allowed; mismatched or expired certificates are not.
+            certificate = ssl._ssl._test_decode_cert(cert)
+            import time as _time
+            if not ssl.cert_time_to_seconds(certificate['notBefore']) <= _time.time() < ssl.cert_time_to_seconds(certificate['notAfter']):
+                raise ValueError('The TLS certificate is not currently valid.')
+            for name in hosts:
+                if not certificate_has_name(certificate, name):
+                    raise ValueError('The TLS certificate SANs do not cover every allowed host.')
+        accounts = os.environ.get('SAP_LENS_USERS_FILE', '')
+        if auth == 'users':
+            from server_access import read_accounts
+            if not Path(accounts).is_absolute(): raise ValueError('Configure an absolute account file.')
+            read_accounts(accounts)
+            if not address.is_loopback and not cert: raise ValueError('Direct network account access requires TLS.')
+        return cls(host,port,data.resolve(),sources.resolve(),origin,hosts,auth,secret,username,proxies,level,max_failures,lockout,cert,key,accounts)
 
     def authorized(self, request):
         try: peer = ipaddress.ip_address(request.client.host)
         except (ValueError,AttributeError): return False
         if self.auth == 'local': return peer.is_loopback
+        if self.auth == 'users':
+            from server_access import authenticate
+            request.state.server_principal = authenticate(self.accounts, request.headers.get('authorization', ''))
+            return request.state.server_principal is not None
         if self.auth == 'basic':
             try:
                 scheme, value = request.headers.get('authorization','').split(' ',1)

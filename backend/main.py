@@ -38,7 +38,7 @@ def create_app(origin: str | None = None, session_token: str | None = None,
     loader = DataLoader()
     from scheduler import Scheduler
     scheduler = Scheduler(loader)
-    allowed_origins = [server.origin] if server else [origin] if origin else get_settings().cors_origins
+    allowed_origins = list(server.origins) if server else [origin] if origin else get_settings().cors_origins
     if not server and any(not _is_loopback_origin(value) for value in allowed_origins):
         raise ValueError('Only explicit HTTP loopback origins are supported.')
     if browser_access:
@@ -48,7 +48,7 @@ def create_app(origin: str | None = None, session_token: str | None = None,
         allowed_origins = [f'http://127.0.0.1:{port}', f'http://localhost:{port}']
     desktop_hosts = {urlsplit(value).netloc for value in allowed_origins} if browser_access else set()
     request_header = session_token or '1'
-    throttle = AuthThrottle(server.max_failures, server.lockout_seconds) if server and server.auth == 'basic' else None
+    throttle = AuthThrottle(server.max_failures, server.lockout_seconds) if server and server.auth in {'basic','users'} else None
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -105,13 +105,19 @@ def create_app(origin: str | None = None, session_token: str | None = None,
             if throttle is not None and offered and (wait := throttle.blocked_for(client)):
                 # Credentials from a locked-out client are not evaluated at all; a request without credentials is just challenged.
                 return JSONResponse({'detail':'Too many failed sign-in attempts. Try again later.'},status_code=429,headers={'Retry-After':str(wait)})
-            if not server.authorized(request):
+            from starlette.concurrency import run_in_threadpool
+            if not await run_in_threadpool(server.authorized, request):
                 if throttle is not None and offered and (cooldown := throttle.failure(client)):
                     import logging
                     logging.getLogger('sap-lens-server').warning('Sign-in throttled for client %s for %s seconds after repeated failures',client,cooldown)
                 return JSONResponse({'detail':'Server access is not authorized.'},status_code=401,
-                                    headers={'WWW-Authenticate':'Basic realm="SAP Lens", charset="UTF-8"'} if server.auth=='basic' else {})
+                                    headers={'WWW-Authenticate':'Basic realm="SAP Lens", charset="UTF-8"'} if server.auth in {'basic','users'} else {})
             if throttle is not None and offered: throttle.success(client)
+            if server.auth == 'users':
+                from server_access import may_access
+                username, role = request.state.server_principal
+                if not may_access(role, request.method, request.url.path):
+                    return JSONResponse({'detail':'Your account does not have permission for this operation.'},status_code=403)
             if request.method not in {'GET','HEAD','POST','OPTIONS'}:
                 return JSONResponse({'detail':'Method not allowed.'},status_code=405)
             if request.url.path == '/api/branding/preview':
@@ -124,6 +130,9 @@ def create_app(origin: str | None = None, session_token: str | None = None,
             if request.method != 'OPTIONS' and guarded and not hmac.compare_digest(
                     request.headers.get('x-sap-lens', '').encode(), request_header.encode()):
                 return JSONResponse({'detail': 'Application request is not authorized.'}, status_code=403)
+        from server_access import ACTOR
+        principal = getattr(request.state, 'server_principal', None)
+        actor_token = ACTOR.set(principal[0] if principal else '')
         try:
             response = await call_next(request)
         except Exception as error:
@@ -131,6 +140,8 @@ def create_app(origin: str | None = None, session_token: str | None = None,
             import logging
             logging.getLogger('sap-lens-server').error('Request failed (%s); private exception details omitted',type(error).__name__)
             return JSONResponse({'detail':'The operation failed. Check service permissions and operational logs.'},status_code=500)
+        finally:
+            ACTOR.reset(actor_token)
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'no-referrer'
         response.headers['X-Frame-Options'] = 'DENY'
@@ -176,8 +187,11 @@ def create_app(origin: str | None = None, session_token: str | None = None,
         return {'app': 'SAP Lens', 'version': VERSION, 'mode': BUILD_INFO['mode']}
 
     @app.get('/api/runtime')
-    def runtime_capabilities():
-        return dict(deployment_mode='server' if server else 'desktop', browser_upload=bool(server),
+    def runtime_capabilities(request: Request):
+        from server_access import ACTOR
+        principal = getattr(request.state, 'server_principal', None)
+        return dict(deployment_mode='server' if server else 'desktop', browser_upload=bool(server), username=ACTOR.get(),
+                    role=principal[1] if principal else '',
                     native_dialogs=not bool(server), source_path_policy='configured_root' if server else 'desktop_filesystem')
 
     @app.get('/health/live')

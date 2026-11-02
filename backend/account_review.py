@@ -115,6 +115,8 @@ def write_decisions(data):
 
 
 def save_decision(username, decision):
+    from server_access import actor
+    decision = {**decision, 'reviewer': actor(decision.get('reviewer', ''))}
     with lock:
         data=decisions();key=digest(username.strip().upper());previous=data.get(key)
         history=[*previous.get('history',[]),{k:v for k,v in previous.items() if k!='history'}] if previous else []

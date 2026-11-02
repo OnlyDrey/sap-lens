@@ -216,6 +216,9 @@ def check_context(value):
 def record(kind, context, items, decision, reviewer, justification, expected_revision,
            approver='', controls='', expires=None, source_versions=None):
     """Append one event per item atomically; all items share one decision and justification."""
+    from server_access import actor
+    reviewer = actor(reviewer)
+    if approver: approver = actor(approver)
     context = check_context(context)
     if not items or len(items) > MAX_BATCH or len({item['key'] for item in items}) != len(items):
         raise HTTPException(422, f'Choose between 1 and {MAX_BATCH} distinct items.')
@@ -289,6 +292,8 @@ def lifecycle(kind, event, current_version, today=None):
 
 def save_action(context, payload, actor, expected_revision, action_id=''):
     """Create or update a remediation action; every change is appended to its history."""
+    from server_access import actor as authenticated_actor
+    actor = authenticated_actor(actor)
     context = check_context(context)
     with lock:
         data = read()
@@ -323,6 +328,8 @@ def actions_for(context, data=None):
 
 
 def log_report(period_id, kind, title, status, document_version, model_checksum, previous_period_id=None, prepared_by=''):
+    from server_access import actor
+    prepared_by = actor(prepared_by)
     with lock:
         data = read()
         if len(data.reports) >= MAX_REPORTS:

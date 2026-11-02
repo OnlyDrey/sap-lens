@@ -22,7 +22,7 @@ MAX_FINDING_BYTES = 4 * 1024 * 1024
 MAX_REVIEWS = 10000
 MAX_EVENTS = 1000
 CONTEXT_PATTERN = r'^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'
-IDENTITY_NOTICE = 'Self-reported reviewer; not an authenticated or verified identity.'
+IDENTITY_NOTICE = 'Self-reported in desktop/shared-credential mode; individual server accounts record the authenticated username.'
 Decision = Literal['Pending review', 'Accepted with mitigating controls', 'Access removal required',
                    'Not applicable / false positive', 'Further investigation required']
 ActionStatus = Literal['Not started', 'In progress', 'Completed', 'Not applicable']
@@ -227,6 +227,8 @@ def save(finding, annotation, expected_revision, expected_evidence_version, cont
     # Model validation errors intentionally remain Pydantic errors for API 422 handling.
     finding = Finding.model_validate(finding.model_dump() if isinstance(finding, Finding) else finding)
     annotation = Annotation.model_validate(annotation.model_dump() if isinstance(annotation, Annotation) else annotation)
+    from server_access import actor
+    if actor(): annotation = annotation.model_copy(update={'reviewer': actor()})
     if expected_evidence_version != finding.evidence_version:
         raise HTTPException(409, 'SoD finding evidence changed. Reload before recording a decision.')
     with lock:

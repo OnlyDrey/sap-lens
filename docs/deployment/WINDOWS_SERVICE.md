@@ -2,6 +2,98 @@
 
 ## Approach and distribution
 
+The service ZIP includes **SAP-Lens-Service-Manager.exe**, a .NET Framework 4.8
+Windows GUI. It requests administrator approval for service administration; normal
+server execution uses LocalService. End users do not need to execute PowerShell
+scripts. PowerShell remains a build/CI tool and an optional legacy maintenance path.
+Unsigned EXEs can still be subject to company application-control policy.
+
+## Recommended setup: direct HTTPS
+
+1. Extract the complete service ZIP to a permanent, administrator-controlled folder,
+   for example `C:\Program Files\SAP Lens Server`. Keep the complete `app/` folder.
+2. Open `SAP-Lens-Service-Manager.exe` and approve elevation.
+3. Review the detected hostname, FQDN and active IPv4 addresses. Keep only the
+   addresses users should use; add a DNS alias if needed. Enter comma-separated
+   names/IPs without URL schemes or ports. Detection is a suggestion, not DNS
+   provisioning: each selected name must resolve from the client computers.
+4. Choose the HTTPS port (default 18743), a dedicated local data directory and the
+   IPv4 listen address. `0.0.0.0` listens on all IPv4 interfaces; it is not a URL.
+   The manager initially requires an empty data directory and refuses Windows,
+   Program Files, application and credential-directory locations.
+5. Generate a self-signed certificate or specify an existing PEM certificate and
+   unencrypted PEM private key. Existing files are copied into protected storage.
+   Generated certificates contain typed DNS/IP SANs for every selected address and
+   expire after 365 days. Trust warnings are expected for an untrusted issuer.
+   Expired certificates, mismatched keys and missing SAN coverage are rejected.
+6. Enter the initial administrator username and a password of 14–256 characters.
+   Click **Register / save**, then **Start**. Registration sets automatic startup;
+   no logged-in desktop or visible terminal is required for normal operation.
+7. Configure Windows Firewall separately to allow that port only from approved
+   client machines/subnets or VPN. The manager does not open any firewall rules.
+8. Use one of the **Configured URLs**, for example `https://SERVER01:18743`,
+   `https://server01.example.invalid:18743` or `https://192.0.2.10:18743`.
+
+The manager generates `SAPLensService.xml` in its own folder. The port, binding,
+allowed hosts, origins, certificate and data path in that configuration are the
+values used by the installed service. All aliases share the same HTTPS scheme and
+port and are accepted by the origin checks. Direct TLS requires no IIS/reverse
+proxy. The application retains its existing single-worker and storage-lease policy.
+
+Stop the service before saving configuration changes, then start it again. Address
+changes need matching certificate SANs; generate a replacement or provide a suitable
+certificate. Renew certificates before expiry. Data relocation is intentionally
+refused after registration: back up and migrate while stopped rather than silently
+pointing the service at a different empty store. Unregistering retains configuration,
+data and credentials; an existing XML is never silently overwritten by re-registration.
+
+### Accounts and permissions
+
+Use **Save account** in the elevated manager to add an account, change its role or
+password, or disable it. For existing accounts, a blank password preserves the
+current password. A new account needs a password. The last enabled administrator
+cannot be disabled or demoted. Account changes apply on the next request without
+a restart. Usernames are case-sensitive; allowed characters are letters, digits,
+dot, underscore, hyphen and `@`. The local account file supports up to 100 accounts.
+
+| Role | Allowed operations |
+| --- | --- |
+| Administrator | All application operations, including configuration, imports and review-period administration |
+| Reviewer | Read shared data, export reports and record Account Review/SoD decisions and remediation actions |
+| Read-only | Read shared data, simulate access changes and export reports; no review or configuration changes |
+
+Permissions are enforced in the backend. This is a shared dataset, not per-account
+data isolation. Some UI controls may remain visible and return a permission error
+for a restricted account. Accounts are administered locally, not through the website.
+Passwords are stored as salted PBKDF2-SHA256 hashes (600,000 iterations); local
+account administration passes passwords on stdin rather than the command line.
+HTTP Basic challenges are used over HTTPS, with the existing failed-sign-in
+throttle. Browsers may retain credentials; use a separate browser profile or close
+the browser session when switching accounts. Do not rely on a tab close as logout.
+
+Account Review checks the previously displayed decision timestamp before accepting
+a server-user update. SoD retains its revision/evidence conflict checks and frozen
+history. Individual-account review actions record the authenticated username instead
+of trusting the reviewer text entered in the browser. Desktop and legacy shared
+credential deployments retain their existing identity behavior.
+
+Accounts and TLS material default to `C:\ProgramData\SAP Lens Server Access`.
+The service can read that location; only administrators/SYSTEM should modify it.
+Data and logs default to `C:\ProgramData\SAP Lens Server`. Back up access material
+separately under equivalent ACLs: the legacy data-backup command does not include
+this separate account/certificate directory. The application folder is protected
+for administrators/SYSTEM with read/execute permission for the dedicated service SID.
+Existing unrelated explicit ACLs on selected data folders must be reviewed by IT.
+
+### Validation limits
+
+Offline tests cover account authentication/permissions, alias origins, stale edits,
+certificate SANs and invalid TLS settings. The Windows build compiles the manager,
+runs its certificate-generation self-test and verifies its x64 GUI/elevation metadata.
+Native GUI operation, registration using the manager, ACLs, reboot startup, certificate
+renewal, recovery and concurrent real-client use still require Windows acceptance.
+Do not treat Linux tests as evidence that those Windows checks have executed.
+
 A **separate headless onedir PyInstaller bundle** uses `backend/server.py`. A pinned
 WinSW x64 wrapper registers that console host with SCM, sends stop signals, manages
 its process tree, rotates logs and configures recovery. This avoids adding service
@@ -17,12 +109,12 @@ build/install procedure, pending native acceptance testing.
 
 Choose `Windows Server Service` or `All` in
 [Build Deployment Packages](BUILD.md). After a successful approved
-run, download `SAP-Lens-Windows-Service-x64-<version>`, extract GitHub's wrapper ZIP,
+run, download `sap-lens-win-service-x64-v<version>`, extract GitHub's wrapper ZIP,
 verify the inner ZIP's `.sha256`, and extract it into a new installation directory.
 The inner ZIP contains `app/` (headless EXE/Python runtime/frontend), pinned WinSW,
-management script, WinSW MIT license, README, PE verification report, package
+service manager EXE, optional management script, WinSW MIT license, README, PE verification report, package
 manifest and per-file hashes. Actual machine-specific `SAPLensService.xml` is
-created by **Install** using the canonical management script; no organization
+created by service registration through the manager or optional script; no organization
 configuration or credentials are shipped.
 
 Intended targets: Windows Server 2022/2025 x64, subject to native acceptance;
@@ -50,9 +142,12 @@ The onedir console package excludes WebView2 and verifies PE/resources, identity
 frontend bytes, private-file exclusions and hashes. Fresh local receipts or same-run
 CI attestations are mandatory; neither is an unchecked skip-validation option.
 
-## Install and manage
+## Legacy script administration
 
-Open elevated PowerShell in the installed folder (SCM changes require admin):
+For the optional script path, copy to `C:\Program Files\SAP Lens Server` and open
+elevated PowerShell there (SCM changes require admin). Another location requires
+`-InstallDirectory 'C:\Your\Permanent\Folder'` on each command. These defaults are
+legacy loopback/local access; use the GUI above for direct shared HTTPS hosting:
 
 ```powershell
 .\manage-server-service.ps1 -Action Install

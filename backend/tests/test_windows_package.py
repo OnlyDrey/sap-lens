@@ -156,6 +156,8 @@ class WindowsPackageTests(unittest.TestCase):
             info = make_build_info('beta','0.1.0','a'*40,'1','1',1,1)
             identity = root/'build-version.json'; identity.write_text(json.dumps(info))
             entries += [('build-version.json',str(identity),True,'x')]
+            zone_file = root/'Oslo'; zone_file.write_bytes(b'TZif synthetic zone data')
+            entries += [('tzdata/zoneinfo/Europe/Oslo',str(zone_file),True,'x')]
             guard = patch.object(package,'metadata_module',return_value=SimpleNamespace(BUILD_INFO=info))
             guard.start(); self.addCleanup(guard.stop)
             executable = root/'synthetic.pkg'

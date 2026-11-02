@@ -220,6 +220,8 @@ def inspect_archive(executable, frontend):
             return super()._parse_toc(data)
     archive = CheckedReader(str(executable))
     names = validate_archive_names(archive.toc)
+    if canonical_name('tzdata/zoneinfo/Europe/Oslo') not in names:
+        raise PackageValidationError('Bundled IANA time zone database is missing.')
     with executable.open('rb') as stream:
         stream.seek(archive._end_offset - archive._COOKIE_LENGTH)
         _, length, toc_offset, toc_length, _, _ = struct.unpack(archive._COOKIE_FORMAT, stream.read(archive._COOKIE_LENGTH))

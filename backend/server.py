@@ -11,6 +11,25 @@ from deployment import ServerSettings
 
 
 def run():
+    if sys.argv[1:] == ['--check-server-config']:
+        try:
+            ServerSettings.from_env()
+            return 0
+        except (ValueError, OSError, RuntimeError):
+            print('Invalid server configuration or TLS certificate/key.', file=sys.stderr)
+            return 1
+    if sys.argv[1:2] == ['--manage-user']:
+        from server_access import manage_user
+        import json
+        try:
+            if len(sys.argv) != 3: raise ValueError('Specify an account file.')
+            raw = sys.stdin.buffer.read(4097)
+            if len(raw) > 4096: raise ValueError('Account input too large.')
+            manage_user(Path(sys.argv[2]), json.loads(raw))
+            return 0
+        except (ValueError, OSError, KeyError, TypeError):
+            print('Account update failed. Check the username, role, password length and last administrator.', file=sys.stderr)
+            return 1
     if sys.argv[1:2] == ['--maintenance']:
         from maintenance import cli
         return cli(sys.argv[2:])
@@ -49,6 +68,7 @@ def run():
                 listener.bind((settings.host,settings.port));listener.listen(128)
                 logging.info('SAP Lens server starting (single worker, headless)')
                 config=uvicorn.Config(create_app(server=settings),workers=1,access_log=False,proxy_headers=False,
+                                      ssl_certfile=settings.tls_cert or None,ssl_keyfile=settings.tls_key or None,
                                       log_level=settings.log_level,timeout_graceful_shutdown=15)
                 stage='server runtime'
                 uvicorn.Server(config).run(sockets=[listener])

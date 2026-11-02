@@ -219,7 +219,8 @@
     "test_server",
     "test_windows_package",
     "test_windows_tray",
-    "test_docker_management"
+    "test_docker_management",
+    "test_server_setup"
    ],
    "browser": [
     "desktop",

@@ -23,6 +23,7 @@ class Decision(StrictModel):
     reviewer: str = Field(min_length=1, max_length=120)
     rationale: str = Field(min_length=1, max_length=2000)
     evidence_version: str = Field(pattern=r'^[a-f0-9]{64}$')
+    expected_decision: str | None = Field(default=None, max_length=64)
 
 
 def current():
@@ -89,7 +90,10 @@ def decision(username: str, request: Decision):
         row = next((r for r in items if r['username'].strip().upper() == username.strip().upper()), None)
         if row is None: raise HTTPException(404, 'SAP user not found.')
         if row['evidence_version'] != request.evidence_version: raise HTTPException(409, 'Identity evidence changed. Refresh the review before saving.')
-        review.save_decision(row['username'], dict(**request.model_dump(), evidence_schema=2, identity_version=row['identity_version'], timestamp=datetime.now(timezone.utc).isoformat()))
+        from server_access import ACTOR
+        if ACTOR.get() and request.expected_decision != (row['decision']['timestamp'] if row['decision'] else ''):
+            raise HTTPException(409, 'Another user changed this review. Reload before saving.')
+        review.save_decision(row['username'], dict(**request.model_dump(exclude={'expected_decision'}), evidence_schema=2, identity_version=row['identity_version'], timestamp=datetime.now(timezone.utc).isoformat()))
     return {'status': 'saved'}
 
 

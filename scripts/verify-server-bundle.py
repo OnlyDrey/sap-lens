@@ -20,8 +20,19 @@ def verify(directory):
     rules=importlib.util.module_from_spec(spec);spec.loader.exec_module(rules)
     if directory.is_symlink() or any(p.is_symlink() for p in directory.rglob('*')): raise ValueError('Links are forbidden.')
     if digest(directory/'SAPLensService.exe')!=WINSW_SHA: raise ValueError('Service wrapper integrity mismatch.')
-    if {p.name for p in directory.iterdir()} != {'app','SAPLensService.exe','manage-server-service.ps1','README.md','LICENSE-WinSW.txt','LICENSE.md'}:
+    if {p.name for p in directory.iterdir()} != {'app','SAPLensService.exe','SAP-Lens-Service-Manager.exe','manage-server-service.ps1','README.md','LICENSE-WinSW.txt','LICENSE.md'}:
         raise ValueError('Unexpected server bundle root files.')
+    import pefile
+    with pefile.PE(str(directory/'SAP-Lens-Service-Manager.exe')) as manager:
+        if manager.FILE_HEADER.Machine != 0x8664 or manager.OPTIONAL_HEADER.Subsystem != 2:
+            raise ValueError('Service manager must be an x64 GUI executable.')
+        manifests = [manager.get_data(item.data.struct.OffsetToData, item.data.struct.Size)
+                     for entry in manager.DIRECTORY_ENTRY_RESOURCE.entries if entry.id == 24
+                     for name in entry.directory.entries for item in name.directory.entries]
+        if len(manifests) != 1 or b'requireAdministrator' not in manifests[0]:
+            raise ValueError('Service manager must request administrative elevation.')
+        if not manager.OPTIONAL_HEADER.DATA_DIRECTORY[14].VirtualAddress:
+            raise ValueError('Service manager is missing its managed runtime entry.')
     executable=directory/'app/SAP-Lens.exe';data=executable.read_bytes()
     pe=struct.unpack_from('<I',data,0x3c)[0]
     if data[:2]!=b'MZ' or data[pe:pe+4]!=b'PE\0\0' or struct.unpack_from('<H',data,pe+4)[0]!=0x8664:
@@ -53,6 +64,8 @@ def verify(directory):
     if {p.name for p in (directory/'app').iterdir()} != {'SAP-Lens.exe','_internal'}:
         raise ValueError('Unexpected application files.')
     internal=directory/'app/_internal'
+    if not (internal/'tzdata/zoneinfo/Europe/Oslo').is_file():
+        raise ValueError('Bundled IANA time zone database is missing.')
     for path in internal.rglob('*'):
         if path.is_symlink(): raise ValueError('Links are not distribution inputs.')
         if not path.is_file():continue

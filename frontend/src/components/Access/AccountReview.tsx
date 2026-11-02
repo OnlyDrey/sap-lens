@@ -641,6 +641,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
                     reviewer: reviewer.trim(),
                     rationale: rationale.trim(),
                     evidence_version: editing.evidence_version,
+                    expected_decision: editing.decision?.timestamp ?? '',
                   },
                 )
                 await qc.invalidateQueries({

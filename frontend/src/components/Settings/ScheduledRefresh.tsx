@@ -43,7 +43,7 @@ export function ScheduledRefresh({ draft, onChange }: { draft: Configuration; on
       <ButtonGroup label="Schedule type" value={value.mode} onChange={(mode) => patch({ mode: mode === 'cron' ? 'cron' : 'daily' })} options={[{ value: 'daily', label: 'Daily' }, { value: 'cron', label: 'Advanced (cron)' }]} />
       <div className="schedule-grid">
         {value.mode === 'daily'
-          ? <FormField label="Daily time"><Input type="time" step={60} value={value.time} onChange={(event) => patch({ time: event.target.value })} /></FormField>
+          ? <FormField label="Daily time" description="24-hour time (HH:mm)"><Input type="text" inputMode="numeric" pattern="([01][0-9]|2[0-3]):[0-5][0-9]" maxLength={5} placeholder="HH:mm" value={value.time} onChange={(event) => patch({ time: event.target.value })} /></FormField>
           : <FormField label="Cron expression"><Input value={value.cron} maxLength={100} spellCheck={false} placeholder="0 6 * * 1-5" onChange={(event) => patch({ cron: event.target.value })} /></FormField>}
         <FormField label="Time zone">
           <Combobox label="Time zone" value={value.timezone} options={zones()} optionLabel={zoneLabel} onChange={(timezone) => patch({ timezone: timezone || 'local' })} clearLabel="Local time" placeholder="Local time" maxLength={64} />
@@ -70,7 +70,7 @@ export function ScheduledRefresh({ draft, onChange }: { draft: Configuration; on
         <ul className="ui-description">
           <li><strong>Windows Desktop:</strong> only while SAP Lens is running, in its window or in the system tray. A run missed while it was closed is skipped, not replayed.</li>
           <li><strong>Windows Service, Linux Docker, Linux native or systemd:</strong> runs continuously while the service or container is up, with no desktop session or browser open.</li>
-          <li>Time zones other than Local time and UTC need the operating system's time zone database; if it is missing the setting is rejected.</li>
+          <li>IANA time zones use the system database or the bundled time zone data, including on Windows. Daylight-saving changes follow the selected zone.</li>
         </ul>
       </details>
       {runtime?.requires_running_application && value.enabled && <p className="ui-description">This installation is the desktop application: keep SAP Lens running (the tray option below keeps it running when the window is closed).</p>}

@@ -231,6 +231,9 @@ def _v2_transition(index,period,saved,state,expected_review_revision,reviewer,ap
     return actor.strip(),reason.strip()
 
 def transition(identifier,state,expected_revision,expected_review_revision,reviewer='',approver='',approval_date=None,confirm=False,actor='',reason=''):
+    from server_access import actor as authenticated_actor
+    actor = authenticated_actor(actor)
+    if state in {'Approved','Approved / closed'}: approver = authenticated_actor(approver)
     with lock,reviews.lock,decisions.lock:
         index=read();expect(index,expected_revision);period=find(index,identifier);saved=snapshot(period);previous=period.state
         if saved.get('model')==2:who=_v2_transition(index,period,saved,state,expected_review_revision,reviewer,approver,approval_date,confirm,actor,reason)
@@ -313,6 +316,8 @@ def deletion_impact(identifier):
                 consequences=text,warnings=warnings,requires_reason=frozen,requires_history_confirmation=history,model=2 if v2 else 1,revision=index.revision)
 
 def delete(identifier,expected_revision,confirm_name,confirm_impact,actor,reason='',confirm_history=False):
+    from server_access import actor as authenticated_actor
+    actor = authenticated_actor(actor)
     with lock,reviews.lock,decisions.lock:
         index=read();expect(index,expected_revision);period=find(index,identifier)
         impact=deletion_impact(identifier)

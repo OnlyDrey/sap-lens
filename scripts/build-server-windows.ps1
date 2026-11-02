@@ -28,10 +28,11 @@ try {
     foreach ($inputPath in @($frontendDist,$icon,$image,$buildIdentity,$metadata)) {
         if (-not (Test-Path $inputPath)) { throw 'A required server packaging input is missing.' }
     }
-    Invoke-Checked { & $python -m PyInstaller --noconfirm --clean --onedir --console --noupx --name SAP-Lens --distpath "$output/app" --workpath backend/build/server --specpath backend/build/server --paths (Join-Path $root 'backend') --icon $icon --version-file $metadata --add-data "$frontendDist;frontend/dist" --add-data "$icon;assets" --add-data "$image;assets" --add-data "$buildIdentity;." --collect-data docx --collect-data reportlab --copy-metadata python-docx --copy-metadata reportlab --copy-metadata lxml --copy-metadata charset-normalizer --exclude-module webview --exclude-module pythonnet --exclude-module clr backend/server.py }
+    Invoke-Checked { & $python -m PyInstaller --noconfirm --clean --onedir --console --noupx --name SAP-Lens --distpath "$output/app" --workpath backend/build/server --specpath backend/build/server --paths (Join-Path $root 'backend') --icon $icon --version-file $metadata --add-data "$frontendDist;frontend/dist" --add-data "$icon;assets" --add-data "$image;assets" --add-data "$buildIdentity;." --collect-data docx --collect-data reportlab --hidden-import tzdata --collect-data tzdata --copy-metadata tzdata --copy-metadata python-docx --copy-metadata reportlab --copy-metadata lxml --copy-metadata charset-normalizer --exclude-module webview --exclude-module pythonnet --exclude-module clr backend/server.py }
     Move-Item "$output/app/SAP-Lens/*" "$output/app/"
     Remove-Item "$output/app/SAP-Lens"
     Copy-Item $WinSW "$output/SAPLensService.exe"
+    Invoke-Checked { & ./scripts/build-service-manager.ps1 -OutputDirectory $output }
     Copy-Item scripts/manage-server-service.ps1 $output
     Copy-Item deploy/windows/LICENSE-WinSW.txt $output
     Copy-Item LICENSE.md $output
