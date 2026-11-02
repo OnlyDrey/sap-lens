@@ -211,10 +211,7 @@ def collect(directory, info, rows):
             raise DeliveryError('Collected package differs from the verified platform artifact.')
         assets.append(path)
     # Sidecars are same-run verification inputs, not public release assets.
-    # Hash the final archives; an archive cannot contain its own checksum.
-    checksums = directory / 'SHA256SUMS.txt'
-    checksums.write_text(''.join(f'{sha(path)}  {path.name}\n' for path in assets), encoding='ascii')
-    assets.append(checksums)
+    # GitHub exposes each uploaded asset's SHA-256; the manifest also records it.
     manifest = directory / 'sap-lens-manifest.json'
     manifest.write_text(json.dumps(dict(schema=1, identity=info,
         assets={path.name: dict(sha256=sha(path), size=path.stat().st_size) for path in assets}), indent=2) + '\n')
@@ -258,7 +255,7 @@ def publish(api, info, assets):
         draft = api.request('POST', '/releases', dict(tag_name=tag,
             target_commitish=info['source_sha'], name='SAP Lens ' + info['version'],
             body=marker + '\n\nValidated deployment packages. Download the package for your platform. '
-                'SHA256SUMS.txt contains SHA-256 checksums of the final archives; '
+                'GitHub displays the SHA-256 digest for each release asset; '
                 'sap-lens-manifest.json records source identity, sizes and digests.',
             draft=True, prerelease=prerelease, generate_release_notes=True))
         release_id = draft['id']

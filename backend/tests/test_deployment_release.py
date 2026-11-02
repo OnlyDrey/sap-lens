@@ -308,19 +308,16 @@ class DeploymentCollectionTests(unittest.TestCase):
                 (directory / (name + '.sha256')).write_text(row['package_sha'] + '  ' + name + '\n')
             rows = release.eligible(info, ALL, data)
             assets = release.collect(directory, info, rows)
-            self.assertEqual(len(assets), 6)
+            self.assertEqual(len(assets), 5)
             self.assertEqual({path.name for path in assets},
-                             {row['package_name'] for row in rows} | {'SHA256SUMS.txt', 'sap-lens-manifest.json'})
-            checksum_list = directory / 'SHA256SUMS.txt'
-            self.assertEqual(checksum_list.read_text(), ''.join(
-                row['package_sha'] + '  ' + row['package_name'] + '\n' for row in rows))
+                             {row['package_name'] for row in rows} | {'sap-lens-manifest.json'})
+            self.assertFalse((directory / 'SHA256SUMS.txt').exists())
             self.assertTrue(all(not path.name.endswith('.sha256') for path in assets))
             manifest = assets[-1]
             self.assertEqual(json.loads(manifest.read_text())['identity'], info)
             self.assertEqual(json.loads(manifest.read_text())['assets'], {
                 path.name: dict(sha256=release.sha(path), size=path.stat().st_size) for path in assets[:-1]})
             manifest.unlink()
-            (directory / 'SHA256SUMS.txt').unlink()
             extra = directory / 'settings.json'; extra.write_text('{}')
             with self.assertRaises(release.DeliveryError): release.collect(directory, info, rows)
             extra.unlink()
@@ -330,7 +327,7 @@ class DeploymentCollectionTests(unittest.TestCase):
             checksum = package.with_name(package.name + '.sha256'); checksum.write_text(rows[0]['package_sha'] + '  wrong.zip\n')
             with self.assertRaises(release.DeliveryError): release.collect(directory, info, rows)
 
-    def test_single_selected_package_has_only_its_checksum_and_manifest(self):
+    def test_single_selected_package_has_only_its_archive_and_manifest(self):
         info = identity()
         for name in ALL:
             with self.subTest(package=name), tempfile.TemporaryDirectory() as temporary:
@@ -342,8 +339,8 @@ class DeploymentCollectionTests(unittest.TestCase):
                 archive.write_bytes(payload)
                 archive.with_name(archive.name + '.sha256').write_text(row['package_sha'] + '  ' + archive.name + '\n')
                 assets = release.collect(directory, info, rows)
-                self.assertEqual([path.name for path in assets], [archive.name, 'SHA256SUMS.txt', 'sap-lens-manifest.json'])
-                self.assertEqual(assets[1].read_text(), release.sha(archive) + '  ' + archive.name + '\n')
+                self.assertEqual([path.name for path in assets], [archive.name, 'sap-lens-manifest.json'])
+                self.assertFalse((directory / 'SHA256SUMS.txt').exists())
 
     def test_workflow_contracts_reject_publication_bypasses(self):
         workflows = contracts.load_workflows(); contracts.validate(workflows)

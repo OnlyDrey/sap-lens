@@ -168,13 +168,13 @@ After the selected job and roundtrip succeed, open the completed Actions run's
 authorized run. Downloading is not a build or publication action.
 
 Every artifact contains its archive plus `<archive>.sha256`, retained for 14 days.
-Published releases contain only the selected archives, one `SHA256SUMS.txt` and
-`sap-lens-manifest.json`; individual sidecars remain internal verification inputs.
-The checksum list hashes the final archives, and the manifest records source identity,
-archive sizes/digests and the checksum list digest. Existing releases are not changed.
-To verify on Linux, place the archives and checksum list together and run
-`sha256sum --check --ignore-missing SHA256SUMS.txt`. On Windows, compare
-`Get-FileHash <archive> -Algorithm SHA256` with its entry in `SHA256SUMS.txt`.
+Published releases contain only the selected archives and `sap-lens-manifest.json`;
+individual sidecars remain internal verification inputs. GitHub displays the SHA-256
+digest for each uploaded asset, and the manifest records source identity and archive
+sizes/digests. No separate checksum list is uploaded. Existing releases are not changed.
+To verify a download, compare `sha256sum <archive>` on Linux or
+`Get-FileHash <archive> -Algorithm SHA256` on Windows with the digest shown by GitHub
+or recorded for that archive in `sap-lens-manifest.json`.
 
 For Actions downloads, GitHub wraps these files in another downloadable ZIP: extract that wrapper first.
 The workflow downloads each upload again, checks its digest, inner checksum,
