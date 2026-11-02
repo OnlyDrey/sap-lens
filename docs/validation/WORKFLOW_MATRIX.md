@@ -232,3 +232,29 @@ types/build, affected ESLint (two existing warnings), Ruff and documentation lin
 The existing python-multipart installation is now explicitly pinned as a runtime requirement;
 its targeted dependency audit reported no known vulnerabilities. No native Windows or Docker
 image acceptance was executed; no FULL regression or manual workflow dispatch was performed.
+
+### Effective reference fields in SoD editors (2026-11-02)
+
+Root cause: risk/activity forms initialized exclusively from raw local annotations;
+resolved reference values existed in the description API but did not populate inputs.
+Also, parsing an attached workbook does not install it in another running application.
+The provided workbook was rechecked: F019 and AP01 are exact reference IDs; its 11 risks,
+13 activities and six terms are not automatically active matrix elements.
+
+The shared metadata API now exposes inherited values/provenance and original reference
+text separately. Editor fields show local-or-inherited values, keep untouched inheritance
+out of local storage and support Reset to inherited. Refetches preserve unsaved local
+state; forms retain their initial revision/definition for conflict protection. Reference
+status reports installed state/revision, current matches, unmatched references and active
+IDs lacking definitions. Workbook selection also uses bounded authenticated multipart,
+reusing the atomic library service; the previous PUT API remains compatible. No import
+changes review decisions, description-review status, periods or immutable evidence.
+
+Targeted validation: catalogue/metadata/reference/report modules: 56 passed; updated
+reference multipart/body-limit plus application tests: 18 passed (overlapping reference
+module). The complete affected metadata browser spec: eight passed, including rendered
+F019/AP01 inheritance, unchanged saves, reset, reimport, exact matching, missing fields,
+source provenance and preservation of unsaved drafts. TypeScript/production build,
+affected ESLint, Ruff, diff and documentation-link checks passed. Original workbook and
+screenshots remain outside Git. Production-installation match counts require its live
+reference status, not test-fixture counts. FULL/native Windows acceptance was not run.

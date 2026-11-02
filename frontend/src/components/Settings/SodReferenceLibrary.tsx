@@ -1,10 +1,10 @@
 import { useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiRequest } from '@/api/client'
+import { apiRequest, applicationToken } from '@/api/client'
 import { Button } from '@/components/Shared/Button'
 import { formatTimestamp } from '@/lib/dateFormat'
 
-interface Library { revision: number; digest: string; imported_at: string; risks: number; activities: number; terms: number }
+interface Library { installed: boolean; matched_risks: number; matched_activities: number; unmatched_risks: string[]; unmatched_activities: string[]; missing_risks: string[]; missing_activities: string[]; revision: number; digest: string; imported_at: string; risks: number; activities: number; terms: number }
 
 /** Private reference guidance, independently versioned; never imports active access rules. */
 export function SodReferenceLibrary() {
@@ -19,13 +19,10 @@ export function SodReferenceLibrary() {
     }
     setBusy(true)
     try {
-      const encoded = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(String(reader.result).split(',')[1] || '')
-        reader.onerror = () => reject(new Error('The reference workbook could not be read.'))
-        reader.readAsDataURL(file)
-      })
-      const value = await apiRequest<Library>('/api/sod/reference', 'PUT', { expected_revision: query.data.revision, workbook_base64: encoded })
+      const body = new FormData(); body.append('file', file); body.append('revision', String(query.data.revision))
+      const response = await fetch('/api/sod/reference/upload', { method: 'POST', headers: { 'X-SAP-Lens': applicationToken() }, body, credentials: 'same-origin' })
+      const value = await response.json() as Library & { detail?: string }
+      if (!response.ok) throw new Error(typeof value.detail==='string'?value.detail:'Reference import failed; previous definitions are retained.')
       qc.setQueryData(['sod-reference'], value)
       await qc.invalidateQueries({ predicate: item => String(item.queryKey[0]).startsWith('sod') && item.queryKey[0] !== 'sod-reference' })
       setMessage(`Reference library saved: ${value.risks} risks and ${value.activities} activities. Active matrix and review decisions were not changed.`)
@@ -37,7 +34,8 @@ export function SodReferenceLibrary() {
     <p className="ui-description">Curated business guidance, not verified SAP-standard metadata. Exact IDs enrich only elements in the active matrix. Non-empty local overrides take priority over imported metadata, then reference definitions. Importing replaces the reference library only.</p>
     <input ref={input} type="file" accept=".xlsx" aria-label="SoD reference workbook" className="sr-only" disabled={busy || !query.data} onChange={event => void choose(event.target.files?.[0])} />
     <Button loading={busy} disabled={!query.data} onClick={() => input.current?.click()}>Import reference workbook</Button>
-    {query.data && <p className="ui-description">{query.data.risks} risks · {query.data.activities} activities · Revision {query.data.revision} · {formatTimestamp(query.data.imported_at || null)}</p>}
+    {query.data && <p className="ui-description">{query.data.installed?'Installed':'Not installed'} · {query.data.risks} risks · {query.data.activities} activities · {query.data.terms} terms · Revision {query.data.revision} · {formatTimestamp(query.data.imported_at || null)}</p>}
+    {query.data?.installed && <div className="ui-description break-words" aria-label="Reference matching summary"><p>{query.data.matched_risks} active risks matched · {query.data.matched_activities} active activities matched</p><p>Unmatched reference IDs: {query.data.unmatched_risks.concat(query.data.unmatched_activities).join(', ')||'None'}</p><p>Active IDs missing reference definitions: {query.data.missing_risks.concat(query.data.missing_activities).join(', ')||'None'}</p>{!query.data.matched_risks&&!query.data.matched_activities&&<p>No active matrix IDs match this reference library.</p>}</div>}
     {(error || query.isError) && <p role="alert">{error || (query.error instanceof Error ? query.error.message : 'Reference library could not be read.')}</p>}
     {message && <p role="status">{message}</p>}
   </section>

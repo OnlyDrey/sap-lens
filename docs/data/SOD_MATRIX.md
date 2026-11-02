@@ -257,3 +257,29 @@ reference IDs, missing descriptions and per-field provenance. Empty local text m
 non-empty local text wins. Differing imported text remains available as an alternate.
 Review-period captures freeze resolved metadata and reference identity; later library replacements
 do not alter historical evidence or reports. Existing optional CSV columns remain backward-compatible.
+
+
+### Effective values in Risk and Activity editors
+
+Importing the reference workbook and attaching it to a chat are separate operations.
+The application installs the library only after a successful **Import reference workbook**
+operation in the running installation. The reference card explicitly shows Installed/Not
+installed, its active revision/import time, risk/activity/term counts, matched active counts,
+unmatched reference IDs and active IDs missing definitions. No matching active matrix IDs
+means no active elements are enriched, even when the library was imported successfully.
+
+Risk and Activity edit fields show effective values automatically: explicit non-empty local
+text, then active import metadata, then exact-ID reference guidance. Each field identifies
+its source. When a different reference value exists it is shown separately. Blank workbook
+cells remain blank; missing explanations are not generated from titles or identifiers.
+Saving an untouched inherited field leaves the local override empty. Editing creates a local
+override; **Reset to inherited** clears it and immediately shows the current inherited value.
+Importing/replacing references refreshes metadata and coverage without resetting editor draft
+state. Returning to the application window also refreshes descriptive metadata. Open forms
+retain their original catalogue revision/definition identity for safe conflict detection.
+Description-review status remains independent of risk acceptance and is never automatically
+marked Reviewed by a reference import.
+
+The workbook browser picker uses bounded authenticated multipart at
+`POST /api/sod/reference/upload`; the existing JSON/base64 PUT API remains compatible.
+Both delegate to the same exact-ID parser, private atomic library and revision checks.

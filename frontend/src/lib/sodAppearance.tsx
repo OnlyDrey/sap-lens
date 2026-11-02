@@ -10,6 +10,9 @@ const none: Appearance = { risks: {}, activities: {} }
 export interface SodDescription {
   name?: string; description?: string; impact?: string; controls?: string; guidance?: string; notes?: string; business_process?: string; type?: string
   criticality?: string; risks?: number
+  inherited?: Record<string, string>
+  inherited_origin?: Record<string, 'imported' | 'reference'>
+  reference?: Record<string, string>
   origin: Record<string, 'imported' | 'local' | 'reference'>
   alternate?: Record<string, { value: string; origin: 'imported' | 'local' | 'reference' }>
 }
@@ -23,7 +26,7 @@ export function useSodAppearance(): Appearance {
 
 /** Resolved descriptions shared by pills, popovers and Settings; failures leave the pills without a description. */
 export function useSodMetadata(): Described {
-  return useQuery({ queryKey: ['sod-metadata'], queryFn: () => apiRequest<Described>('/api/sod/metadata'), staleTime: 60_000, retry: false }).data || empty
+  return useQuery({ queryKey: ['sod-metadata'], queryFn: () => apiRequest<Described>('/api/sod/metadata'), staleTime: 60_000, refetchOnWindowFocus: 'always', retry: false }).data || empty
 }
 
 const ORIGIN = { imported: 'Imported from the SoD CSV', local: 'Local business text', reference: 'Curated reference library' } as const

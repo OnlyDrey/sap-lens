@@ -36,6 +36,13 @@ def _entry(fields, imported, local, reference=None):
     resolved = {name: resolve(imported.get(source), getattr(local, attribute, '') if local is not None else '', (reference or {}).get(attribute, '')) for name, (source, attribute) in fields.items()}
     entry = {name: item['value'] for name, item in resolved.items() if item['value']}
     entry['origin'] = {name: item['origin'] for name, item in resolved.items() if item['value']}
+    inherited = {name: resolve(imported.get(source), '', (reference or {}).get(attribute, '')) for name, (source, attribute) in fields.items()}
+    if any(item['value'] for item in inherited.values()):
+        entry['inherited'] = {name: item['value'] for name, item in inherited.items() if item['value']}
+        entry['inherited_origin'] = {name: item['origin'] for name, item in inherited.items() if item['value']}
+    if reference:
+        entry['reference'] = {name: reference[attribute] for name, (_, attribute) in fields.items() if reference.get(attribute)}
+
     differing = {name: dict(value=item['alternate'], origin=item['alternate_origin']) for name, item in resolved.items() if item['alternate']}
     if differing:
         entry['alternate'] = differing

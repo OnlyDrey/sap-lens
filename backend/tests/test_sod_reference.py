@@ -112,3 +112,46 @@ class ReferenceTests(Case):
         target.write_bytes(b'not json')
         with self.assertRaises(HTTPException): reference.install(workbook(), 1)
         self.assertEqual(target.read_bytes(), b'not json')
+
+    def test_active_reference_status_and_inherited_fields_for_exact_risk_and_activity_ids(self):
+        data = rows()
+        for row in data:
+            if row['RISK'] == 'R1': row['RISK'] = 'F019'
+            for field in ('ACTVT1','ACTVT2','ACTIVITY'):
+                if row[field] == 'A': row[field] = 'AP01'
+        write(self.path, data); self.activate()
+        self.assertFalse(reference.status()['installed'])
+        reference.install(workbook(risks=[('F019','Synthetic reference risk'),('INACTIVE','Unused')],activities=[('AP01','Synthetic reference activity')]),0)
+        status=reference.status()
+        self.assertTrue(status['installed'])
+        self.assertEqual((status['matched_risks'],status['matched_activities']),(1,1))
+        self.assertEqual(status['unmatched_risks'],['INACTIVE'])
+        self.assertIn('R2',status['missing_risks'])
+        found=sod_metadata.lookup()
+        self.assertEqual(found['risks']['F019']['inherited']['name'],'Synthetic reference risk')
+        self.assertEqual(found['activities']['AP01']['inherited']['name'],'Synthetic reference activity')
+        saved=metadata_tests.ResolutionTests.local(self,risks={'F019':{'display_name':'Explicit override'}})
+        effective=sod_metadata.lookup(saved=saved)['risks']['F019']
+        self.assertEqual(effective['name'],'Explicit override')
+        self.assertEqual(effective['inherited']['name'],'Synthetic reference risk')
+        self.assertEqual(effective['reference']['name'],'Synthetic reference risk')
+        self.assertEqual(saved.entries['F019'].metadata.display_name,'Explicit override')
+        self.assertNotIn('notes',effective['inherited'])
+        # Matrix replacement removes enrichment; retained reference definitions do not activate it.
+        write(self.path,rows());self.activate()
+        self.assertNotIn('F019',sod_metadata.lookup()['risks'])
+        self.assertEqual(reference.status()['matched_risks'],0)
+
+    def test_multipart_reference_upload_uses_the_same_atomic_library_and_body_limits(self):
+        with TestClient(create_app(session_token=H['X-SAP-Lens']),base_url='http://127.0.0.1:18743') as client:
+            def send(name='reference.xlsx',raw=None,revision='0'):
+                return client.post('/api/sod/reference/upload',headers=H,files={'file':(name,workbook() if raw is None else raw,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')},data={'revision':revision})
+            response=send()
+            self.assertEqual(response.status_code,200,response.text)
+            self.assertTrue(response.json()['installed'])
+            before=(config.config_dir()/'sod-reference.json').read_bytes()
+            self.assertEqual(send(name='../private.xlsx',revision='1').status_code,422)
+            self.assertEqual(send(raw=b'invalid',revision='1').status_code,422)
+            self.assertEqual(send(raw=workbook(risks=[('R2','Replacement')]),revision='0').status_code,409)
+            self.assertEqual(client.post('/api/sod/reference/upload',headers=H,content=b' ' * 2_162_689).status_code,413)
+            self.assertEqual((config.config_dir()/'sod-reference.json').read_bytes(),before)

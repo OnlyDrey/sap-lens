@@ -187,3 +187,16 @@ def summary(library=None):
     value = library if library is not None else read()
     return dict(version=value.version, revision=value.revision, digest=value.digest, imported_at=value.imported_at,
                 risks=len(value.risks), activities=len(value.activities), terms=len(value.terms))
+
+
+def status(library=None, snapshot=None):
+    import cache
+    library = library if library is not None else read()
+    snapshot = snapshot if snapshot is not None else cache.get_snapshot()
+    risks = (snapshot.sod or {}).get('risks', [])
+    risk_ids = {item['risk_id'] for item in risks}
+    activity_ids = {row['activity'] for item in risks for slot in ('ACTVT1', 'ACTVT2') for row in item['activities'][slot]}
+    return {**summary(library), 'installed': bool(library.digest),
+            'matched_risks': len(risk_ids & library.risks.keys()), 'matched_activities': len(activity_ids & library.activities.keys()),
+            'unmatched_risks': sorted(library.risks.keys() - risk_ids), 'unmatched_activities': sorted(library.activities.keys() - activity_ids),
+            'missing_risks': sorted(risk_ids - library.risks.keys()), 'missing_activities': sorted(activity_ids - library.activities.keys())}

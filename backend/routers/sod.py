@@ -1,6 +1,6 @@
 """SoD catalogue endpoints; the shared application boundary protects all routes."""
 from typing import Literal
-from fastapi import APIRouter, Query,Depends
+from fastapi import APIRouter, Query,Depends, Request
 import csv
 import io
 import json
@@ -192,7 +192,7 @@ class ReferenceUpload(StrictModel):
 @router.get('/reference')
 def reference_library():
     import sod_reference
-    return sod_reference.summary()
+    return sod_reference.status()
 
 
 @router.put('/reference')
@@ -205,4 +205,29 @@ def replace_reference(request: ReferenceUpload):
         raw = base64.b64decode(request.workbook_base64, validate=True)
     except (ValueError, binascii.Error):
         raise HTTPException(422, 'Workbook must be valid base64.') from None
-    return sod_reference.summary(sod_reference.install(raw, request.expected_revision))
+    return sod_reference.status(sod_reference.install(raw, request.expected_revision))
+
+
+@router.post('/reference/upload')
+async def upload_reference(request: Request):
+    from fastapi import HTTPException
+    from starlette.datastructures import UploadFile
+    from starlette.concurrency import run_in_threadpool
+    import sod_reference
+    async with request.form(max_files=1, max_fields=1, max_part_size=128) as form:
+        if set(form) != {'file', 'revision'} or any(len(form.getlist(key)) != 1 for key in form):
+            raise HTTPException(422, 'Choose one reference workbook and its current revision.')
+        file = form['file']
+        if not isinstance(file, UploadFile):
+            raise HTTPException(422, 'Choose an XLSX reference workbook.')
+        name = file.filename or ''
+        if not name.lower().endswith('.xlsx') or len(name.encode('utf-8')) > 200 or '..' in name or any(c in name for c in '/\\\x00<>:"|?*') or any(ord(c) < 32 for c in name):
+            raise HTTPException(422, 'Choose an XLSX filename without path components.')
+        if not file.size or file.size > sod_reference.MAX_BYTES:
+            raise HTTPException(413 if file.size else 422, 'Choose a non-empty reference workbook up to 2 MB.')
+        try:
+            revision = int(form['revision'])
+        except (TypeError, ValueError):
+            raise HTTPException(422, 'Choose the current reference revision.') from None
+        library = await run_in_threadpool(sod_reference.install, await file.read(sod_reference.MAX_BYTES + 1), revision)
+        return sod_reference.status(library)

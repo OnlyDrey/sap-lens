@@ -6,13 +6,14 @@ import {Save,ShieldAlert,ShieldCheck,ShieldOff,Database,Info,Pencil,ListTree,Act
 import {apiRequest,applicationToken} from '@/api/client'
 import {announceExport} from '@/lib/exportNotice'
 import {Button} from '@/components/Shared/Button'
-import {FormField,Input,SearchInput,Checkbox} from '@/components/Shared/Controls'
+import {FormField,SearchInput,Checkbox} from '@/components/Shared/Controls'
 import {Select} from '@/components/Shared/Select'
 import {DataTable,StatusBadge,Toolbar,LoadingState,EmptyState,EvidenceDisclosure} from '@/components/Shared/Presentation'
 import {Dialog} from '@/components/Shared/Dialog'
 import {ColorControl} from './Controls'
 import {IdPill} from '@/components/Shared/IdPill'
-import {SodDescriptionDetails} from '@/lib/sodAppearance'
+import {SodMetadataField} from './SodMetadataField'
+import {useSodMetadata,SodDescriptionDetails} from '@/lib/sodAppearance'
 import {ContentTabs} from '@/components/Shared/Navigation'
 import {Pagination} from '@/components/Access/Shared'
 import {PillButton,SourceMeta,RiskSourceDialog,RiskByIdDialog,TransactionsDialog} from './SodSourceDetails'
@@ -61,20 +62,22 @@ function RiskTab({onConfigure}:{onConfigure:()=>void}) {
 const NewBadge=()=><StatusBadge tone="warning" className="sod-new-badge"><Sparkles size={12} aria-hidden="true"/>New</StatusBadge>
 function RiskEditor({risk,revision,onClose,onSaved}:{risk:Risk;revision:number;onClose:()=>void;onSaved:()=>Promise<void>}) {
  const [metadata,setMetadata]=useState<Metadata>({...risk.local,description_review_status:risk.description_review_status}),[source,setSource]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('')
+ const description=useSodMetadata().risks[risk.risk_id]
+ const [baseline]=useState({revision,definition:risk.definition_version})
  const update=(key:keyof Metadata,value:string|boolean)=>setMetadata(previous=>({...previous,[key]:value}))
  // Norwegian text from earlier versions is kept untouched in metadata; only English is edited here.
- const save=async()=>{setBusy(true);setError('');try{await apiRequest(`/api/sod/catalogue/${encodeURIComponent(risk.risk_id)}`,'POST',{expected_revision:revision,definition_version:risk.definition_version,metadata});await onSaved()}catch(cause){setError(cause instanceof Error?cause.message:'Risk configuration could not be saved.')}finally{setBusy(false)}}
+ const save=async()=>{setBusy(true);setError('');try{await apiRequest(`/api/sod/catalogue/${encodeURIComponent(risk.risk_id)}`,'POST',{expected_revision:baseline.revision,definition_version:baseline.definition,metadata});await onSaved()}catch(cause){setError(cause instanceof Error?cause.message:'Risk configuration could not be saved.')}finally{setBusy(false)}}
  return <Dialog title={`SoD risk ${risk.risk_id}`} onClose={onClose} footer={<><Button disabled={busy} onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} disabled={!validColor(metadata.color)} onClick={()=>void save()}><Save size={16} aria-hidden="true"/>Save changes</Button></>}>
   <section className="grid gap-2" aria-label="Imported risk definition"><div className="flex flex-wrap items-center justify-between gap-2"><IdPill kind="risk" value={risk.risk_id} color={metadata.color}/><Button size="compact" onClick={()=>setSource(true)} aria-label={`Source details for risk ${risk.risk_id}`}><Info size={16} aria-hidden="true"/>Source details</Button></div><p>{risk.source.source_text}</p><div className="flex flex-wrap items-center gap-2"><SourceMeta criticality={risk.source.criticality} riskType={risk.source.risk_type}/><StatusBadge tone={risk.current?'success':'neutral'}>{risk.current?'Current source':'Historical source'}</StatusBadge></div><p className="sod-meta">Identifiers, relationships and transaction mappings come from the import and cannot be edited.</p></section>
-  <section className="grid gap-2" aria-label="Descriptions shown in SAP Lens"><h3>Descriptions shown in SAP Lens</h3><p className="ui-description">A description imported with the SoD CSV is shown first; the local business text below fills the gaps. Both are kept and neither overwrites the other.</p><SodDescriptionDetails kind="risk" value={risk.risk_id}/></section>
-  <section className="grid gap-3" aria-label="Local business metadata"><h3>Local business guidance</h3>
+  <section className="grid gap-2" aria-label="Descriptions shown in SAP Lens"><h3>Descriptions shown in SAP Lens</h3><p className="ui-description">Effective values use non-empty local overrides, then active import metadata, then reference definitions. Unchanged inherited fields are not saved as local overrides.</p><SodDescriptionDetails kind="risk" value={risk.risk_id}/></section>
+  <section className="grid gap-3" aria-label="Local business metadata"><h3>Effective business guidance</h3>
    <div className="sod-editor-grid"><div className="sod-editor-wide"><Checkbox checked={metadata.enabled} onChange={event=>update('enabled',event.target.checked)}>Risk enabled</Checkbox></div>
-    <FormField label="Display name"><Input value={metadata.display_name} maxLength={200} onChange={event=>update('display_name',event.target.value)}/></FormField>
-    <FormField label="Business area"><Input value={metadata.business_category} maxLength={120} onChange={event=>update('business_category',event.target.value)}/></FormField>
+    <SodMetadataField label="Display name" field="name" value={metadata.display_name} entry={description} maxLength={200} onChange={value=>update('display_name',value)}/>
+    <SodMetadataField label="Business area" field="business_process" value={metadata.business_category} entry={description} maxLength={120} onChange={value=>update('business_category',value)}/>
     <ColorControl optional label="Risk color" value={metadata.color} onChange={value=>update('color',value.toLowerCase())} onReset={()=>update('color','')} preview={<IdPill kind="risk" value={risk.risk_id} color={metadata.color}/>}/>
     <FormField label="Description review status"><Select value={metadata.description_review_status} onChange={event=>update('description_review_status',event.target.value)}><option>Needs description review</option><option>Reviewed</option></Select></FormField>
-    {explanationFields.map(([key,label,max])=><div key={key} className="sod-editor-wide"><FormField label={label}><textarea className="ui-control min-h-24" value={String(metadata[key])} maxLength={max} onChange={event=>update(key,event.target.value)}/></FormField></div>)}
-    <div className="sod-editor-wide"><FormField label="Local notes"><textarea className="ui-control min-h-24" value={metadata.notes} maxLength={8000} onChange={event=>update('notes',event.target.value)}/></FormField></div></div>
+    {explanationFields.map(([key,label,max])=><div key={key} className="sod-editor-wide"><SodMetadataField label={label} field={{explanation_en:'description',consequence_en:'impact',mitigating_controls_en:'controls',review_guidance_en:'guidance'}[key]} value={String(metadata[key])} entry={description} maxLength={max} multiline onChange={value=>update(key,value)}/></div>)}
+    <div className="sod-editor-wide"><SodMetadataField label="Local notes" field="notes" value={metadata.notes} entry={description} maxLength={8000} multiline onChange={value=>update('notes',value)}/></div></div>
    <p className="sod-meta">Description review status records whether the wording was reviewed; it is not a risk acceptance and never changes what is detected.</p></section>
   {source&&<RiskSourceDialog risk={risk} onClose={()=>setSource(false)}/>}
   {error&&<p role="alert">{error}</p>}
@@ -99,19 +102,21 @@ function ActivityTab() {
 }
 function ActivityEditor({row,revision,onClose,onSaved}:{row:ActivityRow;revision:number;onClose:()=>void;onSaved:()=>Promise<void>}) {
  const [metadata,setMetadata]=useState<ActivityMeta>(row.local),[transactions,setTransactions]=useState(false),[riskId,setRiskId]=useState<string|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('')
+ const description=useSodMetadata().activities[row.activity]
+ const [baseline]=useState(revision)
  const update=(key:keyof ActivityMeta,value:string)=>setMetadata(previous=>({...previous,[key]:value}))
- const save=async()=>{setBusy(true);setError('');try{await apiRequest(`/api/sod/catalogue-activities/${encodeURIComponent(row.activity)}`,'POST',{expected_revision:revision,metadata});await onSaved()}catch(cause){setError(cause instanceof Error?cause.message:'Activity configuration could not be saved.')}finally{setBusy(false)}}
+ const save=async()=>{setBusy(true);setError('');try{await apiRequest(`/api/sod/catalogue-activities/${encodeURIComponent(row.activity)}`,'POST',{expected_revision:baseline,metadata});await onSaved()}catch(cause){setError(cause instanceof Error?cause.message:'Activity configuration could not be saved.')}finally{setBusy(false)}}
  return <Dialog title={`SoD activity ${row.activity}`} onClose={onClose} footer={<><Button disabled={busy} onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} disabled={!validColor(metadata.color)} onClick={()=>void save()}><Save size={16} aria-hidden="true"/>Save changes</Button></>}>
   <section className="grid gap-2" aria-label="Imported activity definition"><div className="flex flex-wrap items-center justify-between gap-2"><IdPill kind="activity" value={row.activity} color={metadata.color}/><Button size="compact" aria-label={`Show ${row.tcodes.length} transactions for ${row.activity}`} onClick={()=>setTransactions(true)}>{row.tcodes.length.toLocaleString()} {row.tcodes.length===1?'transaction':'transactions'}</Button></div>
    <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-semibold">Related risks</span><span className="id-pill-list">{row.risks.map(risk=><PillButton key={risk} kind="risk" value={risk} label={`Source details for risk ${risk}`} onOpen={()=>setRiskId(risk)}/>)}</span></div>
    <p className="sod-meta">The activity identifier, its risks and its transaction mappings come from the import and cannot be edited.</p></section>
-  <section className="grid gap-2" aria-label="Descriptions shown in SAP Lens"><h3>Descriptions shown in SAP Lens</h3><p className="ui-description">A description imported with the SoD CSV is shown first; the local business text below fills the gaps. Both are kept and neither overwrites the other.</p><SodDescriptionDetails kind="activity" value={row.activity}/></section>
-  <section className="grid gap-3" aria-label="Local activity guidance"><h3>Local business guidance</h3>
-   <div className="sod-editor-grid"><FormField label="Display name"><Input value={metadata.display_name} maxLength={200} onChange={event=>update('display_name',event.target.value)}/></FormField><FormField label="Business area"><Input value={metadata.business_category} maxLength={120} onChange={event=>update('business_category',event.target.value)}/></FormField>
+  <section className="grid gap-2" aria-label="Descriptions shown in SAP Lens"><h3>Descriptions shown in SAP Lens</h3><p className="ui-description">Effective values use non-empty local overrides, then active import metadata, then reference definitions. Unchanged inherited fields are not saved as local overrides.</p><SodDescriptionDetails kind="activity" value={row.activity}/></section>
+  <section className="grid gap-3" aria-label="Local activity guidance"><h3>Effective business guidance</h3>
+   <div className="sod-editor-grid"><SodMetadataField label="Display name" field="name" value={metadata.display_name} entry={description} maxLength={200} onChange={value=>update('display_name',value)}/><SodMetadataField label="Business area" field="business_process" value={metadata.business_category} entry={description} maxLength={120} onChange={value=>update('business_category',value)}/>
     <ColorControl optional label="Activity color" value={metadata.color} onChange={value=>update('color',value.toLowerCase())} onReset={()=>update('color','')} preview={<IdPill kind="activity" value={row.activity} color={metadata.color}/>}/>
-    <div className="sod-editor-wide"><FormField label="Business explanation"><textarea className="ui-control min-h-24" value={metadata.explanation_en} maxLength={12000} onChange={event=>update('explanation_en',event.target.value)}/></FormField></div>
-    <div className="sod-editor-wide"><FormField label="Review guidance"><textarea className="ui-control min-h-24" value={metadata.review_guidance_en} maxLength={8000} onChange={event=>update('review_guidance_en',event.target.value)}/></FormField></div>
-    <div className="sod-editor-wide"><FormField label="Local notes"><textarea className="ui-control min-h-24" value={metadata.notes} maxLength={8000} onChange={event=>update('notes',event.target.value)}/></FormField></div></div></section>
+    <div className="sod-editor-wide"><SodMetadataField label="Business explanation" field="description" value={metadata.explanation_en} entry={description} maxLength={12000} multiline onChange={value=>update('explanation_en',value)}/></div>
+    <div className="sod-editor-wide"><SodMetadataField label="Review guidance" field="guidance" value={metadata.review_guidance_en} entry={description} maxLength={8000} multiline onChange={value=>update('review_guidance_en',value)}/></div>
+    <div className="sod-editor-wide"><SodMetadataField label="Local notes" field="notes" value={metadata.notes} entry={description} maxLength={8000} multiline onChange={value=>update('notes',value)}/></div></div></section>
   {transactions&&<TransactionsDialog title={`${row.activity} transactions`} mappings={row.mappings} onClose={()=>setTransactions(false)}/>}
   {riskId&&<RiskByIdDialog riskId={riskId} onClose={()=>setRiskId(null)}/>}
   {error&&<p role="alert">{error}</p>}

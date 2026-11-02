@@ -335,3 +335,11 @@ Browser CSV replacement: `POST /api/server/uploads/{roles|users|employees|sod}/a
 accepts authenticated multipart `file`, `revision` and optional JSON `profile` fields.
 Returns the canonical source-activation result plus `file_name`; clients never supply a
 server path. Existing raw `/api/server/uploads/{source}` staging remains compatible.
+
+
+`GET /api/sod/reference` additionally reports installation state, matched active counts,
+unmatched reference IDs and active IDs without definitions. `POST /api/sod/reference/upload`
+accepts one XLSX `file` and a `revision` in bounded authenticated multipart (2 MB workbook).
+Resolved entries from `/api/sod/metadata` carry `inherited`, `inherited_origin` and `reference`
+fields separately from effective text and its `origin`. Editors display those values without
+copying them into local annotations; immutable review snapshots retain the captured values.
