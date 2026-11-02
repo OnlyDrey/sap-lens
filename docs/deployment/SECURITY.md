@@ -138,7 +138,7 @@ are introduced; TLS termination and any gateway cookies remain gateway-owned.
 Use separate immutable application, mutable data and read-only CSV source roots.
 Uploaded file names are validated and destinations generated server-side. CSV reads
 are confined to source/upload roots, including resolved symlink checks. Uploads
-stream with enforced bounds and do not activate until existing validation/confirmation.
+stream with enforced bounds and activate only after the existing complete validation and atomic source-selection service succeeds. Multipart activation rejects stale settings revisions and concurrent loads.
 Never mount the Docker socket or run privileged. Restrict access to backups and
 volumes: they contain personal/access data. Server diagnostics are redacted; logs
 do not dump unexpected exception text, CSV rows or HTTP request details.

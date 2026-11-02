@@ -122,3 +122,27 @@ Automated browser and backend tests use synthetic identities. Fresh-process snap
 ## SoD Matrix import format, mapping and validation
 
 Settings → Data Sources → SoD Matrix has the same **Advanced import format and column mapping** section as the other CSV sources, in three steps: *CSV Import Format* (delimiter and encoding, both automatic by default; the documented columns RISK through TTEXT are a fixed schema), *Column mapping* (columns are matched by name; choose a source column only where a header differs, for example `Risk_ID` for RISK) and *Validation & preview* (counts, parser errors, SoD-specific checks and sample rows, in a table that scrolls inside its own container). The section inspects the selected file through `POST /api/data-sources/sod/inspect`, which parses it exactly as an import would but stores nothing: active data, risk definitions, decisions and review snapshots are never touched, and an invalid file never replaces the last valid dataset. The format and mapping are saved with the next import or **Apply settings** (`sod_import` in the configuration) and are used for static and dynamic refreshes. Browse CSV, Refresh source, Preview data, View changes, Technical source details and Clear source data are unchanged.
+
+
+### Browser file uploads
+
+In Settings → Data Sources, **Browse / Upload file** opens the browser's file picker
+for Role Catalogue, User Access, Employee Directory and SoD Matrix CSVs. No server
+filesystem path is required. Desktop WebView2 keeps its native Browse CSV dialog;
+a browser connected to the desktop backend can also upload using its authenticated session.
+
+The authenticated multipart request (`POST /api/server/uploads/{source}/activate`)
+carries one CSV, the current settings revision and optional existing import profile.
+It reuses the same source-selection, complete validation, atomic activation and snapshot
+persistence service as desktop browsing. Only after activation succeeds does the shared
+application-data owner refresh dependent views and show record/change counts. Active
+filename, import timestamps and snapshot metadata remain available beside the source controls.
+
+Limits are 50 MiB for Employee Directory and 128 MiB for other CSV sources, with bounded
+multipart overhead and form fields. Empty files, invalid names/types/schemas, interrupted
+uploads, stale revisions and concurrent replacements are rejected without replacing valid
+data. Failed staged files and multipart temporary files are cleaned up. Files use generated
+private names and Static mode; Global Refresh never rereads a client device. Optional
+administrator-managed Dynamic paths remain under Advanced server source path and follow
+server source-root permissions. Existing raw staging endpoints remain compatible with
+packaging tools, but the UI uses multipart activation, not the legacy staging/confirmation flow.

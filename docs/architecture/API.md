@@ -329,3 +329,9 @@ raw SAP identifiers or credentials. Recoverable read deadlines are distinguished
 from connection failures in the client. A failed SoD metadata response preparation
 cannot advance the persisted revision; validation and response preparation precede
 the existing atomic file commit. Concurrent metadata writers retain CAS semantics.
+
+
+Browser CSV replacement: `POST /api/server/uploads/{roles|users|employees|sod}/activate`
+accepts authenticated multipart `file`, `revision` and optional JSON `profile` fields.
+Returns the canonical source-activation result plus `file_name`; clients never supply a
+server path. Existing raw `/api/server/uploads/{source}` staging remains compatible.

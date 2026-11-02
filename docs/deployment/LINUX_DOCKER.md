@@ -67,7 +67,7 @@ volumes:
 
 Give UID10001 read/traverse permission, then configure paths such as
 `/sources/roles.csv` in Settings. Container paths are not arbitrary Docker host
-paths. Browser uploads require no source mount and become Static after confirmation.
+paths. Browser uploads require no source mount and become Static after successful validation and automatic activation.
 
 ## Managed offline installation and lifecycle
 

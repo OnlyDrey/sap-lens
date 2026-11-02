@@ -105,3 +105,12 @@ class AutomaticImportTests(unittest.TestCase):
    finally:release.set()
    self.assertEqual(first.result(timeout=5).status_code,200)
   self.assertEqual(self.app.state.loader.progress['stage'],'Completed')
+
+ def test_desktop_backend_browser_upload_preserves_native_selection_and_static_snapshot(self):
+  content=self.roles.read_bytes()
+  response=self.client.post('/api/server/uploads/roles/activate',headers=H,files={'file':('Synthetic.csv',content,'text/csv')},data={'revision':str(config.get_settings().revision)})
+  self.assertEqual(response.status_code,200,response.text)
+  runtime=self.client.get('/api/runtime',headers=H).json()
+  self.assertTrue(runtime['browser_upload']);self.assertTrue(runtime['native_dialogs'])
+  self.assertEqual(config.get_settings().source_modes.roles,'static')
+  self.assertEqual(len(cache.get_snapshot().roles),1)

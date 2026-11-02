@@ -25,6 +25,8 @@ export function SourceManager({source,draft,onMode,onActivated,onClear,onFeature
  const savedPath=source==='roles'?draft.data_csv_path:source==='users'?draft.user_csv_path:source==='sod'?draft.sod_csv_path||'':draft.employee_csv_path||''
  const [path,setPath]=useState(candidatePath??savedPath),[picking,setPicking]=useState(false),[pending,setPending]=useState(false),[feedback,setFeedback]=useState(''),[error,setError]=useState('')
  const [preview,setPreview]=useState(false),[technical,setTechnical]=useState(false),[changes,setChanges]=useState(false),[hint,setHint]=useState('')
+ const runtime=useQuery({queryKey:['runtime-capabilities'],queryFn:()=>apiRequest<{deployment_mode:string;browser_upload:boolean}>('/api/runtime'),staleTime:Infinity})
+ const native=!!window.pywebview?.api.choose_csv,browser=!native&&!!runtime.data?.browser_upload
  const uploadInput=useRef<HTMLInputElement>(null)
  const lastAttempt=useRef(savedPath),mounted=useRef(true)
  const {loading,activateSource,importPhase,report}=useApplicationData(),evidence=useSourceEvidence(source)
@@ -33,22 +35,24 @@ export function SourceManager({source,draft,onMode,onActivated,onClear,onFeature
  const busy=picking||pending||loading,mode=draft.source_modes?.[source]||(source==='employees'||source==='sod'?'static':'dynamic')
  useEffect(()=>{setPath(candidatePath??savedPath);lastAttempt.current=candidatePath??savedPath},[savedPath,source])
  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[])
- const activate=async(selected:string,selectedMode=mode)=>{
+ const activate=async(selected:string,selectedMode=mode,file?:File)=>{
   const chosen=selected.trim();if(!chosen)return
   lastAttempt.current=chosen;setPath(chosen);onCandidate(chosen);setError('');setFeedback('');setPending(true)
   const profile:ImportProfile|undefined=source==='roles'?draft.import_profiles.find(p=>p.id===draft.active_import):source==='users'?draft.user_import_profiles.find(p=>p.id===draft.active_user_import):source==='sod'?draft.sod_import:undefined
   try{
-   const result=await activateSource(source,{path:chosen,mode:selectedMode,revision:draft.revision,profile})
+   const result=await activateSource(source,{path:chosen,mode:selectedMode,revision:draft.revision,profile},file)
    // The Settings owner remains mounted when source tabs change; rebase there.
    onActivated(result)
-   if(mounted.current){const change=result.refresh.sources.find(row=>row.source===source);setFeedback(`Completed · ${result.records.toLocaleString()} source records from ${chosen.split(/[\\/]/).pop()} · ${change?.added||0} added, ${change?.removed||0} removed, ${change?.modified||0} modified.`)}
-  }catch(cause){if(mounted.current){setError(cause instanceof Error?cause.message:'CSV activation failed.')}}  // the attempted path stays in the field for correction or column mapping; the configured file and its data are never replaced by a failed attempt
+   if(mounted.current){const change=result.refresh.sources.find(row=>row.source===source);setFeedback(`Completed · ${result.records.toLocaleString()} source records from ${result.file_name||chosen.split(/[\\/]/).pop()} · ${change?.added||0} added, ${change?.removed||0} removed, ${change?.modified||0} modified.`)}
+  }catch(cause){if(mounted.current){setError(cause instanceof Error?cause.message:'CSV activation failed.')}if(file)throw cause}  // the attempted path stays in the field for correction or column mapping; the configured file and its data are never replaced by a failed attempt
   finally{if(mounted.current)setPending(false)}
  }
  return <section className="settings-card space-y-3" aria-label={`${names[source]} source management`}>
   <h2 className="settings-subheading">Source file</h2>
   <p className="ui-description">Selecting a file automatically validates and imports the complete dataset. Invalid or empty files never replace active data. Cancel settings does not undo a completed import.</p>
-  <BrowserSourceUpload source={source} disabled={picking||pending} fileInput={uploadInput} onUploaded={selected=>activate(selected,'static')}/>
+  {browser&&<BrowserSourceUpload source={source} disabled={busy} fileInput={uploadInput} onUpload={file=>activate(file.name,'static',file)}/>}
+  {browser&&<p className="ui-description">Active file: {savedPath.split(/[\\/]/).pop()?.replace(/^[a-f0-9]{32}-/,'')||'Not configured'}</p>}
+  <details open={!browser||runtime.data?.deployment_mode!=='server'}><summary>{browser?'Advanced server source path (optional)':'Source file selection'}</summary>
   <SourceFileField label={source==='roles'?'CSV file location':source==='users'?'User CSV file location':source==='sod'?'SoD Matrix CSV location':'Employee Directory CSV location'} value={path} onChange={value=>{setPath(value);onCandidate(value)}} inputRef={inputRef} disabled={busy} browseDisabled={picking||pending} native={!!window.pywebview?.api.choose_csv} browseLabel="Browse CSV" placeholder="Absolute local or server-visible CSV path" onCommit={force=>{if(force||path.trim()!==lastAttempt.current)void activate(path)}} onBrowse={()=>{
    setError('');setHint('')
    if(window.pywebview?.api.choose_csv){
@@ -56,6 +60,7 @@ export function SourceManager({source,draft,onMode,onActivated,onClear,onFeature
    }else if(uploadInput.current)uploadInput.current.click()
    else{(inputRef as RefObject<HTMLInputElement>|undefined)?.current?.focus();setHint('Native file browsing is only available in the desktop app. Enter the absolute path of a CSV file this application can read and press Enter; the current file stays active until it validates.')}
   }}/>
+  </details>
   {hint&&<p role="status" className="ui-description">{hint}</p>}
   <SourceMode value={mode} disabled={busy} onChange={onMode}/>
   {evidence.source?<SourceHealthSummary source={evidence.source}/>:<p role="status">Checking current source status…</p>}

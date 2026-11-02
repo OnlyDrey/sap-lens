@@ -188,9 +188,8 @@ def create_app(origin: str | None = None, session_token: str | None = None,
     app.include_router(sod_periods.router)
     app.include_router(sod_reports.router)
     app.include_router(sod_governance.router)
-    if server:
-        from server_uploads import upload_router
-        app.include_router(upload_router(server))
+    from server_uploads import upload_router
+    app.include_router(upload_router(server))
     app.include_router(modules.router)
     app.include_router(comparison.router)
 
@@ -205,7 +204,7 @@ def create_app(origin: str | None = None, session_token: str | None = None,
             return JSONResponse({'detail':'Backup/restore restart is pending. Restart SAP Lens or cancel it in Settings → Backup & Restore before editing.'},status_code=409)
         from server_access import ACTOR
         principal = getattr(request.state, 'server_principal', None)
-        return dict(deployment_mode='server' if server else 'desktop', browser_upload=bool(server), username=ACTOR.get(),
+        return dict(deployment_mode='server' if server else 'desktop', browser_upload=True, username=ACTOR.get(),
                     role=principal[1] if principal else '',
                     native_dialogs=not bool(server), source_path_policy='configured_root' if server else 'desktop_filesystem')
 

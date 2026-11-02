@@ -212,3 +212,23 @@ is retained. Original workbook contents and generated screenshots are excluded f
 No new personal/company data or credentials were introduced. FULL regression and native
 Windows/WebView2 acceptance were not run. This section is delivered with the focused
 `feat(sod): integrate versioned reference definitions with provenance` commit.
+
+### Browser multipart source replacement (2026-11-02)
+
+All four CSV source types now support authenticated multipart upload and activation via
+one canonical selection service. Browser users need no server paths; optional administrator
+paths remain under Advanced settings. Native desktop file browsing is retained, and the
+browser connected to a desktop backend can also upload through its existing session.
+Generated private staging names, bounded files/fields, static mode, settings CAS and the
+existing loader gate preserve the last valid snapshot and reject conflicting operations.
+Failure cleanup never removes a committed/active file. The legacy raw staging API is retained.
+
+Targeted evidence: affected server/automatic-import/SoD lifecycle/application run: 58 passed;
+additional multipart/desktop-backend checks: 15 passed (overlapping modules);
+packaging/multipart contracts: 17 passed, one existing platform-specific skip. Browser:
+two headless upload/download/theme/viewport cases passed, one all-four-source validation/
+failure-preservation workflow passed, three native-dialog mock workflows passed. Production
+types/build, affected ESLint (two existing warnings), Ruff and documentation links passed.
+The existing python-multipart installation is now explicitly pinned as a runtime requirement;
+its targeted dependency audit reported no known vulnerabilities. No native Windows or Docker
+image acceptance was executed; no FULL regression or manual workflow dispatch was performed.

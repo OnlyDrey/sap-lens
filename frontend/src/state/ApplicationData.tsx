@@ -1,4 +1,4 @@
-import {selectSource,type CSVSource,type SourceSelection,type SourceActivation} from '@/api/sources'
+import {selectSource,uploadSource,type CSVSource,type SourceSelection,type SourceActivation} from '@/api/sources'
 import {
   createContext,
   useCallback,
@@ -21,7 +21,7 @@ function datasetRevision(data:Awaited<ReturnType<typeof fetchConfiguration>>) {
 const Context = createContext<{
   loading: boolean
   importPhase:string|null
-  activateSource:(source:CSVSource,selection:SourceSelection)=>Promise<SourceActivation>
+  activateSource:(source:CSVSource,selection:SourceSelection,file?:File)=>Promise<SourceActivation>
   refresh: () => Promise<void>
   lastLoaded: string | null
   report: RefreshSummary | null
@@ -101,11 +101,11 @@ export function ApplicationDataProvider({ children }: { children: ReactNode }) {
       void qc.invalidateQueries({ queryKey: ['configuration'] })
     }
   }, [qc, synchronize, configuration.data?.loading])
-  const activateSource=useCallback(async(source:CSVSource,selection:SourceSelection)=>{
+  const activateSource=useCallback(async(source:CSVSource,selection:SourceSelection,file?:File)=>{
     if(running.current||configuration.data?.loading)throw Error('Another CSV operation is running. Wait for it to finish.')
-    running.current=true;setRefreshing(true);setImportPhase('Reading file');setReport(null)
+    running.current=true;setRefreshing(true);setImportPhase(file?'Uploading, validating and importing':'Reading file');setReport(null)
     try{
-      const result=await selectSource(source,selection)
+      const result=await (file?uploadSource(source,selection,file):selectSource(source,selection))
       setImportPhase('Updating dependent views')
       const data=await qc.fetchQuery({queryKey:['configuration'],queryFn:fetchConfiguration,staleTime:0})
       const revision=datasetRevision(data)

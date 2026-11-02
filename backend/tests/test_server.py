@@ -263,3 +263,59 @@ class ServerProcessTests(ServerTestBase):
                 time.sleep(.05)
             self.assertEqual(json.loads(request('GET','/api/roles')[1])[0]['agr_name'],'ZC:DEMO')
         finally:process.terminate();self.assertIn(process.wait(8),(0,-15))
+
+
+class BrowserMultipartTests(ServerTestBase):
+    def upload(self, client, source, content, name='Synthetic ø.csv', revision=None, content_type='text/csv'):
+        if revision is None: revision = config.get_settings().revision
+        return client.post(f'/api/server/uploads/{source}/activate', headers={'X-SAP-Lens':'1'},
+                           files={'file':(name, content, content_type)}, data={'revision':str(revision)})
+
+    def test_all_csv_sources_activate_and_failure_retains_current_snapshots(self):
+        from employee_directory import HEADERS
+        from test_sod_metadata import rows, write
+        import csv
+        import io
+        directory = io.StringIO(); writer = csv.writer(directory, delimiter=';'); writer.writerow(HEADERS)
+        writer.writerow(['Synthetic','Example Person','synthetic','synthetic@example.invalid','synthetic@example.invalid','Demo','Tester','True','CN=Synthetic','','','','','','',''])
+        matrix = self.root/'synthetic-matrix.csv';write(matrix,rows())
+        values = {'roles':b'AGR_NAME,TEXT,TCODE\nZC:DEMO,Synthetic,MIGO\n',
+                  'users':b'USERNAME,ROLE_NAME\nSYNTHETIC,ZC:DEMO\n','employees':directory.getvalue().encode(), 'sod':matrix.read_bytes()}
+        with self.client() as client:
+            for source, content in values.items():
+                with self.subTest(source=source):
+                    result = self.upload(client, source, content)
+                    self.assertEqual(result.status_code,200,result.text)
+                    self.assertGreater(result.json()['records'],0)
+                    self.assertEqual(result.json()['file_name'],'Synthetic ø.csv')
+                    before = client.get('/api/configuration').json()['settings']
+                    self.assertEqual(before['source_modes'][source],'static')
+                    files = set((self.data/'uploads').glob('*.csv'))
+                    failed = self.upload(client, source, b'BROKEN\ninvalid\n')
+                    self.assertEqual(failed.status_code,400,failed.text)
+                    after = client.get('/api/configuration').json()['settings']
+                    self.assertEqual(after['revision'],before['revision'])
+                    self.assertEqual(after['data_lifecycle'],before['data_lifecycle'])
+                    self.assertEqual(set((self.data/'uploads').glob('*.csv')),files)
+
+    def test_filename_content_revision_and_concurrent_operation_validation(self):
+        with self.client() as client:
+            good=b'AGR_NAME,TEXT,TCODE\nZC:DEMO,Synthetic,MIGO\n'
+            for name, content, code in [('../private.csv',good,400),('wrong.xlsx',good,400),('empty.csv',b'',400),('binary.csv',b'\x00\xff\x00',400)]:
+                self.assertEqual(self.upload(client,'roles',content,name).status_code,code)
+            self.assertEqual(self.upload(client,'roles',good,content_type='application/x-executable').status_code,415)
+            self.assertEqual(self.upload(client,'roles',good,revision=9000).status_code,409)
+            client.app.state.loader.loading=True
+            try: self.assertEqual(self.upload(client,'roles',good).status_code,409)
+            finally: client.app.state.loader.loading=False
+            self.assertEqual(list((self.data/'uploads').glob('*.csv')),[])
+            self.assertEqual(client.get('/api/roles').json(),[])
+
+    def test_unauthorized_upload_and_oversized_multipart_are_rejected(self):
+        with patch.dict(os.environ,{'SAP_LENS_AUTH':'basic'}),self.client() as client:
+            self.assertEqual(client.post('/api/server/uploads/users/activate',files={'file':('a.csv',b'x','text/csv')},data={'revision':'0'}).status_code,401)
+        with self.client() as client:
+            header={'X-SAP-Lens':'1','Content-Type':'multipart/form-data; boundary=synthetic'}
+            body=(b'x'*1024*1024 for _ in range(52))
+            self.assertEqual(client.post('/api/server/uploads/employees/activate',headers=header,content=body).status_code,413)
+            self.assertEqual(list((self.data/'uploads').glob('*.csv')),[])
