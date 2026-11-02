@@ -154,24 +154,24 @@ def review_revision(saved):
 def outstanding(period):
     """Review-population gaps for a v2 period: undecided or outdated activities and risk acceptances."""
     import sod_scope as scope
-    import sod_governance as governance
-    bundle=scope.load(period.id);model=scope.model_for(bundle);state=governance.states(model,scope.latest_for(bundle))
+    bundle=scope.load(period.id);model=scope.model_for(bundle);state=scope.states_for(bundle,model)
     result={}
     for kind in ('activity','assignment','acceptance'):
         counts={}
         for life,_ in state[kind].values():counts[life]=counts.get(life,0)+1
         result[kind]=counts
+    result['review_coverage']={kind:dict(decided=sum(row['reviewed'] for row in state['coverage'][kind].values()),total=len(state['coverage'][kind])) for kind in ('activity','assignment','acceptance')}
     result['blocking']=sum(result[kind].get(name,0) for kind in ('activity','acceptance') for name in ('Pending','Outdated'))
     return result
 
 def progress(period):
-    """Review progress of a period for the list: decided of total activities and risk acceptances, or None when unavailable."""
+    """Canonical assessment coverage; formal approval blockers stay independent."""
     try:
         if snapshot(period).get('model')!=2:return None
         gaps=outstanding(period)
     except Exception:return None
-    decided=sum(count for kind in ('activity','acceptance') for name,count in gaps[kind].items() if name not in {'Pending','Outdated'})
-    return dict(decided=decided,total=sum(count for kind in ('activity','acceptance') for count in gaps[kind].values()),blocking=gaps['blocking'])
+    coverage=gaps['review_coverage']
+    return dict(decided=sum(row['decided'] for row in coverage.values()),total=sum(row['total'] for row in coverage.values()),blocking=gaps['blocking'])
 
 def details(identifier):
     with lock:
@@ -262,8 +262,8 @@ def save_review(identifier,finding_id,annotation,expected_revision,expected_revi
 
 def _decision_rows(period):
     import sod_scope as scope
+    bundle=scope.load(period.id);model=scope.model_for(bundle);state=scope.states_for(bundle,model)
     import sod_governance as governance
-    bundle=scope.load(period.id);model=scope.model_for(bundle);state=governance.states(model,scope.latest_for(bundle))
     return {(item['kind'],item['user'],item['ref']):item['lifecycle'] for item in governance.queue_items(model,state)}
 
 def compare(left_id,right_id):

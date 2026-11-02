@@ -256,7 +256,7 @@ def subject(q: dict = Depends(scope_query), user: str = Query(..., max_length=51
     entry = model.get(user)
     if entry is None:
         raise HTTPException(404, 'The SAP user has no detected conflict evidence in this context.')
-    state = governance.states(model, scope.latest_for(bundle))
+    state = scope.states_for(bundle, model)
     if risk and risk not in entry['findings']:
         raise HTTPException(404, 'The risk is not detected for this user in this context.')
     if activity and activity not in entry['activities']:
@@ -322,7 +322,7 @@ def simulate(body: SimulateBody):
     entry = model.get(body.user)
     if entry is None:
         raise HTTPException(404, 'The SAP user has no detected conflict evidence in this context.')
-    state = governance.states(model, scope.latest_for(bundle))
+    state = scope.states_for(bundle, model)
     try:
         result = governance.simulate(entry, body.removed, _decision_map(entry, state))
     except ValueError as error:
@@ -593,7 +593,7 @@ def _bulk_assignment_review(body: BulkAssignmentBody):
     from uuid import uuid4
     operation_id=uuid4().hex
     model = scope.model_for(bundle)
-    state = governance.states(model, scope.latest_for(bundle))
+    state = scope.states_for(bundle, model)
     tracked = {item.assignment_id for item in scope.actions_for(bundle) if item.assignment_id and item.status != 'Cancelled' and item.recommended == 'Investigate assignment'}
     ready, skipped, failed = [], [], []
     for item in body.items:

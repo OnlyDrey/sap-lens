@@ -177,7 +177,7 @@ def model(identifier,options):
         previous=periods.compare(options.previous_period_id,identifier)
     v2=details['model']==2
     limitation=LIMITATION
-    bundle=scope.load(identifier);view=scope.model_for(bundle);state=governance.states(view,scope.latest_for(bundle));actions=scope.actions_for(bundle)
+    bundle=scope.load(identifier);view=scope.model_for(bundle);state=scope.states_for(bundle,view);actions=scope.actions_for(bundle)
     frozen_verification=(bundle['frozen_decisions'] or {}).get('verification') or {}
     verify=(lambda user,aid:frozen_verification.get(aid,'Not assessed at approval')) if bundle['frozen_decisions'] is not None else scope.make_verifier()
     rows,summary=governance.remediation_rows(view,state,actions,verify,today=options.report_date) if v2 else ([],{})
@@ -299,7 +299,7 @@ class RemediationOptions(StrictModel):
 def remediation_model(context,options):
     """Operational report for one review context; independent of the formal approval document."""
     options=RemediationOptions.model_validate(options.model_dump() if isinstance(options,RemediationOptions) else options)
-    bundle=scope.load(context);view=scope.model_for(bundle);state=governance.states(view,scope.latest_for(bundle));actions=scope.actions_for(bundle)
+    bundle=scope.load(context);view=scope.model_for(bundle);state=scope.states_for(bundle,view);actions=scope.actions_for(bundle)
     frozen=bundle['frozen_decisions']
     verify=(lambda user,aid:(frozen.get('verification') or {}).get(aid,'Not assessed at approval')) if frozen is not None else scope.make_verifier()
     all_rows,summary=governance.remediation_rows(view,state,actions,verify,today=options.report_date,include_pending=True)

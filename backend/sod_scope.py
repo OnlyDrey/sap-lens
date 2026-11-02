@@ -75,6 +75,12 @@ def latest_for(bundle):
     return decisions.latest(bundle['context'], data)
 
 
+def states_for(bundle, model):
+    """Frozen assessments retain their approval-date lifecycle; live contexts use today."""
+    approved = (bundle.get('period') or {}).get('approval_date') if bundle.get('frozen') else None
+    return governance.states(model, latest_for(bundle), today=date.fromisoformat(approved) if approved else None)
+
+
 def actions_for(bundle):
     if bundle['frozen_decisions'] is not None:
         return [decisions.Action.model_validate(item) for item in bundle['frozen_decisions']['actions']]
@@ -202,7 +208,7 @@ def scoped(context, q):
     bundle = load(context, q.get('validity', 'active'), q.get('as_of'))
     model = model_for(bundle)
     observe(bundle, model)
-    state = governance.states(model, latest_for(bundle))
+    state = states_for(bundle, model)
     view = governance.restrict(model, visible_cells(bundle, model, state, q), allowed_assignments(model, state, q) if assignment_filters_active(q) else None)
     return bundle, model, state, view
 

@@ -53,3 +53,25 @@ class CoverageTests(fixture.GovernanceCase):
         state=governance.states(model,latest)
         self.assertEqual(state['assignment'][aid][0],'Outdated')
         self.assertFalse(state['coverage']['activity'][activity['key']]['reviewed'])
+
+    def test_period_coverage_matches_queue_without_relaxing_formal_approval(self):
+        from datetime import date
+        import sod_periods as periods
+        pid=periods.create('Synthetic coverage',date(2026,1,1),date(2026,12,31),date(2026,10,27),periods.read().revision)['period']['id']
+        for row in self.subject('SYN_A',context=pid)['overview']['assignments']:
+            self.decide('assignment',[dict(key=row['id'],user='SYN_A',ref=row['role'],evidence_version=row['evidence_version'])],'Keep',context=pid)
+        queue=self.get('/api/sod/queue/users',context=pid)['items']
+        period=periods.find(periods.read(),pid)
+        progress=periods.progress(period)
+        self.assertEqual(progress['decided'],sum(row['decided'] for row in queue))
+        self.assertEqual(progress['total'],sum(row['total'] for row in queue))
+        self.assertGreater(progress['blocking'],0) # Assessment coverage never bypasses formal approval.
+
+    def test_frozen_lifecycle_uses_approval_date_not_wall_clock(self):
+        from datetime import date
+        from unittest.mock import patch
+        import sod_scope as scope
+        bundle=dict(frozen=True,period={'approval_date':'2026-10-27'})
+        with patch.object(scope,'latest_for',return_value={}),patch.object(scope.governance,'states',return_value={}) as derive:
+            scope.states_for(bundle,{})
+            self.assertEqual(derive.call_args.kwargs['today'],date(2026,10,27))

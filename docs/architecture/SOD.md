@@ -132,3 +132,9 @@ under the existing publication/period locks; validation failure writes no events
 The legacy Explorer's detailed partial-outcome behavior remains available by default.
 Events carry `bulk_operation_id` and `previous_decision`, without changing identity,
 source data, formal acceptance or remediation verification.
+
+Period list and Overview progress use the same canonical assessment coverage as the
+queue, including assignments. `blocking` remains the independent formal
+activity/acceptance approval gate; reviewed coverage cannot bypass it. Frozen
+assessment lifecycle is evaluated at the retained approval date, so later expiry
+does not rewrite an approved period's completion counts.

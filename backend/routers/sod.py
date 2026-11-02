@@ -155,7 +155,7 @@ def governance_overview():
     import sod_scope as scope
     bundle=scope.load('current')
     if bundle['coverage']['status']!='available':return dict(available=False,reason=bundle['coverage'].get('reason'),missing=bundle['coverage'].get('missing',[]))
-    model=scope.model_for(bundle);change=scope.observe(bundle,model);state=governance.states(model,scope.latest_for(bundle))
+    model=scope.model_for(bundle);change=scope.observe(bundle,model);state=scope.states_for(bundle,model)
     def tally(kind):
         result={}
         for life,_ in state[kind].values():result[life]=result.get(life,0)+1
@@ -167,12 +167,9 @@ def governance_overview():
     progress=[]
     for period in sorted(index.items,key=lambda item:item.modified,reverse=True):
         if period.deleted_at or period.state in periods.FROZEN:continue
-        try:gaps=periods.outstanding(period) if periods.snapshot(period).get('model')==2 else None
-        except Exception:gaps=None
-        if gaps is None:continue
-        decided=sum(count for kind in ('activity','acceptance') for name,count in gaps[kind].items() if name not in {'Pending','Outdated'})
-        total=sum(count for kind in ('activity','acceptance') for count in gaps[kind].values())
-        progress.append(dict(id=period.id,name=period.name,state=period.state,decided=decided,total=total,blocking=gaps['blocking']))
+        assessment=periods.progress(period)
+        if assessment is None:continue
+        progress.append(dict(id=period.id,name=period.name,state=period.state,**assessment))
         if len(progress)>=5:break
     frozen=[item for item in index.items if not item.deleted_at and item.state in periods.FROZEN and item.approval_date]
     latest=max(frozen,key=lambda item:(item.approval_date,item.modified),default=None)
