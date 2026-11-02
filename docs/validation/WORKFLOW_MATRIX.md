@@ -126,3 +126,20 @@ implementation is delivered incrementally; this is **not** a full-regression pas
   The 230-item tracker retains its manual approval fields unchanged.
 
 No packaging workflow, release, tag or native deployment run was manually dispatched.
+
+### Targeted browser stabilization follow-up
+
+The three failures in Actions run `41480098787` were reproduced from its logs:
+two obsolete `Quick review details` rationale locators and one real presentation
+regression where derived coverage hid the explicit activity decision. Rationale
+selectors now use the role-review section; matrices preserve explicit decisions
+and use derived labels only for pending manual decisions.
+
+All 20 previously failing local scenarios are now covered by passing targeted
+checks: 16 passed in the affected-case batch, the two long-username cases passed
+after correcting the real SAP-user link accessible name, the Risk Acceptance row
+case passed with explicit tab navigation, and the shared-reviewer scenario passed
+in the earlier essential recheck. Tabbed-section/header expectations were updated
+without removing assertions. Four startup cases render the exact generated HTML
+with Playwright rather than navigating a managed-browser-blocked `file://` URL.
+No full suite was restarted; native Windows/WebView2 acceptance is still separate.

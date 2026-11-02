@@ -80,9 +80,9 @@ for (const width of [375, 800]) test(`long roles never widen the page or break t
   await page.getByRole('tab', { name: 'Assignments', exact: true }).click()
   await expect(page.getByRole('table', { name: 'Access list' })).toContainText(longRoleName)
   expect(await noOverflow()).toBeTruthy()
-  const user = page.getByRole('cell', { name: new RegExp(`^${names.a}`) }).first()
+  const user = page.getByRole('link', { name: `Open SAP user ${names.a}`, exact: true }).first()
   // The user name itself stays on one line (rows may be taller for validity text).
-  expect(await user.evaluate((cell) => { const range = document.createRange(); range.selectNodeContents(cell.firstChild!); return range.getBoundingClientRect().height })).toBeLessThan(40)
+  expect(await user.evaluate((cell) => { const range = document.createRange(); range.selectNodeContents(cell); return range.getBoundingClientRect().height })).toBeLessThan(40)
   await page.getByRole('tab', { name: 'Roles', exact: true }).click()
   expect(await noOverflow()).toBeTruthy()
   await openSod(page, 'Reviews')

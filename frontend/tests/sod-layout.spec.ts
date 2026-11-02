@@ -108,7 +108,10 @@ for (const width of [375, 800]) test(`the review workspace is usable without hor
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
   await page.getByRole('button', { name: /^Open review for / }).first().click()
   const panel = page.getByRole('dialog', { name: /^SYN_/ })
-  for (const name of ['Activity Review', 'Role Assignment Review', 'Risk Acceptance']) await expect(panel.getByRole('region', { name, exact: true })).toBeVisible()
+  for (const [tab,name] of [['Roles','Role Assignment Review'],['Activities','Activity Review'],['Risks','Risk Acceptance']]) {
+    await panel.getByRole('tab', {name:new RegExp('^'+tab)}).click(); await expect(panel.getByRole('region', {name,exact:true})).toBeVisible()
+  }
+  await panel.getByRole('tab', {name:/^Activities/}).click()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
   const box = await panel.boundingBox()
   expect(box!.x + box!.width).toBeLessThanOrEqual(width + 1)
@@ -122,6 +125,7 @@ test('Activity Review and Role Assignment Review rows are single-line with icon 
   await openSod(page, 'Reviews')
   await page.getByRole('button', { name: /^Open review for / }).first().click()
   const panel = page.getByRole('dialog', { name: /^SYN_/ })
+  await panel.getByRole('tab', {name:/^Activities/}).click()
   const activities = panel.getByRole('region', { name: 'Activity Review', exact: true })
   const row = activities.getByRole('listitem').filter({ has: page.getByRole('button', { name: 'Review activity A', exact: true }) })
   // Identity, status, risk pills, role coverage, decision action and expand control share one line.
@@ -140,6 +144,7 @@ test('Activity Review and Role Assignment Review rows are single-line with icon 
   await row.getByRole('button', { name: 'Hide details for A', exact: true }).click()
   await expect(row.getByText('Activity review history')).toHaveCount(0)
   // Role assignment rows show the catalogue description next to the role identifier without opening the evidence.
+  await panel.getByRole('tab', {name:/^Roles/}).click()
   const assignments = panel.getByRole('region', { name: 'Role Assignment Review', exact: true })
   await expect(assignments.getByRole('listitem').first().locator('.sod-assignment-description')).toContainText('Synt')
   await expect(assignments.getByText('SAP User Group')).toHaveCount(0)

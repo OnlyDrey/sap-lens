@@ -47,7 +47,7 @@ test('activity, role assignment and risk acceptance are separate decisions and n
   await panel.getByRole('tab', { name: /^Roles/ }).click()
   const assignments = panel.getByRole('region', { name: 'Role Assignment Review', exact: true })
   const duplicate = assignments.getByRole('listitem').filter({ hasText: 'ROLE_A2' })
-  const quick = assignments.getByRole('group', { name: 'Quick review details' })
+  const quick = assignments
   await panel.getByRole('textbox', { name: 'Reviewer (self-reported)', exact: true }).fill('Synthetic Reviewer')
   await quick.getByRole('textbox', { name: 'Rationale (optional)', exact: true }).fill('Duplicate coverage')
   await duplicate.getByRole('button', { name: 'Remove ROLE_A2', exact: true }).click()
@@ -206,7 +206,7 @@ test('remediation separates proposals from verification and keeps tracked action
   await cellButton(page, `${names.a}`, 'R1').click()
   const panel = page.getByRole('dialog', { name: `${names.a} · R1` })
   const row = panel.getByRole('region', { name: 'Role Assignment Review', exact: true }).getByRole('listitem').filter({ hasText: 'ROLE_A2' })
-  const quick = panel.getByRole('group', { name: 'Quick review details' })
+  const quick = panel.getByRole('region', { name: 'Role Assignment Review', exact: true })
   await panel.getByRole('textbox', { name: 'Reviewer (self-reported)', exact: true }).fill('Synthetic Reviewer')
   await quick.getByRole('textbox', { name: 'Rationale (optional)', exact: true }).fill('Duplicate coverage')
   await row.getByRole('button', { name: 'Remove ROLE_A2', exact: true }).click()

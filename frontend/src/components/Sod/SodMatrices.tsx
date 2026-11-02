@@ -66,14 +66,14 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
     if (!entry) return null
     if (risk) {
       const value = entry as RiskCell,
-        view = value.review_coverage?.reviewed?{...lifecycleView('Approved'),text:value.review_coverage.label||'Reviewed'}:lifecycleView(value.acceptance),
+        view = value.acceptance==='Pending'&&value.review_coverage?.reviewed?{...lifecycleView('Approved'),text:value.review_coverage.label||'Reviewed'}:lifecycleView(value.acceptance),
         sides = Object.values(value.activities).reduce((sum, count) => sum + count, 0),
         undecided = (value.activities.Pending || 0) + (value.activities.Outdated || 0)
       return { icon: view.icon, tone: view.tone, text: view.text, sub: `${sides - undecided}/${sides}`,
         label: `${row}, risk ${column}: potential conflict detected, access assessment ${view.text}, formal risk acceptance ${value.acceptance}, ${sides - undecided} of ${sides} activities reviewed. Open investigation.` }
     }
     const value = entry as ActivityCell,
-      view = value.review_coverage?.reviewed?{...lifecycleView('Approved'),text:value.review_coverage.provenance}:lifecycleView(value.decision)
+      view = value.decision==='Pending'&&value.review_coverage?.reviewed?{...lifecycleView('Approved'),text:value.review_coverage.provenance}:lifecycleView(value.decision)
     return { icon: view.icon, tone: view.tone, text: view.text, sub: `×${value.roles}${value.duplicate ? ' ⧉' : ''}`,
       label: `${row}, activity ${column}: review ${view.text}, supplied by ${value.roles} role assignments${value.duplicate ? ', duplicate coverage' : ''}. Open investigation.` }
   }
