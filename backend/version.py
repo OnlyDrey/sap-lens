@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 import re
 import sys
+import subprocess
 
 BASE_PATTERN = r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
 FIELDS = {
@@ -197,13 +198,46 @@ def parse_build_info(value):
     return expected
 
 
+def product_version():
+    value = json.loads((Path(__file__).resolve().parent / 'resources/product-version.json').read_text(encoding='utf-8'))['version']
+    match = re.fullmatch(r'(' + BASE_PATTERN + r')(?:-(alpha|beta|rc)\.([1-9][0-9]{0,4}))?', value)
+    if not match:
+        raise ValueError('Invalid product version resource.')
+    base_numbers(match[1])
+    return value
+
+
+def sync_frontend_version(value):
+    """CI-generated mirrors; product resource remains unchanged in the source commit."""
+    root = Path(__file__).resolve().parents[1]
+    for name in ('frontend/package.json', 'frontend/package-lock.json'):
+        path = root / name
+        data = json.loads(path.read_text(encoding='utf-8'))
+        data['version'] = value
+        if 'packages' in data: data['packages']['']['version'] = value
+        path.write_text(json.dumps(data, indent=2) + '\n', encoding='utf-8')
+
+
+def next_prerelease(base, channel, tags):
+    base_numbers(base)
+    if channel not in {'alpha', 'beta', 'rc'}:
+        raise ValueError('Prerelease channel required.')
+    pattern = re.compile(r'v?' + re.escape(base) + '-' + channel + r'[.-]([1-9][0-9]*)')
+    occupied = [int(m[1]) for tag in tags if (m := pattern.fullmatch(tag))]
+    number = max(occupied, default=0) + 1
+    current = product_version()
+    floor = re.fullmatch(re.escape(base) + '-' + channel + r'\.([1-9][0-9]*)', current)
+    number = max(number, int(floor[1]) if floor else 1)
+    return number
+
+
 def local_build_info():
     return dict(
         schema=1,
-        version="0.0.0-dev.local",
-        base_version="0.0.0",
+        version=product_version(),
+        base_version=product_version().split("-",1)[0],
         mode="local",
-        file_version=[0, 0, 0, 0],
+        file_version=[*base_numbers(product_version().split("-",1)[0]), 0],
         source_sha="",
         run_id="",
         run_number="",
@@ -214,6 +248,7 @@ def local_build_info():
 
 def read_build_info(path=None, *, frozen=None):
     frozen = bool(getattr(sys, "frozen", False)) if frozen is None else frozen
+    source_default = path is None and not frozen
     if path is None:
         path = (
             Path(sys._MEIPASS) / "build-version.json"
@@ -225,7 +260,13 @@ def read_build_info(path=None, *, frozen=None):
         return local_build_info()
     if path.is_symlink() or not path.is_file() or path.stat().st_size > 4096:
         raise ValueError("Required build metadata is missing or unsafe.")
-    return parse_build_info(json.loads(path.read_text(encoding="utf-8")))
+    info = parse_build_info(json.loads(path.read_text(encoding="utf-8")))
+    root = Path(__file__).resolve().parents[1]
+    if source_default and (root / '.git').exists():
+        source = subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()
+        if info['source_sha'] != source:
+            return local_build_info()  # Old ignored artifacts never misidentify a new checkout.
+    return info
 
 
 BUILD_INFO = read_build_info()

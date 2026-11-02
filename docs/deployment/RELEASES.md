@@ -1,4 +1,51 @@
-# Releases and legacy Windows versioning
+# Product versions and releases
+
+## Authoritative version and branch policy
+
+`backend/resources/product-version.json` is the single product version source.
+Frontend package.json and package-lock.json are generated mirrors; run
+`node scripts/product-version.mjs --write` after intentionally advancing a development
+cycle or promoting a stable version, and `node scripts/product-version.mjs` to check them.
+Ordinary development pushes do not bump versions. Internal npm package names stay compatible.
+
+Source checkouts use this version in the backend and About screen. Stale ignored build
+metadata from another checkout commit is ignored only in local development; frozen packages
+still require strict embedded identity. CI allocates one immutable build identity for the exact
+source commit, stamps frontend manifest mirrors before building, and embeds that same identity
+in frontend `product-version.json`, backend, PE resources, installers, archives and release
+manifests. Local package overrides remain explicitly unofficial. All source/runtime resource
+paths are included by the canonical Windows, native Linux and Docker packaging scripts.
+
+- `work`: prerelease publication (Alpha/Beta/RC); never stable packages/publication.
+- `main`: stable publication only after the product resource is a stable version.
+- Feature branches: build-only prereleases; no official publication.
+
+The stdlib planning job rejects invalid branch/type/base/sequence/collisions before expensive
+jobs. It reads paginated tags and releases (including drafts), resolves `auto` once, and passes
+the result to every package job. Both `beta-N` and `beta.N` occupy the same numeric sequence;
+new deployment packages use dotted SemVer, while the legacy desktop workflow keeps its
+existing hyphen style. Existing tags and releases are never renamed. Manual publication
+numbers must equal the next available sequence. Publication rechecks the branch's exact
+commit and all selected verified artifacts/checksums; partial success cannot publish.
+
+## Stable promotion (manual, future operation)
+
+1. Review/validate the chosen work commit and promote it through the existing PR process.
+2. On the reviewed main promotion, change product metadata to the stable version and regenerate
+   manifest mirrors; validate that main commit. No workflow automatically merges branches.
+3. Dispatch the stable packaging workflow from that exact main commit. It must still be main's
+   head when publishing; source drift requires a new validated build.
+4. Required package/build/security validation and checksum roundtrips must succeed. The deployment
+   publisher creates its owned tag only after assets are verified. The legacy desktop workflow
+   retains its prebuild tag reservation, never publishing a failed/unvalidated build.
+5. Publish only through the explicit manual publication input/protected environment. FULL
+   regression remains a separate manual operation, not an automatic package prerequisite.
+
+GitHub Releases is the release-history record. This development task creates no tag/release
+and changes no main/default-branch or repository protection settings.
+
+## Legacy desktop details (examples use an illustrative base)
+
 
 For multi-platform Alpha/Beta/RC/Stable channels and optional publication, use
 [Build — manual workflow](BUILD.md#manual-build). This document describes the
@@ -13,8 +60,7 @@ No signing, SAP processing or user-configuration behavior changes.
 ## Legacy desktop inputs and resolved identity
 
 Choose a source branch, release_mode (build by default, beta or stable), and a
-strict MAJOR.MINOR.PATCH base version without v, leading zeros or suffixes. The
-form defaults to 0.1.0. Existing benchmark_packaging and cold_cache inputs remain
+strict MAJOR.MINOR.PATCH base version without v, leading zeros or suffixes. An empty base input derives the product resource. Existing benchmark_packaging and cold_cache inputs remain
 false by default and retain their behavior. The selected branch must contain
 this reviewed workflow and scripts; stable requires merging them into main.
 GitHub's dispatch form may still reflect the default branch's older definition
@@ -33,7 +79,7 @@ workflow. Beta takes the highest valid positive matching beta suffix plus one,
 starting at 1. Gaps remain; unrelated bases and malformed suffixes are ignored.
 Reserved tags and draft releases also occupy numbers. Changing base to 0.2.0
 starts its own beta-1 sequence. Stable requires main and a version greater than
-all existing stable tags/releases; no source constant must be updated or matched.
+all existing stable tags/releases; the selected source product resource must have the same base. Stable metadata must be promoted on main before publishing.
 All base components must fit Windows' 0–65535 numeric range.
 
 Historical beta reservations remain occupied even after failed builds. Inspect

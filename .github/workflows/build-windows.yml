@@ -9,10 +9,10 @@ on:
         default: build
         required: true
       version:
-        description: Base MAJOR.MINOR.PATCH embedded in this build and release
+        description: Base version; empty uses the source product version
         type: string
-        default: '0.1.0'
-        required: true
+        default: ''
+        required: false
       benchmark_packaging:
         description: Compare clean and same-job incremental PyInstaller packaging
         type: boolean

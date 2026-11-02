@@ -7,7 +7,8 @@ COPY frontend/package.json frontend/package-lock.json ./
 RUN --mount=type=secret,id=build_ca \
     if [ -f /run/secrets/build_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/build_ca; fi; npm ci --no-audit --no-fund
 COPY frontend/ ./
-COPY scripts/frontend-licenses.mjs ../scripts/frontend-licenses.mjs
+COPY scripts/frontend-licenses.mjs scripts/product-version.mjs ../scripts/
+COPY backend/resources/ /build/backend/resources/
 RUN npm run check:types && npm run build && node ../scripts/frontend-licenses.mjs
 
 FROM scratch AS validated_frontend
@@ -31,6 +32,7 @@ RUN --mount=type=secret,id=build_ca \
 RUN groupadd --gid 10001 saplens && useradd --uid 10001 --gid saplens --no-create-home saplens \
     && mkdir /data /sources && chown saplens:saplens /data
 COPY backend/*.py ./backend/
+COPY backend/resources/ ./backend/resources/
 COPY LICENSE.md ./LICENSE.md
 COPY backend/routers/ ./backend/routers/
 COPY assets/ ./assets/

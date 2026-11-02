@@ -225,6 +225,7 @@ class ServerProcessTests(ServerTestBase):
         source=Path(__file__).resolve().parents[1]
         for file in source.glob('*.py'):shutil.copyfile(file,backend/file.name)
         shutil.copytree(source/'routers',backend/'routers',ignore=shutil.ignore_patterns('__pycache__'))
+        shutil.copytree(source/'resources',backend/'resources')
         frontend=runtime/'frontend/dist';frontend.mkdir(parents=True);(frontend/'index.html').write_text('<html>synthetic process frontend</html>')
         command=[sys.executable,str(backend/'server.py')]
         def start():

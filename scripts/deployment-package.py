@@ -17,7 +17,7 @@ import zipfile
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'backend'))
-from version import make_build_info,make_local_package_info,parse_build_info,make_deployment_info
+from version import make_build_info,make_local_package_info,parse_build_info,make_deployment_info,sync_frontend_version,product_version
 # Lightweight package-integrity checks only. Neither the full backend suite nor the browser suite is a prerequisite for building or publishing; see docs/deployment/CI_CD.md.
 CHECKS={'types','build','catalog','python_audit','javascript_audit','pip_check','workflow_lint','powershell'}
 
@@ -83,6 +83,7 @@ def prepare(version):
             value=make_build_info('build',version,git_sha(),os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_NUMBER'],int(os.environ['GITHUB_RUN_ATTEMPT']))
     else:value=make_local_package_info(version,git_sha())
     write(ROOT/'backend/build/build-version.json',value)
+    if os.environ.get('GITHUB_ACTIONS')=='true': sync_frontend_version(value['version'])
     if os.environ.get('GITHUB_OUTPUT'):
         with open(os.environ['GITHUB_OUTPUT'],'a') as output:
             output.write('version='+value['version']+'\n')
@@ -283,6 +284,7 @@ def copy_source(target):
     for name in selected:
         path=target/name;path.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/name,path)
     shutil.copytree(ROOT/'frontend/dist',target/'frontend/dist')
+    shutil.copytree(ROOT/'backend/resources',target/'backend/resources')
     write(target/'backend/build/build-version.json',identity())
     # Keep published bundle member names stable while repository guides move.
     documents = {
@@ -331,7 +333,7 @@ def native(output):
 
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('operation',choices=['prepare','seal','consume','require-ci','require-inputs','record-local','native','finish','extract','readme'])
-    p.add_argument('--version',default='0.1.0');p.add_argument('--archive',type=Path);p.add_argument('--output',type=Path,default=ROOT/'dist/deployment')
+    p.add_argument('--version',default=product_version().split('-',1)[0]);p.add_argument('--archive',type=Path);p.add_argument('--output',type=Path,default=ROOT/'dist/deployment')
     p.add_argument('--directory',type=Path);p.add_argument('--platform');p.add_argument('--sha256')
     p.add_argument('--document',type=Path)
     a=p.parse_args()

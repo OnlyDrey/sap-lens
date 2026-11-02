@@ -27,7 +27,7 @@ class BuildVersionTests(unittest.TestCase):
             info = version.read_build_info(
                 Path(directory) / "absent.json", frozen=False
             )
-            self.assertEqual(info["version"], "0.0.0-dev.local")
+            self.assertEqual(info["version"], version.product_version())
             self.assertEqual(info["mode"], "local")
             self.assertEqual(info["source_sha"], "")
 
@@ -155,3 +155,20 @@ class BuildVersionTests(unittest.TestCase):
         self.assertIn("ensure-local-build", text)
         self.assertIn("backend/build/build-version.json", text)
         self.assertNotIn("1.2.0", (ROOT / "backend/version.py").read_text())
+
+
+class ProductVersionTests(unittest.TestCase):
+    def test_frontend_mirrors_product_source(self):
+        self.assertEqual(json.loads((ROOT/'frontend/package.json').read_text())['version'],version.product_version())
+        lock=json.loads((ROOT/'frontend/package-lock.json').read_text())
+        self.assertEqual(lock['version'],version.product_version())
+        self.assertEqual(lock['packages']['']['version'],version.product_version())
+
+    def test_mixed_legacy_and_semver_beta_numbers_share_one_sequence(self):
+        self.assertEqual(version.next_prerelease('1.0.0','beta',['v1.0.0-beta-1','v1.0.0-beta.3','v2.0.0-beta-99']),4)
+        self.assertEqual(version.next_prerelease('1.0.0','rc',['v1.0.0-rc.1','v1.0.0-beta.99']),2)
+
+    def test_product_resource_and_resolved_identity_have_one_base(self):
+        current=version.product_version()
+        self.assertEqual(version.local_build_info()['version'],current)
+        self.assertEqual(version.local_build_info()['base_version'],current.split('-',1)[0])

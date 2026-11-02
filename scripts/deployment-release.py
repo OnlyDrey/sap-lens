@@ -17,7 +17,7 @@ from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'backend'))
-from version import parse_build_info, deployment_version
+from version import parse_build_info, deployment_version, product_version, next_prerelease
 
 CHANNELS = {'Alpha': 'alpha', 'Beta': 'beta', 'Release Candidate (RC)': 'rc',
             'Stable / Production': 'stable'}
@@ -64,22 +64,43 @@ def plan_summary(build_target, chosen):
 
 
 def require_release_ref(mode, ref):
-    """Stable / Production is published only from main (the legacy Windows release enforces the same rule); other channels may come from any branch."""
-    if mode == 'stable' and ref != 'refs/heads/main':
-        raise DeliveryError('Stable / Production releases may only be published from the main branch.')
+    """Stable / Production is published only from main (the legacy Windows release enforces the same rule); prereleases only from work."""
+    expected = 'refs/heads/main' if mode == 'stable' else 'refs/heads/work'
+    if ref != expected:
+        raise DeliveryError('Stable / Production requires main; prerelease publication requires work. Feature branches cannot publish.')
 
 
 def plan():
     build_target = os.environ.get('DEPLOYMENT_TARGET', '')
     chosen = resolve(build_target)
     mode=channel(os.environ.get('DEPLOYMENT_CHANNEL',''))
-    try:deployment_version(os.environ.get('BASE_VERSION',''),mode,os.environ.get('DEPLOYMENT_SEQUENCE',''))
+    base = os.environ.get('BASE_VERSION') or product_version().split('-',1)[0]
+    sequence = os.environ.get('DEPLOYMENT_SEQUENCE','')
+    if sequence == 'auto': sequence = str(next_prerelease(base, mode, [])) if mode != 'stable' else ''
+    try:deployment_version(base,mode,sequence)
     except ValueError as error:raise DeliveryError(str(error)) from None
     if os.environ.get('PUBLISH_RELEASE') not in {'true','false'}:
         raise DeliveryError('Explicit true/false publication choice is required.')
     if os.environ.get('PUBLISH_RELEASE') == 'true':  # fail before any runner is spent on a release that could never be published
         require_release_ref(mode, os.environ.get('GITHUB_REF', ''))
-    output(packages=','.join(chosen), count=len(chosen), **{row[0]: 'true' if name in chosen else 'false' for name, row in PACKAGES.items()})
+    if mode == 'stable': require_release_ref(mode, os.environ.get('GITHUB_REF', ''))
+    if os.environ.get('GITHUB_ACTIONS') == 'true':
+        if mode == 'stable' and product_version() != base: raise DeliveryError('Promote stable product metadata on main before a stable build.')
+        if base != product_version().split('-',1)[0]: raise DeliveryError('Requested base differs from the source product version.')
+        api = GitHub(os.environ['GITHUB_REPOSITORY'], os.environ['GITHUB_TOKEN'])
+        if os.environ.get('PUBLISH_RELEASE') == 'true' or mode == 'stable':
+            api.verify_source(mode, os.environ['GITHUB_REF'], os.environ['GITHUB_SHA'])
+        tags = api.version_tags()
+        expected = str(next_prerelease(base,mode,tags)) if mode != 'stable' else ''
+        if os.environ.get('DEPLOYMENT_SEQUENCE') == 'auto': sequence = expected
+        if mode != 'stable' and os.environ.get('PUBLISH_RELEASE') == 'true' and sequence != expected:
+            raise DeliveryError('Prerelease number must be the next available sequence; use auto.')
+        resolved=deployment_version(base,mode,sequence)
+        if any(tag.removeprefix('v').replace('-beta-','-beta.').replace('-alpha-','-alpha.').replace('-rc-','-rc.')==resolved for tag in tags):
+            raise DeliveryError('Version or compatible legacy tag already exists; nothing will be overwritten.')
+        api.available('v'+resolved)
+    deployment_version(base,mode,sequence)
+    output(base=base, sequence=sequence, packages=','.join(chosen), count=len(chosen), **{row[0]: 'true' if name in chosen else 'false' for name, row in PACKAGES.items()})
     summary = plan_summary(build_target, chosen)
     print(summary)
     if os.environ.get('GITHUB_STEP_SUMMARY'):
@@ -145,11 +166,33 @@ class GitHub:
             # Response bodies/URLs may contain signed credentials; never print them.
             raise DeliveryError(f'GitHub {method} failed (HTTP {error.code}).') from None
 
+    def version_tags(self):
+        names = []
+        for endpoint, field in (('/tags', 'name'), ('/releases', 'tag_name')):
+            for page in range(1, 101):
+                values = self.request('GET', endpoint+f'?per_page=100&page={page}')
+                if not isinstance(values, list): raise DeliveryError('Cannot read release versions.')
+                names.extend(value[field] for value in values)
+                if len(values) < 100: break
+            else: raise DeliveryError('Version pagination limit exceeded.')
+        return names
+
+    def verify_source(self, mode, ref, sha):
+        require_release_ref(mode, ref)
+        value = self.request('GET', '/git/ref/heads/'+quote(ref.removeprefix('refs/heads/'),safe=''))
+        if not value or value.get('object',{}).get('sha') != sha:
+            raise DeliveryError('Release branch does not identify the validated source commit.')
+
     def available(self, tag):
-        if self.request('GET', '/git/ref/tags/' + quote(tag, safe='')) is not None:
-            raise DeliveryError('Version tag already exists; choose a new version. Nothing was overwritten.')
-        if self.request('GET', '/releases/tags/' + quote(tag, safe='')) is not None:
-            raise DeliveryError('Version release already exists; choose a new version. Nothing was overwritten.')
+        aliases = {tag, tag.removeprefix('v')}
+        for name in list(aliases):
+            alternate = re.sub(r'-(alpha|beta|rc)[.-]([1-9][0-9]*)$', lambda m: '-'+m[1]+('-' if '.' in m[0] else '.')+m[2], name)
+            aliases.add(alternate)
+        for name in sorted(aliases):
+            if self.request('GET', '/git/ref/tags/' + quote(name, safe='')) is not None:
+                raise DeliveryError('Version tag already exists; choose a new version. Nothing was overwritten.')
+            if self.request('GET', '/releases/tags/' + quote(name, safe='')) is not None:
+                raise DeliveryError('Version release already exists; choose a new version. Nothing was overwritten.')
 
 
 def context():
@@ -225,6 +268,14 @@ def verify_asset(value, path):
         raise DeliveryError('GitHub release asset size, state or SHA-256 differs.')
 
 
+def verify_tag(api, tag, object_id, source):
+    ref = api.request('GET', '/git/ref/tags/' + quote(tag, safe=''))
+    target = api.request('GET', '/git/tags/' + object_id)
+    if (not ref or ref.get('object', {}).get('sha') != object_id or not target
+            or target.get('object', {}).get('type') != 'commit' or target['object'].get('sha') != source):
+        raise DeliveryError('Release tag does not point to the validated source commit.')
+
+
 def publish(api, info, assets):
     tag = info['tag']
     api.available(tag)
@@ -245,9 +296,7 @@ def publish(api, info, assets):
             raise DeliveryError('Published release asset set differs.')
         for path in assets:
             verify_asset(remote[path.name], path)
-        ref = api.request('GET', '/git/ref/tags/' + quote(tag, safe=''))
-        if not ref or ref.get('object', {}).get('sha') != tag_object:
-            raise DeliveryError('Published tag does not identify the owned validated source tag.')
+        verify_tag(api, tag, tag_object, info['source_sha'])
         return value
 
     try:
@@ -275,6 +324,7 @@ def publish(api, info, assets):
         if not re.fullmatch(r'[0-9a-f]{40}', tag_object):
             raise DeliveryError('Invalid annotated tag identity.')
         api.request('POST', '/git/refs', dict(ref='refs/tags/' + tag, sha=tag_object))
+        verify_tag(api, tag, tag_object, info['source_sha'])
         print('Publication phase: publish complete validated release')
         api.request('PATCH', f'/releases/{release_id}', dict(draft=False,
             prerelease=prerelease, make_latest='false' if prerelease else 'true'))
@@ -314,6 +364,7 @@ def main():
     info = context()
     rows = eligible(info, planned(), json.loads(os.environ['DEPLOYMENT_NEEDS']))
     api = GitHub(os.environ['GITHUB_REPOSITORY'], os.environ['GITHUB_TOKEN'])
+    api.verify_source(info['mode'], os.environ.get('GITHUB_REF',''), info['source_sha'])
     api.available(info['tag'])
     if args.operation == 'preflight':
         output(artifact_ids=','.join(row['artifact_id'] for row in rows))

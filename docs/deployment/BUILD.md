@@ -45,24 +45,22 @@ Windows target. The job summary shows the selected target, the resolved packages
 package as selected or skipped, the version and channel, and whether publication is
 enabled. Artifact names and the per-package jobs are unchanged.
 
-Supply base `version`, such as `0.1.0`, a `release_channel`, and a positive
-`prerelease_number` for prereleases. Publication is controlled separately by
+Leave base `version` empty to use the source product version, choose a `release_channel`, and use
+`prerelease_number=auto` to derive the next sequence from tags and release metadata. Publication is controlled separately by
 `publish_release`, **false by default**. All selected artifacts embed the same
 resolved version, source commit and workflow run/attempt.
 
 | Channel | Example |
 | --- | --- |
-| Alpha | `0.1.0-alpha.1` |
-| Beta | `0.1.0-beta.1` |
-| Release Candidate (RC) | `0.1.0-rc.1` |
-| Stable / Production | `0.1.0` |
+| Alpha | `1.0.0-alpha.1` |
+| Beta | `1.0.0-beta.1` |
+| Release Candidate (RC) | `1.0.0-rc.1` |
+| Stable / Production | `1.0.0` |
 
 Base components and prerelease numbers are limited to 65535 for Windows PE
 compatibility. Leading zeros, suffixes in the base, invalid channels and malformed
 numbers are rejected. Stable ignores a valid supplied sequence; leaving it blank
-is supported. There is no automatic sequence allocation: deliberately choose an
-unused version when publishing. Legacy desktop `beta-N` tags are not moved or
-reused by this SemVer scheme.
+is supported. Automatic numbering counts both legacy `beta-N` and SemVer `beta.N` tags (including drafts). Published identities are never renamed or reused. Explicit publication numbers must equal the next available sequence.
 
 With `publish_release=false`, only Actions artifacts are created: **no tag or
 GitHub Release**, even for a Stable version. An embedded version/tag name is
@@ -94,13 +92,12 @@ GitHub Releases remains the release-history record; no CHANGELOG.md is used.
 
 ### Examples after workflow registration
 
-For test packages: select build target `all`, base `0.1.0`, `Beta`, sequence `1`, and leave
+For test packages: select build target `all`, source base (empty input), `Beta`, sequence `auto`, and leave
 **Publish release unchecked**. Download each successful job's Actions artifact.
 
-For a Beta release: select the desired build target, base `0.1.0`, `Beta`, an unused
-sequence (for example `2`), and explicitly check **Publish release**.
+For a Beta release: select the desired build target, source base (empty input), `Beta`, sequence `auto`, and explicitly check **Publish release**.
 
-For Stable: select the desired build target (normally `all`), base `0.1.0`,
+For Stable: first promote reviewed changes and stable product metadata to `main` through a PR; select that main commit, the desired target (normally `all`), source base (empty input),
 `Stable / Production`, and explicitly check **Publish release**. Existing
 `sap-lens-stable` environment protection applies; prereleases use `sap-lens-beta`.
 No repository/environment settings are modified by these source changes.
@@ -109,7 +106,7 @@ The CLI equivalent for a build-only run, **after the workflow is registered**:
 
 ```bash
 gh workflow run build-deployments.yml --repo OnlyDrey/sap-lens --ref work \
-  -f build_target=all -f version=0.1.0 -f release_channel=Beta \
+  -f build_target=all -f version=1.0.0 -f release_channel=Beta \
   -f prerelease_number=1 -f publish_release=false
 ```
 
@@ -245,28 +242,28 @@ For ZIP-downloaded source on Windows, review/trust the checkout first. A process
 execution-policy bypass does not change machine policy:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1 -Platform desktop -Version 0.1.0-beta.1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1 -Platform desktop -Version 1.0.0-beta.1
 ```
 
 ## Commands
 
 ```powershell
-.\build.ps1 -Platform desktop -Version 0.1.0-beta.1
-.\build.ps1 -Platform service -Version 0.1.0-beta.1
-.\build.ps1 -Platform docker -Version 0.1.0-beta.1
-.\build.ps1 -Platform linux-native -Version 0.1.0-beta.1
-.\build.ps1 -Platform all -Version 0.1.0-beta.1
+.\build.ps1 -Platform desktop -Version 1.0.0-beta.1
+.\build.ps1 -Platform service -Version 1.0.0-beta.1
+.\build.ps1 -Platform docker -Version 1.0.0-beta.1
+.\build.ps1 -Platform linux-native -Version 1.0.0-beta.1
+.\build.ps1 -Platform all -Version 1.0.0-beta.1
 ```
 
 ```bash
-./build.sh --platform desktop --version 0.1.0-beta.1
-./build.sh --platform service --version 0.1.0-beta.1
-./build.sh --platform docker --version 0.1.0-beta.1
-./build.sh --platform linux-native --version 0.1.0-beta.1
-./build.sh --platform all --version 0.1.0-beta.1
+./build.sh --platform desktop --version 1.0.0-beta.1
+./build.sh --platform service --version 1.0.0-beta.1
+./build.sh --platform docker --version 1.0.0-beta.1
+./build.sh --platform linux-native --version 1.0.0-beta.1
+./build.sh --platform all --version 1.0.0-beta.1
 ```
 
-Alpha, Beta and RC use dotted SemVer sequences; Stable uses `0.1.0`. Local package
+Alpha, Beta and RC use dotted SemVer sequences; Stable uses `1.0.0`. Local package
 metadata has no GitHub run number or reserved tag; the manifest identifies the
 source commit and actual build environment. Legacy development commands under
 [Windows-only modes](#windows-only-development-modes) remain available for Quick,
@@ -308,13 +305,13 @@ A Windows builder must allow PowerShell and `py -3.12` over SSH; Linux needs
 endpoint, not through an invented Windows cross-compiler.
 
 ```bash
-./build.sh --platform all --version 0.1.0-beta.1 \
+./build.sh --platform all --version 1.0.0-beta.1 \
   --windows-host sap-lens-windows \
   --windows-repository 'C:/Build/SAP Lens'
 ```
 
 ```powershell
-.\build.ps1 -Platform all -Version 0.1.0-beta.1 `
+.\build.ps1 -Platform all -Version 1.0.0-beta.1 `
   -LinuxHost sap-lens-linux -LinuxRepository '/home/build/SAP Lens'
 ```
 
@@ -366,10 +363,10 @@ legacy portable EXE development, run these from the repository root:
 
 ```powershell
 .\scripts\build-local.ps1 -Mode Quick
-.\scripts\build-local.ps1 -Mode Validate -Version 0.1.0
-.\scripts\build-local.ps1 -Mode Build -Version 0.1.0
-.\scripts\build-local.ps1 -Mode Build -Version 0.1.0-beta-4
-.\scripts\build-local.ps1 -Mode Package -Version 0.1.0
+.\scripts\build-local.ps1 -Mode Validate -Version 1.0.0
+.\scripts\build-local.ps1 -Mode Build -Version 1.0.0
+.\scripts\build-local.ps1 -Mode Build -Version 1.0.0-beta-4
+.\scripts\build-local.ps1 -Mode Package -Version 1.0.0
 ```
 
 These modes produce the portable desktop output, not all four deployment packages.
@@ -617,7 +614,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Undefined
 ```powershell
 # Windows PowerShell 5.1; run from the repository root.
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-local.ps1 -Mode Quick
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-local.ps1 -Mode Build -Version 0.1.0
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-local.ps1 -Mode Build -Version 1.0.0
 
 # Alternatively, if PowerShell 7 is installed:
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-local.ps1 -Mode Quick
@@ -688,10 +685,10 @@ Use this when you want to separate validation from executable generation:
 
 ```powershell
 # Start from the final clean commit.
-.\scripts\build-local.ps1 -Mode Validate -Version 0.1.0
+.\scripts\build-local.ps1 -Mode Validate -Version 1.0.0
 
 # Later, using the exact same checkout and version:
-.\scripts\build-local.ps1 -Mode Package -Version 0.1.0
+.\scripts\build-local.ps1 -Mode Package -Version 1.0.0
 ```
 
 Package requires `backend/build/local-validation.json` from a successful Validate
@@ -704,7 +701,7 @@ or Build. It rejects a receipt if:
 - The recorded Python or Node version changed.
 - The working tree is dirty.
 
-For example, Validate with `0.1.0` does not authorize Package with `0.1.0-beta-4`.
+For example, Validate with `1.0.0` does not authorize Package with `1.0.0-beta-4`.
 Changing code, committing it, or running Quick means Validate must run again.
 Do not edit or copy receipts to bypass the checks. They guard accidental stale
 inputs, not a malicious user who controls the local machine.
@@ -776,8 +773,8 @@ build. Do not bypass your organization's endpoint or application policies.
 
 | Requested version | Resolved application / ProductVersion | Numeric PE FileVersion |
 |---|---|---|
-| `0.1.0` | `0.1.0+local.<12-character-commit-SHA>` | `0.1.0.0` |
-| `0.1.0-beta-4` | `0.1.0-beta-4+local.<12-character-commit-SHA>` | `0.1.0.4` |
+| `1.0.0` | `1.0.0+local.<12-character-commit-SHA>` | `1.0.0.0` |
+| `1.0.0-beta-4` | `1.0.0-beta-4+local.<12-character-commit-SHA>` | `1.0.0.4` |
 
 The shared identity includes the full source SHA and mode `local-build`. The UI
 shows “Local build”. Backend/API, embedded JSON, PE resources and package manifest

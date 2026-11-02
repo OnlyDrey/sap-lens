@@ -22,7 +22,7 @@ import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'backend'))
-from version import make_local_deployment_info
+from version import make_local_deployment_info,product_version
 
 TARGETS = ('desktop', 'service', 'docker', 'linux-native')
 STEMS = {'desktop': ('win-desktop-x64', '.zip'), 'service': ('win-service-x64', '.zip'),
@@ -323,7 +323,7 @@ def main():
     sys.stderr.reconfigure(encoding='utf-8',errors='backslashreplace')
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--platform', action='append', choices=[*TARGETS, 'all'])
-    parser.add_argument('--version', required=True)
+    parser.add_argument('--version', default=product_version())
     parser.add_argument('--clean', action='store_true')
     parser.add_argument('--no-cache', action='store_true')
     parser.add_argument('--reuse-validation', action='store_true')

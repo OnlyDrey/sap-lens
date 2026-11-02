@@ -194,7 +194,7 @@ def export(requested, output, root=ROOT):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('operation', choices=['identity', 'clean', 'invalidate', 'record', 'check', 'export', 'tools'])
-    parser.add_argument('--version', default='0.1.0')
+    parser.add_argument('--version', default=version.product_version().replace('-beta.','-beta-'))
     parser.add_argument('--stages', nargs='*', default=[])
     parser.add_argument('--output', type=Path)
     args = parser.parse_args()

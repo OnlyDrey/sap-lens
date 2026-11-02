@@ -35,7 +35,7 @@ EXPECTED = {  # build_target -> the packages it builds; the seven values of the 
 def run_plan(build_target, **extra):
     with tempfile.TemporaryDirectory() as directory:
         output, summary = Path(directory, 'output'), Path(directory, 'summary.md')
-        env = dict(BASE_VERSION='0.1.0', DEPLOYMENT_CHANNEL='Beta', DEPLOYMENT_SEQUENCE='1', PUBLISH_RELEASE='false')
+        env = dict(GITHUB_REF='refs/heads/work', BASE_VERSION='0.1.0', DEPLOYMENT_CHANNEL='Beta', DEPLOYMENT_SEQUENCE='1', PUBLISH_RELEASE='false')
         env.update(DEPLOYMENT_TARGET=build_target, GITHUB_OUTPUT=str(output), GITHUB_STEP_SUMMARY=str(summary), **extra)
         done = subprocess.run([sys.executable, str(ROOT / 'scripts/deployment-release.py'), 'plan'], env={**os.environ, **env}, capture_output=True, text=True)
         values = dict(line.split('=', 1) for line in output.read_text().splitlines()) if output.exists() else {}
@@ -78,7 +78,7 @@ class PlanningJobTests(unittest.TestCase):
     def test_stable_ignores_the_prerelease_field_as_the_dispatch_form_promises(self):
         for sequence in ('','0','01','65536','unused'):
             with self.subTest(sequence=sequence):
-                done,values,_=run_plan('windows-desktop',DEPLOYMENT_CHANNEL='Stable / Production',DEPLOYMENT_SEQUENCE=sequence)
+                done,values,_=run_plan('windows-desktop',DEPLOYMENT_CHANNEL='Stable / Production',DEPLOYMENT_SEQUENCE=sequence,GITHUB_REF='refs/heads/main')
                 self.assertEqual(done.returncode,0,done.stderr)
                 self.assertEqual(values['desktop'],'true')
                 info=packages.make_deployment_info('0.1.0','stable',sequence,'a'*40,'1','1',1)

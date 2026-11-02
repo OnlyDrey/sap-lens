@@ -245,17 +245,17 @@ class OrchestrationTests(unittest.TestCase):
         # Use the actual script's rooted variables and data arguments, not another packaging implementation.
         assignments=dict(re.findall(r"\$(\w+)=Join-Path \$root '([^']+)'",script))
         sources=re.findall(r'--add-data "\$(\w+);([^"\n]+)"',script)
-        self.assertEqual(len(sources),4)
+        self.assertEqual(len(sources),5)
         with tempfile.TemporaryDirectory(prefix='SAP Lens server ø ') as directory:
             root=Path(directory);spec=root/'backend/build/server';spec.mkdir(parents=True)
             for variable,destination in sources:
                 self.assertIn(variable,assignments)
                 source=root/assignments[variable]
-                if variable=='frontendDist':source.mkdir(parents=True);(source/'index.html').write_text('synthetic compiled frontend')
+                if variable in {'frontendDist','resources'}:source.mkdir(parents=True);(source/'synthetic.json').write_text('{}')
                 else:source.parent.mkdir(parents=True,exist_ok=True);source.write_bytes(b'synthetic asset')
                 self.assertTrue(source.is_absolute() and source.exists())
                 self.assertFalse((spec/assignments[variable]).exists())
                 windows_source=PureWindowsPath('D:/a/SAP Lens ø')/assignments[variable]
                 self.assertTrue(windows_source.is_absolute())
-                self.assertIn(destination,{'frontend/dist','assets','.'})
+                self.assertIn(destination,{'frontend/dist','assets','.','resources'})
             self.assertIn("--paths (Join-Path $root 'backend')",script)

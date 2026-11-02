@@ -63,6 +63,8 @@ def validate_inputs(mode, version, ref, attempt=1):
         raise ReleaseError("Select a branch, not a tag, for a manual build.")
     if mode == "stable" and ref != "refs/heads/main":
         raise ReleaseError("Stable publication is allowed only from main.")
+    if mode == "beta" and ref != "refs/heads/work":
+        raise ReleaseError("Beta publication requires work; feature branches cannot publish.")
     if mode != "build" and attempt != 1:
         raise ReleaseError(
             "Release reruns are refused; inspect reserved tags/drafts and start a new manual run."
@@ -122,9 +124,7 @@ def select_tag(mode, version, tags, releases):
     base = version_tuple(version)
     occupied = set(tags) | {r["tag_name"] for r in releases}
     if mode == "beta":
-        pattern = re.compile(r"v" + re.escape(version) + r"-beta-([1-9][0-9]*)")
-        numbers = [int(m[1]) for name in occupied if (m := pattern.fullmatch(name))]
-        return f"v{version}-beta-{max(numbers, default=0) + 1}"
+        return f"v{version}-beta-{build_version.next_prerelease(version, 'beta', occupied)}"
     if mode != "stable":
         raise ReleaseError("Build mode cannot allocate a release tag.")
     tag = "v" + version
@@ -525,8 +525,13 @@ def main():
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     env = os.environ
+    env["RELEASE_VERSION"] = env.get("RELEASE_VERSION") or build_version.product_version().split("-",1)[0]
     progress = {}
     try:
+        if env.get("GITHUB_ACTIONS")=="true" and env.get("RELEASE_MODE")=="stable" and build_version.product_version()!=env["RELEASE_VERSION"]:
+            raise ReleaseError("Promote stable product metadata on main first.")
+        if env.get("GITHUB_ACTIONS")=="true" and env["RELEASE_VERSION"] != build_version.product_version().split("-",1)[0]:
+            raise ReleaseError("Requested version base differs from the source product version.")
         if args.command == "ensure-local-build":
             if env.get("GITHUB_ACTIONS") == "true":
                 actual = build_version.read_build_info(
@@ -545,7 +550,7 @@ def main():
                     ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True, encoding="utf-8"
                 ).strip()
                 write_identity(build_version.make_local_package_info(
-                    env.get("SAP_LENS_LOCAL_VERSION", "0.1.0"), sha
+                    env.get("SAP_LENS_LOCAL_VERSION") or build_version.product_version().replace("-beta.","-beta-"), sha
                 ))
             return
         validate_inputs(
@@ -564,6 +569,7 @@ def main():
             info = write_identity(
                 identity_for_environment(env, json.loads(raw) if raw else None)
             )
+            if env.get("GITHUB_ACTIONS")=="true": build_version.sync_frontend_version(info["version"])
         else:
             if args.download is None or args.output is None:
                 raise ReleaseError("Missing publication artifact directories.")

@@ -148,11 +148,12 @@ try {
         $metadata = Join-Path $root 'backend/build/version-info.txt'
         $frontendDist = Join-Path $root 'frontend/dist'
         $buildIdentity = Join-Path $root 'backend/build/build-version.json'
+        $resources = Join-Path $root 'backend/resources'
         $packagingArguments = @(
             '--noconfirm', '--onefile', '--windowed', '--noupx', '--name', 'SAP-Lens',
             '--icon', $icon, '--version-file', $metadata,
             '--add-data', ($icon + ';assets'), '--paths', 'backend',
-            '--add-data', ($buildIdentity + ';.'),
+            '--add-data', ($buildIdentity + ';.'), '--add-data', ($resources + ';resources'),
             '--add-data', ($frontendDist + ';frontend/dist'), '--specpath', 'backend',
             '--collect-data', 'docx', '--collect-data', 'reportlab',
             '--hidden-import', 'tzdata', '--collect-data', 'tzdata', '--copy-metadata', 'tzdata',

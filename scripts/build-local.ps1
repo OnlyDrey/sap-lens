@@ -3,12 +3,13 @@
 param(
     [ValidateSet('Build', 'Quick', 'Validate', 'Package')]
     [string]$Mode = 'Build',
-    [string]$Version = '0.1.0'
+    [string]$Version = ''
 )
 $ErrorActionPreference = 'Stop'
 $watch = [System.Diagnostics.Stopwatch]::StartNew()
 $stage = 'Prerequisites'
 $root = Split-Path $PSScriptRoot -Parent
+if (-not $Version) { $Version=(Get-Content (Join-Path $root 'backend/resources/product-version.json') -Raw | ConvertFrom-Json).version.Replace('-beta.','-beta-') }
 $originalLocation = Get-Location
 $originalConsoleEncoding = [Console]::OutputEncoding
 $originalOutputEncoding = $OutputEncoding

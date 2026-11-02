@@ -1,7 +1,7 @@
 {
   "name": "sap-role-checker",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0-beta.2",
   "type": "module",
   "scripts": {
     "dev": "concurrently --kill-others \"npm run dev:backend\" \"npm run dev:frontend\"",
@@ -11,7 +11,8 @@
     "dev:backend": "cd ../backend && python -m uvicorn main:app --host 127.0.0.1 --port 18744 --reload",
     "test:browser": "playwright test",
     "check:types": "tsc --noEmit",
-    "lint": "eslint . --max-warnings 111"
+    "lint": "eslint . --max-warnings 111",
+    "prebuild": "node ../scripts/product-version.mjs"
   },
   "dependencies": {
     "@radix-ui/react-scroll-area": "^1.0.5",

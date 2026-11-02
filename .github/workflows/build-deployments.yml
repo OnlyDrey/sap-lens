@@ -16,10 +16,10 @@ name: Build Deployment Packages
         default: all
         required: true
       version:
-        description: Base MAJOR.MINOR.PATCH without prerelease suffix
+        description: Base MAJOR.MINOR.PATCH; empty uses the product version resource
         type: string
-        default: 0.1.0
-        required: true
+        default: ''
+        required: false
       release_channel:
         description: Explicit version channel (does not publish by itself)
         type: choice
@@ -31,9 +31,9 @@ name: Build Deployment Packages
         default: Beta
         required: true
       prerelease_number:
-        description: Positive sequence, without leading zeros; ignored for Stable
+        description: auto selects the next sequence from tags/releases; ignored for Stable
         type: string
-        default: '1'
+        default: 'auto'
         required: false
       publish_release:
         description: Publish only the selected packages, and only after every one of them passes verification
@@ -52,11 +52,14 @@ jobs:
     timeout-minutes: 5
     env:
       DEPLOYMENT_TARGET: ${{ inputs.build_target }}
+      GITHUB_TOKEN: ${{ github.token }}
       BASE_VERSION: ${{ inputs.version }}
       DEPLOYMENT_CHANNEL: ${{ inputs.release_channel }}
       DEPLOYMENT_SEQUENCE: ${{ inputs.prerelease_number }}
       PUBLISH_RELEASE: ${{ inputs.publish_release }}
     outputs:
+      base: ${{ steps.selection.outputs.base }}
+      sequence: ${{ steps.selection.outputs.sequence }}
       packages: ${{ steps.selection.outputs.packages }}
       desktop: ${{ steps.selection.outputs.desktop }}
       service: ${{ steps.selection.outputs.service }}
@@ -81,10 +84,10 @@ jobs:
     timeout-minutes: 25
     needs: plan
     env:
-      BASE_VERSION: ${{ inputs.version }}
+      BASE_VERSION: ${{ needs.plan.outputs.base }}
       DEPLOYMENT_TARGET: ${{ inputs.build_target }}
       DEPLOYMENT_CHANNEL: ${{ inputs.release_channel }}
-      DEPLOYMENT_SEQUENCE: ${{ inputs.prerelease_number }}
+      DEPLOYMENT_SEQUENCE: ${{ needs.plan.outputs.sequence }}
       PUBLISH_RELEASE: ${{ inputs.publish_release }}
     outputs:
       version: ${{ steps.identity.outputs.version }}

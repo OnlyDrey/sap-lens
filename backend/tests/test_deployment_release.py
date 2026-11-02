@@ -89,6 +89,8 @@ class FakeGitHub:
                          digest='sha256:' + ('0' * 64 if self.corrupt_digest else release.sha(asset)))
             self.release['assets'].append(value)
             return value
+        if method == 'GET' and path.startswith('/git/tags/'):
+            return {'object':{'type':'commit','sha':SHA}}
         if method == 'POST' and path == '/git/tags':
             assert self.release['assets'], 'Never create a tag before uploading verified assets'
             assert payload['object'] == SHA
@@ -158,7 +160,7 @@ class DeploymentVersionTests(unittest.TestCase):
         env = dict(GITHUB_ACTIONS='true', GITHUB_RUN_ID='123', GITHUB_RUN_NUMBER='12', GITHUB_RUN_ATTEMPT='1',
                    DEPLOYMENT_TARGET='all', DEPLOYMENT_CHANNEL='Beta', DEPLOYMENT_SEQUENCE='1', PUBLISH_RELEASE='false')
         with patch.dict(os.environ, env, clear=True), patch.object(packages, 'git_sha', return_value=SHA), \
-                patch.object(packages, 'write') as write, patch('urllib.request.urlopen') as network:
+                patch.object(packages, 'write') as write, patch.object(packages,'sync_frontend_version'), patch('urllib.request.urlopen') as network:
             packages.prepare('0.1.0')
         self.assertEqual(write.call_args.args[1], identity())
         network.assert_not_called()
@@ -194,7 +196,7 @@ class DeploymentVersionTests(unittest.TestCase):
 
     def test_publication_context_requires_manual_same_commit_run_and_attempt(self):
         env = dict(GITHUB_ACTIONS='true', GITHUB_EVENT_NAME='workflow_dispatch', GITHUB_SHA=SHA,
-                   GITHUB_RUN_ID='123', GITHUB_RUN_NUMBER='12', GITHUB_RUN_ATTEMPT='1',
+                   GITHUB_RUN_ID='123', GITHUB_RUN_NUMBER='12', GITHUB_RUN_ATTEMPT='1', GITHUB_REF='refs/heads/work',
                    DEPLOYMENT_IDENTITY=json.dumps(identity()))
         with patch.dict(os.environ, env, clear=True):
             self.assertEqual(release.context(), identity())
@@ -213,7 +215,7 @@ class DeploymentReleaseRefTests(unittest.TestCase):
 
     def test_stable_is_published_only_from_main_and_other_channels_from_any_branch(self):
         for channel, ref, allowed in [('stable', 'refs/heads/main', True), ('stable', 'refs/heads/work', False), ('stable', 'refs/tags/v1', False), ('stable', '', False),
-                                      ('beta', 'refs/heads/work', True), ('rc', 'refs/heads/feature/x', True), ('alpha', 'refs/heads/work', True)]:
+                                      ('beta', 'refs/heads/work', True), ('rc', 'refs/heads/feature/x', False), ('alpha', 'refs/heads/work', True)]:
             env = {**self.ENV, 'GITHUB_REF': ref, 'DEPLOYMENT_IDENTITY': json.dumps(identity(channel))}
             with self.subTest(channel=channel, ref=ref), patch.dict(os.environ, env, clear=True):
                 if allowed:
@@ -225,7 +227,7 @@ class DeploymentReleaseRefTests(unittest.TestCase):
         base = dict(DEPLOYMENT_TARGET='linux-native', DEPLOYMENT_CHANNEL='Stable / Production', BASE_VERSION='0.1.0', DEPLOYMENT_SEQUENCE='')
         with patch.dict(os.environ, {**base, 'PUBLISH_RELEASE': 'true', 'GITHUB_REF': 'refs/heads/work'}, clear=True):
             with self.assertRaises(release.DeliveryError): release.plan()
-        for extra in ({'PUBLISH_RELEASE': 'true', 'GITHUB_REF': 'refs/heads/main'}, {'PUBLISH_RELEASE': 'false', 'GITHUB_REF': 'refs/heads/work'}):
+        for extra in ({'PUBLISH_RELEASE': 'true', 'GITHUB_REF': 'refs/heads/main'}, {'PUBLISH_RELEASE': 'false', 'GITHUB_REF': 'refs/heads/main'}):
             with self.subTest(extra=extra), patch.dict(os.environ, {**base, **extra}, clear=True):
                 self.assertEqual(release.plan(), ['linux-native'])  # a build-only run from any branch is unaffected
 
@@ -426,3 +428,34 @@ class DeploymentPublicationTests(unittest.TestCase):
         with self.assertRaises(release.DeliveryError): release.publish(api, identity(), [self.asset])
         self.assertEqual(api.ref, 'c' * 40); self.assertIsNone(api.release)
         self.assertFalse(any(path.startswith('/git/refs/tags/') and method == 'DELETE' for method, path, _ in api.calls))
+
+
+class ProductReleasePolicyTests(unittest.TestCase):
+    def test_feature_branches_cannot_publish_any_channel_and_work_cannot_build_stable(self):
+        for mode in ('alpha','beta','rc','stable'):
+            with self.subTest(mode=mode), self.assertRaises(release.DeliveryError):
+                release.require_release_ref(mode,'refs/heads/feature/example')
+        with patch.dict(os.environ,dict(DEPLOYMENT_TARGET='all',BASE_VERSION='1.0.0',DEPLOYMENT_CHANNEL='Stable / Production',PUBLISH_RELEASE='false',GITHUB_REF='refs/heads/work'),clear=True):
+            with self.assertRaises(release.DeliveryError):release.plan()
+
+    def test_wrong_branch_commit_is_rejected_without_mutations(self):
+        api=release.GitHub('example/project','synthetic-token')
+        with patch.object(api,'request',return_value={'object':{'sha':'b'*40}}) as request:
+            with self.assertRaises(release.DeliveryError):api.verify_source('stable','refs/heads/main','a'*40)
+            self.assertEqual(request.call_args.args[0],'GET')
+
+    def test_annotated_tag_target_must_equal_validated_commit(self):
+        api=release.GitHub('example/project','synthetic-token')
+        with patch.object(api,'request',side_effect=[{'object':{'sha':'b'*40}}, {'object':{'type':'commit','sha':'c'*40}}]):
+            with self.assertRaises(release.DeliveryError):release.verify_tag(api,'v1.0.0','b'*40,'a'*40)
+
+    def test_planner_allocates_auto_once_from_both_tag_conventions(self):
+        from unittest.mock import Mock
+        api=Mock();api.version_tags.return_value=['v1.0.0-beta-1','v1.0.0-beta.2']
+        env=dict(DEPLOYMENT_TARGET='linux-native',BASE_VERSION='',DEPLOYMENT_CHANNEL='Beta',DEPLOYMENT_SEQUENCE='auto',PUBLISH_RELEASE='true',GITHUB_ACTIONS='true',GITHUB_REF='refs/heads/work',GITHUB_SHA=SHA,GITHUB_REPOSITORY='example/project',GITHUB_TOKEN='synthetic')
+        with patch.dict(os.environ,env,clear=True),patch.object(release,'GitHub',return_value=api),patch.object(release,'output') as output:
+            release.plan()
+            self.assertEqual(output.call_args.kwargs['sequence'],'3')
+            self.assertEqual(output.call_args.kwargs['base'],'1.0.0')
+            api.verify_source.assert_called_once_with('beta','refs/heads/work',SHA)
+            api.available.assert_called_once_with('v1.0.0-beta.3')

@@ -107,11 +107,12 @@ def validate(workflows):
     plan_commands='\n'.join(step.get('run','') for step in plan['steps'])
     require('needs' not in plan and plan['runs-on']=='ubuntu-22.04' and int(plan['timeout-minutes'])<=5, 'Selection must be resolved first by a lightweight job')
     require('deployment-release.py plan' in plan_commands and 'pip install' not in plan_commands and 'npm' not in plan_commands, 'The planning job may only run the stdlib planner')
-    require(set(plan['outputs'])=={'packages','desktop','service','docker','native'}, 'The plan must expose the resolved packages once')
+    require(set(plan['outputs'])=={'base','sequence','packages','desktop','service','docker','native'}, 'The plan must expose the resolved packages once')
     require(deployment['jobs']['validation']['needs']=='plan', 'Expensive validation may only start after a valid selection')
     require(plan['env']['DEPLOYMENT_TARGET']=='${{ inputs.build_target }}', 'The plan resolves exactly the dispatched build target')
     require(plan['env'].get('BASE_VERSION')=='${{ inputs.version }}' and plan['env'].get('DEPLOYMENT_CHANNEL')=='${{ inputs.release_channel }}'
             and plan['env'].get('DEPLOYMENT_SEQUENCE')=='${{ inputs.prerelease_number }}', 'Version inputs must be validated in the stdlib planning job')
+    require(deployment['jobs']['validation']['env']['BASE_VERSION']=='${{ needs.plan.outputs.base }}' and deployment['jobs']['validation']['env']['DEPLOYMENT_SEQUENCE']=='${{ needs.plan.outputs.sequence }}', 'Resolved version must be reused without reallocating')
     for key in ('desktop','service','docker','native'):
         job=deployment['jobs'][key]
         require(job['needs']==['plan','validation'], 'Platform jobs must depend only on the selection and shared validation')
@@ -185,7 +186,7 @@ def validate(workflows):
     require(publisher['steps'][-1]['env'].get('BUILD_VERSION_JSON') == '${{ needs.windows-exe.outputs.metadata }}', 'Publication may not allocate a different version')
     inputs = windows['on']['workflow_dispatch']['inputs']
     require(inputs['release_mode'] == {'description': 'Build only, beta prerelease, or stable release', 'type': 'choice', 'options': ['build','beta','stable'], 'default':'build', 'required':'true'}, 'Release mode defaults/options changed')
-    require(inputs['version']['type'] == 'string' and inputs['version']['required'] == 'true', 'An explicit base version is required')
+    require(inputs['version']['type'] == 'string' and inputs['version']['required'] == 'false' and inputs['version']['default']=='', 'Version must default to the authoritative product resource')
     for name in ('benchmark_packaging','cold_cache'):
         require(inputs[name]['type'] == 'boolean' and inputs[name]['default'] == 'false', 'Benchmark defaults changed')
     publication_download = next(s for s in publisher['steps'] if s.get('uses','').startswith('actions/download-artifact@'))

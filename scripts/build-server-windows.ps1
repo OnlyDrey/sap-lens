@@ -1,9 +1,10 @@
 <# Local headless server bundle. The canonical desktop build remains unchanged. #>
 [CmdletBinding()]
-param([Parameter(Mandatory=$true)][string]$WinSW,[string]$Version='0.1.0',[Alias('ValidatedCI')][switch]$ValidatedDeployment,[string]$OutputDirectory='')
+param([Parameter(Mandatory=$true)][string]$WinSW,[string]$Version='',[Alias('ValidatedCI')][switch]$ValidatedDeployment,[string]$OutputDirectory='')
 $ErrorActionPreference = 'Stop'
 if ($env:OS -ne 'Windows_NT' -or $env:PROCESSOR_ARCHITECTURE -ne 'AMD64') { throw 'Build the server bundle on x64 Windows.' }
 $root=Split-Path $PSScriptRoot -Parent
+if (-not $Version) { $Version=(Get-Content (Join-Path $root 'backend/resources/product-version.json') -Raw | ConvertFrom-Json).version.Replace('-beta.','-beta-') }
 $python=Join-Path $root 'backend/build/python-env/Scripts/python.exe'
 if (-not (Test-Path $python)) { throw 'Run build-local.ps1 -Mode Validate -Version <version> first.' }
 function Invoke-Checked([scriptblock]$Command) { & $Command; if ($LASTEXITCODE -ne 0) { throw 'Server build failed. No verified bundle was produced.' } }
@@ -24,11 +25,12 @@ try {
     $icon=Join-Path $root 'assets/sap-lens.ico'
     $image=Join-Path $root 'assets/sap-lens.png'
     $buildIdentity=Join-Path $root 'backend/build/build-version.json'
+    $resources=Join-Path $root 'backend/resources'
     $metadata=Join-Path $root 'backend/build/version-info.txt'
     foreach ($inputPath in @($frontendDist,$icon,$image,$buildIdentity,$metadata)) {
         if (-not (Test-Path $inputPath)) { throw 'A required server packaging input is missing.' }
     }
-    Invoke-Checked { & $python -m PyInstaller --noconfirm --clean --onedir --console --noupx --name SAP-Lens --distpath "$output/app" --workpath backend/build/server --specpath backend/build/server --paths (Join-Path $root 'backend') --icon $icon --version-file $metadata --add-data "$frontendDist;frontend/dist" --add-data "$icon;assets" --add-data "$image;assets" --add-data "$buildIdentity;." --collect-data docx --collect-data reportlab --hidden-import tzdata --collect-data tzdata --copy-metadata tzdata --copy-metadata python-docx --copy-metadata reportlab --copy-metadata lxml --copy-metadata charset-normalizer --exclude-module webview --exclude-module pythonnet --exclude-module clr backend/server.py }
+    Invoke-Checked { & $python -m PyInstaller --noconfirm --clean --onedir --console --noupx --name SAP-Lens --distpath "$output/app" --workpath backend/build/server --specpath backend/build/server --paths (Join-Path $root 'backend') --icon $icon --version-file $metadata --add-data "$frontendDist;frontend/dist" --add-data "$icon;assets" --add-data "$image;assets" --add-data "$buildIdentity;." --add-data "$resources;resources" --collect-data docx --collect-data reportlab --hidden-import tzdata --collect-data tzdata --copy-metadata tzdata --copy-metadata python-docx --copy-metadata reportlab --copy-metadata lxml --copy-metadata charset-normalizer --exclude-module webview --exclude-module pythonnet --exclude-module clr backend/server.py }
     Move-Item "$output/app/SAP-Lens/*" "$output/app/"
     Remove-Item "$output/app/SAP-Lens"
     Copy-Item $WinSW "$output/SAPLensService.exe"

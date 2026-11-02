@@ -553,7 +553,12 @@
     "build.sh",
     "Dockerfile",
     "compose*",
-    ".gitignore"
+    ".gitignore",
+    "backend/version.py",
+    "backend/resources/product-version.json",
+    "frontend/package.json",
+    "frontend/package-lock.json",
+    "frontend/vite.config.ts"
    ],
    "areas": [
     "repository",

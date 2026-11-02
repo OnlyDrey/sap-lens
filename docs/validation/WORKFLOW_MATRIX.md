@@ -258,3 +258,25 @@ source provenance and preservation of unsaved drafts. TypeScript/production buil
 affected ESLint, Ruff, diff and documentation-link checks passed. Original workbook and
 screenshots remain outside Git. Production-installation match counts require its live
 reference status, not test-fixture counts. FULL/native Windows acceptance was not run.
+
+### Product version and release branch policy (2026-11-02)
+
+Authoritative source: backend/resources/product-version.json, current development
+version 1.0.0-beta.2. Live releases were read only: v1.0.0-beta.1 exists. Source/npm
+mirrors and runtime/frontend asset identity agree; CI stamps mirrors from its single
+resolved build identity. Stale ignored metadata from a different local commit is not
+used to identify the checkout; frozen/CI identity validation remains strict.
+
+Deployment planning resolves auto numbering from paginated tags/releases, counts both
+legacy beta-N and dotted beta.N, checks base/branch/commit/sequence/collisions before
+expensive jobs and passes one result to all jobs. Prerelease publication requires work;
+stable builds/publication require main and stable source metadata. Publication checks
+branch SHA, annotated-tag commit and selected verified artifact identities/checksums.
+No automatic promotion, tags/releases or workflow dispatch occurred.
+
+Targeted evidence: 90 version/selection/release tests passed; affected packaging and
+release rechecks passed (one existing platform skip). Final publication/policy tests:
+30 passed. Production TypeScript/Vite build passed and actual frontend asset version
+was compared with backend and package mirrors. Workflow contracts, actionlint,
+PowerShell parser/service-helper checks, Ruff and documentation links passed. Windows
+native packaging/runtime and a real release were not executed. FULL was not run.
