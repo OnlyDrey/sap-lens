@@ -133,6 +133,15 @@ class PackagingTests(unittest.TestCase):
         with self.assertRaises(ValueError):pkg.verify_extract(self.root/'extra.tar.gz',self.root/'extra',pkg.sha(self.root/'extra.tar.gz'))
         for name in ['settings.json','records.csv','csv-data/snapshots/private.json','access.secret','../outside']:
             with self.subTest(name=name),self.assertRaises(ValueError):pkg.privacy([name])
+    def test_desktop_manifest_is_grouped_and_exact_contents_survive_roundtrip(self):
+        source=self.root/'installer';source.mkdir();(source/'Setup.exe').write_bytes(b'synthetic')
+        (source/'metadata').mkdir();(source/'metadata/installer-verification.json').write_text('{}')
+        with patch.object(pkg,'identity',return_value=self.info):archive=pkg.finish(source,'Windows-Desktop-x64',self.root/'out')
+        restored=self.root/'restored-desktop';manifest=pkg.verify_extract(archive,restored,pkg.sha(archive))
+        self.assertEqual(manifest['layout'],'installer-only-v1')
+        self.assertTrue((restored/'metadata/package-manifest.json').is_file())
+        self.assertFalse((restored/'package-manifest.json').exists())
+
     def test_zip_traversal_duplicates_and_symlinks_rejected(self):
         for names in [['../escape'],['same','SAME']]:
             archive=self.root/'bad.zip'

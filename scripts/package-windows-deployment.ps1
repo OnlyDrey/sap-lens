@@ -24,15 +24,28 @@ if ($Target -eq 'Desktop') {
     $info=Get-Content backend/build/build-version.json -Raw | ConvertFrom-Json
     $bundle=Join-Path $root ('backend/build/deployment-desktop-'+[guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory $bundle | Out-Null
-    Copy-Item backend/dist/SAP-Lens.exe,backend/dist/SAP-Lens.exe.sha256 $bundle
     Copy-Item LICENSE.md $bundle
-    Copy-Item docs/deployment/WINDOWS_DESKTOP.md (Join-Path $bundle 'README.md')
-    Checked { & $python scripts/deployment-package.py readme --document docs/deployment/WINDOWS_DESKTOP.md --directory $bundle }
+    $readme=@"
+SAP Lens Desktop
+
+Run SAP-Lens-Windows-Desktop-x64-$($info.version)-Setup.exe to install for the current user under AppData. Administrator rights are not required. Microsoft Edge WebView2 Runtime is required.
+
+For upgrades, close SAP Lens and run Setup again. Existing application data is preserved. Uninstall through Windows Installed Apps; data is retained by default.
+
+The metadata directory contains integrity evidence, not launch choices. The portable EXE is an internal build input; this download contains only Setup.
+
+Instructions: https://github.com/OnlyDrey/sap-lens/blob/work/docs/deployment/WINDOWS_DESKTOP.md
+"@
+    [IO.File]::WriteAllText((Join-Path $bundle 'README.md'),$readme,[Text.UTF8Encoding]::new($false))
     & ./scripts/build-desktop-installer.ps1 -OutputDirectory $bundle
     $installer=Join-Path $bundle ("SAP-Lens-Windows-Desktop-x64-$($info.version)-Setup.exe")
-    & ./scripts/test-desktop-installer.ps1 -Installer $installer -Report (Join-Path $bundle 'installer-verification.json')
+    $evidence=Join-Path $bundle 'metadata'
+    New-Item -ItemType Directory $evidence | Out-Null
+    & ./scripts/test-desktop-installer.ps1 -Installer $installer -Report (Join-Path $evidence 'installer-verification.json')
+    # Compiler checksums remain internal; the bundle manifest binds shipped bytes.
+    Remove-Item ($installer+'.sha256')
     Checked { & $python scripts/deployment-package.py finish --directory $bundle --platform Windows-Desktop-x64 --output $OutputDirectory }
-    Checked { & $python scripts/verify-desktop-distribution.py --directory $bundle }
+    Checked { & $python scripts/verify-desktop-distribution.py --directory $bundle --payload-directory backend/dist }
 
 } else {
     $wrapper=Join-Path $root 'backend/build/WinSW-x64.exe'

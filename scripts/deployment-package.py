@@ -201,8 +201,10 @@ def finish(directory,platform,output):
     checksum=archive.with_name(archive.name+'.sha256')
     if any(path.exists() or path.is_symlink() for path in (archive,checksum)):
         raise ValueError('Deployment output already exists; choose a new output directory. Existing packages were preserved.')
-    manifest=files(directory);manifest.pop('package-manifest.json',None);privacy(manifest)
-    write(directory/'package-manifest.json',dict(schema=1,platform=platform,identity=info,files=manifest))
+    manifest_name='metadata/package-manifest.json' if platform=='Windows-Desktop-x64' else 'package-manifest.json'
+    manifest=files(directory);manifest.pop(manifest_name,None);privacy(manifest)
+    layout={'layout':'installer-only-v1'} if platform=='Windows-Desktop-x64' else {}
+    write(directory/manifest_name,dict(schema=1,platform=platform,identity=info,files=manifest,**layout))
     if platform.startswith('Windows'):
         with zipfile.ZipFile(archive,'x',zipfile.ZIP_DEFLATED) as z:
             for path in sorted(directory.rglob('*')):
@@ -232,8 +234,13 @@ def verify_extract(archive,destination,expected):
                 if not i.isfile():raise ValueError('Archive contains a non-regular member.')
                 members.append((i.name,i.size,i.mode,lambda i=i:z.extractfile(i).read()))
             _extract(members,destination)
-    manifest=json.loads((destination/'package-manifest.json').read_text());parse_build_info(manifest['identity'])
-    actual=files(destination);actual.pop('package-manifest.json')
+    candidates=[name for name in ('package-manifest.json','metadata/package-manifest.json') if (destination/name).is_file()]
+    if len(candidates)!=1:raise ValueError('Exactly one package manifest is required.')
+    manifest_name=candidates[0]
+    manifest=json.loads((destination/manifest_name).read_text());parse_build_info(manifest['identity'])
+    desktop=manifest.get('platform')=='Windows-Desktop-x64'
+    if desktop != (manifest_name=='metadata/package-manifest.json') or desktop and manifest.get('layout')!='installer-only-v1':raise ValueError('Unexpected deployment layout.')
+    actual=files(destination);actual.pop(manifest_name)
     if manifest.get('schema')!=1 or actual!=manifest['files']:raise ValueError('Exact artifact contents or hashes differ.')
     privacy(actual)
     return manifest

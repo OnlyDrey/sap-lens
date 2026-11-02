@@ -925,3 +925,14 @@ wheelhouse installations obtain the same resources from the pinned wheels; no
 Word, LibreOffice or target-machine React build is required. Resource collection,
 Linux rendering and Windows wheel availability have local checks. Packaged
 Windows rendering and native Save-dialog acceptance still require Windows testing.
+
+### Desktop installer-first archive
+
+The standard Windows Desktop deployment ZIP ships only Setup as its launch choice,
+with README/licenses and a `metadata/` manifest/installer receipt. The canonical
+portable EXE, its checksum and its PE/privacy verification remain internal inputs.
+The download round trip verifies both the installer and that retained internal
+payload. Legacy **Build Windows Application** still builds the explicit portable
+distribution; its exactly-two-file contract is unchanged. Release publication
+continues attaching only archives, with no public checksum sidecars. See
+[Desktop installation](WINDOWS_DESKTOP.md).

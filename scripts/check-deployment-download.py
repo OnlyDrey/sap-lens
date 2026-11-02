@@ -26,7 +26,7 @@ def check(directory):
         if manifest['platform'] == 'Windows-Desktop-x64':
             import subprocess
             subprocess.run([str(ROOT/'backend/build/python-env/Scripts/python.exe'),str(ROOT/'scripts/verify-desktop-distribution.py'),
-                            '--directory',str(Path(temp)/'application')],check=True)
+                            '--directory',str(Path(temp)/'application'),'--payload-directory',str(ROOT/'backend/dist')],check=True)
     print('Distributed package checksum and exact contents verified: '+archive.name)
     if os.environ.get('GITHUB_OUTPUT'):
         with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as output:
