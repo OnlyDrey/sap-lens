@@ -10,7 +10,7 @@ from fastapi import HTTPException
 
 import cache
 from config import get_settings
-from search_matching import text_matches
+from search_matching import text_matches, selected_value_matches
 import sod_catalogue
 import sod_decisions as decisions
 import sod_governance as governance
@@ -144,7 +144,7 @@ def allowed_assignments(model, state, q):
                 continue
             if not suffix_matches(assignment['role'], wanted):
                 continue
-            if not any_match(assignment['user_group'], many(q, 'group', 'groups')):
+            if not selected_value_matches(assignment['user_group'], many(q, 'group', 'groups')):
                 continue
             wanted_activities = many(q, 'activity', 'activities')
             if wanted_activities and not any(any_match(name, wanted_activities) for name in assignment['supplies']):

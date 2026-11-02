@@ -13,7 +13,7 @@ from fastapi.responses import StreamingResponse
 import cache
 from config import get_settings
 from csv_exports import spreadsheet_cell
-from search_matching import search_fields, text_matches
+from search_matching import search_fields, text_matches, selected_value_matches
 from sod_analysis import analyze
 import sod_catalogue as store
 from user_access import sap_date
@@ -150,7 +150,10 @@ def filtered(result, query):
         users = {name.casefold() for name in query.get('usernames') or []}
         if users and (row['kind'] != 'user' or row['subject'].casefold() not in users):
             continue
-        fields = [('group','groups','user_group'),('tcode','tcodes','tcode')]
+        groups=_many(query,'group','groups')
+        if groups and not any(selected_value_matches(path.get('user_group',''),groups) for path in paths):
+            continue
+        fields = [('tcode','tcodes','tcode')]
         if any(wanted and not any(text_matches(path.get(field, ''), item) for path in paths for item in wanted) for wanted,field in [(_many(query,single,plural),field) for single,plural,field in fields]):
             continue
         if any(query[key] and not any(text_matches(path.get(field, ''), query[key]) for path in paths) for key,field in [('composite_role','matched_catalogue_pattern'),('single_role','single_role')]):

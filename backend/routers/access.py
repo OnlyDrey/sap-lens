@@ -1,5 +1,5 @@
 """Authenticated local investigation APIs. Dates describe assignments, not effective authorization."""
-from search_matching import text_matches, search_fields, text_matches_any
+from search_matching import selected_value_matches, text_matches, search_fields, text_matches_any
 
 from collections import defaultdict
 from csv_exports import assignment_response, role_list_response
@@ -185,7 +185,7 @@ def directory_selection(snapshot, *, search,group,role,tcode,groups=(),roles=(),
         if (
             a["scope"] != "other"
             and relevant(a, status, show_expired, today)
-            and (not group_set or a["user_group"] in group_set)
+            and selected_value_matches(a["user_group"],group_set)
         ):
             evidence[a["user_key"]].append(a)
     if (include or excluded) and snapshot.roles:

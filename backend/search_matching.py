@@ -36,3 +36,12 @@ def text_matches_any(value, query):
     """OR over the separated search values; each keeps the single-value rules. No usable value does not filter."""
     terms = search_terms(query)
     return not terms or any(text_matches(value, term) for term in terms)
+
+
+def selected_value_matches(value, selected):
+    """Exact source-identifier selection (OR within values); never search syntax.
+
+    Dropdown option search is separate. In particular '*' in a selected SAP User
+    Group is literal, unlike explicit role/T-code search patterns.
+    """
+    return not selected or value in selected

@@ -286,3 +286,18 @@ Both views export the same filtered assignment set.
 Every sidebar view (User Access, Role Lookup, Release Roles, Account Review, Compare users and the SoD pages) uses the same header: the title, a compact **Clear** button (filter-reset icon, accessible name "Clear filters") and Close, with the same height. Clear resets only that view's filters, including its sort, and is the only reset action; the Role Lookup results area repeats it only while the sidebar is hidden. Active filter counts follow the same state, and Saved Filters keep working.
 
 Multi-value filters use one searchable multi-select: the list stays open while options are toggled (outside click, Escape, Tab or Close dismiss it), searching never drops a selection, *Select all* acts on the options currently listed and says so, *Clear selection* and removable chips undo it, and arrow keys, Enter and Backspace work. Values combine with OR inside one filter and with AND between filters. Multi-select applies to SAP User Group, role and *Roles the user must lack* (User Access), Release Area, Release Group and Release Strategy, and in SoD to SAP username, Role suffix, SAP user group, Risk ID, Activity, Assigned role, Transaction code, Business area and Criticality. Sort order, review context, validity and mode selectors stay single-select. Active, selected and pressed states use the product's primary action color.
+
+## Exact SAP User Group selection
+
+A selected SAP User Group is an exact source identifier. Selecting `SYN-GROUP`
+does not include `SYN-GROUP-ONE`; selecting both includes exactly those groups
+(OR), combined with other categories by AND. `*` in a selected group is literal.
+Searching dropdown options may list several similarly named groups, but it does
+not select them. Select All acts only on the listed options; Clear changes only
+that category. Saved definitions retain their group values unchanged.
+
+SoD matrices, queue, explorer and assignment selection share this rule. User
+Access and its dashboard drill-downs retain their existing exact group behavior.
+Account Review's general text search is not a selected SAP User Group filter;
+its license-group classification is a separate control. Explicit role, suffix and
+transaction search patterns retain their documented semantics.
