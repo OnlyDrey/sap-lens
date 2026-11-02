@@ -18,7 +18,7 @@ ROOT=Path(__file__).resolve().parents[1]
 def smoke(artifacts):
     spec=importlib.util.spec_from_file_location('packages',ROOT/'scripts/deployment-package.py')
     pkg=importlib.util.module_from_spec(spec);spec.loader.exec_module(pkg)
-    archives=list(artifacts.glob('SAP-Lens-Linux-Native-x64-*.tar.gz'))
+    archives=list(artifacts.glob('sap-lens-linux-native-x64-v*.tar.gz'))
     if len(archives)!=1:raise ValueError('Expected exactly one native archive.')
     archive=archives[0];digest=archive.with_name(archive.name+'.sha256').read_text().split()[0]
     with tempfile.TemporaryDirectory(prefix='SAP Lens native ø ') as temp:

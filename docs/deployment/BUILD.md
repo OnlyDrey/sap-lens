@@ -157,10 +157,10 @@ Actions artifact names use the same stem as their inner archive:
 
 | Platform | Inner deployment file |
 | --- | --- |
-| Windows Desktop | `SAP-Lens-Windows-Desktop-x64-<version>.zip` |
-| Windows Service | `SAP-Lens-Windows-Service-x64-<version>.zip` |
-| Linux Docker | `SAP-Lens-Linux-Docker-amd64-<version>.tar.gz` |
-| Linux native/client | `SAP-Lens-Linux-Native-x64-<version>.tar.gz` |
+| Windows Desktop | `sap-lens-win-desktop-x64-v<version>.zip` |
+| Windows Service | `sap-lens-win-service-x64-v<version>.zip` |
+| Linux Docker | `sap-lens-linux-docker-amd64-v<version>.tar.gz` |
+| Linux native/client | `sap-lens-linux-native-x64-v<version>.tar.gz` |
 
 After the selected job and roundtrip succeed, open the completed Actions run's
 **Artifacts** section and download the selected platform stem. Alternatively, use
@@ -168,7 +168,15 @@ After the selected job and roundtrip succeed, open the completed Actions run's
 authorized run. Downloading is not a build or publication action.
 
 Every artifact contains its archive plus `<archive>.sha256`, retained for 14 days.
-GitHub wraps these files in another downloadable ZIP: extract that wrapper first.
+Published releases contain only the selected archives, one `SHA256SUMS.txt` and
+`sap-lens-manifest.json`; individual sidecars remain internal verification inputs.
+The checksum list hashes the final archives, and the manifest records source identity,
+archive sizes/digests and the checksum list digest. Existing releases are not changed.
+To verify on Linux, place the archives and checksum list together and run
+`sha256sum --check --ignore-missing SHA256SUMS.txt`. On Windows, compare
+`Get-FileHash <archive> -Algorithm SHA256` with its entry in `SHA256SUMS.txt`.
+
+For Actions downloads, GitHub wraps these files in another downloadable ZIP: extract that wrapper first.
 The workflow downloads each upload again, checks its digest, inner checksum,
 exact expected members and hashes. Desktop additionally uses its existing EXE/ZIP
 verifiers; Service includes its PE/resource report and native SCM smoke result.
@@ -324,7 +332,7 @@ fails. A failed shared suite is not rerun for every sibling target.
 ## Outputs and verification
 
 Default output: Git-ignored `dist/<version>/`, containing successful platform
-archives and their individual `.sha256` files, combined `checksums.sha256`,
+archives and their individual `.sha256` files, combined `SHA256SUMS.txt`,
 `build-manifest.json` and `build.log`.
 
 The manifest records version/source, invocation/timestamp, target, actual host/

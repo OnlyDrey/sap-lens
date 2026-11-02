@@ -23,7 +23,7 @@ def check(directory):
     with tempfile.TemporaryDirectory() as temp:
         manifest=pkg.verify_extract(archive,Path(temp)/'application',match[1])
         if manifest['identity']!=info:raise ValueError('Downloaded artifact identity mismatch.')
-        if 'Windows-Desktop-x64-' in archive.name:
+        if manifest['platform'] == 'Windows-Desktop-x64':
             import subprocess
             subprocess.run([str(ROOT/'backend/build/python-env/Scripts/python.exe'),str(ROOT/'scripts/verify-desktop-distribution.py'),
                             '--directory',str(Path(temp)/'application')],check=True)

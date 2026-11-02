@@ -192,7 +192,11 @@ def finish(directory,platform,output):
     if output.resolve().is_relative_to(directory.resolve()):
         raise ValueError('Keep deployment archive output outside its input bundle.')
     output.mkdir(parents=True,exist_ok=True)
-    stem=f'SAP-Lens-{platform}-{info["version"]}'
+    platforms = {'Windows-Desktop-x64': 'win-desktop-x64', 'Windows-Service-x64': 'win-service-x64',
+                 'Linux-Docker-amd64': 'linux-docker-amd64', 'Linux-Native-x64': 'linux-native-x64'}
+    if platform not in platforms:
+        raise ValueError('Unknown deployment platform.')
+    stem=f'sap-lens-{platforms[platform]}-v{info["version"]}'
     archive=output/(stem+('.zip' if platform.startswith('Windows') else '.tar.gz'))
     checksum=archive.with_name(archive.name+'.sha256')
     if any(path.exists() or path.is_symlink() for path in (archive,checksum)):

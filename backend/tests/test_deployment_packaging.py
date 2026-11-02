@@ -76,6 +76,39 @@ class PackagingTests(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory();self.root=Path(self.temp.name)
         self.info=pkg.make_build_info('build','0.1.0','a'*40,'123','9',1)
     def tearDown(self):self.temp.cleanup()
+    def test_all_platform_names_agree_with_publisher_and_local_builder(self):
+        def load(name):
+            spec=importlib.util.spec_from_file_location(name,ROOT/'scripts'/f'{name}.py')
+            value=importlib.util.module_from_spec(spec);spec.loader.exec_module(value);return value
+        release=load('deployment-release');builder=load('build-deployments')
+        cases=[('Windows-Desktop-x64','windows-desktop','desktop','sap-lens-win-desktop-x64-v'),
+               ('Windows-Service-x64','windows-service','service','sap-lens-win-service-x64-v'),
+               ('Linux-Docker-amd64','linux-docker','docker','sap-lens-linux-docker-amd64-v'),
+               ('Linux-Native-x64','linux-native','linux-native','sap-lens-linux-native-x64-v')]
+        for platform,package,target,prefix in cases:
+            with self.subTest(platform=platform):
+                source=self.root/platform;source.mkdir();(source/'README.md').write_text('synthetic')
+                with patch.object(pkg,'identity',return_value=self.info):
+                    archive=pkg.finish(source,platform,self.root/'out')
+                extension='.zip' if platform.startswith('Windows') else '.tar.gz'
+                self.assertEqual(archive.name,prefix+self.info['version']+extension)
+                self.assertEqual(release.PACKAGES[package][2:4],builder.STEMS[target])
+                self.assertEqual(archive.name,f'sap-lens-{builder.STEMS[target][0]}-v{self.info["version"]}{extension}')
+
+    def test_renamed_desktop_archive_still_runs_desktop_distribution_verifier(self):
+        spec=importlib.util.spec_from_file_location('download',ROOT/'scripts/check-deployment-download.py')
+        download=importlib.util.module_from_spec(spec);spec.loader.exec_module(download)
+        source=self.root/'source';source.mkdir();(source/'README.md').write_text('synthetic')
+        with patch.object(pkg,'identity',return_value=self.info):
+            pkg.finish(source,'Windows-Desktop-x64',self.root/'out')
+            with patch.object(download.importlib.util,'module_from_spec',return_value=pkg), \
+                    patch.object(download.importlib.util,'spec_from_file_location') as loader, \
+                    patch.object(subprocess,'run') as verifier:
+                loader.return_value.loader.exec_module.return_value=None
+                download.check(self.root/'out')
+            self.assertIn('verify-desktop-distribution.py',str(verifier.call_args.args[0]))
+            verifier.assert_called_once()
+
     def test_repeated_packaging_preserves_existing_archive_and_rejects_output_inside_bundle(self):
         for platform in ('Windows-Desktop-x64','Linux-Native-x64'):
             source=self.root/platform;source.mkdir();(source/'README.md').write_text('synthetic')

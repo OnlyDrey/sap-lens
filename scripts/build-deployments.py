@@ -25,8 +25,8 @@ sys.path.insert(0, str(ROOT / 'backend'))
 from version import make_local_deployment_info
 
 TARGETS = ('desktop', 'service', 'docker', 'linux-native')
-STEMS = {'desktop': ('Windows-Desktop-x64', '.zip'), 'service': ('Windows-Service-x64', '.zip'),
-         'docker': ('Linux-Docker-amd64', '.tar.gz'), 'linux-native': ('Linux-Native-x64', '.tar.gz')}
+STEMS = {'desktop': ('win-desktop-x64', '.zip'), 'service': ('win-service-x64', '.zip'),
+         'docker': ('linux-docker-amd64', '.tar.gz'), 'linux-native': ('linux-native-x64', '.tar.gz')}
 
 
 def module(name):
@@ -95,7 +95,7 @@ def verify_outputs(directory, version, source, targets, remote=False):
         if not isinstance(row,dict): raise ValueError('Malformed target manifest.')
         if row.get('status') != 'passed': continue
         stem, extension = STEMS[target]
-        name = f'SAP-Lens-{stem}-{version}{extension}'
+        name = f'sap-lens-{stem}-v{version}{extension}'
         path = directory / name
         if (row.get('artifact') != name or not path.is_file() or path.is_symlink()
                 or module('deployment-package').sha(path) != row.get('sha256')
@@ -169,7 +169,7 @@ class Builder:
         if hasattr(self,'started'):self.manifest['total_seconds']=round(time.monotonic()-self.started,2)
         module('deployment-package').write(self.output / 'build-manifest.json', self.manifest)
         rows = [f'{row["sha256"]}  {row["artifact"]}' for row in self.manifest['targets'].values() if row.get('status') == 'passed']
-        (self.output / 'checksums.sha256').write_text('\n'.join(rows) + '\n', encoding='ascii')
+        (self.output / 'SHA256SUMS.txt').write_text('\n'.join(rows) + '\n', encoding='ascii')
 
     def validate(self):
         if self.validated: return
@@ -236,7 +236,7 @@ class Builder:
             actual = subprocess.check_output([tool('docker'), 'info', '--format', '{{.OSType}}/{{.Architecture}}'], text=True).strip()
             if actual not in ('linux/x86_64', 'linux/amd64'): raise ValueError('Select an x86-64 Linux Docker engine (Docker Desktop Linux containers on Windows).')
         self.validate()
-        stem, ext = STEMS[target]; name = f'SAP-Lens-{stem}-{self.args.version}{ext}'
+        stem, ext = STEMS[target]; name = f'sap-lens-{stem}-v{self.args.version}{ext}'
         if (self.output / name).exists(): raise ValueError('Artifact already exists. Choose a new --output-dir; existing packages are preserved.')
         with tempfile.TemporaryDirectory(prefix='deployment-', dir=self.build) as temporary:
             destination = Path(temporary)
@@ -283,7 +283,7 @@ class Builder:
                 row = result.get('targets', {}).get(target, {})
                 if not isinstance(row,dict): raise ValueError('Malformed remote target result.')
                 if row.get('status') != 'passed': continue
-                stem, ext = STEMS[target]; name = f'SAP-Lens-{stem}-{self.args.version}{ext}'
+                stem, ext = STEMS[target]; name = f'sap-lens-{stem}-v{self.args.version}{ext}'
                 if row.get('artifact') != name or (self.output / name).exists(): raise ValueError('Unexpected remote filename or existing local artifact.')
                 for filename in (name, name + '.sha256'):
                     subprocess.run([*scp, host + ':' + remote_root + '/' + filename, str(destination)], check=True, stdout=subprocess.DEVNULL)

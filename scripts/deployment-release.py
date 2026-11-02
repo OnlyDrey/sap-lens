@@ -26,10 +26,10 @@ class DeliveryError(RuntimeError):
 
 
 PACKAGES = {
-    'windows-desktop': ('desktop', 'Windows Desktop', 'Windows-Desktop-x64', '.zip', 'windows', 'windows-latest'),
-    'windows-service': ('service', 'Windows Server Service', 'Windows-Service-x64', '.zip', 'windows', 'windows-latest'),
-    'linux-docker': ('docker', 'Linux Docker', 'Linux-Docker-amd64', '.tar.gz', 'linux', 'ubuntu-22.04'),
-    'linux-native': ('native', 'Linux Native/systemd', 'Linux-Native-x64', '.tar.gz', 'linux', 'ubuntu-22.04'),
+    'windows-desktop': ('desktop', 'Windows Desktop', 'win-desktop-x64', '.zip', 'windows', 'windows-latest'),
+    'windows-service': ('service', 'Windows Server Service', 'win-service-x64', '.zip', 'windows', 'windows-latest'),
+    'linux-docker': ('docker', 'Linux Docker', 'linux-docker-amd64', '.tar.gz', 'linux', 'ubuntu-22.04'),
+    'linux-native': ('native', 'Linux Native/systemd', 'linux-native-x64', '.tar.gz', 'linux', 'ubuntu-22.04'),
 }
 
 
@@ -182,7 +182,7 @@ def eligible(info, chosen, needs):
         key, _label, stem, extension, *_rest = PACKAGES[name]
         job = needs.get(key, {})
         values = job.get('outputs', {})
-        expected = f'SAP-Lens-{stem}-{info["version"]}{extension}'
+        expected = f'sap-lens-{stem}-v{info["version"]}{extension}'
         if job.get('result') != 'success':
             raise DeliveryError(f'Selected package {name} did not succeed; publication is forbidden.')
         if (values.get('package_name') != expected
@@ -209,8 +209,13 @@ def collect(directory, info, rows):
         if (sha(path) != row['package_sha']
                 or checksum.read_text(encoding='ascii').strip() != row['package_sha'] + '  ' + path.name):
             raise DeliveryError('Collected package differs from the verified platform artifact.')
-        assets.extend((path, checksum))
-    manifest = directory / f'SAP-Lens-Deployment-Manifest-{info["version"]}.json'
+        assets.append(path)
+    # Sidecars are same-run verification inputs, not public release assets.
+    # Hash the final archives; an archive cannot contain its own checksum.
+    checksums = directory / 'SHA256SUMS.txt'
+    checksums.write_text(''.join(f'{sha(path)}  {path.name}\n' for path in assets), encoding='ascii')
+    assets.append(checksums)
+    manifest = directory / 'sap-lens-manifest.json'
     manifest.write_text(json.dumps(dict(schema=1, identity=info,
         assets={path.name: dict(sha256=sha(path), size=path.stat().st_size) for path in assets}), indent=2) + '\n')
     return [*assets, manifest]
@@ -252,7 +257,9 @@ def publish(api, info, assets):
         print('Publication phase: create unpublished draft')
         draft = api.request('POST', '/releases', dict(tag_name=tag,
             target_commitish=info['source_sha'], name='SAP Lens ' + info['version'],
-            body=marker + '\n\nValidated deployment packages. See the attached manifest for source identity and SHA-256 digests.',
+            body=marker + '\n\nValidated deployment packages. Download the package for your platform. '
+                'SHA256SUMS.txt contains SHA-256 checksums of the final archives; '
+                'sap-lens-manifest.json records source identity, sizes and digests.',
             draft=True, prerelease=prerelease, generate_release_notes=True))
         release_id = draft['id']
         if draft.get('draft') is not True:

@@ -45,7 +45,7 @@ def needs(info, chosen=None):
     for index, (name, (key, _label, stem, ext, *_rest)) in enumerate(release.PACKAGES.items(), 1):
         if name in chosen:
             result[key] = {'result': 'success', 'outputs': {
-                'artifact_id': str(index), 'package_name': f'SAP-Lens-{stem}-{info["version"]}{ext}',
+                'artifact_id': str(index), 'package_name': f'sap-lens-{stem}-v{info["version"]}{ext}',
                 'package_sha': hashlib.sha256(key.encode()).hexdigest()}}
         else:
             result[key] = {'result': 'skipped', 'outputs': {}}
@@ -252,7 +252,7 @@ class DeploymentCollectionTests(unittest.TestCase):
         for chosen in ([ALL[0]], ALL[:2], ALL[2:]):
             data = needs(info, chosen)
             rows = release.eligible(info, chosen, data)
-            self.assertEqual({row['package_name'] for row in rows}, {f'SAP-Lens-{release.PACKAGES[name][2]}-{info["version"]}{release.PACKAGES[name][3]}' for name in chosen})
+            self.assertEqual({row['package_name'] for row in rows}, {f'sap-lens-{release.PACKAGES[name][2]}-v{info["version"]}{release.PACKAGES[name][3]}' for name in chosen})
             for name in set(ALL) - set(chosen):
                 key = release.PACKAGES[name][0]
                 self.assertEqual(data[key]['result'], 'skipped')  # a skipped job is not a failure of verification or publication
@@ -308,10 +308,19 @@ class DeploymentCollectionTests(unittest.TestCase):
                 (directory / (name + '.sha256')).write_text(row['package_sha'] + '  ' + name + '\n')
             rows = release.eligible(info, ALL, data)
             assets = release.collect(directory, info, rows)
-            self.assertEqual(len(assets), 9)
+            self.assertEqual(len(assets), 6)
+            self.assertEqual({path.name for path in assets},
+                             {row['package_name'] for row in rows} | {'SHA256SUMS.txt', 'sap-lens-manifest.json'})
+            checksum_list = directory / 'SHA256SUMS.txt'
+            self.assertEqual(checksum_list.read_text(), ''.join(
+                row['package_sha'] + '  ' + row['package_name'] + '\n' for row in rows))
+            self.assertTrue(all(not path.name.endswith('.sha256') for path in assets))
             manifest = assets[-1]
             self.assertEqual(json.loads(manifest.read_text())['identity'], info)
+            self.assertEqual(json.loads(manifest.read_text())['assets'], {
+                path.name: dict(sha256=release.sha(path), size=path.stat().st_size) for path in assets[:-1]})
             manifest.unlink()
+            (directory / 'SHA256SUMS.txt').unlink()
             extra = directory / 'settings.json'; extra.write_text('{}')
             with self.assertRaises(release.DeliveryError): release.collect(directory, info, rows)
             extra.unlink()
@@ -320,6 +329,21 @@ class DeploymentCollectionTests(unittest.TestCase):
             package.write_bytes(b'desktop')
             checksum = package.with_name(package.name + '.sha256'); checksum.write_text(rows[0]['package_sha'] + '  wrong.zip\n')
             with self.assertRaises(release.DeliveryError): release.collect(directory, info, rows)
+
+    def test_single_selected_package_has_only_its_checksum_and_manifest(self):
+        info = identity()
+        for name in ALL:
+            with self.subTest(package=name), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                rows = release.eligible(info, [name], needs(info, [name]))
+                row = rows[0]
+                payload = release.PACKAGES[name][0].encode()
+                archive = directory / row['package_name']
+                archive.write_bytes(payload)
+                archive.with_name(archive.name + '.sha256').write_text(row['package_sha'] + '  ' + archive.name + '\n')
+                assets = release.collect(directory, info, rows)
+                self.assertEqual([path.name for path in assets], [archive.name, 'SHA256SUMS.txt', 'sap-lens-manifest.json'])
+                self.assertEqual(assets[1].read_text(), release.sha(archive) + '  ' + archive.name + '\n')
 
     def test_workflow_contracts_reject_publication_bypasses(self):
         workflows = contracts.load_workflows(); contracts.validate(workflows)

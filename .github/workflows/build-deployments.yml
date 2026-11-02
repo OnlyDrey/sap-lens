@@ -227,7 +227,7 @@ jobs:
       id: distribution
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: SAP-Lens-Windows-Desktop-x64-${{ needs.validation.outputs.version }}
+        name: sap-lens-win-desktop-x64-v${{ needs.validation.outputs.version }}
         path: dist/deployment/*
         if-no-files-found: error
         retention-days: 14
@@ -290,7 +290,7 @@ jobs:
       id: distribution
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: SAP-Lens-Windows-Service-x64-${{ needs.validation.outputs.version }}
+        name: sap-lens-win-service-x64-v${{ needs.validation.outputs.version }}
         path: dist/deployment/*
         if-no-files-found: error
         retention-days: 14
@@ -354,7 +354,7 @@ jobs:
       id: distribution
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: SAP-Lens-Linux-Docker-amd64-${{ needs.validation.outputs.version }}
+        name: sap-lens-linux-docker-amd64-v${{ needs.validation.outputs.version }}
         path: dist/deployment/*
         if-no-files-found: error
         retention-days: 14
@@ -420,7 +420,7 @@ jobs:
       id: distribution
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: SAP-Lens-Linux-Native-x64-${{ needs.validation.outputs.version }}
+        name: sap-lens-linux-native-x64-v${{ needs.validation.outputs.version }}
         path: dist/deployment/*
         if-no-files-found: error
         retention-days: 14
