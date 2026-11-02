@@ -37,6 +37,8 @@ export interface MatrixResult<Column, Cell> extends ContextInfo {
   status_counts: Record<string, number>
 }
 export interface DecisionEvent {
+  bulk_operation_id?:string
+  previous_decision?:string
   event_id: string
   kind: 'activity' | 'assignment' | 'acceptance'
   context: string
@@ -134,7 +136,7 @@ export interface Subject extends ContextInfo {
 }
 
 const SCALAR_KEYS = ['search', 'risk', 'criticality', 'risk_type', 'category', 'username', 'group', 'composite_role', 'single_role', 'tcode', 'role', 'role_suffix', 'activity', 'account_status', 'multiple_risks', 'tracking',
-  'activity_decision', 'assignment_decision', 'acceptance', 'validity', 'as_of', 'sort', 'queue_sort']
+  'activity_decision', 'assignment_decision', 'acceptance', 'validity', 'as_of', 'sort', 'queue_sort', 'role_match']
 
 /** Exact multi-select values: OR within the list, AND with every other filter. */
 const MULTI_KEYS = ['usernames', 'role_suffixes', 'risks', 'activities', 'groups', 'roles', 'tcodes', 'categories', 'criticalities']
@@ -238,7 +240,7 @@ export interface AssignmentPick {
   decision: Lifecycle
   user_group: string
 }
-export interface AssignmentSelection extends ContextInfo { items: AssignmentPick[]; total: number; truncated: boolean; limit: number }
+export interface AssignmentSelection extends ContextInfo { matching_users?:number;matching_roles?:number; items: AssignmentPick[]; total: number; truncated: boolean; limit: number }
 export type BulkAction = 'Keep' | 'Remove' | 'Investigate'
 export interface BulkOutcome { key: string; user: string; ref: string; reason: string }
-export interface BulkResult { action: BulkAction; recorded: string[]; skipped: BulkOutcome[]; failed: BulkOutcome[]; tracked_actions?: string[]; revision: number }
+export interface BulkResult { operation_id?:string; action: BulkAction; recorded: string[]; skipped: BulkOutcome[]; failed: BulkOutcome[]; tracked_actions?: string[]; revision: number }

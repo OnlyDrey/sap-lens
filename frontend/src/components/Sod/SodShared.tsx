@@ -114,7 +114,7 @@ export function useFilterChangeReset(filters: Filters, reset: () => void) {
   useEffect(() => { if (previous.current !== key) { previous.current = key; reset() } }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
 }
 
-export const refreshKeys = ['sod-filter-options', 'sod-matrix', 'sod-subject', 'sod-queue', 'sod-explorer', 'sod-overview', 'sod-remediation', 'sod-periods', 'sod-period', 'sod-context']
+export const refreshKeys = ['sod-bulk-preview','dashboard','sod-filter-options', 'sod-matrix', 'sod-subject', 'sod-queue', 'sod-explorer', 'sod-overview', 'sod-remediation', 'sod-periods', 'sod-period', 'sod-context']
 export const invalidateSod = (qc: QueryClient) => Promise.all(refreshKeys.map((key) => qc.invalidateQueries({ queryKey: [key] })))
 
 /** One review-context bar for every SoD view, shown beneath the SoD navigation: current evidence or a review period, its evaluation date and whether it is live or a frozen snapshot. */

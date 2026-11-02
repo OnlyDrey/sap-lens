@@ -120,3 +120,15 @@ what-if calculation, including overlapping providers. A plan never changes the
 imported conflict or establishes verified remediation. Outdated evidence cannot
 provide coverage. Period approval gates continue requiring explicit current
 risk decisions; access-review completion alone does not approve residual risk.
+
+### Atomic queue assignment batches
+
+The Work Queue calls the existing assignment selection endpoint and
+`POST /api/sod/decisions/assignment/bulk` with `atomic=true`. Canonical scope filters
+support explicit role matching modes independently of exact User Group selections.
+The server revalidates each assignment, evidence generation/version, context and
+revision. Atomic Keep/Remove batches (maximum 1000) perform one decision-index write
+under the existing publication/period locks; validation failure writes no events.
+The legacy Explorer's detailed partial-outcome behavior remains available by default.
+Events carry `bulk_operation_id` and `previous_decision`, without changing identity,
+source data, formal acceptance or remediation verification.

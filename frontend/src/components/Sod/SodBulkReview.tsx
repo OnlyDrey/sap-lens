@@ -1,4 +1,7 @@
 import { useState } from 'react'
+import {useQuery} from '@tanstack/react-query'
+import {apiRequest} from '@/api/client'
+import {invalidateSod} from './SodShared'
 import { useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { sodPost, type AssignmentPick, type BulkAction, type BulkResult, type ContextInfo } from '@/api/sod'
@@ -16,26 +19,28 @@ const COPY: Record<BulkAction, { title: string; verb: string; effect: string; co
 const counted = (items: string[]) => [...items.reduce((map, value) => map.set(value, (map.get(value) || 0) + 1), new Map<string, number>())].sort(([x], [y]) => x.localeCompare(y))
 
 /** Confirmation and result of a batch review. Success is shown only for assignments the server reports as persisted. */
-export function BulkReviewDialog({ action, picks: livePicks, info, onClose, onApplied }: { action: BulkAction; picks: AssignmentPick[]; info: ContextInfo & { revision: number }; onClose: () => void; onApplied: (recorded: string[]) => void }) {
+export function BulkReviewDialog({ action, picks: livePicks, info, atomic=false, onClose, onApplied }: { action: BulkAction; picks: AssignmentPick[]; info: ContextInfo & { revision: number }; atomic?:boolean; onClose: () => void; onApplied: (recorded: string[]) => void }) {
   const copy = COPY[action], qc = useQueryClient()
   // The dialog reports on the selection it was opened with, even after saved assignments leave the live selection.
   const [picks] = useState(livePicks)
   const [reviewer, setReviewer] = useState(rememberedReviewer), [rationale, setRationale] = useState(''), [replace, setReplace] = useState(false), [track, setTrack] = useState(false)
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [result, setResult] = useState<BulkResult | null>(null)
+  const runtime=useQuery({queryKey:['review-runtime-identity'],queryFn:()=>apiRequest<{username:string}>('/api/runtime'),retry:false})
+  const effectiveReviewer=runtime.data?.username||reviewer
   const users = counted(picks.map((pick) => pick.user)), suffixes = counted(picks.map((pick) => pick.suffix || 'No suffix')), roles = new Set(picks.map((pick) => pick.ref)).size
   const reviewed = picks.filter((pick) => pick.decision === 'Keep' || pick.decision === 'Removal required')
-  const ready = !!reviewer.trim() && !!rationale.trim() && (!reviewed.length || replace) && !busy
+  const ready = !!effectiveReviewer.trim() && !!rationale.trim() && (!reviewed.length || replace) && !busy
   const apply = async () => {
     setBusy(true); setError('')
     try {
       const response = await sodPost<BulkResult>('/api/sod/decisions/assignment/bulk', {
-        context: info.context, expected_revision: info.revision, expected_generation: info.generation, action, reviewer: reviewer.trim(), justification: rationale.trim(), replace_existing: replace, track_action: action === 'Investigate' && track,
+        context: info.context, expected_revision: info.revision, expected_generation: info.generation, action, atomic, reviewer: effectiveReviewer.trim(), justification: rationale.trim(), replace_existing: replace, track_action: action === 'Investigate' && track,
         items: picks.map((pick) => ({ key: pick.key, user: pick.user, ref: pick.ref, evidence_version: pick.evidence_version })),
       })
-      rememberReviewer(reviewer)
+      if(!runtime.data?.username)rememberReviewer(reviewer)
       setResult(response)
       onApplied(response.recorded)
-      await qc.invalidateQueries({ predicate: (query) => ['sod-explorer', 'sod-matrix', 'sod-overview', 'sod-queue', 'sod-remediation', 'sod-subject'].includes(String(query.queryKey[0])) })
+      await invalidateSod(qc)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'The review could not be saved. Nothing was reported as saved.')
     } finally { setBusy(false) }
@@ -47,6 +52,7 @@ export function BulkReviewDialog({ action, picks: livePicks, info, onClose, onAp
         <div className="bulk-dialog" role="region" aria-label="Batch review result">
           <p role="status" className="flex items-center gap-2 font-semibold">{problems ? <AlertTriangle size={16} aria-hidden="true" /> : <CheckCircle2 size={16} aria-hidden="true" />}
             {result.recorded.length} of {picks.length} {picks.length === 1 ? 'assignment' : 'assignments'} saved{problems ? `; ${result.skipped.length} skipped and ${result.failed.length} failed` : ''}.</p>
+          {result.operation_id&&<p className="ui-description">Bulk operation: {result.operation_id}</p>}
           {!!result.skipped.length && <><h3 className="text-sm font-semibold">Skipped, nothing changed</h3><ul className="bulk-outcome">{result.skipped.map((item) => <li key={item.key}><strong>{item.user}</strong> {item.ref}: {item.reason}</li>)}</ul></>}
           {!!result.failed.length && <><h3 className="text-sm font-semibold">Failed, nothing saved</h3><ul className="bulk-outcome" role="alert">{result.failed.map((item) => <li key={item.key}><strong>{item.user}</strong> {item.ref}: {item.reason}</li>)}</ul></>}
           {!!result.tracked_actions?.length && <p className="ui-description">{result.tracked_actions.length} investigation {result.tracked_actions.length === 1 ? 'action was' : 'actions were'} tracked.</p>}
@@ -79,10 +85,10 @@ export function BulkReviewDialog({ action, picks: livePicks, info, onClose, onAp
         )}
         {action === 'Investigate' && <Checkbox checked={track} onChange={(event) => setTrack(event.target.checked)}>Also track one investigation action per assignment (existing open actions are reused)</Checkbox>}
         <div className="review-dialog-fields">
-          <FormField label="Reviewer"><Input maxLength={120} value={reviewer} placeholder="Your name (self-declared)" onChange={(event) => setReviewer(event.target.value)} /></FormField>
+          <FormField label="Reviewer"><Input maxLength={120} value={effectiveReviewer} readOnly={!!runtime.data?.username} placeholder="Your name (self-declared)" onChange={(event) => setReviewer(event.target.value)} /></FormField>
           <FormField label="Rationale"><Input maxLength={2000} value={rationale} placeholder="Why this applies to the selected assignments" onChange={(event) => setRationale(event.target.value)} /></FormField>
         </div>
-        <p className="ui-description">The reviewer name is self-declared and the decision is a local annotation: nothing is sent to or changed in SAP.</p>
+        <p className="ui-description">{runtime.data?.username?'The authenticated account is recorded as reviewer.':'The reviewer name is self-declared.'} Nothing is sent to or changed in SAP.</p>
         {error && <p role="alert" className="text-[var(--error)]">{error}</p>}
       </div>
     </Dialog>

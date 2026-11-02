@@ -235,3 +235,25 @@ The progress bar/count occupy one line; nonzero removal recommendations appear
 beneath it. Clicking a SAP username opens its User Access profile, while **Open
 review** continues to open the SoD workspace. The copy action copies the exact
 username without navigating; route links retain normal modified-click behavior.
+
+### Work Queue bulk assignment review
+
+**Bulk review**, beside Export CSV, reuses the assignment review store. Choose exact
+role names (default), explicit role prefixes or wildcard patterns; suffixes and
+users remain multi-selectable. SAP User Groups always match exactly. Select all
+uses the complete server-filtered scope, not just the visible preview page;
+explicit selections remain selected when filters change. Scopes above 5000 preview
+records must be narrowed, and each confirmed operation is limited to 1000 changes.
+
+Preview shows current/proposed decisions and excluded assignments. Completed
+Keep/Removal decisions are excluded by default. Including them requires the
+additional overwrite confirmation; unchanged decisions are not written. Keep
+approves retention; Remove recommends removal, without modifying SAP. A rationale
+and reviewer are required. Authenticated server reviewers use their actual account.
+
+Queue operations are atomic: invalid IDs, stale source/revision, a finalized period
+or a failed storage write rejects the entire operation. Each event retains its
+previous decision and common bulk operation ID in immutable history and the queue
+CSV. The queue, matrices and individual review panels refresh after success.
+Activity coverage and risk access assessment may derive from assignment review;
+formal risk acceptance remains a separate decision.

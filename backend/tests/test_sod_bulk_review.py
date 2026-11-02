@@ -382,3 +382,60 @@ class MultiSelectScopeTests(BulkCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class AtomicQueueReviewTests(GovernanceCase):
+    def selection(self,**filters):
+        return self.get('/api/sod/explorer/access_list/selection',review_status='all',**filters)
+    def body(self,selection,action='Keep',**extra):
+        return dict(context='current',expected_revision=selection['revision'],expected_generation=selection['generation'],atomic=True,action=action,
+                    reviewer='Synthetic Reviewer',justification='Synthetic atomic review',items=[{key:row[key] for key in ('key','user','ref','evidence_version')} for row in selection['items']],**extra)
+    def test_explicit_role_modes_do_not_change_group_semantics(self):
+        self.assertEqual(self.selection(role='ROLE_A',role_match='exact')['total'],0)
+        self.assertEqual(self.selection(role='ROLE_AB',role_match='exact')['total'],1)
+        self.assertEqual(self.selection(role='ROLE_A',role_match='prefix',groups=['FIN'])['total'],2)
+        self.assertEqual(self.selection(role='ROLE_A*',role_match='wildcard',groups=['FIN'])['total'],2)
+        self.assertEqual(self.selection(role='ROLE_*',role_match='wildcard',groups=['FI*'])['total'],0)
+    def test_atomic_invalid_selection_has_no_partial_decisions(self):
+        selected=self.selection(usernames=['SYN_A']);body=self.body(selected)
+        body['items'][0]['key']='f'*64
+        self.post('/api/sod/decisions/assignment/bulk',body,409)
+        self.assertEqual(decisions.read().revision,0)
+    def test_operation_history_replay_and_explicit_overwrite(self):
+        selected=self.selection(usernames=['SYN_B']);body=self.body(selected)
+        first=self.post('/api/sod/decisions/assignment/bulk',body)
+        self.assertEqual(len(first['operation_id']),32)
+        self.post('/api/sod/decisions/assignment/bulk',body,409)
+        second_selection=self.selection(usernames=['SYN_B'])
+        self.post('/api/sod/decisions/assignment/bulk',self.body(second_selection,'Remove'),409)
+        second=self.post('/api/sod/decisions/assignment/bulk',self.body(second_selection,'Remove',replace_existing=True))
+        events=decisions.history('assignment','current',selected['items'][0]['key'])
+        self.assertEqual(len(events),2);self.assertEqual(events[1]['bulk_operation_id'],first['operation_id'])
+        self.assertEqual(events[0]['previous_decision'],'Keep');self.assertEqual(events[0]['bulk_operation_id'],second['operation_id'])
+    def test_large_atomic_operation_commits_one_revision_and_uses_bounded_body(self):
+        import test_sod_governance as core
+        from unittest.mock import patch
+        cache._cache=core.snapshot(extra_users={f'SYN_ATOMIC_{i:03}':core.user('ROLE_AB') for i in range(105)})
+        selected=self.selection(role='ROLE_AB',role_match='exact')
+        self.assertGreater(len(selected['items']),100)
+        with patch.object(decisions,'_write',wraps=decisions._write) as write:
+            result=self.post('/api/sod/decisions/assignment/bulk',self.body(selected))
+            self.assertEqual(write.call_count,1)
+        self.assertEqual(len(result['recorded']),len(selected['items']));self.assertEqual(result['revision'],selected['revision']+1)
+        response=self.client.post('/api/sod/decisions/assignment/bulk',headers=H,content=b'x'*2_000_001)
+        self.assertEqual(response.status_code,413)
+    def test_atomic_storage_failure_preserves_previous_review_index(self):
+        from unittest.mock import patch
+        from fastapi import HTTPException
+        selected=self.selection(usernames=['SYN_A'])
+        with patch.object(decisions,'_write',side_effect=HTTPException(409,'Synthetic storage failure')):
+            self.post('/api/sod/decisions/assignment/bulk',self.body(selected),409)
+        self.assertEqual(decisions.read().revision,0)
+        self.assertFalse(decisions.read().contexts)
+    def test_authenticated_actor_overrides_entered_bulk_reviewer(self):
+        from server_access import ACTOR
+        token=ACTOR.set('SyntheticAuthenticated')
+        try:
+            result=decisions.record('assignment','current',[dict(key='a'*64,user='SYN_AUTH',ref='ROLE_AUTH',evidence_version='b'*64,evidence={})],
+                'Keep','SpoofedReviewer','Synthetic authentication evidence',0,bulk_operation_id='c'*32)
+            self.assertEqual(result['events'][0]['reviewer'],'SyntheticAuthenticated')
+        finally:ACTOR.reset(token)

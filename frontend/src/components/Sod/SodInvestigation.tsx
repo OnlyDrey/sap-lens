@@ -330,7 +330,7 @@ function DecisionHistory({ kind, context, keyId, label }: { kind: Kind; context:
             <p>{event.justification}</p>
             {event.controls && <p>Conditions or controls: {event.controls}</p>}
             {event.expires && <p>Expires {formatDate(event.expires)}</p>}
-            <p className="text-muted">Evidence version {event.evidence_version.slice(0, 12)} retained with this decision.</p>
+            <p className="text-muted">Evidence version {event.evidence_version.slice(0, 12)} retained with this decision.</p>{event.bulk_operation_id&&<p className="text-xs text-muted">Bulk operation {event.bulk_operation_id} · Previous decision: {event.previous_decision||'Unreviewed'}</p>}
           </li>))}</ol>)}
     </details>
   )

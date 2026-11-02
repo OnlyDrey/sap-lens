@@ -113,7 +113,7 @@ def any_match(value, wanted):
 def _path_matches(finding, q):
     paths = [path for side in finding['evidence'].values() for path in side]
     roles = many(q, 'role', 'roles')
-    if roles and not any(any_match(path.get('actual_assigned_role', ''), roles) for path in paths):
+    if roles and not any(role_selection_matches(path.get('actual_assigned_role', ''),roles,q.get('role_match','search')) for path in paths):
         return False
     wanted = wanted_suffixes(q)
     if wanted and not any(suffix_matches(path.get('actual_assigned_role', ''), wanted) for path in paths):
@@ -133,6 +133,16 @@ REVIEW_STATUS = {'attention': {'Pending', 'Investigate', 'Outdated'}, 'pending':
                  'reviewed': {'Keep', 'Removal required'}}
 
 
+def role_selection_matches(value, wanted, mode='search'):
+    if not wanted:return True
+    if mode=='exact':return value in wanted
+    if mode=='prefix':return any(value.casefold().startswith(item.casefold()) for item in wanted)
+    # Explicit wildcard mode is anchored even without '*'; search retains the
+    # investigation text-search contract and is never used for group selection.
+    if mode=='wildcard':return any(text_matches(value,item) if '*' in item else value.casefold()==item.casefold() for item in wanted)
+    return any_match(value,wanted)
+
+
 def allowed_assignments(model, state, q):
     """{user: assignment ids} passing every assignment-level filter, so lists show actual assigned roles and never siblings of a match."""
     wanted = wanted_suffixes(q)
@@ -140,7 +150,7 @@ def allowed_assignments(model, state, q):
     for user, entry in model.items():
         ids = set()
         for aid, assignment in entry['assignments'].items():
-            if not any_match(assignment['role'], many(q, 'role', 'roles')):
+            if not role_selection_matches(assignment['role'], many(q, 'role', 'roles'),q.get('role_match','search')):
                 continue
             if not suffix_matches(assignment['role'], wanted):
                 continue

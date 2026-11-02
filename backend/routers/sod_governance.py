@@ -29,7 +29,7 @@ def scope_query(context: str = Query('current', pattern=legacy.CONTEXT_PATTERN),
                 search: str = Query('', max_length=256), risk: str = Query('', max_length=512), criticality: str = Query('', max_length=64),
                 risk_type: str = Query('', max_length=64), category: str = Query('', max_length=120), username: str = Query('', max_length=512),
                 group: str = Query('', max_length=256), composite_role: str = Query('', max_length=512), single_role: str = Query('', max_length=512),
-                tcode: str = Query('', max_length=256), role: str = Query('', max_length=512), role_suffix: str = Query('', max_length=128),
+                tcode: str = Query('', max_length=256), role: str = Query('', max_length=512), role_match: Literal['search','exact','prefix','wildcard'] = 'search', role_suffix: str = Query('', max_length=128),
                 activity: str = Query('', max_length=512),
                 usernames: list[str] = Query(default=[], max_length=100), role_suffixes: list[str] = Query(default=[], max_length=100),
                 risks: list[str] = Query(default=[], max_length=100), activities: list[str] = Query(default=[], max_length=100), groups: list[str] = Query(default=[], max_length=100),
@@ -366,7 +366,7 @@ def _queue(q, kind, status):
 
 
 QUEUE_COLUMNS = ['CONTEXT', 'REVIEW_TYPE', 'USERNAME', 'USER_GROUPS', 'REFERENCE', 'RISKS', 'LIFECYCLE', 'DECISION', 'REVIEWER', 'APPROVER', 'TIMESTAMP',
-                 'JUSTIFICATION', 'CONTROLS', 'EXPIRES', 'EVIDENCE_VERSION', 'ACCESS_REVIEWED', 'REVIEW_PROVENANCE', 'REMOVAL_PLANNED']
+                 'JUSTIFICATION', 'CONTROLS', 'EXPIRES', 'EVIDENCE_VERSION', 'ACCESS_REVIEWED', 'REVIEW_PROVENANCE', 'REMOVAL_PLANNED', 'BULK_OPERATION_ID', 'PREVIOUS_DECISION']
 
 
 def native_csv_header(filename):
@@ -462,7 +462,7 @@ def queue_export(q: dict = Depends(scope_query), kind: Literal['', 'activity', '
             event = item['event']
             yield [q['context'], item['kind'], item['user'], ', '.join(item.get('groups', [])), item['ref'], ', '.join(item['risks']), item['lifecycle'], event.decision if event else '',
                    event.reviewer if event else '', event.approver if event else '', event.timestamp if event else '', event.justification if event else '',
-                   event.controls if event else '', event.expires.isoformat() if event and event.expires else '', event.evidence_version if event else '', item.get('review_coverage',{}).get('reviewed',False), item.get('review_coverage',{}).get('provenance',''), item.get('review_coverage',{}).get('removal_planned',False)]
+                   event.controls if event else '', event.expires.isoformat() if event and event.expires else '', event.evidence_version if event else '', item.get('review_coverage',{}).get('reviewed',False), item.get('review_coverage',{}).get('provenance',''), item.get('review_coverage',{}).get('removal_planned',False), event.bulk_operation_id if event else '', event.previous_decision if event else '']
     return csv_response(QUEUE_COLUMNS, rows(), 'review-queue')
 
 
@@ -540,7 +540,7 @@ def assignment_selection(q: dict = Depends(scope_query)):
     bundle, rows = _explorer('access_list', q)
     items = [dict(key=row['id'], user=row['user'], ref=row['role'], suffix=row['suffix'], evidence_version=row['evidence_version'],
                   decision=row['decision'], user_group=row['user_group']) for row in rows[:SELECTION_LIMIT]]
-    return dict(info(bundle), items=items, total=len(rows), truncated=len(rows) > SELECTION_LIMIT, limit=SELECTION_LIMIT)
+    return dict(info(bundle), items=items, matching_users=len({row['user'] for row in rows}), matching_roles=len({row['role'] for row in rows}), total=len(rows), truncated=len(rows) > SELECTION_LIMIT, limit=SELECTION_LIMIT)
 
 
 BULK_MAX = 1000
@@ -555,6 +555,7 @@ class BulkAssignmentBody(StrictModel):
     reviewer: str = Field(min_length=1, max_length=120)
     justification: str = Field(min_length=1, max_length=4000)
     replace_existing: bool = False
+    atomic: bool = False
     track_action: bool = False
 
 
@@ -564,6 +565,15 @@ PROTECTED = {'Keep', 'Removal required'}
 
 @router.post('/decisions/assignment/bulk')
 def bulk_assignment_review(body: BulkAssignmentBody):
+    # Hold the period lifecycle lock through validation and commit; a period cannot
+    # become frozen between the two. Current evidence has its publication guard.
+    if body.context!='current':
+        import sod_periods
+        with sod_periods.lock:return _bulk_assignment_review(body)
+    return _bulk_assignment_review(body)
+
+
+def _bulk_assignment_review(body: BulkAssignmentBody):
     """Review many role assignments with the individual decision behavior: one event per assignment, own history, evidence checks.
 
     Keep, Remove and Investigate append assignment review events. Completed Keep or Remove decisions are never replaced unless
@@ -578,6 +588,10 @@ def bulk_assignment_review(body: BulkAssignmentBody):
         raise HTTPException(409, 'SoD evidence changed. Reload before reviewing.')
     if len({item.key for item in body.items}) != len(body.items):
         raise HTTPException(422, 'Each assignment may be listed once.')
+    if body.atomic and (body.action not in {'Keep','Remove'} or body.track_action):
+        raise HTTPException(422,'Atomic assignment review supports Keep or Remove without separate action mutations.')
+    from uuid import uuid4
+    operation_id=uuid4().hex
     model = scope.model_for(bundle)
     state = governance.states(model, scope.latest_for(bundle))
     tracked = {item.assignment_id for item in scope.actions_for(bundle) if item.assignment_id and item.status != 'Cancelled' and item.recommended == 'Investigate assignment'}
@@ -604,7 +618,7 @@ def bulk_assignment_review(body: BulkAssignmentBody):
 
     def apply(chunk):
         nonlocal revision
-        revision = decisions.record('assignment', body.context, chunk, decision, body.reviewer, body.justification, revision, source_versions=bundle['versions'])['revision']
+        revision = decisions.record('assignment', body.context, chunk, decision, body.reviewer, body.justification, revision, source_versions=bundle['versions'],bulk_operation_id=operation_id)['revision']
         if body.action == 'Investigate' and body.track_action:
             for item in chunk:
                 if item['key'] in tracked:
@@ -617,6 +631,11 @@ def bulk_assignment_review(body: BulkAssignmentBody):
                 tracked.add(item['key'])
 
     def run():
+        if body.atomic:
+            if failed or skipped or not ready:raise HTTPException(409,'The preview selection changed or includes protected decisions. Reload before reviewing; nothing was saved.')
+            apply(ready)
+            recorded.extend(item['key'] for item in ready)
+            return
         for start in range(0, len(ready), decisions.MAX_BATCH):
             chunk = ready[start:start + decisions.MAX_BATCH]
             try:
@@ -633,7 +652,7 @@ def bulk_assignment_review(body: BulkAssignmentBody):
             run()
     else:
         run()
-    return dict(action=body.action, recorded=recorded, skipped=skipped, failed=failed, tracked_actions=new_actions, revision=revision, reviewer_identity=decisions.IDENTITY_NOTICE)
+    return dict(operation_id=operation_id,action=body.action, recorded=recorded, skipped=skipped, failed=failed, tracked_actions=new_actions, revision=revision, reviewer_identity=decisions.IDENTITY_NOTICE)
 
 
 @router.get('/decisions/{kind}/history')

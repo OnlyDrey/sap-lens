@@ -1,3 +1,4 @@
+import {SodQueueBulk} from './SodQueueBulk'
 import {SAPUserLink} from '@/components/Shared/SAPUserLink'
 import { Kpi } from '@/components/Shared/Kpi'
 import { useState } from 'react'
@@ -36,7 +37,7 @@ function Queue() {
     [progress, setProgress] = useState(''),
     [offset, setOffset] = useState(0),
     [, setSubject] = useSodSubject(),
-    [busy, setBusy] = useState(false)
+    [busy, setBusy] = useState(false),[bulkOpen,setBulkOpen]=useState(false)
   const reset = () => setOffset(0)
   useFilterChangeReset(filters, reset)
   const params = scopeParams(context, filters, { progress, offset, limit: 50 })
@@ -61,7 +62,7 @@ function Queue() {
       <CoverageNotice info={data} />
       <SodFilters view="sod_queue" filters={filters} setFilters={(value) => { reset(); setFiltersState(value) }}
         fields={['group', 'username', 'risk', 'activity', 'role', 'role_suffix', 'tcode', 'category', 'validity']}
-        actions={<ExportCSVButton loading={busy} disabled={!data?.total} onClick={() => void exportCsv()} title="Exports every review item for the filtered users with its decision." />}>
+        actions={<><Button onClick={()=>setBulkOpen(true)} disabled={!data?.reviewable||!data.total}>Bulk review</Button><ExportCSVButton loading={busy} disabled={!data?.total} onClick={() => void exportCsv()} title="Exports every review item for the filtered users with its decision." /></>}>
       {result.isError ? <ErrorState error={result.error} onRetry={() => void result.refetch()} /> : !data ? <LoadingState /> : <>
         <section className="sod-tiles" aria-label="Review progress">
           {PROGRESS.map(([value, label]) => <Kpi key={value} label={label} value={(data.counts[value || 'all'] ?? 0).toLocaleString()} tone={stateTone(label, data.counts[value || 'all'] ?? 0)} active={progress === value} onClick={() => { reset(); setProgress(value) }} />)}
@@ -83,6 +84,7 @@ function Queue() {
         <Pagination label="Queue pages" offset={data.offset} total={data.total} limit={data.limit} onChange={setOffset} />
       </>}
       </SodFilters>
+      {bulkOpen&&<SodQueueBulk context={context} filters={filters} onClose={()=>setBulkOpen(false)}/>}
     </section>
   )
 }
