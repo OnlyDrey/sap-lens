@@ -259,7 +259,8 @@
     "test_repository_privacy",
     "test_test_profiles",
     "test_validation_tracker",
-    "test_workflows"
+    "test_workflows",
+    "test_validation_entrypoint"
    ],
    "browser": []
   }
@@ -411,6 +412,169 @@
   ],
   "always": [
    "repository"
+  ]
+ },
+ "validation_sources": [
+  {
+   "patterns": [
+    "backend/sod*",
+    "backend/routers/sod*",
+    "frontend/src/components/Sod/**",
+    "frontend/src/api/sod.ts",
+    "frontend/src/components/Settings/Sod*"
+   ],
+   "areas": [
+    "sod"
+   ]
+  },
+  {
+   "patterns": [
+    "backend/config*",
+    "frontend/src/components/Settings/**"
+   ],
+   "areas": [
+    "settings",
+    "data-sources"
+   ]
+  },
+  {
+   "patterns": [
+    "backend/csv*",
+    "backend/data_loader.py",
+    "backend/routers/data_sources.py"
+   ],
+   "areas": [
+    "data-sources"
+   ]
+  },
+  {
+   "patterns": [
+    "backend/employee*",
+    "backend/routers/employees.py"
+   ],
+   "areas": [
+    "employee-directory"
+   ]
+  },
+  {
+   "patterns": [
+    "backend/account_review.py",
+    "backend/routers/account_review.py"
+   ],
+   "areas": [
+    "account-review"
+   ]
+  },
+  {
+   "patterns": [
+    "backend/user*",
+    "backend/routers/access.py",
+    "frontend/src/components/Access/**"
+   ],
+   "areas": [
+    "user-access",
+    "user-comparison",
+    "account-review"
+   ]
+  },
+  {
+   "patterns": [
+    "backend/cache.py"
+   ],
+   "areas": [
+    "data-sources",
+    "sod",
+    "role-lookup",
+    "user-access"
+   ]
+  },
+  {
+   "patterns": [
+    "backend/routers/dashboard.py",
+    "frontend/src/components/Dashboard*"
+   ],
+   "areas": [
+    "dashboard",
+    "account-review",
+    "sod"
+   ]
+  },
+  {
+   "patterns": [
+    "frontend/src/components/Role*/*"
+   ],
+   "areas": [
+    "role-lookup",
+    "role-comparison"
+   ]
+  },
+  {
+   "patterns": [
+    "frontend/src/components/Shared/**",
+    "frontend/src/hooks/**",
+    "frontend/src/lib/**",
+    "frontend/src/styles/**",
+    "frontend/src/state/**",
+    "frontend/src/api/*",
+    "frontend/src/*"
+   ],
+   "areas": [
+    "shared-ui"
+   ]
+  },
+  {
+   "patterns": [
+    "backend/main.py",
+    "backend/deployment.py",
+    "backend/server*",
+    "backend/desktop*",
+    "backend/storage*",
+    "backend/maintenance.py",
+    "backend/application_backups.py",
+    "backend/request_limits.py",
+    "backend/scheduler.py"
+   ],
+   "areas": [
+    "platform",
+    "settings"
+   ]
+  },
+  {
+   "patterns": [
+    "scripts/*",
+    ".github/workflows/*",
+    "build.ps1",
+    "build.sh",
+    "Dockerfile",
+    "compose*",
+    ".gitignore"
+   ],
+   "areas": [
+    "repository",
+    "deployment"
+   ]
+  }
+ ],
+ "validation_dependencies": {
+  "shared-ui": [
+   "sod",
+   "user-access",
+   "role-lookup",
+   "settings",
+   "dashboard"
+  ],
+  "data-sources": [
+   "sod",
+   "employee-directory",
+   "role-lookup",
+   "user-access"
+  ],
+  "settings": [
+   "data-sources"
+  ],
+  "platform": [
+   "settings",
+   "sod"
   ]
  }
 }

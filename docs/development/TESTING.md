@@ -151,3 +151,56 @@ filename-based exemption.
   `react-hooks/exhaustive-deps` as a warning, and two type-aware rules (`no-floating-promises`, `no-misused-promises`) for `src`. The script is `eslint . --max-warnings N`, where N is the
   current backlog (30 hook-dependency warnings in `src`, 81 `any` uses in `tests`): fixing warnings lets you lower N, adding one fails the run. Errors fail it outright.
 - Both run in Fast and Full Validation (`ruff`, `eslint` steps), in the `regression` profile's static stage and belong in every phase's Fast Validation.
+
+## Lean local validation (preferred for development)
+
+One policy layer delegates to the existing test engine and ownership map; it does
+not replace CI or create a second suite.
+
+| Level | Scope | Default browser behavior |
+| --- | --- | --- |
+| FAST | Changed-area backend plus relevant type/static checks | No browser |
+| FEATURE | Affected area and declared dependency integration tests | Targeted workflows; use `--grep` to narrow |
+| FULL | Complete existing regression profile | Only when explicitly selected |
+
+```sh
+./scripts/validate.sh --level fast --area sod
+./scripts/validate.sh --level feature --area sod --grep 'activity matrix'
+./scripts/validate.sh --level fast --base origin/work --plan
+./scripts/validate.sh --level full --reports
+```
+
+```powershell
+.\scripts\validate.ps1 -Level Fast -Area SoD
+.\scripts\validate.ps1 -Level Feature -Area SoD -Grep 'activity matrix'
+.\scripts\validate.ps1 -Level Full -Reports
+```
+
+Activate the Python 3.12 development venv first (or set `PYTHON` to its executable),
+install the pinned frontend/dev requirements and Playwright Chromium as described
+above. No Codex session is needed. With no area, Git diff against `HEAD` includes
+working-tree/untracked changes. `--base origin/work` compares against that ref;
+it does not fetch or alter Git history. An unrecognized path fails closed and
+requires an explicit area or mapping update; it never silently selects FULL.
+Source rules and dependency expansion are in `scripts/test-map.json`.
+
+The wrapper removes inherited server/auth/source settings and creates disposable
+configuration/data/source directories. SAP Lens uses private JSON/snapshot stores,
+not a production test database. Existing browser processes have distinct servers,
+ports and storage. Browser **workers remain one**. Optional `--jobs` and
+`--browser-jobs` process counts are bounded to 1–3, default one; benchmark CPU/memory
+before opting into browser process parallelism. Windows uses `-Jobs`/`-BrowserJobs`.
+
+Concise results point to `build/validation/<UTC timestamp>/validation.log` and JSON
+summaries. Traces and browser JSON remain there; `--reports` also retains HTML/JUnit.
+Commands are bounded by `--timeout` (seconds); nonzero child/timeout codes propagate.
+These directories contain synthetic test artifacts and must not be committed.
+
+Functional grouping already follows feature ownership. Keep semantic/edge-case
+checks in backend or focused browser tests; retain meaningful release visual
+coverage. During development select the changed workflow rather than repeating
+all themes/viewports or the whole SoD area. Shared helpers reduce repeated fixture
+setup, but stateful browser workers must not share a backend. The historical full
+run's 120-second obsolete-locator failures were wasted time, not evidence that more
+workers would help. Full visual matrices remain available for release validation;
+no tests were removed to reduce counts.

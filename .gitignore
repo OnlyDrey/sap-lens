@@ -108,3 +108,6 @@ SAP-Lens-diagnostics*.json
 sod-catalogue.json
 sod-reviews.json
 sod-periods.json
+
+# Local validation reports, traces and synthetic browser artifacts
+/build/validation/

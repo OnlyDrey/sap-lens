@@ -73,7 +73,7 @@ From the repository root (full list and risk-based selection:
   explicit authorization.
 - Deliver in logically complete, validated increments with conventional subjects
   (`feat(scope):`, `fix(scope):`, `docs:`). Push each phase to `origin/work` once its
-  Fast Validation passes (see Validation policy), never force-push or rewrite
+  targeted FEATURE validation passes (see Lean development and validation policy), never force-push or rewrite
   history, and verify the result with `git ls-remote origin work`. Allow the
   automatic Fast Validation workflow to run; do not tag, release or manually
   dispatch workflows without authorization. A passing Fast Validation run is not
@@ -89,54 +89,33 @@ From the repository root (full list and risk-based selection:
   match the dense style of neighboring code.
 - Add no dependencies, frameworks or styling systems, and refactor nothing beyond the
   request. Update the canonical guide instead of writing new reports.
-- Run the smallest sufficient checks (see Validation policy and Efficiency below);
+- Run the smallest sufficient checks (see Lean development and validation policy and Efficiency below);
   documentation-only changes need `check-docs.py` and the affected documentation tests.
 
-## Validation policy (two levels)
+## Lean development and validation policy
 
-Applies to every task and every coding agent. Never report a check as passed unless
-it executed successfully; an interrupted or incomplete run is not a pass. Distinguish
-regressions, existing defects and environmental limitations, and never hide failures.
-
-**Level 1: Fast Validation, at every independently releasable phase.**
-1. Run the checks of the existing Fast Validation workflow
-   (`.github/workflows/validate.yml`, [CI](docs/development/CI.md)): backend and
-   repository tests, `python -m pip check`, workflow lint when workflows changed, and
-   `npm run check:types` in `frontend`. Run only what the phase can affect locally
-   (for example the touched backend modules plus any repository integrity/privacy
-   tests); the push runs the complete job. Add `git diff --check`, and
-   `python scripts/check-docs.py` when documentation changed.
-2. Add targeted tests only for new or changed behavior (affected browser specs after
-   `npm run build`, relevant backend modules). Keep them proportionate.
-3. Fix failures relevant to the phase, commit, push to `origin/work`, verify the
-   remote HEAD, check the Fast Validation workflow result, then continue to the next
-   phase automatically.
-Do not run the complete backend or browser suites, or full visual QA, after every
-phase unless asked. Never push known blocking defects or failed required checks.
-
-**Level 2: Full Validation, once after the final phase** (all phases committed and
-pushed):
-1. Complete backend suite; complete browser suite (`npm ci`, `npm run build` first);
-   `npm run check:types`; production build.
-2. Static, documentation and security checks: `python scripts/check-docs.py`,
-   `python scripts/check-workflows.py`, `node scripts/sync-lucide-catalog.mjs --check`,
-   `git diff --check`, `python -m pip check`, pip-audit, `npm audit --omit=dev`
-   (report development advisories separately, never suppress).
-3. Representative visual QA in light and dark at 375, 800, 1280 and 1600 px.
-4. Deployment packaging checks where the environment supports them.
-5. Document platform acceptance that could not be run.
-If the browser suite exceeds an execution limit, split it into deterministic batches
-(for example by sorted spec file) and make sure every spec executes. If Full
-Validation fails: classify each failure, fix confirmed defects, run targeted tests,
-repeat only the affected checks (a full restart is justified only for shared or
-critical changes), commit, push and report the final status.
-
-**Platform limits.** Linux unit/browser tests are not Windows/WebView2, SCM, installer,
-systemd or UNC validation. When a user has authorized pushing validated phases, report
-that gap accurately and continue; without such authorization, request approval before
-pushing with incomplete native validation. Do not start remote Windows or deployment
-builds without explicit authorization. After changing Lucide or its catalog, run
-`node scripts/sync-lucide-catalog.mjs --check` following `npm ci`.
+- Prefer focused changes and existing components; no unrelated cleanup or dependencies.
+- Use 3–4 logical phases where practical, the lowest sufficient reasoning/check scope,
+  short command output and milestone-only reporting. Do not repeatedly read unchanged files.
+- **FAST** during implementation: directly affected backend tests and targeted type/static
+  checks. Browser checks are opt-in when the behavior needs a browser.
+- **FEATURE** after a functional change: affected backend modules/integration tests,
+  targeted Playwright workflows and critical edge cases.
+- **FULL** only before releases/major merges or explicit user requests: complete backend
+  and browser suites, production build, security/static and available platform checks.
+  Never run FULL automatically during ordinary development. A failure normally requires
+  only its root-cause fix and affected recheck; broader reruns need a concrete impact reason.
+- Local entry point: `python scripts/validate.py --level fast|feature|full --area sod`;
+  wrappers `scripts/validate.sh` and `scripts/validate.ps1`. Mapping and dependencies live
+  in `scripts/test-map.json`; unknown changes fail closed rather than silently omitting tests
+  or escalating to FULL. See [Testing](docs/development/TESTING.md).
+- Commit and push validated, independently functional phases to `origin/work`; do not wait
+  for full regression. Preserve user instructions that explicitly delay a push. Report
+  targeted checks separately from pending full regression and automatic GitHub Actions.
+- Test storage is disposable and isolated from configured production paths. Browser workers
+  stay at one; optional bounded *process* parallelism uses distinct servers/ports/storage.
+- Native Windows/WebView2/SCM, real systemd, reboot/recovery and UNC acceptance must be
+  reported separately. Do not dispatch remote workflows without explicit authorization.
 
 ## Architecture and documentation map
 
@@ -177,7 +156,7 @@ builds without explicit authorization. After changing Lucide or its catalog, run
   authorization/license entitlement from role/T-code mappings.
 - Native Windows installer/SCM/WebView2, real systemd, reboot/recovery and UNC
   acceptance must be reported separately from Linux unit/browser/static checks.
-  Keep the Validation policy and its platform-limits rule in force.
+  Keep the Lean development and validation policy and its platform limits in force.
 
 ## Planning, continuous execution and progress reporting
 
@@ -201,8 +180,8 @@ builds without explicit authorization. After changing Lucide or its catalog, run
   **Status:** In progress / Completed / Blocked
   **Completed in this phase:** actual functionality and important corrections
   **Remaining in this phase:** specific unfinished requirements
-  **Validation:** Fast Validation Passed/Failed/Pending; targeted tests with results;
-  Full Validation deferred until the final phase
+  **Validation:** FAST/FEATURE Passed/Failed/Pending; targeted results;
+  FULL pending unless explicitly requested or required for release
   **Git:** Commit SHA or Not committed; Push Verified/Pending; Branch `work`
   **Next:** next concrete milestone
 
@@ -217,8 +196,8 @@ builds without explicit authorization. After changing Lucide or its catalog, run
 
 ## Efficiency
 
-Use the smallest sufficient check while implementing, Fast Validation at phase
-boundaries and one comprehensive final regression. Never trade correctness, data
+Use the smallest sufficient check while implementing, FEATURE validation at phase
+boundaries; FULL only for an explicit request, release or major merge. Never trade correctness, data
 integrity, security or required functionality for speed.
 
 - Prefer scoped inspection, existing shared components, batched related edits, and
@@ -239,7 +218,7 @@ integrity, security or required functionality for speed.
   required checks and trust boundaries. Claim speed improvements only with comparable
   measurements. Avoid repeated installs, builds, large logs and screenshots of
   unchanged screens; capture affected screens at representative widths and themes
-  during development, with the full theme/breakpoint matrix in Full Validation.
+  during development, with the full theme/breakpoint matrix reserved for explicit FULL validation.
 - Controlled parallelism is fine for independent read-only inspections and checks.
 
 

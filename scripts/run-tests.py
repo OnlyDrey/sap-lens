@@ -7,6 +7,7 @@ scripts/test-map.json. See docs/development/TESTING.md.
 from __future__ import annotations
 
 import argparse
+from contextlib import nullcontext
 import json
 import os
 import re
@@ -301,15 +302,19 @@ def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str
                          "Stop that process yourself (find it with `ss -ltnp`); the runner never signals processes it did not start.\n")
         return {'name': label, 'tests': 0, 'failures': 0, 'errors': 1, 'skipped': [], 'seconds': 0.0, 'ok': False}
     groups = split_specs(files, jobs) if jobs > 1 else [files if specs is not None else []]
-    with tempfile.TemporaryDirectory(prefix='sap-lens-browser-') as scratch:
+    kept=Path(os.environ['SAP_LENS_TEST_ARTIFACTS'])/label.replace(' ','-') if os.environ.get('SAP_LENS_TEST_ARTIFACTS') else None
+    if kept: kept.mkdir(parents=True,exist_ok=True)
+    with nullcontext(str(kept)) if kept else tempfile.TemporaryDirectory(prefix='sap-lens-browser-') as scratch:
         launched: list[tuple[int, int, subprocess.Popen, Path, Path, list[str]]] = []
         try:
             for index, group in enumerate(groups):
                 report, log = Path(scratch) / f'report-{index}.json', Path(scratch) / f'log-{index}.txt'
                 command = [npm(), '--prefix', str(FRONTEND), 'run', 'test:browser', '--', *group, '--reporter=line,json', f'--output={Path(scratch) / f"results-{index}"}']
+                if os.environ.get('SAP_LENS_TEST_REPORTERS')=='html,junit': command=[arg.replace('--reporter=line,json','--reporter=line,json,html,junit') for arg in command]
                 if grep:
                     command += ['--grep', grep]
                 env = {**os.environ, 'SAP_LENS_BROWSER_TEST_PORT': str(BASE_PORT + index), 'PLAYWRIGHT_JSON_OUTPUT_NAME': str(report)}
+                env.update(PLAYWRIGHT_HTML_OPEN='never',PLAYWRIGHT_HTML_REPORT=str(Path(scratch)/f'html-{index}'),PLAYWRIGHT_JUNIT_OUTPUT_NAME=str(Path(scratch)/f'junit-{index}.xml'))
                 handle = None if jobs == 1 else log.open('w', encoding='utf-8')  # a single process streams its progress live (CI logs, local feedback)
                 process = subprocess.Popen(command + extra, cwd=FRONTEND, env=env, stdout=handle, stderr=subprocess.STDOUT if handle else None, text=True, start_new_session=True)
                 OWNED.append(process)
