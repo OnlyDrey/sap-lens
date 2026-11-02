@@ -221,3 +221,17 @@ coverage provenance. The queue reports the same unique completion across the
 selected scope, separately from formal acceptance. “Reviewed — removal planned”
 means the explicit proposed removals break the risk in simulation; the imported
 conflict remains present until refreshed evidence verifies removal.
+
+### Work Queue sorting and user navigation
+
+Click a column heading to sort the complete filtered queue before pagination;
+click again to reverse it. Progress categories sort by reviewed/total, with an
+empty category treated as 0% and SAP username as the stable tie-break. The default
+is outstanding review count first, then username ascending. Sort state is retained
+in navigation history and Saved Filters. Formal acceptance stays distinct from
+risk access-review completion.
+
+The progress bar/count occupy one line; nonzero removal recommendations appear
+beneath it. Clicking a SAP username opens its User Access profile, while **Open
+review** continues to open the SoD workspace. The copy action copies the exact
+username without navigating; route links retain normal modified-click behavior.

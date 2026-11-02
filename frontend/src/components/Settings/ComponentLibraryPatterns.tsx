@@ -1,3 +1,4 @@
+import {SAPUserLink} from '@/components/Shared/SAPUserLink'
 import { useState } from 'react'
 import { Database, FileDown, ShieldCheck, UsersRound } from 'lucide-react'
 import { Button, ButtonGroup } from '@/components/Shared/Button'
@@ -20,9 +21,11 @@ const VALIDATION: [string, 'success' | 'warning' | 'error', string][] = [['Confi
 export function ComponentLibraryPatterns() {
   const [selected, setSelected] = useState<string[]>(['FIN']), [row, setRow] = useState('SYN_B'), [open, setOpen] = useState(false), [card, setCard] = useState(false)
   const [kind, setKind] = useState('risk'), [sort, setSort] = useState('users'), [descending, setDescending] = useState(true), [modal, setModal] = useState(false), [heatOpen, setHeatOpen] = useState(true)
+  const [demoUser,setDemoUser]=useState('')
   const percent = (251 / 264) * 100
   return (
     <Card aria-label="Summaries and data presentation">
+      <div className="grid gap-2"><h3>SAP user link</h3><SAPUserLink username="SYN_DEMO_USER" onOpen={()=>setDemoUser('Synthetic user navigation preview')}/>{demoUser&&<p role="status">{demoUser}</p>}</div>
       <h2>Summaries &amp; data presentation</h2>
       <p className="ui-description">Which component shows what: a KPI for a prominent figure, an information list for secondary facts, a chart for a real distribution, a table for comparable records, a badge for status and a codeblock for an exact identifier.</p>
       <div className="demo-grid">

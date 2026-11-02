@@ -403,6 +403,7 @@ PROGRESS_FILTERS = ('', 'outstanding', 'complete', 'removal')
 
 @router.get('/queue/users')
 def queue_users(q: dict = Depends(scope_query), progress: Literal['', 'outstanding', 'complete', 'removal'] = '',
+                queue_sort: Literal['', 'username', 'group', 'progress', 'activity', 'assignment', 'risk', 'acceptance', 'removal'] = '',
                 offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200)):
     """One row per SAP user with independent progress for activity, role assignment and risk acceptance reviews."""
     bundle, items, _ = _queue(q, '', '')
@@ -434,9 +435,20 @@ def queue_users(q: dict = Depends(scope_query), progress: Literal['', 'outstandi
         result = [row for row in result if row['total'] > 0 and row['outstanding'] == 0]
     elif progress == 'removal':
         result = [row for row in result if row['removal'] > 0]
-    result.sort(key=lambda row: (-row['outstanding'], row['user'].casefold()))
-    if q['descending']:
-        result.reverse()
+    from fractions import Fraction
+    # Stable username tie-break applies to the complete filtered set before paging.
+    result.sort(key=lambda row: row['user'].casefold())
+    def ratio(part):return Fraction(part['decided'],part['total']) if part['total'] else Fraction(0)
+    def order(row):
+        if queue_sort=='username':return row['user'].casefold()
+        if queue_sort=='group':return tuple(value.casefold() for value in sorted(row['groups']))
+        if queue_sort=='progress':return ratio(row)
+        if queue_sort in {'activity','assignment'}:return ratio(row[queue_sort])
+        if queue_sort=='risk':return ratio(row['acceptance'])
+        if queue_sort=='acceptance':return ratio(row['formal_acceptance'])
+        if queue_sort=='removal':return row['removal']
+        return -row['outstanding']
+    result.sort(key=order,reverse=q['descending'])
     return dict(info(bundle), items=result[offset:offset + limit], total=len(result), counts=counts, offset=offset, limit=limit)
 
 

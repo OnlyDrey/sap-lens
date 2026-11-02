@@ -134,7 +134,7 @@ export interface Subject extends ContextInfo {
 }
 
 const SCALAR_KEYS = ['search', 'risk', 'criticality', 'risk_type', 'category', 'username', 'group', 'composite_role', 'single_role', 'tcode', 'role', 'role_suffix', 'activity', 'account_status', 'multiple_risks', 'tracking',
-  'activity_decision', 'assignment_decision', 'acceptance', 'validity', 'as_of', 'sort']
+  'activity_decision', 'assignment_decision', 'acceptance', 'validity', 'as_of', 'sort', 'queue_sort']
 
 /** Exact multi-select values: OR within the list, AND with every other filter. */
 const MULTI_KEYS = ['usernames', 'role_suffixes', 'risks', 'activities', 'groups', 'roles', 'tcodes', 'categories', 'criticalities']

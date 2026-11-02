@@ -279,3 +279,9 @@ components have isolated Component Library previews and are used by the SoD view
 | `lib/localPreference.ts` | Per-browser convenience preferences (for example the heatmap expanded state); never evidence or decisions. |
 | `Sod/SodGroupHeatmap.tsx` | The shared SAP User Group heatmap under the Review Context on every SoD page. |
 | `Settings/ComponentLibraryPatterns.tsx` | Library demonstrations of the above: compact KPI, information list, charts, health thresholds, table states, codeblock, validation badges, disclosure, multiselect toolbar, heatmap controls and a wide modal. |
+
+`Shared/SAPUserLink.tsx` renders a SAP username through the canonical
+`RoleIdentifier`, with the existing User Access route and an independent copy
+control. `username` is the actual SAP identity; optional `onOpen` isolates showcase
+navigation without changing the link target. Work Queue and Explorer use it;
+Component Library demonstrates it with synthetic state.

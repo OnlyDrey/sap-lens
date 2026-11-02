@@ -31,3 +31,19 @@ class ExactGroupTests(fixture.GovernanceCase):
         restored=next(item for item in entries if item['name']=='Synthetic exact groups')['filters']
         self.assertEqual(restored['groups'],self.groups[:2])
         self.assertEqual({row['user'] for row in self.get('/api/sod/queue/users',**restored)['items']},{'SYN_FILTER_0','SYN_FILTER_1'})
+    def test_queue_sorts_full_filtered_scope_before_pagination_with_stable_ties(self):
+        subject='SYN_FILTER_1'
+        self.decide('assignment',[self.assignment_item(subject,'ROLE_AB')],'Remove')
+        params={'groups':self.groups,'limit':1}
+        for key in ['progress','activity','assignment','risk','removal']:
+            row=self.get('/api/sod/queue/users',queue_sort=key,descending=True,**params)['items'][0]
+            self.assertEqual(row['user'],subject,key)
+        self.assertEqual(self.get('/api/sod/queue/users',queue_sort='progress',**params)['items'][0]['user'],'SYN_FILTER_0')
+        self.assertEqual(self.get('/api/sod/queue/users',queue_sort='username',descending=True,**params)['items'][0]['user'],'SYN_FILTER_3')
+        tied=self.get('/api/sod/queue/users',queue_sort='acceptance',descending=True,groups=self.groups)['items']
+        self.assertEqual([row['user'] for row in tied],[f'SYN_FILTER_{i}' for i in range(4)])
+        self.assertEqual(self.get('/api/sod/queue/users',queue_sort='progress',descending=True,group='SYN-GROUP')['items'][0]['user'],'SYN_FILTER_0')
+        default=self.get('/api/sod/queue/users',groups=self.groups)['items']
+        self.assertEqual(default[-1]['user'],subject)
+        page=self.get('/api/sod/queue/users',groups=self.groups,queue_sort='username',offset=2,limit=1)
+        self.assertEqual(page['items'][0]['user'],'SYN_FILTER_2')

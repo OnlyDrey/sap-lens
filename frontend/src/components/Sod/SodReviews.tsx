@@ -1,12 +1,12 @@
+import {SAPUserLink} from '@/components/Shared/SAPUserLink'
 import { Kpi } from '@/components/Shared/Kpi'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { downloadFile, scopeParams, sod, EXPORT_NAME, type ContextInfo, type UserQueueRow } from '@/api/sod'
 import { useHistoryValue } from '@/hooks/useViewHistory'
 import { Button } from '@/components/Shared/Button'
-import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import { UserGroupCell } from '@/components/Shared/UserGroup'
-import { ClipboardCheck, ListChecks, Wrench } from 'lucide-react'
+import { ArrowUpDown, ArrowDown, ArrowUp, ClipboardCheck, ListChecks, Wrench } from 'lucide-react'
 import { ErrorState, DataTable, EmptyState, LoadingState } from '@/components/Shared/Presentation'
 import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
 import { ContentTabs } from '@/components/Shared/Navigation'
@@ -53,6 +53,8 @@ function Queue() {
       setBusy(false)
     }
   }
+  const sort=String(filters.queue_sort||''),descending=filters.descending===true
+  const heading=(key:string,label:string)=><th aria-sort={sort===key?(descending?'descending':'ascending'):undefined}><button type="button" className="inline-flex items-center gap-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus" aria-label={`Sort by ${label}`} onClick={()=>{reset();setFiltersState({...filters,queue_sort:key,descending:sort===key?!descending:false})}}>{label}{sort===key?(descending?<ArrowDown size={13} aria-hidden="true"/>:<ArrowUp size={13} aria-hidden="true"/>):<ArrowUpDown size={13} aria-hidden="true"/>}</button></th>
   const part = (value: { total: number; decided: number }) => (value.total ? `${value.decided}/${value.total}` : '–')
   return (
     <section className="grid min-w-0 gap-4" aria-label="SoD review work queue">
@@ -66,15 +68,15 @@ function Queue() {
         </section>
         <p className="ui-description">One row per SAP user. Completion covers unique role, activity and risk access-review items in the selected scope, across pages. Current role/activity decisions can provide derived coverage; formal acceptance remains explicit. Open Review shows the same scope and provenance.</p>
         {data.items.length ? <DataTable caption="SoD review work queue" tableClassName="sod-config-table">
-          <thead><tr><th>SAP user</th><th>SAP User Group</th><th>Progress</th><th>Activities</th><th>Role assignments</th><th>Risk access review</th><th>Formal acceptance</th><th>Open</th></tr></thead>
+          <thead><tr>{heading('username','SAP user')}{heading('group','SAP User Group')}{heading('progress','Progress')}{heading('activity','Activities')}{heading('assignment','Role assignments')}{heading('risk','Risk access review')}{heading('acceptance','Formal acceptance')}{heading('removal','Removal recommendations')}<th>Open</th></tr></thead>
           <tbody>{data.items.map((row) => (
             <tr key={row.user}>
-              <td><RoleIdentifier value={row.user} label="SAP username" /></td>
+              <td><SAPUserLink username={row.user} /></td>
               <td><UserGroupCell groups={row.groups} /></td>
-              <td><progress max={Math.max(row.total, 1)} value={row.decided} aria-label={`${row.user} decided ${row.decided} of ${row.total}`} /> <span className="text-xs">{row.decided}/{row.total}</span>{row.removal > 0 && <span className="text-xs text-muted"> · {row.removal} removal recommended</span>}</td>
+              <td><div className="flex items-center gap-2 whitespace-nowrap"><progress className="w-24 max-w-full" max={Math.max(row.total, 1)} value={row.decided} aria-label={`${row.user} decided ${row.decided} of ${row.total}`} /><span className="text-xs">{row.decided}/{row.total}</span></div>{row.removal > 0 && <p className="mt-1 text-xs text-muted">{row.removal} removal recommended</p>}</td>
               <td>{part(row.activity)}</td>
               <td>{part(row.assignment)}</td>
-              <td>{part(row.acceptance)}</td><td>{part(row.formal_acceptance)}</td>
+              <td>{part(row.acceptance)}</td><td>{part(row.formal_acceptance)}</td><td>{row.removal||'–'}</td>
               <td><Button variant="primary" size="compact" onClick={() => setSubject({ user: row.user })} aria-label={`Open review for ${row.user}`}><ClipboardCheck size={14} aria-hidden="true" />Open review</Button></td>
             </tr>))}</tbody>
         </DataTable> : <EmptyState>Nothing matches this queue scope. Results describe imported evidence only; missing sources are not proof of no conflict.</EmptyState>}
