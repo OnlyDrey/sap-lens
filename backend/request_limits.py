@@ -8,7 +8,7 @@ class RequestBodyLimit:
         self.maximum = maximum
 
     async def __call__(self, scope, receive, send):
-        if scope.get('path','').startswith('/api/server/uploads/'):
+        if scope.get('path','').startswith('/api/server/uploads/') or scope.get('path')=='/api/backups/upload':
             # Authenticated endpoint streams and enforces its source-specific bound.
             return await self.app(scope,receive,send)
         if scope['type'] != 'http' or scope['method'] != 'POST':

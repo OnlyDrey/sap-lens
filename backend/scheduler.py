@@ -67,6 +67,8 @@ class Scheduler:
 
     async def tick(self, now=None):
         """Evaluate once; returns the outcome ('idle', 'skipped', 'succeeded', 'partial', 'failed')."""
+        from application_backups import pending
+        if pending(): return 'skipped'
         now = now or datetime.now(timezone.utc)
         settings = get_settings().refresh_schedule
         signature = settings.model_dump_json()

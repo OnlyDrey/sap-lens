@@ -54,7 +54,11 @@ def read_private(kind, identity):
 
 
 def read_source(source, reference):
-    saved = read_private('snapshots', reference.snapshot)
+    return validate_source(source,read_private('snapshots', reference.snapshot))
+
+
+def validate_source(source,saved):
+    """Pure durable-record contract, shared with stopped restore staging."""
     if source == 'sod':
         from sod_import import HEADERS
         fields = set(HEADERS)

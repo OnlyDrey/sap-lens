@@ -115,6 +115,8 @@ available through Event Viewer. Linux uses Docker logs or journald. Diagnostics
 shows platform/deployment mode; server diagnostics uses the redacted snapshot.
 Existing diagnostic export omits personal records and private paths.
 
+Settings → **Backup & Restore** provides [application-data backup and restart restore](BACKUP_RESTORE.md), including Desktop-to-server transfer. Host maintenance remains available independently.
+
 Stop gracefully before filesystem backup. Back up the **whole data directory**,
 including settings, snapshots, source metadata, refresh history, saved filters,
 review state and custom branding. Keep authentication secrets separately. Restore

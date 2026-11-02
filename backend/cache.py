@@ -44,7 +44,9 @@ def _build_catalog(path=None, configuration=None, records=None, report=None):
     csv_path = path if path is not None else settings.data_csv_path
     if not csv_path or '://' in csv_path: raise ValueError('Choose a filesystem CSV in Settings.')
     import_profile = next(p for p in settings.import_profiles if p.id == settings.active_import)
-    parser = CsvImport(Path(csv_path).expanduser(), import_profile)
+    # Durable canonical records have already passed import validation. Their original
+    # machine path may use another OS syntax and must never be reopened.
+    parser = CsvImport(Path(csv_path).expanduser(), import_profile) if records is None or report is None else None
     raw = {}
     assignments = set()
     warnings = []

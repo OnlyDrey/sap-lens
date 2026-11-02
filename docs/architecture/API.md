@@ -301,3 +301,21 @@ Evidence and exports are bounded; see [SoD architecture](SOD.md) and the
 | POST | `/api/sod/reports/{preview,docx,pdf}` | Formal review report; `expected_model` rejects changed evidence |
 | POST | `/api/sod/reports/remediation/{preview,csv,docx,pdf}` | Access remediation report for `current` or a period |
 | GET / POST | `/api/sod/analysis`, `/evidence`, `/export`, `/api/sod/reviews/*` | Original evidence investigation and legacy risk decisions (retained for compatibility) |
+
+## Application backups
+
+All `/api/backups` reads/downloads and writes require the desktop launch capability
+or an individual server administrator account; shared Basic/proxy access does not
+provide an application administrator identity.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/api/backups` | Redacted current operation status |
+| POST | `/api/backups/create`, `/cancel` | Request restart backup or cancel pending operation |
+| POST | `/api/backups/upload` | Stream `application/gzip` (maximum 256 MiB); validate/preview only |
+| POST | `/api/backups/restore` | Confirm exact operation ID/archive digest and restart replacement |
+| GET | `/api/backups/{id}/download?kind=backup` | Download completed private archive; `destination-before-restore` selects recovery backup |
+
+Pending operations block unrelated POST writes and scheduled refresh. Actual backup
+or replacement runs under the process storage lease before HTTP/cache startup.
+No live-store restore endpoint exists. [Operational guide](../deployment/BACKUP_RESTORE.md).

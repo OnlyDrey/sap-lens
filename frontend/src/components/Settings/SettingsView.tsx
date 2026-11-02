@@ -1,3 +1,4 @@
+import {BackupRestore} from './BackupRestore'
 import {useApplicationData} from '@/state/ApplicationData'
 import {DesktopOptions} from './DesktopOptions'
 import {ScheduledRefresh} from './ScheduledRefresh'
@@ -34,7 +35,8 @@ import {
   BookUser,
   ShieldCheck,
   Info,
-  Clock
+  Clock,
+  Archive
 } from 'lucide-react'
 import { ModuleEditor } from './ModuleEditor'
 import { UserSourceEditor, PresetActions } from './ImportPresets'
@@ -58,7 +60,7 @@ import {
 import { ReportBranding } from './ReportBranding'
 import { DISCARD_PROMPT, setSettingsDirty } from '@/lib/settingsGuard'
 const ComponentLibrary=lazy(()=>import('./ComponentLibrary').then(module=>({default:module.ComponentLibrary})))
-const sectionIcons = [Building2, Database, Layers, Palette, Activity, BookUser, Info, Layers, ShieldCheck, Clock]
+const sectionIcons = [Building2, Database, Layers, Palette, Activity, BookUser, Info, Layers, ShieldCheck, Clock, Archive]
 const sections = [
   'Organization & SAP System',
   'Data Sources',
@@ -69,9 +71,10 @@ const sections = [
   'About SAP Lens',
   'Component Library',
   'SoD Risk Configuration',
-  'Runtime & Scheduling'
+  'Runtime & Scheduling',
+  'Backup & Restore'
 ]
-const navigationOrder=[0,3,1,2,8,5,9,4,7,6]
+const navigationOrder=[0,3,1,2,8,5,9,10,4,7,6]
 const fieldLabels: Record<string, string> = {
   FUNCTION_KEY: 'SAP module or area',
   AGR_NAME: 'Role name (required)',
@@ -983,6 +986,7 @@ export function SettingsView({
                       </div>
                     </div>
                   }
+                  {section === 10 && <BackupRestore/>}
                   {section === 6 && <About/>}
                   {section === 9 && <><ScheduledRefresh draft={draft} onChange={setDraft}/><DesktopOptions draft={draft} onChange={setDraft}/></>}
                   {section === 8 && <SodRiskSettings onConfigure={()=>{setSection(1);setImportSource('sod')}}/>}
@@ -991,7 +995,7 @@ export function SettingsView({
                   {section === 4 && (
                     <>
                       <Diagnostics onSource={source=>{setSection(1);setImportSource(source)}} native={native} onEmployeeFeatures={() => setSection(5)} onEmployeeSettings={() => { setSection(1); setImportSource('employees') }}/>
-                      <h2 className="settings-subheading">Backup & recovery</h2>
+                      <h2 className="settings-subheading">Configuration export & recovery</h2>
                       <p className="text-sm text-[var(--text2)]">
                         Export saved settings before an update, or restore a
                         previously exported package. Import and reset keep a
@@ -1088,7 +1092,7 @@ export function SettingsView({
             </div>
           </div>
         </div>
-        <div className={section===7||section===8?'hidden':'settings-actions'}>
+        <div className={section===7||section===8||section===10?'hidden':'settings-actions'}>
           <p role="status" className="text-xs text-[var(--muted)] mr-auto">
             {draft &&
             (['dark', 'light'] as const).some(

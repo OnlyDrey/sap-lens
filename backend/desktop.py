@@ -241,6 +241,30 @@ class NativeDialogs:
     def save_user_access_csv(self, token: str, filename: str, content: str):
         return _save_csv_dialog(self, token, filename, content, 'access')
 
+    def save_application_backup(self, token, identity, kind='backup'):
+        if not isinstance(token,str) or not hmac.compare_digest(token.encode(),self._token.encode()): raise ValueError('Application request is not authorized.')
+        from application_backups import download
+        source=download(identity,kind)
+        if not self._window or not self._picker_lock.acquire(blocking=False): return False
+        try:
+            import webview
+            import shutil
+            import tempfile
+            from maintenance import private_file
+            files=self._window.create_file_dialog(webview.FileDialog.SAVE,save_filename=f'SAP-Lens-{kind}-{identity}.tar.gz',file_types=('Gzip archives (*.tar.gz)',))
+            if not files: return False
+            target=Path(files[0])
+            if not target.is_absolute() or not target.name.endswith('.tar.gz') or target.is_symlink(): raise ValueError('Choose an absolute .tar.gz destination without links.')
+            fd,temporary=tempfile.mkstemp(dir=target.parent,suffix='.tmp')
+            try:
+                private_file(Path(temporary))
+                with os.fdopen(fd,'wb') as output, source.open('rb') as incoming:
+                    shutil.copyfileobj(incoming,output);output.flush();os.fsync(output.fileno())
+                os.replace(temporary,target)
+            finally: Path(temporary).unlink(missing_ok=True)
+            return True
+        finally: self._picker_lock.release()
+
     def save_sod_document(self, token, filename, content_base64):
         return _save_document_dialog(self, token, filename, content_base64)
 
@@ -342,6 +366,10 @@ def run() -> int:
         directory.mkdir(parents=True, exist_ok=True)
         from storage_lease import StorageLease
         storage_lease = StorageLease(directory,'desktop').acquire()
+        from application_backups import startup
+        startup(storage_lease)
+        from config import get_settings
+        get_settings.cache_clear()
         handler = RotatingFileHandler(directory / 'sap-lens.log', maxBytes=2_000_000,
                                       backupCount=2, encoding='utf-8')
         handler.addFilter(AppLogFilter())

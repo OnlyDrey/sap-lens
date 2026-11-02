@@ -114,7 +114,8 @@
     "test_configuration",
     "test_refresh_schedule",
     "test_theme_and_diagnostics",
-    "test_maintenance"
+    "test_maintenance",
+    "test_application_backups"
    ],
    "browser": [
     "enterprise",
@@ -207,7 +208,8 @@
     "transaction-filter",
     "ui-consistency",
     "ui-polish-actions",
-    "settings-r2"
+    "settings-r2",
+    "application-backups"
    ]
   },
   "platform": {

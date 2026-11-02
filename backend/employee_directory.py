@@ -155,7 +155,11 @@ def read_snapshot(identity):
         raw = stream.read(128 * 1024 * 1024 + 1)
     if len(raw) > 128 * 1024 * 1024 or hashlib.sha256(raw).hexdigest() != identity:
         raise ValueError('Directory snapshot failed its integrity check.')
-    data = json.loads(raw)
+    return validate_snapshot(json.loads(raw))
+
+
+def validate_snapshot(data):
+    """Validate canonical records without relying on their original source path."""
     if not isinstance(data, dict) or data.get('version') != 1:
         raise ValueError('Unsupported directory snapshot.')
     rows = data.get('records')

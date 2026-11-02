@@ -53,6 +53,8 @@ def run():
         from storage_lease import StorageLease
         lease=StorageLease(settings.data,'server').acquire()
         try:
+            from application_backups import startup
+            startup(lease,settings)
             from config import get_settings
             get_settings.cache_clear()
             stage='application resources'

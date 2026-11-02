@@ -140,3 +140,10 @@ snapshots are private application data (see [SoD architecture](../architecture/S
 They are not part of portable configuration or diagnostic exports. Include them in private
 backups; restoring only part of them can leave a period snapshot or retained decision
 evidence unavailable, which SAP Lens reports instead of silently changing history.
+
+## Full application data transfer
+
+Settings → Backup & Restore is separate from portable configuration export. It includes
+imported snapshots and review history and uses a coordinated restart rather than live
+replacement. See [Backup & Restore](../deployment/BACKUP_RESTORE.md) for administrator
+access, protected destination credentials, Static source recovery and unencrypted-archive handling.

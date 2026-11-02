@@ -93,7 +93,7 @@ class UserState:
 
 
 def build_users(path, profile, catalogue, records=None, report=None):
-    parser = UserCsvImport(Path(path).expanduser(), profile)
+    parser = UserCsvImport(Path(path).expanduser(), profile) if records is None or report is None else None
     state = UserState()
     matcher = RoleMatcher(catalogue)
     matched = {}

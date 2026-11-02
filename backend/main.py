@@ -130,6 +130,9 @@ def create_app(origin: str | None = None, session_token: str | None = None,
             if request.method != 'OPTIONS' and guarded and not hmac.compare_digest(
                     request.headers.get('x-sap-lens', '').encode(), request_header.encode()):
                 return JSONResponse({'detail': 'Application request is not authorized.'}, status_code=403)
+        from application_backups import pending
+        if request.method=='POST' and not request.url.path.startswith('/api/backups') and pending():
+            return JSONResponse({'detail':'Backup/restore restart is pending. Restart SAP Lens or cancel it in Settings → Backup & Restore before editing.'},status_code=409)
         from server_access import ACTOR
         principal = getattr(request.state, 'server_principal', None)
         actor_token = ACTOR.set(principal[0] if principal else '')
@@ -169,6 +172,8 @@ def create_app(origin: str | None = None, session_token: str | None = None,
     app.include_router(user_comparison.router)
     app.include_router(data_health.router)
     app.include_router(saved_filters.router)
+    from routers.backups import router as backups_router
+    app.include_router(backups_router)
     app.include_router(data_sources.router)
     app.include_router(sod.router)
     app.include_router(sod_analysis.router)
@@ -188,6 +193,9 @@ def create_app(origin: str | None = None, session_token: str | None = None,
 
     @app.get('/api/runtime')
     def runtime_capabilities(request: Request):
+        from application_backups import pending
+        if request.method=='POST' and not request.url.path.startswith('/api/backups') and pending():
+            return JSONResponse({'detail':'Backup/restore restart is pending. Restart SAP Lens or cancel it in Settings → Backup & Restore before editing.'},status_code=409)
         from server_access import ACTOR
         principal = getattr(request.state, 'server_principal', None)
         return dict(deployment_mode='server' if server else 'desktop', browser_upload=bool(server), username=ACTOR.get(),

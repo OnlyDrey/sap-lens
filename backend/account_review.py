@@ -35,27 +35,32 @@ def decisions():
         with path.open('rb') as stream: raw = stream.read(MAX_BYTES + 1)
         if len(raw) > MAX_BYTES: raise ValueError()
         data = json.loads(raw)
-        if not isinstance(data, dict): raise ValueError()
-        if data.get('format') not in {1,2} or not isinstance(data['decisions'], dict): raise ValueError()
-        def validate(item):
-            if not isinstance(item,dict) or item['state'] not in STATES: raise ValueError()
-            if any(not isinstance(item[field],str) for field in ('reviewer','rationale','evidence_version','timestamp')): raise ValueError()
-            if not re.fullmatch(r'[a-f0-9]{64}',item['evidence_version']) or len(item['reviewer'])>120 or len(item['rationale'])>2000: raise ValueError()
-            datetime.fromisoformat(item['timestamp'])
-            if item.get('evidence_schema',1) not in {1,2}: raise ValueError()
-            if 'identity_version' in item and not re.fullmatch(r'[a-f0-9]{64}',item['identity_version']): raise ValueError()
-            if 'absent_since' in item: datetime.fromisoformat(item['absent_since'])
-        for key,item in data['decisions'].items():
-            if not re.fullmatch(r'[a-f0-9]{64}',key): raise ValueError()
-            validate(item)
-            history=item.get('history',[])
-            if not isinstance(history,list) or len(history)>1000: raise ValueError()
-            for event in history:
-                validate(event)
-                if 'history' in event: raise ValueError()
-        return data['decisions']
+        return validate_storage(data)
     except (OSError, ValueError, KeyError, TypeError, RecursionError):
         raise HTTPException(409, 'Review annotations could not be read. Original storage is retained; review local application storage before recovery.') from None
+
+
+def validate_storage(data):
+    """Pure persisted review contract, also used before restore activation."""
+    if not isinstance(data, dict): raise ValueError()
+    if data.get('format') not in {1,2} or not isinstance(data['decisions'], dict): raise ValueError()
+    def validate(item):
+        if not isinstance(item,dict) or item['state'] not in STATES: raise ValueError()
+        if any(not isinstance(item[field],str) for field in ('reviewer','rationale','evidence_version','timestamp')): raise ValueError()
+        if not re.fullmatch(r'[a-f0-9]{64}',item['evidence_version']) or len(item['reviewer'])>120 or len(item['rationale'])>2000: raise ValueError()
+        datetime.fromisoformat(item['timestamp'])
+        if item.get('evidence_schema',1) not in {1,2}: raise ValueError()
+        if 'identity_version' in item and not re.fullmatch(r'[a-f0-9]{64}',item['identity_version']): raise ValueError()
+        if 'absent_since' in item: datetime.fromisoformat(item['absent_since'])
+    for key,item in data['decisions'].items():
+        if not re.fullmatch(r'[a-f0-9]{64}',key): raise ValueError()
+        validate(item)
+        history=item.get('history',[])
+        if not isinstance(history,list) or len(history)>1000: raise ValueError()
+        for event in history:
+            validate(event)
+            if 'history' in event: raise ValueError()
+    return data['decisions']
 
 
 def rows(state, directory, saved, groups, today=None, position=None):

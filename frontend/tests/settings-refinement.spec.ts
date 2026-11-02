@@ -340,7 +340,7 @@ test('theme preview screenshot changes and cancel restores the original pixels',
     'Application status',
     'Data & storage',
     'Troubleshooting',
-    'Backup & recovery'
+    'Configuration export & recovery'
   ])
     await expect(page.getByRole('heading', { name, exact: true })).toBeVisible()
   await expect(
