@@ -19,7 +19,16 @@ try {
     if (Test-Path $output) { throw 'Output already exists. Use a new empty output directory/version after reviewing the previous build.' }
     Invoke-Checked { & $python scripts/write-windows-metadata.py }
     # Console bootloader is required for WinSW Ctrl+C shutdown. No WebView2 runtime hooks.
-    Invoke-Checked { & $python -m PyInstaller --noconfirm --clean --onedir --console --noupx --name SAP-Lens --distpath "$output/app" --workpath backend/build/server --specpath backend/build/server --paths backend --icon assets/sap-lens.ico --version-file backend/build/version-info.txt --add-data 'frontend/dist;frontend/dist' --add-data 'assets/sap-lens.ico;assets' --add-data 'assets/sap-lens.png;assets' --add-data 'backend/build/build-version.json;.' --collect-data docx --collect-data reportlab --copy-metadata python-docx --copy-metadata reportlab --copy-metadata lxml --copy-metadata charset-normalizer --exclude-module webview --exclude-module pythonnet --exclude-module clr backend/server.py }
+    # PyInstaller resolves data sources against the spec directory, not the caller's cwd.
+    $frontendDist=Join-Path $root 'frontend/dist'
+    $icon=Join-Path $root 'assets/sap-lens.ico'
+    $image=Join-Path $root 'assets/sap-lens.png'
+    $buildIdentity=Join-Path $root 'backend/build/build-version.json'
+    $metadata=Join-Path $root 'backend/build/version-info.txt'
+    foreach ($inputPath in @($frontendDist,$icon,$image,$buildIdentity,$metadata)) {
+        if (-not (Test-Path $inputPath)) { throw 'A required server packaging input is missing.' }
+    }
+    Invoke-Checked { & $python -m PyInstaller --noconfirm --clean --onedir --console --noupx --name SAP-Lens --distpath "$output/app" --workpath backend/build/server --specpath backend/build/server --paths (Join-Path $root 'backend') --icon $icon --version-file $metadata --add-data "$frontendDist;frontend/dist" --add-data "$icon;assets" --add-data "$image;assets" --add-data "$buildIdentity;." --collect-data docx --collect-data reportlab --copy-metadata python-docx --copy-metadata reportlab --copy-metadata lxml --copy-metadata charset-normalizer --exclude-module webview --exclude-module pythonnet --exclude-module clr backend/server.py }
     Move-Item "$output/app/SAP-Lens/*" "$output/app/"
     Remove-Item "$output/app/SAP-Lens"
     Copy-Item $WinSW "$output/SAPLensService.exe"

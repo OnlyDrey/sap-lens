@@ -17,7 +17,7 @@ from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'backend'))
-from version import parse_build_info
+from version import parse_build_info, deployment_version
 
 CHANNELS = {'Alpha': 'alpha', 'Beta': 'beta', 'Release Candidate (RC)': 'rc',
             'Stable / Production': 'stable'}
@@ -25,18 +25,76 @@ class DeliveryError(RuntimeError):
     """Bounded operational message safe for workflow logs."""
 
 
-TARGETS = {'Windows Desktop': ('desktop', 'Windows-Desktop-x64', '.zip'),
-           'Windows Server Service': ('service', 'Windows-Service-x64', '.zip'),
-           'Linux Docker': ('docker', 'Linux-Docker-amd64', '.tar.gz'),
-           'Linux Native/systemd': ('native', 'Linux-Native-x64', '.tar.gz')}
+PACKAGES = {
+    'windows-desktop': ('desktop', 'Windows Desktop', 'Windows-Desktop-x64', '.zip', 'windows', 'windows-latest'),
+    'windows-service': ('service', 'Windows Server Service', 'Windows-Service-x64', '.zip', 'windows', 'windows-latest'),
+    'linux-docker': ('docker', 'Linux Docker', 'Linux-Docker-amd64', '.tar.gz', 'linux', 'ubuntu-22.04'),
+    'linux-native': ('native', 'Linux Native/systemd', 'Linux-Native-x64', '.tar.gz', 'linux', 'ubuntu-22.04'),
+}
 
 
-def selected(platform):
-    if platform == 'All':
-        return list(TARGETS.values())
-    if platform not in TARGETS:
-        raise DeliveryError('Invalid deployment platform.')
-    return [TARGETS[platform]]
+# The single `build_target` choice and the packages each value builds (all seven are valid; there is nothing to combine or reject).
+BUILD_TARGETS = {
+    'all': ['windows-desktop', 'windows-service', 'linux-docker', 'linux-native'],
+    'windows-all': ['windows-desktop', 'windows-service'],
+    'windows-desktop': ['windows-desktop'],
+    'windows-service': ['windows-service'],
+    'linux-all': ['linux-docker', 'linux-native'],
+    'linux-docker': ['linux-docker'],
+    'linux-native': ['linux-native'],
+}
+
+
+def resolve(build_target):
+    """The package ids to build for the `build_target` choice. A planning job resolves it once; only an unknown value (a manual API dispatch
+    can send any string) is rejected, before any expensive job starts."""
+    if build_target not in BUILD_TARGETS:
+        raise DeliveryError(f"Invalid build target '{build_target}'. Choose one of: {', '.join(BUILD_TARGETS)}.")
+    return list(BUILD_TARGETS[build_target])
+
+
+def plan_summary(build_target, chosen):
+    rows = '\n'.join(f"| {label} (`{name}`) | {runner} | {'Selected: built, verified and eligible for publication' if name in chosen else 'Not selected: skipped, never built or published'} |"
+                     for name, (_, label, _, _, _, runner) in PACKAGES.items())
+    publish = 'Publication is enabled: only the selected packages that pass verification are published.' if os.environ.get('PUBLISH_RELEASE') == 'true' \
+        else 'Build only: Actions artifacts are created, nothing is published.'
+    return (f'### Build selection\n\nBuild target: `{build_target}` | Resolved packages: {", ".join(f"`{name}`" for name in chosen)} '
+            f'| Version: `{os.environ.get("BASE_VERSION", "")}` | Channel: {os.environ.get("DEPLOYMENT_CHANNEL", "")}\n\n'
+            f'{len(chosen)} of {len(PACKAGES)} packages selected. {publish}\n\n| Package | Runner | Decision |\n| --- | --- | --- |\n{rows}\n')
+
+
+def require_release_ref(mode, ref):
+    """Stable / Production is published only from main (the legacy Windows release enforces the same rule); other channels may come from any branch."""
+    if mode == 'stable' and ref != 'refs/heads/main':
+        raise DeliveryError('Stable / Production releases may only be published from the main branch.')
+
+
+def plan():
+    build_target = os.environ.get('DEPLOYMENT_TARGET', '')
+    chosen = resolve(build_target)
+    mode=channel(os.environ.get('DEPLOYMENT_CHANNEL',''))
+    try:deployment_version(os.environ.get('BASE_VERSION',''),mode,os.environ.get('DEPLOYMENT_SEQUENCE',''))
+    except ValueError as error:raise DeliveryError(str(error)) from None
+    if os.environ.get('PUBLISH_RELEASE') not in {'true','false'}:
+        raise DeliveryError('Explicit true/false publication choice is required.')
+    if os.environ.get('PUBLISH_RELEASE') == 'true':  # fail before any runner is spent on a release that could never be published
+        require_release_ref(mode, os.environ.get('GITHUB_REF', ''))
+    output(packages=','.join(chosen), count=len(chosen), **{row[0]: 'true' if name in chosen else 'false' for name, row in PACKAGES.items()})
+    summary = plan_summary(build_target, chosen)
+    print(summary)
+    if os.environ.get('GITHUB_STEP_SUMMARY'):
+        with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as stream:
+            stream.write(summary)
+    return chosen
+
+
+def planned(environment=None):
+    """The package ids the publisher may collect: the planning job's output, which must equal a fresh resolution of the same input."""
+    environment = os.environ if environment is None else environment
+    chosen = resolve(environment.get('DEPLOYMENT_TARGET', ''))
+    if [item for item in environment.get('DEPLOYMENT_PACKAGES', '').split(',') if item] != chosen:
+        raise DeliveryError('The planned package list does not match the selected build target.')
+    return chosen
 
 
 def channel(value):
@@ -103,20 +161,30 @@ def context():
             or info['run_number'] != os.environ.get('GITHUB_RUN_NUMBER')
             or info['attempt'] != int(os.environ.get('GITHUB_RUN_ATTEMPT', '0'))):
         raise DeliveryError('Publication requires this workflow commit, run and attempt.')
+    require_release_ref(info['mode'], os.environ.get('GITHUB_REF', ''))
     return info
 
 
-def eligible(info, platform, needs):
-    """All chosen jobs must have completed roundtrip verification, not merely upload."""
+def eligible(info, chosen, needs):
+    """Every selected package must have completed roundtrip verification, not merely upload. Unselected jobs must have been skipped, so a
+    package nobody selected can never be collected, whatever an earlier run produced."""
     if needs.get('validation', {}).get('result') != 'success':
         raise DeliveryError('Shared validation did not succeed.')
+    if needs.get('plan', {}).get('result', 'success') != 'success':
+        raise DeliveryError('Build selection did not succeed.')
+    if not chosen or any(name not in PACKAGES for name in chosen):
+        raise DeliveryError('Invalid deployment package selection.')
+    for name, (key, *_rest) in PACKAGES.items():
+        if name not in chosen and needs.get(key, {}).get('result', 'skipped') != 'skipped':
+            raise DeliveryError(f'Unselected package {name} ran; publication is forbidden.')
     rows = []
-    for key, stem, extension in selected(platform):
+    for name in (name for name in PACKAGES if name in chosen):
+        key, _label, stem, extension, *_rest = PACKAGES[name]
         job = needs.get(key, {})
         values = job.get('outputs', {})
         expected = f'SAP-Lens-{stem}-{info["version"]}{extension}'
         if job.get('result') != 'success':
-            raise DeliveryError(f'Selected platform {key} did not succeed; publication is forbidden.')
+            raise DeliveryError(f'Selected package {name} did not succeed; publication is forbidden.')
         if (values.get('package_name') != expected
                 or not re.fullmatch(r'[0-9a-f]{64}', values.get('package_sha', ''))
                 or not re.fullmatch(r'[1-9][0-9]*', values.get('artifact_id', ''))):
@@ -231,13 +299,16 @@ def publish(api, info, assets):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('operation', choices=['preflight', 'publish'])
+    parser.add_argument('operation', choices=['plan', 'preflight', 'publish'])
     parser.add_argument('--directory', type=Path)
     args = parser.parse_args()
+    if args.operation == 'plan':
+        plan()
+        return
     if os.environ.get('PUBLISH_RELEASE') != 'true':
         raise DeliveryError('Publication must be explicitly enabled by manual dispatch.')
     info = context()
-    rows = eligible(info, os.environ['DEPLOYMENT_PLATFORM'], json.loads(os.environ['DEPLOYMENT_NEEDS']))
+    rows = eligible(info, planned(), json.loads(os.environ['DEPLOYMENT_NEEDS']))
     api = GitHub(os.environ['GITHUB_REPOSITORY'], os.environ['GITHUB_TOKEN'])
     api.available(info['tag'])
     if args.operation == 'preflight':
@@ -257,6 +328,12 @@ if __name__ == '__main__':
     try:
         main()
     except Exception as error:
+        if sys.argv[1:2] == ['plan']:  # a rejected selection: nothing expensive has started
+            print(f'::error::Build selection rejected: {error}', file=sys.stderr)
+            if os.environ.get('GITHUB_STEP_SUMMARY'):
+                with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as stream:
+                    stream.write(f'### Build selection rejected\n\n{error}\n\nNo package was built or published.\n')
+            raise SystemExit(1) from None
         # No exception string, API body, credentials or signed download URL.
         detail = str(error) if isinstance(error, DeliveryError) else 'Inspect the preceding phase and release/tag state.'
         message = f'Deployment publication stopped ({type(error).__name__}): {detail} No automatic retry.'

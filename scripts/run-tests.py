@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One entry point for the SAP Lens test profiles (fast, smoke, targeted, regression, release).
+"""One entry point for the SAP Lens test profiles (changed, fast, smoke, targeted, regression, release).
 
 Standard library only; works on Windows and Linux. Feature ownership comes from
 scripts/test-map.json. See docs/development/TESTING.md.
@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import signal
 import socket
@@ -62,6 +63,82 @@ def coverage_problems() -> list[str]:
     hints = load_map().get('browser_seconds_hint', {})
     problems += [f'browser_seconds_hint names a missing spec: {name}' for name in sorted(set(hints) - set(browser_specs()))]
     return problems
+
+
+# ---------------------------------------------------------------------------- change selection (Fast Validation)
+
+def _pattern(glob: str) -> re.Pattern:
+    out, i = '', 0
+    while i < len(glob):
+        if glob.startswith('**/', i):
+            out += '(?:.*/)?'; i += 3
+        elif glob.startswith('**', i):
+            out += '.*'; i += 2
+        elif glob[i] == '*':
+            out += '[^/]*'; i += 1
+        else:
+            out += re.escape(glob[i]); i += 1
+    return re.compile(out + r'\Z')
+
+
+def classify(path: str, rules: dict | None = None) -> str:
+    """docs, backend_tests, frontend_tests, frontend or core. Core is the default, so an unmapped path runs the whole backend suite."""
+    rules = rules or load_map()['change_rules']
+    for category in ('docs', 'backend_tests', 'frontend_tests', 'frontend'):
+        if any(_pattern(glob).match(path) for glob in rules[category]):
+            return category
+    return 'core'
+
+
+def changed_files(base: str | None) -> list[str] | None:
+    """Paths that differ from `base` (working tree included); None when the base is unusable, which selects the safe baseline."""
+    if not base or set(base) == {'0'}:
+        return None
+    def git(*args: str) -> subprocess.CompletedProcess:
+        return subprocess.run(['git', *args], cwd=ROOT, capture_output=True, text=True)
+    present = lambda: git('cat-file', '-e', base + '^{commit}').returncode == 0
+    if not present():
+        git('fetch', '--no-tags', '--depth=1', 'origin', base)  # a shallow CI checkout may lack the previous commit
+    if not present():
+        return None
+    done = git('diff', '--name-only', base)
+    return sorted(set(done.stdout.split())) if done.returncode == 0 else None
+
+
+def plan_changes(files: list[str] | None) -> dict:
+    """What Fast Validation runs for a change. Never less than: the repository integrity tests; the whole backend for any backend source,
+    script, workflow, dependency or unmapped change; build, lint and the @smoke browser tests for any frontend change."""
+    mapping = load_map()
+    rules = mapping['change_rules']
+    always = [m for feature in rules['always'] for m in mapping['features'][feature]['backend']]
+    if files is None:
+        return dict(backend='full', modules=[], frontend=True, browser=True, specs=[], reasons=['no usable base commit: safe baseline (whole backend, frontend checks, browser smoke)'], files=None)
+    modules, specs, reasons = set(always), set(), []
+    backend_full = frontend = False
+    for path in files:
+        category = classify(path, rules)
+        if category == 'docs':
+            continue
+        if category == 'backend_tests':
+            name = Path(path).stem
+            if name.startswith('test_'):
+                if (BACKEND_TESTS / f'{name}.py').exists():  # a deleted test module has nothing left to run
+                    modules.add(name)
+            else:
+                backend_full = True  # a shared helper or fixture: its users are unknown
+                reasons.append(f'{path}: shared test helper')
+        elif category == 'frontend_tests':
+            frontend = True
+            name = Path(path).name[:-len('.spec.ts')] if path.endswith('.spec.ts') else None
+            if name and (BROWSER_TESTS / f'{name}.spec.ts').exists():
+                specs.add(name)
+        elif category == 'frontend':
+            frontend = True
+        else:
+            backend_full = True
+            reasons.append(f'{path}: core (backend source, script, workflow, dependency or unmapped path)')
+    return dict(backend='full' if backend_full else 'modules' if len(modules) > len(always) else 'repository',
+                modules=sorted(modules), frontend=frontend, browser=frontend, specs=sorted(specs), reasons=reasons[:12], files=files)
 
 
 # ---------------------------------------------------------------------------- backend
@@ -361,7 +438,7 @@ def report(profile: str, scope: str, stages: list[dict], notes: list[str], outpu
         ok &= stage['ok']
     for note in notes:
         print(f'  NOTE  {note}')
-    if profile in ('smoke', 'targeted', 'fast'):
+    if profile in ('smoke', 'targeted', 'fast', 'changed'):
         print(f'  NOTE  {profile} is a partial run and is not a regression result; run `regression` before release.')
     print(f"  total {fmt(sum(s['seconds'] for s in stages))}  ->  {'OK' if ok else 'FAILED'}")
     if output:
@@ -373,7 +450,7 @@ def main(argv: list[str]) -> int:
     if len(argv) > 2 and argv[0] == '_backend':
         return run_backend_worker(argv[2:], Path(argv[1]))
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('profile', choices=['fast', 'smoke', 'targeted', 'regression', 'release', 'list', 'check'])
+    parser.add_argument('profile', choices=['changed', 'fast', 'smoke', 'targeted', 'regression', 'release', 'list', 'check'])
     parser.add_argument('features', nargs='*', help='features for the targeted profile (see `list`)')
     side = parser.add_mutually_exclusive_group()
     side.add_argument('--backend', action='store_true', help='backend tests only')
@@ -381,6 +458,9 @@ def main(argv: list[str]) -> int:
     parser.add_argument('--jobs', default='auto', help='parallel processes (default auto: backend min(3, CPUs), browser 1; 1 disables)')
     parser.add_argument('--browser-jobs', help='browser processes: a number up to 3 or `auto` (one per spare CPU, 1 to 3); default 1 or SAP_LENS_BROWSER_JOBS')
     parser.add_argument('--grep', help='additional Playwright title filter for browser tests')
+    parser.add_argument('--base', default=os.environ.get('BASE_SHA', 'HEAD~1'), help='changed profile: commit to compare with (default BASE_SHA or HEAD~1)')
+    parser.add_argument('--plan', action='store_true', help='changed profile: print the selection (and write GitHub outputs) without running tests')
+    parser.add_argument('--stage', choices=['backend', 'browser'], help='changed profile: run only this part of the selection')
     parser.add_argument('--no-build', action='store_true', help='skip the frontend build even if sources changed')
     parser.add_argument('--report', help='write a JSON summary to this file')
     parser.add_argument('--list-tests', action='store_true', help='print the selected files and exit')
@@ -423,7 +503,28 @@ def main(argv: list[str]) -> int:
                 stages.append(built)
             stages.append(run_browser(specs, args.grep, min(browser_jobs, len(specs)), 'browser targeted', extra))
 
-    if args.profile == 'smoke':
+    if args.profile == 'changed':
+        plan = plan_changes(changed_files(args.base))
+        print(json.dumps({key: value for key, value in plan.items() if key != 'files'}, indent=1))
+        if args.plan:
+            if os.environ.get('GITHUB_OUTPUT'):
+                with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as stream:
+                    stream.write(f"backend={plan['backend']}\nfrontend={'true' if plan['frontend'] else 'false'}\nbrowser={'true' if plan['browser'] else 'false'}\n")
+            return 0
+        scope = f"changes since {args.base}: backend {plan['backend']}, frontend {'yes' if plan['frontend'] else 'no'}"
+        if args.stage in (None, 'backend'):
+            everything = plan['backend'] == 'full'
+            stages.append(run_backend(backend_modules() if everything else plan['modules'], backend_jobs, f"backend {'regression' if everything else 'selection'}", split=True))
+        if args.stage in (None, 'browser') and plan['browser']:
+            smoke = load_map()['smoke']
+            if not args.no_build and args.stage is None:
+                built = build_frontend()
+                if built:
+                    stages.append(built)
+            stages.append(run_browser(None, smoke['browser_tag'], 1, 'browser smoke', extra))
+            if plan['specs']:
+                stages.append(run_browser(plan['specs'], args.grep, min(browser_jobs, len(plan['specs'])), 'browser changed specs', extra))
+    elif args.profile == 'smoke':
         scope = 'critical backend tests + browser tests tagged @smoke'
         smoke = load_map()['smoke']
         if args.list_tests:

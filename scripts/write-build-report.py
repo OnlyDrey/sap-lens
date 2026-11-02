@@ -8,6 +8,7 @@ import os
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
+OPTIONAL = {'Backend tests', 'Browser tests'}
 STAGES = {
     'Environment': ['Python environment creation'],
     'Frontend': ['npm installation', 'Frontend compilation'],
@@ -78,11 +79,13 @@ def render(records, package, jobs, env, now=None):
             elapsed = duration(upload)
             status = {'success': 'Passed', 'failure': 'Failed', 'skipped': 'Not run', 'cancelled': 'Cancelled'}.get(upload.get('conclusion'), 'Unavailable')
         rows.append((stage, elapsed, status))
+    # The complete backend and browser suites are the manual Full Regression: not running them here is by design, not an incomplete build.
+    rows = [(name, elapsed, 'Not run (Full Regression is manual)' if name in OPTIONAL and status == 'Not run' else status) for name, elapsed, status in rows]
     states = dict((name, status) for name, _, status in rows)
     overall = env.get('BUILD_STATUS', 'unknown')
     if any(status == 'Failed' for _, _, status in rows):
         overall = 'failure'
-    elif overall == 'success' and any(status != 'Passed' for _, _, status in rows):
+    elif overall == 'success' and any(status != 'Passed' and name not in OPTIONAL for name, _, status in rows):
         overall = 'incomplete'
     elapsed = None
     try:

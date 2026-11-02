@@ -37,7 +37,9 @@ AppMutex=Local\SAPLensDesktop
 CloseApplications=no
 RestartApplications=no
 VersionInfoVersion={#NumericVersion}
-VersionInfoProductVersion={#FullVersion}
+VersionInfoTextVersion={#FullVersion}
+VersionInfoProductVersion={#NumericVersion}
+VersionInfoProductTextVersion={#FullVersion}
 VersionInfoProductName=SAP Lens
 VersionInfoDescription=SAP Lens Setup
 VersionInfoOriginalFileName=SAP-Lens-Setup.exe
@@ -126,4 +128,4 @@ begin
       Result := 'Private data backup failed. Close all SAP Lens sessions and review data ownership/permissions. No installed application files were replaced.';
   end;
 end;
-; No [UninstallDelete]: application data and private backups are preserved.
+// No [UninstallDelete]: application data and private backups are preserved.

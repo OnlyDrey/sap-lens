@@ -18,7 +18,8 @@ import zipfile
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'backend'))
 from version import make_build_info,make_local_package_info,parse_build_info,make_deployment_info
-CHECKS={'backend','browser','types','build','catalog','python_audit','javascript_audit','pip_check','workflow_lint','powershell'}
+# Lightweight package-integrity checks only. Neither the full backend suite nor the browser suite is a prerequisite for building or publishing; see docs/deployment/CI_CD.md.
+CHECKS={'types','build','catalog','python_audit','javascript_audit','pip_check','workflow_lint','powershell'}
 
 
 def sha(path):
@@ -61,8 +62,11 @@ def privacy(names):
 
 
 def prepare(version):
-    selected=os.environ.get('DEPLOYMENT_PLATFORM')
-    if selected and selected not in {'Windows Desktop','Windows Server Service','Linux Docker','Linux Native/systemd','All'}:raise ValueError('Invalid deployment platform.')
+    if os.environ.get('DEPLOYMENT_TARGET'):
+        release_spec=importlib.util.spec_from_file_location('deployment_release',ROOT/'scripts/deployment-release.py')
+        release=importlib.util.module_from_spec(release_spec);release_spec.loader.exec_module(release)
+        try:release.resolve(os.environ['DEPLOYMENT_TARGET'])
+        except release.DeliveryError as error:raise ValueError(str(error)) from None
     if os.environ.get('GITHUB_ACTIONS')=='true':
         if os.environ.get('DEPLOYMENT_CHANNEL'):
             release_spec=importlib.util.spec_from_file_location('deployment_release',ROOT/'scripts/deployment-release.py')
@@ -184,22 +188,27 @@ def require_inputs():
 
 
 def finish(directory,platform,output):
-    info=identity();manifest=files(directory);privacy(manifest)
-    write(directory/'package-manifest.json',dict(schema=1,platform=platform,identity=info,files=manifest))
+    info=identity()
+    if output.resolve().is_relative_to(directory.resolve()):
+        raise ValueError('Keep deployment archive output outside its input bundle.')
     output.mkdir(parents=True,exist_ok=True)
     stem=f'SAP-Lens-{platform}-{info["version"]}'
+    archive=output/(stem+('.zip' if platform.startswith('Windows') else '.tar.gz'))
+    checksum=archive.with_name(archive.name+'.sha256')
+    if any(path.exists() or path.is_symlink() for path in (archive,checksum)):
+        raise ValueError('Deployment output already exists; choose a new output directory. Existing packages were preserved.')
+    manifest=files(directory);manifest.pop('package-manifest.json',None);privacy(manifest)
+    write(directory/'package-manifest.json',dict(schema=1,platform=platform,identity=info,files=manifest))
     if platform.startswith('Windows'):
-        archive=output/(stem+'.zip')
-        with zipfile.ZipFile(archive,'w',zipfile.ZIP_DEFLATED) as z:
+        with zipfile.ZipFile(archive,'x',zipfile.ZIP_DEFLATED) as z:
             for path in sorted(directory.rglob('*')):
                 if path.is_file():z.write(path,path.relative_to(directory).as_posix())
     else:
-        archive=output/(stem+'.tar.gz')
-        with tarfile.open(archive,'w:gz') as z:
+        with tarfile.open(archive,'x:gz') as z:
             for path in sorted(directory.rglob('*')):
                 if path.is_file():z.add(path,arcname=path.relative_to(directory).as_posix(),recursive=False)
-    archive.with_name(archive.name+'.sha256').write_text(sha(archive)+'  '+archive.name+'\n',encoding='ascii')
     with tempfile.TemporaryDirectory() as temp:verify_extract(archive,Path(temp),sha(archive))
+    with checksum.open('x',encoding='ascii') as stream:stream.write(sha(archive)+'  '+archive.name+'\n')
     print('Verified deployment archive: '+archive.name+' SHA-256 '+sha(archive))
     return archive
 

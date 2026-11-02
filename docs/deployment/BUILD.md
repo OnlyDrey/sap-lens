@@ -5,9 +5,15 @@ claims. The scripts/workflow below implement packaging; a downloadable Actions
 artifact exists **only after an approved run succeeds**. No run is started by these
 documents. See [actual validation](../archive/validation/PACKAGING_VALIDATION.md).
 
+Deployment archives and checksum sidecars are never overwritten by a repeated
+packaging command. Choose a new output directory after reviewing an existing
+package. Keep archive output outside the input bundle; nesting it inside the
+bundle would make the archive include itself. Checksums are written only after
+the new archive passes its extraction/content verification.
+
 ## Find your build path
 
-- [Actions: one target or All](#manual-build), [artifact names and download](#outputs).
+- [Actions: one build target dropdown](#manual-build), [artifact names and download](#outputs).
 - [Local cross-platform builds](#local-cross-platform-builds), [prerequisites](#build-time-prerequisites), [commands](#commands), [cross-host builders](#cross-host-builds), [outputs](#outputs-and-verification).
 - [Windows Quick/Validate/Build/Package](#windows-only-development-modes), [Windows prerequisite setup](#2-install-and-check-prerequisites), [mode contracts](#5-choose-a-mode), [troubleshooting](#9-troubleshooting).
 - [Install the result](README.md#choose-a-target), [release policy](RELEASES.md), [validation limits](README.md#validation-status).
@@ -17,13 +23,27 @@ Build commands belong here; platform guides own installation and operations.
 ## Manual build
 
 Open Actions → **Build Deployment Packages** → Run workflow, select the intended
-branch (normally `work`), then choose:
+branch (normally `work`), then choose one **`build_target`** (a single dropdown; every
+choice is valid):
 
-- `Windows Desktop`
-- `Windows Server Service`
-- `Linux Docker`
-- `Linux Native/systemd`
-- `All`
+| `build_target` | Builds |
+| --- | --- |
+| `all` (default) | All platforms, all four packages |
+| `windows-all` | Both Windows packages: Windows Desktop and Windows Server Service |
+| `windows-desktop` | Windows Desktop only |
+| `windows-service` | Windows Server Service only |
+| `linux-all` | Both Linux packages: Linux Docker and Linux Native/systemd |
+| `linux-docker` | Linux Docker only |
+| `linux-native` | Linux Native/systemd only |
+
+The first job, **Resolve Build Selection** (about a minute, no dependencies installed),
+resolves the choice once and exposes the selected packages. An unknown value (possible
+only through a manual API dispatch) fails there with a message listing the valid values,
+before shared validation or any packaging runner starts. Unselected packages are skipped
+jobs: no Windows runner starts for a Linux target and no Linux packaging runner for a
+Windows target. The job summary shows the selected target, the resolved packages, every
+package as selected or skipped, the version and channel, and whether publication is
+enabled. Artifact names and the per-package jobs are unchanged.
 
 Supply base `version`, such as `0.1.0`, a `release_channel`, and a positive
 `prerelease_number` for prereleases. Publication is controlled separately by
@@ -50,15 +70,20 @@ candidate metadata, not proof of publication. No binary signing or registry push
 is enabled. Existing **Build Windows Application** retains its independent,
 legacy desktop build/beta/stable release behavior unchanged.
 
-With `publish_release=true`, every selected platform must finish its native
+With `publish_release=true`, every selected package must finish its native
 packaging and artifact roundtrip successfully. Only then can the isolated,
 write-scoped publisher collect those exact same-run artifact IDs, verify their
 names/checksums against successful job outputs, stage a draft, verify every
 uploaded release asset's server-side SHA-256, create an owned annotated version
 tag and publish. Alpha/Beta/RC are prereleases; Stable is a normal/latest release.
 All selected packages, checksum sidecars and a source/digest manifest are attached.
-A failed/skipped/cancelled selected platform prevents publication. Build-only runs
-still upload successful independent platform packages when a sibling fails.
+A failed, skipped or cancelled selected package prevents publication. Packages that
+were not selected are skipped by design: they never block publication, and they are
+never collected. The publisher takes the package list from the planning job, checks it
+against a fresh resolution of the same build target, and refuses to publish if an unselected
+package ran. Only same-run artifact IDs of selected, verified packages are downloaded;
+nothing is reused from earlier runs. Build-only runs still upload successful
+independent packages when a sibling fails.
 
 Publication asks GitHub to generate release notes from repository history, keeping
 the validated-package/source explanation as the prefix. Authorized maintainers can
@@ -69,13 +94,13 @@ GitHub Releases remains the release-history record; no CHANGELOG.md is used.
 
 ### Examples after workflow registration
 
-For test packages: select `All`, base `0.1.0`, `Beta`, sequence `1`, and leave
+For test packages: select build target `all`, base `0.1.0`, `Beta`, sequence `1`, and leave
 **Publish release unchecked**. Download each successful job's Actions artifact.
 
-For a Beta release: select the desired targets, base `0.1.0`, `Beta`, an unused
+For a Beta release: select the desired build target, base `0.1.0`, `Beta`, an unused
 sequence (for example `2`), and explicitly check **Publish release**.
 
-For Stable: select the desired targets (normally `All`), base `0.1.0`,
+For Stable: select the desired build target (normally `all`), base `0.1.0`,
 `Stable / Production`, and explicitly check **Publish release**. Existing
 `sap-lens-stable` environment protection applies; prereleases use `sap-lens-beta`.
 No repository/environment settings are modified by these source changes.
@@ -84,7 +109,7 @@ The CLI equivalent for a build-only run, **after the workflow is registered**:
 
 ```bash
 gh workflow run build-deployments.yml --repo OnlyDrey/sap-lens --ref work \
-  -f platform=All -f version=0.1.0 -f release_channel=Beta \
+  -f build_target=all -f version=0.1.0 -f release_channel=Beta \
   -f prerelease_number=1 -f publish_release=false
 ```
 

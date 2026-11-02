@@ -51,10 +51,15 @@ required merely to skip one explicitly authorized push.
 
 | Workflow / file | Exact triggers | Jobs and responsibility |
 | --- | --- | --- |
-| Fast Validation / `.github/workflows/validate.yml` | Every push (including all branches/tags); every pull_request with no branch/path filters | Backend & Frontend: all backend/repository tests through `scripts/run-tests.py regression --backend` (parallel processes, deprecations as errors), pip consistency, workflow contracts/actionlint and frontend type checks |
-| Build Deployment Packages / `.github/workflows/build-deployments.yml` | workflow_dispatch only; platform selector and All | Shared Validation & Frontend, followed by independent Desktop, Service, Docker and native packaging jobs |
-| Full Validation / `.github/workflows/full-validation.yml` | pull_request targeting main only; no push/manual/tag/release trigger | Backend & Repository and Frontend & Browser run independently in parallel |
-| Build Windows Application / `.github/workflows/build-windows.yml` | workflow_dispatch only; caller selects branch/ref | Optional Reserve Release Version job before Windows Build & Verification; optional dependent Publish Verified Windows Release job for explicit beta/stable mode |
+| Fast Validation / `.github/workflows/validate.yml` | push to `work` or `main`; pull_request targeting `main` | One job, Backend & Frontend: checks selected from the change (`scripts/run-tests.py changed`). Mandatory: pip check, Ruff, workflow contracts, actionlint, portable PowerShell checks and selected backend tests. Frontend changes add type check, ESLint, icon catalogue, build, production audit and browser smoke |
+| Build Deployment Packages / `.github/workflows/build-deployments.yml` | workflow_dispatch only; one `build_target` dropdown (`all`, `windows-all`, `windows-desktop`, `windows-service`, `linux-all`, `linux-docker`, `linux-native`) | A planning job resolves the selection, then lightweight shared validation (no backend or browser suite), then the selected independent Desktop, Service, Docker and native packaging jobs (unselected ones are skipped); publication takes only the planned, verified packages |
+| Full Validation / `.github/workflows/full-validation.yml` | workflow_dispatch only; no push, pull_request, schedule or workflow_call trigger | Backend & Repository and Frontend & Browser run independently in parallel. Never a prerequisite for building or publishing |
+| Build Windows Application / `.github/workflows/build-windows.yml` | workflow_dispatch only; caller selects branch/ref | Optional Reserve Release Version job before Windows Build & Verification (no regression stages); optional dependent Publish Verified Windows Release job for explicit beta/stable mode |
+
+The three-level model (Fast Validation, Build & Release, Full Regression), the change-selection table, target
+selection and the no-prerequisite policy are described in [CI/CD architecture](../deployment/CI_CD.md). Where the sections
+below still describe an automatic complete backend or browser run on every push or pull request, that text is historical:
+Full Validation is manual, and the builds do not run complete suites.
 
 Full Backend installs test, build and audit requirements, checks dependencies,
 runs the entire backend suite through the same runner (including the real synthetic PyInstaller archive
@@ -64,7 +69,7 @@ tooling shares this disposable Linux validation environment; it is never used
 to package an application. Windows audit tooling remains outside its isolated
 package environment and audits the complete installed Windows dependency set.
 
-Fast keeps the full backend policy (every module, run in parallel processes by the [test runner](TESTING.md)). As in the measured
+Fast selects backend tests from changed paths using the [test runner](TESTING.md); script and workflow changes select all modules. As in the measured
 baseline, the build-only real PyInstaller fixture is skipped when PyInstaller is
 not installed; this is visible in the report. Full and Windows install it and
 exercise that fixture. No existing tests are removed. New tests cover workflow
@@ -81,9 +86,8 @@ provides earlier failure visibility. No second Vite compilation occurs. Browser
 workers, zero retries, test deadlines and application code remain unchanged.
 
 There is no separate frontend component-unit framework; the production browser
-suite provides the existing interaction regression coverage. Fast deliberately
-does not run a production build, browser install or security-feed lookup.
-Audits remain blocking in Full and the independent manual Windows build.
+suite provides the existing interaction regression coverage. Fast runs frontend build, browser smoke and the production JavaScript audit when its change plan selects them.
+Python dependency audits remain blocking in Full and the independent manual package builds.
 
 ## Caching, parallelism and concurrency
 
@@ -195,7 +199,7 @@ required PR check because they intentionally do not automatically run.
 The additional manual **Build Deployment Packages** workflow supports Desktop,
 Windows Service, Docker, Linux native and All. Shared validation is performed once
 for the exact commit/run; independent platform jobs retain package audits, native
-checks and distribution roundtrips. It never publishes releases or registry images.
+checks and distribution roundtrips. It publishes a GitHub release only when `publish_release` is explicitly enabled and every selected package passes; it does not push registry images.
 The existing Windows release workflow remains unchanged. See
 [deployment artifacts and attestation](../deployment/BUILD.md) and
 [current packaging validation](../archive/validation/PACKAGING_VALIDATION.md). Four workflow files are

@@ -2,16 +2,18 @@ name: Build Deployment Packages
 'on':
   workflow_dispatch:
     inputs:
-      platform:
-        description: Build one deployment or all independently
+      build_target:
+        description: 'Packages to build: all, a whole operating system (windows-all, linux-all) or one package'
         type: choice
         options:
-        - Windows Desktop
-        - Windows Server Service
-        - Linux Docker
-        - Linux Native/systemd
-        - All
-        default: All
+        - all
+        - windows-all
+        - windows-desktop
+        - windows-service
+        - linux-all
+        - linux-docker
+        - linux-native
+        default: all
         required: true
       version:
         description: Base MAJOR.MINOR.PATCH without prerelease suffix
@@ -34,7 +36,7 @@ name: Build Deployment Packages
         default: '1'
         required: false
       publish_release:
-        description: Publish only after every selected platform passes verification
+        description: Publish only the selected packages, and only after every one of them passes verification
         type: boolean
         default: false
         required: true
@@ -44,13 +46,43 @@ concurrency:
   group: sap-lens-deployment-${{ github.ref }}
   cancel-in-progress: false
 jobs:
+  plan:
+    name: Resolve Build Selection
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    env:
+      DEPLOYMENT_TARGET: ${{ inputs.build_target }}
+      BASE_VERSION: ${{ inputs.version }}
+      DEPLOYMENT_CHANNEL: ${{ inputs.release_channel }}
+      DEPLOYMENT_SEQUENCE: ${{ inputs.prerelease_number }}
+      PUBLISH_RELEASE: ${{ inputs.publish_release }}
+    outputs:
+      packages: ${{ steps.selection.outputs.packages }}
+      desktop: ${{ steps.selection.outputs.desktop }}
+      service: ${{ steps.selection.outputs.service }}
+      docker: ${{ steps.selection.outputs.docker }}
+      native: ${{ steps.selection.outputs.native }}
+    steps:
+    - name: Check out exact source
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.sha }}
+        persist-credentials: false
+    - name: Set up Python 3.12
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+      with:
+        python-version: '3.12'
+    - name: Resolve the build target into the packages to build
+      id: selection
+      run: python scripts/deployment-release.py plan
   validation:
     name: Shared Validation & Frontend
     runs-on: ubuntu-22.04
     timeout-minutes: 25
+    needs: plan
     env:
       BASE_VERSION: ${{ inputs.version }}
-      DEPLOYMENT_PLATFORM: ${{ inputs.platform }}
+      DEPLOYMENT_TARGET: ${{ inputs.build_target }}
       DEPLOYMENT_CHANNEL: ${{ inputs.release_channel }}
       DEPLOYMENT_SEQUENCE: ${{ inputs.prerelease_number }}
       PUBLISH_RELEASE: ${{ inputs.publish_release }}
@@ -92,15 +124,18 @@ jobs:
     - name: Check Python dependencies
       run: python scripts/ci.py run pip_check -- python -m pip check
       id: pip_check
+    - name: Lint Python with Ruff
+      run: python scripts/ci.py run ruff -- python -m ruff check backend scripts
+      id: ruff
+    - name: Validate workflow contracts
+      run: python scripts/ci.py run workflow_contracts -- python scripts/check-workflows.py
+      id: workflow_contracts
     - name: Validate workflows
       run: python scripts/ci.py run workflow_lint -- python scripts/ci.py lint
       id: workflow_lint
     - name: Validate PowerShell scripts
       run: python scripts/ci.py run powershell -- pwsh -NoProfile -File scripts/check-powershell.ps1
       id: powershell
-    - name: Run shared backend regressions
-      run: python scripts/ci.py run backend -- python -W error::DeprecationWarning -m unittest discover -s backend/tests -v
-      id: backend
     - name: Install locked frontend dependencies
       run: npm --prefix frontend ci --no-audit --no-fund
       id: s9
@@ -119,21 +154,6 @@ jobs:
     - name: Audit production JavaScript
       run: python scripts/ci.py run javascript_audit -- npm --prefix frontend audit --omit=dev
       id: javascript_audit
-    - name: Configure browser cache
-      id: browser_path
-      run: echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/sap-lens-playwright" >> "$GITHUB_ENV"
-    - name: Cache pinned browser
-      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
-      with:
-        path: ${{ runner.temp }}/sap-lens-playwright
-        key: playwright-headless-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/package-lock.json') }}
-      id: s15
-    - name: Install Chromium and system libraries
-      run: node frontend/node_modules/playwright/cli.js install --with-deps chromium --only-shell
-      id: s16
-    - name: Run shared browser regressions
-      run: python scripts/ci.py run browser -- npm --prefix frontend run test:browser -- --reporter=line,github
-      id: browser
     - name: Seal same-commit validated inputs
       run: python scripts/deployment-package.py seal --output backend/build/validated-inputs.zip
       id: s18
@@ -150,8 +170,8 @@ jobs:
       if: always()
       env:
         CI_STEPS: ${{ toJSON(steps) }}
-        CI_REQUIRED: browser_path s0 s1 s2 s3 identity pip_check workflow_lint powershell backend s9 types catalog build python_audit javascript_audit
-          s15 s16 browser s18 s19
+        CI_REQUIRED: s0 s1 s2 s3 identity pip_check ruff workflow_contracts workflow_lint powershell s9 types catalog build python_audit javascript_audit
+          s18 s19
         CI_JOB_NAME: Shared validation
   desktop:
     name: Windows Desktop Packaging & Verification
@@ -161,10 +181,11 @@ jobs:
       artifact_id: ${{ steps.distribution.outputs.artifact-id }}
       package_name: ${{ steps.integrity.outputs.package_name }}
       package_sha: ${{ steps.integrity.outputs.package_sha }}
-    needs: validation
-    if: ${{ inputs.platform == 'All' || inputs.platform == 'Windows Desktop' }}
+    needs: [plan, validation]
+    if: ${{ needs.plan.outputs.desktop == 'true' }}
     env:
       RELEASE_MODE: build
+      SAP_LENS_EXPECTED_BUILD_JSON: ${{ needs.validation.outputs.identity }}
       RELEASE_VERSION: ${{ inputs.version }}
     steps:
     - name: Check out exact source
@@ -188,9 +209,20 @@ jobs:
         digest-mismatch: error
     - name: Verify and consume validated inputs
       run: python scripts/deployment-package.py consume --archive backend/build/shared/validated-inputs.zip
+    - name: Compile complete installer recipe for every release channel
+      run: ./scripts/build-desktop-installer.ps1 -CompileCheck -OutputDirectory "$env:RUNNER_TEMP/installer-compile-check"
+      shell: pwsh
     - name: Build and smoke-test platform package
       run: ./scripts/package-windows-deployment.ps1 -Target Desktop
       shell: pwsh
+    - name: Preserve isolated installer setup diagnostics on failure
+      if: failure()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: Windows-Desktop-installer-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/SAP Lens installer */setup.log
+        if-no-files-found: ignore
+        retention-days: 7
     - name: Upload verified platform distribution
       id: distribution
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -224,8 +256,8 @@ jobs:
       artifact_id: ${{ steps.distribution.outputs.artifact-id }}
       package_name: ${{ steps.integrity.outputs.package_name }}
       package_sha: ${{ steps.integrity.outputs.package_sha }}
-    needs: validation
-    if: ${{ inputs.platform == 'All' || inputs.platform == 'Windows Server Service' }}
+    needs: [plan, validation]
+    if: ${{ needs.plan.outputs.service == 'true' }}
     env:
       RELEASE_MODE: build
       RELEASE_VERSION: ${{ inputs.version }}
@@ -287,8 +319,8 @@ jobs:
       artifact_id: ${{ steps.distribution.outputs.artifact-id }}
       package_name: ${{ steps.integrity.outputs.package_name }}
       package_sha: ${{ steps.integrity.outputs.package_sha }}
-    needs: validation
-    if: ${{ inputs.platform == 'All' || inputs.platform == 'Linux Docker' }}
+    needs: [plan, validation]
+    if: ${{ needs.plan.outputs.docker == 'true' }}
     env:
       RELEASE_MODE: build
       RELEASE_VERSION: ${{ inputs.version }}
@@ -351,8 +383,8 @@ jobs:
       artifact_id: ${{ steps.distribution.outputs.artifact-id }}
       package_name: ${{ steps.integrity.outputs.package_name }}
       package_sha: ${{ steps.integrity.outputs.package_sha }}
-    needs: validation
-    if: ${{ inputs.platform == 'All' || inputs.platform == 'Linux Native/systemd' }}
+    needs: [plan, validation]
+    if: ${{ needs.plan.outputs.native == 'true' }}
     env:
       RELEASE_MODE: build
       RELEASE_VERSION: ${{ inputs.version }}
@@ -378,6 +410,8 @@ jobs:
         digest-mismatch: error
     - name: Verify and consume validated inputs
       run: python scripts/deployment-package.py consume --archive backend/build/shared/validated-inputs.zip
+    - name: Install pinned package audit tooling
+      run: python -m pip install -r scripts/requirements-audit.txt
     - name: Build and smoke-test platform package
       run: 'python scripts/deployment-package.py native
 
@@ -412,8 +446,8 @@ jobs:
     name: Publish Complete Deployment Release
     runs-on: ubuntu-22.04
     timeout-minutes: 25
-    needs: [validation, desktop, service, docker, native]
-    if: ${{ always() && !cancelled() && inputs.publish_release && needs.validation.result == 'success' }}
+    needs: [plan, validation, desktop, service, docker, native]
+    if: ${{ always() && !cancelled() && inputs.publish_release && needs.plan.result == 'success' && needs.validation.result == 'success' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
     permissions:
       contents: write
     concurrency:
@@ -423,7 +457,8 @@ jobs:
       name: ${{ inputs.release_channel == 'Stable / Production' && 'sap-lens-stable' || 'sap-lens-beta' }}
     env:
       PUBLISH_RELEASE: ${{ inputs.publish_release }}
-      DEPLOYMENT_PLATFORM: ${{ inputs.platform }}
+      DEPLOYMENT_TARGET: ${{ inputs.build_target }}
+      DEPLOYMENT_PACKAGES: ${{ needs.plan.outputs.packages }}
       DEPLOYMENT_IDENTITY: ${{ needs.validation.outputs.identity }}
       DEPLOYMENT_NEEDS: ${{ toJSON(needs) }}
       GITHUB_TOKEN: ${{ github.token }}
@@ -437,10 +472,10 @@ jobs:
       uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
       with:
         python-version: '3.12'
-    - name: Require all selected verified platforms and unused version
+    - name: Require every selected verified package, no unselected package and an unused version
       id: eligible
       run: python scripts/deployment-release.py preflight
-    - name: Collect only selected same-run platform artifacts
+    - name: Collect only the selected same-run package artifacts
       uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         artifact-ids: ${{ steps.eligible.outputs.artifact_ids }}

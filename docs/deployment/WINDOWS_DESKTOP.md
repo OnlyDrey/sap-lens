@@ -30,6 +30,11 @@ the inner ZIP. It contains:
 - Application and Inno Setup licenses, this guide, exact package manifest and
   native installer validation report.
 
+Installer binary file/product versions use the four numeric components from the
+validated build identity. Displayed versions retain the full version string,
+including Alpha, Beta or RC suffixes. The package verifier checks both numeric
+versions and the textual product identity against that same build identity.
+
 Use a trusted distribution source. An unsigned package plus its own checksum
 provides integrity, not an independently authenticated publisher identity.
 
@@ -144,12 +149,33 @@ provisioning and retains the vendor license. Tool provisioning may register its
 per-user build-tool installation; it does not alter Python/Node installations.
 Do not delete its tool receipt or bypass a changed-compiler error blindly.
 
+Before application packaging, the selected Windows Desktop job compiles the
+complete installer definition (including Pascal code) for Alpha, Beta, RC and
+Stable and verifies each resulting PE with the canonical installer verifier.
+The existing `pefile` verifier dependency is pinned in build requirements and
+provisioned in an isolated compiler-check environment. Inno's fixed-width text
+resources contain trailing spaces; the verifier removes only trailing space/NUL
+padding and still rejects different product names, versions, numeric resources,
+signatures or duplicate metadata. Controlled failures identify the rejected
+field without printing private third-party parser errors.
+The check uses a temporary compiler-as-payload fixture, deletes the outputs and
+does not run or approve an application installer. Normal packaging still requires
+the validated application inputs and the native installation/lifecycle tests.
+PowerShell parsing and Python recipe checks alone do not compile Inno's `[Code]`
+section; that section uses Pascal comments (`//` or braces), not INI `;` comments.
+
 The deployment pipeline keeps the canonical portable verifier's exactly-two-file
 ZIP rules. Its outer deployment ZIP adds an explicit manifest and installer assets;
 after download, it rechecks exact contents, hashes, identity, unsigned installer
 resources and the canonical portable payload. The native acceptance definition
 refuses an existing registered installation and uses isolated data to test install,
 repeat installation, installed-EXE lifecycle, uninstall and data preservation.
+On failure, the native test reports its current phase and retains its isolated
+setup log directory. The selected Windows Desktop job uploads only `setup.log`
+from those synthetic test directories as a separate seven-day diagnostics
+artifact; local operators can inspect and then remove their retained directory.
+Settings, backups and runtime data are not uploaded. Diagnostic logs are never
+added to the deployment package or release assets.
 
 Pending manual acceptance includes actual Windows compiler/setup execution,
 previous-version upgrades, clean-PC/IT-policy behavior, WebView2, Explorer/file

@@ -304,7 +304,14 @@ def main():
     try:
         if os.environ.get('GITHUB_ACTIONS') == 'true':
             from version import parse_build_info
-            if parse_build_info(json.loads(os.environ.get('SAP_LENS_EXPECTED_BUILD_JSON',''))) != metadata_module().BUILD_INFO:
+            expected_json = os.environ.get('SAP_LENS_EXPECTED_BUILD_JSON', '')
+            if not expected_json:
+                raise PackageValidationError('Expected build identity is missing from CI environment.')
+            try:
+                expected = parse_build_info(json.loads(expected_json))
+            except (ValueError, TypeError, KeyError):
+                raise PackageValidationError('Expected build identity is invalid.') from None
+            if expected != metadata_module().BUILD_INFO:
                 raise PackageValidationError('Build metadata changed after workflow resolution.')
         if metadata_module().BUILD_INFO['mode'] == 'local':
             raise PackageValidationError('A generated build identity is required to verify a distribution.')

@@ -2,7 +2,7 @@
 
 - [Development setup](DEVELOPMENT.md): prerequisites, virtualenv, browser dev and source-mode desktop.
 - [Testing](TESTING.md): focused and full local checks, evidence and native limitations.
-- [CI](CI.md): workflow ownership, validation, artifacts and explicit temporary skipping.
+- [CI](CI.md): workflow ownership, validation, artifacts and explicit temporary skipping; [CI/CD architecture](../deployment/CI_CD.md): the three validation levels and the no-prerequisite policy.
 - [Implementation handoff](IMPLEMENTATION_HANDOFF.md): requirement coverage, validation results, limitations and next steps.
 - [Documentation audit (R8)](DOCUMENTATION_AUDIT_R8.md): what was outdated, missing or superseded and what changed.
 - [Code quality review (R8)](CODE_REVIEW_R8.md): prioritized, evidence-based findings and next improvements.

@@ -14,11 +14,13 @@ same origin. It does not import WebView2. No SAP interpretation changes are made
 | Linux Docker | Linux Docker amd64 / container | [Build](BUILD.md) | [Docker guide](LINUX_DOCKER.md) |
 | Linux Native | Linux Native x64 / Python 3.12 + systemd or manual process | [Build](BUILD.md) | [Native guide](LINUX_NATIVE.md) |
 
-Start with the **[central build guide](BUILD.md)** to select one platform or All,
+Start with the **[central build guide](BUILD.md)** to select an operating system and package (or all),
 choose a version and obtain artifacts from Actions or local builds. Installation
 machines do not need Node.js or React compilation. Desktop/service contain their
 Python runtime; Linux Native requires Python 3.12 and system libraries.
 Linux client support is browser-based, not a standalone GUI.
+
+How validation relates to building and publishing (Fast Validation, Build & Release, manual Full Regression) is in [CI/CD](CI_CD.md).
 
 Read [security](SECURITY.md) before remote access. Application preferences and
 recovery live in [Configuration](../getting-started/CONFIGURATION.md); server hosting

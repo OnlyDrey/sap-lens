@@ -170,5 +170,59 @@ class ParallelExecutionTests(unittest.TestCase):
                 process.wait()
 
 
+class ChangeSelectionTests(unittest.TestCase):
+    """Fast Validation runs what a change can affect, and never less than the safe baseline for core changes."""
+    def plan(self, *files):
+        return runner.plan_changes(list(files))
+
+    def test_paths_are_classified_and_unknown_paths_are_core(self):
+        expected = {'docs/features/SOD.md': 'docs', 'README.md': 'docs', 'assets/sap-lens.png': 'docs', 'backend/tests/test_server.py': 'backend_tests',
+                    'frontend/tests/a11y-audit.spec.ts': 'frontend_tests', 'frontend/src/components/Shared/Select.tsx': 'frontend', 'frontend/package-lock.json': 'frontend',
+                    'frontend/vite.config.ts': 'frontend', 'backend/main.py': 'core', 'backend/routers/sod.py': 'core', 'scripts/run-tests.py': 'core', '.github/workflows/validate.yml': 'core',
+                    'backend/requirements.txt': 'core', 'ruff.toml': 'core', 'compose.yml': 'core', 'deploy/linux/sap-lens.service': 'core', 'something/new/file.bin': 'core'}
+        for path, category in expected.items():
+            self.assertEqual(runner.classify(path), category, path)
+
+    def test_documentation_only_changes_run_the_repository_checks_and_nothing_else(self):
+        plan = self.plan('docs/deployment/BUILD.md', 'docs/validation/validation-items.csv', 'README.md')
+        self.assertEqual((plan['backend'], plan['frontend'], plan['browser']), ('repository', False, False))
+        self.assertIn('test_repository_integrity', plan['modules']); self.assertNotIn('test_sod_reports', plan['modules'])
+
+    def test_backend_sources_scripts_workflows_and_dependencies_run_the_whole_backend(self):
+        for path in ('backend/main.py', 'backend/routers/sod.py', 'backend/sod_reports.py', 'scripts/deployment-release.py', '.github/workflows/build-deployments.yml',
+                     'backend/requirements-dev.txt', 'scripts/test-map.json', 'backend/tests/__init__.py', 'backend/tests/helpers.py', 'unknown.cfg'):
+            with self.subTest(path=path):
+                plan = self.plan(path)
+                self.assertEqual(plan['backend'], 'full'); self.assertTrue(plan['reasons'])
+        self.assertFalse(self.plan('backend/main.py')['frontend'])
+
+    def test_a_changed_backend_test_module_runs_that_module_with_the_repository_checks(self):
+        plan = self.plan('backend/tests/test_sod_reports.py', 'backend/tests/test_server.py')
+        self.assertEqual(plan['backend'], 'modules'); self.assertIn('test_sod_reports', plan['modules']); self.assertIn('test_repository_integrity', plan['modules'])
+        self.assertEqual(self.plan('backend/tests/test_deleted_long_ago.py')['backend'], 'repository', 'a deleted module has nothing to run')
+
+    def test_frontend_changes_run_build_lint_and_browser_smoke_and_changed_specs(self):
+        plan = self.plan('frontend/src/components/Shared/Select.tsx')
+        self.assertEqual((plan['backend'], plan['frontend'], plan['browser'], plan['specs']), ('repository', True, True, []))
+        plan = self.plan('frontend/tests/select-family.spec.ts', 'frontend/tests/sod-fixture.ts', 'frontend/tests/not-a-spec.spec.ts')
+        self.assertEqual((plan['frontend'], plan['specs']), (True, ['select-family']), 'a spec runs itself; a helper or an unknown spec only triggers the smoke baseline')
+        self.assertTrue(self.plan('frontend/package-lock.json')['browser'])
+
+    def test_a_mixed_change_unions_the_needs_of_each_part(self):
+        plan = self.plan('docs/x.md', 'frontend/src/App.tsx', 'backend/deployment.py')
+        self.assertEqual((plan['backend'], plan['frontend'], plan['browser']), ('full', True, True))
+
+    def test_an_unusable_base_selects_the_safe_baseline(self):
+        for base in (None, '', '0' * 40, 'not-a-commit-at-all'):
+            with self.subTest(base=base):
+                plan = runner.plan_changes(runner.changed_files(base))
+                self.assertEqual((plan['backend'], plan['frontend'], plan['browser']), ('full', True, True))
+        self.assertTrue(runner.plan_changes(None)['reasons'])
+
+    def test_changed_files_compares_with_a_real_commit(self):
+        files = runner.changed_files('HEAD')
+        self.assertIsInstance(files, list)  # the working tree against HEAD; empty or the current edits
+
+
 if __name__ == '__main__':
     unittest.main()
