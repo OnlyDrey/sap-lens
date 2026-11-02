@@ -207,3 +207,17 @@ source criticality (risks) or type and risk count (activities), each value marke
 Pills inside controls that already have an action (matrix column headers, heatmap headings, source-detail buttons) keep the tooltip and add no second control.
 Descriptions come from one resolver: the imported value first, the local business text as a labelled fallback, never a generated one. See
 [optional descriptive columns](../data/SOD_MATRIX.md#optional-descriptive-columns).
+
+### Access review completion and sidebar tabs
+
+Open a user's review to work through **Roles → Activities → Risks**. One Reviewer
+field applies across the tabs and retains unsaved work when switching. Individual
+server accounts use the authenticated reviewer; Desktop names remain self-reported.
+
+Current role decisions can cover an activity when every relevant supplying
+assignment is reviewed. Current activity/role evidence can then cover the risk's
+access assessment, without creating a formal acceptance. The panel shows the
+coverage provenance. The queue reports the same unique completion across the
+selected scope, separately from formal acceptance. “Reviewed — removal planned”
+means the explicit proposed removals break the risk in simulation; the imported
+conflict remains present until refreshed evidence verifies removal.

@@ -64,9 +64,9 @@ function Queue() {
         <section className="sod-tiles" aria-label="Review progress">
           {PROGRESS.map(([value, label]) => <Kpi key={value} label={label} value={(data.counts[value || 'all'] ?? 0).toLocaleString()} tone={stateTone(label, data.counts[value || 'all'] ?? 0)} active={progress === value} onClick={() => { reset(); setProgress(value) }} />)}
         </section>
-        <p className="ui-description">One row per SAP user. Activity review, role assignment review and risk acceptance are independent decisions with their own progress. Open Review shows all three for the user.</p>
+        <p className="ui-description">One row per SAP user. Completion covers unique role, activity and risk access-review items in the selected scope, across pages. Current role/activity decisions can provide derived coverage; formal acceptance remains explicit. Open Review shows the same scope and provenance.</p>
         {data.items.length ? <DataTable caption="SoD review work queue" tableClassName="sod-config-table">
-          <thead><tr><th>SAP user</th><th>SAP User Group</th><th>Progress</th><th>Activities</th><th>Role assignments</th><th>Risk acceptance</th><th>Open</th></tr></thead>
+          <thead><tr><th>SAP user</th><th>SAP User Group</th><th>Progress</th><th>Activities</th><th>Role assignments</th><th>Risk access review</th><th>Formal acceptance</th><th>Open</th></tr></thead>
           <tbody>{data.items.map((row) => (
             <tr key={row.user}>
               <td><RoleIdentifier value={row.user} label="SAP username" /></td>
@@ -74,7 +74,7 @@ function Queue() {
               <td><progress max={Math.max(row.total, 1)} value={row.decided} aria-label={`${row.user} decided ${row.decided} of ${row.total}`} /> <span className="text-xs">{row.decided}/{row.total}</span>{row.removal > 0 && <span className="text-xs text-muted"> · {row.removal} removal recommended</span>}</td>
               <td>{part(row.activity)}</td>
               <td>{part(row.assignment)}</td>
-              <td>{part(row.acceptance)}</td>
+              <td>{part(row.acceptance)}</td><td>{part(row.formal_acceptance)}</td>
               <td><Button variant="primary" size="compact" onClick={() => setSubject({ user: row.user })} aria-label={`Open review for ${row.user}`}><ClipboardCheck size={14} aria-hidden="true" />Open review</Button></td>
             </tr>))}</tbody>
         </DataTable> : <EmptyState>Nothing matches this queue scope. Results describe imported evidence only; missing sources are not proof of no conflict.</EmptyState>}

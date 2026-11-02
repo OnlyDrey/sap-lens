@@ -1,3 +1,5 @@
+import {ContentTabList} from '@/components/Shared/Navigation'
+import {apiRequest} from '@/api/client'
 import { sentenceCase } from '@/lib/labels'
 import { useRoleDescriptions } from '@/hooks/useRoleModules'
 import { useModuleDefinitions } from '@/components/Modules/ModuleRegistry'
@@ -5,8 +7,8 @@ import { presentRoleDescription } from '@/lib/rolePresentation'
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { DisclosureChevron } from '@/components/Shared/DisclosureChevron'
-import { Check, ClipboardCheck, FlaskConical, History, Search, Trash2, Wrench } from 'lucide-react'
-import { emptyFilters, scopeParams, sod, sodPost, type ActivityDetail, type AssignmentRow, type DecisionEvent, type OverviewAssignment, type Subject } from '@/api/sod'
+import { Layers, ShieldCheck, ListChecks, Check, ClipboardCheck, FlaskConical, History, Search, Trash2, Wrench } from 'lucide-react'
+import { emptyFilters, scopeParams, sod, sodPost, type ActivityDetail, type AssignmentRow, type DecisionEvent, type OverviewAssignment, type Subject, type ReviewCoverage } from '@/api/sod'
 import { useViewHistory, userHref } from '@/hooks/useViewHistory'
 import { SidePanel } from '@/components/Shared/SidePanel'
 import { Button, IconButton } from '@/components/Shared/Button'
@@ -35,7 +37,7 @@ const reviewerKey = 'sap-lens-sod-reviewer'
 const rememberedReviewer = () => { try { return sessionStorage.getItem(reviewerKey) || '' } catch { return '' } }
 
 const DECIDED = new Set(['Approved', 'Keep', 'Accepted', 'Conditional', 'Removal required', 'Rejected'])
-const progressOf = (rows: { decision?: string; acceptance?: string }[]) => rows.filter((row) => DECIDED.has((row.decision ?? row.acceptance) as string)).length
+const progressOf = (rows: { decision?: string; acceptance?: string; review_coverage?: ReviewCoverage }[]) => rows.filter((row) => row.review_coverage?.reviewed ?? DECIDED.has((row.decision ?? row.acceptance) as string)).length
 
 /** Unified review workspace for one SAP user: three independent review sections, history on demand and read-only supporting evidence. */
 export function SodInvestigation({ context, user, risk, activity, onClose, onScope }: { context: string; user: string; risk?: string; activity?: string; onClose: () => void; onScope?: (subject: { user: string }) => void }) {
@@ -54,6 +56,10 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
     formRef = useRef<HTMLDivElement>(null)
   const params = scopeParams(context, emptyFilters, { user, ...(risk ? { risk } : {}), ...(activity ? { activity } : {}) })
   const query = useQuery({ queryKey: ['sod-subject', params.toString()], queryFn: () => sod<Subject>('/api/sod/subject', params) })
+  const runtime=useQuery({queryKey:['review-runtime-identity'],queryFn:()=>apiRequest<{username:string;role:string}>('/api/runtime'),retry:false})
+  const authenticated=!!runtime.data?.username
+  const reviewer=runtime.data?.username||quickReviewer
+  const [reviewTab,setReviewTab]=useState<Kind>('assignment'),tabId=useId()
   const data = query.data
   const ok = !!data?.reviewable
   useEffect(() => { if (form) formRef.current?.scrollIntoView?.({ block: 'nearest' }) }, [form])
@@ -66,9 +72,9 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
   const queue = useRef<Promise<void>>(Promise.resolve())
   const quickDecide = (row: OverviewAssignment, decision: 'Keep' | 'Remove' | 'Investigate') => {
     setQuickError('')
-    if (!quickReviewer.trim()) { setQuickError('Enter a reviewer name above before recording a decision. It is self-reported and stored with each decision.'); return }
+    if (!reviewer.trim()) { setQuickError('Enter a reviewer name above before recording a decision. It is self-reported and stored with each decision.'); return }
     setQuickBusy((previous) => new Set(previous).add(row.id))
-    const reviewer = quickReviewer.trim(), justification = quickRationale.trim() || QUICK_RATIONALE
+    const savedReviewer = reviewer.trim(), justification = quickRationale.trim() || QUICK_RATIONALE
     const save = async () => {
       try {
         for (let attempt = 0; attempt < 2; attempt++) {
@@ -84,7 +90,7 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
             throw cause
           }
         }
-        try { sessionStorage.setItem(reviewerKey, reviewer) } catch { /* optional convenience */ }
+        try { sessionStorage.setItem(reviewerKey, savedReviewer) } catch { /* optional convenience */ }
         await invalidateSod(qc)
       } catch (cause) {
         setQuickError(`${decision === 'Keep' ? 'Keep' : decision === 'Investigate' ? 'Investigate' : 'Removal recommendation'} for ${row.role} was not saved. ${cause instanceof Error ? cause.message : 'Try again.'}`)
@@ -125,27 +131,20 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
           </Toolbar>
           {data.account && <p className="ui-description flex flex-wrap items-center gap-x-2 gap-y-1"><span>Directory match</span><StatusBadge tone={data.account.directory_match === 'matched' ? 'success' : ['ambiguous', 'unmatched'].includes(data.account.directory_match) ? 'warning' : 'neutral'}>{sentenceCase(data.account.directory_match)}</StatusBadge><span>AD {data.account.ad_status}{data.account.lock_status ? ` · SAP ${data.account.lock_status}` : ''}</span></p>}
           {scoped && <p className="ui-description" role="status">Showing only {risk ? `risk ${risk}` : `activity ${activity}`} and the evidence behind it.{onScope && <> <Button variant="ghost" onClick={() => onScope({ user })}>Show all review items for {user}</Button></>}</p>}
-          <p className="ui-description">Activity review, role assignment review and risk acceptance are separate decisions. None of them changes what is detected or changes SAP.</p>
+          <p className="ui-description">Access review coverage can derive from current role or activity decisions. Formal risk acceptance and verified remediation remain separate; planned removals never change detected conflicts.</p>
         </section>
-        {form && <div ref={formRef}><DecisionForm key={form.heading} form={form} subject={data} onCancel={() => setForm(null)} onSaved={async () => { setForm(null); setPicked({ activity: [], assignment: [], acceptance: [] }); await invalidateSod(qc) }} /></div>}
 
-        <ReviewSection title="Activity Review" kind="activity" done={progressOf(activities)} total={activities.length} ok={ok} picked={picked.activity} keys={activities.map((row) => row.key)} onPickAll={(keys) => setPicked((previous) => ({ ...previous, activity: keys }))}
-          onBatch={() => batch('activity', `Batch activity review (${picked.activity.length})`, activities.filter((row) => picked.activity.includes(row.key)).map((row) => item(row.key, row.activity, row.evidence_version)))}>
-          {activities.map((row) => (
-            <ReviewRow key={row.key} focused={focus(row.activity, 'activity')} label={row.activity} checked={picked.activity.includes(row.key)} onCheck={ok ? () => pick('activity', row.key) : undefined}
-              compact title={<SodPill kind="activity" value={row.activity} />} summary={<><span className="id-pill-list" aria-label={`Risks supplied by ${row.activity}`}>{row.risks.map(risk => <SodPill key={risk} kind="risk" value={risk} />)}</span><StatusBadge tone={row.duplicate_coverage ? 'info' : 'neutral'}><span title={row.duplicate_coverage ? 'Several role assignments supply this activity' : 'Role assignments supplying this activity'}>{row.roles} role assignment{row.roles === 1 ? '' : 's'}{row.duplicate_coverage ? ' · overlapping' : ''}</span></StatusBadge></>} status={row.decision} event={row.event}
-              actions={ok && <IconButton label={`Review activity ${row.activity}`} tooltip="Record an activity review" variant={row.decision === 'Pending' ? 'primary' : 'secondary'} onClick={() => setForm({ kind: 'activity', heading: `Activity review · ${row.activity}`, items: [item(row.key, row.activity, row.evidence_version)] })}><ClipboardCheck size={16} aria-hidden="true" /></IconButton>}
-              history={<DecisionHistory kind="activity" context={context} keyId={row.key} label="Activity review history" />} />
-          ))}
-        </ReviewSection>
 
-        <ReviewSection title="Role Assignment Review" kind="assignment" done={progressOf(assignments)} total={assignments.length} ok={ok} picked={picked.assignment} keys={assignments.map((row) => row.id)} onPickAll={(keys) => setPicked((previous) => ({ ...previous, assignment: keys }))}
+        <FormField label={authenticated?'Reviewer (authenticated)':'Reviewer (self-reported)'}><Input value={reviewer} readOnly={authenticated} maxLength={120} placeholder="Your name" onChange={event=>{setQuickReviewer(event.target.value);try{sessionStorage.setItem(reviewerKey,event.target.value)}catch{/* optional convenience */}}}/></FormField>
+        <ContentTabList label="Subject review sections" value={reviewTab} onChange={value=>setReviewTab(value as Kind)} idPrefix={tabId} panelId={value=>`${tabId}-panel-${value}`} items={[
+          {value:'assignment',label:`Roles ${progressOf(assignments)}/${assignments.length}`,icon:<Layers size={16} aria-hidden="true"/>},
+          {value:'activity',label:`Activities ${progressOf(activities)}/${activities.length}`,icon:<ListChecks size={16} aria-hidden="true"/>},
+          {value:'acceptance',label:`Risks ${progressOf(risks)}/${risks.length}`,icon:<ShieldCheck size={16} aria-hidden="true"/>}]}/>
+        {form && <div ref={formRef} hidden={reviewTab!==form.kind}><DecisionForm key={form.heading} form={form} sharedReviewer={reviewer} subject={data} onCancel={() => setForm(null)} onSaved={async () => { setForm(null); setPicked({ activity: [], assignment: [], acceptance: [] }); await invalidateSod(qc) }} /></div>}
+        <div role="tabpanel" id={`${tabId}-panel-assignment`} aria-labelledby={`${tabId}-assignment`} hidden={reviewTab!=='assignment'}>        <ReviewSection title="Role Assignment Review" kind="assignment" done={progressOf(assignments)} total={assignments.length} ok={ok} picked={picked.assignment} keys={assignments.map((row) => row.id)} onPickAll={(keys) => setPicked((previous) => ({ ...previous, assignment: keys }))}
           note="Reviewed with the other activities each role supplies, so one assignment can serve several approved activities."
           onBatch={() => batch('assignment', `Batch role assignment review (${picked.assignment.length})`, assignments.filter((row) => picked.assignment.includes(row.id)).map((row) => item(row.id, row.role, row.evidence_version)))}>
-          {ok && assignments.length > 0 && <div className="quick-review-identity" role="group" aria-label="Quick review details">
-            <FormField label="Reviewer (self-reported)"><Input value={quickReviewer} maxLength={120} placeholder="Your name" onChange={(event) => setQuickReviewer(event.target.value)} /></FormField>
-            <FormField label="Rationale (optional)"><Input value={quickRationale} maxLength={400} placeholder={QUICK_RATIONALE} onChange={(event) => setQuickRationale(event.target.value)} /></FormField>
-          </div>}
+          {ok && <FormField label="Rationale (optional)"><Input value={quickRationale} maxLength={400} placeholder={QUICK_RATIONALE} onChange={(event) => setQuickRationale(event.target.value)} /></FormField>}
           {quickError && <p role="alert" className="text-[var(--error)]">{quickError}</p>}
           {assignments.map((row) => (
             <AssignmentReviewRow key={row.id} row={row} description={describe(row.catalogue_roles)} ok={ok} checked={picked.assignment.includes(row.id)} onCheck={() => pick('assignment', row.id)} busy={quickBusy.has(row.id)}
@@ -155,16 +154,29 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
           ))}
         </ReviewSection>
 
-        <ReviewSection title="Risk Acceptance" kind="acceptance" done={progressOf(risks)} total={risks.length} ok={ok} picked={picked.acceptance} keys={risks.map((row) => row.finding_id)} onPickAll={(keys) => setPicked((previous) => ({ ...previous, acceptance: keys }))}
+</div>
+        <div role="tabpanel" id={`${tabId}-panel-activity`} aria-labelledby={`${tabId}-activity`} hidden={reviewTab!=='activity'}>        <ReviewSection title="Activity Review" kind="activity" done={progressOf(activities)} total={activities.length} ok={ok} picked={picked.activity} keys={activities.map((row) => row.key)} onPickAll={(keys) => setPicked((previous) => ({ ...previous, activity: keys }))}
+          onBatch={() => batch('activity', `Batch activity review (${picked.activity.length})`, activities.filter((row) => picked.activity.includes(row.key)).map((row) => item(row.key, row.activity, row.evidence_version)))}>
+          {activities.map((row) => (
+            <ReviewRow key={row.key} focused={focus(row.activity, 'activity')} label={row.activity} checked={picked.activity.includes(row.key)} onCheck={ok ? () => pick('activity', row.key) : undefined}
+              compact title={<SodPill kind="activity" value={row.activity} />} summary={<><span className="id-pill-list" aria-label={`Risks supplied by ${row.activity}`}>{row.risks.map(risk => <SodPill key={risk} kind="risk" value={risk} />)}</span><StatusBadge tone={row.duplicate_coverage ? 'info' : 'neutral'}><span title={row.duplicate_coverage ? 'Several role assignments supply this activity' : 'Role assignments supplying this activity'}>{row.roles} role assignment{row.roles === 1 ? '' : 's'}{row.duplicate_coverage ? ' · overlapping' : ''}</span></StatusBadge></>} status={row.decision} event={row.event} coverage={row.review_coverage}
+              actions={ok && <IconButton label={`Review activity ${row.activity}`} tooltip="Record an activity review" variant={row.decision === 'Pending' ? 'primary' : 'secondary'} onClick={() => setForm({ kind: 'activity', heading: `Activity review · ${row.activity}`, items: [item(row.key, row.activity, row.evidence_version)] })}><ClipboardCheck size={16} aria-hidden="true" /></IconButton>}
+              history={<DecisionHistory kind="activity" context={context} keyId={row.key} label="Activity review history" />} />
+          ))}
+        </ReviewSection>
+
+</div>
+        <div role="tabpanel" id={`${tabId}-panel-acceptance`} aria-labelledby={`${tabId}-acceptance`} hidden={reviewTab!=='acceptance'}>        <ReviewSection title="Risk Acceptance" kind="acceptance" done={progressOf(risks)} total={risks.length} ok={ok} picked={picked.acceptance} keys={risks.map((row) => row.finding_id)} onPickAll={(keys) => setPicked((previous) => ({ ...previous, acceptance: keys }))}
           note="Accepting a risk needs a justification, an approver different from the reviewer and optional controls. It never suppresses detection."
           onBatch={() => batch('acceptance', `Batch risk acceptance (${picked.acceptance.length})`, risks.filter((row) => picked.acceptance.includes(row.finding_id)).map((row) => item(row.finding_id, row.risk_id, row.evidence_version)))}>
           {risks.map((row) => (
             <ReviewRow key={row.finding_id} focused={focus(row.risk_id, 'risk')} label={row.risk_id} checked={picked.acceptance.includes(row.finding_id)} onCheck={ok ? () => pick('acceptance', row.finding_id) : undefined}
-              title={<SodPill kind="risk" value={row.risk_id} />} meta={<>{row.display_name || row.source_text || 'No description in the SoD matrix'}</>} status={row.acceptance} event={row.event}
+              title={<SodPill kind="risk" value={row.risk_id} />} meta={<>{row.display_name || row.source_text || 'No description in the SoD matrix'}</>} status={row.acceptance} event={row.event} coverage={row.review_coverage}
               actions={ok && <Button onClick={() => setForm({ kind: 'acceptance', heading: `Risk acceptance · ${row.risk_id}`, items: [item(row.finding_id, row.risk_id, row.evidence_version)] })} aria-label={`Decide risk acceptance ${row.risk_id}`}><ClipboardCheck size={16} aria-hidden="true" />Decide</Button>}
               history={<DecisionHistory kind="acceptance" context={context} keyId={row.finding_id} label="Risk acceptance history" />} />
           ))}
         </ReviewSection>
+</div>
         {!!data.risk?.legacy_decisions.length && <AlertNote>{data.risk.legacy_decisions.length} legacy risk decision(s) recorded before activity-level review are retained as history and were not converted to a risk acceptance.</AlertNote>}
 
         {total === 0 && <EmptyState>No conflict-relevant evidence for this user.</EmptyState>}
@@ -249,8 +261,8 @@ function AssignmentReviewRow({ row, description, ok, checked, onCheck, busy, onD
 }
 
 /** Compact rows keep identity, status, coverage and the decision action on one line; the latest decision text and the history sit behind an expand control. */
-function ReviewRow({ label, title, meta, summary, compact, status, event, actions, history, checked, onCheck, focused }: {
-  label: string; title: ReactNode; meta?: ReactNode; summary?: ReactNode; compact?: boolean; status: string; event: DecisionEvent | null; actions?: ReactNode; history: ReactNode; checked: boolean; onCheck?: () => void; focused?: boolean
+function ReviewRow({ label, title, meta, summary, compact, status, event, coverage, actions, history, checked, onCheck, focused }: {
+  label: string; title: ReactNode; meta?: ReactNode; summary?: ReactNode; compact?: boolean; coverage?: ReviewCoverage; status: string; event: DecisionEvent | null; actions?: ReactNode; history: ReactNode; checked: boolean; onCheck?: () => void; focused?: boolean
 }) {
   const [open, setOpen] = useState(false), detailId = useId()
   return (
@@ -259,7 +271,7 @@ function ReviewRow({ label, title, meta, summary, compact, status, event, action
       <div className="sod-review-compact">
         {onCheck && <Checkbox checked={checked} onChange={onCheck} aria-label={`Select ${label}`}><span className="sr-only">Select</span></Checkbox>}
         <span className="min-w-0">{title}</span>
-        <LifecycleBadge value={status} />
+        <LifecycleBadge value={status} />{coverage?.reviewed&&<StatusBadge tone="success">{coverage.label||'Reviewed'} · {coverage.provenance}</StatusBadge>}
         <span className="sod-review-summary">{summary}</span>
         <div className="sod-review-actions sod-review-compact-actions">
           {actions}
@@ -324,7 +336,7 @@ function DecisionHistory({ kind, context, keyId, label }: { kind: Kind; context:
   )
 }
 
-export function DecisionForm({ form, subject, onCancel, onSaved }: { form: FormState; subject: Pick<Subject, 'context' | 'revision' | 'generation'>; onCancel: () => void; onSaved: () => Promise<void> }) {
+export function DecisionForm({ form, subject, sharedReviewer, onCancel, onSaved }: { sharedReviewer?: string; form: FormState; subject: Pick<Subject, 'context' | 'revision' | 'generation'>; onCancel: () => void; onSaved: () => Promise<void> }) {
   const options = OPTIONS[form.kind],
     [decision, setDecision] = useState(form.decision || options[0].value),
     [reviewer, setReviewer] = useState(rememberedReviewer),
@@ -335,6 +347,7 @@ export function DecisionForm({ form, subject, onCancel, onSaved }: { form: FormS
     [error, setError] = useState(''),
     [confirmed, setConfirmed] = useState(form.items.length < 2),
     [busy, setBusy] = useState(false)
+  const effectiveReviewer=sharedReviewer??reviewer
   const needsControls = form.kind === 'activity' && decision === 'Conditional' || form.kind === 'acceptance' && decision === 'Accepted'
   const formal = form.kind === 'acceptance' && decision !== 'Pending'
   const save = async () => {
@@ -343,8 +356,8 @@ export function DecisionForm({ form, subject, onCancel, onSaved }: { form: FormS
     try {
       const date = expires ? parseNorwegianDate(expires) : null
       if (expires && !date) throw Error('Use DD.MM.YYYY for the expiration date.')
-      await sodPost(`/api/sod/decisions/${form.kind}`, { context: subject.context, expected_revision: subject.revision, expected_generation: subject.generation, items: form.items, decision, reviewer, approver, justification, controls, expires: date })
-      try { sessionStorage.setItem(reviewerKey, reviewer) } catch { /* optional convenience */ }
+      await sodPost(`/api/sod/decisions/${form.kind}`, { context: subject.context, expected_revision: subject.revision, expected_generation: subject.generation, items: form.items, decision, reviewer: effectiveReviewer, approver, justification, controls, expires: date })
+      try { sessionStorage.setItem(reviewerKey, effectiveReviewer) } catch { /* optional convenience */ }
       await onSaved()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'The decision could not be saved.')
@@ -359,7 +372,7 @@ export function DecisionForm({ form, subject, onCancel, onSaved }: { form: FormS
       <FormField label={`${KIND_LABEL[form.kind]} decision`}>
         <Select value={decision} onChange={(event) => setDecision(event.target.value)}>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</Select>
       </FormField>
-      <FormField label="Reviewer (self-reported)"><Input value={reviewer} maxLength={120} onChange={(event) => setReviewer(event.target.value)} /></FormField>
+      {sharedReviewer===undefined&&<FormField label="Reviewer (self-reported)"><Input value={reviewer} maxLength={120} onChange={(event) => setReviewer(event.target.value)} /></FormField>}
       {formal && <FormField label="Approver (must differ from reviewer)"><Input value={approver} maxLength={120} onChange={(event) => setApprover(event.target.value)} /></FormField>}
       <FormField label="Justification"><textarea className="ui-control min-h-20" value={justification} maxLength={4000} onChange={(event) => setJustification(event.target.value)} /></FormField>
       {(needsControls || form.kind === 'acceptance' && formal) && <FormField label={form.kind === 'activity' ? 'Conditions' : 'Compensating controls (optional)'}><textarea className="ui-control min-h-16" value={controls} maxLength={8000} onChange={(event) => setControls(event.target.value)} /></FormField>}
@@ -367,7 +380,7 @@ export function DecisionForm({ form, subject, onCancel, onSaved }: { form: FormS
       {form.items.length > 1 && <Checkbox checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)}>Record this decision for {form.items.length} selected {KIND_LABEL[form.kind].toLowerCase()} items, each with its own history entry</Checkbox>}
       {error && <p role="alert">{error}</p>}
       <Toolbar>
-        <Button loading={busy} disabled={!confirmed || !reviewer.trim() || !justification.trim() || formal && !approver.trim() || form.kind === 'activity' && decision === 'Conditional' && !controls.trim()} onClick={() => void save()}>Save decision</Button>
+        <Button loading={busy} disabled={!confirmed || !effectiveReviewer.trim() || !justification.trim() || formal && !approver.trim() || form.kind === 'activity' && decision === 'Conditional' && !controls.trim()} onClick={() => void save()}>Save decision</Button>
         <Button variant="ghost" onClick={onCancel}>Cancel</Button>
       </Toolbar>
     </section>

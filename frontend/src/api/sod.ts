@@ -16,8 +16,8 @@ export interface ContextInfo {
 }
 export interface RiskColumn { risk_id: string; criticality: string; display_name: string; source_text: string; category: string; users: number }
 export interface ActivityColumn { activity: string; risks: string[]; users: number }
-export interface RiskCell { finding_id: string; criticality: string; acceptance: Lifecycle; activities: Record<string, number> }
-export interface ActivityCell { key: string; decision: Lifecycle; roles: number; risks: string[]; duplicate: boolean }
+export interface RiskCell { review_coverage?: ReviewCoverage; finding_id: string; criticality: string; acceptance: Lifecycle; activities: Record<string, number> }
+export interface ActivityCell { review_coverage?: ReviewCoverage; key: string; decision: Lifecycle; roles: number; risks: string[]; duplicate: boolean }
 export interface GroupCell { users: number }
 export interface MatrixRow<Cell> { user: string; groups: string[]; users?: number; cells: Record<string, Cell | GroupCell>; /** Grouped view only: the one SAP User Group this user is listed under. */ group?: string }
 export interface GroupSummary { name: string; users: number; findings: number; start: number }
@@ -98,14 +98,15 @@ export interface AssignmentImpact {
   warnings: string[]
   eliminates_all: boolean
 }
-export interface OverviewAssignment { id: string; role: string; decision: Lifecycle; event: DecisionEvent | null; evidence_version: string; risks: string[]; activities: string[]; valid_from: string | null; valid_to: string | null; interval_status: string | null; user_group: string; catalogue_roles: string[] }
+export interface ReviewCoverage { reviewed: boolean; provenance: string; removal_planned: boolean; risk_accepted?: boolean; remediation_verified?: boolean; label?: string }
+export interface OverviewAssignment { id: string; role: string; review_coverage?: ReviewCoverage; decision: Lifecycle; event: DecisionEvent | null; evidence_version: string; risks: string[]; activities: string[]; valid_from: string | null; valid_to: string | null; interval_status: string | null; user_group: string; catalogue_roles: string[] }
 export interface SubjectOverview {
-  activities: { activity: string; key: string; decision: Lifecycle; event: DecisionEvent | null; evidence_version: string; risks: string[]; tcodes: string[]; roles: number; duplicate_coverage: boolean }[]
+  activities: { activity: string; key: string; review_coverage?: ReviewCoverage; decision: Lifecycle; event: DecisionEvent | null; evidence_version: string; risks: string[]; tcodes: string[]; roles: number; duplicate_coverage: boolean }[]
   assignments: OverviewAssignment[]
-  risks: { risk_id: string; criticality: string; display_name: string; source_text: string; finding_id: string; evidence_version: string; acceptance: Lifecycle; event: DecisionEvent | null }[]
+  risks: { risk_id: string; criticality: string; display_name: string; source_text: string; review_coverage?: ReviewCoverage; finding_id: string; evidence_version: string; acceptance: Lifecycle; event: DecisionEvent | null }[]
 }
 export interface UserQueueRow {
-  user: string; groups?: string[]; total: number; decided: number; outstanding: number; removal: number; historical: number
+  formal_acceptance: { total: number; decided: number }; user: string; groups?: string[]; total: number; decided: number; outstanding: number; removal: number; historical: number
   activity: { total: number; decided: number }; assignment: { total: number; decided: number }; acceptance: { total: number; decided: number }
 }
 export interface Subject extends ContextInfo {

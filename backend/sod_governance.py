@@ -184,7 +184,48 @@ def states(model, latest, today=None):
         for finding in entry['findings'].values():
             event = latest['acceptance'].get(finding['finding_id'])
             result['acceptance'][finding['finding_id']] = (lifecycle('acceptance', event, finding['evidence_version'], today), event)
+    result['coverage'] = review_coverage(model, result)
     return result
+
+
+def review_coverage(model, state):
+    """Current assessment coverage, separate from decisions, acceptance and verified remediation.
+
+    DAG: assignment decisions -> base activities -> risk assessment. Explicit risk
+    reviews may cover activities only after risk coverage has been calculated, so
+    that coverage cannot travel back through a shared activity into another risk.
+    This pure calculation never writes events or changes imported evidence.
+    """
+    covered = dict(activity={}, assignment={}, acceptance={})
+    for entry in model.values():
+        for aid in entry['assignments']:
+            life = state['assignment'][aid][0]
+            covered['assignment'][aid] = dict(reviewed=life in {'Keep','Removal required'}, provenance='Explicit assignment review' if life in {'Keep','Removal required'} else '', removal_planned=life=='Removal required')
+        base = {}
+        for name, activity in entry['activities'].items():
+            life = state['activity'][activity['key']][0]
+            manual = life in {'Approved','Conditional','Removal required'}
+            through_roles = bool(activity['assignments']) and all(covered['assignment'][aid]['reviewed'] for aid in activity['assignments'])
+            base[name] = dict(reviewed=manual or through_roles, provenance='Explicit activity review' if manual else 'Reviewed through roles' if through_roles else '', removal_planned=False)
+        removed = {aid for aid in entry['assignments'] if state['assignment'][aid][0]=='Removal required'}
+        planned = set(simulate(entry, removed)['resolved']) if removed else set()
+        explicit_risks = set()
+        for rid, finding in entry['findings'].items():
+            life = state['acceptance'][finding['finding_id']][0]
+            manual = life in {'Accepted','Rejected'}
+            if manual: explicit_risks.add(rid)
+            names = {path['activity'] for paths in finding['evidence'].values() for path in paths}
+            derived = bool(names) and all(base[name]['reviewed'] for name in names)
+            reviewed = manual or derived
+            covered['acceptance'][finding['finding_id']] = dict(reviewed=reviewed, provenance='Explicit risk review' if manual else 'Reviewed through access evidence' if derived else '',
+                removal_planned=rid in planned, risk_accepted=life=='Accepted', remediation_verified=False,
+                label='Reviewed — removal planned' if reviewed and rid in planned else 'Reviewed' if reviewed else 'Needs review')
+        for name, activity in entry['activities'].items():
+            value = dict(base[name])
+            if not value['reviewed'] and activity['risks'] & explicit_risks:
+                value.update(reviewed=True,provenance='Reviewed through risk review')
+            covered['activity'][activity['key']] = value
+    return covered
 
 
 def _bucket(values):
@@ -203,7 +244,7 @@ def risk_matrix(model, state):
             sides = sorted({name for name, activity in entry['activities'].items() if risk_id in activity['risks']})
             review = _bucket(state['activity'][entry['activities'][name]['key']][0] for name in sides)
             acceptance = state['acceptance'][finding['finding_id']][0]
-            cells[risk_id] = dict(finding_id=finding['finding_id'], criticality=finding['criticality'], acceptance=acceptance, activities=review)
+            cells[risk_id] = dict(finding_id=finding['finding_id'], criticality=finding['criticality'], acceptance=acceptance, activities=review, review_coverage=state['coverage']['acceptance'][finding['finding_id']])
             risk = finding.get('risk') or {}
             column = columns.setdefault(risk_id, dict(risk_id=risk_id, criticality=finding['criticality'], display_name=risk.get('display_name', ''),
                                                       source_text=risk.get('source_text', ''), category=risk.get('business_category', ''), users=set()))
@@ -227,7 +268,7 @@ def activity_matrix(model, state):
         for name, activity in sorted(entry['activities'].items()):
             lifecycle_name = state['activity'][activity['key']][0]
             cells[name] = dict(key=activity['key'], decision=lifecycle_name, roles=len(activity['assignments']), risks=sorted(activity['risks']),
-                               duplicate=len(activity['assignments']) > 1)
+                               duplicate=len(activity['assignments']) > 1, review_coverage=state['coverage']['activity'][activity['key']])
             column = columns.setdefault(name, dict(activity=name, risks=set(), users=set()))
             column['risks'] |= activity['risks']
             column['users'].add(user)
@@ -324,6 +365,8 @@ def queue_items(model, state, context_info=None):
             lifecycle_name, event = state['acceptance'][finding['finding_id']]
             items.append(dict(kind='acceptance', key=finding['finding_id'], user=user, groups=sorted(entry['groups']), ref=risk_id, risks=[risk_id], lifecycle=lifecycle_name,
                               roles=0, event=event, evidence_version=finding['evidence_version']))
+    for item in items:
+        item['review_coverage'] = state['coverage'][item['kind']][item['key']]
     return items
 
 

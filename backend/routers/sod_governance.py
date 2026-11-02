@@ -301,6 +301,10 @@ def subject(q: dict = Depends(scope_query), user: str = Query(..., max_length=51
                     source_text=(item.get('risk') or {}).get('source_text', ''), finding_id=item['finding_id'], evidence_version=item['evidence_version'],
                     acceptance=state['acceptance'][item['finding_id']][0], event=_event(state['acceptance'][item['finding_id']][1]))
                for risk_id, item in sorted(entry['findings'].items())])
+    for kind,rows_for_kind in [('activity',overview['activities']),('assignment',overview['assignments']),('acceptance',overview['risks'])]:
+        for row in rows_for_kind:
+            key=row['key'] if kind=='activity' else row['id'] if kind=='assignment' else row['finding_id']
+            row['review_coverage']=state['coverage'][kind][key]
     return dict(info(bundle), user=user, groups=sorted(entry['groups']), account=entry.get('account'), risk=risk_info, activities=rows, related_risks=related, impact=impact, overview=overview)
 
 
@@ -332,7 +336,7 @@ STATUS_FILTERS = ('Pending', 'Reviewed', 'Conditional', 'Removal required', 'Inv
 
 def _status_match(item, status, awaiting):
     life = item['lifecycle']
-    return {'Pending': life == 'Pending', 'Reviewed': life in {'Approved', 'Keep', 'Accepted'}, 'Conditional': life == 'Conditional',
+    return {'Pending': life == 'Pending' and not item.get('review_coverage',{}).get('reviewed',False), 'Reviewed': item.get('review_coverage',{}).get('reviewed',False) or life in {'Approved', 'Keep', 'Accepted'}, 'Conditional': life == 'Conditional',
             'Removal required': life == 'Removal required', 'Investigate': life == 'Investigate', 'Rejected': life == 'Rejected',
             'Risk acceptance pending': item['kind'] == 'acceptance' and life == 'Pending',
             'Awaiting approval': awaiting and life in scope.DECIDED, 'Outdated': life == 'Outdated', 'Resolved': life == 'Resolved', 'Historical': life == 'Historical'}[status]
@@ -362,7 +366,7 @@ def _queue(q, kind, status):
 
 
 QUEUE_COLUMNS = ['CONTEXT', 'REVIEW_TYPE', 'USERNAME', 'USER_GROUPS', 'REFERENCE', 'RISKS', 'LIFECYCLE', 'DECISION', 'REVIEWER', 'APPROVER', 'TIMESTAMP',
-                 'JUSTIFICATION', 'CONTROLS', 'EXPIRES', 'EVIDENCE_VERSION']
+                 'JUSTIFICATION', 'CONTROLS', 'EXPIRES', 'EVIDENCE_VERSION', 'ACCESS_REVIEWED', 'REVIEW_PROVENANCE', 'REMOVAL_PLANNED']
 
 
 def native_csv_header(filename):
@@ -410,12 +414,17 @@ def queue_users(q: dict = Depends(scope_query), progress: Literal['', 'outstandi
             continue
         part = row[item['kind']]
         part['total'] += 1
-        part['decided'] += item['lifecycle'] in scope.DECIDED
+        part['decided'] += item.get('review_coverage',{}).get('reviewed',item['lifecycle'] in scope.DECIDED)
         row['removal'] += item['lifecycle'] == 'Removal required'
+        if item['kind']=='acceptance':
+            row.setdefault('formal_acceptance',dict(total=0,decided=0))
+            row['formal_acceptance']['total']+=1
+            row['formal_acceptance']['decided']+=item['lifecycle']=='Accepted'
     result = []
     for row in rows.values():
         total = sum(row[kind]['total'] for kind in decisions.DECISIONS)
         decided = sum(row[kind]['decided'] for kind in decisions.DECISIONS)
+        row.setdefault('formal_acceptance',dict(total=0,decided=0))
         result.append(dict(row, total=total, decided=decided, outstanding=total - decided))
     result = [row for row in result if row['total']]
     counts = dict(all=len(result), outstanding=sum(row['outstanding'] > 0 for row in result), complete=sum(row['total'] > 0 and row['outstanding'] == 0 for row in result), removal=sum(row['removal'] > 0 for row in result))
@@ -441,7 +450,7 @@ def queue_export(q: dict = Depends(scope_query), kind: Literal['', 'activity', '
             event = item['event']
             yield [q['context'], item['kind'], item['user'], ', '.join(item.get('groups', [])), item['ref'], ', '.join(item['risks']), item['lifecycle'], event.decision if event else '',
                    event.reviewer if event else '', event.approver if event else '', event.timestamp if event else '', event.justification if event else '',
-                   event.controls if event else '', event.expires.isoformat() if event and event.expires else '', event.evidence_version if event else '']
+                   event.controls if event else '', event.expires.isoformat() if event and event.expires else '', event.evidence_version if event else '', item.get('review_coverage',{}).get('reviewed',False), item.get('review_coverage',{}).get('provenance',''), item.get('review_coverage',{}).get('removal_planned',False)]
     return csv_response(QUEUE_COLUMNS, rows(), 'review-queue')
 
 

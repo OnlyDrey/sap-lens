@@ -103,3 +103,20 @@ cannot be inferred from them. Saved filters gain new views; existing ones are un
 Matrices page 50 users at a time (max 200) and window columns above 48. Up to 500 columns
 are returned (narrow with filters beyond that). Decision stores allow 100,000 subjects,
 500 events each; batches are limited to 100 items. Reports are limited to 20,000 table rows.
+
+## Shared access-review coverage
+
+`sod_governance.review_coverage` is a pure derivation over current evidence and
+valid decision lifecycles. It does not write or reinterpret manual decisions.
+Every relevant assignment needs a valid Keep/Remove decision to cover an activity
+through roles. A risk's access assessment is covered by explicit risk review or
+by coverage of all its relevant activities. Explicit risk review may cover those
+activities, but this final propagation never feeds back into another risk.
+
+The queue, subject panel, matrices and report status tables expose that same
+coverage. Overall completion counts each role/activity/risk item once; formal
+acceptance remains a separate explicit decision. Removal plans use the existing
+what-if calculation, including overlapping providers. A plan never changes the
+imported conflict or establishes verified remediation. Outdated evidence cannot
+provide coverage. Period approval gates continue requiring explicit current
+risk decisions; access-review completion alone does not approve residual risk.

@@ -138,7 +138,9 @@ def _status_table(state):
             ['Reviewed, no action required',count('activity','Approved','Conditional'),count('assignment','Keep'),count('acceptance','Accepted')],
             ['Reviewed, removal recommended',count('activity','Removal required'),count('assignment','Removal required'),'—'],
             ['Reviewed, risk rejected','—','—',count('acceptance','Rejected')],
-            ['Under investigation (not a final decision)','—',count('assignment','Investigate'),'—']]
+            ['Under investigation (not a final decision)','—',count('assignment','Investigate'),'—'],
+            ['Access assessment covered (manual or derived)',*[str(sum(item['reviewed'] for item in state['coverage'][kind].values())) for kind in ('activity','assignment','acceptance')]],
+            ['Removal plan breaks conflict (not verified remediation)','—','—',str(sum(item['removal_planned'] for item in state['coverage']['acceptance'].values()))]]
 
 
 def _followup_table(rows):
@@ -195,7 +197,7 @@ def model(identifier,options):
     user_risk=len(findings)
     pending=dict(activity=_counts(state,'activity','Pending','Outdated'),assignment=_counts(state,'assignment','Pending','Outdated','Investigate'),acceptance=_counts(state,'acceptance','Pending','Outdated')) if v2 else {}
     review_items=sum(len(state[kind]) for kind in ('activity','assignment','acceptance')) if v2 else 0
-    open_items=sum(pending.values())
+    open_items=sum(not item['reviewed'] for values in state['coverage'].values() for item in values.values()) if v2 else 0
     if v2:
         metrics=[['Measure','Count','Unit'],['SAP users evaluated',str(users_evaluated),'users'],['Users with detected potential conflicts',str(len(view)),'users'],['Detected potential conflicts',str(user_risk),'user-risk findings'],
                  ['Activities in review scope',str(len(state['activity'])),'user-activity pairs'],['Activities approved',str(_counts(state,'activity','Approved')),'activities'],['Activities approved conditionally',str(_counts(state,'activity','Conditional')),'activities'],
