@@ -115,7 +115,22 @@ export function useFilterChangeReset(filters: Filters, reset: () => void) {
 }
 
 export const refreshKeys = ['sod-bulk-preview','dashboard','sod-filter-options', 'sod-matrix', 'sod-subject', 'sod-queue', 'sod-explorer', 'sod-overview', 'sod-remediation', 'sod-periods', 'sod-period', 'sod-context']
-export const invalidateSod = (qc: QueryClient) => Promise.all(refreshKeys.map((key) => qc.invalidateQueries({ queryKey: [key] })))
+export async function invalidateSod(qc:QueryClient,reviewFocus?:readonly unknown[]) {
+  if(!reviewFocus)return Promise.all(refreshKeys.map(key=>qc.invalidateQueries({queryKey:[key]})))
+  const affected=(query:{queryKey:readonly unknown[]})=>{
+    const key=String(query.queryKey[0]);if(!refreshKeys.includes(key))return false
+    if(key!=='sod-filter-options')return true
+    // Source-only choices cannot change after a review. Review-scoped choices can.
+    const params=new URLSearchParams(typeof query.queryKey[2]==='string'?query.queryKey[2]:'')
+    return ['review_status','activity_decision','assignment_decision','acceptance','status','tracking'].some(name=>{const value=params.get(name);return !!value&&value!=='all'})
+  }
+  await qc.invalidateQueries({predicate:affected,refetchType:'none'})
+  await qc.refetchQueries({queryKey:reviewFocus,exact:true,type:'active'})
+  // The authoritative subject/revision is ready for the next queued write.
+  // Refresh other active counters without keeping the clicked action spinning.
+  void qc.refetchQueries({type:'active',predicate:query=>affected(query)&&JSON.stringify(query.queryKey)!==JSON.stringify(reviewFocus)}).catch(()=>{})
+}
+
 
 /** One review-context bar for every SoD view, shown beneath the SoD navigation: current evidence or a review period, its evaluation date and whether it is live or a frozen snapshot. */
 export function ContextBar() {

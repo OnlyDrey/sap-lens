@@ -21,9 +21,10 @@ class LeanValidationTests(unittest.TestCase):
         for name in ('sod','settings','user-access','role-lookup'):self.assertIn(name,selected)
         self.assertNotIn('--backend',selected)
     def test_unknown_changes_fail_closed_without_automatic_regression(self):
-        with self.assertRaisesRegex(ValueError,'Unmapped'):validation.plan('fast',[],['unmapped-schema.new'],self.mapping)
+        for path in ['unmapped-schema.new','frontend/src/components/UnknownBusiness/New.tsx']:
+            with self.assertRaisesRegex(ValueError,'Unmapped'):validation.plan('fast',[],[path],self.mapping)
     def test_explicit_full_is_the_existing_regression_engine(self):
-        self.assertEqual(validation.plan('full',[],[],self.mapping),['regression'])
+        self.assertEqual(validation.plan('full',[],[],self.mapping),['release'])
     def test_all_declared_source_owners_and_dependencies_exist(self):
         known=set(self.mapping['features'])
         for rule in self.mapping['validation_sources']:self.assertLessEqual(set(rule['areas']),known)
@@ -51,3 +52,8 @@ class LeanValidationTests(unittest.TestCase):
             self.assertFalse(Path(env['SAP_LENS_DATA_DIR']).parent.exists())
             self.assertTrue(log.is_relative_to(root/'build'))
             self.assertGreater(timeout,0)
+
+    def test_full_cannot_be_silently_narrowed_or_skip_its_build(self):
+        for option in [['--grep','one'],['--area','sod'],['--no-build']]:
+            with patch('sys.stderr'),self.assertRaises(SystemExit) as error:validation.main(['--level','full',*option])
+            self.assertEqual(error.exception.code,2)

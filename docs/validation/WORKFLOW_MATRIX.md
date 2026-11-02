@@ -143,3 +143,45 @@ in the earlier essential recheck. Tabbed-section/header expectations were update
 without removing assertions. Four startup cases render the exact generated HTML
 with Playwright rather than navigating a managed-browser-blocked `file://` URL.
 No full suite was restarted; native Windows/WebView2 acceptance is still separate.
+
+## Lean development and stability follow-up — 2 November 2026
+
+- FAST/FEATURE/FULL wrappers delegate to the existing runner. Fourteen policy/profile
+  tests, a real FAST area run, a FEATURE workflow with retained JSON/HTML/JUnit, and
+  the PowerShell plan command passed. FULL now explicitly selects the existing
+  release-validation profile (regression plus available security/platform checks),
+  rejects narrowing/skip-build flags, and never publishes or dispatches anything.
+- Confirmed backend defect: metadata response preparation occurred after the file
+  commit. An injected retained-source read failure reproduced a failed request with
+  silently changed storage. Preparation now precedes the atomic commit for risks
+  and activities. **104 affected backend tests passed**, including concurrent CAS,
+  failed-write preservation, safe error references and subsequent request recovery.
+  These stores are JSON/content-addressed snapshots, not SQLite. Native desktop
+  process termination was not reproduced or claimed fixed.
+- **Eight focused browser workflows passed**, plus the queue-progress/export
+  recheck: configuration server/network error recovery retains drafts; only the
+  clicked action spins; rapid writes preserve decisions; failures restore controls;
+  a same-item competing decision is not automatically overwritten. Existing
+  approval/evidence/frozen-period semantics remain enforced by the backend.
+- Performance evidence used synthetic data and a retained old frontend against the
+  same current backend. Review GET requests were consistently **13 → 5** (one POST
+  in both versions), removing eight source-only option refetches. The controlled
+  single-workflow DOM sample measured pending feedback **34.1 → 15.1 ms**, and
+  confirmation after the test's request gate released **209.9 → 111.5 ms**; API
+  response samples were **32 → 28 ms**. A later loaded batch measured 64.5 ms pending,
+  679.2 ms confirmation and 158 ms API, so no stable elapsed-time improvement/SLA is
+  claimed. These timings exclude the deliberate request hold and browser-driver
+  actionability time. Atomic JSON index commit median was **0.70 ms** across nine
+  samples; three API samples per category gave medians 13.62/13.65/12.14 ms for
+  assignment/activity/risk decisions. No database transaction benchmark is implied.
+- Production type/build checks passed. No complete backend/browser regression was
+  rerun for this round, no deployment checks repeated, and dependencies did not
+  change. Earlier production audits remain applicable; existing development-tool
+  advisories and native Windows/WebView2/SCM/systemd/UNC acceptance remain separate.
+- `SAP_SoD_Risk_and_Activity_Definitions.xlsx` was absent from the accessible workspace
+  and attachments. Reference integration is blocked on that source. No reference
+  contents/columns, activation rules or replacement metadata precedence were invented.
+
+For independent complete local validation, activate the development environment and
+run `python scripts/validate.py --level full --reports` (Windows/Linux). Native
+acceptance still requires the actual target platform.

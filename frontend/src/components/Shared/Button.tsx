@@ -76,13 +76,14 @@ export function IconButton({
   label,
   tooltip = label,
   children,
+  loading = false,
   ...props
 }: ButtonProps & { label: string; tooltip?: string }) {
   const id = useId()
   return (
     <Tooltip label={tooltip} id={id}>
-      <Button {...props} size="icon" aria-label={label} aria-describedby={id}>
-        {children}
+      <Button {...props} size="icon" loading={loading} aria-label={label} aria-describedby={id}>
+        {loading ? null : children}
       </Button>
     </Tooltip>
   )

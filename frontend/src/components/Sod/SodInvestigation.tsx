@@ -51,7 +51,7 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
     [action, setAction] = useState<null | { assignment: AssignmentRow }>(null),
     [quickReviewer, setQuickReviewer] = useState(rememberedReviewer),
     [quickRationale, setQuickRationale] = useState(''),
-    [quickBusy, setQuickBusy] = useState<Set<string>>(new Set()),
+    [quickBusy, setQuickBusy] = useState<Map<string,string>>(new Map()),
     [quickError, setQuickError] = useState(''),
     formRef = useRef<HTMLDivElement>(null)
   const params = scopeParams(context, emptyFilters, { user, ...(risk ? { risk } : {}), ...(activity ? { activity } : {}) })
@@ -70,10 +70,13 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
   /** One-click review. Each assignment is decided on its own: requests run one after another, so each reads the revision the previous
    * save produced, and the row changes only after the server confirmed it. A busy marker belongs to one row, never to the panel. */
   const queue = useRef<Promise<void>>(Promise.resolve())
+  const pendingRows=useRef(new Set<string>())
   const quickDecide = (row: OverviewAssignment, decision: 'Keep' | 'Remove' | 'Investigate') => {
+    if(pendingRows.current.has(row.id))return
     setQuickError('')
     if (!reviewer.trim()) { setQuickError('Enter a reviewer name above before recording a decision. It is self-reported and stored with each decision.'); return }
-    setQuickBusy((previous) => new Set(previous).add(row.id))
+    pendingRows.current.add(row.id)
+    setQuickBusy(previous=>new Map(previous).set(row.id,decision))
     const savedReviewer = reviewer.trim(), justification = quickRationale.trim() || QUICK_RATIONALE
     const save = async () => {
       try {
@@ -81,21 +84,28 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
           const current = qc.getQueryData<Subject>(['sod-subject', params.toString()]) ?? data
           if (!current) return
           try {
-            await sodPost('/api/sod/decisions/assignment', { context: current.context, expected_revision: current.revision, expected_generation: current.generation, items: [item(row.id, row.role, row.evidence_version)],
-              decision, reviewer, approver: '', justification, controls: '', expires: null })
+            const recorded=await sodPost<{revision:number}>('/api/sod/decisions/assignment', { context: current.context, expected_revision: current.revision, expected_generation: current.generation, items: [item(row.id, row.role, row.evidence_version)],
+              decision, reviewer:savedReviewer, approver: '', justification, controls: '', expires: null })
+            qc.setQueryData<Subject>(['sod-subject',params.toString()],previous=>previous?{...previous,revision:recorded.revision}:previous)
             break
           } catch (cause) {
             // Another save moved the shared revision: reload it once and retry this one assignment.
-            if (attempt === 0 && cause instanceof Error && /decisions changed/i.test(cause.message)) { await invalidateSod(qc); continue }
+            if (attempt === 0 && cause instanceof Error && /decisions changed/i.test(cause.message)) {
+              await invalidateSod(qc,['sod-subject',params.toString()])
+              const fresh=qc.getQueryData<Subject>(['sod-subject',params.toString()])?.overview.assignments.find(item=>item.id===row.id)
+              if(!fresh||fresh.evidence_version!==row.evidence_version||fresh.event?.event_id!==row.event?.event_id){cause.message='This assignment changed in another session. Review its current evidence and decision before choosing again.';throw cause}
+              continue
+            }
             throw cause
           }
         }
         try { sessionStorage.setItem(reviewerKey, savedReviewer) } catch { /* optional convenience */ }
-        await invalidateSod(qc)
+        await invalidateSod(qc,['sod-subject',params.toString()])
       } catch (cause) {
         setQuickError(`${decision === 'Keep' ? 'Keep' : decision === 'Investigate' ? 'Investigate' : 'Removal recommendation'} for ${row.role} was not saved. ${cause instanceof Error ? cause.message : 'Try again.'}`)
       } finally {
-        setQuickBusy((previous) => { const next = new Set(previous); next.delete(row.id); return next })
+        pendingRows.current.delete(row.id)
+        setQuickBusy(previous=>{const next=new Map(previous);next.delete(row.id);return next})
       }
     }
     queue.current = queue.current.then(save)
@@ -140,14 +150,14 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
           {value:'assignment',label:`Roles ${progressOf(assignments)}/${assignments.length}`,icon:<Layers size={16} aria-hidden="true"/>},
           {value:'activity',label:`Activities ${progressOf(activities)}/${activities.length}`,icon:<ListChecks size={16} aria-hidden="true"/>},
           {value:'acceptance',label:`Risks ${progressOf(risks)}/${risks.length}`,icon:<ShieldCheck size={16} aria-hidden="true"/>}]}/>
-        {form && <div ref={formRef} hidden={reviewTab!==form.kind}><DecisionForm key={form.heading} form={form} sharedReviewer={reviewer} subject={data} onCancel={() => setForm(null)} onSaved={async () => { setForm(null); setPicked({ activity: [], assignment: [], acceptance: [] }); await invalidateSod(qc) }} /></div>}
+        {form && <div ref={formRef} hidden={reviewTab!==form.kind}><DecisionForm key={form.heading} form={form} sharedReviewer={reviewer} subject={data} onCancel={() => setForm(null)} onSaved={async () => { setForm(null); setPicked({ activity: [], assignment: [], acceptance: [] }); await invalidateSod(qc,['sod-subject',params.toString()]) }} /></div>}
         <div role="tabpanel" id={`${tabId}-panel-assignment`} aria-labelledby={`${tabId}-assignment`} hidden={reviewTab!=='assignment'}>        <ReviewSection title="Role Assignment Review" kind="assignment" done={progressOf(assignments)} total={assignments.length} ok={ok} picked={picked.assignment} keys={assignments.map((row) => row.id)} onPickAll={(keys) => setPicked((previous) => ({ ...previous, assignment: keys }))}
           note="Reviewed with the other activities each role supplies, so one assignment can serve several approved activities."
           onBatch={() => batch('assignment', `Batch role assignment review (${picked.assignment.length})`, assignments.filter((row) => picked.assignment.includes(row.id)).map((row) => item(row.id, row.role, row.evidence_version)))}>
           {ok && <FormField label="Rationale (optional)"><Input value={quickRationale} maxLength={400} placeholder={QUICK_RATIONALE} onChange={(event) => setQuickRationale(event.target.value)} /></FormField>}
           {quickError && <p role="alert" className="text-[var(--error)]">{quickError}</p>}
           {assignments.map((row) => (
-            <AssignmentReviewRow key={row.id} row={row} description={describe(row.catalogue_roles)} ok={ok} checked={picked.assignment.includes(row.id)} onCheck={() => pick('assignment', row.id)} busy={quickBusy.has(row.id)}
+            <AssignmentReviewRow key={row.id} row={row} description={describe(row.catalogue_roles)} ok={ok} checked={picked.assignment.includes(row.id)} onCheck={() => pick('assignment', row.id)} pendingAction={quickBusy.get(row.id)}
               onDecide={(decision) => quickDecide(row, decision)} onOpenRole={() => change({ detailRole: row.catalogue_roles[0] || row.role })}
               onTrack={row.decision === 'Removal required' ? () => setAction({ assignment: { id: row.id, role: row.role, valid_from: row.valid_from, valid_to: row.valid_to, user_group: row.user_group, interval_status: row.interval_status, tcodes: [], other_activities: row.activities, risks: row.risks, catalogue_roles: row.catalogue_roles, evidence_version: row.evidence_version, decision: row.decision, event: row.event } }) : undefined}
               history={<DecisionHistory kind="assignment" context={context} keyId={row.id} label="Assignment review history" />} transactions={tcodesOf.get(row.id) || []} />
@@ -228,7 +238,8 @@ function ReviewSection({ title, kind, done, total, ok, picked, keys, onPickAll, 
 }
 
 /** Collapsed: checkbox, copyable role, review status, icon decisions and an expand control. Expanded: transactions and activities, SAP User Group, validity, history and further actions. */
-function AssignmentReviewRow({ row, description, ok, checked, onCheck, busy, onDecide, onOpenRole, onTrack, history, transactions }: { row: OverviewAssignment; description?: string; ok: boolean; checked: boolean; onCheck: () => void; busy: boolean; onDecide: (decision: 'Keep' | 'Remove' | 'Investigate') => void; onOpenRole: () => void; onTrack?: () => void; history: ReactNode; transactions: string[] }) {
+function AssignmentReviewRow({ row, description, ok, checked, onCheck, pendingAction, onDecide, onOpenRole, onTrack, history, transactions }: { row: OverviewAssignment; description?: string; ok: boolean; checked: boolean; onCheck: () => void; pendingAction?: string; onDecide: (decision: 'Keep' | 'Remove' | 'Investigate') => void; onOpenRole: () => void; onTrack?: () => void; history: ReactNode; transactions: string[] }) {
+  const busy=!!pendingAction
   const [open, setOpen] = useState(false), kept = row.decision === 'Keep', removed = row.decision === 'Removal required', investigating = row.decision === 'Investigate'
   const detailId = useId()
   return (
@@ -238,9 +249,9 @@ function AssignmentReviewRow({ row, description, ok, checked, onCheck, busy, onD
         <div className="sod-assignment-role"><RoleIdentifier value={row.role} onOpen={onOpenRole} openLabel={`Open catalogue role ${row.catalogue_roles[0] || row.role}`} />{description && <p className="sod-assignment-description" title={description}>{description}</p>}</div>
         <LifecycleBadge value={row.decision} />
         {ok && <span className="sod-decision-icons" role="group" aria-label={`Decision for ${row.role}`}>
-          <IconButton label={`Keep ${row.role}`} tooltip="Keep this role assignment" variant={kept ? 'primary' : 'secondary'} aria-pressed={kept} loading={busy} disabled={busy} onClick={() => onDecide('Keep')}><Check size={16} aria-hidden="true" /></IconButton>
-          <IconButton label={`Investigate ${row.role}`} tooltip="Mark for further investigation (not a final decision)" variant={investigating ? 'primary' : 'secondary'} aria-pressed={investigating} loading={busy} disabled={busy} onClick={() => onDecide('Investigate')}><Search size={16} aria-hidden="true" /></IconButton>
-          <IconButton label={`Remove ${row.role}`} tooltip="Recommend removing this role assignment (no change in SAP)" variant={removed ? 'destructive' : 'secondary'} aria-pressed={removed} loading={busy} disabled={busy} onClick={() => onDecide('Remove')}><Trash2 size={16} aria-hidden="true" /></IconButton>
+          <IconButton label={`Keep ${row.role}`} tooltip="Keep this role assignment" variant={kept ? 'primary' : 'secondary'} aria-pressed={kept} loading={pendingAction==='Keep'} disabled={busy} onClick={() => onDecide('Keep')}><Check size={16} aria-hidden="true" /></IconButton>
+          <IconButton label={`Investigate ${row.role}`} tooltip="Mark for further investigation (not a final decision)" variant={investigating ? 'primary' : 'secondary'} aria-pressed={investigating} loading={pendingAction==='Investigate'} disabled={busy} onClick={() => onDecide('Investigate')}><Search size={16} aria-hidden="true" /></IconButton>
+          <IconButton label={`Remove ${row.role}`} tooltip="Recommend removing this role assignment (no change in SAP)" variant={removed ? 'destructive' : 'secondary'} aria-pressed={removed} loading={pendingAction==='Remove'} disabled={busy} onClick={() => onDecide('Remove')}><Trash2 size={16} aria-hidden="true" /></IconButton>
         </span>}
         <IconButton label={`${open ? 'Hide' : 'Show'} details for ${row.role}`} tooltip={open ? 'Hide evidence' : 'Show evidence'} variant="ghost" aria-expanded={open} aria-controls={detailId} onClick={() => setOpen(!open)}><DisclosureChevron open={open} /></IconButton>
       </div>

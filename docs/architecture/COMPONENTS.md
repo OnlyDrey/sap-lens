@@ -285,3 +285,8 @@ components have isolated Component Library previews and are used by the SoD view
 control. `username` is the actual SAP identity; optional `onOpen` isolates showcase
 navigation without changing the link target. Work Queue and Explorer use it;
 Component Library demonstrates it with synthetic state.
+
+`IconButton loading` replaces its child icon with the shared spinner (one icon),
+keeps its accessible label and exposes `aria-busy`; ordinary loading buttons retain
+their text. Review pending state is keyed by assignment ID and action, independently
+of confirmed decision styling.

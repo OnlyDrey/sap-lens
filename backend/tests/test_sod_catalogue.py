@@ -246,5 +246,52 @@ class SodCatalogueTests(unittest.TestCase):
         self.assertEqual(catalogue.LocalMetadata().color, '')
 
 
+    def test_response_preparation_failure_must_not_commit_an_unreported_save(self):
+        self.publish(rows());item=catalogue.catalogue()['items'][0]
+        self.save(item,notes='Original')
+        path=self.root/'config'/'sod-catalogue.json';original=path.read_bytes()
+        real=catalogue.catalogue;calls=0
+        def fail_after_edit(*args,**kwargs):
+            nonlocal calls
+            calls+=1
+            if calls==2:raise HTTPException(409,'Synthetic unavailable response dependency')
+            return real(*args,**kwargs)
+        with patch.object(catalogue,'catalogue',side_effect=fail_after_edit):
+            with self.assertRaises(HTTPException):self.save(item,notes='Must not silently commit')
+        self.assertEqual(path.read_bytes(),original)
+
+    def test_concurrent_saves_use_one_revision_and_reject_stale_writer(self):
+        from concurrent.futures import ThreadPoolExecutor
+        self.publish(rows());item=catalogue.catalogue()['items'][0]
+        def save(note):
+            try:
+                catalogue.save(item['risk_id'],{**item['local'],'notes':note},0,item['definition_version'])
+                return 200
+            except HTTPException as error:return error.status_code
+        with ThreadPoolExecutor(max_workers=2) as pool:codes=list(pool.map(save,['Synthetic A','Synthetic B']))
+        self.assertEqual(sorted(codes),[200,409])
+        self.assertEqual(catalogue.read().revision,1)
+        self.assertIn(catalogue.read().entries[item['risk_id']].metadata.notes,{'Synthetic A','Synthetic B'})
+
+    def test_request_failure_is_controlled_correlated_and_next_request_survives(self):
+        from main import create_app
+        self.publish(rows());item=catalogue.catalogue()['items'][0]
+        client=TestClient(create_app(session_token='synthetic-resilience'),base_url='http://127.0.0.1:18743')
+        headers={'X-SAP-Lens':'synthetic-resilience'}
+        body=dict(expected_revision=0,definition_version=item['definition_version'],metadata=item['local'])
+        with patch.object(catalogue,'save',side_effect=RuntimeError('synthetic-private-record')),self.assertLogs('sap-lens',level='ERROR') as messages:
+            failed=client.post('/api/sod/catalogue/SYN01',json=body,headers=headers)
+        self.assertEqual(failed.status_code,500)
+        self.assertRegex(failed.json()['request_id'],r'^[a-f0-9]{32}$')
+        self.assertEqual(failed.headers['X-Request-ID'],failed.json()['request_id'])
+        self.assertNotIn('synthetic-private-record',failed.text+' '.join(messages.output))
+        self.assertIn('/api/sod/catalogue/{risk_id:path}',' '.join(messages.output))
+        self.assertEqual(client.get('/health',headers=headers).status_code,200)
+        self.assertEqual(client.post('/api/sod/catalogue/SYN01',json=body,headers=headers).status_code,200)
+        invalid={**body,'metadata':{**item['local'],'unexpected':'invalid'}}
+        self.assertEqual(client.post('/api/sod/catalogue/SYN01',json=invalid,headers=headers).status_code,422)
+        self.assertEqual(catalogue.read().revision,1)
+
+
 if __name__ == '__main__':
     unittest.main()

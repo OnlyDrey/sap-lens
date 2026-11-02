@@ -245,8 +245,9 @@ def save_activity(activity, metadata, expected_revision):
         metadata = ActivityMetadata.model_validate(metadata.model_dump() if isinstance(metadata, ActivityMetadata) else metadata)
         saved.activities[activity] = StoredActivity(metadata=metadata, modified=datetime.now(timezone.utc).isoformat())
         saved.revision += 1
+        result=next(row for row in activity_catalogue(saved=saved)['items'] if row['activity'] == activity)
         write(saved)
-        return dict(item=next(row for row in activity_catalogue(saved=saved)['items'] if row['activity'] == activity), revision=saved.revision)
+        return dict(item=result, revision=saved.revision)
 
 
 def appearance(saved=None):
@@ -280,8 +281,11 @@ def save(risk_id, metadata, expected_revision, expected_definition):
                                              reviewed_definition=expected_definition if metadata.description_review_status == 'Reviewed' else None,
                                              modified=datetime.now(timezone.utc).isoformat())
         saved.revision += 1
-        write(saved)
+        # Response construction can read retained source definitions. Complete it
+        # before the commit so a recoverable read failure cannot report failure
+        # after silently persisting metadata.
         result = next(row for row in catalogue(saved=saved)['items'] if row['risk_id'] == risk_id)
+        write(saved)
         return dict(item=result, revision=saved.revision)
 
 

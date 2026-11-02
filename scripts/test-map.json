@@ -179,7 +179,9 @@
     "sod-periods-dialogs",
     "sod-reviews-r6",
     "sod-evidence-modals",
-    "sod-work-queue-visual"
+    "sod-work-queue-visual",
+    "sod-review-performance",
+    "sod-configuration-recovery"
    ]
   },
   "shared-ui": {
@@ -516,7 +518,10 @@
     "frontend/src/styles/**",
     "frontend/src/state/**",
     "frontend/src/api/*",
-    "frontend/src/*"
+    "frontend/src/App.tsx",
+    "frontend/src/main.tsx",
+    "frontend/src/index.css",
+    "frontend/src/vite-env.d.ts"
    ],
    "areas": [
     "shared-ui"

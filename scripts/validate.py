@@ -47,7 +47,7 @@ def plan(level,areas,paths,mapping):
             for dependency in mapping.get('validation_dependencies',{}).get(pending.pop(),[]):
                 if dependency not in selected:selected.append(dependency);pending.append(dependency)
         selected.sort()
-    if level=='full':return ['regression']
+    if level=='full':return ['release'] # existing regression + security/platform checks; no publication
     if not selected:return []
     return ['targeted',*selected,*(['--backend'] if level=='fast' else [])]
 
@@ -87,6 +87,7 @@ def main(argv=None):
     parser.add_argument('--reports',action='store_true',help='Preserve browser HTML and JUnit alongside JSON/traces')
     parser.add_argument('--timeout',type=int,help='Per-stage limit; defaults FAST 600, FEATURE 1800, FULL 7200 seconds')
     args=parser.parse_args(argv)
+    if args.level=='full' and (args.area or args.grep or args.no_build):parser.error('FULL cannot filter areas/tests or skip the build; use FEATURE for partial validation')
     if args.timeout is not None and args.timeout<1:parser.error('--timeout must be positive')
     args.timeout=args.timeout or {'fast':600,'feature':1800,'full':7200}[args.level]
     mapping=json.loads((ROOT/'scripts/test-map.json').read_text())

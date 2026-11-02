@@ -161,7 +161,7 @@ not replace CI or create a second suite.
 | --- | --- | --- |
 | FAST | Changed-area backend plus relevant type/static checks | No browser |
 | FEATURE | Affected area and declared dependency integration tests | Targeted workflows; use `--grep` to narrow |
-| FULL | Complete existing regression profile | Only when explicitly selected |
+| FULL | Existing release-validation profile: regression plus security/platform checks | Only when explicitly selected |
 
 ```sh
 ./scripts/validate.sh --level fast --area sod
@@ -178,7 +178,7 @@ not replace CI or create a second suite.
 
 Activate the Python 3.12 development venv first (or set `PYTHON` to its executable),
 install the pinned frontend/dev requirements and Playwright Chromium as described
-above. No Codex session is needed. With no area, Git diff against `HEAD` includes
+above. No Codex session is needed. FULL uses the existing `release` validation profile; it does not create tags, publish releases or dispatch workflows. With no area, Git diff against `HEAD` includes
 working-tree/untracked changes. `--base origin/work` compares against that ref;
 it does not fetch or alter Git history. An unrecognized path fails closed and
 requires an explicit area or mapping update; it never silently selects FULL.

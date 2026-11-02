@@ -2,6 +2,8 @@
 import asyncio
 import hmac
 import sys
+from datetime import datetime, timezone
+from uuid import uuid4
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
@@ -78,12 +80,18 @@ def create_app(origin: str | None = None, session_token: str | None = None,
                   docs_url=None, redoc_url=None)
     app.state.loader = loader
 
+    def failure_response(request, error):
+        import logging
+        identity=getattr(request.state,'request_id',None) or uuid4().hex
+        timestamp=datetime.now(timezone.utc).isoformat()
+        route=getattr(request.scope.get('route'),'path','unmatched')
+        logging.getLogger('sap-lens').error('backend_failure operation=%s category=%s request_id=%s timestamp=%s',route,type(error).__name__,identity,timestamp)
+        return JSONResponse({'detail':'The operation failed unexpectedly. Retry; if it persists, check the application logs.',
+                             'request_id':identity,'timestamp':timestamp},status_code=500,headers={'X-Request-ID':identity})
+
     @app.exception_handler(Exception)
     async def unexpected_failure(request: Request, error: Exception):
-        # Always answer API failures as JSON so clients never have to parse a plain-text page; details stay in logs.
-        import logging
-        logging.getLogger('sap-lens').error('Unhandled %s on %s', type(error).__name__, request.url.path)
-        return JSONResponse({'detail': 'The operation failed unexpectedly. Retry, and check the application logs if it persists.'}, status_code=500)
+        return failure_response(request,error)
     app.state.deployment = server
     app.state.auth_throttle = throttle
     app.add_middleware(RequestBodyLimit)
@@ -95,6 +103,7 @@ def create_app(origin: str | None = None, session_token: str | None = None,
 
     @app.middleware('http')
     async def local_browser_boundary(request: Request, call_next):
+        request.state.request_id=uuid4().hex
         request_origin = request.headers.get('origin')
         if browser_access and (request.headers.get('host','').lower() not in desktop_hosts
                                or not request.client or request.client.host not in {'127.0.0.1','::1'}):
@@ -139,12 +148,10 @@ def create_app(origin: str | None = None, session_token: str | None = None,
         try:
             response = await call_next(request)
         except Exception as error:
-            if not server: raise
-            import logging
-            logging.getLogger('sap-lens-server').error('Request failed (%s); private exception details omitted',type(error).__name__)
-            return JSONResponse({'detail':'The operation failed. Check service permissions and operational logs.'},status_code=500)
+            response=failure_response(request,error)
         finally:
             ACTOR.reset(actor_token)
+        response.headers['X-Request-ID']=request.state.request_id
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'no-referrer'
         response.headers['X-Frame-Options'] = 'DENY'

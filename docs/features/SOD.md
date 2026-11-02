@@ -257,3 +257,20 @@ previous decision and common bulk operation ID in immutable history and the queu
 CSV. The queue, matrices and individual review panels refresh after success.
 Activity coverage and risk access assessment may derive from assignment review;
 formal risk acceptance remains a separate decision.
+
+### Review feedback and recovery
+
+Only the clicked assignment action shows its loading icon; competing actions on
+that assignment are disabled while other rows remain usable. Writes stay serialized
+against the shared revision. A stale revision may be refreshed for an unrelated
+change, but a competing decision on the same assignment is never silently retried.
+The authoritative subject is refreshed first; other active progress/KPI views update
+in the background. Source-only filter choices are not re-requested after a decision;
+review-dependent option scopes still refresh. Source imports retain full invalidation.
+No decision is shown as saved before the backend confirms it.
+
+Configuration failures retain the draft and support retry. Unexpected backend errors
+return a safe request reference for diagnostics, not a requirement to restart. Local
+metadata response preparation completes before its atomic commit, preventing a
+failed response dependency from silently saving an unreported edit. Storage uses
+private JSON/content-addressed snapshots with locks and revision checks, not SQLite.

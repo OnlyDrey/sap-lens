@@ -319,3 +319,11 @@ provide an application administrator identity.
 Pending operations block unrelated POST writes and scheduled refresh. Actual backup
 or replacement runs under the process storage lease before HTTP/cache startup.
 No live-store restore endpoint exists. [Operational guide](../deployment/BACKUP_RESTORE.md).
+
+Unexpected API failures return controlled JSON with `request_id` and an ISO UTC
+`timestamp`; `X-Request-ID` correlates diagnostics. Logs record only the route
+**template**, exception category and generated reference, never exception payloads,
+raw SAP identifiers or credentials. Recoverable read deadlines are distinguished
+from connection failures in the client. A failed SoD metadata response preparation
+cannot advance the persisted revision; validation and response preparation precede
+the existing atomic file commit. Concurrent metadata writers retain CAS semantics.

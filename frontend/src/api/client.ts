@@ -45,14 +45,17 @@ const apiClient = {
       headers: { 'Content-Type': 'application/json', 'X-SAP-Lens': applicationToken() },
       body: body === undefined ? undefined : JSON.stringify(body),
       cache: 'no-store',
-    }) } catch { throw new ApiError('SAP Lens could not connect. Retry or close and reopen the application.', 'network') }
+    }) } catch (error) { throw new ApiError(error instanceof DOMException&&error.name==='AbortError' ? 'The read request timed out. The backend may still be running; retry this read.' : 'SAP Lens could not connect. Retry and check the backend service if the problem persists.', 'network') }
     finally { if(timer)clearTimeout(timer) }
     // Read text first: a proxy or crash page is not JSON and must not surface as a parser exception.
     const text = await response.text().catch(() => '')
     let data: unknown
     let parsed = true
     try { data = text === '' ? undefined : JSON.parse(text) } catch { parsed = false }
-    if (!response.ok) throw new ApiError(problemDetail(parsed ? data : undefined, response.status), response.status >= 500 ? 'server' : 'client', response.status)
+    if (!response.ok) {
+      const reference=response.headers.get('X-Request-ID')||''
+      throw new ApiError(problemDetail(parsed ? data : undefined, response.status)+(/^[a-f0-9]{32}$/.test(reference)?` Reference: ${reference}`:''), response.status >= 500 ? 'server' : 'client', response.status)
+    }
     if (!parsed) throw new ApiError('SAP Lens received an unexpected response instead of data. Retry, or reload the application.', 'format', response.status)
     return { data: (data ?? {}) as T }
   },
