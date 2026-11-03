@@ -1,8 +1,9 @@
-import { Fragment, useState, type ReactNode } from 'react'
+import { Fragment, useMemo, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { downloadFile, scopeParams, sod, sodPost, EXPORT_NAME, type AssignmentRow, type ContextInfo } from '@/api/sod'
 import { useViewHistory } from '@/hooks/useViewHistory'
 import { Button } from '@/components/Shared/Button'
+import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import { Kpi } from '@/components/Shared/Kpi'
 import { UserGroupCell } from '@/components/Shared/UserGroup'
 import { Dialog } from '@/components/Shared/Dialog'
@@ -12,7 +13,7 @@ import { Select } from '@/components/Shared/Select'
 import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
 import { NorwegianDateInput, parseNorwegianDate } from '@/components/Shared/NorwegianDateInput'
 import { PAGE_SIZES, Pagination } from '@/components/Access/Shared'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronsDown, ChevronsUp, ClipboardCheck, Search } from 'lucide-react'
 import { SodPill } from '@/lib/sodAppearance'
 import { RoleEntry } from '@/components/Shared/RoleEntry'
 import { moduleOfRoles, useRoleModules } from '@/hooks/useRoleModules'
@@ -114,12 +115,12 @@ export function RemediationView() {
   const params = scopeParams(context, filters, { recommended, offset, limit: pageSize })
   const result = useQuery({ queryKey: ['sod-remediation', params.toString()], queryFn: () => sod<Result>('/api/sod/remediation', params) })
   const data = result.data
-  /** One parent per SAP user and role assignment; the server orders rows by user and role, so activity rows are contiguous. */
-  const parents = (data?.items || []).reduce<{ key: string; user: string; rows: Row[] }[]>((list, row) => {
-    const key = `${row.user}:${row.assignment_id}`, last = list[list.length - 1]
-    if (last?.key === key) last.rows.push(row); else list.push({ key, user: row.user, rows: [row] })
-    return list
-  }, [])
+  /** Current-page rows only; group by assignment identity without relying on adjacency. */
+  const parents = useMemo(()=>{
+    const groups=new Map<string,{key:string;user:string;rows:Row[]}>()
+    for(const row of data?.items||[]){const key=JSON.stringify([row.user,row.assignment_id]);const parent=groups.get(key);if(parent)parent.rows.push(row);else groups.set(key,{key,user:row.user,rows:[row]})}
+    return [...groups.values()]
+  },[data?.items])
   const exportCsv = async () => {
     setBusy(true)
     try {
@@ -152,32 +153,31 @@ export function RemediationView() {
         {verifiedOnly ? <p className="ui-description" role="status">Verified removals need a tracked removal action and a newer User-Role import that no longer contains the assignment. A completed status alone never verifies. They are listed under Tracked actions.</p> : data.items.length ? <>
           <Toolbar aria-label="Remediation row controls">
             <span className="ui-description" role="status">{parents.length} {parents.length === 1 ? 'assignment' : 'assignments'} · {data.items.length} activity {data.items.length === 1 ? 'row' : 'rows'} on this page</span>
-            <Button size="compact" onClick={() => setOpenKeys(new Set(parents.map((parent) => parent.key)))}>Expand all</Button>
-            <Button size="compact" onClick={() => setOpenKeys(new Set())}>Collapse all</Button>
+            <Button size="compact" onClick={() => setOpenKeys(new Set(parents.map((parent) => parent.key)))}><ChevronsDown size={14} aria-hidden="true"/>Expand all</Button>
+            <Button size="compact" onClick={() => setOpenKeys(new Set())}><ChevronsUp size={14} aria-hidden="true"/>Collapse all</Button>
           </Toolbar>
           <DataTable caption="Access remediation rows" density="compact" sticky>
-            <thead><tr><th>SAP user</th><th>SAP User Group</th><th>Role assignment</th><th>Validity</th><th>Review</th><th>Recommended handling</th><th>Remediation</th><th className="col-actions">Actions</th></tr></thead>
+            <thead><tr><th>SAP user</th><th>SAP User Group</th><th>Role assignment</th><th>Validity</th><th>Review</th><th>Remediation</th><th className="col-actions">Actions</th></tr></thead>
             <tbody>{parents.map((parent) => {
               const open = openKeys.has(parent.key), first = parent.rows[0], tracked = parent.rows.find((row) => row.action) ?? first
-              const decided = parent.rows.filter((row) => row.activity_decision !== 'Pending').length
+              const decided = parent.rows.filter((row) => ['Approved','Keep','Conditional','Removal required','Rejected'].includes(row.activity_decision)).length
               return <ParentRows key={parent.key} open={open}
                 parent={<tr className="remediation-parent" data-open={open || undefined}>
-                  <td><button type="button" className="sod-expand-toggle" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} activities and risks for ${parent.user} ${first.role}`} onClick={() => toggleKey(parent.key)}>{open ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}<strong>{parent.user}</strong></button></td>
+                  <td><RoleIdentifier value={parent.user} label="SAP username"/></td>
                   <td><UserGroupCell groups={first.user_group} /></td>
-                  <td><RemediationRole role={first.role} catalogueRoles={first.catalogue_roles} /></td>
+                  <td><div className="flex items-center gap-1"><button type="button" className="sod-expand-toggle shrink-0" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} activities and risks for ${parent.user} ${first.role}`} onClick={() => toggleKey(parent.key)}>{open ? <ChevronDown size={14} aria-hidden="true"/> : <ChevronRight size={14} aria-hidden="true"/>}</button><RemediationRole role={first.role} catalogueRoles={first.catalogue_roles}/></div></td>
                   <td className="whitespace-nowrap"><dl className="validity-dates"><div><dt>Valid from</dt><dd>{formatDate(first.valid_from)}</dd></div><div><dt>Valid to</dt><dd>{formatDate(first.valid_to)}</dd></div></dl></td>
                   <td><LifecycleBadge value={first.assignment_decision} /><p className="text-xs text-muted">{decided}/{parent.rows.length} activities decided</p></td>
-                  <td>{[...new Set(parent.rows.map((row) => row.recommended))].sort((x, y) => GROUPS.indexOf(x) - GROUPS.indexOf(y)).map((value) => <StatusBadge key={value} tone={value === 'Remove assignment' ? 'error' : value === 'Investigate assignment' ? 'warning' : 'neutral'}>{value}</StatusBadge>)}</td>
                   <td>{tracked.action_status}{parent.rows.some((row) => row.overdue) && <StatusBadge tone="error">Overdue</StatusBadge>}<p className="text-xs text-muted">{tracked.owner || 'No owner'} · {tracked.due_date ? formatDate(tracked.due_date) : 'No due date'}</p></td>
                   <td className="col-actions"><div className="flex flex-wrap justify-end gap-1">
-                    {data.reviewable && parent.rows.some((row) => TRACKABLE.includes(row.recommended)) && <Button size="compact" onClick={() => setEditing(parent.rows.find((row) => TRACKABLE.includes(row.recommended))!)}>{tracked.action ? 'Update action' : 'Track action'}</Button>}
-                    <Button size="compact" onClick={() => setSubject({ user: parent.user, activity: first.activity })}>Investigate</Button>
+                    {data.reviewable && parent.rows.some((row) => TRACKABLE.includes(row.recommended)) && <Button size="compact" onClick={() => setEditing(parent.rows.find((row) => TRACKABLE.includes(row.recommended))!)}><ClipboardCheck size={14} aria-hidden="true"/>{tracked.action ? 'Update action' : 'Track action'}</Button>}
+                    <Button size="compact" onClick={() => setSubject({ user: parent.user, activity: first.activity })}><Search size={14} aria-hidden="true"/>Investigate</Button>
                   </div></td>
                 </tr>}
                 children={parent.rows.map((row) => <tr key={row.activity} className="remediation-child">
-                  <td colSpan={3}><span className="remediation-child-title">Activity</span> <SodPill kind="activity" value={row.activity} /> <span className="id-pill-list" aria-label={`Risks for ${row.activity}`}>{row.risks.map((risk) => <SodPill key={risk} kind="risk" value={risk} />)}</span></td>
+                  <td colSpan={2}><span className="remediation-child-title">Activity</span> <SodPill kind="activity" value={row.activity} /> <span className="id-pill-list" aria-label={`Risks for ${row.activity}`}>{row.risks.map((risk) => <SodPill key={risk} kind="risk" value={risk} />)}</span></td>
                   <td colSpan={2}>Activity <LifecycleBadge value={row.activity_decision} /> · Risk acceptance: {row.risk_acceptance.join(', ') || '—'}</td>
-                  <td><StatusBadge tone={row.recommended === 'Remove assignment' ? 'error' : row.recommended === 'Investigate assignment' ? 'warning' : 'neutral'}>{row.recommended}</StatusBadge><p className="text-xs">{row.reason || row.controls}</p></td>
+                  <td><StatusBadge tone={row.recommended === 'Remove assignment' ? 'error' : row.recommended === 'Investigate assignment' ? 'warning' : 'neutral'}>{row.recommended}</StatusBadge><p className="text-xs">{row.reason}{row.controls&&<span className="block">Controls: {row.controls}</span>}</p></td>
                   <td className="text-xs" colSpan={2}>Verification: {row.verification}</td>
                 </tr>)} />
             })}</tbody>

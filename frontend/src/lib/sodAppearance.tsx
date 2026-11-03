@@ -16,7 +16,7 @@ export interface SodDescription {
   origin: Record<string, 'imported' | 'local' | 'reference'>
   alternate?: Record<string, { value: string; origin: 'imported' | 'local' | 'reference' }>
 }
-interface Described { risks: Record<string, SodDescription>; activities: Record<string, SodDescription> }
+interface Described { active_activities?:string[]; risks: Record<string, SodDescription>; activities: Record<string, SodDescription> }
 const empty: Described = { risks: {}, activities: {} }
 
 /** Local display names and colors for risk and activity identifiers; failures fall back to plain pills. */
@@ -40,19 +40,25 @@ export function pillSummary(kind: 'risk' | 'activity', value: string, entry?: So
   return `${kind === 'risk' ? 'Risk' : 'Activity'} ${value}${parts.length ? ` — ${parts.join(': ')}` : ` — ${MISSING}`}`
 }
 
-function Detail({ entry, field, label, required = false }: { entry: SodDescription; field: 'name' | 'description' | 'impact' | 'business_process' | 'type' | 'controls' | 'guidance' | 'notes'; label: string; required?: boolean }) {
+/** Exact active IDs only; React text nodes preserve escaping and punctuation. */
+function ActivityReferences({text}:{text:string}) {
+ const metadata=useSodMetadata(), ids=new Set(metadata.active_activities||[])
+ return <>{text.split(/([A-Za-z0-9_:-]+)/).map((part,index)=>ids.has(part)?<SodPill key={index} kind="activity" value={part}/>:part)}</>
+}
+
+function Detail({ entry, field, label, required = false, compact=false }: { entry: SodDescription; field: 'name' | 'description' | 'impact' | 'business_process' | 'type' | 'controls' | 'guidance' | 'notes'; label: string; required?: boolean; compact?:boolean }) {
   const text = entry[field], origin = entry.origin[field], other = entry.alternate?.[field]
   if (!text && !other) return required ? <div><dt>{label}</dt><dd className="ui-description">{MISSING}</dd></div> : null  // a missing description is stated, never invented
   return (
     <div>
       <dt>{label}</dt>
-      <dd>{text}{origin && <small className="sod-pill-origin"> {ORIGIN[origin]}</small>}
-        {other && <span className="sod-pill-alternate">{ORIGIN[other.origin]}, differs: {other.value}</span>}</dd>
+      <dd>{compact&&text?<ActivityReferences text={text}/>:text}{!compact&&origin && <small className="sod-pill-origin"> {ORIGIN[origin]}</small>}
+        {!compact&&other && <span className="sod-pill-alternate">{ORIGIN[other.origin]}, differs: {other.value}</span>}</dd>
     </div>
   )
 }
 
-function Details({ kind, value, entry }: { kind: 'risk' | 'activity'; value: string; entry?: SodDescription }) {
+function Details({ kind, value, entry, compact=false }: { kind: 'risk' | 'activity'; value: string; entry?: SodDescription; compact?:boolean }) {
   const shown: SodDescription = entry ?? { origin: {} }
   // Only descriptive fields count; the factual context of the imported definition (criticality, risk type) is not a description.
   const known = !!entry && (!!entry.name || !!entry.description || !!entry.business_process || (kind === 'risk' ? !!entry.impact : !!entry.type))
@@ -61,15 +67,15 @@ function Details({ kind, value, entry }: { kind: 'risk' | 'activity'; value: str
       <dl className="ui-metadata-list">
         <div><dt>{kind === 'risk' ? 'Risk' : 'Activity'}</dt><dd><code>{value}</code></dd></div>
         <>
-          <Detail entry={shown} field="name" label="Display name" />
-          <Detail entry={shown} field="description" label="Description" required />
-          {kind === 'risk' && <Detail entry={shown} field="impact" label="Impact" />}
-          <Detail entry={shown} field="controls" label="Compensating controls" />
-          <Detail entry={shown} field="guidance" label="Review guidance" />
-          <Detail entry={shown} field="notes" label="Notes" />
-          <Detail entry={shown} field="business_process" label="Business process" />
-          {kind === 'activity' && <Detail entry={shown} field="type" label="Type" />}
-          {kind === 'risk' && shown.criticality && <div><dt>Source criticality</dt><dd>{shown.criticality}</dd></div>}
+          <Detail compact={compact} entry={shown} field="name" label="Display name" />
+          <Detail compact={compact} entry={shown} field="description" label="Description" required />
+          {kind === 'risk' && <Detail compact={compact} entry={shown} field="impact" label="Impact" />}
+          <Detail compact={compact} entry={shown} field="controls" label="Compensating controls" />
+          <Detail compact={compact} entry={shown} field="guidance" label="Review guidance" />
+          <Detail compact={compact} entry={shown} field="notes" label="Notes" />
+          <Detail compact={compact} entry={shown} field="business_process" label="Business process" />
+          {kind === 'activity' && <Detail compact={compact} entry={shown} field="type" label="Type" />}
+          {!compact && kind === 'risk' && shown.criticality && <div><dt>Source criticality</dt><dd>{shown.criticality}</dd></div>}
           {kind === 'activity' && typeof shown.risks === 'number' && <div><dt>Used in risks</dt><dd>{shown.risks.toLocaleString()}</dd></div>}
         </>
       </dl>
@@ -98,9 +104,9 @@ export function SodPill({ kind, value, details = true }: { kind: 'risk' | 'activ
   if (!details) return pill
   return (
     <span className="sod-pill" title={summary}>
-      <Popover label={`${kind === 'risk' ? 'Risk' : 'Activity'} ${value} details`} preferredWidth={360} triggerSize="compact" triggerVariant="ghost" triggerClassName="id-pill-trigger"
+      <Popover label={`${kind === 'risk' ? 'Risk' : 'Activity'} ${value} details`} preferredWidth={440} triggerSize="compact" triggerVariant="ghost" triggerClassName="id-pill-trigger"
         trigger={<span aria-label={summary}>{pill}</span>}>
-        <Details kind={kind} value={value} entry={described} />
+        <Details compact kind={kind} value={value} entry={described} />
       </Popover>
     </span>
   )

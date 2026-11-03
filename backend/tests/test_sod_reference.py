@@ -192,3 +192,14 @@ class ReferenceTests(Case):
         import sys
         with patch.object(sys,'frozen',True,create=True),patch.object(sys,'_MEIPASS',str(self.root),create=True):
             self.assertEqual(reference.default_path(),self.root/'resources/reference-defaults.json')
+
+    def test_repository_template_uses_real_schema_and_fixed_download(self):
+        raw=reference.default_path().with_name('sod-reference-template.xlsx').read_bytes()
+        parsed=reference.parse(raw)
+        self.assertEqual(set(parsed.risks),{'R_EXAMPLE'})
+        self.assertEqual(set(parsed.activities),{'ACT_EXAMPLE'})
+        with TestClient(create_app(session_token=H['X-SAP-Lens']),base_url='http://127.0.0.1:18743') as client:
+            response=client.get('/api/sod/reference/template',headers=H)
+            self.assertEqual(response.status_code,200)
+            self.assertEqual(response.content,raw)
+            self.assertIn('sap-lens-sod-reference-template.xlsx',response.headers['content-disposition'])

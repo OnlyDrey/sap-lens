@@ -5,7 +5,7 @@ import { Button } from '@/components/Shared/Button'
 import { Dialog } from '@/components/Shared/Dialog'
 import { SearchInput } from '@/components/Shared/Controls'
 import { DataTable, EmptyState, LoadingState, StatusBadge } from '@/components/Shared/Presentation'
-import { SodPill } from '@/lib/sodAppearance'
+import { SodPill, SodDescriptionDetails } from '@/lib/sodAppearance'
 
 export type Mapping = { activity?: string; tcode: string; ttext?: string }
 export type SourceRisk = {
@@ -49,7 +49,7 @@ export function RiskSourceDialog({ risk, onClose }: { risk: SourceRisk; onClose:
   return (
     <>
       <Dialog title={`Source details for risk ${risk.risk_id}`} onClose={onClose} footer={<Button onClick={onClose}>Close</Button>}>
-        <p>{risk.source.source_text}</p>
+        <p>{risk.source.source_text}</p><SodDescriptionDetails kind="risk" value={risk.risk_id}/>
         <div className="flex flex-wrap items-center gap-2"><SourceMeta criticality={risk.source.criticality} riskType={risk.source.risk_type} /><StatusBadge tone={risk.current ? 'success' : 'neutral'}>{risk.current ? 'Current source' : 'Historical source'}</StatusBadge>{!risk.source.supported && <StatusBadge tone="warning">Type not evaluated</StatusBadge>}</div>
         <p className="ui-description">Identifiers, relationships and transaction mappings come from the import and cannot be edited.</p>
         <ul className="grid gap-2" aria-label="Risk activities">

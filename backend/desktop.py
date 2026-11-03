@@ -84,13 +84,17 @@ def _save_document_dialog(owner,token,filename,encoded):
     from io import BytesIO
     from zipfile import ZipFile,BadZipFile
     if not isinstance(token,str) or not hmac.compare_digest(token.encode(),owner._token.encode()):raise ValueError('Application request is not authorized.')
-    if not isinstance(filename,str) or not re.fullmatch(r'sap-lens-(sod-report-[a-f0-9]{32}|access-remediation-(current|[a-f0-9]{32}))-\d{4}-\d{2}-\d{2}\.(pdf|docx)',filename):raise ValueError('Invalid report filename.')
+    template=filename=='sap-lens-sod-reference-template.xlsx'
+    if not template and (not isinstance(filename,str) or not re.fullmatch(r'sap-lens-(sod-report-[a-f0-9]{32}|access-remediation-(current|[a-f0-9]{32}))-\d{4}-\d{2}-\d{2}\.(pdf|docx)',filename)):raise ValueError('Invalid report filename.')
     if not isinstance(encoded,str) or len(encoded)>45*1024*1024:raise ValueError('Report exceeds its size limit.')
     try:payload=base64.b64decode(encoded,validate=True)
     except (ValueError,TypeError):raise ValueError('Invalid report content.') from None
     if len(payload)>32*1024*1024:raise ValueError('Report exceeds 32 MiB.')
     extension=Path(filename).suffix
-    if extension=='.pdf':
+    if template:
+        from sod_reference import default_path
+        if payload!=default_path().with_name('sod-reference-template.xlsx').read_bytes():raise ValueError('Invalid reference template.')
+    elif extension=='.pdf':
         if not payload.startswith(b'%PDF-') or not payload.rstrip().endswith(b'%%EOF'):raise ValueError('Invalid PDF report.')
     else:
         try:
@@ -103,7 +107,7 @@ def _save_document_dialog(owner,token,filename,encoded):
     if not owner._window or not owner._picker_lock.acquire(blocking=False):return False
     try:
         import webview
-        files=owner._window.create_file_dialog(webview.FileDialog.SAVE,save_filename=filename,file_types=(('PDF files (*.pdf)' if extension=='.pdf' else 'Word documents (*.docx)'),))
+        files=owner._window.create_file_dialog(webview.FileDialog.SAVE,save_filename=filename,file_types=(('PDF files (*.pdf)' if extension=='.pdf' else 'Reference workbook (*.xlsx)' if template else 'Word documents (*.docx)'),))
         if not files:return False
         path=Path(files[0])
         if not path.is_absolute() or path.suffix.lower()!=extension or path.is_symlink():raise ValueError('Choose an absolute matching report destination.')
@@ -264,6 +268,12 @@ class NativeDialogs:
             finally: Path(temporary).unlink(missing_ok=True)
             return True
         finally: self._picker_lock.release()
+
+    def open_project_repository(self, token):
+        if not isinstance(token,str) or not hmac.compare_digest(token.encode(),self._token.encode()):
+            raise ValueError('Application request is not authorized.')
+        import webbrowser
+        return bool(webbrowser.open('https://github.com/OnlyDrey/sap-lens'))
 
     def save_sod_document(self, token, filename, content_base64):
         return _save_document_dialog(self, token, filename, content_base64)

@@ -83,7 +83,7 @@ def lookup(snapshot=None, saved=None, reference=None):
             entry['risks'] = len(activities[name])
         if any(key in entry for key in ('name', 'description', 'business_process', 'type')):
             activities_out[name] = entry
-    return dict(risks=risks_out, activities=activities_out)
+    return dict(risks=risks_out, activities=activities_out, active_activities=sorted(activities))
 
 
 def _indicator(label, total, imported_count, local_count, column_present, differing=0):

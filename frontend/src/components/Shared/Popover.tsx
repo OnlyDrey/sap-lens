@@ -24,6 +24,7 @@ export function Popover({
   triggerSize='default',
   triggerVariant='outline',
   triggerClassName='',
+  triggerLabel,
   className='',
   reveal='click',
   isolateClicks=false,
@@ -35,6 +36,7 @@ export function Popover({
   /** Visual weight of the trigger button; `ghost` for triggers that carry their own look (for example a pill). */
   triggerVariant?: ButtonProps['variant']
   triggerClassName?: string
+  triggerLabel?: string
   /** Extra class for the panel, for menu-like popovers that must never scroll. */
   className?: string
   /** `hover` also opens on mouse hover and keyboard focus (a transient description); a click or Enter pins it open. */
@@ -134,6 +136,7 @@ export function Popover({
         variant={triggerVariant}
         className={triggerClassName}
         size={triggerSize}
+        aria-label={triggerLabel}
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-controls={open ? id : undefined}

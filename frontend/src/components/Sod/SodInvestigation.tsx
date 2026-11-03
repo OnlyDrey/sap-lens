@@ -1,3 +1,4 @@
+import { Popover } from '@/components/Shared/Popover'
 import {ContentTabList} from '@/components/Shared/Navigation'
 import {apiRequest} from '@/api/client'
 import { sentenceCase } from '@/lib/labels'
@@ -181,7 +182,7 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
           onBatch={() => batch('acceptance', `Batch risk acceptance (${picked.acceptance.length})`, risks.filter((row) => picked.acceptance.includes(row.finding_id)).map((row) => item(row.finding_id, row.risk_id, row.evidence_version)))}>
           {risks.map((row) => (
             <ReviewRow key={row.finding_id} focused={focus(row.risk_id, 'risk')} label={row.risk_id} checked={picked.acceptance.includes(row.finding_id)} onCheck={ok ? () => pick('acceptance', row.finding_id) : undefined}
-              title={<SodPill kind="risk" value={row.risk_id} />} meta={<>{row.display_name || row.source_text || 'No description in the SoD matrix'}</>} status={row.acceptance} event={row.event} coverage={row.review_coverage}
+              title={<SodPill kind="risk" value={row.risk_id} />} meta={<>{row.display_name || row.source_text || 'No description in the SoD matrix'}</>} formal status={row.acceptance} event={row.event} coverage={row.review_coverage}
               actions={ok && <Button onClick={() => setForm({ kind: 'acceptance', heading: `Risk acceptance · ${row.risk_id}`, items: [item(row.finding_id, row.risk_id, row.evidence_version)] })} aria-label={`Decide risk acceptance ${row.risk_id}`}><ClipboardCheck size={16} aria-hidden="true" />Decide</Button>}
               history={<DecisionHistory kind="acceptance" context={context} keyId={row.finding_id} label="Risk acceptance history" />} />
           ))}
@@ -247,7 +248,7 @@ function AssignmentReviewRow({ row, description, ok, checked, onCheck, pendingAc
       <div className="sod-assignment-compact">
         {ok && <Checkbox checked={checked} onChange={onCheck} aria-label={`Select ${row.role}`}><span className="sr-only">Select</span></Checkbox>}
         <div className="sod-assignment-role"><RoleIdentifier value={row.role} onOpen={onOpenRole} openLabel={`Open catalogue role ${row.catalogue_roles[0] || row.role}`} />{description && <p className="sod-assignment-description" title={description}>{description}</p>}</div>
-        <LifecycleBadge value={row.decision} />
+        <ReviewState label={row.role} status={row.decision} event={row.event} coverage={row.review_coverage}/>
         {ok && <span className="sod-decision-icons" role="group" aria-label={`Decision for ${row.role}`}>
           <IconButton label={`Keep ${row.role}`} tooltip="Keep this role assignment" variant={kept ? 'primary' : 'secondary'} aria-pressed={kept} loading={pendingAction==='Keep'} disabled={busy} onClick={() => onDecide('Keep')}><Check size={16} aria-hidden="true" /></IconButton>
           <IconButton label={`Investigate ${row.role}`} tooltip="Mark for further investigation (not a final decision)" variant={investigating ? 'primary' : 'secondary'} aria-pressed={investigating} loading={pendingAction==='Investigate'} disabled={busy} onClick={() => onDecide('Investigate')}><Search size={16} aria-hidden="true" /></IconButton>
@@ -271,9 +272,21 @@ function AssignmentReviewRow({ row, description, ok, checked, onCheck, pendingAc
   )
 }
 
+/** One access-review presentation across Roles, Activities and Risks; acceptance stays independent. */
+function ReviewState({label,status,event,coverage,formal=false}:{label:string;status:string;event:DecisionEvent|null;coverage?:ReviewCoverage;formal?:boolean}) {
+ return <><Popover label={`Review method for ${label}`} triggerLabel={`Review method for ${label}`} triggerSize="compact" triggerVariant="ghost" trigger={<StatusBadge tone={(coverage?.reviewed??(!formal&&DECIDED.has(status)))?'success':'warning'}>{(coverage?.reviewed??(!formal&&DECIDED.has(status)))?'Reviewed':status==='Outdated'?'Needs review':'Pending'}</StatusBadge>}>
+          <p>Access review: {(coverage?.reviewed??(!formal&&DECIDED.has(status)))?'Reviewed':'Needs review'}</p>
+          {coverage?.label&&<p>{coverage.label}</p>}
+          <p>Method: {coverage?.provenance||'Direct decision'}</p>
+          {!formal&&event&&<p>{event.decision} by {event.reviewer}, {formatTimestamp(event.timestamp)}</p>}
+          {status==='Outdated'&&<p>The recorded decision requires review against the current evidence.</p>}
+          {formal&&<p>Formal risk acceptance is independent of access review completion.</p>}
+        </Popover>{formal&&<span className="inline-flex items-center gap-1 text-xs">Formal acceptance <LifecycleBadge value={status}/></span>}</>
+}
+
 /** Compact rows keep identity, status, coverage and the decision action on one line; the latest decision text and the history sit behind an expand control. */
-function ReviewRow({ label, title, meta, summary, compact, status, event, coverage, actions, history, checked, onCheck, focused }: {
-  label: string; title: ReactNode; meta?: ReactNode; summary?: ReactNode; compact?: boolean; coverage?: ReviewCoverage; status: string; event: DecisionEvent | null; actions?: ReactNode; history: ReactNode; checked: boolean; onCheck?: () => void; focused?: boolean
+function ReviewRow({ label, title, meta, summary, compact, status, event, coverage, actions, history, checked, onCheck, focused, formal=false }: {
+  label: string; title: ReactNode; meta?: ReactNode; summary?: ReactNode; compact?: boolean; coverage?: ReviewCoverage; status: string; event: DecisionEvent | null; actions?: ReactNode; history: ReactNode; checked: boolean; onCheck?: () => void; focused?: boolean; formal?:boolean
 }) {
   const [open, setOpen] = useState(false), detailId = useId()
   return (
@@ -282,7 +295,7 @@ function ReviewRow({ label, title, meta, summary, compact, status, event, covera
       <div className="sod-review-compact">
         {onCheck && <Checkbox checked={checked} onChange={onCheck} aria-label={`Select ${label}`}><span className="sr-only">Select</span></Checkbox>}
         <span className="min-w-0">{title}</span>
-        <LifecycleBadge value={status} />{coverage?.reviewed&&<StatusBadge tone="success">{coverage.label||'Reviewed'} · {coverage.provenance}</StatusBadge>}
+        <ReviewState label={label} status={status} event={event} coverage={coverage} formal={formal}/>
         <span className="sod-review-summary">{summary}</span>
         <div className="sod-review-actions sod-review-compact-actions">
           {actions}

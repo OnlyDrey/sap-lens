@@ -285,3 +285,26 @@ The duplicate catalogue heading, Settings-only export/source shortcut and evalua
 block were removed from this page. Source management is under Settings → Data Sources;
 the catalogue export service and all investigation/report exports remain available elsewhere.
 Evidence limitations remain documented and visible in investigation views.
+
+The advanced reference settings include **Download template**, a synthetic XLSX workbook
+with the exact headers accepted by the reference importer. It contains Risks, Activities
+and Definitions sheets. Native Desktop uses its Save dialog; hosted deployments download
+the same bundled workbook through the authenticated API. The original business-reference
+workbook is not distributed.
+
+The Work Queue keeps removal recommendations in its KPI/filter and exports, rather than
+repeating them in a table column or beneath each progress bar. Its progress calculations,
+formal acceptance and review decisions are unchanged.
+
+Risk and activity pills use compact, scrollable descriptions without repeating field-level
+provenance. Exact active activity IDs in read-only text open the same activity pills;
+historical configuration alone cannot introduce an active reference. Full provenance and
+alternate text remain available through Source details in the configuration editor.
+Editors show effective inherited guidance without copying it into local overrides.
+
+Review method popovers distinguish current access-review coverage (including supported
+derived coverage) from independent formal risk acceptance. Stale decisions still require
+review; a formal acceptance record is never attributed as a derived access reviewer.
+Remediation groups only the current page's assignment identities, with expansion beside
+the assigned role. Usernames remain independently copyable. Detailed recommendations,
+reasons, controls and evidence verification remain in the assignment's expanded rows.

@@ -241,3 +241,13 @@ class ReferenceReset(StrictModel):
 def reset_reference(request: ReferenceReset):
     import sod_reference
     return sod_reference.status(sod_reference.reset(request.expected_revision))
+
+
+@router.get('/reference/template')
+def reference_template():
+    from fastapi import HTTPException
+    from fastapi.responses import FileResponse
+    from sod_reference import default_path
+    path=default_path().with_name('sod-reference-template.xlsx')
+    if not path.is_file():raise HTTPException(503,'Reference template is unavailable; repair the application package.')
+    return FileResponse(path,filename='sap-lens-sod-reference-template.xlsx',media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',headers={'Cache-Control':'no-store'})

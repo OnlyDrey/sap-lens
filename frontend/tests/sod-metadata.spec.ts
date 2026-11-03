@@ -21,7 +21,7 @@ const reseed = async (request: Parameters<typeof seedGovernance>[0], matrix: str
 const pill = (page: Page, kind: string, id: string) => page.getByRole('button', { name: new RegExp(`^${kind} ${id} `) }).first()
 async function explorer(page: Page) { await openSod(page, 'Access Explorer'); await expect(page.getByRole('table', { name: 'User risk table' })).toBeVisible() }
 
-test('pills show a concise description on hover and a detail popover with the origin of every value', async ({ page, request }) => {
+test('pills show concise descriptions without repeated provenance and retain full source details', async ({ page, request }) => {
   await reseed(request, extended)
   await explorer(page)
   const risk = pill(page, 'Risk', 'R1')
@@ -29,7 +29,9 @@ test('pills show a concise description on hover and a detail popover with the or
   await risk.click()
   const dialog = page.getByRole('dialog', { name: 'Risk R1 details' })
   await expect(dialog).toContainText('Duplicate payments'); await expect(dialog).toContainText('A user can post and approve the same payment')
-  await expect(dialog).toContainText('Imported from the SoD CSV'); await expect(dialog).toContainText('Source criticality')
+  await expect(dialog).not.toContainText('Imported from the SoD CSV'); await expect(dialog).not.toContainText('Source criticality')
+  await expect(dialog.getByRole('button',{name:/^Activity A /})).toHaveCount(1) // exact active ID in the read-only description
+  await expect(dialog.getByRole('button',{name:/^Activity user /})).toHaveCount(0)
   await page.keyboard.press('Escape'); await expect(dialog).toHaveCount(0)
   await pill(page, 'Activity', 'A').click()
   await expect(page.getByRole('dialog', { name: 'Activity A details' })).toContainText('Creates a vendor invoice')
@@ -48,8 +50,9 @@ test('a risk without any description says so neutrally and local business text f
   await page.reload(); await expect(page.getByRole('table', { name: 'User risk table' })).toBeVisible()
   await pill(page, 'Risk', 'R2').click()
   const again = page.getByRole('dialog', { name: 'Risk R2 details' })
-  await expect(again).toContainText('Local business description'); await expect(again).toContainText('Local business text')
-  await expect(again).toContainText('Unnamed approval'); await expect(again).toContainText('differs: Unnamed approval') // both kept, origins identifiable
+  await expect(again).toContainText('Local business description'); await expect(again).not.toContainText('Local business text')
+  await expect(again).toContainText('Local name'); await expect(again).not.toContainText('differs: Unnamed approval')
+  await page.keyboard.press('Escape');await openSettings(page,'SoD Risk Configuration');await page.getByRole('button',{name:'Edit SoD risk R2',exact:true}).click();await page.getByRole('button',{name:'Source details for risk R2',exact:true}).click();const source=page.getByRole('dialog',{name:'Source details for risk R2',exact:true});await expect(source).toContainText('differs: Unnamed approval');await expect(source).toContainText('Local business text')
   // local annotations survive configuration resets by design, so leave none behind for the other tests
   const latest = await (await request.get('/api/sod/catalogue', { headers, params: { search: 'R2', current: 'current', limit: '100' } })).json(), current = latest.items.find((item: { risk_id: string }) => item.risk_id === 'R2')
   expect((await request.post('/api/sod/catalogue/R2', { headers, data: { expected_revision: latest.revision, definition_version: current.definition_version, metadata: { ...current.local, explanation_en: '', display_name: '' } } })).ok()).toBeTruthy()
@@ -139,7 +142,7 @@ test('reference workbook upload enriches exact active IDs with provenance and co
     await explorer(page)
     await pill(page, 'Risk', 'R1').click()
     const details = page.getByRole('dialog', { name: 'Risk R1 details' })
-    await expect(details).toContainText('Curated risk'); await expect(details).toContainText('Curated reference library')
+    await expect(details).toContainText('Curated risk'); await expect(details).not.toContainText('Curated reference library')
     await expect(details).toContainText('Synthetic controls'); await expect(details).toContainText('Synthetic guidance')
     await page.keyboard.press('Escape')
     await openSettings(page, 'Data Sources')
@@ -254,7 +257,7 @@ test('SoD configuration is compact with bundled defaults and advanced custom imp
     await page.getByRole('button',{name:'Open settings',exact:true}).click()
     await page.getByRole('tab',{name:'SoD Risk Configuration',exact:true}).click()
     const library=page.getByRole('region',{name:'SoD reference library'})
-    await expect(library).toContainText('Bundled version 1.0.0')
+    await expect(library).toContainText('Default library');await expect(library).toContainText('1.0.0')
     await expect(library.getByRole('button',{name:'Reset defaults',exact:true})).toBeVisible()
     await expect(library.getByRole('button',{name:'Import reference workbook',exact:true})).not.toBeVisible()
     await expect(page.getByRole('heading',{name:'SoD Risk Catalogue',exact:true})).toHaveCount(0)
@@ -267,6 +270,7 @@ test('SoD configuration is compact with bundled defaults and advanced custom imp
     const advanced=library.getByText('Advanced reference settings',{exact:true})
     await advanced.focus();await page.keyboard.press('Enter')
     await expect(library.getByRole('button',{name:'Import reference workbook',exact:true})).toBeVisible()
+    const download=page.waitForEvent('download');await library.getByRole('button',{name:'Download template',exact:true}).click();expect((await download).suggestedFilename()).toBe('sap-lens-sod-reference-template.xlsx')
     await page.getByRole('tab',{name:'Activities',exact:true}).click()
     await expect(page.getByRole('searchbox',{name:'Search SoD activities',exact:true})).toBeVisible()
   }

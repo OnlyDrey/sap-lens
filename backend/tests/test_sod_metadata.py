@@ -152,6 +152,11 @@ class ResolutionTests(Case):
     def snapshot(self, extra=None):
         write(self.path, rows(extra)); return type('Snapshot', (), dict(sod=parse_sod(self.path)))()
 
+    def test_activity_reference_scope_is_exact_active_ids_without_local_history(self):
+        resolved=sod_metadata.lookup(self.snapshot(),self.local(activities={'HISTORICAL':dict(display_name='Synthetic historical')}))
+        self.assertEqual(resolved['active_activities'],['A','B','C','D','E'])
+        self.assertNotIn('HISTORICAL',resolved['active_activities'])
+
     def test_priority_and_provenance(self):
         self.assertEqual(sod_metadata.resolve('Imported', 'Local'), dict(value='Local', origin='local', alternate='Imported', alternate_origin='imported'))
         self.assertEqual(sod_metadata.resolve('Same', 'Same')['alternate'], '')

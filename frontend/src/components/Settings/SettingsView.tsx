@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import {BackupRestore} from './BackupRestore'
 import {useApplicationData} from '@/state/ApplicationData'
 import {DesktopOptions} from './DesktopOptions'
@@ -101,6 +102,7 @@ const inputClass = controlClass
 const buttonClass = 'ui-button ui-button-secondary ui-button-default'
 const Field=FormField
 export function SettingsView({
+  applicationFooter,
   open,
   dataSourceRequest = 0,
   onOpen,
@@ -108,6 +110,7 @@ export function SettingsView({
   onDataChanged,
   onSaved
 }: {
+  applicationFooter?: ReactNode
   open: boolean
   dataSourceRequest?: number
   onOpen: () => void
@@ -1089,6 +1092,7 @@ export function SettingsView({
                   )}
                 </>
               )}
+              {applicationFooter}
             </div>
           </div>
         </div>

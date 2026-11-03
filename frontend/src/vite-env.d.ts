@@ -4,6 +4,7 @@ interface Window {
   __sapLensSettingsReady?:boolean
   pywebview?: {
     api: {
+      open_project_repository?: (token:string)=>Promise<boolean>
       desktop_frontend_ready?: (token:string)=>Promise<boolean>
       desktop_runtime?: (token:string)=>Promise<{windows:boolean;startup_supported:boolean;tray_available:boolean;warning:string|null}>
       save_user_access_csv?: (token: string, filename: string, content: string) => Promise<boolean>

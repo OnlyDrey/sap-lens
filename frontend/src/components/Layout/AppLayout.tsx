@@ -1,3 +1,4 @@
+import { ApplicationFooter } from '@/components/Shared/ApplicationFooter'
 import { IconButton } from '@/components/Shared/Button'
 import { ExportNotice } from '@/components/Shared/ExportNotice'
 import { RefreshBanner } from '@/components/Shared/RefreshReport'
@@ -133,6 +134,7 @@ export function AppLayout({
       </header>
 
       <SettingsView
+        applicationFooter={<ApplicationFooter version={application?.version} mode={application?.mode} note={organization?.footer}/>}
         open={settingsOpen}
         dataSourceRequest={dataSourceRequest}
         onOpen={() => setSettingsOpen(true)}
@@ -190,21 +192,8 @@ export function AppLayout({
           Ready
         </p>
       )}
-      <footer
-        className={settingsOpen ? 'hidden' : 'h-20'}
-        style={{
-          backgroundColor: 'var(--primary)',
-          color: 'var(--on-primary)'
-        }}
-      >
-        <p className="text-[11px] py-2.5 text-center font-medium">
-          <span>{organization?.footer ||
-            `© ${new Date().getFullYear()} ${organization?.name.trim() || 'SAP Lens'} — SAP Lens`}</span>
-          {application && <span className="block mt-1" aria-label="Application version">
-            SAP Lens v{application.version}{application.mode === 'local-build' ? ' · Local build' : application.mode === 'build' || application.mode === 'local' ? ' · Development build' : ''}
-          </span>}
-        </p>
-      </footer>
+      {!settingsOpen&&<ApplicationFooter version={application?.version} mode={application?.mode} note={organization?.footer}/>}
+
     </div>
   )
 }

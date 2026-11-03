@@ -402,6 +402,22 @@ class DesktopTests(unittest.TestCase):
             self.assertTrue(bridge.save_sod_document('synthetic-capability',f'sap-lens-access-remediation-{context}-2026-10-27.pdf',encoded))
         with self.assertRaises(ValueError):bridge.save_sod_document('synthetic-capability','sap-lens-access-remediation-other-2026-10-27.pdf',encoded)
 
+    def test_reference_template_and_repository_native_boundaries(self):
+        import base64
+        from sod_reference import default_path
+        bridge=desktop.NativeDialogs('synthetic-capability');bridge._window=self.window
+        target=self.root/'template.xlsx';self.window.create_file_dialog.return_value=[str(target)]
+        payload=default_path().with_name('sod-reference-template.xlsx').read_bytes()
+        name='sap-lens-sod-reference-template.xlsx'
+        self.assertTrue(bridge.save_sod_document('synthetic-capability',name,base64.b64encode(payload).decode()))
+        self.assertEqual(target.read_bytes(),payload)
+        with self.assertRaises(ValueError):bridge.save_sod_document('synthetic-capability',name,base64.b64encode(b'PKinvalid').decode())
+        with patch('webbrowser.open',return_value=True) as opened:
+            with self.assertRaises(ValueError):bridge.open_project_repository('wrong')
+            opened.assert_not_called()
+            self.assertTrue(bridge.open_project_repository('synthetic-capability'))
+            opened.assert_called_once_with('https://github.com/OnlyDrey/sap-lens')
+
     def test_sod_document_save_keeps_fixed_formats_and_capability_boundary(self):
         import base64
         from io import BytesIO

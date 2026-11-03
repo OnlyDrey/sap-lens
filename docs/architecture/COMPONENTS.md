@@ -296,3 +296,10 @@ of confirmed decision styling.
 owns one primary file action: native dialog on desktop or `BrowserSourceUpload` in a browser.
 The shared path component remains usable with a Browse button in isolated component previews;
 it does not add a second action to real source-management panels.
+
+`Shared/ApplicationFooter` renders the product version and fixed project link in application
+pages and Settings. Browser links retain ordinary external-link semantics; Desktop uses a
+capability-bound bridge with no caller-provided URL. `Popover.triggerLabel` optionally gives
+a compact status trigger a contextual accessible name without changing the panel label.
+The SoD review workspace reuses `ReviewState` for role, activity and risk access coverage;
+formal risk acceptance remains an explicitly separate lifecycle badge.

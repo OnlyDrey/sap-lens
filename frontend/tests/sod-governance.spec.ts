@@ -222,8 +222,10 @@ test('remediation separates proposals from verification and keeps tracked action
   await page.getByRole('link', { name: 'Reviews', exact: true }).click()
   await page.getByRole('tab', { name: 'Remediation', exact: true }).click()
   const table = page.getByRole('table', { name: 'Access remediation rows' })
-  await expect(table).toContainText('Remove assignment')
-  await page.getByRole('button', { name: 'Expand all', exact: true }).click() // activity rows with verification sit under the user and role parent
+  await expect(table.locator('thead th')).toHaveText(['SAP user','SAP User Group','Role assignment','Validity','Review','Remediation','Actions'])
+  await expect(table.getByRole('link',{name:new RegExp('Open SAP user')})).toHaveCount(0)
+  await page.getByRole('button', { name: 'Expand all', exact: true }).click()
+  await expect(table).toContainText('Remove assignment') // activity rows with verification sit under the user and role parent
   await expect(table).toContainText('Still present in current evidence')
   await expect(table).toContainText('Open')
   await expect(page.getByText('A proposed removal is not completed remediation', { exact: false })).toBeVisible()
