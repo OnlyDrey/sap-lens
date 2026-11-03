@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ListTree } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { apiRequest } from '@/api/client'
 import { Button } from '@/components/Shared/Button'
@@ -56,7 +57,7 @@ export function RiskSourceDialog({ risk, onClose }: { risk: SourceRisk; onClose:
           {(['ACTVT1', 'ACTVT2'] as const).map(slot => (
             <li key={slot} className="ui-list-row flex flex-wrap items-center justify-between gap-2 p-3">
               <span className="flex min-w-0 items-center gap-2"><span className="text-xs font-semibold">{slot}</span><SodPill kind="activity" value={name(slot)} /></span>
-              <Button size="compact" aria-label={`Show ${risk.source.activities[slot].length} transactions for ${name(slot)}`} onClick={() => setSide(slot)}>{risk.source.activities[slot].length.toLocaleString()} transactions</Button>
+              <Button size="compact" aria-label={`Show ${risk.source.activities[slot].length} transactions for ${name(slot)}`} onClick={() => setSide(slot)}><ListTree size={14} aria-hidden="true"/>{risk.source.activities[slot].length.toLocaleString()} transactions</Button>
             </li>
           ))}
         </ul>

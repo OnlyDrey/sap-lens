@@ -424,3 +424,20 @@ and affected checks passed. No dependencies or product version changed. Full sec
 release audits and native target-platform acceptance were not executed in this delivery.
 Implementation commits: `0bf4f85`, `8845129`, `4ea85ab`, `de92369`. Original reference
 workbooks, employee data and generated test artifacts are excluded from the commits.
+
+### Source Details transaction-button consistency
+
+Risk Source Details now uses the existing 14px `ListTree` icon on both ACTVT1 and
+ACTVT2 transaction buttons. The Activity modal uses the same icon as its table;
+all retain the shared compact Button and original drill-down handlers. Three focused
+browser checks passed (existing table actions plus light/dark coverage of both slots,
+Activity modal/table icons, button heights and exact transaction evidence). TypeScript,
+production build, changed-component lint, Lucide and test-map checks passed. No backend
+code changed, so backend tests were not repeated. Full regression was intentionally skipped.
+
+The newly requested reference-completion phase is blocked on the absent
+`SAP_SoD_Missing_Risks_P001_P002_P008_PR01.xlsx`. The older reference workbook is
+available but is not a substitute for the requested definitions or PR01 source review.
+No missing definitions, metadata coverage or source-discrepancy resolution is invented;
+active rules, reference defaults, overrides, mappings and decisions remain unchanged.
+Remaining attached reference/navigation phases are pending.
