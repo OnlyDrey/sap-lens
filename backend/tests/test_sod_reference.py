@@ -159,9 +159,23 @@ class ReferenceTests(Case):
 
     def test_bundled_defaults_are_available_without_writing_private_data(self):
         value=reference.read()
-        self.assertEqual((value.origin,value.library_version,len(value.risks),len(value.activities),len(value.terms)),('bundled','1.0.0',11,13,6))
+        self.assertEqual((value.origin,value.library_version,len(value.risks),len(value.activities),len(value.terms)),('bundled','1.0.1',14,14,6))
         self.assertFalse((config.config_dir()/'sod-reference.json').exists())
         self.assertIn('F019',value.risks);self.assertIn('AP01',value.activities)
+
+    def test_completed_defaults_cover_vendor_risks_without_activating_mappings(self):
+        value=reference.defaults()
+        for key in ('P001','P002','P008'):
+            self.assertTrue(all(value.risks[key].get(field) for field in reference.RISK.values()))
+        self.assertEqual(value.activities['PR01']['display_name'],'Vendor Master Maintenance')
+        self.assertIn('conflicting labels',value.activities['PR01']['notes'])
+        self.assertNotIn('tcodes',value.activities['PR01'])
+        write(self.path,rows());self.activate()
+        before=json.dumps(cache.get_snapshot().sod,sort_keys=True)
+        resolved=sod_metadata.lookup()
+        self.assertNotIn('P001',resolved['risks'])
+        self.assertNotIn('PR01',resolved['active_activities'])
+        self.assertEqual(json.dumps(cache.get_snapshot().sod,sort_keys=True),before)
 
     def test_reset_restores_only_library_and_keeps_local_overrides_and_matrix(self):
         write(self.path,rows());self.activate()
@@ -172,7 +186,7 @@ class ReferenceTests(Case):
         active=json.dumps(cache.get_snapshot().sod,sort_keys=True)
         reference.install(workbook(),0)
         restored=reference.reset(1)
-        self.assertEqual((restored.origin,restored.revision,len(restored.risks)),('bundled',2,11))
+        self.assertEqual((restored.origin,restored.revision,len(restored.risks)),('bundled',2,14))
         self.assertEqual((config.config_dir()/'sod-catalogue.json').read_bytes(),original)
         self.assertEqual(json.dumps(cache.get_snapshot().sod,sort_keys=True),active)
         self.assertEqual(sod_metadata.lookup()['risks']['R1']['name'],'Explicit local guidance')

@@ -1,6 +1,6 @@
 {
   "origin": "bundled",
-  "library_version": "1.0.0",
+  "library_version": "1.0.1",
   "source": "Curated business reference definitions; not verified SAP-standard content.",
   "version": 1,
   "risks": {
@@ -91,6 +91,33 @@
       "consequence_en": "A user may influence both the commercial transaction and related financial records, increasing the risk of inappropriate or concealed customer transactions.",
       "mitigating_controls_en": "Independent review of sales and receivables adjustments; approval controls; exception monitoring.",
       "review_guidance_en": "High-priority cross-functional conflict. Confirm why the user requires both AR07 + SD05 and identify the independent control covering the combination."
+    },
+    "P001": {
+      "display_name": "Vendor Master Maintenance vs. Vendor Invoice Processing",
+      "business_category": "Finance / Accounts Payable",
+      "explanation_en": "Combines the ability to create or change vendor master records with the ability to create or process vendor invoices.",
+      "consequence_en": "A user could create or modify a fictitious vendor and enter invoices for that vendor, enabling fraudulent or unauthorized liabilities to be introduced into the payment process.",
+      "mitigating_controls_en": "Independent vendor-master approval; vendor bank-detail change controls; invoice approval workflow; duplicate and exception monitoring; periodic review of newly created vendors and invoices.",
+      "review_guidance_en": "Confirm whether the user genuinely requires both AP02 and PR01. Verify that vendor creation or maintenance and vendor invoice processing are independently approved and monitored.",
+      "notes": "Normalized from the internal risk narrative for P001. Validate PR01 transaction and authorization mapping against the active SAP SoD ruleset before production use."
+    },
+    "P002": {
+      "display_name": "Vendor Master Maintenance vs. Vendor Payments",
+      "business_category": "Finance / Accounts Payable",
+      "explanation_en": "Combines the ability to create or change vendor master records with the ability to execute or direct vendor payments.",
+      "consequence_en": "A user could create or modify a fictitious vendor, change payment details and direct disbursements to an unauthorized account.",
+      "mitigating_controls_en": "Independent vendor-master and bank-detail approval; dual payment authorization; payment-run review; change-log monitoring; periodic review of new or changed vendors receiving payments.",
+      "review_guidance_en": "High-priority SoD conflict. Confirm why the user requires both AP01 and PR01. Verify maker-checker controls for vendor changes and payment release.",
+      "notes": "Normalized from the internal risk narrative for P002. Validate PR01 transaction and authorization mapping against the active SAP SoD ruleset before production use."
+    },
+    "P008": {
+      "display_name": "Vendor Master Maintenance vs. Purchase Order Processing",
+      "business_category": "Procurement / Accounts Payable",
+      "explanation_en": "Combines the ability to create or change vendor master records with the ability to create or modify purchase orders.",
+      "consequence_en": "A user could create or modify a fictitious vendor and place purchase orders with that vendor, enabling unauthorized procurement and potential diversion of funds.",
+      "mitigating_controls_en": "Independent vendor onboarding and approval; restricted bank-detail maintenance; purchase-order approval workflow; monitoring of purchases from new or recently changed vendors; periodic vendor and PO exception review.",
+      "review_guidance_en": "Confirm whether the user genuinely requires both PR01 and PR02. Review purchase orders issued to vendors created or changed by the same user and verify independent approval.",
+      "notes": "Normalized from the internal risk narrative for P008. Validate PR01 and PR02 transaction and authorization mapping against the active SAP SoD ruleset before production use."
     }
   },
   "activities": {
@@ -171,6 +198,13 @@
       "business_category": "Sales / Order-to-Cash",
       "explanation_en": "Ability to create, change or otherwise process sales orders and related sales documents.",
       "review_guidance_en": "Confirm that sales-order maintenance is required. Review combinations with customer receivables and customer confirmation activities."
+    },
+    "PR01": {
+      "display_name": "Vendor Master Maintenance",
+      "business_category": "Procurement / Accounts Payable Master Data",
+      "explanation_en": "Ability to create, change, block or otherwise maintain vendor or supplier master records, including payment-relevant supplier information where authorized.",
+      "review_guidance_en": "Restrict to authorized supplier-master-data responsibilities. Confirm independent approval of new vendors and sensitive changes, especially bank and payment details. Review combinations with invoice processing, payment execution and purchase-order processing.",
+      "notes": "The available internal documents contain conflicting labels for PR01. This definition is normalized from the P001, P002 and P008 risk narratives because those risks consistently concern fictitious or manipulated vendors. Validate against the active SAP SoD ruleset and underlying transaction codes."
     }
   },
   "terms": {

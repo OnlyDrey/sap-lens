@@ -441,3 +441,16 @@ available but is not a substitute for the requested definitions or PR01 source r
 No missing definitions, metadata coverage or source-discrepancy resolution is invented;
 active rules, reference defaults, overrides, mappings and decisions remain unchanged.
 Remaining attached reference/navigation phases are pending.
+
+### Reference completion — supplied vendor definitions
+
+The supplied missing-definitions XLSX was parsed by the real bounded importer, not
+reconstructed from its filename. Library 1.0.1 adds P001, P002, P008 and PR01, including
+all supported notes and review caveats; 14 reference tests passed. Original files remain
+outside Git. Product version, active matrix, overrides and review history are unchanged.
+Against the provided matrix (not a production database), reference coverage improves:
+risk names/descriptions/impacts/controls/guidance 11/14 → 14/14; activity names/descriptions/
+guidance 13/14 → 14/14. The 28 distinct risk/activity relationships and transaction metadata
+(230/232 distinct transaction codes have text) are unchanged. Missing transaction text is
+not fabricated. PR01's supplied mappings support vendor-master wording; historical label
+conflicts remain explicitly documented and require human acceptance of the active ruleset.

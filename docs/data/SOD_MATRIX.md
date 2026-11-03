@@ -226,7 +226,7 @@ catalogue; its invented pairs are not production risk guidance.
 Settings → SoD Risk Configuration → **Advanced reference settings** → **Import reference workbook** accepts the supplied
 `SAP_SoD_Risk_and_Activity_Definitions.xlsx` schema (up to 2 MB). This is a separate,
 private business reference library, not an active matrix import or verified SAP-standard content.
-The application bundles curated JSON defaults (11 risks, 13 activities, six terms) in
+The application bundles curated JSON defaults (14 risks, 14 activities, six terms) in
 `backend/resources/reference-defaults.json`; the original workbook is never included.
 Fresh installations inherit this library automatically, without importing a workbook.
 Existing private/custom libraries remain unchanged on upgrade.
@@ -288,7 +288,7 @@ Both delegate to the same exact-ID parser, private atomic library and revision c
 
 ### Bundled defaults and reset
 
-Default reference content is a separate versioned business resource (currently 1.0.0),
+Default reference content is a separate versioned business resource (currently 1.0.1),
 not the SAP Lens product version or an active matrix. It contains guidance/terms only,
 no user assignments, transactions or employee identities. It is available lazily without
 writing private configuration; existing custom libraries take precedence as the active
@@ -306,3 +306,19 @@ Windows desktop and service builds include resources under the PyInstaller resou
 Linux native and Docker builds carry backend/resources. A missing default resource is
 reported in reference status and disables reset; custom imports and existing private data
 remain available. Invalid bundled data returns a controlled error without changing data.
+
+
+### Vendor reference completion (library 1.0.1)
+
+The curated reference resource includes P001, P002, P008 and PR01 from the supplied
+missing-definitions workbook. All supported workbook fields, including review caveats,
+are preserved. This updates reference-library metadata only, not the product version.
+Fresh installations receive it automatically; existing custom/private libraries remain
+unchanged until an explicit import or confirmed Reset defaults.
+
+PR01 source review remains a human acceptance item: the supplied matrix pairs PR01
+with AP02 (P001), AP01 (P002), and PR02 (P008), with vendor-master transaction mappings.
+That supports the curated label **Vendor Master Maintenance** but does not establish
+all effective SAP permissions. Conflicting historical labels are retained as a caveat;
+no transaction mapping, activity slot, evaluation policy or active rule is rewritten.
+The original workbooks and matrix remain outside Git.
