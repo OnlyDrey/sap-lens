@@ -160,8 +160,8 @@ def frozen(snapshot, saved, risk_ids):
     resolved = lookup(snapshot, saved, reference)
     wanted = set(risk_ids)
     activity_ids = {mapping['activity'] for risk in (snapshot.sod or {}).get('risks', []) if risk['risk_id'] in wanted for slot in ('ACTVT1', 'ACTVT2') for mapping in risk['activities'][slot]}
-    risks = {key: {name: value for name, value in entry.items() if name not in ('criticality', 'type', 'risks')} for key, entry in resolved['risks'].items() if key in wanted}
-    activities = {key: {name: value for name, value in entry.items() if name != 'risks'} for key, entry in resolved['activities'].items() if key in activity_ids}
+    risks = {key: {name: value for name, value in entry.items() if name not in ('criticality', 'type', 'risks', 'activities')} for key, entry in resolved['risks'].items() if key in wanted}
+    activities = {key: {name: value for name, value in entry.items() if name not in ('risks','risk_ids')} for key, entry in resolved['activities'].items() if key in activity_ids}
     return dict(version=SNAPSHOT_VERSION, risks={key: entry for key, entry in risks.items() if len(entry) > 1}, activities={key: entry for key, entry in activities.items() if len(entry) > 1},
                 source={**_imported(snapshot)[2], 'reference': summary(reference)})
 
