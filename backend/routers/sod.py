@@ -1,6 +1,6 @@
 """SoD catalogue endpoints; the shared application boundary protects all routes."""
 from typing import Literal
-from fastapi import APIRouter, Query,Depends, Request
+from fastapi import APIRouter, Query,Depends, Request, HTTPException
 import csv
 import io
 import json
@@ -45,7 +45,7 @@ def catalogue_data(search='',enabled='',current='',status='',criticality='',type
         result = store.catalogue()
     def matches(item):
         local, source = item['local'], item['source']
-        return ((not search.strip() or search_fields(search.strip(), item['risk_id'], source['source_text'], local['display_name'], local['business_category'], local['explanation_en'], local['explanation_no']))
+        return ((not search.strip() or search_fields(search.strip(), item['risk_id'], source['source_text'], item['display_name'], local['business_category'], local['explanation_en'], local['explanation_no']))
                 and (not enabled or local['enabled'] == (enabled == 'enabled'))
                 and (not current or item['current'] == (current == 'current'))
                 and (not criticality or source['criticality'] == criticality)
@@ -58,7 +58,7 @@ def catalogue_data(search='',enabled='',current='',status='',criticality='',type
                      or status == 'unsupported' and not source['supported']))
     items = [item for item in result['items'] if matches(item)]
     def value(item):
-        selected = item['risk_id'] if sort == 'risk_id' else item['source']['criticality'] if sort == 'criticality' else item['modified'] if sort == 'modified' else item['local'][sort]
+        selected = item['risk_id'] if sort == 'risk_id' else item['source']['criticality'] if sort == 'criticality' else item['modified'] if sort == 'modified' else item['display_name'] if sort=='display_name' else item['local'][sort]
         return ((selected or '').casefold(), item['risk_id'])
     items.sort(key=value, reverse=descending)
     return {**result,'items':items}
@@ -80,7 +80,7 @@ def catalogue_export(filters:dict=Depends(catalogue_query)):
         buffer=io.StringIO();writer=csv.writer(buffer,delimiter=';',quoting=csv.QUOTE_ALL,lineterminator='\r\n')
         for row in result['items']:
             source,local=row['source'],row['local']
-            values=[row['risk_id'],local['display_name'],source['source_text'],source['criticality'],source['risk_type'],'Yes' if row['current'] else 'No','Yes' if local['enabled'] else 'No',row['description_review_status'],local['business_category']]
+            values=[row['risk_id'],row['display_name'],source['source_text'],source['criticality'],source['risk_type'],'Yes' if row['current'] else 'No','Yes' if local['enabled'] else 'No',row['description_review_status'],local['business_category']]
             values.extend(local[key] for key in ('explanation_en','explanation_no','consequence_en','consequence_no','mitigating_controls_en','mitigating_controls_no','review_guidance_en','review_guidance_no','notes'))
             values.extend([source['activity1'],source['activity2'],json.dumps(source['activities']['ACTVT1'],ensure_ascii=False),json.dumps(source['activities']['ACTVT2'],ensure_ascii=False),row['definition_version'],row['modified'] or ''])
             buffer.seek(0);buffer.truncate(0);writer.writerow([spreadsheet_cell(value) for value in values]);yield buffer.getvalue()
@@ -110,10 +110,10 @@ def activities(search: str = Query('', max_length=256), current: Literal['', 'cu
     needle = search.strip()
     items = [item for item in result['items']
              if (not current or item['current'] == (current == 'current'))
-             and (not needle or search_fields(needle, item['activity'], item['local']['display_name'], item['local']['business_category'],
+             and (not needle or search_fields(needle, item['activity'], item['display_name'], item['local']['business_category'],
                                               item['local']['explanation_en'], *item['risks'], *item['tcodes']))]
     key = {'activity': lambda item: item['activity'].casefold(), 'risks': lambda item: (len(item['risks']), item['activity'].casefold()),
-           'display_name': lambda item: (item['local']['display_name'].casefold(), item['activity'].casefold()),
+           'display_name': lambda item: (item['display_name'].casefold(), item['activity'].casefold()),
            'business_category': lambda item: (item['local']['business_category'].casefold(), item['activity'].casefold())}[sort]
     items.sort(key=key, reverse=descending)
     return dict(items=items[offset:offset + limit], total=len(items), offset=offset, limit=limit, revision=result['revision'])
@@ -251,3 +251,21 @@ def reference_template():
     path=default_path().with_name('sod-reference-template.xlsx')
     if not path.is_file():raise HTTPException(503,'Reference template is unavailable; repair the application package.')
     return FileResponse(path,filename='sap-lens-sod-reference-template.xlsx',media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',headers={'Cache-Control':'no-store'})
+
+
+@router.get('/catalogue/{risk_id}')
+def risk_detail(risk_id:str):
+    with store.lock,cache._load_lock:
+        result=store.catalogue()
+    item=next((row for row in result['items'] if row['risk_id']==risk_id),None)
+    if item is None:raise HTTPException(404,'Risk is not available in the retained source definitions.')
+    return dict(item=item,revision=result['revision'])
+
+
+@router.get('/catalogue-activities/{activity:path}')
+def activity_detail(activity:str):
+    with store.lock,cache._load_lock:
+        result=store.activity_catalogue()
+    item=next((row for row in result['items'] if row['activity']==activity),None)
+    if item is None:raise HTTPException(404,'Activity is not available in the retained source definitions.')
+    return dict(item=item,revision=result['revision'])

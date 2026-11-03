@@ -275,3 +275,16 @@ test('SoD configuration is compact with bundled defaults and advanced custom imp
     await expect(page.getByRole('searchbox',{name:'Search SoD activities',exact:true})).toBeVisible()
   }
 })
+
+test('configuration tables use effective Display names without saving inherited values as overrides',async({page,request})=>{
+ await reseed(request,extended)
+ await openSettings(page,'SoD Risk Configuration')
+ const risks=page.getByRole('table',{name:'SoD risk configurations',exact:true})
+ const risk=risks.getByRole('row').filter({has:page.getByRole('button',{name:'Edit SoD risk R1',exact:true})});await expect(risk).toContainText('Duplicate payments');await expect(risk.locator('.id-pill-activity')).toHaveText(['A','B'])
+ await page.getByRole('tab',{name:'Activities',exact:true}).click()
+ const activities=page.getByRole('table',{name:'SoD activity configurations',exact:true})
+ await expect(activities.getByRole('row').filter({has:page.getByRole('button',{name:'Edit SoD activity A',exact:true})})).toContainText('Create invoice')
+ await expect(activities).not.toContainText('No local name')
+ const catalogue=await(await request.get('/api/sod/catalogue',{headers,params:{search:'R1'}})).json()
+ expect(catalogue.items.find((row:{risk_id:string})=>row.risk_id==='R1').local.display_name).toBe('')
+})

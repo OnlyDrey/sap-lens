@@ -1,7 +1,10 @@
+import {createContext,useContext} from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiRequest } from '@/api/client'
 import { IdPill } from '@/components/Shared/IdPill'
 import { Popover } from '@/components/Shared/Popover'
+
+export const SodEntityNavigation=createContext<((kind:'risk'|'activity',id:string)=>void)|null>(null)
 
 interface Appearance { risks: Record<string, { name: string; color: string }>; activities: Record<string, { name: string; color: string }> }
 const none: Appearance = { risks: {}, activities: {} }
@@ -9,7 +12,7 @@ const none: Appearance = { risks: {}, activities: {} }
 /** A resolved description of a risk or activity: non-empty local overrides, then imported metadata, then curated references, with each value’s provenance. */
 export interface SodDescription {
   name?: string; description?: string; impact?: string; controls?: string; guidance?: string; notes?: string; business_process?: string; type?: string
-  criticality?: string; risks?: number
+  criticality?: string; risks?: number; activities?:string[]; risk_ids?:string[]
   inherited?: Record<string, string>
   inherited_origin?: Record<string, 'imported' | 'reference'>
   reference?: Record<string, string>
@@ -48,7 +51,7 @@ function ActivityReferences({text}:{text:string}) {
 
 function Detail({ entry, field, label, required = false, compact=false }: { entry: SodDescription; field: 'name' | 'description' | 'impact' | 'business_process' | 'type' | 'controls' | 'guidance' | 'notes'; label: string; required?: boolean; compact?:boolean }) {
   const text = entry[field], origin = entry.origin[field], other = entry.alternate?.[field]
-  if (!text && !other) return required ? <div><dt>{label}</dt><dd className="ui-description">{MISSING}</dd></div> : null  // a missing description is stated, never invented
+  if (!text && !other) return required ? <div><dt>{label}</dt><dd className="ui-description">{field==='name'?'Missing display name':MISSING}</dd></div> : null  // a missing description is stated, never invented
   return (
     <div>
       <dt>{label}</dt>
@@ -59,6 +62,7 @@ function Detail({ entry, field, label, required = false, compact=false }: { entr
 }
 
 function Details({ kind, value, entry, compact=false }: { kind: 'risk' | 'activity'; value: string; entry?: SodDescription; compact?:boolean }) {
+  const navigate=useContext(SodEntityNavigation)
   const shown: SodDescription = entry ?? { origin: {} }
   // Only descriptive fields count; the factual context of the imported definition (criticality, risk type) is not a description.
   const known = !!entry && (!!entry.name || !!entry.description || !!entry.business_process || (kind === 'risk' ? !!entry.impact : !!entry.type))
@@ -67,7 +71,7 @@ function Details({ kind, value, entry, compact=false }: { kind: 'risk' | 'activi
       <dl className="ui-metadata-list">
         <div><dt>{kind === 'risk' ? 'Risk' : 'Activity'}</dt><dd><code>{value}</code></dd></div>
         <>
-          <Detail compact={compact} entry={shown} field="name" label="Display name" />
+          <Detail compact={compact} entry={shown} field="name" label="Display name" required />
           <Detail compact={compact} entry={shown} field="description" label="Description" required />
           {kind === 'risk' && <Detail compact={compact} entry={shown} field="impact" label="Impact" />}
           <Detail compact={compact} entry={shown} field="controls" label="Compensating controls" />
@@ -76,6 +80,7 @@ function Details({ kind, value, entry, compact=false }: { kind: 'risk' | 'activi
           <Detail compact={compact} entry={shown} field="business_process" label="Business process" />
           {kind === 'activity' && <Detail compact={compact} entry={shown} field="type" label="Type" />}
           {!compact && kind === 'risk' && shown.criticality && <div><dt>Source criticality</dt><dd>{shown.criticality}</dd></div>}
+          {(kind==='risk'?shown.activities:shown.risk_ids)?.length? <div><dt>{kind==='risk'?'Related Activities':'Related Risks'}</dt><dd className="id-pill-list">{(kind==='risk'?shown.activities:shown.risk_ids)!.map(id=><SodPill key={id} kind={kind==='risk'?'activity':'risk'} value={id} details={!!navigate}/>)}</dd></div>:null}
           {kind === 'activity' && typeof shown.risks === 'number' && <div><dt>Used in risks</dt><dd>{shown.risks.toLocaleString()}</dd></div>}
         </>
       </dl>
@@ -96,12 +101,14 @@ export function SodDescriptionDetails({ kind, value }: { kind: 'risk' | 'activit
  * it keeps the tooltip and adds no second interactive element.
  */
 export function SodPill({ kind, value, details = true }: { kind: 'risk' | 'activity'; value: string; details?: boolean }) {
+  const navigate=useContext(SodEntityNavigation)
   const appearance = useSodAppearance(), metadata = useSodMetadata(),
     entry = (kind === 'risk' ? appearance.risks : appearance.activities)[value],
     described = (kind === 'risk' ? metadata.risks : metadata.activities)[value],
     summary = pillSummary(kind, value, described, entry?.name),
     pill = <IdPill kind={kind} value={value} color={entry?.color} title={details ? undefined : summary} />
   if (!details) return pill
+  if(navigate)return <button type="button" className="id-pill-button" title={summary} aria-label={summary} onClick={()=>navigate(kind,value)}>{pill}</button>
   return (
     <span className="sod-pill" title={summary}>
       <Popover label={`${kind === 'risk' ? 'Risk' : 'Activity'} ${value} details`} preferredWidth={440} triggerSize="compact" triggerVariant="ghost" triggerClassName="id-pill-trigger"

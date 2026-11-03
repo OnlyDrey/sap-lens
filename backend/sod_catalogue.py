@@ -179,6 +179,8 @@ def catalogue(snapshot=None, settings=None, saved=None):
     definitions = dict(_historical_definitions(str(config_dir()), identities))
     current = {risk['risk_id']: risk for risk in snapshot.sod.get('risks', [])}
     definitions.update(current)
+    from sod_metadata import lookup
+    descriptions=lookup(snapshot,saved)['risks']
     items = []
     for risk_id, source in sorted(definitions.items()):
         stored = saved.entries.get(risk_id)
@@ -187,7 +189,7 @@ def catalogue(snapshot=None, settings=None, saved=None):
         changed = bool(stored and stored.observed_definition != version)
         reviewed = bool(stored and stored.reviewed_definition == version and metadata['description_review_status'] == 'Reviewed')
         review_status = 'Reviewed' if reviewed else 'Needs description review'
-        items.append(dict(risk_id=risk_id, source=source, local=metadata,
+        items.append(dict(risk_id=risk_id, source=source, local=metadata, display_name=descriptions.get(risk_id,{}).get('name',''),
                           current=risk_id in current, new=risk_id in current and stored is None,
                           source_changed=changed, description_review_status=review_status,
                           definition_version=version, modified=stored.modified if stored else None))
@@ -218,16 +220,19 @@ def activity_catalogue(snapshot=None, settings=None, saved=None):
     for risk_id, risk in definitions.items():
         for slot in ('ACTVT1', 'ACTVT2'):
             for mapping in risk['activities'][slot]:
-                entry = found.setdefault(mapping['activity'], dict(risks=set(), tcodes=set(), texts={}, current=False))
+                entry = found.setdefault(mapping['activity'], dict(risks=set(), current_risks=set(), tcodes=set(), texts={}, current=False))
                 entry['risks'].add(risk_id)
+                if risk_id in current:entry['current_risks'].add(risk_id)
                 entry['tcodes'].add(mapping['tcode'])
                 if mapping.get('ttext'):
                     entry['texts'].setdefault(mapping['tcode'], mapping['ttext'])
                 entry['current'] = entry['current'] or risk_id in current
+    from sod_metadata import lookup
+    descriptions=lookup(snapshot,saved)['activities']
     items = []
     for name, entry in sorted(found.items()):
         stored = saved.activities.get(name)
-        items.append(dict(activity=name, risks=sorted(entry['risks']), tcodes=sorted(entry['tcodes']), mappings=[dict(tcode=code, ttext=entry['texts'].get(code, '')) for code in sorted(entry['tcodes'])], current=entry['current'],
+        items.append(dict(activity=name, display_name=descriptions.get(name,{}).get('name',''), risks=sorted(entry['risks']), current_risks=sorted(entry['current_risks']), tcodes=sorted(entry['tcodes']), mappings=[dict(tcode=code, ttext=entry['texts'].get(code, '')) for code in sorted(entry['tcodes'])], current=entry['current'],
                           local=(stored.metadata if stored else ActivityMetadata()).model_dump(), modified=stored.modified if stored else None))
     return dict(items=items, revision=saved.revision)
 

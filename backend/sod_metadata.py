@@ -69,7 +69,7 @@ def lookup(snapshot=None, saved=None, reference=None):
         entry = _entry(RISK_FIELDS, imported_risks.get(risk_id, {}), stored.metadata if stored else None, reference.risks.get(risk_id) if risk_id in definitions else None)
         definition = definitions.get(risk_id)
         if definition:
-            entry.update(criticality=definition['criticality'], type=definition['risk_type'])
+            entry.update(criticality=definition['criticality'], type=definition['risk_type'], activities=sorted({mapping['activity'] for slot in ('ACTVT1','ACTVT2') for mapping in definition['activities'][slot]}))
         if definition or any(key in entry for key in ('name', 'description', 'impact', 'business_process')):
             risks_out[risk_id] = entry
     for name in sorted(set(activities) | set(saved.activities) | set(imported_activities)):
@@ -81,7 +81,8 @@ def lookup(snapshot=None, saved=None, reference=None):
                 entry['origin'][key] = 'imported'
         if name in activities:
             entry['risks'] = len(activities[name])
-        if any(key in entry for key in ('name', 'description', 'business_process', 'type')):
+            entry['risk_ids'] = sorted(activities[name])
+        if name in activities or any(key in entry for key in ('name', 'description', 'business_process', 'type')):
             activities_out[name] = entry
     return dict(risks=risks_out, activities=activities_out, active_activities=sorted(activities))
 

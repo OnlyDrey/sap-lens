@@ -171,9 +171,9 @@ class ResolutionTests(Case):
 
     def test_missing_metadata_is_neutral_and_nothing_is_generated(self):
         found = sod_metadata.lookup(self.snapshot(), self.local())
-        self.assertEqual(found['activities'], {})  # no description anywhere: no invented text
-        for entry in found['risks'].values():
-            self.assertEqual(entry, dict(origin={}, criticality='H', type='S'))  # only the factual context of the imported definition
+        self.assertTrue(all('name' not in entry and 'description' not in entry for entry in found['activities'].values()))  # contextual relationships are not invented descriptions
+        for key, entry in found['risks'].items():
+            self.assertEqual(entry, dict(origin={}, criticality='H', type='S', activities={'R1':['A','B'],'R2':['A','C'],'R3':['D','E']}[key]))  # only the factual context of the imported definition
 
     def test_local_text_alone_is_used_when_the_source_has_none(self):
         found = sod_metadata.lookup(self.snapshot(), self.local(risks={'R2': dict(display_name='Our name')}, activities={'A': dict(explanation_en='Our activity words')}))
@@ -207,6 +207,30 @@ class LifecycleAndApiTests(Case):
     def setUp(self):
         super().setUp()
         self.client = TestClient(create_app(session_token=H['X-SAP-Lens']), base_url='http://127.0.0.1:18743')
+
+    def test_configuration_relationships_and_exact_entity_routes_use_imported_scope(self):
+        write(self.path,rows(described));self.activate()
+        risk=self.client.get('/api/sod/catalogue/R1',headers=H)
+        self.assertEqual(risk.status_code,200)
+        self.assertEqual(risk.json()['item']['risk_id'],'R1')
+        activity=self.client.get('/api/sod/catalogue-activities/A',headers=H).json()['item']
+        self.assertEqual(activity['current_risks'],['R1','R2'])
+        descriptions=self.client.get('/api/sod/metadata',headers=H).json()
+        self.assertEqual(descriptions['risks']['R1']['activities'],['A','B'])
+        self.assertEqual(descriptions['activities']['A']['risk_ids'],['R1','R2'])
+        self.assertEqual(self.client.get('/api/sod/catalogue/R1_UNKNOWN',headers=H).status_code,404)
+        self.assertEqual(self.client.get('/api/sod/catalogue-activities/A_UNKNOWN',headers=H).status_code,404)
+
+    def test_effective_names_drive_catalogue_search_sort_and_export_without_overrides(self):
+        write(self.path,rows(described));self.activate()
+        result=self.client.get('/api/sod/catalogue',headers=H,params={'search':'Name R1','sort':'display_name'}).json()
+        self.assertEqual([row['risk_id'] for row in result['items']],['R1'])
+        self.assertEqual(result['items'][0]['display_name'],'Name R1')
+        self.assertEqual(result['items'][0]['local']['display_name'],'')
+        export=self.client.get('/api/sod/catalogue/export',headers=H,params={'search':'Name R1'})
+        self.assertIn('"R1";"Name R1"',export.text)
+        activities=self.client.get('/api/sod/catalogue-activities',headers=H,params={'search':'Activity A','sort':'display_name'}).json()
+        self.assertTrue(any(row['activity']=='A' and row['display_name']=='Activity A' for row in activities['items']))
 
     def test_local_descriptions_survive_refreshes_and_imports_never_overwrite_them(self):
         write(self.path, rows()); self.activate()

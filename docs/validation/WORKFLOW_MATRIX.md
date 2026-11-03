@@ -454,3 +454,14 @@ guidance 13/14 → 14/14. The 28 distinct risk/activity relationships and transa
 (230/232 distinct transaction codes have text) are unchanged. Missing transaction text is
 not fabricated. PR01's supplied mappings support vendor-master wording; historical label
 conflicts remain explicitly documented and require human acceptance of the active ruleset.
+
+### Effective configuration names and relationship contracts
+
+Catalogue rows now expose an additive effective `display_name`, reused for name search,
+sorting and catalogue CSV output. Local fields and precedence are unchanged. Active
+risk/activity relationships are returned separately from retained historical relationships;
+exact-ID detail endpoints avoid fuzzy/paginated lookup misses. Metadata carries factual
+related IDs even when descriptions are missing, without inventing display text.
+Targeted evidence: 20 catalogue, 14 reference and 18 metadata/API tests passed; two
+focused table/pill browser checks, TypeScript and production build passed. Navigation
+integration continues in the next phase; these additive endpoints do not alter evaluation.
