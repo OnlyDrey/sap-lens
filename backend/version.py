@@ -87,13 +87,13 @@ def make_build_info(
 def make_local_package_info(requested_version, source_sha):
     """Deterministic unofficial identity; no reserved tag or fabricated CI run."""
     if not isinstance(requested_version, str) or len(requested_version) > 48:
-        raise ValueError("Local version must be MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-beta-N.")
-    match = re.fullmatch(r"(" + BASE_PATTERN + r")(?:-beta-([1-9][0-9]{0,4}))?", requested_version)
+        raise ValueError("Local version must be MAJOR.MINOR.PATCH with optional alpha.N, beta.N, rc.N or legacy beta-N.")
+    match = re.fullmatch(r"(" + BASE_PATTERN + r")(?:-(?:beta-([1-9][0-9]{0,4})|(?:alpha|beta|rc)\.([1-9][0-9]{0,4})))?", requested_version)
     if not match:
-        raise ValueError("Local version must be MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-beta-N.")
+        raise ValueError("Local version must be MAJOR.MINOR.PATCH with optional alpha.N, beta.N, rc.N or legacy beta-N.")
     base = match[1]
     numbers = base_numbers(base)
-    beta = int(match[5]) if match[5] else 0
+    beta = int(match[5] or match[6] or 0)
     if beta > 65535 or not isinstance(source_sha, str) or not re.fullmatch('[0-9a-f]{40}', source_sha):
         raise ValueError("Invalid local build sequence or source commit.")
     return dict(schema=1, version=f"{requested_version}+local.{source_sha[:12]}",

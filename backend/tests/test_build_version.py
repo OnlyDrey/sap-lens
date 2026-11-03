@@ -172,3 +172,10 @@ class ProductVersionTests(unittest.TestCase):
         current=version.product_version()
         self.assertEqual(version.local_build_info()['version'],current)
         self.assertEqual(version.local_build_info()['base_version'],current.split('-',1)[0])
+
+    def test_local_desktop_identity_accepts_every_prerelease_channel(self):
+        for requested in ('1.0.0-alpha.1','1.0.0-beta.2','1.0.0-rc.3','1.0.0-beta-2'):
+            with self.subTest(requested=requested):
+                info=version.make_local_package_info(requested,'a'*40)
+                self.assertEqual(version.parse_build_info(info),info)
+                self.assertEqual(info['version'],requested+'+local.'+'a'*12)
