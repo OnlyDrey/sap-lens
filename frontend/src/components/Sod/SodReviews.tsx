@@ -68,17 +68,17 @@ function Queue() {
           {PROGRESS.map(([value, label]) => <Kpi key={value} label={label} value={(data.counts[value || 'all'] ?? 0).toLocaleString()} tone={stateTone(label, data.counts[value || 'all'] ?? 0)} active={progress === value} onClick={() => { reset(); setProgress(value) }} />)}
         </section>
         <p className="ui-description">One row per SAP user. Completion covers unique role, activity and risk access-review items in the selected scope, across pages. Current role/activity decisions can provide derived coverage; formal acceptance remains explicit. Open Review shows the same scope and provenance.</p>
-        {data.items.length ? <DataTable caption="SoD review work queue" tableClassName="sod-config-table">
-          <thead><tr>{heading('username','SAP user')}{heading('group','SAP User Group')}{heading('progress','Progress')}{heading('activity','Activities')}{heading('assignment','Role assignments')}{heading('risk','Risk access review')}{heading('acceptance','Formal acceptance')}{heading('removal','Removal recommendations')}<th>Open</th></tr></thead>
+        {data.items.length ? <DataTable caption="SoD review work queue" tableClassName="sod-work-queue">
+          <thead><tr>{heading('username','SAP user')}{heading('group','SAP User Group')}{heading('progress','Progress')}{heading('activity','Activities')}{heading('assignment','Role assignments')}{heading('risk','Risk access review')}{heading('acceptance','Formal acceptance')}<th>Open</th></tr></thead>
           <tbody>{data.items.map((row) => (
             <tr key={row.user}>
               <td><SAPUserLink username={row.user} /></td>
               <td><UserGroupCell groups={row.groups} /></td>
-              <td><div className="flex items-center gap-2 whitespace-nowrap"><progress className="w-24 max-w-full" max={Math.max(row.total, 1)} value={row.decided} aria-label={`${row.user} decided ${row.decided} of ${row.total}`} /><span className="text-xs">{row.decided}/{row.total}</span></div>{row.removal > 0 && <p className="mt-1 text-xs text-muted">{row.removal} removal recommended</p>}</td>
+              <td><div className="flex items-center gap-2 whitespace-nowrap"><progress className="w-16 max-w-full shrink" max={Math.max(row.total, 1)} value={row.decided} aria-label={`${row.user} decided ${row.decided} of ${row.total}`} /><span className="text-xs">{row.decided}/{row.total}</span></div></td>
               <td>{part(row.activity)}</td>
               <td>{part(row.assignment)}</td>
-              <td>{part(row.acceptance)}</td><td>{part(row.formal_acceptance)}</td><td>{row.removal||'–'}</td>
-              <td><Button variant="primary" size="compact" onClick={() => setSubject({ user: row.user })} aria-label={`Open review for ${row.user}`}><ClipboardCheck size={14} aria-hidden="true" />Open review</Button></td>
+              <td>{part(row.acceptance)}</td><td>{part(row.formal_acceptance)}</td>
+              <td className="whitespace-nowrap"><Button variant="primary" size="compact" onClick={() => setSubject({ user: row.user })} aria-label={`Open review for ${row.user}`}><ClipboardCheck size={14} aria-hidden="true" />Open review</Button></td>
             </tr>))}</tbody>
         </DataTable> : <EmptyState>Nothing matches this queue scope. Results describe imported evidence only; missing sources are not proof of no conflict.</EmptyState>}
         <Pagination label="Queue pages" offset={data.offset} total={data.total} limit={data.limit} onChange={setOffset} />

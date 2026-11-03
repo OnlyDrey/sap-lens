@@ -6,6 +6,11 @@ test.afterEach(async({request})=>{await cleanup(request,directory)})
 for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`Work Queue bulk review ${theme} ${width}`,async({page,request},info)=>{
  await request.post('/api/configuration/theme',{headers,data:{theme}})
  await page.setViewportSize({width,height:1000});await openSod(page,'Reviews')
+ const queue=page.getByRole('table',{name:'SoD review work queue',exact:true})
+ await expect(queue.locator('thead th')).toHaveText(['SAP user','SAP User Group','Progress','Activities','Role assignments','Risk access review','Formal acceptance','Open'])
+ await expect(queue).not.toContainText('removal recommended')
+ await expect(page.getByRole('button',{name:/^Removal recommended/})).toBeVisible()
+ if(width>=1280){const action=queue.getByRole('button',{name:/^Open review for/}).first();const bounds=await action.boundingBox();expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(width)}
  const trigger=page.getByRole('button',{name:'Bulk review',exact:true});await trigger.click()
  const panel=page.getByRole('dialog',{name:'Bulk role assignment review',exact:true})
  await expect(panel.getByRole('table',{name:'Bulk assignment preview'}).locator('tbody tr')).toHaveCount(5)

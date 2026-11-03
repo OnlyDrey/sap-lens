@@ -85,7 +85,7 @@ test('Access Explorer: Users, Assignments and the role views order and show the 
 test('Reviews: the work queue and remediation show the group next to the user and keep their progress and decisions', async ({ page, request }) => {
   await openSod(page, 'Reviews')
   const queue = page.getByRole('table', { name: 'SoD review work queue' })
-  expect(await headerTexts(queue)).toEqual(['SAP user', 'SAP User Group', 'Progress', 'Activities', 'Role assignments', 'Risk access review', 'Formal acceptance', 'Removal recommendations', 'Open'])
+  expect(await headerTexts(queue)).toEqual(['SAP user', 'SAP User Group', 'Progress', 'Activities', 'Role assignments', 'Risk access review', 'Formal acceptance', 'Open'])
   const row = queue.getByRole('row', { name: new RegExp(names.a) }).first()
   await expect(row.locator('.user-group-text')).toHaveText('FIN')
   await expect(row.getByRole('progressbar').or(row.locator('progress'))).toHaveCount(1)

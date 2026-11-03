@@ -1417,3 +1417,13 @@ summary:focus-visible,div[tabindex="0"]:focus-visible,a.role-identifier-link:foc
 .sod-pill-details .ui-metadata-list > div { display:grid; grid-template-columns:minmax(0,1fr); gap:2px; text-align:left; }
 .sod-pill-details .ui-metadata-list dd { text-align:left; margin:0; overflow-wrap:anywhere; }
 .sod-pill-details .ui-metadata-list dt { color:var(--muted); font-size:var(--font-meta); }
+
+/* Queue widths belong to its eight review columns, rather than catalogue identity columns. */
+.access-table .sod-work-queue { table-layout:fixed; width:100%; min-width:54rem; }
+.sod-workspace .access-table .sod-work-queue td { min-width:0; }
+.sod-work-queue th, .sod-work-queue td { padding:var(--space-2); vertical-align:middle; }
+.sod-work-queue th:first-child { width:20%; }
+.sod-work-queue th:nth-child(2) { width:11%; }
+.sod-work-queue th:nth-child(3) { width:14%; }
+.sod-work-queue th:last-child { width:14%; }
+.sod-work-queue th svg { flex-shrink:0; }

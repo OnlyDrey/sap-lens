@@ -355,3 +355,14 @@ client-side extension/empty/size validation. Existing integrity preview, explici
 replacement confirmation, automatic destination recovery and restart handoff remain.
 Three affected browser cases passed (workflow plus narrow/light and desktop/dark);
 the workflow recheck including invalid-extension and filename assertions passed.
+
+### Work Queue cleanup (Phase 7.9)
+
+Removed the redundant removal-recommendation column and per-row progress annotation.
+The removal KPI/filter, API payloads, exports and completion calculations remain intact.
+The initial desktop boundary assertion exposed inherited catalogue-column minimum widths;
+the eight-column queue now has its own widths, retaining contained scrolling on narrow screens.
+Validation: typecheck and production build passed; 11 initial filtering/navigation/group/export
+browser checks passed, the affected bulk replacement/filter recheck passed, and all eight
+light/dark 375/800/1280/1600 queue previews plus Dashboard synchronization passed.
+Native Windows acceptance remains unexecuted. Other ongoing phase checks are tracked separately.
