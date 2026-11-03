@@ -151,6 +151,90 @@ class BackupTests(unittest.TestCase):
         backups.cancel(self.data)
         self.assertEqual(asyncio.run(job.tick()),'idle')
 
+    def test_schedule_exact_occurrence_claim_and_busy_skip(self):
+        from datetime import datetime,timezone
+        from types import SimpleNamespace
+        import backup_schedule as schedule
+        schedule.save(dict(enabled=True,time='06:00',timezone='UTC'),0,self.data)
+        cursor=datetime(2026,1,1,5,59,tzinfo=timezone.utc);now=datetime(2026,1,1,6,0,tzinfo=timezone.utc)
+        self.assertEqual(schedule.tick(now,cursor,SimpleNamespace(loading=False),self.data),'waiting_for_restart')
+        identity=backups.read(self.data)['id']
+        self.assertEqual(schedule.tick(now,cursor,SimpleNamespace(loading=False),self.data),'skipped')
+        self.assertEqual(backups.read(self.data)['id'],identity)
+        self.assertEqual(backups.read(self.data)['origin'],'scheduled')
+        self.assertEqual(len(schedule.status(self.data)['attempts']),1)
+        backups.cancel(self.data)
+        tomorrow=now.replace(day=2)
+        schedule.tick(tomorrow,cursor.replace(day=2),SimpleNamespace(loading=True),self.data)
+        self.assertFalse(backups.pending(self.data))
+        self.assertIn('skipped',schedule.settings(self.data)['last_outcome'])
+
+    def test_schedule_validation_revision_timezone_and_disabled_defaults(self):
+        import backup_schedule as schedule
+        self.assertFalse(schedule.settings(self.data)['schedule']['enabled'])
+        for draft in [dict(time='25:00'),dict(mode='cron',cron='* * * * *'),dict(timezone='Unknown/Nowhere'),dict(keep=0)]:
+            with self.subTest(draft=draft),self.assertRaises(ValueError):schedule.save(draft,0,self.data)
+        value=schedule.save(dict(enabled=True,mode='cron',cron='0 7 * * 1-5',timezone='Europe/Oslo'),0,self.data)
+        self.assertEqual(len(value['next_runs']),5)
+        with self.assertRaises(ValueError):schedule.save({},0,self.data)
+
+    def test_verified_history_and_retention_never_remove_manual_archives(self):
+        import backup_schedule as schedule
+        schedule.save(dict(keep=2),0,self.data)
+        manual=backups.request_backup(self.data);self.activate()
+        for _ in range(3):backups.request_backup(self.data,origin='scheduled');self.activate()
+        history=schedule.history(self.data)
+        self.assertEqual(sum(row['verified'] for row in history['items']),3)
+        self.assertTrue(backups.download(manual['id'],data=self.data).exists())
+        self.assertGreater(history['storage_bytes'],0)
+        self.assertEqual(sum(row['status']=='deleted' for row in history['items']),1)
+        with self.assertRaises(ValueError):schedule.remove(manual['id'],False,self.data)
+        schedule.remove(manual['id'],True,self.data)
+        with self.assertRaises(ValueError):backups.download(manual['id'],data=self.data)
+
+    def test_staged_restore_protects_matching_backup_from_deletion(self):
+        import backup_schedule as schedule
+        result=backups.request_backup(self.data);self.activate()
+        with backups.uploaded(self.data) as (identity,path):
+            path.write_bytes(backups.download(result['id'],data=self.data).read_bytes())
+            backups.register_upload(identity,self.data)
+        with self.assertRaises(ValueError):schedule.remove(result['id'],True,self.data)
+        self.assertTrue(backups.download(result['id'],data=self.data).exists())
+
+    def test_free_space_failure_keeps_data_and_records_failed_history(self):
+        from types import SimpleNamespace
+        import backup_schedule as schedule
+        result=backups.request_backup(self.data)
+        with patch.object(schedule.shutil,'disk_usage',return_value=SimpleNamespace(free=0)):self.activate()
+        self.assertEqual(backups.read(self.data)['status'],'failed')
+        self.assertTrue((self.data/'destination-only.json').exists())
+        row=next(row for row in schedule.history(self.data)['items'] if row['id']==result['id'])
+        self.assertEqual((row['status'],row['verified']),('failed',False))
+
+
+    def test_missing_ready_archive_is_not_reported_as_success_and_corruption_blocks_download(self):
+        result=backups.request_backup(self.data);self.activate()
+        path=backups.download(result['id'],data=self.data)
+        raw=path.read_bytes();path.write_bytes(b'corrupt')
+        with self.assertRaises((ValueError,backups.tarfile.TarError)):backups.download(result['id'],data=self.data)
+        from fastapi.testclient import TestClient
+        from main import create_app
+        client=TestClient(create_app(session_token='synthetic-backup-session'),base_url='http://127.0.0.1:18743')
+        self.assertEqual(client.get('/api/backups/'+result['id']+'/download',headers={'X-SAP-Lens':'synthetic-backup-session'}).status_code,409)
+        path.write_bytes(raw);path.unlink()
+        self.assertEqual(backups.read(self.data)['status'],'failed')
+
+    def test_invalid_backup_schedule_does_not_stop_independent_refresh_scheduler(self):
+        import asyncio
+        from scheduler import Scheduler
+        from unittest.mock import AsyncMock
+        from types import SimpleNamespace
+        job=Scheduler(SimpleNamespace(loading=False))
+        job.tick=AsyncMock(side_effect=asyncio.CancelledError)
+        with patch('asyncio.to_thread',side_effect=ValueError('synthetic invalid backup schedule')):
+            with self.assertRaises(asyncio.CancelledError):asyncio.run(job.loop())
+        job.tick.assert_awaited_once()
+
     def test_internal_backup_lease_must_match(self):
         with self.assertRaises(ValueError): maintenance.backup(self.source,self.root/'no.tar.gz','desktop',VERSION,_lease=object())
 
@@ -197,6 +281,8 @@ class BackupTests(unittest.TestCase):
             headers={'Authorization':'Basic '+base64.b64encode((name+':Synthetic-backup-password-123!').encode()).decode(),'X-SAP-Lens':'1'}
             self.assertEqual(client.get('/api/backups',headers=headers).status_code,expected)
             if name=='reader': self.assertEqual(client.get('/api/backups/'+'a'*32+'/download',headers=headers).status_code,403)
+            for endpoint in ('history','schedule'):
+                self.assertEqual(client.get('/api/backups/'+endpoint,headers=headers).status_code,expected)
 
     def test_snapshot_paths_static_restore_without_reading_original_machine(self):
         from config_models import SourceSnapshot

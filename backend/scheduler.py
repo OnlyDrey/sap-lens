@@ -46,6 +46,7 @@ class Scheduler:
         self.loader = loader
         self.cursor = datetime.now(timezone.utc)
         self.signature = None
+        self.backup_cursor = self.cursor
         self.task = None
 
     def runtime(self, server):
@@ -115,7 +116,14 @@ class Scheduler:
     async def loop(self):
         while True:
             try:
-                await self.tick()
+                from backup_schedule import tick as backup_tick
+                now=datetime.now(timezone.utc)
+                try:
+                    await asyncio.to_thread(backup_tick,now,self.backup_cursor,self.loader)
+                except (ValueError,OSError,KeyError,TypeError):
+                    log.warning('Backup schedule could not be evaluated; check its configuration and storage permissions.')
+                self.backup_cursor=now
+                await self.tick(now)
             except asyncio.CancelledError:
                 raise
             except Exception as error:  # noqa: BLE001

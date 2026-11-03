@@ -116,3 +116,38 @@ accessible independently. This symptom alone does not establish corrupt settings
 a restart. Archive upload is disabled only while another operation or local request owns
 the workflow, not merely because configuration loading failed. **Check status** retries the
 backup request; returning to the section or window refreshes retained operation status.
+
+## Scheduling and retention
+
+**Automatic backup scheduling** reuses Runtime & Scheduling's five-field cron,
+minimum five-minute interval and Local/UTC/IANA timezone rules. Choose daily time or
+advanced cron, retention (default **7**, range 1–100), then **Save backup schedule**.
+It is disabled by default. Next requests, last success/failure and the last 50 request
+outcomes are shown. Only the running, single leased backend evaluates schedules;
+Desktop must stay running. Additional workers sharing storage are unsupported and
+must not bypass the process lease. Missed downtime slots are not replayed.
+
+**Important:** this release schedules **backup requests**, not unattended online
+archives. A due request queues **Waiting for restart** and pauses new edits and
+scheduled refresh until the administrator restarts the host or cancels the request.
+Do not enable it unless this operational consequence is acceptable. Use deployment
+maintenance scripts with an administrator-controlled service stop/start when fully
+automated stopped-host backups are required. No browser can restart the host.
+
+Concurrent duplicate occurrences are claimed once under the existing operation lock.
+If import/refresh or another backup/restore is busy, the occurrence is recorded as
+skipped, not retried invisibly. Archive creation still takes place only before the
+listener/scheduler starts, so no import/refresh writes run during capture. Success
+means archive verification completed; the filesystem/manifest engine is unchanged.
+A conservative free-space check runs before archive and restore-recovery creation.
+
+The **Backup history** table shows the latest 200 operations, source, timestamp,
+archive size and verification result, with authenticated downloads and confirmed
+deletion. Storage usage covers retained backup archives in the private application
+backup area. Manual archives are never automatically removed. After successful
+scheduled creation, only older verified scheduled archives beyond retention are
+removed; active operations, restore recovery archives and originals matching a
+staged restore are protected. Cleanup failure leaves the verified archive intact.
+Schedules/history are destination-local operational metadata, excluded from exported
+archives along with the operation store; restores do not activate another host's
+backup schedule. Failed and deleted records remain traceable in history.

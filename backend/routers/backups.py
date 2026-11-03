@@ -1,9 +1,11 @@
 """Administrator-only private archive boundary; all replacement happens at restart."""
+from tarfile import TarError
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import Field
 from config_models import StrictModel
 import application_backups as backups
+from backup_schedule import Schedule
 from maintenance import MaintenanceError, private_file
 
 router=APIRouter(prefix='/api/backups',tags=['Backups'])
@@ -20,7 +22,7 @@ def admin(request):
 
 def operation(action):
     try: return action()
-    except (MaintenanceError,OSError,ValueError,KeyError,TypeError):
+    except (MaintenanceError,OSError,ValueError,KeyError,TypeError,TarError):
         raise HTTPException(409,'Backup operation could not be completed. Check the archive, compatibility, storage and pending operation. Existing data is preserved.') from None
 
 
@@ -40,6 +42,43 @@ def create(request:Request):
 def cancel(request:Request):
     admin(request)
     return operation(backups.cancel)
+
+
+class BackupScheduleBody(StrictModel):
+    revision:int=Field(ge=0)
+    schedule:Schedule
+
+
+@router.get('/schedule')
+def schedule_status(request:Request):
+    admin(request)
+    from backup_schedule import status
+    return operation(status)
+
+
+@router.post('/schedule')
+def schedule_save(request:Request,body:BackupScheduleBody):
+    admin(request)
+    from backup_schedule import save
+    return operation(lambda:save(body.schedule,body.revision))
+
+
+@router.get('/history')
+def backup_history(request:Request):
+    admin(request)
+    from backup_schedule import history
+    return operation(history)
+
+
+class DeleteBackup(StrictModel):
+    confirm:bool=False
+
+
+@router.post('/{identity}/delete')
+def delete_backup(request:Request,identity:str,body:DeleteBackup):
+    admin(request)
+    from backup_schedule import remove
+    return operation(lambda:remove(identity,body.confirm))
 
 
 @router.post('/upload')

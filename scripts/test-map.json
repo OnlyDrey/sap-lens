@@ -516,6 +516,7 @@
   {
    "patterns": [
     "frontend/src/components/Shared/**",
+    "frontend/src/components/Layout/**",
     "frontend/src/hooks/**",
     "frontend/src/lib/**",
     "frontend/src/styles/**",
@@ -539,6 +540,8 @@
     "backend/storage*",
     "backend/maintenance.py",
     "backend/application_backups.py",
+    "backend/backup_schedule.py",
+    "backend/routers/backups.py",
     "backend/request_limits.py",
     "backend/scheduler.py"
    ],

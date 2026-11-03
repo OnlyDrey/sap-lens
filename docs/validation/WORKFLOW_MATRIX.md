@@ -622,3 +622,29 @@ retry behavior all passed (three focused rechecks). Loopback proxy routing initi
 test-server detection; command-local NO_PROXY for localhost fixed the environment issue.
 No full regression or native Windows acceptance was run; screenshots cover both themes at
 375/800/1280/1600. Scheduling/history is a separate additional stage, not claimed here.
+
+### Backup schedule, retention and history
+
+Private destination-local scheduling reuses RefreshSchedule/cron rules, disabled by default,
+with retention default seven successful scheduled archives. A scheduled occurrence queues a
+restart request (not unattended online archive creation), claims once, skips busy imports or
+operations, and retains fifty request outcomes. The single-process runtime lease remains
+mandatory; no multi-worker writer support or host restart API was added. Backup-schedule
+errors are isolated from the independent data-refresh scheduler.
+
+History records verified archive size/hash/source/status; manual archives are never pruned.
+Confirmed deletion and retention protect active/journal-owned operations, staged restore
+originals and recovery archives. Free space is checked before stopped-state creation, and
+downloads revalidate canonical archive integrity. Missing archives no longer report Ready.
+The five-zone UI shows schedule limitations, local storage usage, recent history and recovery.
+
+FEATURE: 46 backup/scheduler tests passed; 31 backup tests passed after integrity checks;
+21 focused authorization/test-profile checks passed. Additional schedule isolation/claim
+rechecks (2) and corrupt-download HTTP regression (1) passed. Twelve affected browser cases
+ran with one worker: eleven passed; adding the schedule checkbox exposed an ambiguous old
+restore test locator. Naming the actual restore-confirmation checkbox fixed it; its focused
+recheck passed. Coverage includes both themes at 375/800/1280/1600, initial configuration
+failure recovery, safe upload cancellation, restore preview/confirmation and schedule errors.
+Representative light desktop/dark mobile screenshots were inspected; no page overflow.
+TypeScript/production build, focused lint, Ruff, docs and test-map checks passed. Full
+regression, native Windows lifecycle and real service restart acceptance remain unexecuted.

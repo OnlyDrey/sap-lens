@@ -82,6 +82,10 @@ def read(data=None):
         if result.get('status')=='completed' and result.get('kind')=='backup': result['status']='ready'
         result.pop('recovery_required',None) # Derived from actual journals, never a persisted lock.
         if journals(data): result['recovery_required']=True
+        if result.get('status')=='ready':
+            archive=path_for(result['id'],data)/'backup.tar.gz'
+            if engine.linked(archive) or not archive.is_file():
+                result.update(status='failed',message='Backup archive is unavailable. No application data was changed; create a new backup or check storage permissions.')
         return result
     except (ValueError,TypeError,OSError):
         return dict(status='failed',recovery_required=bool(journals(data)),message='Backup operation metadata is unavailable or invalid. No new operation can replace an unfinished restore; retry status or ask an administrator to inspect storage permissions.')
@@ -134,13 +138,19 @@ def idle_required(data=None):
     if pending(data): raise engine.MaintenanceError('A restart operation is already pending. Cancel it before another operation.')
 
 
-def request_backup(data=None):
+def request_backup(data=None, *, origin='manual'):
     with lock:
         idle_required(data)
         identity=uuid4().hex; path_for(identity,data).mkdir(mode=0o700)
-        result=dict(id=identity,kind='backup',status='waiting_for_restart',requested_at=stamp(),message='Waiting for restart: a stopped-store snapshot keeps datasets, review decisions and history consistent. Return to Backup & Restore after restarting to download the archive.')
-        write(area(data)/'operation.json',result)
+        result=dict(id=identity,kind='backup',origin=origin,status='waiting_for_restart',requested_at=stamp(),message='Waiting for restart: a stopped-store snapshot keeps datasets, review decisions and history consistent. Return to Backup & Restore after restarting to download the archive.')
+        publish(result,data)
         return result
+
+
+def publish(state,data=None):
+    from backup_schedule import remember
+    remember(state,data)
+    write(area(data)/'operation.json',state)
 
 
 def validate_store(root, exclude=()):
@@ -263,7 +273,7 @@ def confirm_restore(identity,sha256,confirm,data=None):
         result=json.loads((operation/'preview.json').read_text())
         if not confirm or sha256!=result['archive_sha256'] or engine.digest(operation/'archive.tar.gz')!=sha256: raise engine.MaintenanceError('Confirm the exact validated archive; it changed or was not confirmed.')
         result.update(status='waiting_for_restart',requested_at=stamp(),message='Restart required. Destination data will be backed up before full replacement; edits are paused until restart or cancellation.')
-        write(area(data)/'operation.json',result)
+        publish(result,data)
         return result
 
 
@@ -274,7 +284,7 @@ def cancel(data=None):
             raise engine.MaintenanceError('An active or interrupted operation owns recovery; cancellation cannot release it.')
         if result.get('status')=='waiting_for_restart':
             result.update(status='cancelled',message='Operation cancelled; application data was not replaced.')
-            write(area(data)/'operation.json',result)
+            publish(result,data)
             operation=path_for(result['id'],data)
             if result['kind']=='restore': shutil.rmtree(operation,ignore_errors=True)
         return result
@@ -304,7 +314,7 @@ def startup(lease,server=None):
     journal_path=operation/'journal.json'
     if state.get('status') in {'preparing','creating'} and not journal_path.exists():
         state.update(status='failed',message='Backup was interrupted. No application data was changed; you can safely retry.')
-        write(area(data)/'operation.json',state)
+        publish(state,data)
         return
     if state.get('status')!='waiting_for_restart' and not journal_path.exists(): return
     try:
@@ -314,12 +324,16 @@ def startup(lease,server=None):
         exclusions=protected(data,server)
         if state['kind']=='backup':
             state.update(status='creating',message='Creating and validating the backup archive before application startup.')
-            write(area(data)/'operation.json',state)
-            engine.backup(data,operation/'backup.tar.gz',lease.mode,VERSION,_lease=lease,_exclude=exclusions-{'deployment.json'})
-            state.update(status='ready',message='Backup is ready to download. Contains sensitive personal and access data; archive is not encrypted.')
+            publish(state,data)
+            from backup_schedule import check_space
+            check_space(data,exclusions-{'deployment.json'})
+            result=engine.backup(data,operation/'backup.tar.gz',lease.mode,VERSION,_lease=lease,_exclude=exclusions-{'deployment.json'})
+            state.update(status='ready',verified=True,sha256=result['sha256'],message='Backup is ready to download. Contains sensitive personal and access data; archive is not encrypted.')
         else:
             if engine.digest(operation/'archive.tar.gz')!=state['archive_sha256']: raise engine.MaintenanceError('Uploaded archive changed after confirmation.')
             _,root=prepare(operation/'archive.tar.gz',operation,server,data)
+            from backup_schedule import check_space
+            check_space(data,exclusions-{'deployment.json'})
             engine.backup(data,operation/'destination-before-restore.tar.gz',lease.mode,VERSION,_lease=lease,_exclude=exclusions-{'deployment.json'})
             old=operation/'old';old.mkdir(mode=0o700,exist_ok=True)
             journal=dict(old=[p.name for p in data.iterdir() if p.name not in exclusions],new=[p.name for p in root.iterdir() if p.name not in exclusions])
@@ -342,9 +356,13 @@ def startup(lease,server=None):
             raise RuntimeError('Restore rollback requires recovery before serving application data.') from None
     finally:
         # No source data, absolute paths or raw exceptions enter public status/logs.
-        write(area(data)/'operation.json',state)
+        publish(state,data)
         if not journal_path.exists(): shutil.rmtree(operation/'stage',ignore_errors=True)
         if state['kind']=='restore' and not journal_path.exists(): (operation/'archive.tar.gz').unlink(missing_ok=True)
+    if state['kind']=='backup' and state.get('status')=='ready':
+        from backup_schedule import retention
+        try: retention(data)
+        except (ValueError,OSError): pass # Retention failure must never invalidate a verified archive.
 
 
 def download(identity,kind='backup',data=None):
@@ -352,6 +370,7 @@ def download(identity,kind='backup',data=None):
     operation=path_for(identity,data)
     path=operation/(kind+'.tar.gz')
     if engine.linked(path) or not path.is_file(): raise engine.MaintenanceError('Backup archive is unavailable. Check status; if waiting for restart, restart the application host first.')
+    manifest(path) # Revalidate archive integrity before handing it to either download client.
     return path
 
 
