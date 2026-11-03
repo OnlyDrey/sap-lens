@@ -199,6 +199,9 @@ test('component library previews are isolated, interactive and use canonical com
   })
   await library(page)
   const preview = page.getByLabel('Component Library previews', { exact: true })
+  const decisions=preview.getByLabel('SoD primary decision badges',{exact:true})
+  await expect(decisions.locator('.evidence-badge')).toHaveText(['Approved','Remove','Investigate','Pending'])
+  await expect(decisions.locator('svg[aria-hidden="true"]')).toHaveCount(4)
   await expect(
     preview.getByRole('button', { name: 'Disabled', exact: true }),
   ).toBeDisabled()

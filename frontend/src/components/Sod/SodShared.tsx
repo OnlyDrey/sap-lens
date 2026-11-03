@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { keepPreviousData, useQuery, type QueryClient } from '@tanstack/react-query'
-import { AlertTriangle, CheckCircle2, FilterX, CircleDashed, CircleDot, History, Lock, RefreshCw, Search, ShieldCheck, ShieldX, UserMinus } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, FilterX, History, Lock, RefreshCw, Search, ShieldCheck, ShieldX, Trash2, Clock3 } from 'lucide-react'
 import { sod, scopeParams, emptyFilters, type ContextInfo, type Filters, type Lifecycle } from '@/api/sod'
 import { useHistoryValue, useViewHistory, type SodFilterState } from '@/hooks/useViewHistory'
 import { Card, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
@@ -24,14 +24,14 @@ const size = 14
 export function lifecycleView(value: string): LifecycleView {
   switch (value) {
     case 'Approved': case 'Keep': case 'Accepted': return { icon: <CheckCircle2 size={size} />, tone: 'success', text: value==='Keep'?'Approved':value }
-    case 'Conditional': return { icon: <CircleDot size={size} />, tone: 'info', text: value }
-    case 'Removal required': return { icon: <UserMinus size={size} />, tone: 'error', text: 'Remove' }
+    case 'Conditional': return { icon: <Search size={size} />, tone: 'warning', text: 'Investigate' }
+    case 'Remove': case 'Removal required': return { icon: <Trash2 size={size} />, tone: 'error', text: 'Remove' }
     case 'Investigate': return { icon: <Search size={size} />, tone: 'warning', text: 'Investigate' }
     case 'Rejected': return { icon: <ShieldX size={size} />, tone: 'error', text: value }
     case 'Outdated': return { icon: <RefreshCw size={size} />, tone: 'warning', text: value }
     case 'Resolved': return { icon: <ShieldCheck size={size} />, tone: 'success', text: value }
     case 'Historical': return { icon: <History size={size} />, tone: 'neutral', text: value }
-    default: return { icon: <CircleDashed size={size} />, tone: 'warning', text: 'Pending' }
+    default: return { icon: <Clock3 size={size} />, tone: 'neutral', text: 'Pending' }
   }
 }
 
@@ -43,7 +43,7 @@ export function LifecycleBadge({ value }: { value: Lifecycle | string }) {
 /** Review status of the assignment queue as sent to the API: an empty choice means the documented default, assignments needing attention. */
 export const reviewStatusParam = (filters: Filters) => (typeof filters.review_status === 'string' && filters.review_status) || 'attention'
 
-export const KIND_LABEL: Record<string, string> = { activity: 'Activity', assignment: 'Role assignment', acceptance: 'Risk acceptance' }
+export const KIND_LABEL: Record<string, string> = { activity: 'Activity', assignment: 'Role assignment', acceptance: 'Risk acceptance', risk:'Risk review' }
 
 export function useSodContext(): [string, (value: string) => void] {
   const [value, set] = useHistoryValue('sodContext')

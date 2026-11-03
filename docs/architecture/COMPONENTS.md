@@ -313,7 +313,10 @@ changes and original revisions. The optional `SodEntityNavigation` context in
 the existing read-only popover behavior. No separate persistence or business model is added.
 
 `Sod/SodDecisionStatus` is the single decision-first badge/popover for role assignments,
-activities and risk acceptance. It consumes authoritative subject-row summaries, reuses
+activities and normal Risk review, with formal acceptance as separate metadata. Its
+`PrimaryDecisionBadge` maps only the four primary labels to CheckCircle2/Trash2/Search/Clock3
+and existing semantic tones; business precedence stays in the backend. It consumes
+authoritative subject-row summaries, reuses
 Popover/StatusBadge/RoleIdentifier and noninteractive SoD pills, and omits unavailable
 metadata. `openListOwnsEscape` protects parent dialogs/panels when a portalled popover owns
 Escape or has already consumed the event; parent behavior no longer depends on listener order.

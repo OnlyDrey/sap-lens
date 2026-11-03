@@ -25,12 +25,13 @@ import { SodPill } from '@/lib/sodAppearance'
 import { AlertNote, invalidateSod, KIND_LABEL, LifecycleBadge, RoleCodeList } from './SodShared'
 import { ActionDialog } from './SodRemediation'
 
-type Kind = 'activity' | 'assignment' | 'acceptance'
+type Kind = 'activity' | 'assignment' | 'acceptance' | 'risk'
 export interface Item { key: string; user: string; ref: string; evidence_version: string }
 export interface FormState { kind: Kind; items: Item[]; heading: string; decision?: string }
 const OPTIONS: Record<Kind, { value: string; label: string }[]> = {
-  activity: [{ value: 'Approved', label: 'Approved: the user needs this activity' }, { value: 'Conditional', label: 'Conditional: approved with conditions' }, { value: 'Remove', label: 'Remove: the user should not have this activity' }, { value: 'Pending', label: 'Reset to pending' }],
+  activity: [{ value: 'Approved', label: 'Approved: the user needs this activity' }, { value: 'Investigate', label: 'Investigate: further assessment is required' }, { value: 'Remove', label: 'Remove: the user should not have this activity' }, { value: 'Pending', label: 'Reset to pending' }],
   assignment: [{ value: 'Keep', label: 'Keep this role assignment' }, { value: 'Remove', label: 'Remove this role assignment' }, { value: 'Investigate', label: 'Investigate: further investigation is required' }, { value: 'Pending', label: 'Reset to pending' }],
+  risk:[{value:'Approved',label:'Approved: the risk is acceptable for this review'},{value:'Remove',label:'Remove: remediation is required'},{value:'Investigate',label:'Investigate: further assessment is required'},{value:'Pending',label:'Reset to pending'}],
   acceptance: [{ value: 'Accepted', label: 'Accept the risk' }, { value: 'Rejected', label: 'Reject the risk' }, { value: 'Pending', label: 'Reset to pending' }],
 }
 const QUICK_RATIONALE = 'Reviewed in Role Assignment Review'
@@ -45,7 +46,7 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
   const qc = useQueryClient(),
     { change } = useViewHistory(),
     [form, setForm] = useState<FormState | null>(null),
-    [picked, setPicked] = useState<Record<Kind, string[]>>({ activity: [], assignment: [], acceptance: [] }),
+    [picked, setPicked] = useState<Record<Kind, string[]>>({ activity: [], assignment: [], acceptance: [],risk:[] }),
     [selection, setSelection] = useState<string[]>([]),
     [simulation, setSimulation] = useState<null | { before: string[]; after: string[]; resolved: string[]; lost_activities: string[]; warnings: string[]; eliminates_all: boolean }>(null),
     [error, setError] = useState(''),
@@ -150,15 +151,15 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
         <ContentTabList label="Subject review sections" value={reviewTab} onChange={value=>setReviewTab(value as Kind)} idPrefix={tabId} panelId={value=>`${tabId}-panel-${value}`} items={[
           {value:'assignment',label:`Roles ${progressOf(assignments)}/${assignments.length}`,icon:<Layers size={16} aria-hidden="true"/>},
           {value:'activity',label:`Activities ${progressOf(activities)}/${activities.length}`,icon:<ListChecks size={16} aria-hidden="true"/>},
-          {value:'acceptance',label:`Risks ${progressOf(risks)}/${risks.length}`,icon:<ShieldCheck size={16} aria-hidden="true"/>}]}/>
-        {form && <div ref={formRef} hidden={reviewTab!==form.kind}><DecisionForm key={form.heading} form={form} sharedReviewer={reviewer} subject={data} onCancel={() => setForm(null)} onSaved={async () => { setForm(null); setPicked({ activity: [], assignment: [], acceptance: [] }); await invalidateSod(qc,['sod-subject',params.toString()]) }} /></div>}
+          {value:'risk',label:`Risks ${progressOf(risks)}/${risks.length}`,icon:<ShieldCheck size={16} aria-hidden="true"/>}]}/>
+        {form && <div ref={formRef} hidden={reviewTab!==(form.kind==='acceptance'?'risk':form.kind)}><DecisionForm key={form.heading} form={form} sharedReviewer={reviewer} subject={data} onCancel={() => setForm(null)} onSaved={async () => { setForm(null); setPicked({ activity: [], assignment: [], acceptance: [],risk:[] }); await invalidateSod(qc,['sod-subject',params.toString()]) }} /></div>}
         <div role="tabpanel" id={`${tabId}-panel-assignment`} aria-labelledby={`${tabId}-assignment`} hidden={reviewTab!=='assignment'}>        <ReviewSection title="Role Assignment Review" kind="assignment" done={progressOf(assignments)} total={assignments.length} ok={ok} picked={picked.assignment} keys={assignments.map((row) => row.id)} onPickAll={(keys) => setPicked((previous) => ({ ...previous, assignment: keys }))}
           note="Reviewed with the other activities each role supplies, so one assignment can serve several approved activities."
           onBatch={() => batch('assignment', `Batch role assignment review (${picked.assignment.length})`, assignments.filter((row) => picked.assignment.includes(row.id)).map((row) => item(row.id, row.role, row.evidence_version)))}>
           {ok && <FormField label="Rationale (optional)"><Input value={quickRationale} maxLength={400} placeholder={QUICK_RATIONALE} onChange={(event) => setQuickRationale(event.target.value)} /></FormField>}
           {quickError && <p role="alert" className="text-[var(--error)]">{quickError}</p>}
           {assignments.map((row) => (
-            <AssignmentReviewRow key={row.id} user={user} context={context} row={row} description={describe(row.catalogue_roles)} ok={ok} checked={picked.assignment.includes(row.id)} onCheck={() => pick('assignment', row.id)} pendingAction={quickBusy.get(row.id)}
+            <AssignmentReviewRow key={row.id} user={user} context={context} row={row} description={context==='current'?describe(row.catalogue_roles):undefined} ok={ok} checked={picked.assignment.includes(row.id)} onCheck={() => pick('assignment', row.id)} pendingAction={quickBusy.get(row.id)}
               onDecide={(decision) => quickDecide(row, decision)} onOpenRole={() => change({ detailRole: row.catalogue_roles[0] || row.role })}
               onTrack={row.decision === 'Removal required' ? () => setAction({ assignment: { id: row.id, role: row.role, valid_from: row.valid_from, valid_to: row.valid_to, user_group: row.user_group, interval_status: row.interval_status, tcodes: [], other_activities: row.activities, risks: row.risks, catalogue_roles: row.catalogue_roles, evidence_version: row.evidence_version, decision: row.decision, event: row.event } }) : undefined}
               history={<DecisionHistory kind="assignment" context={context} keyId={row.id} label="Assignment review history" />} transactions={tcodesOf.get(row.id) || []} />
@@ -177,17 +178,18 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
         </ReviewSection>
 
 </div>
-        <div role="tabpanel" id={`${tabId}-panel-acceptance`} aria-labelledby={`${tabId}-acceptance`} hidden={reviewTab!=='acceptance'}>        <ReviewSection title="Risk Acceptance" kind="acceptance" done={progressOf(risks)} total={risks.length} ok={ok} picked={picked.acceptance} keys={risks.map((row) => row.finding_id)} onPickAll={(keys) => setPicked((previous) => ({ ...previous, acceptance: keys }))}
-          note="Accepting a risk needs a justification, an approver different from the reviewer and optional controls. It never suppresses detection."
-          onBatch={() => batch('acceptance', `Batch risk acceptance (${picked.acceptance.length})`, risks.filter((row) => picked.acceptance.includes(row.finding_id)).map((row) => item(row.finding_id, row.risk_id, row.evidence_version)))}>
-          {risks.map((row) => (
-            <ReviewRow key={row.finding_id} focused={focus(row.risk_id, 'risk')} label={row.risk_id} checked={picked.acceptance.includes(row.finding_id)} onCheck={ok ? () => pick('acceptance', row.finding_id) : undefined}
-              title={<SodPill kind="risk" value={row.risk_id} />} meta={<>{row.display_name || row.source_text || 'No description in the SoD matrix'}</>} event={row.event} decisionDetails={<SodDecisionStatus kind="acceptance" label={row.risk_id} status={row.acceptance} summary={row.decision_summary} event={row.event} coverage={row.review_coverage} user={user} context={context} name={row.display_name} activities={allActivities.filter(activity=>activity.risks.includes(row.risk_id)).map(activity=>activity.activity)} roles={allAssignments.filter(assignment=>assignment.risks.includes(row.risk_id))}/>}
-              actions={ok && <Button onClick={() => setForm({ kind: 'acceptance', heading: `Risk acceptance · ${row.risk_id}`, items: [item(row.finding_id, row.risk_id, row.evidence_version)] })} aria-label={`Decide risk acceptance ${row.risk_id}`}><ClipboardCheck size={16} aria-hidden="true" />Decide</Button>}
-              history={<DecisionHistory kind="acceptance" context={context} keyId={row.finding_id} label="Risk acceptance history" />} />
-          ))}
-        </ReviewSection>
-</div>
+        <div role="tabpanel" id={`${tabId}-panel-risk`} aria-labelledby={`${tabId}-risk`} hidden={reviewTab!=='risk'}>
+         <ReviewSection title="Risk Review" kind="risk" done={progressOf(risks)} total={risks.length} ok={ok} picked={picked.risk} keys={risks.map(row=>row.finding_id)} onPickAll={keys=>setPicked(previous=>({...previous,risk:keys}))}
+          note="Normal risk approval is separate from formal acceptance. Remove requires remediation planning; no role is removed automatically."
+          onBatch={()=>batch('risk',`Batch risk review (${picked.risk.length})`,risks.filter(row=>picked.risk.includes(row.finding_id)).map(row=>item(row.finding_id,row.risk_id,row.evidence_version)))}>
+          {risks.map(row=><ReviewRow key={row.finding_id} focused={focus(row.risk_id,'risk')} label={row.risk_id} checked={picked.risk.includes(row.finding_id)} onCheck={ok?()=>pick('risk',row.finding_id):undefined}
+            title={<SodPill kind="risk" value={row.risk_id}/>} meta={<>{row.display_name||row.source_text||'No description in the SoD matrix'} <span className="inline-flex items-center gap-1">Formal acceptance: <LifecycleBadge value={row.acceptance}/></span></>} event={row.risk_review_event||null}
+            decisionDetails={<SodDecisionStatus kind="risk" label={row.risk_id} status={row.risk_review||'Pending'} summary={row.risk_review_summary} event={row.risk_review_event||null} coverage={row.review_coverage} user={user} context={context} name={row.display_name} activities={allActivities.filter(activity=>activity.risks.includes(row.risk_id)).map(activity=>activity.activity)} roles={allAssignments.filter(assignment=>assignment.risks.includes(row.risk_id))} formalAcceptance={{status:row.acceptance,event:row.event}}/>}
+            actions={ok&&<><Button onClick={()=>setForm({kind:'risk',heading:`Risk review · ${row.risk_id}`,items:[item(row.finding_id,row.risk_id,row.evidence_version)]})} aria-label={`Review risk ${row.risk_id}`}><ClipboardCheck size={16} aria-hidden="true"/>Review risk</Button><IconButton variant="ghost" tooltip="Formal acceptance (separate approval)" onClick={()=>setForm({kind:'acceptance',heading:`Risk acceptance · ${row.risk_id}`,items:[item(row.finding_id,row.risk_id,row.evidence_version)]})} label={`Decide risk acceptance ${row.risk_id}`}><ShieldCheck size={16} aria-hidden="true"/></IconButton></>}
+            history={<><DecisionHistory kind="risk" context={context} keyId={row.finding_id} label="Risk review history"/><DecisionHistory kind="acceptance" context={context} keyId={row.finding_id} label="Risk acceptance history"/></>}/>) }
+         </ReviewSection>
+         {ok&&!!picked.risk.length&&<Button variant="secondary" onClick={()=>batch('acceptance',`Batch risk acceptance (${picked.risk.length})`,risks.filter(row=>picked.risk.includes(row.finding_id)).map(row=>item(row.finding_id,row.risk_id,row.evidence_version)))}>Formal acceptance for selected risks ({picked.risk.length})</Button>}
+        </div>
         {!!data.risk?.legacy_decisions.length && <AlertNote>{data.risk.legacy_decisions.length} legacy risk decision(s) recorded before activity-level review are retained as history and were not converted to a risk acceptance.</AlertNote>}
 
         {total === 0 && <EmptyState>No conflict-relevant evidence for this user.</EmptyState>}

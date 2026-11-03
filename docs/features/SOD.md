@@ -231,7 +231,7 @@ The filter tiles of the Work Queue (review progress) and Remediation (recommende
 
 - **Access Explorer evidence.** In the Users tab the evidence button of a row (for example "3 roles") opens a wide modal: a compact summary (SAP user, risk, activities, role count), a table of the roles that scrolls inside the dialog, and shortcuts to open the SAP user or investigate. In the Roles tab the users count opens the users behind that role (SAP username codeblocks with navigation, SAP User Group, assignment intervals, Investigate). Escape closes them.
 - **Potential SoD evidence.** The dialog for a finding starts with a summary (subject, risk with its source criticality, both required activities) and then one section per activity side, each with a scrollable table whose columns keep the kinds of evidence apart: Transaction (mapped to the activity), Single role, Assigned role (what the user actually has), Catalogue role or pattern (the match, exact or wildcard) and Assignment validity, plus Technical provenance. It describes potential conflicts and never effective SAP authorization.
-- **Risk Acceptance rows.** The primary row is checkbox, Risk ID, status and a right-aligned Decide; the description sits below and the decision history is collapsed behind the disclosure control. Bulk review, filters, decisions, removal recommendations and history are unchanged, and nothing changes in SAP.
+- **Risk Review rows.** The primary row is checkbox, Risk ID, normal decision and separate Review risk / Formal acceptance actions; the description sits below and the decision history is collapsed behind the disclosure control. Bulk review, filters, decisions, removal recommendations and history are unchanged, and nothing changes in SAP.
 
 ## SAP User Group column in SoD tables
 
@@ -325,25 +325,35 @@ reasons, controls and verification remain in that assignment's expanded rows.
 
 ### Decision-first review statuses
 
-Review completion, an access decision, formal acceptance and verified remediation are
-independent. The primary badge shows the current authoritative decision:
+Four primary badges describe access decisions consistently: **Approved** (green check),
+**Remove** (red trash), **Investigate** (amber search), **Pending** (neutral clock).
+Review completion, actual SAP access, formal acceptance and removal verification remain
+supporting concepts, not alternative primary decisions.
 
-| Context | Primary labels |
+| Context | Effective primary decision |
 |---|---|
-| Role assignment | Keep → Approved; Remove → Remove; Investigate → Investigate; no decision → Not reviewed |
-| Activity | Explicit Approved/Conditional/Remove; otherwise Mixed decisions when current supporting role decisions conflict, Decision pending when only coverage is complete, or Not reviewed |
-| Risk acceptance | Accepted, Rejected, Acceptance pending, or Needs review for invalidated/expired evidence |
+| Role assignment | Explicit Keep → Approved, Remove → Remove, Investigate → Investigate, otherwise Pending; scoped to user, exact assignment interval and period |
+| Activity | Current explicit review wins. Otherwise any approved supplying role → Approved; all suppliers Remove → Remove; otherwise any Investigate → Investigate; otherwise Pending |
+| Risk review | Only the explicit normal Risk review decides Approved/Remove/Investigate/Pending; access coverage cannot grant risk approval |
 
-Unanimous role Keep decisions do **not** create an activity approval: existing rules derive
-coverage only. An explicit activity decision takes precedence; the popover still shows the
-supporting assignment distribution. Stale decisions never appear as current approvals.
-The Risk Acceptance progress badge says **reviewed** because its count is coverage, not
-formal acceptance decisions. Formal acceptance retains its separate justification/approver gates.
+Approved + Remove suppliers therefore produce Activity Approved. No current suppliers does
+not imply Remove. Derived activity decisions create no synthetic activity events. Explicit
+activity disagreement is disclosed with both results; legacy Conditional events are retained
+and presented as Investigate, with their recorded conditions in history. Outdated approval
+never grants current approval. A retained Remove may stay visible with evidence needing
+review, without counting as current approval/coverage.
 
-The same compact status popover shows identity, user/period, decision, completion, method,
-available reviewer/time and supporting evidence. Role popovers include assignment ID and
-validity, so equal role names or different periods cannot share a decision accidentally.
-Risk popovers keep acceptance details distinct from access coverage. Related pills are
-read-only inside the popover, avoiding nested popovers. Remove remains a recommendation,
-not a SAP change or verified remediation. CSV/PDF event values and immutable history are
-unchanged. Escape closes the popover first and restores its trigger, leaving the review open.
+**Review risk** records a normal risk decision with reviewer and justification. Risk Approved
+means acceptable for that review; it does not create **Formal acceptance**, which retains
+its separate approver, justification, controls and approval gates. Risk Remove requires
+remediation planning; it never removes every related role automatically. The popover shows
+when specific removal actions still need selection. Both histories are retained separately.
+
+The shared compact popover shows identity, effective Display name, user/period, decision,
+completion, source/method, available reviewer/time, evidence and supporting role distribution.
+Related role badges explain approval/removal providers; disagreements remain visible.
+Assignment ID and validity prevent equal role names from sharing decisions accidentally.
+Risk popovers expose normal review and formal acceptance separately. Related pills are
+read-only inside the popover. Remove is a recommendation until a later complete SAP import
+verifies disappearance; immutable event values and old report snapshots are never rewritten.
+Escape closes the popover first, restores its trigger and leaves the review open.

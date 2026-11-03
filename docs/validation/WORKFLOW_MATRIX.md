@@ -669,3 +669,22 @@ activity Investigate/no-suppliers/permission check passed. Normal risk period is
 append-only history, independent formal acceptance and frozen persistence are covered.
 Ruff/docs/whitespace checks passed. No full regression or frontend rebuild was needed for
 this backend-only stage; shared badge/action/UI migration is the next stage, not claimed here.
+
+### Revised SoD decision model — shared review UI
+
+Roles, Activities and normal Risk Review share Approved/Remove/Investigate/Pending badges
+with CheckCircle2/Trash2/Search/Clock3 and semantic tones. Risk Review and Formal acceptance
+have separate actions/forms and histories in the same Risks tab. Popovers expose role-derived
+sources, explicit disagreement, supplier decisions and independent formal metadata. New
+primary-badge demos use isolated values in the Component Library. Current catalogue role
+descriptions are not substituted into frozen-period headers.
+
+Thirteen focused SoD browser cases passed after correcting a Risk-label/filter-map collision
+caught by the first run (stopped once the shared cause was confirmed). Tests cover normal
+risk Approved/Remove/Investigate without formal acceptance or role changes, bulk updates,
+all themes/widths, keyboard/Escape/focus and reviewer draft retention. Two final component-
+library/disagreement checks passed. Three affected scope/mobile-layout checks passed; the
+wide-row check found action wrapping. A compact, labelled formal-acceptance IconButton and
+secondary formal status restored alignment; its focused browser recheck passed.
+TypeScript/production build, focused lint, documentation links and Lucide catalog passed.
+No full regression, product-version change or native platform acceptance was performed.

@@ -53,7 +53,7 @@ test('activity, role assignment and risk acceptance are separate decisions and n
   await duplicate.getByRole('button', { name: 'Remove ROLE_A2', exact: true }).click()
   await expect(duplicate.getByRole('button', { name: 'Remove ROLE_A2', exact: true })).toHaveAttribute('aria-pressed', 'true') // shown only after the server confirmed it
   await expect(duplicate).toContainText('Remove')
-  await expect(assignments.getByRole('listitem').filter({ hasText: 'ROLE_A1' })).toContainText('Not reviewed')
+  await expect(assignments.getByRole('listitem').filter({ hasText: 'ROLE_A1' })).toContainText('Pending')
   await panel.getByRole('tab', { name: /^Risks/ }).click()
   await panel.getByRole('button', { name: 'Decide risk acceptance R1', exact: true }).click()
   const acceptance = panel.getByRole('region', { name: 'Risk acceptance · R1' })
@@ -64,7 +64,7 @@ test('activity, role assignment and risk acceptance are separate decisions and n
   await expect(acceptance.getByRole('alert')).toContainText('different people')
   await acceptance.getByRole('textbox', { name: 'Approver (must differ from reviewer)', exact: true }).fill('Synthetic Approver')
   await acceptance.getByRole('button', { name: 'Save decision', exact: true }).click()
-  await expect(panel.getByRole('region', { name: 'Risk Acceptance', exact: true })).toContainText('Accepted')
+  await expect(panel.getByRole('region', { name: 'Risk Review', exact: true })).toContainText('Accepted')
   await page.keyboard.press('Escape')
   await expect(cellButton(page, `${names.a}`, 'R1')).toContainText('Accepted')
   await expect(cellButton(page, `${names.a}`, 'R2')).toContainText('Pending')

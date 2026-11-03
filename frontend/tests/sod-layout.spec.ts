@@ -108,7 +108,7 @@ for (const width of [375, 800]) test(`the review workspace is usable without hor
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
   await page.getByRole('button', { name: /^Open review for / }).first().click()
   const panel = page.getByRole('dialog', { name: /^SYN_/ })
-  for (const [tab,name] of [['Roles','Role Assignment Review'],['Activities','Activity Review'],['Risks','Risk Acceptance']]) {
+  for (const [tab,name] of [['Roles','Role Assignment Review'],['Activities','Activity Review'],['Risks','Risk Review']]) {
     await panel.getByRole('tab', {name:new RegExp('^'+tab)}).click(); await expect(panel.getByRole('region', {name,exact:true})).toBeVisible()
   }
   await panel.getByRole('tab', {name:/^Activities/}).click()

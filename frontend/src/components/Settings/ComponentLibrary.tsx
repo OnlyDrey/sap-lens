@@ -1,3 +1,4 @@
+import {PrimaryDecisionBadge} from '@/components/Sod/SodDecisionStatus'
 import {ExportCSVButton} from '@/components/Shared/ExportCSVButton'
 import { TransactionCount } from '@/components/Shared/TransactionCount'
 import { ReviewFindings } from '@/components/Shared/ReviewFindings'
@@ -423,6 +424,7 @@ export function ComponentLibrary() {
             ),
           )}
         </Toolbar>
+        <div className="flex flex-wrap gap-2" aria-label="SoD primary decision badges">{([['Approved','success'],['Remove','error'],['Investigate','warning'],['Pending','neutral']] as const).map(([label,tone])=><PrimaryDecisionBadge key={label} summary={{label,tone,explicit:false,stale:false,basis:'Isolated component preview',assignment_decisions:{}}}/>)}</div>
         <Notification variant="info">Informational demo message</Notification>
         <Notification variant="warning">Warning demo message</Notification>
         <Notification variant="error">Error demo message</Notification>

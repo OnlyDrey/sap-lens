@@ -60,7 +60,7 @@ test('the Potential SoD evidence modal separates transactions, single roles, ass
   await expect(dialog.getByText('Technical provenance').first()).toBeVisible()
 })
 
-test('Risk Acceptance rows put checkbox, Risk ID, status and a right-aligned Decide on one line, with the description and history below', async ({ page }) => {
+test('Risk Review rows keep identity and status with separate review and formal acceptance actions', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await openSod(page, 'Risk Matrix')
   await page.getByRole('button', { name: new RegExp(`^${names.a}, risk R1:`) }).click()
@@ -68,6 +68,7 @@ test('Risk Acceptance rows put checkbox, Risk ID, status and a right-aligned Dec
   await panel.getByRole('tab', { name: /^Risks/ }).click()
   const row = panel.locator('.sod-review-row').filter({ has: page.getByRole('button', { name: /^Decide risk acceptance / }) }).first()
   await expect(row).toBeVisible()
+  await expect(row.getByRole('button',{name:'Review risk R1',exact:true})).toBeVisible()
   const [box, decide, check, status] = [await row.locator('.sod-review-compact').boundingBox(), await row.getByRole('button', { name: /^Decide risk acceptance / }).boundingBox(), await row.getByRole('checkbox').boundingBox(), await row.locator('.sod-review-compact .evidence-badge').first().boundingBox()]
   expect(Math.abs((decide!.y + decide!.height / 2) - (check!.y + check!.height / 2))).toBeLessThan(20) // one primary line
   expect(decide!.x + decide!.width).toBeGreaterThan(box!.x + box!.width - 80) // actions at the right edge

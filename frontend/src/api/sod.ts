@@ -40,7 +40,7 @@ export interface DecisionEvent {
   bulk_operation_id?:string
   previous_decision?:string
   event_id: string
-  kind: 'activity' | 'assignment' | 'acceptance'
+  kind: 'activity' | 'assignment' | 'acceptance' | 'risk'
   context: string
   timestamp: string
   key: string
@@ -100,13 +100,13 @@ export interface AssignmentImpact {
   warnings: string[]
   eliminates_all: boolean
 }
-export interface DecisionSummary {label:string;tone:'neutral'|'success'|'warning'|'error'|'info';explicit:boolean;stale:boolean;basis:string;assignment_decisions:Record<string,number>}
+export interface DecisionSummary {derived_label?:string;explicit_label?:string;disagreement?:boolean;label:string;tone:'neutral'|'success'|'warning'|'error'|'info';explicit:boolean;stale:boolean;basis:string;assignment_decisions:Record<string,number>}
 export interface ReviewCoverage { reviewed: boolean; provenance: string; removal_planned: boolean; risk_accepted?: boolean; remediation_verified?: boolean; label?: string }
 export interface OverviewAssignment { decision_summary?:DecisionSummary; id: string; role: string; review_coverage?: ReviewCoverage; decision: Lifecycle; event: DecisionEvent | null; evidence_version: string; risks: string[]; activities: string[]; valid_from: string | null; valid_to: string | null; interval_status: string | null; user_group: string; catalogue_roles: string[] }
 export interface SubjectOverview {
   activities: { decision_summary?:DecisionSummary; activity: string; key: string; review_coverage?: ReviewCoverage; decision: Lifecycle; event: DecisionEvent | null; evidence_version: string; risks: string[]; tcodes: string[]; roles: number; duplicate_coverage: boolean }[]
   assignments: OverviewAssignment[]
-  risks: { decision_summary?:DecisionSummary; risk_id: string; criticality: string; display_name: string; source_text: string; review_coverage?: ReviewCoverage; finding_id: string; evidence_version: string; acceptance: Lifecycle; event: DecisionEvent | null }[]
+  risks: { risk_review_summary?:DecisionSummary;risk_review?:Lifecycle;risk_review_event?:DecisionEvent|null;decision_summary?:DecisionSummary; risk_id: string; criticality: string; display_name: string; source_text: string; review_coverage?: ReviewCoverage; finding_id: string; evidence_version: string; acceptance: Lifecycle; event: DecisionEvent | null }[]
 }
 export interface UserQueueRow {
   formal_acceptance: { total: number; decided: number }; user: string; groups?: string[]; total: number; decided: number; outstanding: number; removal: number; historical: number
