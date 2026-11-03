@@ -336,3 +336,12 @@ rejection. No production guard or assertion was weakened.
 Both affected modules passed 34 targeted tests with GITHUB_ACTIONS=true in the parent
 environment. Earlier automatic runs remain failed historical evidence; the correction
 requires a new automatic run. No manual workflow dispatch or full local regression ran.
+
+### Refinement phase 1 — runtime scheduling alignment
+
+Root cause: schedule-grid aligned field containers to their bottom edges, so the
+Daily time helper text displaced the neighbouring Time zone label/control. The grid
+now aligns fields at the start; FormField's existing accessible helper relationship
+is retained. Five affected scheduling browser tests passed, including measured label
+and control top-edge alignment, persistence, cron validation and runtime notes. Types
+and production build passed. Scheduling rules/calculations were not changed.

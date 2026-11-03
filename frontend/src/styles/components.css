@@ -907,7 +907,7 @@ progress::-moz-progress-bar { background:var(--progress-fill); }
 /* Scheduled refresh: the Enabled switch sits in the header; schedule inputs share one responsive grid; status reads as a compact fact list. */
 .schedule-header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-2) var(--space-4); }
 .schedule-header h2 { margin:0; }
-.schedule-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(14rem,1fr)); gap:var(--space-3); align-items:end; }
+.schedule-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(14rem,1fr)); gap:var(--space-3); align-items:start; }
 .schedule-grid > .ui-field { margin:0; }
 .schedule-facts { display:grid; grid-template-columns:repeat(auto-fit,minmax(11rem,1fr)); gap:var(--space-2); margin:0; }
 .schedule-facts > div { padding:var(--space-2) var(--space-3); border:1px solid var(--border); border-radius:var(--radius-control); background:var(--surface2); }
