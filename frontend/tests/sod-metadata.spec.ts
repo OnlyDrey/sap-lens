@@ -39,6 +39,8 @@ test('pills show concise descriptions without repeated provenance and retain ful
 
 test('a risk without any description says so neutrally and local business text fills the gap with its origin', async ({ page, request }) => {
   await reseed(request, extended)
+  const initial=await(await request.get('/api/sod/catalogue',{headers,params:{search:'R2',limit:'100'}})).json(), initialRisk=initial.items.find((item:{risk_id:string})=>item.risk_id==='R2')
+  expect((await request.post('/api/sod/catalogue/R2',{headers,data:{expected_revision:initial.revision,definition_version:initialRisk.definition_version,metadata:{...initialRisk.local,display_name:'',explanation_en:''}}})).ok()).toBeTruthy()
   await explorer(page)
   await pill(page, 'Risk', 'R2').click()
   const dialog = page.getByRole('dialog', { name: 'Risk R2 details' })
@@ -52,7 +54,7 @@ test('a risk without any description says so neutrally and local business text f
   const again = page.getByRole('dialog', { name: 'Risk R2 details' })
   await expect(again).toContainText('Local business description'); await expect(again).not.toContainText('Local business text')
   await expect(again).toContainText('Local name'); await expect(again).not.toContainText('differs: Unnamed approval')
-  await page.keyboard.press('Escape');await openSettings(page,'SoD Risk Configuration');await page.getByRole('button',{name:'Edit SoD risk R2',exact:true}).click();await page.getByRole('button',{name:'Source details for risk R2',exact:true}).click();const source=page.getByRole('dialog',{name:'Source details for risk R2',exact:true});await expect(source).toContainText('differs: Unnamed approval');await expect(source).toContainText('Local business text')
+  await page.keyboard.press('Escape');await openSettings(page,'SoD Risk Configuration');await page.getByRole('searchbox',{name:'Search SoD risks',exact:true}).fill('R2');await page.getByRole('button',{name:'Edit SoD risk R2',exact:true}).click();await page.getByRole('button',{name:'Source details for risk R2',exact:true}).click();const source=page.getByRole('dialog',{name:'Source details for risk R2',exact:true});await expect(source).toContainText('differs: Unnamed approval');await expect(source).toContainText('Local business text')
   // local annotations survive configuration resets by design, so leave none behind for the other tests
   const latest = await (await request.get('/api/sod/catalogue', { headers, params: { search: 'R2', current: 'current', limit: '100' } })).json(), current = latest.items.find((item: { risk_id: string }) => item.risk_id === 'R2')
   expect((await request.post('/api/sod/catalogue/R2', { headers, data: { expected_revision: latest.revision, definition_version: current.definition_version, metadata: { ...current.local, explanation_en: '', display_name: '' } } })).ok()).toBeTruthy()
@@ -279,6 +281,7 @@ test('SoD configuration is compact with bundled defaults and advanced custom imp
 test('configuration tables use effective Display names without saving inherited values as overrides',async({page,request})=>{
  await reseed(request,extended)
  await openSettings(page,'SoD Risk Configuration')
+ await page.getByRole('searchbox',{name:'Search SoD risks',exact:true}).fill('R1')
  const risks=page.getByRole('table',{name:'SoD risk configurations',exact:true})
  const risk=risks.getByRole('row').filter({has:page.getByRole('button',{name:'Edit SoD risk R1',exact:true})});await expect(risk).toContainText('Duplicate payments');await expect(risk.locator('.id-pill-activity')).toHaveText(['A','B'])
  await page.getByRole('tab',{name:'Activities',exact:true}).click()

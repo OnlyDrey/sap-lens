@@ -72,7 +72,7 @@ export function useSourceRisk(riskId: string | null) {
   return useQuery({
     queryKey: ['sod-source-risk', riskId],
     enabled: !!riskId,
-    queryFn: async () => (await apiRequest<{ items: SourceRisk[] }>(`/api/sod/catalogue?${new URLSearchParams({ search: riskId || '', current: '', limit: '25' })}`)).items.find(item => item.risk_id === riskId) || null,
+    queryFn: async () => (await apiRequest<{item:SourceRisk}>(`/api/sod/catalogue/${encodeURIComponent(riskId||'')}`)).item,
   })
 }
 

@@ -75,16 +75,54 @@ and [SoD 2.0 validation](../archive/validation/SOD2_VALIDATION.md).
 
 ## SoD Risk Configuration (Settings)
 
-Settings → SoD Risk Configuration has two tabs, **Risks** and **Activities**, with compact tables and no copy buttons or code styling.
+Settings provides Risks and Activities tabs, server-side search and compact tables.
+Display name resolves non-empty local overrides, active import metadata, then curated
+reference guidance. **Missing display name** means none exists. Local storage/API fields
+remain compatible; displaying or saving untouched inherited text creates no override.
 
-- Editable, English only: display name, business area, explanation, consequence, mitigating controls, review guidance, notes, and a per-ID color from a fixed named palette. Risks also keep the enabled flag and description review status. Earlier Norwegian text is retained in storage untouched but no longer shown or edited.
-- Immutable (always from the import): risk and activity identifiers, risk/activity relationships, transaction mappings, criticality and type. Edit requests that include them are rejected.
-- Overrides are keyed by risk ID and activity name in `sod-catalogue.json` (`activities` is optional, so earlier files still load). Imports never touch them, and they never affect conflict detection.
-- Pills show the identifier text; the color only tints the pill. `GET /api/sod/appearance` supplies names and colors to the other SoD views. Activity endpoints: `GET /api/sod/catalogue-activities`, `POST /api/sod/catalogue-activities/{activity}` (optimistic `expected_revision`).
-- Edit dialogs have a header close button and only Cancel and Save changes in the footer.
+- Risks: identifier and Display name, Related Activities, Status, Description Review,
+  Modified and Edit. Criticality and Type stay compact metadata within the Risk cell.
+- Activities: identifier and Display name, Related Risks, Transactions, Modified and Edit.
+  A list icon marks the compact Transactions action in the table, modal and both source slots.
+- Relationships come from imported mappings, never description text. Current activity
+  relationships exclude historical-only risks; retained definitions remain inspectable.
+- Enabled/Disabled and description-review status retain their existing meaning. Description
+  review is independent of access review and formal risk acceptance.
 
+### Entity details and navigation
 
-In the Risks table a new risk (arrived with the latest import) shows a compact amber **New** badge beside its Risk ID; rows keep the normal background and consecutive rows stay apart through separators and spacing. Enabled and Disabled carry icons (the shared `EnabledBadge`). Source details are not repeated on every row: the Edit dialog carries them, together with the imported definition. The Activities table uses the same row rhythm (alignment, separators, a common minimum row height, compact buttons) and keeps its activity-specific risk pills and transactions button.
+Previous/Next follows the originating filtered, server-sorted list across table pages.
+Unavailable directions are disabled. Related pills navigate Risk ↔ Activity within the
+same detail workflow; Back restores the preceding entity and list context. History keeps
+at most 20 locations, and closing details preserves the originating tab and search.
+A changed revision/source invalidates list navigation rather than mixing generations.
+Very large navigation scopes are bounded; refine the filters if the guard reports one.
+
+Navigation, Back, Cancel and window close protect unsaved edits. Cancel the discard prompt
+to keep the draft; confirm it to navigate without saving. Save still checks the original
+catalogue revision and definition identity. A missing/removed entity shows a controlled error.
+
+Both editors share a compact identifier/Display name header, related pills, contextual
+metadata and an imported-mappings information button. The body scrolls independently of
+Save/Cancel. English-only editable guidance, local colors and risk-specific settings remain;
+older Norwegian fields are preserved in storage. Immutable IDs, mappings, Type and
+Criticality are available through Source details and cannot be edited here.
+
+### References and descriptions
+
+The compact reference section shows library version and coverage with a confirmed Reset
+defaults action. Advanced reference settings contain custom workbook import, coverage-ID
+lists and **Download template**. The synthetic template follows the real importer schema;
+Desktop uses its Save dialog and hosted deployments download through the authenticated API.
+See [reference data, precedence and maintenance](../data/SOD_MATRIX.md#curated-reference-workbook).
+
+Pills use the same icons/colors and compact descriptions across configuration and review
+views. Exact active IDs in read-only guidance are not inferred relationships. Related
+pills in the Settings workflow use its navigation instead of nesting competing editors;
+standalone description popovers retain viewport bounds and scrolling. Full provenance and
+alternate text remain in Source details without repeating them beside every field.
+Source management remains under Data Sources; catalogue and investigation exports are
+preserved outside this configuration page. Original reference workbooks are not distributed.
 
 ## SoD feature toggle (Settings → Features)
 
@@ -236,6 +274,10 @@ beneath it. Clicking a SAP username opens its User Access profile, while **Open
 review** continues to open the SoD workspace. The copy action copies the exact
 username without navigating; route links retain normal modified-click behavior.
 
+The Work Queue keeps removal recommendations in its KPI/filter and exports, rather than
+repeating them in a table column or beneath each progress bar. Progress calculations,
+formal acceptance and review decisions remain unchanged.
+
 ### Work Queue bulk assignment review
 
 **Bulk review**, beside Export CSV, reuses the assignment review store. Choose exact
@@ -275,36 +317,8 @@ metadata response preparation completes before its atomic commit, preventing a
 failed response dependency from silently saving an unreported edit. Storage uses
 private JSON/content-addressed snapshots with locks and revision checks, not SQLite.
 
-
-## Compact SoD configuration
-
-Settings → SoD Risk Configuration keeps reference version/coverage, a compact confirmed
-Reset defaults action, Risks/Activities tabs, search and the existing editable configuration
-tables. Custom workbook import and full coverage-ID lists are under advanced disclosures.
-The duplicate catalogue heading, Settings-only export/source shortcut and evaluation-evidence
-block were removed from this page. Source management is under Settings → Data Sources;
-the catalogue export service and all investigation/report exports remain available elsewhere.
-Evidence limitations remain documented and visible in investigation views.
-
-The advanced reference settings include **Download template**, a synthetic XLSX workbook
-with the exact headers accepted by the reference importer. It contains Risks, Activities
-and Definitions sheets. Native Desktop uses its Save dialog; hosted deployments download
-the same bundled workbook through the authenticated API. The original business-reference
-workbook is not distributed.
-
-The Work Queue keeps removal recommendations in its KPI/filter and exports, rather than
-repeating them in a table column or beneath each progress bar. Its progress calculations,
-formal acceptance and review decisions are unchanged.
-
-Risk and activity pills use compact, scrollable descriptions without repeating field-level
-provenance. Exact active activity IDs in read-only text open the same activity pills;
-historical configuration alone cannot introduce an active reference. Full provenance and
-alternate text remain available through Source details in the configuration editor.
-Editors show effective inherited guidance without copying it into local overrides.
-
-Review method popovers distinguish current access-review coverage (including supported
-derived coverage) from independent formal risk acceptance. Stale decisions still require
-review; a formal acceptance record is never attributed as a derived access reviewer.
-Remediation groups only the current page's assignment identities, with expansion beside
-the assigned role. Usernames remain independently copyable. Detailed recommendations,
-reasons, controls and evidence verification remain in the assignment's expanded rows.
+Review method popovers separate current access-review coverage (including supported derived
+coverage) from formal acceptance. Stale decisions require review; formal-acceptance reviewers
+are never attributed as derived access reviewers. Remediation expands only current-page
+assignment identities beside the role. Usernames remain copyable; detailed recommendations,
+reasons, controls and verification remain in that assignment's expanded rows.

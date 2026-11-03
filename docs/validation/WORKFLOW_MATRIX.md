@@ -465,3 +465,30 @@ related IDs even when descriptions are missing, without inventing display text.
 Targeted evidence: 20 catalogue, 14 reference and 18 metadata/API tests passed; two
 focused table/pill browser checks, TypeScript and production build passed. Navigation
 integration continues in the next phase; these additive endpoints do not alter evaluation.
+
+### Shared Risk/Activity navigation and UI refinement
+
+Settings now uses one bounded entity-detail workflow, shared header/navigation and the
+existing Dialog, pills, InfoTip, Button and status components. Previous/Next collects the
+originating filtered/server-sorted list across pages and rejects mixed catalogue/source
+identities. Related pills navigate both directions; Back retains at most 20 locations.
+Navigation/close confirms discard of changed raw local fields; unchanged inherited text
+stays inherited. Missing exact entities produce controlled errors. Origin tab/search persist.
+
+Risk tables expose Related Activities; Activity tables expose active Related Risks with
+accessible overflow into details. Header metadata, transaction icons and sticky editing
+controls remain available. Exact-ID Source details no longer relies on fuzzy search.
+Description-only report snapshots explicitly exclude the new UI relationship fields;
+14 snapshot/report metadata tests passed after this compatibility correction.
+
+Targeted UI evidence: 12 new navigation/source-guard/responsive cases and four existing
+configuration-table checks passed. This includes cross-page navigation, repeated Risk ↔
+Activity transitions, Back, discard accept/cancel, preserved drafts/filters and all eight
+light/dark 375/800/1280/1600 layouts. Two metadata fixture failures were caused by retained
+historical IDs moving target rows beyond page one; explicit searches and a neutral synthetic
+R2 baseline correct those test assumptions. Both affected tests and both source/revision
+checks passed together in the final four-test recheck. Assertions remain intact.
+Earlier affected import/edit/color/transaction workflows passed; no full regression ran.
+Build/typecheck, changed-component lint, Python lint, Lucide and test-map checks passed.
+Screenshots were reviewed at light 375px and dark 1600px; all eight boundaries were asserted.
+Original workbooks, generated browser artifacts and private state remain outside Git.

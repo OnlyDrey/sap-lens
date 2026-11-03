@@ -215,6 +215,7 @@ class LifecycleAndApiTests(Case):
         self.assertEqual(risk.json()['item']['risk_id'],'R1')
         activity=self.client.get('/api/sod/catalogue-activities/A',headers=H).json()['item']
         self.assertEqual(activity['current_risks'],['R1','R2'])
+        self.assertEqual(self.client.get('/api/sod/catalogue-activities',headers=H).json()['source_version'],cache.get_snapshot().sod['content_hash'])
         descriptions=self.client.get('/api/sod/metadata',headers=H).json()
         self.assertEqual(descriptions['risks']['R1']['activities'],['A','B'])
         self.assertEqual(descriptions['activities']['A']['risk_ids'],['R1','R2'])

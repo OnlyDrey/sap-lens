@@ -107,6 +107,7 @@ def activities(search: str = Query('', max_length=256), current: Literal['', 'cu
                offset: int = Query(0, ge=0), limit: int = Query(25, ge=1, le=100)):
     with store.lock, cache._load_lock:
         result = store.activity_catalogue()
+        source_version=cache.get_snapshot().sod.get('content_hash')
     needle = search.strip()
     items = [item for item in result['items']
              if (not current or item['current'] == (current == 'current'))
@@ -116,7 +117,7 @@ def activities(search: str = Query('', max_length=256), current: Literal['', 'cu
            'display_name': lambda item: (item['display_name'].casefold(), item['activity'].casefold()),
            'business_category': lambda item: (item['local']['business_category'].casefold(), item['activity'].casefold())}[sort]
     items.sort(key=key, reverse=descending)
-    return dict(items=items[offset:offset + limit], total=len(items), offset=offset, limit=limit, revision=result['revision'])
+    return dict(items=items[offset:offset + limit], total=len(items), offset=offset, limit=limit, revision=result['revision'],source_version=source_version)
 
 
 @router.post('/catalogue-activities/{activity:path}')

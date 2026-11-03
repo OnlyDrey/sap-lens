@@ -303,3 +303,11 @@ capability-bound bridge with no caller-provided URL. `Popover.triggerLabel` opti
 a compact status trigger a contextual accessible name without changing the panel label.
 The SoD review workspace reuses `ReviewState` for role, activity and risk access coverage;
 formal risk acceptance remains an explicitly separate lifecycle badge.
+
+
+`Settings/SodEntityNavigation` owns the shared compact `EntityHeader`, navigation toolbar
+and bounded collection of filtered entity IDs. `SodRiskSettings` retains one navigation
+history (20 locations), preserving the originating tab/list context. Editors guard unsaved
+changes and original revisions. The optional `SodEntityNavigation` context in
+`lib/sodAppearance` routes related pills through that workflow; outside it, pills retain
+the existing read-only popover behavior. No separate persistence or business model is added.

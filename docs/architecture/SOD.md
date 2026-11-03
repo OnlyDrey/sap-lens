@@ -138,3 +138,16 @@ queue, including assignments. `blocking` remains the independent formal
 activity/acceptance approval gate; reviewed coverage cannot bypass it. Frozen
 assessment lifecycle is evaluated at the retained approval date, so later expiry
 does not rewrite an approved period's completion counts.
+
+
+## Configuration names and relationship navigation
+
+Effective catalogue Display names share `sod_metadata.lookup` precedence; local fields
+remain raw overrides. Exact-ID GET endpoints resolve details without fuzzy search or page
+limits. Activity rows distinguish active related risks from retained history. The frontend
+collects the originating filtered/sorted list in bounded pages, checking revision and source
+identity before providing Previous/Next. Cross-entity navigation keeps a bounded history
+and guards unsaved drafts; it never modifies mappings or evaluation policies.
+
+Relationships are UI context, not descriptions: `frozen` excludes `activities`/`risk_ids`
+from report metadata copies. Existing immutable snapshot contracts therefore remain intact.

@@ -277,7 +277,8 @@ Evidence and exports are bounded; see [SoD architecture](SOD.md) and the
 | POST | `/api/data-sources/sod/inspect` | Read-only inspection of a candidate SoD CSV with `{path, delimiter, encoding, mapping}`: detected header and format, per-column mapping state, parser errors (`valid: false`, never a 4xx for content problems), counts, checks and sample rows. Stores and imports nothing; includes `descriptions` (optional columns and metadata coverage) |
 | GET | `/api/data-sources/sod/inspection` | Read-only SoD source inspection: counts, column interpretation, validation checks, quality warnings, import metadata (`loaded: false` when no matrix is loaded) |
 | GET | `/api/sod/overview` | Catalogue counts plus a `governance` block: conflicts (including `concentration`: users with more than one risk and the roles behind the most distinct user-risk findings), decisions, remediation (including `verification`), open period progress, changes since the last refresh |
-| GET | `/api/sod/catalogue`, `/catalogue/export` | Filtered risks with local guidance; CSV |
+| GET | `/api/sod/catalogue`, `/catalogue/export` | Filtered risks with effective Display names and unchanged local fields; CSV |
+| GET | `/api/sod/catalogue/{risk_id}`, `/catalogue-activities/{activity}` | Exact current/retained entity and catalogue revision; 404 for an unknown ID |
 | POST | `/api/sod/catalogue/{risk_id}`, `/catalogue/bulk` | Edit local metadata (English text, color); confirmed bulk enablement |
 | GET/POST | `/api/sod/catalogue-activities`, `/catalogue-activities/{activity}` | Activities derived from the import with local English-only metadata; optimistic `expected_revision` |
 | GET | `/api/sod/appearance` | Display names and colors for risk and activity pills |
@@ -350,3 +351,10 @@ bundled reference library only. The UI requires explicit confirmation. Reference
 includes `origin`, `library_version`, `default_version`, `defaults_available` and any
 resource warning. Fresh installations resolve the bundled resource without a private copy;
 existing private libraries survive upgrades unchanged.
+
+
+Configuration lists expose effective `display_name`; search, name sorting and catalogue
+CSV use it without mutating `local.display_name`. Activity rows distinguish `current_risks`
+from retained `risks`, and carry `source_version` for consistent list navigation. Metadata
+includes factual `activities` and `risk_ids` relationships even when descriptions are absent;
+these UI context fields are excluded from description-only report snapshots.
