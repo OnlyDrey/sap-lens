@@ -345,3 +345,13 @@ now aligns fields at the start; FormField's existing accessible helper relations
 is retained. Five affected scheduling browser tests passed, including measured label
 and control top-edge alignment, persistence, cron validation and runtime notes. Types
 and production build passed. Scheduling rules/calculations were not changed.
+
+### Refinement phase 2 — Backup & Restore presentation
+
+Replaced the oversized status card with a compact status row and refresh action;
+matched Create/Restore section icons, retained restart-based action labels and
+sensitive-unencrypted-archive guidance, and exposed the selected filename with
+client-side extension/empty/size validation. Existing integrity preview, explicit
+replacement confirmation, automatic destination recovery and restart handoff remain.
+Three affected browser cases passed (workflow plus narrow/light and desktop/dark);
+the workflow recheck including invalid-extension and filename assertions passed.
