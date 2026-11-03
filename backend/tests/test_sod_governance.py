@@ -105,6 +105,20 @@ class GovernanceCase(unittest.TestCase):
 
 
 class MatrixTests(GovernanceCase):
+    def test_effective_projections_agree_without_reinterpreting_formal_acceptance(self):
+        self.decide('assignment',[self.assignment_item('SYN_A','ROLE_A1')],'Keep')
+        activity=next(row for row in self.get('/api/sod/matrix/activity')['rows'] if row['user']=='SYN_A')['cells']['A']
+        self.assertEqual(activity['decision_summary']['label'],'Approved')
+        self.assertEqual(activity['decision'],'Pending') # Raw explicit decision is retained.
+        self.decide('risk',[self.acceptance_item('SYN_A','R1')],'Approved')
+        risk=next(row for row in self.risk_matrix()['rows'] if row['user']=='SYN_A')['cells']['R1']
+        self.assertEqual(risk['decision_summary']['label'],'Approved')
+        self.assertEqual(risk['acceptance'],'Pending')
+        for table,key,expected in [('user_risk','R1','Approved'),('user_activity','A','Approved')]:
+            rows=self.get('/api/sod/explorer/'+table)['items']
+            row=next(row for row in rows if row['user']=='SYN_A' and row.get('risk_id',row.get('activity'))==key)
+            self.assertEqual(row['decision_summary']['label'],expected)
+
     def test_risk_matrix_counts_distinct_users_and_user_risk_pairs(self):
         result = self.risk_matrix()
         self.assertEqual([row['user'] for row in result['rows']], ['SYN_A', 'SYN_B'])
@@ -507,6 +521,49 @@ class VerificationTests(GovernanceCase):
             settings = config.get_settings().model_copy(deep=True)
             settings.data_lifecycle.sources['users'] = SourceSnapshot(snapshot='c' * 64, path=str(self.root / 'u.csv'), imported_at=users_imported_at, checked_at=users_imported_at)
             config.save_configuration(settings, settings.revision)
+
+    def test_non_conflicting_and_expired_imported_assignments_are_still_present(self):
+        import sod_scope as scope
+        remove=self.assignment_item('SYN_A','ROLE_A2')
+        self.decide('assignment',[remove],'Remove')
+        # Conflict disappears because other roles were removed; this assignment remains.
+        changed=snapshot()
+        changed.users.users['SYN_A']['assignments']=[a for a in changed.users.users['SYN_A']['assignments'] if a['role_name']=='ROLE_A2']
+        cache._cache=changed
+        self.assertEqual(scope.make_verifier()('SYN_A',remove['key']),'Still present in current evidence')
+        self.assertEqual(scope.orphan_lifecycle('assignment',decisions.latest('current')['assignment'][remove['key']]),'Historical')
+        # Even an expired record absent from active analysis remains actual imported access.
+        expired=changed.users.users['SYN_A']['assignments'][0];expired['valid_to']='2020-12-31'
+        aid=scope.governance.assignment_id('SYN_A',dict(actual_assigned_role=expired['role_name'],role_valid_from=expired['valid_from'],role_valid_to=expired['valid_to'],user_group=expired['user_group']))
+        self.assertEqual(scope.make_verifier()('SYN_A',aid),'Still present in current evidence')
+
+    def test_remove_history_retains_decision_and_new_source_verification_provenance(self):
+        item=self.assignment_item('SYN_A','ROLE_A2');self.decide('assignment',[item],'Remove')
+        before=self.get('/api/sod/decisions/assignment/history',key=item['key'])
+        self.assertEqual(before['verification']['status'],'Not verified')
+        self.refresh_without_role('2099-01-01T00:00:00+00:00')
+        after=self.get('/api/sod/decisions/assignment/history',key=item['key'])
+        self.assertEqual(after['items'],before['items'])
+        self.assertEqual(after['items'][0]['decision'],'Remove')
+        self.assertEqual(after['verification']['status'],'Verified')
+        self.assertEqual(after['verification']['source_version'],'c'*64)
+        self.assertEqual(after['verification']['decision_event_id'],after['items'][0]['event_id'])
+        self.assertFalse(any(row['id']==item['key'] for row in self.subject('SYN_A')['overview']['assignments']))
+        cache._cache.users.report['errors']=['Synthetic incomplete import']
+        self.assertEqual(self.get('/api/sod/decisions/assignment/history',key=item['key'])['verification']['status'],'Not verified')
+        cache._cache.users.report={}
+        cache._cache.users.users['SYN_A']['assignments'][0]['match_status']='ambiguous'
+        self.assertEqual(self.get('/api/sod/decisions/assignment/history',key=item['key'])['verification']['status'],'Not verified')
+
+    def test_remediation_reuses_one_source_cut_for_rows_counters_and_actions(self):
+        from unittest.mock import patch
+        import sod_scope as scope
+        self.track_removal()
+        with patch.object(scope,'verification_population',wraps=scope.verification_population) as capture:
+            result=self.get('/api/sod/remediation')
+            self.assertEqual(capture.call_count,1)
+            self.assertEqual(capture.call_args.args[0],{'SYN_A'})
+            self.assertEqual(result['actions'][0]['verification'],'Still present in current evidence')
 
     def test_without_tracked_removals_verification_is_unavailable_with_a_reason(self):
         verification = self.get('/api/sod/overview')['governance']['remediation']['verification']

@@ -294,7 +294,7 @@ Evidence and exports are bounded; see [SoD architecture](SOD.md) and the
 | GET | `/api/sod/subject` | Investigation workspace: risk, activities, contributing assignments, decisions, removal impact, and an `overview` of all the user's activities, assignments and risks |
 | POST | `/api/sod/simulate` | Read-only what-if removal of assignments for one user |
 | GET | `/api/sod/queue`, `/queue/export` | Review work queue (`kind`, `status`) with status counts; CSV |
-| POST | `/api/sod/decisions/{activity,assignment,acceptance}` | Record one decision for explicitly listed items (max 100) |
+| POST | `/api/sod/decisions/{activity,assignment,risk,acceptance}` | Record one decision for explicitly listed items (max 100) |
 | GET | `/api/sod/decisions/{kind}/history`, `/evidence` | Event history and the evidence retained with an event |
 | GET | `/api/sod/remediation`, `/remediation/export` | Recommended handling per assignment, tracked actions with verification; CSV. `tracking=untracked` keeps removal recommendations without an action, `tracking=verified` lists tracked removals verified by newer evidence; scope filters also accept `multiple_risks=true` |
 | POST | `/api/sod/remediation/actions` | Create or update a tracked action (completion needs evidence) |
@@ -362,6 +362,11 @@ these UI context fields are excluded from description-only report snapshots.
 Subject overview rows additionally expose `decision_summary` (label, semantic tone,
 explicit/stale flags, basis and activity assignment-decision distribution). This is a pure
 presentation projection of the context-specific lifecycle and coverage, never a stored
-decision enum. Activity approval requires a current explicit activity decision; completion
-through roles is not approval. Existing decision events, review coverage and exports remain
-unchanged. Formal acceptance is projected independently from access review completion.
+decision enum. The centralized effective resolver applies the approved role-to-activity
+rules, preserving explicit activity precedence and disagreement metadata. Normal risk
+review (`risk`) has independent events and `risk_review_summary`/`risk_review_event` beside
+formal `acceptance` fields. Matrices, Explorer and remediation add effective summaries while
+retaining their raw lifecycle/export fields. Approval gates and old report snapshots remain
+unchanged. Assignment rows/history additionally expose source-bound `remediation_verification`
+or `verification` metadata: status, safe reason, source snapshot/import time and original
+decision event ID. Verification never replaces the original Remove decision.

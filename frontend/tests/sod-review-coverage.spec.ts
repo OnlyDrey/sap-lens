@@ -32,7 +32,7 @@ test('role decisions update immediately and activity approval derives without a 
  }
  await status.click();const popover=page.getByRole('dialog',{name:'Review method for ROLE_A1',exact:true});await expect(popover).toContainText(names.a);await expect(popover).toContainText('Synthetic status reviewer');await expect(popover).toContainText('Assignment ID');await expect(popover).toContainText('Explicit');await expect(popover).toContainText('Related activities');await page.keyboard.press('Escape')
  await first.getByRole('button',{name:'Keep ROLE_A1',exact:true}).click();await expect(status).toHaveText('Approved')
- const second=roles.getByRole('listitem').filter({hasText:'ROLE_A2'});await second.getByRole('button',{name:'Remove ROLE_A2',exact:true}).click();await expect(second.getByRole('button',{name:'Review method for ROLE_A2',exact:true})).toHaveText('Remove')
+ const second=roles.getByRole('listitem').filter({hasText:'ROLE_A2'});await second.getByRole('button',{name:'Remove ROLE_A2',exact:true}).click();await expect(second.getByRole('button',{name:'Review method for ROLE_A2',exact:true})).toHaveText('Remove');await second.getByRole('button',{name:'Review method for ROLE_A2',exact:true}).click();await expect(page.getByRole('dialog',{name:'Review method for ROLE_A2',exact:true}).getByRole('region',{name:'Removal verification'})).toContainText('Still present in current evidence');await page.keyboard.press('Escape')
  await panel.getByRole('tab',{name:/^Activities/}).click();const activity=panel.getByRole('button',{name:'Review method for A',exact:true});await expect(activity).toHaveText('Approved');await activity.click();const detail=page.getByRole('dialog',{name:'Review method for A',exact:true});await expect(detail).toContainText('Supporting assignment decisions');await expect(detail).toContainText('Approved');await expect(detail).toContainText('Remove');await page.keyboard.press('Escape')
  await panel.getByRole('button',{name:'Review activity A',exact:true}).click();const form=panel.getByRole('region',{name:'Activity review · A',exact:true});await form.getByLabel('Activity decision',{exact:true}).selectOption('Remove');await form.getByRole('textbox',{name:'Justification',exact:true}).fill('Synthetic explicit activity override');await form.getByRole('button',{name:'Save decision',exact:true}).click();await expect(activity).toHaveText('Remove');await activity.click();await expect(page.getByRole('dialog',{name:'Review method for A',exact:true})).toContainText('takes precedence over role-derived Approved');await page.keyboard.press('Escape')
  await panel.getByRole('tab',{name:/^Risks/}).click();await expect(panel.getByRole('button',{name:'Review method for R1',exact:true})).toHaveText('Pending')
@@ -77,4 +77,16 @@ test('normal risk decisions remain independent of formal acceptance and disclose
  const data=await(await request.get('/api/sod/subject',{headers,params:{user:names.a}})).json()
  expect(data.overview.assignments.every((row:{decision:string})=>row.decision==='Pending')).toBeTruthy()
  expect(data.overview.risks.find((row:{risk_id:string})=>row.risk_id==='R1').acceptance).toBe('Pending')
+})
+
+test('conditional activity approval retains its conditions without a fifth primary status',async({page,request})=>{
+ const data=await(await request.get('/api/sod/subject',{headers,params:{user:names.a}})).json()
+ const row=data.overview.activities.find((entry:{activity:string})=>entry.activity==='A')
+ await decide(request,'activity','current',[{key:row.key,user:names.a,ref:'A',evidence_version:row.evidence_version}],'Conditional',{controls:'Synthetic dual-control condition'})
+ await openSod(page,'Reviews');await page.getByRole('button',{name:`Open review for ${names.a}`,exact:true}).click()
+ const panel=page.getByRole('dialog');await panel.getByRole('tab',{name:/^Activities/}).click()
+ const status=panel.getByRole('button',{name:'Review method for A',exact:true});await expect(status).toHaveText('Approved');await status.click()
+ const popup=page.getByRole('dialog',{name:'Review method for A',exact:true});await expect(popup).toContainText('Approved with conditions');await expect(popup).toContainText('Synthetic dual-control condition');await page.keyboard.press('Escape')
+ await panel.getByRole('textbox',{name:'Reviewer (self-reported)',exact:true}).fill('Synthetic compatibility reviewer');await panel.getByRole('button',{name:'Review activity A',exact:true}).click()
+ const form=panel.getByRole('region',{name:'Activity review · A',exact:true});await form.getByLabel('Activity decision',{exact:true}).selectOption('Conditional');await form.getByRole('textbox',{name:'Justification',exact:true}).fill('Synthetic retained workflow');await expect(form.getByRole('button',{name:'Save decision',exact:true})).toBeDisabled();await form.getByRole('textbox',{name:'Conditions',exact:true}).fill('Synthetic recorded control');await expect(form.getByRole('button',{name:'Save decision',exact:true})).toBeEnabled();await form.getByRole('button',{name:'Cancel',exact:true}).click()
 })

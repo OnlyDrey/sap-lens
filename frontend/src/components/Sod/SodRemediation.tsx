@@ -1,9 +1,10 @@
 import { Fragment, useMemo, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { downloadFile, scopeParams, sod, sodPost, EXPORT_NAME, type AssignmentRow, type ContextInfo } from '@/api/sod'
+import { downloadFile, scopeParams, sod, sodPost, EXPORT_NAME, type DecisionSummary,type AssignmentRow, type ContextInfo } from '@/api/sod'
 import { useViewHistory } from '@/hooks/useViewHistory'
 import { Button } from '@/components/Shared/Button'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
+import {PrimaryDecisionBadge} from './SodDecisionStatus'
 import { Kpi } from '@/components/Shared/Kpi'
 import { UserGroupCell } from '@/components/Shared/UserGroup'
 import { Dialog } from '@/components/Shared/Dialog'
@@ -20,7 +21,7 @@ import { moduleOfRoles, useRoleModules } from '@/hooks/useRoleModules'
 import { announceExport } from '@/lib/exportNotice'
 import { formatDate } from '@/lib/dateFormat'
 import { kpiTone, stateTone } from '@/lib/kpiTone'
-import { AlertNote, CoverageNotice, SodFilters, invalidateSod, LifecycleBadge, useSodContext, useSodFilters, useSodSubject } from './SodShared'
+import { AlertNote, CoverageNotice, SodFilters, invalidateSod, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 
 const GROUPS = ['Remove assignment', 'Investigate assignment', 'Apply compensating control', 'Maintain access', 'No action required']
 /** Handling that can carry a tracked action: removals and investigations. */
@@ -28,6 +29,7 @@ const TRACKABLE = ['Remove assignment', 'Investigate assignment']
 const STATUSES = ['Open', 'In progress', 'Completed', 'Cancelled']
 interface TrackedAction { id: string; user: string; activity: string; risk_id: string; assignment_id: string; role: string; recommended: string; reason: string; owner: string; due_date: string | null; status: string; completion_evidence: string; verification: string; history: { timestamp: string; actor: string; note: string }[] }
 interface Row {
+  assignment_summary?:DecisionSummary;activity_summary?:DecisionSummary;
   user: string; activity: string; risks: string[]; role: string; catalogue_roles?: string[]; user_group?: string; assignment_id: string; valid_from: string | null; valid_to: string | null
   activity_decision: string; assignment_decision: string; risk_acceptance: string[]; recommended: string; reason: string; controls: string
   action: TrackedAction | null; owner: string; due_date: string | null; action_status: string; overdue: boolean; verification: string
@@ -167,7 +169,7 @@ export function RemediationView() {
                   <td><UserGroupCell groups={first.user_group} /></td>
                   <td><div className="flex items-center gap-1"><button type="button" className="sod-expand-toggle shrink-0" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} activities and risks for ${parent.user} ${first.role}`} onClick={() => toggleKey(parent.key)}>{open ? <ChevronDown size={14} aria-hidden="true"/> : <ChevronRight size={14} aria-hidden="true"/>}</button><RemediationRole role={first.role} catalogueRoles={first.catalogue_roles}/></div></td>
                   <td className="whitespace-nowrap"><dl className="validity-dates"><div><dt>Valid from</dt><dd>{formatDate(first.valid_from)}</dd></div><div><dt>Valid to</dt><dd>{formatDate(first.valid_to)}</dd></div></dl></td>
-                  <td><LifecycleBadge value={first.assignment_decision} /><p className="text-xs text-muted">{decided}/{parent.rows.length} activities decided</p></td>
+                  <td><PrimaryDecisionBadge summary={first.assignment_summary}/><p className="text-xs text-muted">{decided}/{parent.rows.length} activities decided</p></td>
                   <td>{tracked.action_status}{parent.rows.some((row) => row.overdue) && <StatusBadge tone="error">Overdue</StatusBadge>}<p className="text-xs text-muted">{tracked.owner || 'No owner'} · {tracked.due_date ? formatDate(tracked.due_date) : 'No due date'}</p></td>
                   <td className="col-actions"><div className="flex flex-wrap justify-end gap-1">
                     {data.reviewable && parent.rows.some((row) => TRACKABLE.includes(row.recommended)) && <Button size="compact" onClick={() => setEditing(parent.rows.find((row) => TRACKABLE.includes(row.recommended))!)}><ClipboardCheck size={14} aria-hidden="true"/>{tracked.action ? 'Update action' : 'Track action'}</Button>}
@@ -176,7 +178,7 @@ export function RemediationView() {
                 </tr>}
                 children={parent.rows.map((row) => <tr key={row.activity} className="remediation-child">
                   <td colSpan={2}><span className="remediation-child-title">Activity</span> <SodPill kind="activity" value={row.activity} /> <span className="id-pill-list" aria-label={`Risks for ${row.activity}`}>{row.risks.map((risk) => <SodPill key={risk} kind="risk" value={risk} />)}</span></td>
-                  <td colSpan={2}>Activity <LifecycleBadge value={row.activity_decision} /> · Risk acceptance: {row.risk_acceptance.join(', ') || '—'}</td>
+                  <td colSpan={2}>Activity <PrimaryDecisionBadge summary={row.activity_summary}/> · Formal acceptance: {row.risk_acceptance.join(', ') || '—'}</td>
                   <td><StatusBadge tone={row.recommended === 'Remove assignment' ? 'error' : row.recommended === 'Investigate assignment' ? 'warning' : 'neutral'}>{row.recommended}</StatusBadge><p className="text-xs">{row.reason}{row.controls&&<span className="block">Controls: {row.controls}</span>}</p></td>
                   <td className="text-xs" colSpan={2}>Verification: {row.verification}</td>
                 </tr>)} />

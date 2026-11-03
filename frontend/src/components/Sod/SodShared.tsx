@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { keepPreviousData, useQuery, type QueryClient } from '@tanstack/react-query'
-import { AlertTriangle, CheckCircle2, FilterX, History, Lock, RefreshCw, Search, ShieldCheck, ShieldX, Trash2, Clock3 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, FilterX, CircleDot, History, Lock, RefreshCw, Search, ShieldCheck, ShieldX, Trash2, Clock3 } from 'lucide-react'
 import { sod, scopeParams, emptyFilters, type ContextInfo, type Filters, type Lifecycle } from '@/api/sod'
 import { useHistoryValue, useViewHistory, type SodFilterState } from '@/hooks/useViewHistory'
 import { Card, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
@@ -24,7 +24,7 @@ const size = 14
 export function lifecycleView(value: string): LifecycleView {
   switch (value) {
     case 'Approved': case 'Keep': case 'Accepted': return { icon: <CheckCircle2 size={size} />, tone: 'success', text: value==='Keep'?'Approved':value }
-    case 'Conditional': return { icon: <Search size={size} />, tone: 'warning', text: 'Investigate' }
+    case 'Conditional': return { icon: <CircleDot size={size} />, tone: 'info', text: 'Conditional' }
     case 'Remove': case 'Removal required': return { icon: <Trash2 size={size} />, tone: 'error', text: 'Remove' }
     case 'Investigate': return { icon: <Search size={size} />, tone: 'warning', text: 'Investigate' }
     case 'Rejected': return { icon: <ShieldX size={size} />, tone: 'error', text: value }

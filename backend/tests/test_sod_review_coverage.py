@@ -212,3 +212,12 @@ class CoverageTests(fixture.GovernanceCase):
         from server_access import may_access
         self.assertTrue(may_access('reviewer','POST','/api/sod/decisions/risk'))
         self.assertFalse(may_access('read-only','POST','/api/sod/decisions/risk'))
+
+    def test_conditional_activity_keeps_approval_semantics_and_original_controls(self):
+        self.decide('activity',[self.activity_item('SYN_A','A')],'Conditional',controls='Synthetic dual-control condition')
+        row=next(row for row in self.subject('SYN_A')['overview']['activities'] if row['activity']=='A')
+        self.assertEqual(row['decision_summary']['label'],'Approved')
+        self.assertTrue(row['decision_summary']['explicit'])
+        self.assertEqual(row['event']['decision'],'Conditional')
+        self.assertEqual(row['event']['controls'],'Synthetic dual-control condition')
+        self.assertTrue(row['review_coverage']['reviewed'])

@@ -705,3 +705,46 @@ and a retained notice. Fifteen configuration tests passed, including the new con
 migration regression. Sixty-eight backup/scheduler/SoD-import checks passed after the fix.
 No full local regression was run. Historical failed CI runs remain failed; a new automatic
 run is required before claiming the final remote commit has green CI.
+
+### Final SoD integration and CI UI closeout
+
+Removal verification now checks all actual imported assignments, including expired and
+non-conflicting records; disappearance from a filtered SoD result is not removal. One
+coherent source cut is reused for remediation rows/counters/actions, restricted to affected
+users. Assignment history/popovers expose source hash/import time and the original event ID;
+Remove events are never rewritten. Newer source evidence, complete matching within the
+supplied export scope and no validation errors are required for verified absence. External
+CSV truncation cannot be proven from these schemas; full-export scope remains an operator
+responsibility. Frozen review/report evidence retains its captured semantics.
+
+Matrix, Explorer and remediation primary badges now use the same effective projection as
+the review panel; raw lifecycle, explicit-review counters/filters, formal acceptance and
+existing CSV columns keep their meanings. Conditional compatibility was corrected during
+final semantic review: a current Conditional event is Approved with recorded conditions,
+not Investigate. Its form option, required controls, raw event and history are retained.
+No fifth primary badge or synthetic approval record was introduced.
+
+Targeted evidence: 44 matrix/review/remediation/coverage tests passed; 35 source lifecycle,
+frozen-period and report checks passed; 10 verifier source-cut rechecks and three final
+raw-presence/history/frozen checks passed. Six browser integration cases, a removal-popover
+recheck and Conditional approval/form compatibility check passed. The original role decision
+and later source provenance remain separately inspectable. No complete regression was run.
+
+Actual CI 41679706854 failed seven changed browser cases: six source-layout cases still
+expected the retired duplicate `.source-file-row`, and the legacy Conditional tile inherited
+the new primary-label projection. The source tests now assert one Browse / Upload action,
+no redundant Browse CSV button and a usable optional advanced path field across three
+widths/both themes. The counter is explicitly Conditional activities (legacy). All seven
+failed cases passed locally after correction; no assertions were disabled or skipped.
+
+Final restore review added explicit cancellation of an inactive validated preview, releasing
+its retention protection without clearing an active operation/recovery lock. Backend and
+browser preview-cancel/confirm checks passed. Authenticated administrator HTTP download was
+verified byte-for-byte; read-only users remain denied. Existing mocked native-dialog tests
+remain unit evidence, not native Windows acceptance. Latest TypeScript/production build,
+focused ESLint, Ruff, Lucide catalog, documentation links and test-map/whitespace checks passed.
+Dependencies, product version and main were unchanged. Changed-code review introduced no
+real employee data/reference workbooks or detected credential-pattern matches. Full local
+regression, dependency re-audits and native Windows/SCM/systemd acceptance were intentionally
+not repeated. Historical CI failures remain failed runs; final automatic CI must be reported
+separately after push, without claiming unexecuted package/runtime acceptance.

@@ -9,7 +9,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { DisclosureChevron } from '@/components/Shared/DisclosureChevron'
 import { Layers, ShieldCheck, ListChecks, Check, ClipboardCheck, FlaskConical, History, Search, Trash2, Wrench } from 'lucide-react'
-import { emptyFilters, scopeParams, sod, sodPost, type ActivityDetail, type AssignmentRow, type DecisionEvent, type OverviewAssignment, type Subject, type ReviewCoverage } from '@/api/sod'
+import { emptyFilters, scopeParams, sod, sodPost, type ActivityDetail, type AssignmentRow, type DecisionEvent, type OverviewAssignment, type Subject, type ReviewCoverage,type RemediationVerification } from '@/api/sod'
 import { useViewHistory, userHref } from '@/hooks/useViewHistory'
 import { SidePanel } from '@/components/Shared/SidePanel'
 import { Button, IconButton } from '@/components/Shared/Button'
@@ -29,7 +29,7 @@ type Kind = 'activity' | 'assignment' | 'acceptance' | 'risk'
 export interface Item { key: string; user: string; ref: string; evidence_version: string }
 export interface FormState { kind: Kind; items: Item[]; heading: string; decision?: string }
 const OPTIONS: Record<Kind, { value: string; label: string }[]> = {
-  activity: [{ value: 'Approved', label: 'Approved: the user needs this activity' }, { value: 'Investigate', label: 'Investigate: further assessment is required' }, { value: 'Remove', label: 'Remove: the user should not have this activity' }, { value: 'Pending', label: 'Reset to pending' }],
+  activity: [{ value: 'Approved', label: 'Approved: the user needs this activity' },{value:'Conditional',label:'Approved with conditions (retained review model)'}, { value: 'Investigate', label: 'Investigate: further assessment is required' }, { value: 'Remove', label: 'Remove: the user should not have this activity' }, { value: 'Pending', label: 'Reset to pending' }],
   assignment: [{ value: 'Keep', label: 'Keep this role assignment' }, { value: 'Remove', label: 'Remove this role assignment' }, { value: 'Investigate', label: 'Investigate: further investigation is required' }, { value: 'Pending', label: 'Reset to pending' }],
   risk:[{value:'Approved',label:'Approved: the risk is acceptable for this review'},{value:'Remove',label:'Remove: remediation is required'},{value:'Investigate',label:'Investigate: further assessment is required'},{value:'Pending',label:'Reset to pending'}],
   acceptance: [{ value: 'Accepted', label: 'Accept the risk' }, { value: 'Rejected', label: 'Reject the risk' }, { value: 'Pending', label: 'Reset to pending' }],
@@ -250,7 +250,7 @@ function AssignmentReviewRow({ user,context,row, description, ok, checked, onChe
       <div className="sod-assignment-compact">
         {ok && <Checkbox checked={checked} onChange={onCheck} aria-label={`Select ${row.role}`}><span className="sr-only">Select</span></Checkbox>}
         <div className="sod-assignment-role"><RoleIdentifier value={row.role} onOpen={onOpenRole} openLabel={`Open catalogue role ${row.catalogue_roles[0] || row.role}`} />{description && <p className="sod-assignment-description" title={description}>{description}</p>}</div>
-        <SodDecisionStatus kind="assignment" label={row.role} status={row.decision} summary={row.decision_summary} event={row.event} coverage={row.review_coverage} user={user} context={context} assignmentId={row.id} validFrom={row.valid_from} validTo={row.valid_to} activities={row.activities} risks={row.risks} name={description}/>
+        <SodDecisionStatus kind="assignment" label={row.role} status={row.decision} summary={row.decision_summary} event={row.event} coverage={row.review_coverage} user={user} context={context} assignmentId={row.id} validFrom={row.valid_from} validTo={row.valid_to} verification={row.remediation_verification} activities={row.activities} risks={row.risks} name={description}/>
         {ok && <span className="sod-decision-icons" role="group" aria-label={`Decision for ${row.role}`}>
           <IconButton label={`Keep ${row.role}`} tooltip="Keep this role assignment" variant={kept ? 'primary' : 'secondary'} aria-pressed={kept} loading={pendingAction==='Keep'} disabled={busy} onClick={() => onDecide('Keep')}><Check size={16} aria-hidden="true" /></IconButton>
           <IconButton label={`Investigate ${row.role}`} tooltip="Mark for further investigation (not a final decision)" variant={investigating ? 'primary' : 'secondary'} aria-pressed={investigating} loading={pendingAction==='Investigate'} disabled={busy} onClick={() => onDecide('Investigate')}><Search size={16} aria-hidden="true" /></IconButton>
@@ -333,19 +333,19 @@ function ActivityBlock({ row, selection, toggle, impact, onRole }: {
 
 function DecisionHistory({ kind, context, keyId, label }: { kind: Kind; context: string; keyId: string; label: string }) {
   const [open, setOpen] = useState(false)
-  const query = useQuery({ queryKey: ['sod-subject', 'history', kind, context, keyId], queryFn: () => sod<{ items: DecisionEvent[] }>(`/api/sod/decisions/${kind}/history`, new URLSearchParams({ key: keyId, context })), enabled: open })
+  const query = useQuery({ queryKey: ['sod-subject', 'history', kind, context, keyId], queryFn: () => sod<{ items: DecisionEvent[];verification?:RemediationVerification|null }>(`/api/sod/decisions/${kind}/history`, new URLSearchParams({ key: keyId, context })), enabled: open })
   return (
     <details onToggle={(event) => setOpen((event.target as HTMLDetailsElement).open)}>
       <summary className="flex cursor-pointer items-center gap-1 text-xs"><History size={12} aria-hidden="true" />{label}</summary>
       {open && (query.isError ? <p role="alert">History unavailable; original storage is retained.</p> : !query.data ? <LoadingState /> : !query.data.items.length ? <p className="text-xs text-muted">No decisions recorded.</p>
-        : <ol className="grid gap-2 py-2">{query.data.items.map((event) => (
+        : <>{query.data.verification&&<p className="text-xs">{query.data.verification.status}: {query.data.verification.reason}</p>}<ol className="grid gap-2 py-2">{query.data.items.map((event) => (
           <li key={event.event_id} className="text-xs">
             <LifecycleBadge value={event.decision === 'Remove' ? 'Removal required' : event.decision} /> {event.reviewer}{event.approver ? ` / approver ${event.approver}` : ''} · {formatTimestamp(event.timestamp)}
             <p>{event.justification}</p>
             {event.controls && <p>Conditions or controls: {event.controls}</p>}
             {event.expires && <p>Expires {formatDate(event.expires)}</p>}
             <p className="text-muted">Evidence version {event.evidence_version.slice(0, 12)} retained with this decision.</p>{event.bulk_operation_id&&<p className="text-xs text-muted">Bulk operation {event.bulk_operation_id} · Previous decision: {event.previous_decision||'Unreviewed'}</p>}
-          </li>))}</ol>)}
+          </li>))}</ol></>)}
     </details>
   )
 }

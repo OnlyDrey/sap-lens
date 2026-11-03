@@ -1,8 +1,9 @@
+import {PrimaryDecisionBadge} from './SodDecisionStatus'
 import {SAPUserLink} from '@/components/Shared/SAPUserLink'
 import { Kpi } from '@/components/Shared/Kpi'
 import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { downloadFile, scopeParams, sod, EXPORT_NAME, type AssignmentPick, type AssignmentSelection, type BulkAction, type ContextInfo, type Filters, type Lifecycle } from '@/api/sod'
+import { downloadFile, scopeParams, sod, EXPORT_NAME, type DecisionSummary,type AssignmentPick, type AssignmentSelection, type BulkAction, type ContextInfo, type Filters, type Lifecycle } from '@/api/sod'
 import { useHistoryValue, useViewHistory, type SodExplorerTable } from '@/hooks/useViewHistory'
 import { ArrowUpRight, Layers, ListChecks, ListTree, ScanSearch, ShieldAlert, Users, UsersRound } from 'lucide-react'
 import { Button } from '@/components/Shared/Button'
@@ -22,10 +23,11 @@ import { SodPill } from '@/lib/sodAppearance'
 import { UserGroupCell } from '@/components/Shared/UserGroup'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import { kpiTone, stateTone } from '@/lib/kpiTone'
-import { type FilterField, keepWithinContext, useFilterChangeReset, reviewStatusParam, SodArea, RoleCodeList, CoverageNotice, SodFilters, LifecycleBadge, useSodContext, useSodFilters, useSodSubject } from './SodShared'
+import { type FilterField, keepWithinContext, useFilterChangeReset, reviewStatusParam, SodArea, RoleCodeList, CoverageNotice, SodFilters, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 
 type TableName = Exclude<SodExplorerTable, 'roles'>
 interface Row {
+  decision_summary?:DecisionSummary;
   user?: string; risk_id?: string; criticality?: string; category?: string; groups?: string[]; activities?: string[] | string; roles?: string[] | number; acceptance?: Lifecycle
   activity?: string; risks?: string[]; tcodes?: string[]; duplicate?: boolean; decision?: Lifecycle; id?: string; role?: string; valid_from?: string | null; valid_to?: string | null
   interval_status?: string | null; user_group?: string; users?: number; catalogue_roles?: string[]; suffix?: string; evidence_version?: string
@@ -235,14 +237,14 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
         </>}
         <p className="ui-description">Trace User → Risk → Activity → Transaction → Role → Assignment. Select a row to investigate; from the lookup, show the users behind a role.</p>
         {data.items.length ? <DataTable caption={LABELS[table]}>
-          {table === 'user_risk' && <><thead><tr><th>SAP user</th><th>SAP User Group</th><th>Risk</th><th>Activities</th><th>Evidence</th><th>Risk acceptance</th><th>Open</th></tr></thead>
+          {table === 'user_risk' && <><thead><tr><th>SAP user</th><th>SAP User Group</th><th>Risk</th><th>Activities</th><th>Evidence</th><th>Risk decision</th><th>Open</th></tr></thead>
             <tbody>{data.items.map((row) => { const id = `${row.user}:${row.risk_id}`; return <tr key={id}><td><SAPUserLink username={row.user!} /></td><td><UserGroupCell groups={row.groups} /></td><td>{pills('risk', row.risk_id)}{row.category && <p><SodArea value={row.category} /></p>}</td><td>{pills('activity', row.activities)}</td>
               <td>{Array.isArray(row.roles) ? <EvidenceButton label={`${row.user} ${row.risk_id}`} summary={`${row.roles.length} ${row.roles.length === 1 ? 'role' : 'roles'}`} onOpen={() => setEvidence({ kind: 'roles', user: row.user!, risk: row.risk_id!, activities: [row.activities ?? []].flat(), roles: row.roles as string[], category: row.category })} /> : <RoleCodeList roles={row.roles} />}</td>
-              <td><LifecycleBadge value={row.acceptance || 'Pending'} /></td>
+              <td><PrimaryDecisionBadge summary={row.decision_summary}/><p className="text-xs text-muted">Formal acceptance: {row.acceptance||'Pending'}</p></td>
               <td><Button size="compact" onClick={() => setSelected({ user: row.user!, risk: row.risk_id })} aria-label={`Investigate ${row.user} ${row.risk_id}`}><ScanSearch size={14} aria-hidden="true" />Investigate</Button></td></tr> })}</tbody></>}
           {table === 'user_activity' && <><thead><tr><th>SAP user</th><th>SAP User Group</th><th>Activity</th><th>Risks</th><th>Evidence</th><th>Review</th><th>Open</th></tr></thead>
             <tbody>{data.items.map((row) => { const id = `${row.user}:${row.activity}`; return <tr key={id}><td><SAPUserLink username={row.user!} /></td><td><UserGroupCell groups={row.groups} /></td><td>{pills('activity', row.activity)}</td><td>{pills('risk', row.risks)}</td>
-              <td><EvidenceButton label={`${row.user} ${row.activity}`} summary={`${String(row.roles)} role assignment${row.roles === 1 ? '' : 's'}`} onOpen={() => setEvidence({ kind: 'transactions', user: row.user!, activity: row.activity!, risks: row.risks ?? [], tcodes: row.tcodes ?? [], roles: Number(row.roles) || 0 })} />{row.duplicate && <StatusBadge tone="info">Overlap</StatusBadge>}</td><td><LifecycleBadge value={row.decision || 'Pending'} /></td>
+              <td><EvidenceButton label={`${row.user} ${row.activity}`} summary={`${String(row.roles)} role assignment${row.roles === 1 ? '' : 's'}`} onOpen={() => setEvidence({ kind: 'transactions', user: row.user!, activity: row.activity!, risks: row.risks ?? [], tcodes: row.tcodes ?? [], roles: Number(row.roles) || 0 })} />{row.duplicate && <StatusBadge tone="info">Overlap</StatusBadge>}</td><td><PrimaryDecisionBadge summary={row.decision_summary}/></td>
               <td><Button size="compact" onClick={() => setSelected({ user: row.user!, activity: row.activity })} aria-label={`Investigate ${row.user} ${row.activity}`}><ScanSearch size={14} aria-hidden="true" />Investigate</Button></td></tr> })}</tbody></>}
           {table === 'access_list' && <><thead><tr><th className="col-select"><PageCheckbox label="Select all assignments on this page" selected={pageSelected} total={pageRows.length} onChange={(select) => select ? selection.add(pageRows.map(rowPick)) : selection.remove(pageRows.map((row) => row.id!))} /></th><th>SAP user</th><th>SAP User Group</th><th>Role assignment</th><th>Risks</th><th>Activities</th><th>Review</th><th className="col-actions">Open</th></tr></thead>
             <tbody>{data.items.map((row) => <tr key={`${row.user}:${row.id}`} data-selected={selection.has(row.id!) || undefined}>
@@ -250,7 +252,7 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
               <td><SAPUserLink username={row.user!} /></td>
               <td><UserGroupCell groups={row.user_group} /></td>
               <td className="col-role"><RoleIdentifier value={row.role!} label="assigned role" />{row.interval_status && row.interval_status !== 'active' && <p><AssignmentStatus value={row.interval_status} /></p>}</td>
-              <td>{pills('risk', row.risks)}</td><td>{pills('activity', row.activities)}</td><td><LifecycleBadge value={row.decision || 'Pending'} /></td>
+              <td>{pills('risk', row.risks)}</td><td>{pills('activity', row.activities)}</td><td><PrimaryDecisionBadge summary={row.decision_summary}/></td>
               <td className="col-actions"><Button size="compact" onClick={() => setSelected({ user: row.user!, activity: Array.isArray(row.activities) ? row.activities[0] : undefined })} aria-label={`Investigate ${row.user} ${row.role}`}><ScanSearch size={14} aria-hidden="true" />Investigate</Button></td></tr>)}</tbody></>}
           {table === 'lookup' && <><thead><tr><th>Assigned role</th><th>Users</th><th>Risks</th><th>Activities</th><th className="col-actions">Trace</th></tr></thead>
             <tbody>{data.items.map((row) => <tr key={row.role}><td className="col-role"><RoleIdentifier value={row.role!} label="assigned role" /></td>

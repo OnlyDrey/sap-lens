@@ -52,7 +52,7 @@ test('matrix tiles count every review status over the whole filtered matrix and 
 
   await openSod(page, 'Activity Matrix')
   const activity = page.getByRole('region', { name: 'Activity matrix figures' })
-  for (const label of ['Pending activities', 'Approved activities', 'Conditional activities', 'Remove activities', 'Outdated activities']) await expect(activity.getByRole('button', { name: label })).toBeVisible()
+  for (const label of ['Pending activities', 'Approved activities', 'Conditional activities (legacy)', 'Remove activities', 'Outdated activities']) await expect(activity.getByRole('button', { name: label })).toBeVisible()
 })
 
 test('a matrix cell opens only that user-risk and can be widened to the whole user', async ({ page }) => {

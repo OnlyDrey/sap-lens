@@ -1,5 +1,5 @@
 import {CheckCircle2,Trash2,Search,Clock3} from 'lucide-react'
-import type {DecisionSummary,DecisionEvent,ReviewCoverage} from '@/api/sod'
+import type {DecisionSummary,DecisionEvent,ReviewCoverage,RemediationVerification} from '@/api/sod'
 import {Popover} from '@/components/Shared/Popover'
 import {StatusBadge} from '@/components/Shared/Presentation'
 import {RoleIdentifier} from '@/components/Shared/RoleIdentifier'
@@ -7,15 +7,16 @@ import {SodPill,useSodMetadata} from '@/lib/sodAppearance'
 import {formatDate,formatTimestamp} from '@/lib/dateFormat'
 import {LifecycleBadge} from './SodShared'
 
-export function PrimaryDecisionBadge({summary}:{summary:DecisionSummary}){
+export function PrimaryDecisionBadge({summary}:{summary?:DecisionSummary}){
+ summary=summary||{label:'Pending',tone:'neutral',explicit:false,stale:false,basis:'No current decision',assignment_decisions:{}}
  const Icon=({Approved:CheckCircle2,Remove:Trash2,Investigate:Search,Pending:Clock3} as Record<string,typeof Clock3>)[summary.label]||Clock3
  return <StatusBadge tone={summary.tone}><Icon size={14} aria-hidden="true"/>{summary.label}</StatusBadge>
 }
 
 /** One decision-first view; authoritative summaries are separate from immutable events and completion. */
-export function SodDecisionStatus({kind,label,status,summary,event,coverage,user,context,activities=[],risks=[],roles=[],assignmentId,validFrom,validTo,name,formalAcceptance}:{
+export function SodDecisionStatus({kind,label,status,summary,event,coverage,user,context,activities=[],risks=[],roles=[],assignmentId,validFrom,validTo,name,formalAcceptance,verification}:{
  kind:'assignment'|'activity'|'acceptance'|'risk';label:string;status:string;summary?:DecisionSummary;event:DecisionEvent|null;coverage?:ReviewCoverage;
- user:string;context:string;activities?:string[];risks?:string[];roles?:{id:string;role:string;decision_summary?:DecisionSummary}[];assignmentId?:string;validFrom?:string|null;validTo?:string|null;name?:string;formalAcceptance?:{status:string;event:DecisionEvent|null}
+ user:string;context:string;activities?:string[];risks?:string[];roles?:{id:string;role:string;decision_summary?:DecisionSummary}[];assignmentId?:string;validFrom?:string|null;validTo?:string|null;name?:string;verification?:RemediationVerification;formalAcceptance?:{status:string;event:DecisionEvent|null}
 }) {
  const metadata=useSodMetadata(),formal=kind==='acceptance',riskEntity=formal||kind==='risk'
  // An older/missing summary is deliberately conservative: a coverage flag cannot grant approval.
@@ -33,6 +34,7 @@ export function SodDecisionStatus({kind,label,status,summary,event,coverage,user
     <Meta label="Review method" value={shown.basis}/>
     <Meta label="Decision basis" value={shown.explicit?'Explicit':shown.stale?'Previous evidence':shown.derived_label&&shown.derived_label!=='Pending'?'Derived':'No explicit decision'}/>
     <Meta label="Evidence status" value={shown.stale?'Needs review':shown.explicit||shown.derived_label&&shown.derived_label!=='Pending'?'Current evidence':'No current decision'}/>
+    {event?.kind==='activity'&&event.decision==='Conditional'&&<><Meta label="Explicit activity decision" value="Approved with conditions"/><Meta label="Conditions" value={event.controls}/></>}
     {event&&<><Meta label={shown.stale?'Previous reviewer':'Reviewer'} value={event.reviewer}/><Meta label="Recorded" value={formatTimestamp(event.timestamp)}/>
      {formal&&<><Meta label="Approver" value={event.approver}/><Meta label="Justification" value={event.justification}/><Meta label="Controls" value={event.controls}/></>}</>}
     {assignmentId&&<><Meta label="Assignment ID" value={assignmentId}/><Meta label="Validity" value={`${formatDate(validFrom)} → ${formatDate(validTo)}`}/></>}
@@ -44,7 +46,8 @@ export function SodDecisionStatus({kind,label,status,summary,event,coverage,user
    {!!risks.length&&<section aria-label="Related risks"><h4 className="text-xs font-semibold">Related risks</h4><span className="id-pill-list">{risks.map(id=><SodPill key={id} kind="risk" value={id} details={false}/>)}</span></section>}
    {!!roles.length&&<section aria-label="Related assignments"><h4 className="text-xs font-semibold">Related assignments</h4><div className="flex flex-wrap gap-1">{roles.slice(0,8).map(row=><span key={row.id} className="inline-flex flex-wrap items-center gap-1"><RoleIdentifier value={row.role}/>{row.decision_summary&&<PrimaryDecisionBadge summary={row.decision_summary}/>}</span>)}</div>{roles.length>8&&<p className="text-xs text-muted">{roles.length-8} additional assignments are available in Roles.</p>}</section>}
    {formal&&<p className="text-xs text-muted">Access review coverage does not grant formal acceptance. Acceptance never changes detected conflicts.</p>}
-   {kind==='risk'&&shown.label==='Remove'&&!coverage?.removal_planned&&<p className="text-xs text-muted">Remediation required. Specific role-removal action selection is still required; no role has been changed.</p>}
+   {verification&&<section aria-label="Removal verification"><h4 className="text-xs font-semibold">Removal verification</h4><p className="text-xs">{verification.status}: {verification.reason}</p>{verification.imported_at&&<p className="text-xs text-muted">Source imported {formatTimestamp(verification.imported_at)} · snapshot {verification.source_version?.slice(0,12)}</p>}</section>}
+   {kind==='risk'&&shown.label==='Remove'&&!roles.some(row=>row.decision_summary?.label==='Remove')&&<p className="text-xs text-muted">Remediation required. Specific role-removal action selection is still required; no role has been changed.</p>}
    {coverage?.removal_planned&&<p className="text-xs text-muted">Removal planned; this is not verified remediation.</p>}
   </div>
  </Popover>

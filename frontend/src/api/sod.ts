@@ -16,8 +16,8 @@ export interface ContextInfo {
 }
 export interface RiskColumn { risk_id: string; criticality: string; display_name: string; source_text: string; category: string; users: number }
 export interface ActivityColumn { activity: string; risks: string[]; users: number }
-export interface RiskCell { review_coverage?: ReviewCoverage; finding_id: string; criticality: string; acceptance: Lifecycle; activities: Record<string, number> }
-export interface ActivityCell { review_coverage?: ReviewCoverage; key: string; decision: Lifecycle; roles: number; risks: string[]; duplicate: boolean }
+export interface RiskCell { decision_summary?:DecisionSummary; review_coverage?: ReviewCoverage; finding_id: string; criticality: string; acceptance: Lifecycle; activities: Record<string, number> }
+export interface ActivityCell { decision_summary?:DecisionSummary; review_coverage?: ReviewCoverage; key: string; decision: Lifecycle; roles: number; risks: string[]; duplicate: boolean }
 export interface GroupCell { users: number }
 export interface MatrixRow<Cell> { user: string; groups: string[]; users?: number; cells: Record<string, Cell | GroupCell>; /** Grouped view only: the one SAP User Group this user is listed under. */ group?: string }
 export interface GroupSummary { name: string; users: number; findings: number; start: number }
@@ -102,7 +102,8 @@ export interface AssignmentImpact {
 }
 export interface DecisionSummary {derived_label?:string;explicit_label?:string;disagreement?:boolean;label:string;tone:'neutral'|'success'|'warning'|'error'|'info';explicit:boolean;stale:boolean;basis:string;assignment_decisions:Record<string,number>}
 export interface ReviewCoverage { reviewed: boolean; provenance: string; removal_planned: boolean; risk_accepted?: boolean; remediation_verified?: boolean; label?: string }
-export interface OverviewAssignment { decision_summary?:DecisionSummary; id: string; role: string; review_coverage?: ReviewCoverage; decision: Lifecycle; event: DecisionEvent | null; evidence_version: string; risks: string[]; activities: string[]; valid_from: string | null; valid_to: string | null; interval_status: string | null; user_group: string; catalogue_roles: string[] }
+export interface RemediationVerification {status:string;reason:string;source_version?:string|null;imported_at?:string|null;decision_event_id?:string}
+export interface OverviewAssignment {remediation_verification?:RemediationVerification; decision_summary?:DecisionSummary; id: string; role: string; review_coverage?: ReviewCoverage; decision: Lifecycle; event: DecisionEvent | null; evidence_version: string; risks: string[]; activities: string[]; valid_from: string | null; valid_to: string | null; interval_status: string | null; user_group: string; catalogue_roles: string[] }
 export interface SubjectOverview {
   activities: { decision_summary?:DecisionSummary; activity: string; key: string; review_coverage?: ReviewCoverage; decision: Lifecycle; event: DecisionEvent | null; evidence_version: string; risks: string[]; tcodes: string[]; roles: number; duplicate_coverage: boolean }[]
   assignments: OverviewAssignment[]

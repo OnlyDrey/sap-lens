@@ -301,11 +301,16 @@ def subject(q: dict = Depends(scope_query), user: str = Query(..., max_length=51
                     source_text=(item.get('risk') or {}).get('source_text', ''), finding_id=item['finding_id'], evidence_version=item['evidence_version'],
                     acceptance=state['acceptance'][item['finding_id']][0], event=_event(state['acceptance'][item['finding_id']][1]))
                for risk_id, item in sorted(entry['findings'].items())])
+    removal_verifier=scope.make_decision_verifier({user}) if bundle['context']=='current' and any(row['event'] and row['event']['decision']=='Remove' for row in overview['assignments']) else None
     for kind,rows_for_kind in [('activity',overview['activities']),('assignment',overview['assignments']),('acceptance',overview['risks'])]:
         for row in rows_for_kind:
             key=row['key'] if kind=='activity' else row['id'] if kind=='assignment' else row['finding_id']
             row['review_coverage']=state['coverage'][kind][key]
             row['decision_summary']=governance.decision_summary(entry,state,kind,key)
+            if kind=='assignment' and row['event'] and row['event']['decision']=='Remove':
+                row['remediation_verification']=removal_verifier(decisions.Event.model_validate(row['event'])) if removal_verifier else dict(status='Not assessed',reason='Retained review context; current imports do not rewrite historical evidence.')
+                if removal_verifier and row['remediation_verification']['source_version']!=bundle['versions'].get('users'):
+                    row['remediation_verification'].update(status='Not verified',reason='Source changed while reading; reload before assessing verification.')
             if kind=='acceptance':
                 row['risk_review_summary']=governance.effective_decision(entry,state,'risk',key)
                 row['risk_review'],risk_event=state['risk'][key]
@@ -668,7 +673,9 @@ def _bulk_assignment_review(body: BulkAssignmentBody):
 @router.get('/decisions/{kind}/history')
 def decision_history(kind: Literal['activity', 'assignment', 'acceptance','risk'], key: str = Query(..., pattern=r'^[a-f0-9]{64}$'),
                      context: str = Query('current', pattern=legacy.CONTEXT_PATTERN)):
-    return dict(items=decisions.history(kind, context, key), reviewer_identity=legacy.IDENTITY_NOTICE)
+    items=decisions.history(kind,context,key)
+    verification=scope.make_decision_verifier({items[0]['user']})(decisions.Event.model_validate(items[0])) if kind=='assignment' and context=='current' and items and items[0]['decision']=='Remove' else None
+    return dict(items=items,verification=verification,reviewer_identity=legacy.IDENTITY_NOTICE)
 
 
 @router.get('/decisions/{kind}/evidence')
@@ -683,8 +690,9 @@ def decision_evidence(kind: Literal['activity', 'assignment', 'acceptance','risk
 def remediation_data(q):
     bundle, model, state, view = scope.scoped(q['context'], q)
     frozen = bundle['frozen_decisions']
-    verify = (lambda user, aid: (frozen.get('verification') or {}).get(aid, 'Not assessed at approval')) if frozen is not None else scope.make_verifier()
     actions = scope.actions_for(bundle)
+    verify = (lambda user, aid: (frozen.get('verification') or {}).get(aid, 'Not assessed at approval')) if frozen is not None else scope.make_verifier({item.user for item in actions if item.assignment_id})
+    bundle['_source_verifier']=verify
     rows, summary = governance.remediation_rows(view, state, actions, verify)
     return bundle, rows, summary, actions
 
@@ -704,10 +712,10 @@ def remediation(q: dict = Depends(scope_query), recommended: REMEDIATION_FILTER 
     if recommended:
         rows = [row for row in rows if row['recommended'] == recommended]
     rows = tracked_rows(rows, tracking)
-    verified_ids = scope.removal_verification(actions)[1] if bundle['frozen_decisions'] is None else set()
+    verified_ids = scope.removal_verification(actions,bundle['_source_verifier'])[1] if bundle['frozen_decisions'] is None else set()
     if tracking == 'verified':
         rows = []
-    verify = (lambda user, aid: (bundle['frozen_decisions'].get('verification') or {}).get(aid, 'Not assessed at approval')) if bundle['frozen_decisions'] is not None else scope.make_verifier()
+    verify = bundle['_source_verifier']
     tracked = [dict(item.model_dump(mode='json'), verification=verify(item.user, item.assignment_id) if item.assignment_id and item.recommended == 'Remove assignment' else 'Not verifiable from source evidence')
                for item in actions]
     tracked = [dict(item, verified=item['id'] in verified_ids) for item in tracked if tracking != 'verified' or item['id'] in verified_ids]

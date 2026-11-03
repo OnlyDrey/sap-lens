@@ -207,8 +207,9 @@ Run the isolated utility as described in [Testing](../development/TESTING.md#syn
 `sod_governance.effective_decision` is the canonical pure four-status projection:
 Approved (green), Remove (red), Investigate (amber), Pending (neutral). It never writes
 synthetic events. Explicit current activity decisions take precedence over role-derived
-results; disagreements and both results remain available in metadata. Legacy Conditional
-activity events remain unchanged and map to Investigate for the primary four-status view.
+results; disagreements and both results remain available in metadata. Conditional
+activity events remain unchanged and map to Approved with their recorded conditions shown
+as supporting metadata; the compatibility form option still requires those conditions.
 
 For an activity without an explicit current decision, any current supplying Keep derives
 Approved; otherwise all current suppliers Remove derives Remove; otherwise any Investigate

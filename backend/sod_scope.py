@@ -230,17 +230,34 @@ def context_info(bundle):
                 period=dict(id=period['id'], name=period['name'], state=period['state']) if period else None)
 
 
-def absence_verified(user):
-    """Conservative: absence only counts when valid sources show the user with every assignment mapped."""
-    with sod_catalogue.lock, cache._load_lock:
-        snapshot = cache.get_snapshot()
-        settings = get_settings()
+def verification_population(users=None):
+    """One coherent imported-source cut, independent of conflict and validity filters.
+
+    Completeness is within the supplied validated export scope, not certification that
+    an external SAP export included the whole organization.
+    """
+    from user_access import normalize_username
+    with sod_catalogue.lock,cache._load_lock:
+        snapshot=cache.get_snapshot();settings=get_settings()
+        reference=settings.data_lifecycle.sources.get('users')
         if not settings.features.sod or not settings.features.user_role_mapping or not snapshot.roles or not snapshot.sod:
-            return False
-        record = snapshot.users.users.get(user)
-        if not record:
-            return False
-        return all(a['match_status'] in {'exact', 'wildcard'} for a in record['assignments'] if a.get('scope', 'business') != 'other')
+            return None,set(),reference
+        report=snapshot.users.report
+        complete=set();ids=set()
+        selected=snapshot.users.users.items() if users is None else ((name,snapshot.users.users.get(name)) for name in users)
+        for name,record in selected:
+            if not record:continue
+            name=normalize_username(name)
+            assignments=record['assignments']
+            if not report.get('errors') and not report.get('invalid_catalogue_patterns') and all(a['match_status'] in {'exact','wildcard'} for a in assignments if a.get('scope','business')!='other'):
+                complete.add(name)
+            for assignment in assignments:
+                ids.add(governance.assignment_id(name,dict(actual_assigned_role=assignment['role_name'],role_valid_from=assignment.get('valid_from'),role_valid_to=assignment.get('valid_to'),user_group=assignment.get('user_group',''))))
+        return ids,complete,reference
+
+
+def absence_verified(user):
+    return user in verification_population({user})[1]
 
 
 def activity_defined(name):
@@ -258,7 +275,10 @@ def activity_defined(name):
 
 def orphan_lifecycle(kind, event):
     """Decisions whose evidence is absent from live data: Resolved only when absence is verifiable."""
-    if not absence_verified(event.user):
+    if kind=='assignment':
+        present,complete,_=verification_population({event.user})
+        if present is None or event.key in present or event.user not in complete:return 'Historical'
+    elif not absence_verified(event.user):
         return 'Historical'
     reference = get_settings().data_lifecycle.sources.get('sod')
     if not reference or event.source_versions.get('sod') != reference.snapshot:
@@ -269,36 +289,46 @@ def orphan_lifecycle(kind, event):
 
 
 def live_assignment_ids():
-    """Active assignment ids in current evidence, or None when current analysis is unavailable."""
-    bundle = load('current')
-    if bundle['coverage']['status'] != 'available':
-        return None
-    return set(aid for entry in model_for(bundle).values() for aid in entry['assignments'])
+    """All imported assignment identities, including expired/non-conflicting records."""
+    return verification_population()[0]
 
 
-def make_verifier():
-    """verify(user, assignment_id) -> text for tracked removals; absence needs complete source coverage."""
-    live = live_assignment_ids()
-    known = {}
-
-    def verify(user, aid):
-        if live is None:
-            return 'Not assessable: current analysis is unavailable'
-        if aid in live:
-            return 'Still present in current evidence'
-        if user not in known:
-            known[user] = absence_verified(user)
-        return 'Not present in current evidence' if known[user] else 'Not assessable: source coverage incomplete'
+def make_verifier(users=None):
+    """No removal is inferred from absence in the filtered SoD finding population."""
+    live,complete,reference=verification_population(users)
+    def verify(user,aid):
+        if live is None:return 'Not assessable: current analysis is unavailable'
+        if aid in live:return 'Still present in current evidence'
+        return 'Not present in current evidence' if user in complete else 'Not assessable: source coverage incomplete'
+    verify.source_reference=reference
     return verify
 
 
+def make_decision_verifier(users=None):
+    """Source-bound verification of an explicit Remove; never rewrites its event."""
+    from datetime import datetime
+    verify=make_verifier(users);reference=verify.source_reference
+    def result(event):
+        text=verify(event.user,event.key)
+        value=dict(status='Not verified',reason=text,source_version=reference.snapshot if reference else None,imported_at=reference.imported_at if reference else None,decision_event_id=event.event_id)
+        if event.decision!='Remove' or text!='Not present in current evidence' or reference is None:return value
+        try:
+            newer=datetime.fromisoformat(reference.imported_at)>datetime.fromisoformat(event.timestamp)
+        except (ValueError,TypeError):return value
+        if newer and reference.snapshot!=event.source_versions.get('users'):
+            value.update(status='Verified',reason='Assignment absent from a newer validated User–Role snapshot with complete matching coverage for this user.')
+        else:value['reason']='Awaiting a newer validated User–Role source snapshot.'
+        return value
+    return result
+
+
 def verification_map(actions):
-    verify = make_verifier()
-    return {item.assignment_id: verify(item.user, item.assignment_id) for item in actions
-            if item.assignment_id and item.recommended == 'Remove assignment' and item.status != 'Cancelled'}
+    tracked=[item for item in actions if item.assignment_id and item.recommended=='Remove assignment' and item.status!='Cancelled']
+    verify = make_verifier({item.user for item in tracked})
+    return {item.assignment_id: verify(item.user,item.assignment_id) for item in tracked}
 
 
-def removal_verification(actions):
+def removal_verification(actions, verify=None):
     """(summary, ids) for tracked removals. Verified needs source evidence newer than the action that shows the assignment gone.
 
     A completed status is a manual claim and never verifies. The assignment must be absent from current evidence with
@@ -310,7 +340,8 @@ def removal_verification(actions):
     if not tracked:
         summary.update(available=False, reason='No removal action is tracked yet.')
         return summary, set()
-    reference = get_settings().data_lifecycle.sources.get('users')
+    verify=verify or make_verifier({item.user for item in tracked})
+    reference = verify.source_reference
 
     def moment(text):
         try:
@@ -319,7 +350,7 @@ def removal_verification(actions):
             return None
         return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
     imported = moment(reference.imported_at) if reference else None
-    verify, ids = make_verifier(), set()
+    ids = set()
     for item in tracked:
         text = verify(item.user, item.assignment_id)
         if text.startswith('Not assessable'):

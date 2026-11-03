@@ -234,7 +234,7 @@ def review_coverage(model, state):
 def effective_decision(entry,state,kind,key):
     """Current explicit decisions win; role-derived activity approval never writes events.
 
-    Legacy Conditional remains an explicit review, presented as Investigate among the
+    Legacy Conditional remains approval with controls, presented as Approved among the
     four primary decisions. Stale approval grants nothing; retained Remove remains
     visible but does not derive a current activity decision until evidence is current.
     """
@@ -248,7 +248,7 @@ def effective_decision(entry,state,kind,key):
         if distribution.get('Keep'): derived='Approved'
         elif distribution and set(distribution)=={'Removal required'}: derived='Remove'
         elif distribution.get('Investigate'): derived='Investigate'
-    names={'Keep':'Approved','Approved':'Approved','Removal required':'Remove','Remove':'Remove','Investigate':'Investigate','Conditional':'Investigate'}
+    names={'Keep':'Approved','Approved':'Approved','Removal required':'Remove','Remove':'Remove','Investigate':'Investigate','Conditional':'Approved'}
     explicit=event is not None and life in names
     stale=life in {'Outdated','Historical'}
     explicit_label=names.get(life,'Pending')
@@ -289,7 +289,7 @@ def risk_matrix(model, state):
             sides = sorted({name for name, activity in entry['activities'].items() if risk_id in activity['risks']})
             review = _bucket(state['activity'][entry['activities'][name]['key']][0] for name in sides)
             acceptance = state['acceptance'][finding['finding_id']][0]
-            cells[risk_id] = dict(finding_id=finding['finding_id'], criticality=finding['criticality'], acceptance=acceptance, activities=review, review_coverage=state['coverage']['acceptance'][finding['finding_id']])
+            cells[risk_id] = dict(finding_id=finding['finding_id'], criticality=finding['criticality'], acceptance=acceptance, decision_summary=effective_decision(entry,state,'risk',finding['finding_id']), activities=review, review_coverage=state['coverage']['acceptance'][finding['finding_id']])
             risk = finding.get('risk') or {}
             column = columns.setdefault(risk_id, dict(risk_id=risk_id, criticality=finding['criticality'], display_name=risk.get('display_name', ''),
                                                       source_text=risk.get('source_text', ''), category=risk.get('business_category', ''), users=set()))
@@ -312,7 +312,7 @@ def activity_matrix(model, state):
         cells = {}
         for name, activity in sorted(entry['activities'].items()):
             lifecycle_name = state['activity'][activity['key']][0]
-            cells[name] = dict(key=activity['key'], decision=lifecycle_name, roles=len(activity['assignments']), risks=sorted(activity['risks']),
+            cells[name] = dict(key=activity['key'], decision=lifecycle_name,decision_summary=effective_decision(entry,state,'activity',activity['key']), roles=len(activity['assignments']), risks=sorted(activity['risks']),
                                duplicate=len(activity['assignments']) > 1, review_coverage=state['coverage']['activity'][activity['key']])
             column = columns.setdefault(name, dict(activity=name, risks=set(), users=set()))
             column['risks'] |= activity['risks']
@@ -369,17 +369,17 @@ def explorer_rows(table, model, state):
                 rows.append(dict(user=user, risk_id=risk_id, criticality=finding['criticality'], category=(finding.get('risk') or {}).get('business_category', ''),
                                  groups=sorted(entry['groups']), activities=names,
                                  roles=sorted({entry['assignments'][aid]['role'] for name in names for aid in entry['activities'][name]['assignments'] if aid in shown(entry)}),
-                                 acceptance=state['acceptance'][finding['finding_id']][0], finding_id=finding['finding_id']))
+                                 acceptance=state['acceptance'][finding['finding_id']][0],decision_summary=effective_decision(entry,state,'risk',finding['finding_id']), finding_id=finding['finding_id']))
         elif table == 'user_activity':
             for name, activity in sorted(entry['activities'].items()):
                 rows.append(dict(user=user, groups=sorted(entry['groups']), activity=name, risks=sorted(activity['risks']), tcodes=sorted(activity['tcodes']), roles=len(activity['assignments']),
-                                 duplicate=len(activity['assignments']) > 1, decision=state['activity'][activity['key']][0], key=activity['key']))
+                                 duplicate=len(activity['assignments']) > 1, decision=state['activity'][activity['key']][0],decision_summary=effective_decision(entry,state,'activity',activity['key']), key=activity['key']))
         elif table == 'access_list':
             for aid, assignment in sorted(shown(entry).items(), key=lambda pair: (pair[1]['role'], pair[0])):
                 rows.append(dict(user=user, id=aid, role=assignment['role'], suffix=role_suffix(assignment['role']), evidence_version=assignment['evidence_version'], valid_from=assignment['valid_from'], valid_to=assignment['valid_to'],
                                  interval_status=assignment['interval_status'], user_group=assignment['user_group'],
                                  activities=sorted(assignment['supplies']), risks=sorted(assignment['risks']),
-                                 catalogue_roles=sorted(assignment['catalogue_roles']), decision=state['assignment'][aid][0],
+                                 catalogue_roles=sorted(assignment['catalogue_roles']), decision=state['assignment'][aid][0],decision_summary=effective_decision(entry,state,'assignment',aid),
                                  has_review=bool(state['assignment'][aid][1] and state['assignment'][aid][1].decision!='Pending'),
                                  previous_decision=state['assignment'][aid][1].decision if state['assignment'][aid][1] else ''))
     if table == 'lookup':
@@ -483,6 +483,7 @@ def remediation_rows(model, state, actions, verify, today=None, include_pending=
                 action = tracked.get((aid, recommended)) if recommended in ('Remove assignment', 'Investigate assignment') else None
                 rows.append(dict(user=user, activity=name, risks=risks, role=assignment['role'], catalogue_roles=sorted(assignment['catalogue_roles']), assignment_id=aid, valid_from=assignment['valid_from'],
                                  valid_to=assignment['valid_to'], user_group=assignment['user_group'], activity_decision=c_state, assignment_decision=a_state,
+                                 activity_summary=effective_decision(entry,state,'activity',activity['key']),assignment_summary=effective_decision(entry,state,'assignment',aid),
                                  risk_acceptance=sorted(accept_states), recommended=recommended, reason=reason,
                                  controls=(c_event.controls if c_event and c_event.controls else next((e.controls for _, e in accept if e and e.controls), '')),
                                  action=action.model_dump(mode='json') if action else None,
