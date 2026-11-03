@@ -123,7 +123,7 @@ for (const theme of ['SAP Lens Default', 'Light']) {
 test('startup connection failure has actionable recovery and configuration notices dismiss once',async({page})=>{
  await page.route('**/api/configuration',route=>route.abort())
  await page.goto('/#session=browser-test-session')
- await expect(page.getByRole('heading',{name:'Unable to connect to the local service'})).toBeVisible()
+ await expect(page.getByRole('heading',{name:'Unable to load application configuration'})).toBeVisible()
  await expect(page.getByRole('button',{name:'Retry connection'})).toBeVisible()
  await page.unroute('**/api/configuration')
  await page.getByRole('button',{name:'Retry connection'}).click()

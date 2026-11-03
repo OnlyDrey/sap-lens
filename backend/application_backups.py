@@ -62,15 +62,34 @@ def write(path,value):
     engine.private_file(path)
 
 
+def journals(data=None):
+    root=area(data,create=False)
+    if not root.exists(): return []
+    return [p/'journal.json' for p in root.iterdir() if ID.fullmatch(p.name) and not engine.linked(p) and (p/'journal.json').exists()]
+
+
 def read(data=None):
     path=area(data,create=False)/'operation.json'
-    if not path.exists(): return {'status':'idle'}
-    if engine.linked(path) or path.stat().st_size>32000: raise engine.MaintenanceError('Backup operation metadata is invalid.')
-    return json.loads(path.read_text())
+    if not path.exists():
+        if journals(data): return dict(status='failed',recovery_required=True,message='Restore recovery requires an administrator restart. Editing remains paused to protect data.')
+        return {'status':'idle'}
+    try:
+        if engine.linked(path) or path.stat().st_size>32000: raise ValueError('Invalid metadata')
+        result=json.loads(path.read_text())
+        if not isinstance(result,dict) or result.get('status') not in {'idle','pending','waiting_for_restart','preparing','creating','ready','completed','failed','cancelled'}: raise ValueError('Invalid state')
+        if result.get('status')!='idle' and (not ID.fullmatch(result.get('id','')) or result.get('kind') not in {'backup','restore'}): raise ValueError('Invalid operation')
+        if result.get('status')=='pending': result['status']='waiting_for_restart'
+        if result.get('status')=='completed' and result.get('kind')=='backup': result['status']='ready'
+        result.pop('recovery_required',None) # Derived from actual journals, never a persisted lock.
+        if journals(data): result['recovery_required']=True
+        return result
+    except (ValueError,TypeError,OSError):
+        return dict(status='failed',recovery_required=bool(journals(data)),message='Backup operation metadata is unavailable or invalid. No new operation can replace an unfinished restore; retry status or ask an administrator to inspect storage permissions.')
 
 
 def pending(data=None):
-    return read(data).get('status')=='pending'
+    state=read(data)
+    return state.get('recovery_required',False) or state.get('status') in {'waiting_for_restart','preparing','creating'}
 
 
 def protected(data, server=None):
@@ -119,7 +138,7 @@ def request_backup(data=None):
     with lock:
         idle_required(data)
         identity=uuid4().hex; path_for(identity,data).mkdir(mode=0o700)
-        result=dict(id=identity,kind='backup',status='pending',requested_at=stamp(),message='Restart SAP Lens to create a consistent backup. Return here after restart to download it.')
+        result=dict(id=identity,kind='backup',status='waiting_for_restart',requested_at=stamp(),message='Waiting for restart: a stopped-store snapshot keeps datasets, review decisions and history consistent. Return to Backup & Restore after restarting to download the archive.')
         write(area(data)/'operation.json',result)
         return result
 
@@ -243,7 +262,7 @@ def confirm_restore(identity,sha256,confirm,data=None):
         operation=path_for(identity,data)
         result=json.loads((operation/'preview.json').read_text())
         if not confirm or sha256!=result['archive_sha256'] or engine.digest(operation/'archive.tar.gz')!=sha256: raise engine.MaintenanceError('Confirm the exact validated archive; it changed or was not confirmed.')
-        result.update(status='pending',requested_at=stamp(),message='Restart required. Destination data will be backed up before full replacement; edits are paused until restart or cancellation.')
+        result.update(status='waiting_for_restart',requested_at=stamp(),message='Restart required. Destination data will be backed up before full replacement; edits are paused until restart or cancellation.')
         write(area(data)/'operation.json',result)
         return result
 
@@ -251,7 +270,9 @@ def confirm_restore(identity,sha256,confirm,data=None):
 def cancel(data=None):
     with lock:
         result=read(data)
-        if result.get('status')=='pending':
+        if result.get('recovery_required') or result.get('status') in {'preparing','creating'}:
+            raise engine.MaintenanceError('An active or interrupted operation owns recovery; cancellation cannot release it.')
+        if result.get('status')=='waiting_for_restart':
             result.update(status='cancelled',message='Operation cancelled; application data was not replaced.')
             write(area(data)/'operation.json',result)
             operation=path_for(result['id'],data)
@@ -274,18 +295,28 @@ def rollback(data,operation,journal):
 def startup(lease,server=None):
     """Called before configuration/cache initialization or listener startup."""
     data=lease.directory.resolve();state=read(data)
-    if not state.get('id'): return
+    if not state.get('id'):
+        if state.get('recovery_required'): raise RuntimeError('Restore journal exists without valid operation metadata; stopped host recovery is required.')
+        return
     operation=path_for(state['id'],data)
+    if any(path.parent!=operation for path in journals(data)):
+        raise RuntimeError('An unmatched restore journal requires stopped host recovery before startup.')
     journal_path=operation/'journal.json'
-    if state.get('status')!='pending' and not journal_path.exists(): return
+    if state.get('status') in {'preparing','creating'} and not journal_path.exists():
+        state.update(status='failed',message='Backup was interrupted. No application data was changed; you can safely retry.')
+        write(area(data)/'operation.json',state)
+        return
+    if state.get('status')!='waiting_for_restart' and not journal_path.exists(): return
     try:
         if journal_path.exists():
             rollback(data,operation,json.loads(journal_path.read_text()))
             raise engine.MaintenanceError('Interrupted activation was rolled back; validate and confirm the archive again.')
         exclusions=protected(data,server)
         if state['kind']=='backup':
+            state.update(status='creating',message='Creating and validating the backup archive before application startup.')
+            write(area(data)/'operation.json',state)
             engine.backup(data,operation/'backup.tar.gz',lease.mode,VERSION,_lease=lease,_exclude=exclusions-{'deployment.json'})
-            state.update(status='completed',message='Backup ready. Contains sensitive personal and access data; archive is not encrypted.')
+            state.update(status='ready',message='Backup is ready to download. Contains sensitive personal and access data; archive is not encrypted.')
         else:
             if engine.digest(operation/'archive.tar.gz')!=state['archive_sha256']: raise engine.MaintenanceError('Uploaded archive changed after confirmation.')
             _,root=prepare(operation/'archive.tar.gz',operation,server,data)
@@ -320,7 +351,7 @@ def download(identity,kind='backup',data=None):
     if kind not in {'backup','destination-before-restore'}: raise engine.MaintenanceError('Unknown backup download.')
     operation=path_for(identity,data)
     path=operation/(kind+'.tar.gz')
-    if engine.linked(path) or not path.is_file(): raise engine.MaintenanceError('Backup is not available. Restart to complete a pending backup.')
+    if engine.linked(path) or not path.is_file(): raise engine.MaintenanceError('Backup archive is unavailable. Check status; if waiting for restart, restart the application host first.')
     return path
 
 

@@ -85,6 +85,72 @@ class BackupTests(unittest.TestCase):
         self.assertTrue((self.data/'destination-only.json').exists())
         self.assertTrue(backups.download(result['id'],'destination-before-restore',self.data).exists())
 
+    def test_pending_backup_keeps_configuration_readable_and_rejects_duplicate(self):
+        from fastapi.testclient import TestClient
+        from main import create_app
+        client=TestClient(create_app(session_token='synthetic-backup-session'),base_url='http://127.0.0.1:18743')
+        headers={'X-SAP-Lens':'synthetic-backup-session'}
+        first=client.post('/api/backups/create',headers=headers)
+        self.assertEqual(first.json()['status'],'waiting_for_restart')
+        self.assertEqual(client.post('/api/backups/create',headers=headers).status_code,409)
+        self.assertEqual(client.get('/api/configuration',headers=headers).status_code,200)
+        self.assertEqual(client.post('/api/backups/cancel',headers=headers).json()['status'],'cancelled')
+        self.assertFalse(backups.pending(self.data))
+        self.assertEqual(client.post('/api/backups/create',headers=headers).status_code,200)
+
+    def test_corrupt_metadata_recovery_does_not_permanently_pause_writes(self):
+        result=backups.request_backup(self.data)
+        backups.write(backups.area(self.data)/'operation.json',[])
+        self.assertEqual(backups.read(self.data)['status'],'failed')
+        self.assertFalse(backups.pending(self.data))
+        self.assertNotEqual(backups.request_backup(self.data)['id'],result['id'])
+
+    def test_journal_owner_cannot_be_cancelled_or_overwritten_even_with_corrupt_metadata(self):
+        result=self.confirm()
+        operation=backups.path_for(result['id'],self.data)
+        backups.write(operation/'journal.json',dict(old=[],new=[]))
+        with self.assertRaises(ValueError):backups.cancel(self.data)
+        with self.assertRaises(ValueError):backups.request_backup(self.data)
+        (backups.area(self.data)/'operation.json').write_text('broken')
+        self.assertTrue(backups.pending(self.data))
+        with self.assertRaises(ValueError):backups.cancel(self.data)
+        with self.assertRaises(RuntimeError):self.activate()
+        self.assertTrue((operation/'journal.json').exists())
+
+    def test_interrupted_creation_is_failed_after_restart_and_can_retry(self):
+        result=backups.request_backup(self.data)
+        result['status']='creating';backups.write(backups.area(self.data)/'operation.json',result)
+        with self.assertRaises(ValueError):backups.cancel(self.data)
+        self.activate()
+        self.assertEqual(backups.read(self.data)['status'],'failed')
+        self.assertFalse(backups.pending(self.data))
+        self.assertTrue((self.data/'destination-only.json').exists())
+        self.assertEqual(backups.request_backup(self.data)['status'],'waiting_for_restart')
+
+    def test_legacy_pending_maps_to_guided_restart_and_failed_creation_can_retry(self):
+        result=backups.request_backup(self.data);result['status']='pending'
+        backups.write(backups.area(self.data)/'operation.json',result)
+        self.assertEqual(backups.read(self.data)['status'],'waiting_for_restart')
+        with patch.object(backups.engine,'backup',side_effect=OSError('synthetic storage failure')):self.activate()
+        self.assertEqual(backups.read(self.data)['status'],'failed')
+        self.assertFalse(backups.pending(self.data))
+        self.assertTrue((self.data/'destination-only.json').exists())
+        backups.request_backup(self.data);self.activate()
+        self.assertEqual(backups.read(self.data)['status'],'ready')
+
+    def test_scheduled_refresh_resumes_after_owned_pending_operation_is_cancelled(self):
+        import asyncio
+        from scheduler import Scheduler
+        from unittest.mock import AsyncMock
+        # Pending is checked before schedule evaluation or any loader work.
+        loader=type('Loader',(),{'loading':False,'load':AsyncMock()})()
+        job=Scheduler(loader)
+        backups.request_backup(self.data)
+        self.assertEqual(asyncio.run(job.tick()),'skipped')
+        loader.load.assert_not_awaited()
+        backups.cancel(self.data)
+        self.assertEqual(asyncio.run(job.tick()),'idle')
+
     def test_internal_backup_lease_must_match(self):
         with self.assertRaises(ValueError): maintenance.backup(self.source,self.root/'no.tar.gz','desktop',VERSION,_lease=object())
 
@@ -168,6 +234,7 @@ class BackupTests(unittest.TestCase):
         self.assertEqual(backups.read(self.data)['status'],'failed')
         self.assertTrue((self.data/'destination-only.json').exists())
         self.assertFalse((self.data/'saved-filters.json').exists())
+        self.assertFalse(backups.pending(self.data))
 
     def test_failed_rollback_blocks_startup_and_can_recover_on_next_start(self):
         result=self.confirm();original=os.replace

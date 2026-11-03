@@ -8,10 +8,10 @@ server deployments use host maintenance instead. Desktop uses its launch capabil
 
 ## Create a backup
 
-1. Select **Prepare backup on restart**. Editing and scheduled refresh pause.
+1. Select **Create backup (restart required)**. Editing and scheduled refresh pause.
 2. Desktop: explicitly **Exit SAP Lens**, then reopen. Closing to the tray is not
    an exit. Server: an administrator restarts the service/container/process.
-3. Return to this Settings section and download the completed `.tar.gz` archive.
+3. Return to this Settings section and wait for **Ready**, then select **Download backup** to save the `.tar.gz` archive.
    Desktop uses a native Save dialog; browser clients download normally.
 
 The archive contains application-owned imported snapshots, configuration, saved
@@ -78,3 +78,41 @@ automatic recovery backup, activation failure and interrupted rollback. Browser
 checks cover Settings and light/dark layouts at 375, 800, 1280 and 1600 px.
 Native Windows Save-dialog/ACL/WebView2 and real SCM/systemd restart acceptance
 remain required; Linux unit/browser tests do not certify them.
+
+## Why restart is still required
+
+SAP Lens stores settings, immutable imported snapshots, review events, period indexes and
+other application files using separate atomic replacements. There is no shared database
+transaction or global writer barrier covering every file and scheduled refresh. The
+canonical archive engine therefore uses the stopped-store/runtime lease before the listener
+and scheduler start. Individual files being atomic does not make a live multi-file copy
+transactionally consistent. This workflow deliberately retains restart rather than taking
+an unsafe online copy. In-flight work may finish before shutdown; the archive captures the
+final stopped state. No browser-accessible restart API is provided.
+
+## Status, retry and recovery
+
+- **Idle:** choose Create backup or select a restore archive.
+- **Waiting for restart:** the request is persisted; new editing and scheduled runs pause.
+  Cancel pending operation releases this restriction without replacing data. An already
+  running refresh may finish; creation occurs only after restart, never alongside it.
+- **Preparing / Creating:** host-owned work; cancellation cannot release an active operation.
+  Archive creation/verification runs before the server becomes available. Reconnect and
+  check this section after startup, rather than expecting a browser progress percentage.
+- **Ready:** Download backup uses the Desktop Save dialog or a normal browser download.
+  A download failure leaves the archive available; retry downloading.
+- **Failed / Cancelled:** read the status, correct storage/permissions if necessary, then
+  retry Create backup. Interrupted creation becomes Failed at next startup without changing
+  application data. Legacy `pending` records display as Waiting for restart.
+
+Malformed operation metadata without a restore journal is reported as Failed and does not
+permanently freeze editing. If a restore journal remains, cancellation/new operations are
+blocked; startup must finish rollback or stop for administrator recovery. Never delete that
+journal to unlock the interface. Missing/corrupt metadata with a journal blocks startup.
+
+Configuration is an independent GET: a waiting operation does not intentionally block it.
+If configuration loading fails, use **Retry configuration**; Backup & Restore remains
+accessible independently. This symptom alone does not establish corrupt settings or require
+a restart. Archive upload is disabled only while another operation or local request owns
+the workflow, not merely because configuration loading failed. **Check status** retries the
+backup request; returning to the section or window refreshes retained operation status.

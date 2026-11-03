@@ -593,3 +593,32 @@ changes no frontend code/assets/contracts. Full regression, dependency audits an
 were intentionally not repeated. Native Windows/WebView2/SCM, UNC and real systemd acceptance
 remain unexecuted. New automatic CI status must be checked after push; local checks are not
 a claim of platform package validation.
+
+### Backup recovery and guided restart
+
+The stopped-store archive engine is retained: atomic per-file writes are not a shared
+transaction across settings, imported snapshots, review history and background jobs.
+No online snapshot or remote restart is claimed. Backup requests now expose Waiting for
+restart, Creating, Ready, Failed and Cancelled, normalize legacy pending records, and
+recover interrupted creation at next startup. Restore journals remain authoritative;
+cancellation cannot release active creation or journal-owned recovery. Corrupt metadata
+without a journal is recoverable rather than an indefinite application-wide write freeze.
+
+A pending backup leaves configuration GET readable (verified by API test). The reported
+configuration error was not reproduced as an inherent pending-state failure. Settings now
+provides Retry configuration and renders Backup & Restore independently. Validated uploads
+are explicitly labelled staged server-side archives rather than current native file-input
+selections. Upload validation has a 60-second bounded request and safe cancellation; neither
+cancellation nor timeout confirms restoration. Existing startup verification, rollback,
+credential exclusions, authentication and native/browser download boundaries are retained.
+
+FEATURE evidence: 40 backup/scheduler tests plus the new scheduler-cancel recovery test
+passed; after the final journal-state correction, all 25 backup tests passed. TypeScript /
+production build and changed-component lint passed (Settings retains five pre-existing Hook
+warnings). Nine browser workflow/theme/viewport checks passed; the initial configuration-
+failure case exposed the startup gate blocking recovery. After adding the independent,
+authenticated recovery entry, that case, safe validation cancellation and existing startup
+retry behavior all passed (three focused rechecks). Loopback proxy routing initially blocked
+test-server detection; command-local NO_PROXY for localhost fixed the environment issue.
+No full regression or native Windows acceptance was run; screenshots cover both themes at
+375/800/1280/1600. Scheduling/history is a separate additional stage, not claimed here.

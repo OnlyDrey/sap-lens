@@ -1,8 +1,11 @@
-import { type ReactNode } from 'react'
+import {useState,type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Loader2, AlertTriangle } from 'lucide-react'
 import { fetchConfiguration } from '@/api/configuration'
+import {BackupRestore} from '@/components/Settings/BackupRestore'
+import {Button} from '@/components/Shared/Button'
 export function StartupGate({ children }: { children: ReactNode }) {
+  const [recovery,setRecovery]=useState(false)
   const configuration = useQuery({
     queryKey: ['configuration'],
     queryFn: fetchConfiguration,
@@ -28,11 +31,10 @@ export function StartupGate({ children }: { children: ReactNode }) {
               className="mx-auto mt-8 text-[var(--error)]"
             />
             <h2 className="font-semibold mt-4">
-              Unable to connect to the local service
+              Unable to load application configuration
             </h2>
             <p role="alert" className="text-sm mt-3">
-              Retry the connection. If the problem continues, close and reopen
-              SAP Lens. Your saved configuration is retained.
+              Retry configuration loading or open Backup & Restore for recovery. Your saved data is retained; a configuration error does not necessarily mean the backend has stopped.
             </p>
             <button
               className="mt-5 rounded-lg px-4 py-2 bg-[var(--accent)] text-[var(--on-accent)]"
@@ -40,6 +42,8 @@ export function StartupGate({ children }: { children: ReactNode }) {
             >
               Retry connection
             </button>
+            <Button variant="secondary" onClick={()=>setRecovery(value=>!value)}>Open Backup &amp; Restore</Button>
+            {recovery&&<div className="mt-4 text-left"><BackupRestore/></div>}
           </>
         ) : (
           <>

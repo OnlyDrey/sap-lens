@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import {Button} from '@/components/Shared/Button'
 import {BackupRestore} from './BackupRestore'
 import {useApplicationData} from '@/state/ApplicationData'
 import {DesktopOptions} from './DesktopOptions'
@@ -616,7 +617,8 @@ export function SettingsView({
             )}
             {config.isError && (
               <p role="alert" className="text-[var(--error)]">
-                Could not read configuration. Close and reopen SAP Lens.
+                Unable to load application configuration. Retry; Backup & Restore remains available independently.
+                <Button variant="ghost" onClick={() => void config.refetch()}>Retry configuration</Button>
               </p>
             )}
             {message && (
@@ -630,7 +632,7 @@ export function SettingsView({
               aria-labelledby={`settings-tab-${section}`}
               className="space-y-5 min-w-0"
             >
-              {!draft ? (
+              {section === 10 ? <BackupRestore/> : !draft ? (
                 <p>Loading settings…</p>
               ) : (
                 <>
@@ -989,7 +991,7 @@ export function SettingsView({
                       </div>
                     </div>
                   }
-                  {section === 10 && <BackupRestore/>}
+
                   {section === 6 && <About/>}
                   {section === 9 && <><ScheduledRefresh draft={draft} onChange={setDraft}/><DesktopOptions draft={draft} onChange={setDraft}/></>}
                   {section === 8 && <SodRiskSettings/>}
