@@ -213,7 +213,8 @@
     "ui-consistency",
     "ui-polish-actions",
     "settings-r2",
-    "application-backups"
+    "application-backups",
+    "application-footer"
    ]
   },
   "platform": {

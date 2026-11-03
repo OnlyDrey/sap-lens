@@ -399,3 +399,28 @@ reference import and inheritance, and compact Settings checks. The four-test rec
 remediation, exact active-activity pills and inherited drafts; its review-method locator
 identified a missing contextual trigger name. `Popover.triggerLabel` fixes that accessibility
 issue, and the subsequent 12-test run passed. Final production build and TypeScript passed.
+
+### Final validation policy update and delivery
+
+At the user's request, the full regression was safely terminated during its backend stage;
+its process tree was stopped and no browser regression had started. The preserved local
+log is `build/validation/20261103T074214020660Z/validation.log` (ignored build output).
+No full-suite pass/failure count is claimed: the interrupted backend worker did not emit
+its final result JSON. Full regression is intentionally deferred to release preparation or
+an explicit request; it is not a normal development prerequisite.
+
+The preflight omission for `application-footer.spec.ts` is corrected in the canonical
+Shared UI test map. Map completeness passed, all 20 test-runner/profile tests passed, and
+all 94 Markdown documents passed local-link validation. The printed occupied-port message
+in the runner tests is their intentional safety-guard scenario, not a stale live browser
+server; port 18745 is unoccupied after shutdown.
+
+Completed targeted evidence remains valid: 26 desktop bridge tests, 16 metadata tests,
+reference importer/template/API tests, eight footer previews, eight queue previews, and
+12 final review/remediation checks passed. TypeScript and production build passed after
+the final application changes; Python lint, changed-component lint, Lucide verification
+and whitespace checks passed. Earlier UI-only expectation/locator failures were corrected
+and affected checks passed. No dependencies or product version changed. Full security/
+release audits and native target-platform acceptance were not executed in this delivery.
+Implementation commits: `0bf4f85`, `8845129`, `4ea85ab`, `de92369`. Original reference
+workbooks, employee data and generated test artifacts are excluded from the commits.
