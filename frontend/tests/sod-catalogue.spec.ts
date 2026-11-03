@@ -15,7 +15,7 @@ test.beforeEach(async({request})=>{
 test.afterEach(async({request})=>{await request.post('/api/configuration/reset',{headers});rmSync(directory,{recursive:true,force:true})})
 async function settings(page:any){await page.goto('/#session=browser-test-session');await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:'SoD Risk Configuration',exact:true}).click()}
 test('SoD source uses shared automatic import and snapshot preview controls',async({page,request})=>{
- await settings(page);await page.getByRole('button',{name:'Configure SoD source',exact:true}).click()
+ await settings(page);await page.getByRole('tab',{name:'Data Sources',exact:true}).click();await page.getByRole('tab',{name:'SoD Matrix',exact:true}).click()
  await expect(page.getByRole('tab',{name:'SoD Matrix',exact:true})).toHaveAttribute('aria-selected','true')
  const source=page.getByRole('region',{name:'SoD Matrix source management',exact:true});await expect(source.getByRole('textbox',{name:'SoD Matrix CSV location',exact:true})).toHaveValue(path.join(directory,'synthetic-sod.csv'))
  await source.getByRole('button',{name:'Preview data',exact:true}).click();const dialog=page.getByRole('dialog',{name:'SoD Matrix source inspection',exact:true});await expect(dialog.getByRole('columnheader',{name:'ACTIVITY_SLOT',exact:true}).first()).toBeVisible();await expect(dialog.getByRole('table',{name:'Imported source records'}).getByRole('cell',{name:'ACTVT1',exact:true}).first()).toBeVisible();await page.keyboard.press('Escape')

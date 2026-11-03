@@ -269,5 +269,3 @@ class ReparseBoundaryTests(unittest.TestCase):
             root=Path(folder);redirect=root/'redirect';redirect.mkdir()
             with patch.object(maintenance,'linked',side_effect=lambda path:Path(path)==redirect):
                 with self.assertRaises(ValueError):maintenance.inventory(root,'data')
-
-

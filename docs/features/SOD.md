@@ -274,3 +274,14 @@ return a safe request reference for diagnostics, not a requirement to restart. L
 metadata response preparation completes before its atomic commit, preventing a
 failed response dependency from silently saving an unreported edit. Storage uses
 private JSON/content-addressed snapshots with locks and revision checks, not SQLite.
+
+
+## Compact SoD configuration
+
+Settings → SoD Risk Configuration keeps reference version/coverage, a compact confirmed
+Reset defaults action, Risks/Activities tabs, search and the existing editable configuration
+tables. Custom workbook import and full coverage-ID lists are under advanced disclosures.
+The duplicate catalogue heading, Settings-only export/source shortcut and evaluation-evidence
+block were removed from this page. Source management is under Settings → Data Sources;
+the catalogue export service and all investigation/report exports remain available elsewhere.
+Evidence limitations remain documented and visible in investigation views.

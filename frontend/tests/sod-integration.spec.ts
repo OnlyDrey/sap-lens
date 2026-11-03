@@ -1,5 +1,5 @@
 import {test,expect} from '@playwright/test'
-import {writeFileSync,readFileSync} from 'node:fs'
+import {writeFileSync} from 'node:fs'
 import path from 'node:path'
 import {cellButton,cleanup,enableSod,headers,names,openSod,seedGovernance} from './sod-fixture'
 let directory:string
@@ -9,7 +9,7 @@ const matrix=(second:string)=>`RISK,CRITICITY,TYPE,TEXT,ACTVT1,ACTVT2,ACTIVITY_S
 test('SoD-only refresh updates open findings without changing the SAP revision and the catalogue export lists risks',async({page,request})=>{
  directory=await seedGovernance(request,'dynamic')
  await page.goto('/#session=browser-test-session');await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:'SoD Risk Configuration',exact:true}).click()
- const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export CSV',exact:true}).click();const csv=readFileSync((await(await download).path())!).toString('utf8');expect(csv).toContain('EXPLANATION_NO');expect(csv).toContain('R1');expect(csv).toContain('R2')
+ const exported=await request.get('/api/sod/catalogue/export',{headers});expect(exported.ok()).toBeTruthy();const csv=await exported.text();expect(csv).toContain('EXPLANATION_NO');expect(csv).toContain('R1');expect(csv).toContain('R2')
  await openSod(page,'Access Explorer');const table=page.getByRole('table',{name:'User risk table',exact:true});await expect(table).toContainText('R1');await expect(table.getByRole('row').filter({hasText:names.a})).toHaveCount(2)
  const before=(await(await request.get('/api/configuration',{headers})).json()).data_revision
  writeFileSync(path.join(directory,'sod.csv'),matrix('X999'))

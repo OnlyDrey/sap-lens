@@ -223,7 +223,7 @@ catalogue; its invented pairs are not production risk guidance.
 
 ## Curated reference workbook
 
-Settings → SoD Risk Configuration → **Import reference workbook** accepts the supplied
+Settings → SoD Risk Configuration → **Advanced reference settings** → **Import reference workbook** accepts the supplied
 `SAP_SoD_Risk_and_Activity_Definitions.xlsx` schema (up to 2 MB). This is a separate,
 private business reference library, not an active matrix import or verified SAP-standard content.
 The application bundles curated JSON defaults (11 risks, 13 activities, six terms) in
@@ -264,8 +264,7 @@ do not alter historical evidence or reports. Existing optional CSV columns remai
 ### Effective values in Risk and Activity editors
 
 Importing the reference workbook and attaching it to a chat are separate operations.
-The application installs the library only after a successful **Import reference workbook**
-operation in the running installation. The reference card explicitly shows Installed/Not
+Bundled defaults are available automatically. A custom library replaces them only after a successful **Import reference workbook** operation in the running installation. The reference card explicitly shows Installed/Not
 installed, its active revision/import time, risk/activity/term counts, matched active counts,
 unmatched reference IDs and active IDs missing definitions. No matching active matrix IDs
 means no active elements are enriched, even when the library was imported successfully.

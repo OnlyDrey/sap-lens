@@ -290,3 +290,9 @@ Component Library demonstrates it with synthetic state.
 keeps its accessible label and exposes `aria-busy`; ordinary loading buttons retain
 their text. Review pending state is keyed by assignment ID and action, independently
 of confirmed decision styling.
+
+
+`SourceFileField` supports `hideBrowse` for the optional advanced path input. Data Sources
+owns one primary file action: native dialog on desktop or `BrowserSourceUpload` in a browser.
+The shared path component remains usable with a Browse button in isolated component previews;
+it does not add a second action to real source-management panels.

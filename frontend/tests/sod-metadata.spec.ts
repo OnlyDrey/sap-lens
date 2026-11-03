@@ -127,6 +127,7 @@ test('reference workbook upload enriches exact active IDs with provenance and co
   try {
     await openSettings(page, 'SoD Risk Configuration')
     const library = page.getByRole('region', { name: 'SoD reference library' })
+    await library.getByText('Advanced reference settings',{exact:true}).click()
     await expect(library.getByRole('button', { name: 'Import reference workbook' })).toBeEnabled()
     await library.getByLabel('SoD reference workbook').setInputFiles({ name: 'synthetic-reference.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: workbook() })
     await expect(library.getByRole('status')).toContainText('2 risks and 1 activities')
@@ -174,6 +175,7 @@ test('risk and activity dialogs inherit reference fields without creating overri
   try{
     await openSettings(page,'SoD Risk Configuration')
     const library=page.getByRole('region',{name:'SoD reference library'})
+    await library.getByText('Advanced reference settings',{exact:true}).click()
     await expect(library.getByRole('button',{name:'Import reference workbook'})).toBeEnabled()
     await library.getByLabel('SoD reference workbook').setInputFiles({name:'synthetic-reference.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:referenceFile()})
     await expect(library.getByRole('status')).toContainText('Reference library saved')
@@ -237,5 +239,35 @@ test('risk and activity dialogs inherit reference fields without creating overri
     // Leave no active reference matches for unrelated tests sharing this disposable server.
     const unused=execFileSync(process.env.PYTHON||'python',['-c',"import sys;sys.path[:0]=['backend','backend/tests'];from test_sod_reference import workbook;sys.stdout.buffer.write(workbook(risks=[('REF_UNUSED','Unused')],activities=[('REF_UNUSED_ACTIVITY','Unused')]))"],{cwd:path.resolve('..'),env:{...Object.fromEntries(Object.entries(process.env).filter(([key])=>!key.startsWith('SAP_LENS_')&&key!=='DATA_CSV_PATH')),SAP_LENS_CONFIG_DIR:path.join(directory,'effective-generator'),DATA_CSV_PATH:''}})
     expect((await request.put('/api/sod/reference',{headers,data:{expected_revision:current.revision,workbook_base64:unused.toString('base64')}})).ok()).toBeTruthy()
+  }
+})
+
+
+test('SoD configuration is compact with bundled defaults and advanced custom imports in both themes', async ({page,request},testInfo)=>{
+  await reseed(request,plain)
+  const current=await(await request.get('/api/sod/reference',{headers})).json()
+  expect((await request.post('/api/sod/reference/reset',{headers,data:{expected_revision:current.revision}})).ok()).toBeTruthy()
+  for(const [theme,width] of [['light',375],['dark',1280]] as const){
+    expect((await request.post('/api/configuration/theme',{headers,data:{theme}})).ok()).toBeTruthy()
+    await page.setViewportSize({width,height:900})
+    await page.goto('/#session=browser-test-session');await page.reload()
+    await page.getByRole('button',{name:'Open settings',exact:true}).click()
+    await page.getByRole('tab',{name:'SoD Risk Configuration',exact:true}).click()
+    const library=page.getByRole('region',{name:'SoD reference library'})
+    await expect(library).toContainText('Bundled version 1.0.0')
+    await expect(library.getByRole('button',{name:'Reset defaults',exact:true})).toBeVisible()
+    await expect(library.getByRole('button',{name:'Import reference workbook',exact:true})).not.toBeVisible()
+    await expect(page.getByRole('heading',{name:'SoD Risk Catalogue',exact:true})).toHaveCount(0)
+    await expect(page.getByRole('button',{name:'Configure SoD source',exact:true})).toHaveCount(0)
+    await expect(page.getByRole('region',{name:'SoD Risk Configuration',exact:true}).getByRole('button',{name:'Export CSV',exact:true})).toHaveCount(0)
+    await expect(page.getByText('About SoD evaluation evidence',{exact:true})).toHaveCount(0)
+    await library.scrollIntoViewIfNeeded()
+    await page.screenshot({path:testInfo.outputPath(`compact-sod-${theme}-${width}.png`)})
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
+    const advanced=library.getByText('Advanced reference settings',{exact:true})
+    await advanced.focus();await page.keyboard.press('Enter')
+    await expect(library.getByRole('button',{name:'Import reference workbook',exact:true})).toBeVisible()
+    await page.getByRole('tab',{name:'Activities',exact:true}).click()
+    await expect(page.getByRole('searchbox',{name:'Search SoD activities',exact:true})).toBeVisible()
   }
 })

@@ -83,7 +83,7 @@ The older `operational_status` directory API field remains a compatibility descr
 
 For all four sources, selecting a file automatically reads, validates, stages and
 activates a complete non-empty dataset. There is no separate normal-flow Validate,
-Confirm or Import action. **Browse CSV** (one label for every source) is always available,
+Confirm or Import action. **Browse / Upload file** (one label for every source) is always available,
 also when a file is already configured; only an import in progress for that source
 blocks it. It opens the native dialog in the desktop app, the upload chooser where browser
 uploads are supported, and otherwise explains that native browsing is desktop-only and moves
@@ -121,14 +121,14 @@ Automated browser and backend tests use synthetic identities. Fresh-process snap
 
 ## SoD Matrix import format, mapping and validation
 
-Settings → Data Sources → SoD Matrix has the same **Advanced import format and column mapping** section as the other CSV sources, in three steps: *CSV Import Format* (delimiter and encoding, both automatic by default; the documented columns RISK through TTEXT are a fixed schema), *Column mapping* (columns are matched by name; choose a source column only where a header differs, for example `Risk_ID` for RISK) and *Validation & preview* (counts, parser errors, SoD-specific checks and sample rows, in a table that scrolls inside its own container). The section inspects the selected file through `POST /api/data-sources/sod/inspect`, which parses it exactly as an import would but stores nothing: active data, risk definitions, decisions and review snapshots are never touched, and an invalid file never replaces the last valid dataset. The format and mapping are saved with the next import or **Apply settings** (`sod_import` in the configuration) and are used for static and dynamic refreshes. Browse CSV, Refresh source, Preview data, View changes, Technical source details and Clear source data are unchanged.
+Settings → Data Sources → SoD Matrix has the same **Advanced import format and column mapping** section as the other CSV sources, in three steps: *CSV Import Format* (delimiter and encoding, both automatic by default; the documented columns RISK through TTEXT are a fixed schema), *Column mapping* (columns are matched by name; choose a source column only where a header differs, for example `Risk_ID` for RISK) and *Validation & preview* (counts, parser errors, SoD-specific checks and sample rows, in a table that scrolls inside its own container). The section inspects the selected file through `POST /api/data-sources/sod/inspect`, which parses it exactly as an import would but stores nothing: active data, risk definitions, decisions and review snapshots are never touched, and an invalid file never replaces the last valid dataset. The format and mapping are saved with the next import or **Apply settings** (`sod_import` in the configuration) and are used for static and dynamic refreshes. Browse / Upload file, Refresh source, Preview data, View changes, Technical source details and Clear source data are unchanged.
 
 
 ### Browser file uploads
 
 In Settings → Data Sources, **Browse / Upload file** opens the browser's file picker
 for Role Catalogue, User Access, Employee Directory and SoD Matrix CSVs. No server
-filesystem path is required. Desktop WebView2 keeps its native Browse CSV dialog;
+filesystem path is required. Desktop WebView2 uses the same primary action with its native file dialog;
 a browser connected to the desktop backend can also upload using its authenticated session.
 
 The authenticated multipart request (`POST /api/server/uploads/{source}/activate`)
@@ -146,3 +146,11 @@ private names and Static mode; Global Refresh never rereads a client device. Opt
 administrator-managed Dynamic paths remain under Advanced server source path and follow
 server source-root permissions. Existing raw staging endpoints remain compatible with
 packaging tools, but the UI uses multipart activation, not the legacy staging/confirmation flow.
+
+
+There is one primary **Browse / Upload file** action per Data Sources tab. Native desktop
+uses its file dialog; browser sessions use the authenticated multipart uploader. The optional
+**Advanced server source path** contains only the path input, with no second Browse action.
+Uploaded replacements explicitly use Static mode (shown beside the action and in completion
+feedback/source mode); administrator-selected paths retain the chosen Static/Dynamic mode.
+Global/manual/scheduled refresh behavior, inspection and failure recovery are unchanged.

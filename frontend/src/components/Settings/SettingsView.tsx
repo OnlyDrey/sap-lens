@@ -989,7 +989,7 @@ export function SettingsView({
                   {section === 10 && <BackupRestore/>}
                   {section === 6 && <About/>}
                   {section === 9 && <><ScheduledRefresh draft={draft} onChange={setDraft}/><DesktopOptions draft={draft} onChange={setDraft}/></>}
-                  {section === 8 && <SodRiskSettings onConfigure={()=>{setSection(1);setImportSource('sod')}}/>}
+                  {section === 8 && <SodRiskSettings/>}
                   {section === 7 && <Suspense fallback={<p role="status">Loading component previews…</p>}><ComponentLibrary/></Suspense>}
                   {section === 5 && <><FeatureSettings draft={draft} onChange={setDraft} onConfigure={source => { setSection(1); setImportSource(source) }}/></>}
                   {section === 4 && (

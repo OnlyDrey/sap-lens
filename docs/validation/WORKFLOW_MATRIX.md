@@ -298,3 +298,27 @@ behavior, custom upgrade preservation and existing backup/restore are covered. T
 inheritance/reset/cancel/override-preservation workflow passed. TypeScript/production build,
 Ruff and documentation links passed. Windows/Linux resource copy contracts are checked;
 native Windows, actual Docker image and real systemd acceptance remain unexecuted.
+
+### Settings consolidation and single source file action
+
+SoD Risk Configuration now keeps its page title, compact reference coverage/reset,
+Risks/Activities navigation, search and tables. Optional custom workbook import is
+under Advanced reference settings. The duplicate catalogue heading, Settings-only
+export/source shortcuts, introductory paragraph and evaluation disclosure were removed;
+underlying services and evidence semantics remain intact.
+
+All Data Sources have one primary Browse / Upload file action, native on desktop and
+multipart in browsers. Advanced server source path contains only its path input, not a
+second Browse action. Static upload behavior is explicit, and manual-path mode/refresh,
+source health, previews, change inspection and failure preservation remain unchanged.
+
+Validation: 31 of 32 affected browser scenarios passed initially; the remaining new test
+used textbox instead of the real searchbox role. That locator was corrected and five
+final targeted workflows passed, covering the corrected compact UI, headless multipart
+uploads, preserved catalogue CSV service and SoD-only refresh. Existing affected responsive
+cases cover both themes at 375/800/1280/1600 px; representative 375/light and 1280/dark
+screenshots were reviewed. TypeScript/Vite production build passed; affected ESLint passed
+with existing warnings. Documentation links and diff checks passed. A supplementary local
+Alpha/Beta/RC desktop-identity parser correction passed 14 version tests. No FULL regression,
+native Windows/SCM, real systemd acceptance, release or manual workflow dispatch occurred.
+Only the primary agent was active; no additional agents were launched.

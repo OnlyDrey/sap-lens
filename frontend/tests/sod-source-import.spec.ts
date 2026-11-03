@@ -80,8 +80,8 @@ test('a renamed header is mapped by hand, validates and is saved with the import
 test('the existing source actions stay available next to the new section', async ({ page }) => {
   await open(page)
   const source = page.getByRole('region', { name: 'SoD Matrix source management', exact: true })
-  for (const name of ['Browse CSV', 'Refresh source', 'Preview data', 'View changes', 'Technical source details', 'Clear source data']) await expect(source.getByRole('button', { name, exact: true }), name).toBeVisible()
-  await expect(source.getByRole('button', { name: 'Browse CSV', exact: true })).toBeEnabled() // a configured source can still be replaced
+  for (const name of ['Browse / Upload file', 'Refresh source', 'Preview data', 'View changes', 'Technical source details', 'Clear source data']) await expect(source.getByRole('button', { name, exact: true }), name).toBeVisible()
+  await expect(source.getByRole('button', { name: 'Browse / Upload file', exact: true })).toBeEnabled() // a configured source can still be replaced
   await expect(source.getByRole('button', { name: 'Refresh source', exact: true })).toBeEnabled()
   await source.getByRole('button', { name: 'Preview data', exact: true }).click()
   await expect(page.getByRole('dialog', { name: 'SoD Matrix source inspection', exact: true })).toContainText('Validation results')

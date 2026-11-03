@@ -1,6 +1,6 @@
 import {useEffect,useRef,useState,type Ref,type RefObject} from 'react'
 import {useQuery} from '@tanstack/react-query'
-import {RefreshCw,Eye,FileDiff,Info,Loader2,Trash2} from 'lucide-react'
+import {RefreshCw,Eye,FileDiff,Info,Loader2,Trash2,FolderOpen} from 'lucide-react'
 import {apiRequest,applicationToken} from '@/api/client'
 import type {Configuration,ImportProfile} from '@/api/configuration'
 import type {CSVSource,SourceActivation} from '@/api/sources'
@@ -47,19 +47,21 @@ export function SourceManager({source,draft,onMode,onActivated,onClear,onFeature
   }catch(cause){if(mounted.current){setError(cause instanceof Error?cause.message:'CSV activation failed.')}if(file)throw cause}  // the attempted path stays in the field for correction or column mapping; the configured file and its data are never replaced by a failed attempt
   finally{if(mounted.current)setPending(false)}
  }
- return <section className="settings-card space-y-3" aria-label={`${names[source]} source management`}>
-  <h2 className="settings-subheading">Source file</h2>
-  <p className="ui-description">Selecting a file automatically validates and imports the complete dataset. Invalid or empty files never replace active data. Cancel settings does not undo a completed import.</p>
-  {browser&&<BrowserSourceUpload source={source} disabled={busy} fileInput={uploadInput} onUpload={file=>activate(file.name,'static',file)}/>}
-  {browser&&<p className="ui-description">Active file: {savedPath.split(/[\\/]/).pop()?.replace(/^[a-f0-9]{32}-/,'')||'Not configured'}</p>}
-  <details open={!browser||runtime.data?.deployment_mode!=='server'}><summary>{browser?'Advanced server source path (optional)':'Source file selection'}</summary>
-  <SourceFileField label={source==='roles'?'CSV file location':source==='users'?'User CSV file location':source==='sod'?'SoD Matrix CSV location':'Employee Directory CSV location'} value={path} onChange={value=>{setPath(value);onCandidate(value)}} inputRef={inputRef} disabled={busy} browseDisabled={picking||pending} native={!!window.pywebview?.api.choose_csv} browseLabel="Browse CSV" placeholder="Absolute local or server-visible CSV path" onCommit={force=>{if(force||path.trim()!==lastAttempt.current)void activate(path)}} onBrowse={()=>{
+ const browse=()=>{
    setError('');setHint('')
    if(window.pywebview?.api.choose_csv){
     setPicking(true);void window.pywebview.api.choose_csv(applicationToken()).then(selected=>selected?activate(selected):undefined).catch(()=>setError('The native file dialog could not open. Enter an absolute CSV path and press Enter.')).finally(()=>{if(mounted.current)setPicking(false)})
    }else if(uploadInput.current)uploadInput.current.click()
    else{(inputRef as RefObject<HTMLInputElement>|undefined)?.current?.focus();setHint('Native file browsing is only available in the desktop app. Enter the absolute path of a CSV file this application can read and press Enter; the current file stays active until it validates.')}
-  }}/>
+  }
+ return <section className="settings-card space-y-3" aria-label={`${names[source]} source management`}>
+  <h2 className="settings-subheading">Source file</h2>
+  <p className="ui-description">Selecting a file automatically validates and imports the complete dataset. Invalid or empty files never replace active data. Cancel settings does not undo a completed import.</p>
+  {native&&<Button disabled={busy} loading={picking} onClick={browse}><FolderOpen size={16} aria-hidden="true"/>Browse / Upload file</Button>}
+  {browser&&<BrowserSourceUpload source={source} disabled={busy} fileInput={uploadInput} onUpload={file=>activate(file.name,'static',file)}/>}
+  {browser&&<p className="ui-description">Active file: {savedPath.split(/[\\/]/).pop()?.replace(/^[a-f0-9]{32}-/,'')||'Not configured'}</p>}
+  <details open={!browser||runtime.data?.deployment_mode!=='server'}><summary>Advanced server source path (optional)</summary>
+  <SourceFileField label={source==='roles'?'CSV file location':source==='users'?'User CSV file location':source==='sod'?'SoD Matrix CSV location':'Employee Directory CSV location'} value={path} onChange={value=>{setPath(value);onCandidate(value)}} inputRef={inputRef} disabled={busy} browseDisabled={picking||pending} native={!!window.pywebview?.api.choose_csv} browseLabel="Browse CSV" placeholder="Absolute local or server-visible CSV path" onCommit={force=>{if(force||path.trim()!==lastAttempt.current)void activate(path)}} onBrowse={browse} hideBrowse/>
   </details>
   {hint&&<p role="status" className="ui-description">{hint}</p>}
   <SourceMode value={mode} disabled={busy} onChange={onMode}/>
