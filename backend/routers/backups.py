@@ -102,6 +102,12 @@ async def upload(request:Request):
         raise HTTPException(422,'Archive validation failed. No active data was changed. Use a compatible application-data backup.') from None
 
 
+@router.post('/uploads/{identity}/cancel')
+def discard_upload(request:Request,identity:str):
+    admin(request)
+    return operation(lambda:backups.discard_upload(identity))
+
+
 class Confirm(StrictModel):
     id:str=Field(pattern=r'^[a-f0-9]{32}$')
     sha256:str=Field(pattern=r'^[a-f0-9]{64}$')

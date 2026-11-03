@@ -57,7 +57,7 @@ Desktop/service; Unix owner permissions). Unconfirmed upload previews are bounde
 to three; completed/recovery backups remain private until the operator removes them
 with the application stopped. Keep a separate protected copy of important backups.
 
-Cancellation before restart preserves active data. Failed validation leaves it
+Use **Cancel restore preview** to discard a validated inactive upload and its retention protection. Once confirmed or owned by recovery, only the protected pending-operation/restart workflow applies. Cancellation before restart preserves active data. Failed validation leaves it
 untouched. Activation uses a journal and rollback; an interrupted activation is
 rolled back on the next start. If rollback cannot complete, startup stops rather
 than serving partially replaced data. Correct permissions/free space and restart,

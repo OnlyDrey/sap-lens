@@ -28,6 +28,7 @@ test('Settings backup requires restart; restore validates before explicit replac
  await region.getByLabel('Application backup archive').setInputFiles({name:'synthetic.tar.gz',mimeType:'application/gzip',buffer:archive()})
  await expect(region.getByText('Validated upload staged on server: synthetic.tar.gz',{exact:true})).toBeVisible()
  await expect(region.getByRole('heading',{name:'Validated archive preview'})).toBeVisible()
+ await region.getByRole('button',{name:'Cancel restore preview',exact:true}).click();await expect(region.getByRole('heading',{name:'Validated archive preview'})).toHaveCount(0);await expect(region.getByText(/Validated upload staged on server:/)).toHaveCount(0);await expect(region).toContainText('Restore preview cancelled. No application data was changed.');await region.getByLabel('Application backup archive').setInputFiles({name:'synthetic.tar.gz',mimeType:'application/gzip',buffer:archive()});await expect(region.getByRole('heading',{name:'Validated archive preview'})).toBeVisible()
  const confirm=region.getByRole('button',{name:'Confirm restore on restart'});await expect(confirm).toBeDisabled()
  await region.getByRole('checkbox',{name:'I confirm full replacement after restart. I understand that these histories will not be merged.'}).check();await expect(confirm).toBeEnabled();await confirm.click()
  await expect(region.getByText(/Restart required. Destination data/)).toBeVisible()

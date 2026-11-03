@@ -235,6 +235,21 @@ class BackupTests(unittest.TestCase):
             with self.assertRaises(asyncio.CancelledError):asyncio.run(job.loop())
         job.tick.assert_awaited_once()
 
+    def test_discard_preview_releases_retention_protection_but_not_active_restore(self):
+        import backup_schedule as schedule
+        result=backups.request_backup(self.data);self.activate()
+        with backups.uploaded(self.data) as (identity,path):
+            path.write_bytes(backups.download(result['id'],data=self.data).read_bytes())
+            backups.register_upload(identity,self.data)
+        with self.assertRaises(ValueError):schedule.remove(result['id'],True,self.data)
+        backups.discard_upload(identity,self.data)
+        self.assertEqual(backups.read(self.data)['status'],'ready')
+        self.assertTrue((self.data/'destination-only.json').exists())
+        schedule.remove(result['id'],True,self.data)
+        active=self.confirm()
+        with self.assertRaises(ValueError):backups.discard_upload(active['id'],self.data)
+        self.assertTrue(backups.pending(self.data))
+
     def test_internal_backup_lease_must_match(self):
         with self.assertRaises(ValueError): maintenance.backup(self.source,self.root/'no.tar.gz','desktop',VERSION,_lease=object())
 
@@ -277,10 +292,16 @@ class BackupTests(unittest.TestCase):
             manage_user(account,dict(username=name,role=role,password='Synthetic-backup-password-123!',enabled=True))
         server=ServerSettings('127.0.0.1',18743,self.data,self.root/'sources','http://127.0.0.1:18743',('127.0.0.1',),'users','','',(),'info',accounts=str(account))
         client=TestClient(create_app(server=server),base_url='http://127.0.0.1:18743',client=('127.0.0.1',50000))
+        backup=backups.request_backup(self.data);self.activate()
         for name,expected in [('reader',403),('admin',200)]:
             headers={'Authorization':'Basic '+base64.b64encode((name+':Synthetic-backup-password-123!').encode()).decode(),'X-SAP-Lens':'1'}
             self.assertEqual(client.get('/api/backups',headers=headers).status_code,expected)
-            if name=='reader': self.assertEqual(client.get('/api/backups/'+'a'*32+'/download',headers=headers).status_code,403)
+            if name=='reader': self.assertEqual(client.get('/api/backups/'+backup['id']+'/download',headers=headers).status_code,403)
+            else:
+                response=client.get('/api/backups/'+backup['id']+'/download',headers=headers)
+                self.assertEqual(response.status_code,200)
+                self.assertEqual(response.content,backups.download(backup['id'],data=self.data).read_bytes())
+                self.assertIn('attachment',response.headers['content-disposition'])
             for endpoint in ('history','schedule'):
                 self.assertEqual(client.get('/api/backups/'+endpoint,headers=headers).status_code,expected)
 

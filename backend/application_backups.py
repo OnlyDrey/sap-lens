@@ -266,6 +266,18 @@ def register_upload(identity,data=None,server=None):
         return result
 
 
+def discard_upload(identity,data=None):
+    """Discard only an inactive preview, never an active restore or recovery archive."""
+    with lock:
+        idle_required(data)
+        operation=path_for(identity,data)
+        preview=operation/'preview.json'
+        if not preview.is_file() or engine.linked(preview) or (operation/'destination-before-restore.tar.gz').exists():
+            raise engine.MaintenanceError('Only an inactive staged restore can be cancelled.')
+        shutil.rmtree(operation)
+        return dict(status='cancelled',message='Restore preview cancelled. No application data was changed.')
+
+
 def confirm_restore(identity,sha256,confirm,data=None):
     with lock:
         idle_required(data)
