@@ -567,3 +567,29 @@ browser checks passed bulk/progress workflows but exposed the shared Escape bug.
 affected keyboard/status rechecks passed, including eight light/dark 375/800/1280/1600
 popover previews and explicit Keep/Remove/Investigate, mixed activity decisions and independent
 risk acceptance. Two shared-library/Saved Filters Escape checks passed. No full regression.
+
+### SoD request-local decision snapshot profiling
+
+Stages 1–2 were delivered in `c30c3a5` and `58e5d01`; automatic Fast Validation runs
+41650215869 and 41655377485 passed. The performance stage reuses one validated live
+decision-store snapshot per request bundle, keeping response revisions coherent with
+rows and avoiding repeated JSON parsing. Write/preview guards remain live; frozen-period
+decisions and approval-date lifecycle remain unchanged. No source cache or dependency added.
+
+Comparable isolated real-import/API profiles (200 synthetic users, 800 assignments, nine
+samples) reduced subject-view p50 from 44–54 ms to 20–24 ms; store reads fell from two/three
+to one on most routes. Explorer retains two separate reads. Complete measurements, tail
+regressions/noise and memory caveats are in [SoD architecture](../architecture/SOD.md#measured-request-local-review-state-reuse).
+No real employee data, uploaded workbooks or generated benchmark artifacts were committed.
+
+FEATURE: 139 targeted tests passed in 74.582s across review coverage, bulk review, governance,
+periods v2 and report metadata. Added request-snapshot read-count/coherent-revision tests
+and confirmed fresh requests see committed decisions. Existing tests cover stale revisions,
+atomic failure, source evidence changes, context isolation, frozen decisions and reports.
+The logged injected RuntimeError in the governance failure test is expected; the suite passed.
+Ruff, Python compilation, test-map ownership and documentation links (94 files) passed.
+Stage 2 frontend typecheck/build, lint and focused browser evidence remain valid: this stage
+changes no frontend code/assets/contracts. Full regression, dependency audits and packaging
+were intentionally not repeated. Native Windows/WebView2/SCM, UNC and real systemd acceptance
+remain unexecuted. New automatic CI status must be checked after push; local checks are not
+a claim of platform package validation.

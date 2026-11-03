@@ -219,3 +219,18 @@ After an affected frontend build, navigation can be isolated with
 Historical definitions deliberately persist: select explicit IDs/search scopes in tests
 instead of assuming the target is the only row or remains on page one after other cases.
 Full regression remains a release/explicit-request check, not this workflow's prerequisite.
+
+### Synthetic SoD performance profile
+
+With the Python 3.12 development environment installed, run from the repository root:
+
+```sh
+python scripts/profile-sod.py --users 200 --samples 9 --output /tmp/sod-profile.json
+```
+
+On Windows use a writable output such as `$env:TEMP/sod-profile.json`. The tool generates
+synthetic CSVs and imports/reviews them through real APIs in temporary isolated storage;
+it never uses configured user data. No server, browser or real dataset is required.
+Keep generated results outside Git. Compare the same corpus/sample count/environment.
+Measurements and limitations: [SoD architecture](../architecture/SOD.md#measured-request-local-review-state-reuse).
+This focused profiler is not a replacement for correctness tests or release regression.

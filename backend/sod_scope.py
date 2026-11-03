@@ -65,14 +65,24 @@ def model_for(bundle):
     return model
 
 
+def decision_data(bundle):
+    """One validated store snapshot per request bundle, never shared across requests/users.
+
+    Responses use the same revision as their decisions. Writers still validate the
+    live store under its lock; a new request always reads fresh committed data.
+    """
+    if '_decision_data' not in bundle:
+        with decisions.lock:
+            bundle['_decision_data']=decisions.read()
+    return bundle['_decision_data']
+
+
 def latest_for(bundle):
     """kind -> key -> Event for this context (snapshot copy when frozen)."""
     if bundle['frozen_decisions'] is not None:
         events = bundle['frozen_decisions']['events']
         return {kind: {key: decisions.Event.model_validate(items[-1]) for key, items in events.get(kind, {}).items() if items} for kind in decisions.DECISIONS}
-    with decisions.lock:
-        data = decisions.read()
-    return decisions.latest(bundle['context'], data)
+    return decisions.latest(bundle['context'], decision_data(bundle))
 
 
 def states_for(bundle, model):
@@ -84,7 +94,7 @@ def states_for(bundle, model):
 def actions_for(bundle):
     if bundle['frozen_decisions'] is not None:
         return [decisions.Action.model_validate(item) for item in bundle['frozen_decisions']['actions']]
-    return decisions.actions_for(bundle['context'])
+    return decisions.actions_for(bundle['context'],decision_data(bundle))
 
 
 def revision():
@@ -216,7 +226,7 @@ def scoped(context, q):
 def context_info(bundle):
     period = bundle['period']
     return dict(context=bundle['context'], generation=bundle['generation'], as_of=bundle['as_of'], coverage=bundle['coverage'], frozen=bundle['frozen'],
-                reviewable=bundle['reviewable'], revision=revision(), legacy=bool(bundle.get('legacy')),
+                reviewable=bundle['reviewable'], revision=decision_data(bundle).revision, legacy=bool(bundle.get('legacy')),
                 period=dict(id=period['id'], name=period['name'], state=period['state']) if period else None)
 
 

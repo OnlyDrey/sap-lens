@@ -151,3 +151,53 @@ and guards unsaved drafts; it never modifies mappings or evaluation policies.
 
 Relationships are UI context, not descriptions: `frozen` excludes `activities`/`risk_ids`
 from report metadata copies. Existing immutable snapshot contracts therefore remain intact.
+
+## Measured request-local review state reuse
+
+Normalized source snapshots and derived user/evidence indexes already have generation-keyed
+reuse. Review decisions are a private, validated JSON store, not SQLite: no SQL index or
+query-plan change applies. Profiling found repeated parsing of that store within one response.
+`sod_scope` now captures it once per fresh request bundle and shares it between decision
+state, remediation actions and response revision. Nothing is retained across requests.
+A response therefore reports the revision belonging to its decision rows, even if another
+request commits meanwhile. Live write/preview revision guards remain uncached and atomic.
+
+Source publication/configuration continues to change the existing analysis generation;
+failed refresh retains the previous valid source. A new request reads committed review
+changes immediately. Approved/closed periods still use immutable decisions/actions and
+approval-date lifecycle from their snapshot, independently of the live decision store.
+No second prepared-data cache, database, frontend state store or dependency was introduced.
+The existing shared subject query supplies all three review tabs; its save invalidation
+remains responsible for refreshing affected progress/KPIs.
+
+### Comparable synthetic measurements
+
+Linux/Python 3.12, 200 synthetic users, 800 assignments, two risks, nine warm samples per
+endpoint through in-process ASGI. The profiler imports real CSVs and seeds real decisions
+in disposable isolated storage. Warm/cold JSON responses must agree. Values below are
+before → after in milliseconds; p95 is the observed high sample, not a production SLA.
+
+| API view | p50 ms | p95 ms | Decision-store reads |
+| --- | --- | --- | --- |
+| overview | 66.2 → 51.0 | 168.1 → 137.1 | 2 → 1 |
+| risk matrix | 49.0 → 31.2 | 62.9 → 42.0 | 2 → 1 |
+| activity matrix | 54.1 → 34.7 | 62.7 → 77.8 | 2 → 1 |
+| role assignment review | 44.0 → 22.3 | 82.7 → 31.7 | 2 → 1 |
+| activity review | 54.0 → 20.4 | 174.9 → 31.3 | 2 → 1 |
+| risk review | 45.4 → 24.4 | 80.7 → 41.4 | 2 → 1 |
+| remediation | 82.5 → 35.2 | 260.1 → 60.0 | 3 → 1 |
+| filtered page | 115.9 → 70.2 | 236.5 → 138.8 | 3 → 2 |
+
+Both runs had 100% warm source-analysis/prepared-index hits and unchanged payload sizes.
+Traced Python per-request peaks were approximately 64–68 MiB before and 64–67 MiB after;
+this is allocated Python memory, not process RSS. Activity-matrix p95 increased despite a
+lower median; small-sample tail timings are noisy. Filtered Explorer still reads twice
+because its independent selection path resolves a second bundle; no cross-bundle cache
+was added. Single assignment-save API median/p95 changed from 39.7/109.7 to 29.6/34.1 ms
+(one measured POST, revision lookup outside the timer). Browser click/render latency and
+production concurrency were not measured. This does not claim faster atomic disk writes.
+
+The profiler records import timing, payload size, cold derived-cache latency and a
+client-thread cProfile summary (not backend-thread CPU attribution). JSON history remains
+bounded and reparsed once per request; larger real histories may still need investigation.
+Run the isolated utility as described in [Testing](../development/TESTING.md#synthetic-sod-performance-profile).
