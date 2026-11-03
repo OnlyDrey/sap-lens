@@ -82,7 +82,7 @@ def configuration_notice():
 
 
 @lru_cache
-def get_settings() -> AppConfig:
+def _cached_settings() -> AppConfig:
     global _notice
     with _lock:
         _notice = None
@@ -110,6 +110,22 @@ def get_settings() -> AppConfig:
         except (OSError, ValueError, TypeError, KeyError):
             _notice = 'Saved configuration is invalid or from an unsupported version. Defaults are in use; the original has not been overwritten. Restore a backup or explicitly save/reset after review.'
             return defaults
+
+
+def get_settings() -> AppConfig:
+    # Lock before cache lookup: lru_cache alone can execute duplicate concurrent
+    # misses, allowing a second read to erase the first migration/recovery notice.
+    with _lock:
+        return _cached_settings()
+
+
+def _clear_settings_cache():
+    with _lock:
+        _cached_settings.cache_clear()
+
+
+get_settings.cache_clear = _clear_settings_cache
+get_settings.cache_info = _cached_settings.cache_info
 
 
 def save_configuration(settings: AppConfig, expected_revision: int | None = None) -> AppConfig:

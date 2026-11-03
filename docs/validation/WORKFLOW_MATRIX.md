@@ -688,3 +688,20 @@ wide-row check found action wrapping. A compact, labelled formal-acceptance Icon
 secondary formal status restored alignment; its focused browser recheck passed.
 TypeScript/production build, focused lint, documentation links and Lucide catalog passed.
 No full regression, product-version change or native platform acceptance was performed.
+
+### Automatic CI closeout — configuration cache concurrency
+
+Fast Validation runs 41676113856 (`0122b96`) and 41677451557 (`441cbf7`)
+failed `test_legacy_migration_keeps_original_backup`: the migration notice became None.
+The actual logs were downloaded and inspected. This was a real cache-miss race, not an
+assumed fixture failure: lru_cache permits duplicate concurrent function execution even
+though the loader locks its body. A second miss reread the migrated file and cleared the
+first caller's notice. Public configuration reads/cache clearing now take the existing
+RLock before entering the cache, retaining its external cache_clear/cache_info contract.
+
+An eight-thread synthetic reproduction measured eight misses, distinct results and a lost
+notice with the old cache behavior; single-flight reads measured one miss, one shared result
+and a retained notice. Fifteen configuration tests passed, including the new concurrent
+migration regression. Sixty-eight backup/scheduler/SoD-import checks passed after the fix.
+No full local regression was run. Historical failed CI runs remain failed; a new automatic
+run is required before claiming the final remote commit has green CI.
