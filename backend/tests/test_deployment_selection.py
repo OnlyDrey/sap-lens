@@ -35,7 +35,7 @@ EXPECTED = {  # build_target -> the packages it builds; the seven values of the 
 def run_plan(build_target, **extra):
     with tempfile.TemporaryDirectory() as directory:
         output, summary = Path(directory, 'output'), Path(directory, 'summary.md')
-        env = dict(GITHUB_REF='refs/heads/work', BASE_VERSION='0.1.0', DEPLOYMENT_CHANNEL='Beta', DEPLOYMENT_SEQUENCE='1', PUBLISH_RELEASE='false')
+        env = dict(GITHUB_ACTIONS='false', GITHUB_REF='refs/heads/work', BASE_VERSION='0.1.0', DEPLOYMENT_CHANNEL='Beta', DEPLOYMENT_SEQUENCE='1', PUBLISH_RELEASE='false')
         env.update(DEPLOYMENT_TARGET=build_target, GITHUB_OUTPUT=str(output), GITHUB_STEP_SUMMARY=str(summary), **extra)
         done = subprocess.run([sys.executable, str(ROOT / 'scripts/deployment-release.py'), 'plan'], env={**os.environ, **env}, capture_output=True, text=True)
         values = dict(line.split('=', 1) for line in output.read_text().splitlines()) if output.exists() else {}

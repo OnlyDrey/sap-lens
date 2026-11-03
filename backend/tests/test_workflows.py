@@ -178,7 +178,7 @@ class WorkflowTests(unittest.TestCase):
             if mutation == 'default': inputs['release_mode']['default']='beta'
             if mutation == 'options': inputs['release_mode']['options'].append('automatic')
             if mutation == 'benchmark': inputs['cold_cache']['default']='true'
-            if mutation == 'version': inputs['version']['required']='false'
+            if mutation == 'version': inputs['version']['required']='true'
             with self.subTest(mutation=mutation), self.assertRaises(ValueError): contracts.validate(changed)
 
 

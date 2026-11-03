@@ -322,3 +322,17 @@ with existing warnings. Documentation links and diff checks passed. A supplement
 Alpha/Beta/RC desktop-identity parser correction passed 14 version tests. No FULL regression,
 native Windows/SCM, real systemd acceptance, release or manual workflow dispatch occurred.
 Only the primary agent was active; no additional agents were launched.
+
+### Automatic CI test-fixture correction
+
+Read-only inspection of the earlier automatic runs found two fixture problems:
+`run_plan` inherited GITHUB_ACTIONS=true on runners, so deliberately offline planning
+cases entered real CI preflight; the workflow negative test mutated required=false,
+which is now the valid source-derived version setting. The planner subprocess now
+explicitly selects offline mode, while separate mocked CI-policy tests retain real
+CI-mode coverage. The negative test now mutates required=true and still requires
+rejection. No production guard or assertion was weakened.
+
+Both affected modules passed 34 targeted tests with GITHUB_ACTIONS=true in the parent
+environment. Earlier automatic runs remain failed historical evidence; the correction
+requires a new automatic run. No manual workflow dispatch or full local regression ran.
