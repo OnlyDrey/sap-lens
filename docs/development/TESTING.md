@@ -204,3 +204,18 @@ setup, but stateful browser workers must not share a backend. The historical ful
 run's 120-second obsolete-locator failures were wasted time, not evidence that more
 workers would help. Full visual matrices remain available for release validation;
 no tests were removed to reduce counts.
+
+### Focused SoD reference and navigation checks
+
+For reference/schema changes, use `python -m unittest discover -s backend/tests -p test_sod_reference.py`.
+If metadata snapshot preparation changes, also run `test_sod_report_metadata.py` with that
+same command pattern. Reference fixtures derive populated records from the canonical JSON;
+template tests invoke the real importer and compare generated XML without depending on the
+platform's ZIP compression bytes. Source files and inventory are documented in
+[SoD reference maintenance](../data/SOD_MATRIX.md#reference-file-inventory-and-maintenance).
+
+After an affected frontend build, navigation can be isolated with
+`npm --prefix frontend run test:browser -- tests/sod-catalogue.spec.ts --grep 'entity navigation|Previous and Next|stale navigation' --workers=1`.
+Historical definitions deliberately persist: select explicit IDs/search scopes in tests
+instead of assuming the target is the only row or remains on page one after other cases.
+Full regression remains a release/explicit-request check, not this workflow's prerequisite.

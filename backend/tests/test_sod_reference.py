@@ -16,7 +16,7 @@ import config
 import cache
 
 
-def workbook(risks=None, activities=None, formula=False):
+def workbook(risks=None, activities=None, formula=False, library=None):
     output = io.BytesIO()
     ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
     with zipfile.ZipFile(output, 'w') as archive:
@@ -25,6 +25,9 @@ def workbook(risks=None, activities=None, formula=False):
         for index, header, mapping, values in [(1, 'Risk', reference.RISK, risks or [('R1', 'Reference R1'), ('INACTIVE', 'Inactive reference')]), (2, 'Activity', reference.ACTIVITY, activities or [('A', 'Reference A')])]:
             sheet = etree.Element('worksheet', nsmap={None: ns}); data = etree.SubElement(sheet, 'sheetData')
             content = [[header, *mapping]] + [[key, name, 'Synthetic area', 'Synthetic description', *(['Synthetic impact','Synthetic controls'] if index == 1 else []), 'Synthetic guidance', ''] for key, name in values]
+            if library is not None:
+                records=library.risks if index==1 else library.activities
+                content=[[header,*mapping]]+[[key,*[metadata.get(field,'') for field in mapping.values()]] for key,metadata in sorted(records.items())]
             for number, values in enumerate(content, 1):
                 row = etree.SubElement(data, 'row')
                 for column, value in enumerate(values):
@@ -95,7 +98,11 @@ class ReferenceTests(Case):
         reference.install(workbook(risks=[('r1','Lower case'),('R','Prefix')], activities=[('a','Lower activity'),('AA','Longer activity')]), 0)
         found = sod_metadata.lookup(cache.get_snapshot())
         self.assertNotIn('name', found['risks']['R1'])
-        self.assertEqual(found['activities'], {})
+        expected={'A':['R1','R2'],'B':['R1'],'C':['R2'],'D':['R3'],'E':['R3']}
+        self.assertEqual(found['activities'],{key:dict(origin={},risks=len(risks),risk_ids=risks) for key,risks in expected.items()})
+        self.assertEqual(found['active_activities'],sorted(expected))
+        self.assertTrue({'a','AA'}.isdisjoint(found['activities']))
+        self.assertTrue({'r1','R'}.isdisjoint(found['risks']))
         coverage = sod_metadata.coverage(cache.get_snapshot())['reference']
         self.assertEqual((coverage['matched_risks'], coverage['matched_activities']), (0, 0))
 
@@ -206,6 +213,28 @@ class ReferenceTests(Case):
         import sys
         with patch.object(sys,'frozen',True,create=True),patch.object(sys,'_MEIPASS',str(self.root),create=True):
             self.assertEqual(reference.default_path(),self.root/'resources/reference-defaults.json')
+
+    def test_bundled_records_round_trip_through_the_real_workbook_importer(self):
+        library=reference.defaults()
+        parsed=reference.parse(workbook(library=library))
+        self.assertEqual(parsed.risks,library.risks)
+        self.assertEqual(parsed.activities,library.activities)
+        self.assertEqual(set(parsed.risks)&{'P001','P002','P008'},{'P001','P002','P008'})
+        self.assertEqual(parsed.activities['PR01']['display_name'],'Vendor Master Maintenance')
+        self.assertEqual(library.library_version,'1.0.1')
+
+    def test_shipped_template_matches_its_canonical_generator(self):
+        from pathlib import Path
+        import runpy
+        script=Path(__file__).resolve().parents[2]/'scripts/reference-template.py'
+        target=self.root/'generated-template.xlsx'
+        runpy.run_path(str(script))['generate'](target)
+        with zipfile.ZipFile(target) as generated,zipfile.ZipFile(reference.default_path().with_name('sod-reference-template.xlsx')) as shipped:
+            self.assertEqual(set(generated.namelist()),set(shipped.namelist()))
+            for name in generated.namelist():self.assertEqual(generated.read(name),shipped.read(name))
+        parsed=reference.parse(target.read_bytes())
+        self.assertEqual(set(parsed.risks),{'R_EXAMPLE'})
+        self.assertEqual(set(parsed.activities),{'ACT_EXAMPLE'})
 
     def test_repository_template_uses_real_schema_and_fixed_download(self):
         raw=reference.default_path().with_name('sod-reference-template.xlsx').read_bytes()

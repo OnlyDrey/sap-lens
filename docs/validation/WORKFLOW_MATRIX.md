@@ -492,3 +492,46 @@ Earlier affected import/edit/color/transaction workflows passed; no full regress
 Build/typecheck, changed-component lint, Python lint, Lucide and test-map checks passed.
 Screenshots were reviewed at light 375px and dark 1600px; all eight boundaries were asserted.
 Original workbooks, generated browser artifacts and private state remain outside Git.
+
+### Fast Validation #202–204 investigation and closeout
+
+Actual GitHub log archives were retrieved for runs 41622087242 (#202, dd7a869),
+41624819081 (#203, 8571572) and 41625364049 (#204, 67a2a86). All failed job
+**Backend & Frontend**, step 11 **Run the selected backend tests**; exit code 1.
+The failing command was `python scripts/ci.py run backend -- python scripts/run-tests.py changed --stage backend`.
+No workflow/dependency files changed relative to the last successful #201 (64cfedf).
+These are confirmed code/contract-test failures, not an environmental explanation.
+
+- #202: 1045 backend tests, two skipped, three failures. Relationship-only fields entered
+  description snapshots, failing `test_a_snapshot_carries_its_own_descriptions_only_for_risks_and_activities_in_scope`
+  and `test_reports_without_any_description_are_unchanged`. Production fix 8571572 excludes
+  those context fields. The third failure was the reference assertion below.
+- #203 and #204: 1045 tests, two skipped, one failure each:
+  `test_exact_case_and_prefix_ids_do_not_enrich_or_activate`, line 98, asserted
+  `found['activities'] == {}`. The supported metadata API now intentionally carries active
+  relationship context without descriptions. The assertion remained outdated after dd7a869.
+- The corrected test asserts the complete expected imported A–E relationship dictionaries
+  and empty origins, and explicitly excludes unmatched case/prefix reference IDs. Zero
+  reference matches and absence of an enriched risk name remain mandatory. Assertions are
+  strengthened around exact matching; the production matcher is unchanged.
+
+The sole remaining failure was reproduced locally with Python 3.12 and
+`-W error::DeprecationWarning` before correction. After correction: 31 focused reference,
+report/snapshot and example-parser tests passed. The exact CI backend command, using
+`CI=true` and `BASE_SHA=67a2a86df3142be4ed31b966dae6e68fd919c042`, selected nine affected/
+repository modules and passed 93 tests, zero skipped/failed. This was NOT a full backend or
+browser regression. Workflow logs contain intentionally mocked failure messages from runner
+safety tests; final test outcomes, not those message substrings, determine success.
+
+Reference inventory is now canonical in docs/data/SOD_MATRIX.md. The versioned 14/14/six
+library, synthetic XLSX template, generator and separate synthetic matrix CSV are accounted
+for. P001/P002/P008/PR01 are present in bundled data and exact round-trip tests. The template
+remains synthetic, avoiding duplicate business data and preserving original source material
+outside Git. README/AGENTS links remain valid; duplicated current configuration guidance was
+already consolidated, and historical validation/privacy records are preserved.
+
+No production/frontend code or dependencies changed in this closeout batch. Prior targeted
+Playwright, TypeScript and production-build results for 67a2a86 remain applicable; they were
+not redundantly rerun. No full regression, native platform acceptance, release or manual
+workflow dispatch was performed. Historical #202–204 remain failed runs; a new automatic
+Fast Validation result must be observed before claiming CI green for the corrected commit.

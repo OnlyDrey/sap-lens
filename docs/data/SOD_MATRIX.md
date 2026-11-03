@@ -322,3 +322,25 @@ That supports the curated label **Vendor Master Maintenance** but does not estab
 all effective SAP permissions. Conflicting historical labels are retained as a caveat;
 no transaction mapping, activity slot, evaluation policy or active rule is rewritten.
 The original workbooks and matrix remain outside Git.
+
+### Reference-file inventory and maintenance
+
+| Repository item | Purpose and validation |
+|---|---|
+| [backend/resources/reference-defaults.json](../../backend/resources/reference-defaults.json) | Canonical business library 1.0.1: 14 risks, 14 activities, six terms. Contains P001, P002, P008 and PR01. Validated by the Library model; risk/activity records also round-trip through the real XLSX importer in tests. |
+| [backend/resources/sod-reference-template.xlsx](../../backend/resources/sod-reference-template.xlsx) | Schema example, not a populated copy of library 1.0.1. Contains synthetic R_EXAMPLE/ACT_EXAMPLE and one example term. Parsed by the real importer; its XML members are checked against the canonical generator. |
+| [scripts/reference-template.py](../../scripts/reference-template.py) | Generates that synthetic template from the importer's actual header mappings. It does not duplicate curated business definitions. |
+| [examples/sod-matrix.example.csv](../../examples/sod-matrix.example.csv) | Separate active-matrix example: two synthetic risks/four mapping rows. Validated by `parse_sod`, including links to example catalogue transactions. It intentionally does not substitute production-like P001/PR01 relationships into the synthetic scenario. |
+| [backend/tests/test_sod_reference.py](../../backend/tests/test_sod_reference.py) | Synthetic schema/negative fixtures; populated round-trip fixtures derive directly from the JSON library. No second maintained business library. |
+
+The original supplied reference workbooks stay outside Git and deployment packages.
+The tracked validation-tracker XLSX is a maintenance report, not an import/reference workbook.
+Do not populate templates with company data or silently update a user's private library.
+For a curated update, edit the canonical JSON, update its **library** version, and run the
+focused reference tests; preserve optional/missing values and the product version.
+
+The source-review sheet records historical PR01 labels including “Create Purchase Requisition”
+and “Initiate Vendor Payments”. These are unresolved historical descriptions, not aliases,
+new relationships or permission to rewrite the active vendor-master mappings. The workbook's
+normalized Vendor Master Maintenance guidance remains subordinate to imported metadata and
+explicit local overrides.
