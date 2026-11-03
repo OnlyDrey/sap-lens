@@ -535,3 +535,12 @@ Playwright, TypeScript and production-build results for 67a2a86 remain applicabl
 not redundantly rerun. No full regression, native platform acceptance, release or manual
 workflow dispatch was performed. Historical #202–204 remain failed runs; a new automatic
 Fast Validation result must be observed before claiming CI green for the corrected commit.
+
+### Modal navigation header simplification
+
+Risk and Activity detail headers now show only Previous, current position and Next.
+The bounded internal history remains; related pills still navigate across entity types.
+The existing unsaved-change guard protects cross-navigation and closing. Three focused
+browser checks passed: discard accept/cancel and cross-entity transitions, filtered-list
+boundaries/cross-page navigation, and the narrow layout. TypeScript/production build passed.
+No full regression; no version or backend changes.

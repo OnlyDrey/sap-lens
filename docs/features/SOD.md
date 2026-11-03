@@ -93,12 +93,12 @@ remain compatible; displaying or saving untouched inherited text creates no over
 
 Previous/Next follows the originating filtered, server-sorted list across table pages.
 Unavailable directions are disabled. Related pills navigate Risk ↔ Activity within the
-same detail workflow; Back restores the preceding entity and list context. History keeps
+same detail workflow. The header contains only Previous, position and Next; internal history keeps
 at most 20 locations, and closing details preserves the originating tab and search.
 A changed revision/source invalidates list navigation rather than mixing generations.
 Very large navigation scopes are bounded; refine the filters if the guard reports one.
 
-Navigation, Back, Cancel and window close protect unsaved edits. Cancel the discard prompt
+Navigation, Cancel and window close protect unsaved edits. Cancel the discard prompt
 to keep the draft; confirm it to navigate without saving. Save still checks the original
 catalogue revision and definition identity. A missing/removed entity shows a controlled error.
 

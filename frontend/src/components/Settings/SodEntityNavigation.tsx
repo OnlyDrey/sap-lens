@@ -1,7 +1,7 @@
 import type {ReactNode} from 'react'
 import {IdPill} from '@/components/Shared/IdPill'
 import {InfoTip} from '@/components/Shared/InfoTip'
-import {ArrowLeft,ArrowRight,CornerUpLeft} from 'lucide-react'
+import {ArrowLeft,ArrowRight} from 'lucide-react'
 import {Button} from '@/components/Shared/Button'
 import {Toolbar} from '@/components/Shared/Presentation'
 import {apiRequest} from '@/api/client'
@@ -31,7 +31,6 @@ export async function filteredEntityIds(scope:EntityScope):Promise<string[]> {
 
 export function EntityNavigation({navigation,request}:{navigation:EditorNavigation;request:(action:()=>void)=>void}) {
  return <><Toolbar aria-label="Entity navigation">
-  <Button size="compact" variant="ghost" disabled={!navigation.back} onClick={()=>navigation.back&&request(navigation.back)}><CornerUpLeft size={14} aria-hidden="true"/>Back</Button>
   <Button size="compact" disabled={!navigation.previous} onClick={()=>navigation.previous&&request(navigation.previous)}><ArrowLeft size={14} aria-hidden="true"/>Previous</Button>
   <span className="text-xs text-muted" role="status">{navigation.position}</span>
   <Button size="compact" disabled={!navigation.next} onClick={()=>navigation.next&&request(navigation.next)}>Next<ArrowRight size={14} aria-hidden="true"/></Button>
