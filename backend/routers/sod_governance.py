@@ -305,6 +305,7 @@ def subject(q: dict = Depends(scope_query), user: str = Query(..., max_length=51
         for row in rows_for_kind:
             key=row['key'] if kind=='activity' else row['id'] if kind=='assignment' else row['finding_id']
             row['review_coverage']=state['coverage'][kind][key]
+            row['decision_summary']=governance.decision_summary(entry,state,kind,key)
     return dict(info(bundle), user=user, groups=sorted(entry['groups']), account=entry.get('account'), risk=risk_info, activities=rows, related_risks=related, impact=impact, overview=overview)
 
 

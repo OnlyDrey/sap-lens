@@ -322,3 +322,28 @@ coverage) from formal acceptance. Stale decisions require review; formal-accepta
 are never attributed as derived access reviewers. Remediation expands only current-page
 assignment identities beside the role. Usernames remain copyable; detailed recommendations,
 reasons, controls and verification remain in that assignment's expanded rows.
+
+### Decision-first review statuses
+
+Review completion, an access decision, formal acceptance and verified remediation are
+independent. The primary badge shows the current authoritative decision:
+
+| Context | Primary labels |
+|---|---|
+| Role assignment | Keep → Approved; Remove → Remove; Investigate → Investigate; no decision → Not reviewed |
+| Activity | Explicit Approved/Conditional/Remove; otherwise Mixed decisions when current supporting role decisions conflict, Decision pending when only coverage is complete, or Not reviewed |
+| Risk acceptance | Accepted, Rejected, Acceptance pending, or Needs review for invalidated/expired evidence |
+
+Unanimous role Keep decisions do **not** create an activity approval: existing rules derive
+coverage only. An explicit activity decision takes precedence; the popover still shows the
+supporting assignment distribution. Stale decisions never appear as current approvals.
+The Risk Acceptance progress badge says **reviewed** because its count is coverage, not
+formal acceptance decisions. Formal acceptance retains its separate justification/approver gates.
+
+The same compact status popover shows identity, user/period, decision, completion, method,
+available reviewer/time and supporting evidence. Role popovers include assignment ID and
+validity, so equal role names or different periods cannot share a decision accidentally.
+Risk popovers keep acceptance details distinct from access coverage. Related pills are
+read-only inside the popover, avoiding nested popovers. Remove remains a recommendation,
+not a SAP change or verified remediation. CSV/PDF event values and immutable history are
+unchanged. Escape closes the popover first and restores its trigger, leaving the review open.

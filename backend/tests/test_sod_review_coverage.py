@@ -75,3 +75,61 @@ class CoverageTests(fixture.GovernanceCase):
         with patch.object(scope,'latest_for',return_value={}),patch.object(scope.governance,'states',return_value={}) as derive:
             scope.states_for(bundle,{})
             self.assertEqual(derive.call_args.kwargs['today'],date(2026,10,27))
+
+    def test_role_decision_labels_are_explicit_and_scoped_to_user_and_assignment(self):
+        import cache
+        cache._cache=fixture.snapshot(extra_users={'SYN_D':fixture.user('ROLE_A1','ROLE_B')})
+        for decision,label,tone in [('Keep','Approved','success'),('Remove','Remove','error'),('Investigate','Investigate','warning'),('Pending','Not reviewed','neutral')]:
+            self.decide('assignment',[self.assignment_item('SYN_A','ROLE_A1')],decision)
+            row=next(row for row in self.subject('SYN_A')['overview']['assignments'] if row['role']=='ROLE_A1')
+            self.assertEqual((row['decision_summary']['label'],row['decision_summary']['tone']),(label,tone))
+            self.assertEqual(row['decision_summary']['explicit'],decision!='Pending')
+            other=next(row for row in self.subject('SYN_D')['overview']['assignments'] if row['role']=='ROLE_A1')
+            self.assertEqual(other['decision_summary']['label'],'Not reviewed')
+
+    def test_mixed_roles_and_unanimous_roles_never_fabricate_an_activity_approval(self):
+        self.decide('assignment',[self.assignment_item('SYN_A','ROLE_A1')],'Keep')
+        self.decide('assignment',[self.assignment_item('SYN_A','ROLE_A2')],'Remove')
+        row=next(row for row in self.subject('SYN_A')['overview']['activities'] if row['activity']=='A')
+        self.assertEqual(row['decision_summary']['label'],'Mixed decisions')
+        self.assertEqual(row['decision_summary']['assignment_decisions'],{'Keep':1,'Removal required':1})
+        self.assertTrue(row['review_coverage']['reviewed'])
+        self.decide('assignment',[self.assignment_item('SYN_A','ROLE_A2')],'Keep')
+        row=next(row for row in self.subject('SYN_A')['overview']['activities'] if row['activity']=='A')
+        self.assertEqual(row['decision_summary']['label'],'Decision pending')
+        self.decide('activity',[self.activity_item('SYN_A','A')],'Approved')
+        row=next(row for row in self.subject('SYN_A')['overview']['activities'] if row['activity']=='A')
+        self.assertEqual(row['decision_summary']['label'],'Approved')
+        self.assertTrue(row['decision_summary']['explicit'])
+        self.assertTrue(all(row['decision_summary']['label']=='Acceptance pending' for row in self.subject('SYN_A')['overview']['risks']))
+
+    def test_stale_role_evidence_is_not_current_approval(self):
+        import cache
+        self.decide('assignment',[self.assignment_item('SYN_B','ROLE_AB')],'Keep')
+        cache._cache=fixture.snapshot(extra=True,tcodes={'ROLE_AB':['X5']})
+        row=self.subject('SYN_B')['overview']['assignments'][0]
+        self.assertEqual(row['decision_summary']['label'],'Needs review')
+        self.assertFalse(row['decision_summary']['explicit'])
+        self.assertTrue(row['decision_summary']['stale'])
+
+    def test_bulk_decisions_update_summaries_but_not_acceptance_or_other_periods(self):
+        from datetime import date
+        import sod_periods as periods
+        period=periods.create('Synthetic status period',date(2026,1,1),date(2026,12,31),date(2026,10,27),periods.read().revision)['period']['id']
+        for action,label in [('Keep','Approved'),('Remove','Remove')]:
+            selected=self.get('/api/sod/explorer/access_list/selection')
+            items=[{key:row[key] for key in ('key','user','ref','evidence_version')} for row in selected['items']]
+            self.post('/api/sod/decisions/assignment/bulk',dict(context='current',expected_revision=selected['revision'],expected_generation=selected['generation'],items=items,action=action,atomic=True,replace_existing=action=='Remove',reviewer='Synthetic Reviewer',justification='Synthetic bulk status test'))
+            view=self.subject('SYN_A')['overview']
+            self.assertTrue(all(row['decision_summary']['label']==label for row in view['assignments']))
+            self.assertTrue(all(row['acceptance']=='Pending' for row in view['risks']))
+        self.assertTrue(all(row['decision_summary']['label']=='Not reviewed' for row in self.subject('SYN_A',context=period)['overview']['assignments']))
+
+    def test_formal_acceptance_label_is_independent_of_assignment_decisions(self):
+        for value,tone in [('Rejected','error'),('Accepted','success')]:
+            self.decide('acceptance',[self.acceptance_item('SYN_A','R1')],value,approver='Other Reviewer')
+            overview=self.subject('SYN_A')['overview']
+            risk=next(row for row in overview['risks'] if row['risk_id']=='R1')
+            self.assertEqual((risk['decision_summary']['label'],risk['decision_summary']['tone']),(value,tone))
+            self.assertTrue(all(row['decision_summary']['label']=='Not reviewed' for row in overview['assignments']))
+            self.assertTrue(all(not row['decision_summary']['explicit'] for row in overview['activities']))

@@ -358,3 +358,10 @@ CSV use it without mutating `local.display_name`. Activity rows distinguish `cur
 from retained `risks`, and carry `source_version` for consistent list navigation. Metadata
 includes factual `activities` and `risk_ids` relationships even when descriptions are absent;
 these UI context fields are excluded from description-only report snapshots.
+
+Subject overview rows additionally expose `decision_summary` (label, semantic tone,
+explicit/stale flags, basis and activity assignment-decision distribution). This is a pure
+presentation projection of the context-specific lifecycle and coverage, never a stored
+decision enum. Activity approval requires a current explicit activity decision; completion
+through roles is not approval. Existing decision events, review coverage and exports remain
+unchanged. Formal acceptance is projected independently from access review completion.

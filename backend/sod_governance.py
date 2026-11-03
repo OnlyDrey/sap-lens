@@ -228,6 +228,31 @@ def review_coverage(model, state):
     return covered
 
 
+def decision_summary(entry, state, kind, key):
+    """Presentation only: current explicit decisions outrank coverage; coverage never grants approval."""
+    life,event=state[kind][key]
+    coverage=state['coverage'][kind][key]
+    distribution=defaultdict(int)
+    if kind=='activity':
+        activity=next(item for item in entry['activities'].values() if item['key']==key)
+        for aid in activity['assignments']:distribution[state['assignment'][aid][0]]+=1
+    labels={'Keep':('Approved','success'),'Approved':('Approved','success'),'Removal required':('Remove','error'),
+            'Investigate':('Investigate','warning'),'Conditional':('Conditional','info'),
+            'Accepted':('Accepted','success'),'Rejected':('Rejected','error')}
+    stale=life in {'Outdated','Historical'}
+    explicit=event is not None and not stale and life in labels
+    if stale:label,tone=('Needs review','warning') if life=='Outdated' else ('Historical','neutral')
+    elif explicit:label,tone=labels[life]
+    elif kind=='acceptance':label,tone='Acceptance pending','warning'
+    elif len({value for value in distribution if value in {'Keep','Removal required','Investigate'}})>1:
+        label,tone='Mixed decisions','warning'
+    elif coverage['reviewed']:label,tone='Decision pending','warning'
+    else:label,tone='Not reviewed','neutral'
+    return dict(label=label,tone=tone,explicit=explicit,stale=stale,
+                basis='Explicit decision' if explicit else 'Previous decision; evidence needs review' if stale else
+                      coverage['provenance'] or 'No current decision',assignment_decisions=dict(sorted(distribution.items())))
+
+
 def _bucket(values):
     counts = defaultdict(int)
     for value in values:

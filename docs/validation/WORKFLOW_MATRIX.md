@@ -544,3 +544,26 @@ The existing unsaved-change guard protects cross-navigation and closing. Three f
 browser checks passed: discard accept/cancel and cross-entity transitions, filtered-list
 boundaries/cross-page navigation, and the narrow layout. TypeScript/production build passed.
 No full regression; no version or backend changes.
+
+### Decision-first review status and popovers
+
+Audited persisted enums: assignment Pending/Keep/Remove/Investigate, activity Pending/
+Approved/Conditional/Remove, acceptance Pending/Accepted/Rejected. Lifecycle handles stale,
+expired and historical evidence. Coverage is separate and cannot grant approval. Pure
+subject-row summaries now expose the authoritative current decision; activities with mixed
+supporting role decisions show Mixed decisions unless explicitly decided. Unanimous role
+retention derives completion only. Risk primary badges show formal acceptance, while the
+coverage progress count is labelled reviewed. No stored enum, approval gate or export changed.
+
+Shared popovers retain user, period, assignment identity/validity, reviewer/time, evidence,
+role-decision distribution and risk acceptance metadata without nested popovers. Bulk and
+single actions refresh the same authoritative subject. Shared lifecycle labels show Keep as
+Approved and Investigate in amber. A confirmed Escape bug closed the surrounding review panel
+as well as its popover; the shared ownership guard now handles either document-listener order.
+
+Targeted evidence: 52 coverage/bulk tests, 53 governance tests and an additional formal-
+acceptance summary test passed. TypeScript/build and changed-component lint passed. Initial
+browser checks passed bulk/progress workflows but exposed the shared Escape bug. All nine
+affected keyboard/status rechecks passed, including eight light/dark 375/800/1280/1600
+popover previews and explicit Keep/Remove/Investigate, mixed activity decisions and independent
+risk acceptance. Two shared-library/Saved Filters Escape checks passed. No full regression.

@@ -311,3 +311,9 @@ history (20 locations), preserving the originating tab/list context. Editors gua
 changes and original revisions. The optional `SodEntityNavigation` context in
 `lib/sodAppearance` routes related pills through that workflow; outside it, pills retain
 the existing read-only popover behavior. No separate persistence or business model is added.
+
+`Sod/SodDecisionStatus` is the single decision-first badge/popover for role assignments,
+activities and risk acceptance. It consumes authoritative subject-row summaries, reuses
+Popover/StatusBadge/RoleIdentifier and noninteractive SoD pills, and omits unavailable
+metadata. `openListOwnsEscape` protects parent dialogs/panels when a portalled popover owns
+Escape or has already consumed the event; parent behavior no longer depends on listener order.

@@ -1,4 +1,4 @@
-import { Popover } from '@/components/Shared/Popover'
+import {SodDecisionStatus} from './SodDecisionStatus'
 import {ContentTabList} from '@/components/Shared/Navigation'
 import {apiRequest} from '@/api/client'
 import { sentenceCase } from '@/lib/labels'
@@ -131,7 +131,7 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
   const focus = (name: string, kind: 'activity' | 'risk') => (kind === 'activity' ? activity === name : risk === name)
   return (
     <SidePanel title={`${user}${risk ? ` · ${risk}` : activity ? ` · ${activity}` : ''}`} subtitle={data ? <>Potential conflict evidence, not effective authorization · evaluation {formatDate(data.as_of)}</> : undefined} onClose={onClose}
-      footer={data ? <><span className="text-xs" role="status">{done} of {total} reviews decided</span></> : undefined}>
+      footer={data ? <><span className="text-xs" role="status">{done} of {total} reviews completed</span></> : undefined}>
       {query.isError ? <ErrorState error={query.error} onRetry={() => void query.refetch()} /> : !data || !overview ? <LoadingState /> : <>
         <section className="sod-section" aria-label="Subject summary">
           <Toolbar>
@@ -158,7 +158,7 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
           {ok && <FormField label="Rationale (optional)"><Input value={quickRationale} maxLength={400} placeholder={QUICK_RATIONALE} onChange={(event) => setQuickRationale(event.target.value)} /></FormField>}
           {quickError && <p role="alert" className="text-[var(--error)]">{quickError}</p>}
           {assignments.map((row) => (
-            <AssignmentReviewRow key={row.id} row={row} description={describe(row.catalogue_roles)} ok={ok} checked={picked.assignment.includes(row.id)} onCheck={() => pick('assignment', row.id)} pendingAction={quickBusy.get(row.id)}
+            <AssignmentReviewRow key={row.id} user={user} context={context} row={row} description={describe(row.catalogue_roles)} ok={ok} checked={picked.assignment.includes(row.id)} onCheck={() => pick('assignment', row.id)} pendingAction={quickBusy.get(row.id)}
               onDecide={(decision) => quickDecide(row, decision)} onOpenRole={() => change({ detailRole: row.catalogue_roles[0] || row.role })}
               onTrack={row.decision === 'Removal required' ? () => setAction({ assignment: { id: row.id, role: row.role, valid_from: row.valid_from, valid_to: row.valid_to, user_group: row.user_group, interval_status: row.interval_status, tcodes: [], other_activities: row.activities, risks: row.risks, catalogue_roles: row.catalogue_roles, evidence_version: row.evidence_version, decision: row.decision, event: row.event } }) : undefined}
               history={<DecisionHistory kind="assignment" context={context} keyId={row.id} label="Assignment review history" />} transactions={tcodesOf.get(row.id) || []} />
@@ -170,7 +170,7 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
           onBatch={() => batch('activity', `Batch activity review (${picked.activity.length})`, activities.filter((row) => picked.activity.includes(row.key)).map((row) => item(row.key, row.activity, row.evidence_version)))}>
           {activities.map((row) => (
             <ReviewRow key={row.key} focused={focus(row.activity, 'activity')} label={row.activity} checked={picked.activity.includes(row.key)} onCheck={ok ? () => pick('activity', row.key) : undefined}
-              compact title={<SodPill kind="activity" value={row.activity} />} summary={<><span className="id-pill-list" aria-label={`Risks supplied by ${row.activity}`}>{row.risks.map(risk => <SodPill key={risk} kind="risk" value={risk} />)}</span><StatusBadge tone={row.duplicate_coverage ? 'info' : 'neutral'}><span title={row.duplicate_coverage ? 'Several role assignments supply this activity' : 'Role assignments supplying this activity'}>{row.roles} role assignment{row.roles === 1 ? '' : 's'}{row.duplicate_coverage ? ' · overlapping' : ''}</span></StatusBadge></>} status={row.decision} event={row.event} coverage={row.review_coverage}
+              compact title={<SodPill kind="activity" value={row.activity} />} summary={<><span className="id-pill-list" aria-label={`Risks supplied by ${row.activity}`}>{row.risks.map(risk => <SodPill key={risk} kind="risk" value={risk} />)}</span><StatusBadge tone={row.duplicate_coverage ? 'info' : 'neutral'}><span title={row.duplicate_coverage ? 'Several role assignments supply this activity' : 'Role assignments supplying this activity'}>{row.roles} role assignment{row.roles === 1 ? '' : 's'}{row.duplicate_coverage ? ' · overlapping' : ''}</span></StatusBadge></>} event={row.event} decisionDetails={<SodDecisionStatus kind="activity" label={row.activity} status={row.decision} summary={row.decision_summary} event={row.event} coverage={row.review_coverage} user={user} context={context} activities={[row.activity]} risks={row.risks} roles={allAssignments.filter(assignment=>assignment.activities.includes(row.activity))}/>}
               actions={ok && <IconButton label={`Review activity ${row.activity}`} tooltip="Record an activity review" variant={row.decision === 'Pending' ? 'primary' : 'secondary'} onClick={() => setForm({ kind: 'activity', heading: `Activity review · ${row.activity}`, items: [item(row.key, row.activity, row.evidence_version)] })}><ClipboardCheck size={16} aria-hidden="true" /></IconButton>}
               history={<DecisionHistory kind="activity" context={context} keyId={row.key} label="Activity review history" />} />
           ))}
@@ -182,7 +182,7 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
           onBatch={() => batch('acceptance', `Batch risk acceptance (${picked.acceptance.length})`, risks.filter((row) => picked.acceptance.includes(row.finding_id)).map((row) => item(row.finding_id, row.risk_id, row.evidence_version)))}>
           {risks.map((row) => (
             <ReviewRow key={row.finding_id} focused={focus(row.risk_id, 'risk')} label={row.risk_id} checked={picked.acceptance.includes(row.finding_id)} onCheck={ok ? () => pick('acceptance', row.finding_id) : undefined}
-              title={<SodPill kind="risk" value={row.risk_id} />} meta={<>{row.display_name || row.source_text || 'No description in the SoD matrix'}</>} formal status={row.acceptance} event={row.event} coverage={row.review_coverage}
+              title={<SodPill kind="risk" value={row.risk_id} />} meta={<>{row.display_name || row.source_text || 'No description in the SoD matrix'}</>} event={row.event} decisionDetails={<SodDecisionStatus kind="acceptance" label={row.risk_id} status={row.acceptance} summary={row.decision_summary} event={row.event} coverage={row.review_coverage} user={user} context={context} name={row.display_name} activities={allActivities.filter(activity=>activity.risks.includes(row.risk_id)).map(activity=>activity.activity)} roles={allAssignments.filter(assignment=>assignment.risks.includes(row.risk_id))}/>}
               actions={ok && <Button onClick={() => setForm({ kind: 'acceptance', heading: `Risk acceptance · ${row.risk_id}`, items: [item(row.finding_id, row.risk_id, row.evidence_version)] })} aria-label={`Decide risk acceptance ${row.risk_id}`}><ClipboardCheck size={16} aria-hidden="true" />Decide</Button>}
               history={<DecisionHistory kind="acceptance" context={context} keyId={row.finding_id} label="Risk acceptance history" />} />
           ))}
@@ -229,7 +229,7 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
 function ReviewSection({ title, kind, done, total, ok, picked, keys, onPickAll, note, onBatch, children }: { title: string; kind: Kind; done: number; total: number; ok: boolean; picked: string[]; keys: string[]; onPickAll: (keys: string[]) => void; note?: string; onBatch: () => void; children: ReactNode }) {
   return (
     <section className="sod-section sod-review-section" aria-label={title} data-kind={kind}>
-      <Toolbar><h3>{title}</h3><StatusBadge tone={total > 0 && done === total ? 'success' : 'neutral'}>{done}/{total} decided</StatusBadge>
+      <Toolbar><h3>{title}</h3><StatusBadge tone={total > 0 && done === total ? 'success' : 'neutral'}>{done}/{total} reviewed</StatusBadge>
         {ok && keys.length > 1 && <Checkbox checked={picked.length === keys.length} onChange={(event) => onPickAll(event.target.checked ? keys : [])} aria-label={`Select all visible in ${title}`}>Select all visible</Checkbox>}
         {ok && picked.length > 0 && <Button variant="primary" onClick={onBatch}>Review selected ({picked.length})</Button>}</Toolbar>
       {note && <p className="ui-description">{note}</p>}
@@ -239,16 +239,16 @@ function ReviewSection({ title, kind, done, total, ok, picked, keys, onPickAll, 
 }
 
 /** Collapsed: checkbox, copyable role, review status, icon decisions and an expand control. Expanded: transactions and activities, SAP User Group, validity, history and further actions. */
-function AssignmentReviewRow({ row, description, ok, checked, onCheck, pendingAction, onDecide, onOpenRole, onTrack, history, transactions }: { row: OverviewAssignment; description?: string; ok: boolean; checked: boolean; onCheck: () => void; pendingAction?: string; onDecide: (decision: 'Keep' | 'Remove' | 'Investigate') => void; onOpenRole: () => void; onTrack?: () => void; history: ReactNode; transactions: string[] }) {
+function AssignmentReviewRow({ user,context,row, description, ok, checked, onCheck, pendingAction, onDecide, onOpenRole, onTrack, history, transactions }: { user:string;context:string;row: OverviewAssignment; description?: string; ok: boolean; checked: boolean; onCheck: () => void; pendingAction?: string; onDecide: (decision: 'Keep' | 'Remove' | 'Investigate') => void; onOpenRole: () => void; onTrack?: () => void; history: ReactNode; transactions: string[] }) {
   const busy=!!pendingAction
   const [open, setOpen] = useState(false), kept = row.decision === 'Keep', removed = row.decision === 'Removal required', investigating = row.decision === 'Investigate'
   const detailId = useId()
   return (
-    <li className="sod-review-row sod-assignment-row" data-expanded={open || undefined}>
+    <li data-assignment-id={row.id} className="sod-review-row sod-assignment-row" data-expanded={open || undefined}>
       <div className="sod-assignment-compact">
         {ok && <Checkbox checked={checked} onChange={onCheck} aria-label={`Select ${row.role}`}><span className="sr-only">Select</span></Checkbox>}
         <div className="sod-assignment-role"><RoleIdentifier value={row.role} onOpen={onOpenRole} openLabel={`Open catalogue role ${row.catalogue_roles[0] || row.role}`} />{description && <p className="sod-assignment-description" title={description}>{description}</p>}</div>
-        <ReviewState label={row.role} status={row.decision} event={row.event} coverage={row.review_coverage}/>
+        <SodDecisionStatus kind="assignment" label={row.role} status={row.decision} summary={row.decision_summary} event={row.event} coverage={row.review_coverage} user={user} context={context} assignmentId={row.id} validFrom={row.valid_from} validTo={row.valid_to} activities={row.activities} risks={row.risks} name={description}/>
         {ok && <span className="sod-decision-icons" role="group" aria-label={`Decision for ${row.role}`}>
           <IconButton label={`Keep ${row.role}`} tooltip="Keep this role assignment" variant={kept ? 'primary' : 'secondary'} aria-pressed={kept} loading={pendingAction==='Keep'} disabled={busy} onClick={() => onDecide('Keep')}><Check size={16} aria-hidden="true" /></IconButton>
           <IconButton label={`Investigate ${row.role}`} tooltip="Mark for further investigation (not a final decision)" variant={investigating ? 'primary' : 'secondary'} aria-pressed={investigating} loading={pendingAction==='Investigate'} disabled={busy} onClick={() => onDecide('Investigate')}><Search size={16} aria-hidden="true" /></IconButton>
@@ -272,21 +272,9 @@ function AssignmentReviewRow({ row, description, ok, checked, onCheck, pendingAc
   )
 }
 
-/** One access-review presentation across Roles, Activities and Risks; acceptance stays independent. */
-function ReviewState({label,status,event,coverage,formal=false}:{label:string;status:string;event:DecisionEvent|null;coverage?:ReviewCoverage;formal?:boolean}) {
- return <><Popover label={`Review method for ${label}`} triggerLabel={`Review method for ${label}`} triggerSize="compact" triggerVariant="ghost" trigger={<StatusBadge tone={(coverage?.reviewed??(!formal&&DECIDED.has(status)))?'success':'warning'}>{(coverage?.reviewed??(!formal&&DECIDED.has(status)))?'Reviewed':status==='Outdated'?'Needs review':'Pending'}</StatusBadge>}>
-          <p>Access review: {(coverage?.reviewed??(!formal&&DECIDED.has(status)))?'Reviewed':'Needs review'}</p>
-          {coverage?.label&&<p>{coverage.label}</p>}
-          <p>Method: {coverage?.provenance||'Direct decision'}</p>
-          {!formal&&event&&<p>{event.decision} by {event.reviewer}, {formatTimestamp(event.timestamp)}</p>}
-          {status==='Outdated'&&<p>The recorded decision requires review against the current evidence.</p>}
-          {formal&&<p>Formal risk acceptance is independent of access review completion.</p>}
-        </Popover>{formal&&<span className="inline-flex items-center gap-1 text-xs">Formal acceptance <LifecycleBadge value={status}/></span>}</>
-}
-
 /** Compact rows keep identity, status, coverage and the decision action on one line; the latest decision text and the history sit behind an expand control. */
-function ReviewRow({ label, title, meta, summary, compact, status, event, coverage, actions, history, checked, onCheck, focused, formal=false }: {
-  label: string; title: ReactNode; meta?: ReactNode; summary?: ReactNode; compact?: boolean; coverage?: ReviewCoverage; status: string; event: DecisionEvent | null; actions?: ReactNode; history: ReactNode; checked: boolean; onCheck?: () => void; focused?: boolean; formal?:boolean
+function ReviewRow({ label, title, meta, summary, compact, event, decisionDetails, actions, history, checked, onCheck, focused }: {
+  label: string; title: ReactNode; meta?: ReactNode; summary?: ReactNode; compact?: boolean; decisionDetails:ReactNode; event: DecisionEvent | null; actions?: ReactNode; history: ReactNode; checked: boolean; onCheck?: () => void; focused?: boolean
 }) {
   const [open, setOpen] = useState(false), detailId = useId()
   return (
@@ -295,7 +283,7 @@ function ReviewRow({ label, title, meta, summary, compact, status, event, covera
       <div className="sod-review-compact">
         {onCheck && <Checkbox checked={checked} onChange={onCheck} aria-label={`Select ${label}`}><span className="sr-only">Select</span></Checkbox>}
         <span className="min-w-0">{title}</span>
-        <ReviewState label={label} status={status} event={event} coverage={coverage} formal={formal}/>
+        {decisionDetails}
         <span className="sod-review-summary">{summary}</span>
         <div className="sod-review-actions sod-review-compact-actions">
           {actions}
