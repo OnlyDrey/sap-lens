@@ -27,13 +27,14 @@ MAX_ACTIONS = 20000
 MAX_REPORTS = 5000
 MAX_BATCH = 100
 DECISIONS = {
-    'activity': ('Pending', 'Approved', 'Conditional', 'Remove'),
+    'activity': ('Pending', 'Approved', 'Conditional', 'Remove','Investigate'),
     'assignment': ('Pending', 'Keep', 'Remove', 'Investigate'),
     'acceptance': ('Pending', 'Accepted', 'Rejected'),
+    'risk': ('Pending','Approved','Remove','Investigate'),
 }
 RECOMMENDED = ('Remove assignment', 'Investigate assignment', 'Maintain access', 'Apply compensating control', 'No action required')
 ACTION_STATUS = ('Open', 'In progress', 'Completed', 'Cancelled')
-Kind = Literal['activity', 'assignment', 'acceptance']
+Kind = Literal['activity', 'assignment', 'acceptance', 'risk']
 HEX64 = r'^[a-f0-9]{64}$'
 
 

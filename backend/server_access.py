@@ -147,5 +147,5 @@ def may_access(role, method, path):
         or bool(re.fullmatch(r'/api/sod/reviews/[^/]+', path))
         or bool(re.fullmatch(r'/api/sod/periods/[^/]+/reviews/[^/]+', path))
         or path in {'/api/sod/decisions/activity', '/api/sod/decisions/assignment',
-                    '/api/sod/decisions/assignment/bulk', '/api/sod/decisions/acceptance',
+                    '/api/sod/decisions/assignment/bulk', '/api/sod/decisions/acceptance', '/api/sod/decisions/risk',
                     '/api/sod/remediation/actions'})

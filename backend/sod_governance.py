@@ -173,7 +173,7 @@ def restrict(model, visible, allowed=None):
 
 def states(model, latest, today=None):
     """Decision lifecycle per review item, keyed by subject key. ``latest`` is decisions.latest(context)."""
-    result = dict(activity={}, assignment={}, acceptance={})
+    result = dict(activity={}, assignment={}, acceptance={},risk={})
     for entry in model.values():
         for activity in entry['activities'].values():
             event = latest['activity'].get(activity['key'])
@@ -182,6 +182,8 @@ def states(model, latest, today=None):
             event = latest['assignment'].get(assignment['id'])
             result['assignment'][assignment['id']] = (lifecycle('assignment', event, assignment['evidence_version'], today), event)
         for finding in entry['findings'].values():
+            risk_event=latest.get('risk',{}).get(finding['finding_id'])
+            result['risk'][finding['finding_id']]=(lifecycle('risk',risk_event,finding['evidence_version'],today),risk_event)
             event = latest['acceptance'].get(finding['finding_id'])
             result['acceptance'][finding['finding_id']] = (lifecycle('acceptance', event, finding['evidence_version'], today), event)
     result['coverage'] = review_coverage(model, result)
@@ -212,8 +214,9 @@ def review_coverage(model, state):
         explicit_risks = set()
         for rid, finding in entry['findings'].items():
             life = state['acceptance'][finding['finding_id']][0]
-            manual = life in {'Accepted','Rejected'}
-            if manual: explicit_risks.add(rid)
+            formal = life in {'Accepted','Rejected'}
+            manual = formal or state.get('risk',{}).get(finding['finding_id'],('Pending',None))[0] in {'Approved','Removal required'}
+            if formal: explicit_risks.add(rid)
             names = {path['activity'] for paths in finding['evidence'].values() for path in paths}
             derived = bool(names) and all(base[name]['reviewed'] for name in names)
             reviewed = manual or derived
@@ -228,29 +231,46 @@ def review_coverage(model, state):
     return covered
 
 
-def decision_summary(entry, state, kind, key):
-    """Presentation only: current explicit decisions outrank coverage; coverage never grants approval."""
+def effective_decision(entry,state,kind,key):
+    """Current explicit decisions win; role-derived activity approval never writes events.
+
+    Legacy Conditional remains an explicit review, presented as Investigate among the
+    four primary decisions. Stale approval grants nothing; retained Remove remains
+    visible but does not derive a current activity decision until evidence is current.
+    """
     life,event=state[kind][key]
-    coverage=state['coverage'][kind][key]
+    coverage=state['coverage']['acceptance' if kind=='risk' else kind][key]
     distribution=defaultdict(int)
+    derived='Pending'
     if kind=='activity':
         activity=next(item for item in entry['activities'].values() if item['key']==key)
         for aid in activity['assignments']:distribution[state['assignment'][aid][0]]+=1
-    labels={'Keep':('Approved','success'),'Approved':('Approved','success'),'Removal required':('Remove','error'),
-            'Investigate':('Investigate','warning'),'Conditional':('Conditional','info'),
-            'Accepted':('Accepted','success'),'Rejected':('Rejected','error')}
+        if distribution.get('Keep'): derived='Approved'
+        elif distribution and set(distribution)=={'Removal required'}: derived='Remove'
+        elif distribution.get('Investigate'): derived='Investigate'
+    names={'Keep':'Approved','Approved':'Approved','Removal required':'Remove','Remove':'Remove','Investigate':'Investigate','Conditional':'Investigate'}
+    explicit=event is not None and life in names
     stale=life in {'Outdated','Historical'}
-    explicit=event is not None and not stale and life in labels
-    if stale:label,tone=('Needs review','warning') if life=='Outdated' else ('Historical','neutral')
-    elif explicit:label,tone=labels[life]
-    elif kind=='acceptance':label,tone='Acceptance pending','warning'
-    elif len({value for value in distribution if value in {'Keep','Removal required','Investigate'}})>1:
-        label,tone='Mixed decisions','warning'
-    elif coverage['reviewed']:label,tone='Decision pending','warning'
-    else:label,tone='Not reviewed','neutral'
+    explicit_label=names.get(life,'Pending')
+    label=explicit_label if explicit else derived
+    if stale and event and event.decision=='Remove':label='Remove'
+    tones={'Approved':'success','Remove':'error','Investigate':'warning','Pending':'neutral'}
+    return dict(label=label,tone=tones[label],explicit=explicit,stale=stale,
+        basis='Explicit decision' if explicit else 'Previous decision; evidence needs review' if stale else
+              'Derived from current assignment decisions' if kind=='activity' and derived!='Pending' else coverage['provenance'] or 'No current decision',
+        assignment_decisions=dict(sorted(distribution.items())),derived_label=derived,explicit_label=explicit_label,
+        disagreement=kind=='activity' and explicit and derived!='Pending' and explicit_label!=derived)
+
+
+def decision_summary(entry,state,kind,key):
+    """Separate formal acceptance presentation from the four primary access decisions."""
+    if kind!='acceptance':return effective_decision(entry,state,kind,key)
+    life,event=state[kind][key]
+    stale=life in {'Outdated','Historical'}
+    explicit=event is not None and not stale and life in {'Accepted','Rejected'}
+    label,tone=(('Needs review','warning') if life=='Outdated' else ('Historical','neutral')) if stale else (life,'success' if life=='Accepted' else 'error') if explicit else ('Acceptance pending','warning')
     return dict(label=label,tone=tone,explicit=explicit,stale=stale,
-                basis='Explicit decision' if explicit else 'Previous decision; evidence needs review' if stale else
-                      coverage['provenance'] or 'No current decision',assignment_decisions=dict(sorted(distribution.items())))
+                basis='Explicit decision' if explicit else 'Previous decision; evidence needs review' if stale else state['coverage'][kind][key]['provenance'] or 'No current decision',assignment_decisions={})
 
 
 def _bucket(values):

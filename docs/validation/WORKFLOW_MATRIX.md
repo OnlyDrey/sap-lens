@@ -648,3 +648,24 @@ failure recovery, safe upload cancellation, restore preview/confirmation and sch
 Representative light desktop/dark mobile screenshots were inspected; no page overflow.
 TypeScript/production build, focused lint, Ruff, docs and test-map checks passed. Full
 regression, native Windows lifecycle and real service restart acceptance remain unexecuted.
+
+### Revised SoD decision model — backend
+
+The approved model supersedes the earlier coverage-only activity presentation. A current
+Keep supplier derives activity Approved even alongside Remove/Investigate; all Remove
+derives Remove; otherwise Investigate wins over Pending. Current explicit activity review
+wins and exposes disagreement. Legacy Conditional events remain intact (primary Investigate).
+Stale approvals grant nothing; no-supplier access does not derive removal. Normal risk
+review is a separate kind in the existing append-only store and uses the same evidence,
+revision, permission and period guards; it does not alter role events or formal acceptance.
+Normal risk decisions are exposed separately in subject data for the next UI migration.
+
+Targeted evidence: initial four-module run executed 125 tests, with 115 passing and ten
+failures (obsolete primary-label expectations and a three-kind queue-count assumption).
+Updated expectations follow the newly approved rules; queue totals still count each review
+category once. Sixteen coverage/semantic tests and the three affected queue cases passed
+after correction; fifteen frozen-period/report-metadata checks passed. An additional explicit
+activity Investigate/no-suppliers/permission check passed. Normal risk period isolation,
+append-only history, independent formal acceptance and frozen persistence are covered.
+Ruff/docs/whitespace checks passed. No full regression or frontend rebuild was needed for
+this backend-only stage; shared badge/action/UI migration is the next stage, not claimed here.

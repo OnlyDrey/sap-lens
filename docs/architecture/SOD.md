@@ -11,7 +11,7 @@ Technical reference for the Segregation of Duties module. User workflow:
 | Evidence | `sod_import`, `sod_analysis` | Matrix import; deterministic two-sided potential conflicts (`sod-two-sided-v1`) with full evidence paths. Never reads review data. |
 | Derivation | `sod_governance` | Pure functions over user findings: assignments, activities, matrices, explorer rows, what-if, remediation rows. No I/O. |
 | Context | `sod_scope` | Resolves one review context to evidence: `current` (live) or a period id (that period's snapshot). Shared filters, decision state, conservative "resolved" and verification checks. |
-| Decisions | `sod_decisions` | Private append-only events for activity, assignment and risk-acceptance decisions, remediation actions and the report log. |
+| Decisions | `sod_decisions` | Private append-only events for activity, assignment, normal risk-review and independent formal-acceptance decisions, remediation actions and the report log. |
 | Periods and reports | `sod_periods`, `sod_reports` | Frozen snapshots, workflow, deletion, formal and remediation report models and renderers. |
 | Legacy | `sod_reviews` | Risk-level decisions recorded before SoD 2.0. Retained, read-only in the UI, never reinterpreted. |
 
@@ -119,7 +119,7 @@ acceptance remains a separate explicit decision. Removal plans use the existing
 what-if calculation, including overlapping providers. A plan never changes the
 imported conflict or establishes verified remediation. Outdated evidence cannot
 provide coverage. Period approval gates continue requiring explicit current
-risk decisions; access-review completion alone does not approve residual risk.
+activity reviews and formal acceptance; access-review completion alone does not approve residual risk.
 
 ### Atomic queue assignment batches
 
@@ -201,3 +201,29 @@ The profiler records import timing, payload size, cold derived-cache latency and
 client-thread cProfile summary (not backend-thread CPU attribution). JSON history remains
 bounded and reparsed once per request; larger real histories may still need investigation.
 Run the isolated utility as described in [Testing](../development/TESTING.md#synthetic-sod-performance-profile).
+
+## Effective access decisions (approved model revision)
+
+`sod_governance.effective_decision` is the canonical pure four-status projection:
+Approved (green), Remove (red), Investigate (amber), Pending (neutral). It never writes
+synthetic events. Explicit current activity decisions take precedence over role-derived
+results; disagreements and both results remain available in metadata. Legacy Conditional
+activity events remain unchanged and map to Investigate for the primary four-status view.
+
+For an activity without an explicit current decision, any current supplying Keep derives
+Approved; otherwise all current suppliers Remove derives Remove; otherwise any Investigate
+derives Investigate; otherwise Pending. No suppliers does not imply Remove. The full role
+distribution is retained. Stale approvals derive nothing; retained Remove can remain visible
+with stale-evidence guidance without counting as current review coverage.
+
+Normal risk reviews use a separate `risk` kind in the existing append-only decision store,
+with Approved/Remove/Investigate/Pending and the same finding identity, evidence guards,
+review period, reviewer and justification. Old stores/snapshots remain readable without
+rewriting them. Formal `acceptance` events and approval gates remain independent. A normal
+risk decision does not alter role decisions, conflict detection or formal acceptance.
+Normal Approved/Remove can contribute risk-review coverage, but never formal acceptance or
+activity coverage. Source-derived indexes remain shared; all decision projections use the
+request-local validated decision snapshot, so the next request sees committed changes.
+The subject API exposes `risk_review_summary`, `risk_review` and `risk_review_event` beside
+the existing formal fields; the UI migration uses those separate fields. Historical report
+snapshots are not rewritten.

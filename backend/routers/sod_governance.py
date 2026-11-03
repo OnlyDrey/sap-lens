@@ -306,6 +306,10 @@ def subject(q: dict = Depends(scope_query), user: str = Query(..., max_length=51
             key=row['key'] if kind=='activity' else row['id'] if kind=='assignment' else row['finding_id']
             row['review_coverage']=state['coverage'][kind][key]
             row['decision_summary']=governance.decision_summary(entry,state,kind,key)
+            if kind=='acceptance':
+                row['risk_review_summary']=governance.effective_decision(entry,state,'risk',key)
+                row['risk_review'],risk_event=state['risk'][key]
+                row['risk_review_event']=risk_event.model_dump(mode='json') if risk_event else None
     return dict(info(bundle), user=user, groups=sorted(entry['groups']), account=entry.get('account'), risk=risk_info, activities=rows, related_risks=related, impact=impact, overview=overview)
 
 
@@ -349,7 +353,8 @@ def _queue(q, kind, status):
     if q['context'] == 'current' and bundle['reviewable'] and not any(q.get(name) for name in ('search', 'risk', 'risks', 'username', 'usernames', 'role', 'roles', 'role_suffix', 'role_suffixes', 'tcode', 'tcodes', 'activity', 'activities', 'group', 'groups', 'criticality', 'criticalities', 'category', 'categories', 'assignment_decision', 'review_status')):
         known = dict(activity={item['key'] for entry in model.values() for item in entry['activities'].values()},
                      assignment={aid for entry in model.values() for aid in entry['assignments']},
-                     acceptance={finding['finding_id'] for entry in model.values() for finding in entry['findings'].values()})
+                     acceptance={finding['finding_id'] for entry in model.values() for finding in entry['findings'].values()},
+                     risk={finding['finding_id'] for entry in model.values() for finding in entry['findings'].values()})
         for kind_name, events in scope.latest_for(bundle).items():
             for key, event in events.items():
                 if key not in known[kind_name]:
@@ -361,7 +366,7 @@ def _queue(q, kind, status):
     counts = {name: sum(_status_match(item, name, awaiting) for item in items) for name in STATUS_FILTERS}
     if status:
         items = [item for item in items if _status_match(item, status, awaiting)]
-    order = {'activity': 0, 'assignment': 1, 'acceptance': 2}
+    order = {'activity': 0, 'assignment': 1, 'acceptance': 2,'risk':3}
     items.sort(key=lambda item: (item['user'].casefold(), order[item['kind']], item['ref'].casefold()))
     return bundle, items, counts
 
@@ -424,8 +429,8 @@ def queue_users(q: dict = Depends(scope_query), progress: Literal['', 'outstandi
             row['formal_acceptance']['decided']+=item['lifecycle']=='Accepted'
     result = []
     for row in rows.values():
-        total = sum(row[kind]['total'] for kind in decisions.DECISIONS)
-        decided = sum(row[kind]['decided'] for kind in decisions.DECISIONS)
+        total = sum(row[kind]['total'] for kind in ('activity','assignment','acceptance'))
+        decided = sum(row[kind]['decided'] for kind in ('activity','assignment','acceptance'))
         row.setdefault('formal_acceptance',dict(total=0,decided=0))
         result.append(dict(row, total=total, decided=decided, outstanding=total - decided))
     result = [row for row in result if row['total']]
@@ -502,7 +507,7 @@ def _locate(model, kind, item):
 
 
 @router.post('/decisions/{kind}')
-def decide(kind: Literal['activity', 'assignment', 'acceptance'], body: DecisionBody):
+def decide(kind: Literal['activity', 'assignment', 'acceptance','risk'], body: DecisionBody):
     """Record one decision for explicitly listed items; nothing propagates to unlisted users or items."""
     if body.decision not in decisions.DECISIONS[kind]:
         raise HTTPException(422, 'Choose a decision supported by this review type.')
@@ -661,13 +666,13 @@ def _bulk_assignment_review(body: BulkAssignmentBody):
 
 
 @router.get('/decisions/{kind}/history')
-def decision_history(kind: Literal['activity', 'assignment', 'acceptance'], key: str = Query(..., pattern=r'^[a-f0-9]{64}$'),
+def decision_history(kind: Literal['activity', 'assignment', 'acceptance','risk'], key: str = Query(..., pattern=r'^[a-f0-9]{64}$'),
                      context: str = Query('current', pattern=legacy.CONTEXT_PATTERN)):
     return dict(items=decisions.history(kind, context, key), reviewer_identity=legacy.IDENTITY_NOTICE)
 
 
 @router.get('/decisions/{kind}/evidence')
-def decision_evidence(kind: Literal['activity', 'assignment', 'acceptance'], event_id: str = Query(..., pattern=r'^[a-f0-9]{32}$'),
+def decision_evidence(kind: Literal['activity', 'assignment', 'acceptance','risk'], event_id: str = Query(..., pattern=r'^[a-f0-9]{32}$'),
                       key: str = Query(..., pattern=r'^[a-f0-9]{64}$'), context: str = Query('current', pattern=legacy.CONTEXT_PATTERN)):
     event = next((item for item in decisions.history(kind, context, key) if item['event_id'] == event_id), None)
     if event is None:
