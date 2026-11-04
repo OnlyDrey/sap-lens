@@ -43,4 +43,16 @@ class RepositoryPrivacyTests(unittest.TestCase):
         self.assertNotIn('*.csv',build)
 
 
+    def test_docker_build_context_is_an_allowlist_that_excludes_private_and_test_content(self):
+        lines=[line.strip() for line in (ROOT/'.dockerignore').read_text().splitlines() if line.strip() and not line.startswith('#')]
+        self.assertEqual(lines[0],'**')  # everything is excluded unless explicitly allowed
+        for denied in ('**/*.csv','**/*.secret','**/.env*','**/settings.json','**/snapshots/**','**/employee-directory/**','frontend/test-results/'):
+            self.assertIn(denied,lines)
+        allowed=[line[1:] for line in lines if line.startswith('!')]
+        for forbidden in ('frontend/tests','backend/tests','examples','docs','.github','deploy'):
+            self.assertFalse(any(item==forbidden or item.startswith(forbidden+'/') for item in allowed),forbidden)
+        for required in ('Dockerfile','backend/requirements.txt','backend/resources/*.json','frontend/src/**','assets/sap-lens.png'):
+            self.assertIn(required,allowed)
+
+
 if __name__=='__main__':unittest.main()

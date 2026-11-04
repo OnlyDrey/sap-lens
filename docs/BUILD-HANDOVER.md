@@ -420,3 +420,23 @@ the panel's existing description paragraph (no new element, no old subtitle rest
 
 **Note.** The Linux package from `227b950` predates this panel sentence; rebuild before any release. Windows readiness: `build.ps1`
 (5.1 baseline, static checks only) and the checklist above are ready for a real Windows x64 host; nothing was run on Windows.
+
+## Repository hygiene audit (after `e824032`)
+
+**Inventory.** 629 tracked files; root: `.dockerignore .gitattributes .github .gitignore AGENTS.md CLAUDE.md Dockerfile LICENSE.md README.md assets
+backend build.ps1 compose.yml deploy docs examples frontend ruff.toml scripts`. Four workflows, all active (validate, full-validation, build-deployments,
+build-windows). No generated or private content is tracked (no `dist`, `build`, caches, `.pyc`, logs, databases, env files); `.ruff_cache`, `__pycache__`,
+`backend/build`, `frontend/dist` and `test-results` are untracked and ignored. Every file in `assets/`, `deploy/` and `frontend/public/` has at least one live reference.
+No backend module is unreferenced.
+
+| Finding | Class | Action |
+| --- | --- | --- |
+| `frontend/src/components/Shared/MetricTile.tsx` (no consumer in `src`, tests or docs; carried its own tone rule bypassing `lib/kpiTone.ts`; recorded as open item CQ-04) | REMOVE | Deleted; the one sentence in `docs/architecture/COMPONENTS.md` updated. Type check and production build pass |
+| `FilterTile`, `EvidenceBadge`, `AccountEvidence`, `SourceStatusSummary` (rest of CQ-04) | INVESTIGATE | Kept: they live inside shared multi-export files, so removal is not a clean file deletion. Still open technical debt |
+| `.dockerignore` | UPDATE | Unchanged; new guard test asserts the allowlist shape, the secret/CSV/settings/snapshot denylist, no tests/examples/docs/deploy in the context, and the required runtime inputs |
+| Historical R8 reports, scripts reviewed earlier | KEEP | Not touched |
+
+**Release hygiene.** Linux archive (built from `bb03221`) re-inspected: no tests, fixtures, `.github`, `node_modules`, env, logs, databases,
+examples or caches; runtime resources present (`backend/resources/*.json`, the SoD reference template, `frontend/dist`, `requirements-runtime.txt`,
+`LICENSE.md`, third-party licenses). Docker: the build context is an allowlist (now guarded). Windows: PyInstaller inputs are guarded by the existing
+privacy tests (no `settings.json`, `*.csv` or backend data bundled); a real Windows/Docker package inspection was not performed.
