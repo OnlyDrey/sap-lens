@@ -2,6 +2,7 @@
 
 actionlint supplies the independent GitHub schema/expression/shell validation.
 """
+import copy
 from fnmatch import fnmatchcase
 from pathlib import Path
 import re
@@ -63,7 +64,27 @@ def validate_graph(jobs):
         visit(name)
 
 
+def canonical_run(command):
+    """Expand only exact engine CI adapter spellings for contract inspection."""
+    aliases={('test','validation'):'python scripts/ci.py', ('build','windows-stage'):'./scripts/build-windows.ps1', ('build','installer-check'):'./scripts/build-desktop-installer.ps1',
+             ('package','windows-package'):'./scripts/package-windows-deployment.ps1', ('package','native-package'):'python scripts/deployment-package.py',
+             ('package','docker-package'):'python scripts/package-docker.py', ('release','deployment-release'):'python scripts/deployment-release.py',
+             ('release','legacy-release'):'python scripts/release-windows.py'}
+    for (mode,tool),canonical in aliases.items():
+        prefix=f'python scripts/build.py {mode} --ci-tool {tool} --non-interactive'
+        command=command.replace(prefix+' -- ',canonical+' ')
+        if tool=='validation':command=command.replace(prefix+' --scope full -- ',canonical+' ')
+        if tool=='windows-stage':
+            command=command.replace(prefix+' --benchmark-packaging "$env:BENCHMARK_PACKAGING" -- ',canonical+' ')
+    return command
+
+
 def validate(workflows):
+    workflows=copy.deepcopy(workflows)
+    for workflow in workflows.values():
+        for job in workflow['jobs'].values():
+            for step in job['steps']:
+                if 'run' in step:step['run']=canonical_run(step['run'])
     def require(condition, message):
         if not condition:
             raise ValueError(message)
@@ -157,7 +178,7 @@ def validate(workflows):
     # Full Regression is evidence, never a prerequisite: nothing that builds or publishes may run the complete suites or consult a regression result.
     for name in ('build-deployments.yml', 'build-windows.yml'):
         text = '\n'.join(str(step) for job in workflows[name]['jobs'].values() for step in job['steps'])
-        require('run-tests.py regression' not in text and 'unittest discover' not in text and 'test:browser' not in text and '-Stage Backend' not in text and '-Stage Browser' not in text,
+        require('run-tests.py regression' not in text and 'unittest discover' not in text and 'test:browser' not in text and '-Stage Backend' not in text and '-Stage Browser' not in text and '--scope full' not in text and '--level full' not in text,
                 f'{name} may not run the complete backend or browser suites')
         require(all('workflow_run' not in job.get('if', '') and 'full-validation' not in str(job).lower() for job in workflows[name]['jobs'].values()), f'{name} may not depend on a Full Regression result')
         require('workflow_run' not in workflows[name]['on'] and 'workflow_call' not in workflows[name]['on'], f'{name} is dispatched by hand only')

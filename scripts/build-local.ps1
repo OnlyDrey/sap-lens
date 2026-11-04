@@ -4,7 +4,8 @@ param(
     [ValidateSet('Build', 'Quick', 'Validate', 'Package')]
     [string]$Mode = 'Build',
     [string]$Version = '',
-    [switch]$IncludeService
+    [switch]$IncludeService,
+    [string]$OutputDirectory=''
 )
 $ErrorActionPreference = 'Stop'
 $watch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -69,11 +70,13 @@ try {
     if (-not $hostPython) { throw 'Install 64-bit Python 3.12 with the Python launcher, then reopen PowerShell.' }
     & $hostPython -c "import sys,struct; sys.exit(0 if sys.version_info[:2] == (3,12) and struct.calcsize('P') == 8 else 1)"
     if ($LASTEXITCODE -ne 0) { throw 'Python 3.12 x64 is required, matching CI. Install it with the Python launcher.' }
+    if (Test-Path (Join-Path $root 'dist/.sap-lens-clean.lock')) { throw 'Cleanup owns build paths; retry after it finishes.' }
     $buildDirectory = Join-Path $root 'backend/build'
     New-Item -ItemType Directory -Force $buildDirectory | Out-Null
     try {
         $lock = [System.IO.File]::Open((Join-Path $buildDirectory 'local-build.lock'), 'OpenOrCreate', 'ReadWrite', 'None')
     } catch { throw 'Another local build is running, or backend/build is not writable. Close the other build and retry.' }
+    if (Test-Path (Join-Path $root 'dist/.sap-lens-clean.lock')) { throw 'Cleanup started while acquiring build ownership; retry after it finishes.' }
     $run = (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
     $runDirectory = Join-Path $root "dist/local/runs/$run"
     New-Item -ItemType Directory -Force $runDirectory | Out-Null
@@ -110,7 +113,7 @@ try {
         # Validate the requested version before dependency installation or packaging.
         Run-Stage 'Local identity' { Invoke-Native $hostPython @($helper, 'identity', '--version', $Version) }
         $info = Get-Content -Raw (Join-Path $buildDirectory 'build-version.json') | ConvertFrom-Json
-        $output = Join-Path $root "dist/local/packages/$($info.version)/$run"
+        $output = if ($OutputDirectory) { $OutputDirectory } else { Join-Path $root "dist/local/packages/$($info.version)/$run" }
         if ($Mode -eq 'Package') {
             Run-Stage 'Validated input freshness' { Invoke-Native $hostPython @($helper, 'check', '--version', $Version) }
         } else {

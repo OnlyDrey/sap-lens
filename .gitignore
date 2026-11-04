@@ -111,3 +111,6 @@ sod-periods.json
 
 # Local validation reports, traces and synthetic browser artifacts
 /build/validation/
+
+# Shared build engine cleanup ownership
+/dist/.sap-lens-clean.lock

@@ -74,7 +74,7 @@ class LocalDeploymentTests(unittest.TestCase):
         for args in (['--platform','invalid','--version','0.1.0'],['--version','0.1.0','--clean','--reuse-validation']):
             result=subprocess.run([sys.executable,str(ROOT/'scripts/build-deployments.py'),*args],capture_output=True,text=True)
             self.assertNotEqual(result.returncode,0);self.assertIn('error:',result.stderr)
-        result=subprocess.run([str(ROOT/'build.sh'),'--help'],capture_output=True,text=True)
+        result=subprocess.run([sys.executable,str(ROOT/'scripts/build.py'),'--help'],capture_output=True,text=True)
         self.assertEqual(result.returncode,0);self.assertIn('--windows-host',result.stdout)
 
     def test_ci_admission_cannot_use_a_local_receipt(self):

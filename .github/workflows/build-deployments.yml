@@ -77,7 +77,7 @@ jobs:
         python-version: '3.12'
     - name: Resolve the build target into the packages to build
       id: selection
-      run: python scripts/deployment-release.py plan
+      run: python scripts/build.py release --ci-tool deployment-release --non-interactive -- plan
   validation:
     name: Shared Validation & Frontend
     runs-on: ubuntu-22.04
@@ -125,37 +125,37 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ github.token }}
     - name: Check Python dependencies
-      run: python scripts/ci.py run pip_check -- python -m pip check
+      run: python scripts/build.py test --ci-tool validation --non-interactive -- run pip_check -- python -m pip check
       id: pip_check
     - name: Lint Python with Ruff
-      run: python scripts/ci.py run ruff -- python -m ruff check backend scripts
+      run: python scripts/build.py test --ci-tool validation --non-interactive -- run ruff -- python -m ruff check backend scripts
       id: ruff
     - name: Validate workflow contracts
-      run: python scripts/ci.py run workflow_contracts -- python scripts/check-workflows.py
+      run: python scripts/build.py test --ci-tool validation --non-interactive -- run workflow_contracts -- python scripts/check-workflows.py
       id: workflow_contracts
     - name: Validate workflows
-      run: python scripts/ci.py run workflow_lint -- python scripts/ci.py lint
+      run: python scripts/build.py test --ci-tool validation --non-interactive -- run workflow_lint -- python scripts/ci.py lint
       id: workflow_lint
     - name: Validate PowerShell scripts
-      run: python scripts/ci.py run powershell -- pwsh -NoProfile -File scripts/check-powershell.ps1
+      run: python scripts/build.py test --ci-tool validation --non-interactive -- run powershell -- pwsh -NoProfile -File scripts/check-powershell.ps1
       id: powershell
     - name: Install locked frontend dependencies
       run: npm --prefix frontend ci --no-audit --no-fund
       id: s9
     - name: Check frontend types
-      run: python scripts/ci.py run types -- npm --prefix frontend run check:types
+      run: python scripts/build.py test --ci-tool validation --non-interactive -- run types -- npm --prefix frontend run check:types
       id: types
     - name: Check icon catalog
-      run: python scripts/ci.py run catalog -- node scripts/sync-lucide-catalog.mjs --check
+      run: python scripts/build.py test --ci-tool validation --non-interactive -- run catalog -- node scripts/sync-lucide-catalog.mjs --check
       id: catalog
     - name: Build production frontend
-      run: python scripts/ci.py run build -- npm --prefix frontend run build
+      run: python scripts/build.py test --ci-tool validation --non-interactive -- run build -- npm --prefix frontend run build
       id: build
     - name: Audit shared Python dependencies
-      run: python scripts/ci.py run python_audit -- python -m pip_audit --vulnerability-service pypi --progress-spinner off
+      run: python scripts/build.py test --ci-tool validation --non-interactive -- run python_audit -- python -m pip_audit --vulnerability-service pypi --progress-spinner off
       id: python_audit
     - name: Audit production JavaScript
-      run: python scripts/ci.py run javascript_audit -- npm --prefix frontend audit --omit=dev
+      run: python scripts/build.py test --ci-tool validation --non-interactive -- run javascript_audit -- npm --prefix frontend audit --omit=dev
       id: javascript_audit
     - name: Seal same-commit validated inputs
       run: python scripts/deployment-package.py seal --output backend/build/validated-inputs.zip
@@ -169,7 +169,7 @@ jobs:
         retention-days: 1
       id: s19
     - name: Write shared validation summary
-      run: python scripts/ci.py summary
+      run: python scripts/build.py test --ci-tool validation --non-interactive -- summary
       if: always()
       env:
         CI_STEPS: ${{ toJSON(steps) }}
@@ -213,10 +213,10 @@ jobs:
     - name: Verify and consume validated inputs
       run: python scripts/deployment-package.py consume --archive backend/build/shared/validated-inputs.zip
     - name: Compile complete installer recipe for every release channel
-      run: ./scripts/build-desktop-installer.ps1 -CompileCheck -OutputDirectory "$env:RUNNER_TEMP/installer-compile-check"
+      run: python scripts/build.py build --ci-tool installer-check --non-interactive -- -CompileCheck -OutputDirectory "$env:RUNNER_TEMP/installer-compile-check"
       shell: pwsh
     - name: Build and smoke-test platform package
-      run: ./scripts/package-windows-deployment.ps1 -Target Desktop
+      run: python scripts/build.py package --ci-tool windows-package --non-interactive -- -Target Desktop
       shell: pwsh
     - name: Preserve isolated installer setup diagnostics on failure
       if: failure()
@@ -287,7 +287,7 @@ jobs:
     - name: Verify and consume validated inputs
       run: python scripts/deployment-package.py consume --archive backend/build/shared/validated-inputs.zip
     - name: Build and smoke-test platform package
-      run: ./scripts/package-windows-deployment.ps1 -Target Service
+      run: python scripts/build.py package --ci-tool windows-package --non-interactive -- -Target Service
       shell: pwsh
     - name: Upload verified platform distribution
       id: distribution
@@ -352,7 +352,7 @@ jobs:
     - name: Install pinned package audit tooling
       run: python -m pip install -r scripts/requirements-audit.txt
     - name: Build and smoke-test platform package
-      run: python scripts/package-docker.py
+      run: python scripts/build.py package --ci-tool docker-package --non-interactive --
     - name: Upload verified platform distribution
       id: distribution
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -416,7 +416,7 @@ jobs:
     - name: Install pinned package audit tooling
       run: python -m pip install -r scripts/requirements-audit.txt
     - name: Build and smoke-test platform package
-      run: 'python scripts/deployment-package.py native
+      run: 'python scripts/build.py package --ci-tool native-package --non-interactive -- native
 
         python scripts/test-native-deployment.py --artifacts dist/deployment'
     - name: Upload verified platform distribution
@@ -477,7 +477,7 @@ jobs:
         python-version: '3.12'
     - name: Require every selected verified package, no unselected package and an unused version
       id: eligible
-      run: python scripts/deployment-release.py preflight
+      run: python scripts/build.py release --ci-tool deployment-release --non-interactive -- preflight
     - name: Collect only the selected same-run package artifacts
       uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
@@ -486,4 +486,4 @@ jobs:
         merge-multiple: true
         digest-mismatch: error
     - name: Verify collected assets and publish complete release
-      run: python scripts/deployment-release.py publish --directory dist/publication
+      run: python scripts/build.py release --ci-tool deployment-release --non-interactive -- publish --directory dist/publication

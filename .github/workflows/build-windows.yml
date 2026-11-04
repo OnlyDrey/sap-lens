@@ -55,7 +55,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_MODE: ${{ inputs.release_mode }}
           RELEASE_VERSION: ${{ inputs.version }}
-        run: python scripts/release-windows.py allocate
+        run: python scripts/build.py release --ci-tool legacy-release --non-interactive -- allocate
   windows-exe:
     name: Windows Build & Verification
     needs: reserve-version
@@ -94,13 +94,13 @@ jobs:
         env:
           RELEASE_MODE: ${{ inputs.release_mode }}
           RELEASE_VERSION: ${{ inputs.version }}
-        run: python scripts/release-windows.py validate-inputs
+        run: python scripts/build.py release --ci-tool legacy-release --non-interactive -- validate-inputs
       - name: Generate the immutable build identity
         id: build_identity
         shell: pwsh
         env:
           RELEASE_ALLOCATION_JSON: ${{ needs.reserve-version.outputs.metadata }}
-        run: python scripts/release-windows.py prepare-build
+        run: python scripts/build.py release --ci-tool legacy-release --non-interactive -- prepare-build
       - name: Configure cold-cache benchmark locations
         shell: pwsh
         env:
@@ -113,30 +113,30 @@ jobs:
           }
       - name: Create isolated Python build environment
         shell: pwsh
-        run: ./scripts/build-windows.ps1 -Stage Environment
+        run: python scripts/build.py build --ci-tool windows-stage --non-interactive -- -Stage Environment
       - name: Install dependencies and build production frontend
         shell: pwsh
-        run: ./scripts/build-windows.ps1 -Stage Frontend
+        run: python scripts/build.py build --ci-tool windows-stage --non-interactive -- -Stage Frontend
       - name: Install Python build and test dependencies
         shell: pwsh
-        run: ./scripts/build-windows.ps1 -Stage Python
+        run: python scripts/build.py build --ci-tool windows-stage --non-interactive -- -Stage Python
       - name: Audit Windows Python dependencies
         shell: pwsh
-        run: ./scripts/build-windows.ps1 -Stage Audit
+        run: python scripts/build.py build --ci-tool windows-stage --non-interactive -- -Stage Audit
       - name: Audit production JavaScript dependencies
         shell: pwsh
-        run: ./scripts/build-windows.ps1 -Stage JavaScriptAudit
+        run: python scripts/build.py build --ci-tool windows-stage --non-interactive -- -Stage JavaScriptAudit
       - name: Package Windows executable
         shell: pwsh
         env:
           BENCHMARK_PACKAGING: ${{ inputs.benchmark_packaging }}
-        run: ./scripts/build-windows.ps1 -Stage Package -BenchmarkPackaging:([bool]::Parse($env:BENCHMARK_PACKAGING))
+        run: python scripts/build.py build --ci-tool windows-stage --non-interactive --benchmark-packaging "$env:BENCHMARK_PACKAGING" -- -Stage Package
       - name: Verify Windows PE, resources, privacy and checksum
         shell: pwsh
-        run: ./scripts/build-windows.ps1 -Stage Verify
+        run: python scripts/build.py build --ci-tool windows-stage --non-interactive -- -Stage Verify
       - name: Run Windows application smoke tests
         shell: pwsh
-        run: ./scripts/build-windows.ps1 -Stage Smoke
+        run: python scripts/build.py build --ci-tool windows-stage --non-interactive -- -Stage Smoke
       - name: Upload verified executable
         id: executable
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -162,7 +162,7 @@ jobs:
           ARTIFACT_DIRECTORY: ${{ runner.temp }}/sap-lens-distribution
           ARTIFACT_DOWNLOAD_DIRECTORY: ${{ runner.temp }}/sap-lens-artifact-download
           ARTIFACT_DIGEST: ${{ steps.executable.outputs.artifact-digest }}
-        run: ./scripts/build-windows.ps1 -Stage Artifact -ArtifactDirectory $env:ARTIFACT_DIRECTORY -ArtifactDownloadDirectory $env:ARTIFACT_DOWNLOAD_DIRECTORY -ArtifactDigest $env:ARTIFACT_DIGEST
+        run: python scripts/build.py build --ci-tool windows-stage --non-interactive -- -Stage Artifact -ArtifactDirectory $env:ARTIFACT_DIRECTORY -ArtifactDownloadDirectory $env:ARTIFACT_DOWNLOAD_DIRECTORY -ArtifactDigest $env:ARTIFACT_DIGEST
       - name: Upload diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -232,4 +232,4 @@ jobs:
           ARTIFACT_DIGEST: ${{ needs.windows-exe.outputs.artifact_digest }}
           RELEASE_DOWNLOAD: ${{ runner.temp }}/sap-lens-release-download
           RELEASE_OUTPUT: ${{ runner.temp }}/sap-lens-release-assets
-        run: python scripts/release-windows.py publish --download "$RELEASE_DOWNLOAD" --output "$RELEASE_OUTPUT"
+        run: python scripts/build.py release --ci-tool legacy-release --non-interactive -- publish --download "$RELEASE_DOWNLOAD" --output "$RELEASE_OUTPUT"

@@ -121,7 +121,7 @@ class Builder:
             if ignored.returncode != 0: raise ValueError('Choose an ignored build output directory or a directory outside the checkout.')
         self.output.mkdir(parents=True, exist_ok=True)
         self.manifest = dict(schema=1, version=args.version, source_commit=self.source,
-                             built_at=datetime.now(timezone.utc).isoformat(), invocation=args.invocation, targets={})
+                             built_at=datetime.now(timezone.utc).isoformat(), invocation=args.invocation, validation_scope=getattr(args,'scope','targeted'), targets={})
         old = self.output / 'build-manifest.json'
         if any(path.is_symlink() for path in self.output.iterdir()): raise ValueError('Output files may not be linked.')
         if any(self.output.iterdir()) and not old.is_file(): raise ValueError('Choose an empty output directory or an existing managed build output.')
@@ -140,7 +140,7 @@ class Builder:
         self.env = os.environ.copy()
         for key in ('PIP_TARGET','PIP_PREFIX','PIP_USER','PYTHONPATH','PYTHONHOME','SAP_LENS_DATA_DIR','SAP_LENS_SOURCE_DIR','SAP_LENS_DEPLOYMENT_MODE'):
             self.env.pop(key,None)
-        self.env.update(PYTHONUTF8='1', PYTHONIOENCODING='utf-8', DATA_CSV_PATH='', USER_CSV_PATH='')
+        self.env.update(SAP_LENS_BUILD_SCOPE=getattr(args,'scope','targeted'), PYTHONUTF8='1', PYTHONIOENCODING='utf-8', DATA_CSV_PATH='', USER_CSV_PATH='')
         self.build = ROOT / 'backend/build'
         self.build.mkdir(parents=True, exist_ok=True)
         self.python = self.build / ('python-env/Scripts/python.exe' if self.system == 'Windows' else 'python-env/bin/python')
@@ -211,7 +211,7 @@ class Builder:
             ('pip_check', [self.python, '-m', 'pip', 'check']),
             ('workflow_lint', [self.python, 'scripts/ci.py', 'lint']),
             ('powershell', [self.powershell, '-NoProfile', '-File', 'scripts/check-powershell.ps1']),
-            ('backend', [self.python, '-W', 'error::DeprecationWarning', '-m', 'unittest', 'discover', '-s', 'backend/tests', '-v']),
+            ('backend', [self.python, 'scripts/run-tests.py', *(['regression'] if self.args.scope=='full' else ['targeted','deployment']), '--backend']),
             ('types', [tool('npm'), '--prefix', 'frontend', 'run', 'check:types']),
             ('catalog', [tool('node'), 'scripts/sync-lucide-catalog.mjs', '--check']),
             ('build', [tool('npm'), '--prefix', 'frontend', 'run', 'build']),
@@ -227,7 +227,7 @@ class Builder:
             print('Using the explicitly configured Playwright browser executable.')
         else:
             self.run('Install the pinned Playwright Chromium headless shell', [tool('node'), 'frontend/node_modules/playwright/cli.js', 'install', 'chromium', '--only-shell'])
-        self.run('Browser regression tests', [tool('npm'), '--prefix', 'frontend', 'run', 'test:browser'], timed='browser')
+        self.run('Browser regression tests', [tool('npm'), '--prefix', 'frontend', 'run', 'test:browser', '--', '--workers=1', *([] if self.args.scope=='full' else ['--grep','@smoke'])], timed='browser')
         self.run('Seal successful local validation', [self.python, 'scripts/deployment-package.py', 'record-local'])
         self.validated = True
 
@@ -264,7 +264,7 @@ class Builder:
         if not host or not repository:
             raise ValueError(f'Configure --{system.lower()}-host and --{system.lower()}-repository for a trusted {system} builder synchronized to this commit. No cross-compilation or silent skip.')
         if not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.@-]*', host): raise ValueError('Use a safe SSH host alias; configure ports/keys in SSH config.')
-        flags = (['--clean'] if self.args.clean else []) + (['--no-cache'] if self.args.no_cache else []) + (['--reuse-validation'] if self.args.reuse_validation else [])
+        flags = ['--scope', self.args.scope] + (['--clean'] if self.args.clean else []) + (['--no-cache'] if self.args.no_cache else []) + (['--reuse-validation'] if self.args.reuse_validation else [])
         nonce = uuid.uuid4().hex
         command = remote_command(system, repository, self.source, self.args.version, targets, [*flags,'--invocation',nonce])
         ssh = [tool('ssh'), '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', host, command]
@@ -327,6 +327,8 @@ def main():
     parser.add_argument('--clean', action='store_true')
     parser.add_argument('--no-cache', action='store_true')
     parser.add_argument('--reuse-validation', action='store_true')
+    parser.add_argument('--verify-output', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--scope', choices=('targeted','full'), default='targeted')
     parser.add_argument('--output-dir', type=Path)
     parser.add_argument('--windows-host'); parser.add_argument('--windows-repository')
     parser.add_argument('--linux-host'); parser.add_argument('--linux-repository')
@@ -335,15 +337,22 @@ def main():
     if not re.fullmatch('[0-9a-f]{32}',args.invocation): parser.error('Invalid build invocation identity.')
     if sys.version_info[:2] != (3,12): parser.error('Use Python 3.12 to match the supported build toolchain.')
     if os.environ.get('GITHUB_ACTIONS') == 'true': parser.error('Local orchestration cannot impersonate CI. Use the approved deployment workflow.')
+    if args.verify_output:
+        if not args.output_dir:parser.error('--verify-output requires --output-dir')
+        verify_outputs(args.output_dir,args.version,checkout(),requested(args.platform))
+        print('Release preparation: source, target artifacts, exact contents and checksums verified. No publication.')
+        return 0
     if args.clean and args.reuse_validation: parser.error('--clean and --reuse-validation are mutually exclusive.')
     lock = None
     legacy_lock = None
     try:
         # Cross-platform exclusive ownership without a global machine setting.
         directory = ROOT / 'backend/build'; directory.mkdir(parents=True, exist_ok=True)
+        if (ROOT/'dist/.sap-lens-clean.lock').exists():raise ValueError('Cleanup owns generated build paths; retry after it finishes.')
         lock = directory / 'deployment-builder.lock'
         descriptor = os.open(lock, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         os.close(descriptor)
+        if (ROOT/'dist/.sap-lens-clean.lock').exists():raise ValueError('Cleanup started while acquiring build ownership; retry after it finishes.')
         if sys.platform == 'win32':
             # The legacy PowerShell builder opens this same file with FileShare.None.
             # Holding an open handle prevents either entry point from changing the

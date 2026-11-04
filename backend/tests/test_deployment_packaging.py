@@ -213,7 +213,7 @@ class OrchestrationTests(unittest.TestCase):
         current=rules.load_workflows();rules.validate(current)
         for change in ('removed','conditional','late','broad-diagnostics','always-diagnostics'):
             bad=copy.deepcopy(current);steps=bad['build-deployments.yml']['jobs']['desktop']['steps']
-            compiler=next(step for step in steps if 'build-desktop-installer.ps1 -CompileCheck' in step.get('run',''))
+            compiler=next(step for step in steps if 'build-desktop-installer.ps1 -CompileCheck' in rules.canonical_run(step.get('run','')))
             diagnostics=next(step for step in steps if step.get('name')=='Preserve isolated installer setup diagnostics on failure')
             if change=='removed':steps.remove(compiler)
             elif change=='conditional':compiler['if']='false'

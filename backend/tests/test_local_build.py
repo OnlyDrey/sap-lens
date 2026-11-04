@@ -303,7 +303,7 @@ class BuildEntryRepairTests(unittest.TestCase):
             self.assertEqual(local.version.parse_build_info(info), info)
         wrapper = (ROOT/'build.ps1').read_text()
         self.assertNotIn('[Parameter(Mandatory=$true)][string]$Version', wrapper)
-        self.assertIn("if ($Version)", wrapper)
+        self.assertIn("@('--version',$Version)", wrapper)
 
     def test_canonical_packager_uses_the_same_default_version_as_the_local_entry(self):
         release=local.load_script('release-windows')

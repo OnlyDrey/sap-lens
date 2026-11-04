@@ -166,7 +166,7 @@ def record_local():
         raise ValueError('Local deployment validation is incomplete.')
     frontend_licenses()
     privacy(files(ROOT/'frontend/dist'))
-    value=dict(schema=1,identity=info,host=sys.platform,checks=sorted(CHECKS),
+    value=dict(schema=1,identity=info,host=sys.platform,validation_scope=os.environ.get('SAP_LENS_BUILD_SCOPE','targeted'),checks=sorted(CHECKS),
                validated_at=time.time(),inputs=tools.inputs(ROOT,allow_interpreter_links=True))
     write(ROOT/'backend/build/deployment-local-validation.json',value)
     return value
@@ -177,8 +177,10 @@ def require_inputs():
     tools=local_tools();tools.clean(ROOT)
     path=ROOT/'backend/build/deployment-local-validation.json'
     if path.is_symlink() or not path.is_file() or path.stat().st_size>16384:
-        raise ValueError('Run build.sh/build.ps1 without --reuse-validation first.')
+        raise ValueError('Run python scripts/build.py package without --skip-setup first.')
     receipt=json.loads(path.read_text());info=identity()
+    if os.environ.get('SAP_LENS_BUILD_SCOPE')=='full' and receipt.get('validation_scope','full')!='full':
+        raise ValueError('A targeted receipt cannot certify an explicitly requested full test scope.')
     if (info['schema']!=3 or receipt['identity']!=info or info['source_sha']!=git_sha()
             or receipt.get('schema')!=1 or receipt.get('host')!=sys.platform
             or set(receipt.get('checks',[]))!=CHECKS
@@ -292,7 +294,7 @@ def copy_source(target):
         'SECURITY.md': 'deployment/SECURITY.md',
         'DEPLOYMENT_LINUX_NATIVE.md': 'deployment/LINUX_NATIVE.md',
         'DEPLOYMENT_SECURITY.md': 'deployment/SECURITY.md',
-        'DEPLOYMENT_PACKAGES.md': 'deployment/BUILD.md',
+        'DEPLOYMENT_PACKAGES.md': 'BUILD.md',
         'PACKAGING_VALIDATION.md': 'archive/validation/PACKAGING_VALIDATION.md',
         'LOCAL_BUILD_VALIDATION.md': 'archive/validation/LOCAL_BUILD_VALIDATION.md',
         'INSTALLATION_LIFECYCLE_VALIDATION.md': 'archive/validation/INSTALLATION_LIFECYCLE_VALIDATION.md',

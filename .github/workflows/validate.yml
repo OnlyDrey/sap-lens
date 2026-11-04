@@ -38,30 +38,30 @@ jobs:
             scripts/requirements-audit.txt
       - name: Select the checks this change needs
         id: plan
-        run: python scripts/ci.py run plan -- python scripts/run-tests.py changed --plan
+        run: python scripts/build.py test --ci-tool validation --non-interactive -- run plan -- python scripts/run-tests.py changed --plan
       - name: Install backend test dependencies
         id: dependencies
-        run: python scripts/ci.py run dependencies -- python -m pip install --disable-pip-version-check -r backend/requirements-dev.txt
+        run: python scripts/build.py test --ci-tool validation --non-interactive -- run dependencies -- python -m pip install --disable-pip-version-check -r backend/requirements-dev.txt
       - name: Check Python dependencies
         id: pip_check
-        run: python scripts/ci.py run pip_check -- python -m pip check
+        run: python scripts/build.py test --ci-tool validation --non-interactive -- run pip_check -- python -m pip check
       - name: Lint Python with Ruff
         id: ruff
-        run: python scripts/ci.py run ruff -- python -m ruff check backend scripts
+        run: python scripts/build.py test --ci-tool validation --non-interactive -- run ruff -- python -m ruff check backend scripts
       - name: Validate workflow contracts
         id: workflow_contracts
-        run: python scripts/ci.py run workflow_contracts -- python scripts/check-workflows.py
+        run: python scripts/build.py test --ci-tool validation --non-interactive -- run workflow_contracts -- python scripts/check-workflows.py
       - name: Validate workflow schemas, expressions and shell commands
         id: workflow_lint
-        run: python scripts/ci.py run workflow_lint -- python scripts/ci.py lint
+        run: python scripts/build.py test --ci-tool validation --non-interactive -- run workflow_lint -- python scripts/ci.py lint
       - name: Parse PowerShell and check portable service helpers
         # Portable helpers catch shell/runtime defects before a native package build.
         # This does not run Windows SCM, installers or the desktop GUI.
         id: powershell
-        run: python scripts/ci.py run powershell -- pwsh -NoProfile -File scripts/check-powershell.ps1
+        run: python scripts/build.py test --ci-tool validation --non-interactive -- run powershell -- pwsh -NoProfile -File scripts/check-powershell.ps1
       - name: Run the selected backend tests
         id: backend
-        run: python scripts/ci.py run backend -- python scripts/run-tests.py changed --stage backend
+        run: python scripts/build.py test --ci-tool validation --non-interactive -- run backend -- python scripts/run-tests.py changed --stage backend
       - name: Set up Node and npm download cache
         id: setup_node
         if: ${{ steps.plan.outputs.frontend == 'true' }}
@@ -74,27 +74,27 @@ jobs:
       - name: Install frontend dependencies
         id: npm_install
         if: ${{ steps.plan.outputs.frontend == 'true' }}
-        run: python scripts/ci.py run npm_install -- npm --prefix frontend ci --no-audit --no-fund
+        run: python scripts/build.py test --ci-tool validation --non-interactive -- run npm_install -- npm --prefix frontend ci --no-audit --no-fund
       - name: Run frontend type checks
         id: types
         if: ${{ steps.plan.outputs.frontend == 'true' }}
-        run: python scripts/ci.py run types -- npm --prefix frontend run check:types
+        run: python scripts/build.py test --ci-tool validation --non-interactive -- run types -- npm --prefix frontend run check:types
       - name: Lint frontend with ESLint
         id: eslint
         if: ${{ steps.plan.outputs.frontend == 'true' }}
-        run: python scripts/ci.py run eslint -- npm --prefix frontend run lint
+        run: python scripts/build.py test --ci-tool validation --non-interactive -- run eslint -- npm --prefix frontend run lint
       - name: Verify module icon catalog
         id: catalog
         if: ${{ steps.plan.outputs.frontend == 'true' }}
-        run: python scripts/ci.py run catalog -- node scripts/sync-lucide-catalog.mjs --check
+        run: python scripts/build.py test --ci-tool validation --non-interactive -- run catalog -- node scripts/sync-lucide-catalog.mjs --check
       - name: Build production frontend
         id: build
         if: ${{ steps.plan.outputs.frontend == 'true' }}
-        run: python scripts/ci.py run build -- npm --prefix frontend run build
+        run: python scripts/build.py test --ci-tool validation --non-interactive -- run build -- npm --prefix frontend run build
       - name: Audit production JavaScript dependencies
         id: javascript_audit
         if: ${{ steps.plan.outputs.frontend == 'true' }}
-        run: python scripts/ci.py run javascript_audit -- npm --prefix frontend audit --omit=dev
+        run: python scripts/build.py test --ci-tool validation --non-interactive -- run javascript_audit -- npm --prefix frontend audit --omit=dev
       - name: Configure browser cache location
         id: browser_path
         if: ${{ steps.plan.outputs.browser == 'true' }}
@@ -109,11 +109,11 @@ jobs:
       - name: Install Playwright headless browser and system libraries
         id: browser_setup
         if: ${{ steps.plan.outputs.browser == 'true' }}
-        run: python scripts/ci.py run browser_setup -- node frontend/node_modules/playwright/cli.js install --with-deps chromium --only-shell
+        run: python scripts/build.py test --ci-tool validation --non-interactive -- run browser_setup -- node frontend/node_modules/playwright/cli.js install --with-deps chromium --only-shell
       - name: Run browser smoke and changed specs
         id: browser
         if: ${{ steps.plan.outputs.browser == 'true' }}
-        run: python scripts/ci.py run browser -- python scripts/run-tests.py changed --stage browser --no-build
+        run: python scripts/build.py test --ci-tool validation --non-interactive -- run browser -- python scripts/run-tests.py changed --stage browser --no-build
       - name: Write validation summary
         if: always()
         env:
@@ -123,7 +123,7 @@ jobs:
           CI_JOB_NAME: ${{ github.job }}
         run: |
           if [ -f scripts/ci.py ]; then
-            python scripts/ci.py summary
+            python scripts/build.py test --ci-tool validation --non-interactive -- summary
           else
             echo 'Validation incomplete: source checkout failed.' >> "$GITHUB_STEP_SUMMARY"
           fi

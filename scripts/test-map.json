@@ -251,7 +251,8 @@
     "test_deployment_selection",
     "test_local_build",
     "test_local_deployments",
-    "test_release_automation"
+    "test_release_automation",
+    "test_unified_build"
    ],
    "browser": []
   },
@@ -554,10 +555,9 @@
   },
   {
    "patterns": [
-    "scripts/*",
+    "scripts/**",
     ".github/workflows/*",
     "build.ps1",
-    "build.sh",
     "Dockerfile",
     "compose*",
     ".gitignore",
