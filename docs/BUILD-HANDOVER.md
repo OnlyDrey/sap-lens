@@ -256,3 +256,42 @@ real exports, credentials, databases, caches or original reference workbooks.
   message that PowerShell 7 is required (not installed here). A real Linux, Docker or Windows package build is still NOT executed.
 - Pre-existing failure found, unrelated to the build work: `frontend/tests/desktop.spec.ts` "application information displays the
   resolved API identity" fails at `26db497` (the locator `Application version` now matches two elements, a strict-mode violation).
+
+## Final status of this continuation
+
+**Full regression: INCOMPLETE (interrupted on purpose to save time; neither passed nor failed).**
+
+| Part | Result |
+| --- | --- |
+| Backend (3 processes) | Completed: 1158 tests, 0 failed, 5 skipped (PowerShell-dependent and PyInstaller-dependent checks) |
+| Browser suite | Interrupted before any result was recorded: no pass/fail claim |
+| Production build, static checks, report | Not reached in this run |
+
+Targeted evidence for this continuation: `test_unified_build` 33 passed; repository privacy, example datasets, application backups,
+Windows tray, SoD import and lifecycle, test profiles and `test_server` (17) passed; 85 of 86 browser tests in the specs that use the renamed
+fixture passed (ux, desktop, design-system, position-changes, employee-directory, account-review-refinement, navigation-modules).
+
+**Baseline failures, kept separate from regressions:**
+
+- Six `test_server.BrowserMultipartTests` failures were first seen with `python-multipart` missing from the local virtual environment
+  (HTTP 500 instead of 413). They failed identically with the change stashed, and passed after `pip install -r backend/requirements-dev.txt`.
+  They are an environment drift, not a code defect.
+- `frontend/tests/desktop.spec.ts` "application information displays the resolved API identity" fails at `26db497` and with the change
+  stashed (the `Application version` label matches two elements). Pre-existing and not fixed here.
+
+**PowerShell:** the supported Windows version is PowerShell 5.1 (7 is also accepted). The Linux package route calls the existing `.ps1`
+helpers, so `python scripts/build.py package --platform linux --target server` exits 3 asking for PowerShell 7. Whether that
+dependency is necessary or leftover legacy orchestration was NOT investigated or changed in this phase, and nothing was installed.
+
+**Not executed:** native Windows bootstrap and packaging (PowerShell 5.1), Linux and Docker packages, installer and service builds, real
+systemd, any GitHub workflow run.
+
+**Exact next steps:**
+
+1. Decide whether the Linux native packaging can drop the PowerShell dependency by moving the remaining `.ps1` steps to Python;
+   if not, document PowerShell 7 as a Linux packaging prerequisite in `docs/BUILD.md`.
+2. On a Windows x64 host with PowerShell 5.1: `.\build.ps1 -Mode quick`, then the desktop, installer and service targets.
+3. Fix the `desktop.spec.ts` locator (or the duplicate label), then run the full regression once:
+   `python scripts/build.py test --scope full --non-interactive` (browser tests need `PLAYWRIGHT_EXECUTABLE_PATH` if the pinned
+   Chromium build is missing).
+4. Only with explicit authorization, run the workflow checks on GitHub.
