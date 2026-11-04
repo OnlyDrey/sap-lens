@@ -356,6 +356,18 @@ class BuildEntryRepairTests(unittest.TestCase):
         self.assertIn('verify-windows-package.py',canonical)
         self.assertIn('test-windows-exe.ps1',canonical)
 
+    def test_service_self_test_uses_same_source_without_launching_the_elevated_manager(self):
+        script=(ROOT/'scripts/build-service-manager.ps1').read_text()
+        self.assertIn('SapLens.ServiceSetup.SelfTest()',script)
+        self.assertIn('level="asInvoker"',script)
+        self.assertIn('/main:SapLensSelfTest',script)
+        self.assertIn('Start-Process -FilePath $check',script)
+        self.assertNotIn('Start-Process -FilePath $output',script)
+        self.assertIn('finally',script)
+        self.assertIn('Remove-Item -LiteralPath $temporary',script)
+        self.assertIn('requireAdministrator',(ROOT/'deploy/windows/service-manager.manifest').read_text())
+        self.assertIn('scripts/build-service-manager.ps1',(ROOT/'scripts/check-powershell.ps1').read_text())
+
     def test_server_and_ci_share_verified_wrapper_download(self):
         service=(ROOT/'scripts/build-server-windows.ps1').read_text()
         dispatch=(ROOT/'scripts/package-windows-deployment.ps1').read_text()

@@ -82,7 +82,6 @@ try {
     $env:SAP_LENS_CONFIG_DIR = Join-Path $buildDirectory "local-test-settings/$run"
     $env:DATA_CSV_PATH = ''
     $env:USER_CSV_PATH = ''
-    $helper = Join-Path $PSScriptRoot 'local-build.py'
     $canonical = Join-Path $PSScriptRoot 'build-windows.ps1'
     $buildPython = Join-Path $buildDirectory 'python-env/Scripts/python.exe'
     $auditPython = Join-Path $buildDirectory 'audit-env/Scripts/python.exe'
@@ -119,8 +118,7 @@ try {
             Run-Stage 'Environment' { & $canonical -Stage Environment -PythonExecutable $hostPython }
             Run-Stage 'Python' { & $canonical -Stage Python -PythonExecutable $hostPython }
             Run-Stage 'Frontend' {
-                $frontendStage = if ($Mode -eq 'Quick') { 'FrontendInstall' } else { 'Frontend' }
-                & $canonical -Stage $frontendStage -PythonExecutable $hostPython
+                & $canonical -Stage Frontend -PythonExecutable $hostPython
                 Invoke-Native 'npm' @('--prefix', 'frontend', 'run', 'check:types')
                 Invoke-Native 'node' @('scripts/sync-lucide-catalog.mjs', '--check')
             }
@@ -128,27 +126,23 @@ try {
         Run-Stage 'Packaging tool versions' {
             Invoke-Native $buildPython @($helper, 'tools')
         }
-        if ($Mode -ne 'Quick') {
-            Run-Stage 'Audit' {
-                Invoke-Native $hostPython @('-m', 'venv', (Join-Path $buildDirectory 'audit-env'))
-                & $canonical -Stage Audit -PythonExecutable $hostPython -AuditPython $auditPython
-                # Package also rechecks current vulnerability data without reinstalling inputs.
-                if ($Mode -eq 'Package') { Invoke-Native 'npm' @('--prefix', 'frontend', 'audit', '--omit=dev') }
-            }
+        Run-Stage 'Audit' {
+            Invoke-Native $hostPython @('-m', 'venv', (Join-Path $buildDirectory 'audit-env'))
+            & $canonical -Stage Audit -PythonExecutable $hostPython -AuditPython $auditPython
+            # Package also rechecks current vulnerability data without reinstalling inputs.
+            if ($Mode -eq 'Package') { Invoke-Native 'npm' @('--prefix', 'frontend', 'audit', '--omit=dev') }
         }
         if ($Mode -ne 'Package') {
             Run-Stage 'PackagingBackend' { & $canonical -Stage Backend -PythonExecutable $hostPython -TargetedValidation }
-            if ($Mode -ne 'Quick') { Run-Stage 'PackagingBrowser' { & $canonical -Stage Browser -PythonExecutable $hostPython -TargetedValidation } }
+            Run-Stage 'PackagingBrowser' { & $canonical -Stage Browser -PythonExecutable $hostPython -TargetedValidation }
             Run-Stage 'Repository' {
                 Invoke-Native $buildPython @('scripts/check-workflows.py')
                 Invoke-Native $buildPython @('scripts/ci.py', 'lint')
                 & (Join-Path $PSScriptRoot 'check-powershell.ps1')
                 Invoke-Native 'git' @('diff', '--check')
             }
-            if ($Mode -ne 'Quick') {
-                Run-Stage 'Validation receipt' {
-                    Invoke-Native $buildPython @($helper, 'record', '--version', $Version, '--stages', 'Frontend', 'Python', 'Audit', 'PackagingBackend', 'PackagingBrowser', 'Repository')
-                }
+            Run-Stage 'Validation receipt' {
+                Invoke-Native $buildPython @($helper, 'record', '--version', $Version, '--stages', 'Frontend', 'Python', 'Audit', 'PackagingBackend', 'PackagingBrowser', 'Repository')
             }
         }
         if ($Mode -in @('Build', 'Package')) {
