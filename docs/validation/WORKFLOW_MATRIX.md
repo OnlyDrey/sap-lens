@@ -803,3 +803,50 @@ switching, stale responses and role-save checks. Production build/TypeScript,
 changed-component ESLint, test mapping, documentation links (94 files, 0 failures)
 and diff whitespace checks passed. No backend code changed; backend/full
 regression and native Windows acceptance were intentionally not rerun.
+
+## Desktop startup reliability — 2026-11-04
+
+Investigation `f98bc76`; supervised runtime/recovery `4bb6931` plus final guard and
+documentation closeout. Confirmed baseline defects: a single failed HTTP probe
+aborted startup, exception/stage details were discarded, logs started after store
+recovery, and the startup document could not request a controlled retry.
+**The specific intermittent Windows trigger remains unconfirmed.**
+
+Implemented: bounded identity-checked HTTP probes with redirects disabled; worker
+exit detection; unchanged 15-second default with a validated desktop-only override;
+sanitized per-attempt stage/timing/PID/worker-outcome logs; native capability-guarded
+retry/log-location actions; serial retry after confirmed owned-worker shutdown;
+fresh reserved listener/identity; fail-closed retry when shutdown is incomplete;
+scheduler/loader lifespan cleanup, including failed initialization. Vite builds
+remain separate from runtime startup; no dependency, workflow or version changes.
+
+Executed, in isolated synthetic storage:
+
+- 92 targeted tests passed: `test_desktop`, `test_desktop_browser`,
+  `test_refresh_schedule`, `test_server`, `test_windows_package`.
+- 3 final readiness checks passed, including real loopback redirect rejection
+  without contacting the unrelated target listener.
+- 19 final safety/scheduler checks passed, including invalid-timeout retry and a
+  scheduler that returns before startup. These overlap earlier module coverage.
+- 6 one-worker browser checks passed: desktop startup centering at 375/800/1280/1600,
+  recovery actions, failure category, keyboard retry, duplicate-click prevention,
+  log-location feedback and explicit close. One recovery check passed again using
+  the shared UTF-8 fixture to avoid Windows code-page assumptions.
+- Python compile, changed-file Ruff, test-map ownership and documentation links
+  passed. The changed startup recovery screenshot was inspected.
+
+Fault coverage includes normal/slow startup, early/during-probe worker exit,
+unrelated occupied ports, repeat launches, configuration/loader/scheduler and
+stopped-store recovery failures, unavailable/wrong health responses, bounded
+readiness expiry, retry, incomplete-shutdown refusal, shutdown and privacy-safe
+logs. An initial obsolete single-probe timeout test was updated to use a configured
+short deadline and retains its recovery-screen/listener-cleanup assertions. A new
+constructor-injection test initially patched the defining module rather than the
+imported boundary; the corrected test passes.
+
+Not run: full regression, new frontend production build (React/production assets
+unchanged), new native package compilation, Windows/WebView2/SCM or a native Linux
+GUI. Windows package-verifier contracts passed on Linux; this is not EXE runtime
+acceptance. Repeated source-mode and packaged launches, tray exit, shutdown and
+retry on the affected Windows machine remain required before declaring the
+intermittent issue resolved. Original reference/private files remain outside Git.

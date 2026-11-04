@@ -73,7 +73,9 @@ def create_app(origin: str | None = None, session_token: str | None = None,
                 loader.error = 'Choose a SAP role catalogue or user access CSV in Settings.'
             # Start the supervised scheduler and let persisted-data loading mark its state.
             await asyncio.sleep(0)
-            if scheduled.done(): scheduled.result()
+            if scheduled.done():
+                scheduled.result()
+                raise RuntimeError('Scheduler stopped during initialization')
             notify('scheduler', 'ready')
             notify('initialization', 'ready')
             yield

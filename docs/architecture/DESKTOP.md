@@ -29,7 +29,7 @@ Shutdown requests graceful Uvicorn termination, bounds the wait, closes the owne
 | Share unavailable | Cancel the pending load and choose an accessible source; the app can close safely if the filesystem stalls |
 | Port `18743` occupied | No action is normally needed; the desktop automatically chooses another controlled loopback port |
 | Another instance already starting | Wait for its window or switch to it on the taskbar |
-| Other startup failure | Close and reopen; inspect `%LOCALAPPDATA%/SAP Lens/sap-lens.log` for the failed stage/category and check profile permissions |
+| Other startup failure | Use the displayed code and **Log location**, then **Retry startup** when offered. If shutdown is incomplete, close the process fully before restarting; see recovery below. |
 | Source-mode development | Activate `.venv`, install desktop requirements and build the frontend, then run `.\.venv\Scripts\pythonw.exe backend\desktop.py` from the repository root |
 
 Settings are stored per user, independently of the EXE. Logs omit source paths, data and launch capabilities. A normal exit removes `runtime.json`. Forced OS termination may leave this non-secret diagnostic file; the next owned launch replaces it. No service worker caches SAP responses.
@@ -238,3 +238,71 @@ The launcher serves existing `frontend/dist`; it never invokes Node, Vite or a
 frontend build. Vite `PLUGIN_TIMINGS` measures the separate build command and is
 not evidence of desktop runtime startup latency. No build dependencies or timing
 constants were changed during this investigation.
+
+## Readiness, diagnostics and controlled recovery
+
+Readiness requires Uvicorn's ASGI initialization to complete **and** a successful
+HTTP `/health` response with `app=sap-lens`, the current attempt's instance identity
+and a recognized status. A TCP connection alone is insufficient. The launcher
+uses its reserved `127.0.0.1` listener, bypasses network proxies for that loopback
+probe and refuses redirects. It never probes, kills or attaches to an unrelated
+listener on the preferred port. An occupied preferred port falls back to an
+OS-assigned port.
+
+Each HTTP attempt is bounded to 0.5 seconds, with at most 0.1 seconds between
+failed probes. Worker termination is checked during polling. The initialization /
+readiness budget remains **15 seconds** by default; administrators can explicitly
+set `SAP_LENS_DESKTOP_STARTUP_TIMEOUT` to a number from 1 through 180 seconds for a
+measured slow machine. Invalid values fail with `INVALID_STARTUP_TIMEOUT`.
+This setting does not alter server deployments or the separate WebView loading
+budget, and cannot forcibly interrupt blocked OS filesystem calls.
+
+Configuration and stopped-store recovery remain correctness prerequisites.
+The scheduler starts once per app lifespan and is cancelled, together with the
+initial data-load task, on shutdown or lifespan failure. Background CSV loading
+may return `loading` or `needs_configuration`; neither means that the local HTTP
+service crashed. The normal frontend shows source progress/errors afterward.
+There is no separate SQL initialization/migration stage in this runtime.
+
+Startup logs are written to `config_dir()/sap-lens.log` (2 MB rotation, two
+backups), before backup/restore recovery. Normally this is
+`%LOCALAPPDATA%/SAP Lens` on Windows and the configured per-user application data
+folder on Linux; `SAP_LENS_CONFIG_DIR` selects the supported override. The native
+**Log location** action reveals the actual configured location on request. File
+logging failure is handled without crashing an otherwise usable runtime; check
+permissions if no current log can be written.
+
+Records include UTC timestamp, attempt ID, elapsed milliseconds, stage, host/port,
+PID and worker outcome. The backend shares the desktop PID: it is a thread, not a
+child process. Traceback records retain exception types and source file/line/
+function locations only, excluding exception values, source lines, locals,
+capabilities and imported records. Worker outcome is not an OS child exit code.
+A stale `runtime.json` is diagnostic only; ownership comes from the instance and
+storage leases, never from trusting a saved PID or contacting its recorded port.
+
+| Startup code | Meaning / recovery |
+| --- | --- |
+| `CONFIGURATION_FAILED` | Configuration could not initialize; inspect the sanitized trace and storage permissions, then retry. |
+| `APPLICATION_INIT_FAILED` | An application/loader/scheduler constructor failed; inspect the stage and trace. |
+| `BACKEND_EXITED` | The owned worker stopped before or during readiness; inspect initialization events. |
+| `INITIALIZATION_TIMEOUT` | ASGI startup exceeded its deadline; investigate initialization before extending the budget. |
+| `READINESS_TIMEOUT` | No valid HTTP readiness response arrived within the budget. |
+| `UNEXPECTED_SERVICE` | Wrong/malformed response or redirect; no other service is accepted. |
+| `ASSETS_MISSING` | Compiled frontend directory is missing; rebuild or reinstall the package. |
+| `WINDOW_TIMEOUT` | The startup document did not load; verify WebView2. |
+
+On a recoverable failure, **Retry startup** requests a real native restart attempt;
+it does not reload React. The same supervising thread first stops the owned
+backend and closes its listener. Only after confirmed shutdown can it reserve a
+fresh listener and identity and create one replacement app/scheduler. Duplicate
+retry clicks are rejected. Storage recovery is not rerun against live stores.
+If a backend thread cannot stop, retry is unavailable: fully exit SAP Lens (tray
+**Exit SAP Lens**, rather than just hiding the window) before relaunching. No
+remote server-restart endpoint or process-wide termination command was added.
+
+Targeted Linux HTTP and fault-injection tests establish these contracts. They do
+**not** establish that the reported intermittent Windows/WebView2 failure is
+resolved. Repeated source-mode and packaged EXE launches on the affected Windows
+machine, including recovery and explicit tray exit, remain required. Retain the
+new attempt diagnostics if the failure recurs. Vite timing findings remain
+separate from this runtime validation.

@@ -636,7 +636,8 @@ def run() -> int:
                     backend = None
                     # Reserve the next socket inside the guarded attempt, never outside its error path.
                     attempt = StartupAttempt()
-                    get_settings.cache_clear()
+                    from config import get_settings as reload_settings
+                    reload_settings.cache_clear()
             while not closing.wait(0.5):
                 if background: background.check_tray()
                 if not backend.worker.is_alive():

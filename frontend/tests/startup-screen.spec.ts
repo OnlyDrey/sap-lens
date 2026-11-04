@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import { bootstrapDocument } from './bootstrap-fixture'
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -59,7 +60,7 @@ test.describe('desktop startup document', () => {
 })
 
 test('desktop startup recovery shows category, guarded retry, log location and explicit close',async({page})=>{
-  const document=execFileSync('python3',['-c',"import sys;sys.path.insert(0,'backend');from pathlib import Path;from startup_screen import startup_html;print(startup_html(Path('assets/sap-lens.png'),'synthetic-capability'))"],{cwd:repository,encoding:'utf8'})
+  const document=bootstrapDocument()
   await page.setContent(document)
   await page.evaluate(()=>{
     const target=window as unknown as {pywebview:{api:Record<string,(token:string)=>Promise<unknown>>};startupCalls:string[];sapLensStartup:{setState:(label:string,error:string,code:string,retry:boolean)=>void}}
@@ -75,7 +76,7 @@ test('desktop startup recovery shows category, guarded retry, log location and e
   await page.getByRole('button',{name:'Log location',exact:true}).click()
   await expect(page.getByText('Synthetic application data / sap-lens.log',{exact:true})).toBeVisible()
   await page.getByRole('button',{name:'Close SAP Lens',exact:true}).click()
-  expect(await page.evaluate(()=>(window as unknown as {startupCalls:string[]}).startupCalls)).toEqual(['retry:synthetic-capability','logs:synthetic-capability','close:synthetic-capability'])
+  expect(await page.evaluate(()=>(window as unknown as {startupCalls:string[]}).startupCalls)).toEqual(['retry:synthetic-preview','logs:synthetic-preview','close:synthetic-preview'])
   await page.evaluate(()=>(window as unknown as {sapLensStartup:{setState:(label:string,error:string,code:string,retry:boolean)=>void}}).sapLensStartup.setState('Startup needs attention','Shutdown incomplete. Close fully.','CLEANUP_INCOMPLETE',false))
   await expect(retry).toBeHidden()
   await expect(page.getByRole('button',{name:'Close SAP Lens',exact:true})).toBeEnabled()

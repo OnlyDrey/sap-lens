@@ -643,6 +643,32 @@ class DesktopTests(unittest.TestCase):
         with patch.object(desktop.ManagedBackend,'start',side_effect=desktop.StartupFailure('SYNTHETIC','Synthetic failure')), patch.object(desktop.ManagedBackend,'close',incomplete):
             self.assertEqual(desktop.run(),1)
 
+    def test_retry_of_invalid_timeout_stays_recoverable_without_a_backend(self):
+        failures=[];second=threading.Event()
+        original=self.window.evaluate_js.side_effect
+        def evaluate(script):
+            original(script)
+            if 'INVALID_STARTUP_TIMEOUT' in script:
+                failures.append(script)
+                if len(failures)==2:second.set()
+        self.window.evaluate_js.side_effect=evaluate
+        def session(**kwargs):
+            bridge=self.gui.create_window.call_args.kwargs['js_api']
+            self.assertTrue(bridge.retry_startup(bridge._token))
+            self.assertTrue(second.wait(3))
+        self.gui_session=session
+        with patch.dict(os.environ,{'SAP_LENS_DESKTOP_STARTUP_TIMEOUT':'invalid'}),patch.object(desktop,'ManagedBackend') as backend:
+            self.assertEqual(desktop.run(),1)
+        backend.assert_not_called()
+        self.assertEqual(len(failures),2)
+
+    def test_scheduler_returning_early_never_passes_initialization(self):
+        async def stopped(_scheduler):return
+        from scheduler import Scheduler
+        with patch.object(Scheduler,'loop',stopped):
+            with self.assertRaisesRegex(RuntimeError,'Scheduler stopped'):
+                with TestClient(create_app()):pass
+
     def test_retry_bridge_requires_launch_capability(self):
         bridge=desktop.NativeDialogs('synthetic-capability');bridge._retry_startup=MagicMock(return_value=True)
         for method in (bridge.retry_startup,bridge.startup_log_location):
