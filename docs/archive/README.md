@@ -19,6 +19,8 @@ Results apply only to their recorded source and environment. Start with the
 - [Installation lifecycle implementation and validation](validation/INSTALLATION_LIFECYCLE_VALIDATION.md)
 - [Investigation tools — implementation and validation](validation/INVESTIGATION_TOOLS_VALIDATION.md)
 - [Local build validation record](validation/LOCAL_BUILD_VALIDATION.md)
+- [CI explanations before the three-level model](validation/CI_HISTORY_PRE_THREE_LEVEL.md): superseded passages moved from the CI guide
+- [Local validation log, November 2026](validation/LOCAL_VALIDATION_LOG_2026-11.md): dated build, workflow and stabilization records moved from the workflow matrix
 - [Cross-platform packaging validation — 24 October 2026](validation/PACKAGING_VALIDATION.md)
 - [SoD 2.0 — implementation and validation — 28 October 2026](validation/SOD2_VALIDATION.md)
 - [SoD — final regression and delivery validation — 28 October 2026](validation/SOD_VALIDATION.md)

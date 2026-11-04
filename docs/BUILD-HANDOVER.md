@@ -340,3 +340,23 @@ Implementation complete, awaiting full regression and native platform acceptance
   Docker: `python3.12 scripts/build.py package --platform docker --target server --non-interactive`.
 - Workflows (needs authorization): `python scripts/check-workflows.py`, `python scripts/ci.py lint`, then the approved runner runs.
 - Full regression (needs authorization): `python scripts/build.py test --scope full --non-interactive`.
+
+## Linux acceptance attempt (user-local Node 24.22.2, npm 11.19.1)
+
+**Result: BLOCKED, not accepted.** Node was provisioned user-locally (checksum-verified tarball, no system change). The engine ran
+PowerShell-free through dependency install, `pip check`, workflow lint, the targeted backend stage (201 tests, 0 failed, 3 skipped),
+type check, catalogue check, production build and audits, then stopped at the browser smoke stage: 11 passed, 1 failed
+(`tests/sod-governance.spec.ts:9`, "risk matrix counts distinct users ... @smoke"). It is deterministic (reproduced alone) and the
+expected text "Potential conflict evidence" no longer exists in `frontend/src`: a pre-existing test/UI drift from the earlier SoD work,
+unrelated to the build system. No package was produced. Fix the spec or restore the text, then rerun
+`python scripts/build.py package --platform linux --target server --non-interactive` with Node 24/25.
+
+An earlier attempt exposed a real defect in a new test (the builder's `SAP_LENS_SKIPPED_CHECKS` leaked into it); fixed in `c3265e5`.
+Docker: the CLI exists but no daemon is reachable, so Docker acceptance is blocked by the environment.
+
+## Documentation cleanup (documentation only)
+
+- `docs/validation/WORKFLOW_MATRIX.md` keeps only the current matrix; dated logs moved verbatim to
+  `docs/archive/validation/LOCAL_VALIDATION_LOG_2026-11.md` (relative links adjusted).
+- `docs/development/CI.md` now states current behavior, checked against the workflow files; superseded passages are preserved in
+  `docs/archive/validation/CI_HISTORY_PRE_THREE_LEVEL.md`. R8 reports and handoffs were left in place.
