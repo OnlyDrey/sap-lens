@@ -23,7 +23,8 @@ test('risk matrix counts distinct users and findings and opens the investigation
   await expect(panel.getByRole('region', { name: 'Activity A' })).toContainText('ROLE_A1')
   await expect(panel.getByRole('region', { name: 'Activity A' })).toContainText('ROLE_A2')
   await expect(panel.getByRole('region', { name: 'Activity B' })).toContainText('ROLE_B')
-  await expect(panel).toContainText('Potential conflict evidence')
+  // The cell opens the panel scoped to this user-risk finding (the former "Potential conflict evidence" subtitle was replaced by this notice).
+  await expect(panel.getByRole('status').filter({ hasText: 'Showing only risk R1 and the evidence behind it.' })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(panel).toHaveCount(0)
   await expect(cell).toBeFocused()
