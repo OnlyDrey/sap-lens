@@ -550,7 +550,7 @@ def main():
                     ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True, encoding="utf-8"
                 ).strip()
                 write_identity(build_version.make_local_package_info(
-                    env.get("SAP_LENS_LOCAL_VERSION") or build_version.product_version().replace("-beta.","-beta-"), sha
+                    env.get("SAP_LENS_LOCAL_VERSION") or build_version.product_version(), sha
                 ))
             return
         validate_inputs(

@@ -7,6 +7,7 @@ param(
     [string]$PythonExecutable,
     [string]$AuditPython,
     [switch]$ValidatedDeployment,
+    [switch]$TargetedValidation,
     [switch]$BenchmarkPackaging
 )
 $ErrorActionPreference = 'Stop'
@@ -110,8 +111,15 @@ try {
     }
     Invoke-Stage Backend {
         Measure-Task 'Backend tests' {
-            & $buildPython -W error::DeprecationWarning -m unittest discover -s backend/tests -v
-            Assert-Success 'Backend regression tests'
+            if ($TargetedValidation) {
+                foreach ($pattern in @('test_desktop.py', 'test_windows_package.py', 'test_server.py', 'test_build_version.py', 'test_local_build.py')) {
+                    & $buildPython -W error::DeprecationWarning -m unittest discover -s backend/tests -p $pattern -v
+                    Assert-Success "Packaging backend tests: $pattern"
+                }
+            } else {
+                & $buildPython -W error::DeprecationWarning -m unittest discover -s backend/tests -v
+                Assert-Success 'Backend regression tests'
+            }
         }
     }
     Invoke-Stage Browser {
@@ -127,8 +135,10 @@ try {
                 Assert-Success 'Install test browser'
             }
             Measure-Task 'Playwright tests' {
-                npm run test:browser -- --reporter=line,github
-                Assert-Success 'Production browser regression tests'
+                $browserArguments = @('run', 'test:browser', '--', '--reporter=line,github', '--workers=1')
+                if ($TargetedValidation) { $browserArguments += @('--grep', '@smoke') }
+                npm @browserArguments
+                Assert-Success 'Production browser tests'
             }
         } finally { Pop-Location }
     }

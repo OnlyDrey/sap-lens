@@ -1,20 +1,28 @@
 <# Local headless server bundle. The canonical desktop build remains unchanged. #>
 [CmdletBinding()]
-param([Parameter(Mandatory=$true)][string]$WinSW,[string]$Version='',[Alias('ValidatedCI')][switch]$ValidatedDeployment,[string]$OutputDirectory='')
+param([string]$WinSW='',[string]$Version='',[Alias('ValidatedCI')][switch]$ValidatedDeployment,[string]$OutputDirectory='')
 $ErrorActionPreference = 'Stop'
 if ($env:OS -ne 'Windows_NT' -or $env:PROCESSOR_ARCHITECTURE -ne 'AMD64') { throw 'Build the server bundle on x64 Windows.' }
 $root=Split-Path $PSScriptRoot -Parent
-if (-not $Version) { $Version=(Get-Content (Join-Path $root 'backend/resources/product-version.json') -Raw | ConvertFrom-Json).version.Replace('-beta.','-beta-') }
+
 $python=Join-Path $root 'backend/build/python-env/Scripts/python.exe'
-if (-not (Test-Path $python)) { throw 'Run build-local.ps1 -Mode Validate -Version <version> first.' }
+if (-not (Test-Path $python)) { throw 'Run scripts/build-local.ps1 -Mode Validate first.' }
 function Invoke-Checked([scriptblock]$Command) { & $Command; if ($LASTEXITCODE -ne 0) { throw 'Server build failed. No verified bundle was produced.' } }
 Push-Location $root
 try {
+    if (-not $Version) {
+        $Version = & $python scripts/local-build.py version
+        if ($LASTEXITCODE -ne 0) { throw 'Unable to resolve the authoritative product version.' }
+    }
     Invoke-Checked { & $python scripts/local-build.py tools }
     if ($ValidatedDeployment) {
         Invoke-Checked { & $python scripts/deployment-package.py require-inputs }
         $Version=(Get-Content backend/build/build-version.json -Raw | ConvertFrom-Json).version
     } else { Invoke-Checked { & $python scripts/local-build.py check --version $Version } }
+    if (-not $WinSW) {
+        $WinSW = Join-Path $root 'backend/build/WinSW-x64.exe'
+        Invoke-Checked { & $python scripts/local-build.py winsw --output $WinSW }
+    }
     if ((Get-FileHash $WinSW -Algorithm SHA256).Hash.ToLowerInvariant() -ne '05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da') { throw 'WinSW SHA-256 does not match the official pinned v2.12.0 x64 release.' }
     $output=if ($OutputDirectory) { $OutputDirectory } else { Join-Path $root "dist/server/$Version" }
     if (Test-Path $output) { throw 'Output already exists. Use a new empty output directory/version after reviewing the previous build.' }

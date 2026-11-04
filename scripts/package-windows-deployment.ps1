@@ -49,7 +49,7 @@ Instructions: https://github.com/OnlyDrey/sap-lens/blob/work/docs/deployment/WIN
 
 } else {
     $wrapper=Join-Path $root 'backend/build/WinSW-x64.exe'
-    Invoke-WebRequest 'https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW-x64.exe' -OutFile $wrapper
+    Checked { & $python scripts/local-build.py winsw --output $wrapper }
     $bundle=Join-Path $root ('backend/build/deployment-service-'+[guid]::NewGuid().ToString('N'))
     & ./scripts/build-server-windows.ps1 -WinSW $wrapper -ValidatedDeployment -OutputDirectory $bundle
     & ./scripts/test-server-service.ps1 -Bundle $bundle

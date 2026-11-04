@@ -1,9 +1,11 @@
-"""Offline local-build identity, freshness receipt and verified distribution export.
+"""Local-build preflight, identity, freshness receipt and verified distribution export.
 
+Only the explicit winsw operation downloads a pinned, verified binary.
 No GitHub API, tags or publication. Receipts guard accidental stale inputs, not
 malicious changes by the same OS user. All paths stay in ignored build folders.
 """
 import argparse
+import ast
 import hashlib
 import importlib.util
 import importlib.metadata
@@ -14,13 +16,15 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+import tempfile
+import urllib.request
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'backend'))
 import version
 
-REQUIRED = ['Frontend', 'Python', 'Audit', 'Backend', 'Browser', 'Repository']
+REQUIRED = ['Frontend', 'Python', 'Audit', 'PackagingBackend', 'PackagingBrowser', 'Repository']
 MAX_AGE = 24 * 60 * 60
 
 
@@ -121,7 +125,7 @@ def receipt_path(root=ROOT):
 def record(requested, stages, root=ROOT):
     if stages != REQUIRED:
         raise ValueError('Cannot record incomplete validation.')
-    value = {'schema': 1, 'identity': identity(requested, root), 'inputs': inputs(root),
+    value = {'schema': 2, 'identity': identity(requested, root), 'inputs': inputs(root),
              'validated_at': time.time(), 'stages': stages}
     write_json(receipt_path(root), value)
     return value
@@ -131,10 +135,10 @@ def check(requested, root=ROOT, now=None):
     clean(root)
     path = receipt_path(root)
     if path.is_symlink() or not path.is_file() or path.stat().st_size > 8192:
-        raise ValueError('No safe validation receipt. Run -Mode Validate with the same -Version first.')
+        raise ValueError('No safe validation receipt. Run -Mode Validate first (use the same version override only if one was specified).')
     value = json.loads(path.read_text(encoding='utf-8'))
     age = (time.time() if now is None else now) - value.get('validated_at', 0)
-    if (value.get('schema') != 1 or value.get('stages') != REQUIRED or
+    if (value.get('schema') != 2 or value.get('stages') != REQUIRED or
             value.get('identity') != identity(requested, root) or not 0 <= age <= MAX_AGE or
             value.get('inputs') != inputs(root)):
         raise ValueError('Validation is stale or inputs/version changed. Run -Mode Validate again (receipt lasts 24 hours).')
@@ -191,15 +195,79 @@ def export(requested, output, root=ROOT):
     print(f"Verified ZIP SHA-256: {zip_sha}")
 
 
+QUICK_INPUTS = ('backend/resources/product-version.json', 'frontend/package.json', 'frontend/package-lock.json',
+                'backend/requirements-build.txt', 'backend/requirements-dev.txt', 'backend/desktop.py', 'frontend/index.html',
+                'assets/sap-lens.ico', 'assets/sap-lens.png', 'scripts/build-windows.ps1',
+                'scripts/build-server-windows.ps1', 'scripts/package-windows-deployment.ps1',
+                'scripts/verify-windows-package.py', 'scripts/verify-server-bundle.py',
+                'scripts/test-windows-exe.ps1', 'deploy/windows/LICENSE-WinSW.txt')
+
+
+def quick(requested, root=ROOT):
+    """Offline preflight only: no installs, application tests, receipts or package writes."""
+    info = identity(requested, root)
+    for name in QUICK_INPUTS:
+        path = root / name
+        if path.is_symlink() or not path.is_file() or not path.stat().st_size:
+            raise ValueError(f'Missing or unsafe build input: {name}. Restore it from the checkout.')
+    product = version.product_version()
+    for name in ('frontend/package.json', 'frontend/package-lock.json'):
+        manifest = json.loads((root / name).read_text(encoding='utf-8'))
+        if manifest.get('version') != product or manifest.get('packages', {}).get('', {}).get('version', product) != product:
+            raise ValueError('Product/package versions differ. Run node scripts/product-version.mjs --write, review and commit before Build.')
+    for name in ('backend/version.py', 'scripts/local-build.py', 'scripts/verify-windows-package.py', 'scripts/verify-server-bundle.py'):
+        ast.parse((root / name).read_text(encoding='utf-8'), filename=name)
+    return info
+
+
+def fetch_winsw(output):
+    """Reuse the verifier's canonical pin; never activate an unchecked download."""
+    pin = load_script('verify-server-bundle').WINSW_SHA
+    output = Path(output)
+    if output.is_symlink():
+        raise ValueError('WinSW cache must not be linked.')
+    if output.exists():
+        if not output.is_file() or digest(output) != pin:
+            raise ValueError('Cached WinSW failed SHA-256 verification. Review/remove only this build cache and retry.')
+        return output
+    output.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=output.parent, prefix='winsw-', suffix='.download', delete=False) as target:
+            temporary = Path(target.name)
+            with urllib.request.urlopen('https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW-x64.exe', timeout=60) as source:
+                remaining = 64 * 1024 * 1024
+                while chunk := source.read(min(1024 * 1024, remaining + 1)):
+                    remaining -= len(chunk)
+                    if remaining < 0:
+                        raise ValueError('WinSW download exceeds the permitted size.')
+                    target.write(chunk)
+        if digest(temporary) != pin:
+            raise ValueError('WinSW download SHA-256 mismatch; no wrapper was activated.')
+        temporary.replace(output)
+        return output
+    except OSError as error:
+        raise ValueError('Unable to obtain pinned WinSW. Check GitHub/proxy access or supply a verified offline -WinSW path.') from error
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('operation', choices=['identity', 'clean', 'invalidate', 'record', 'check', 'export', 'tools'])
-    parser.add_argument('--version', default=version.product_version().replace('-beta.','-beta-'))
+    parser.add_argument('operation', choices=['version', 'quick', 'winsw', 'identity', 'clean', 'invalidate', 'record', 'check', 'export', 'tools'])
+    parser.add_argument('--version', default=version.product_version())
     parser.add_argument('--stages', nargs='*', default=[])
     parser.add_argument('--output', type=Path)
     args = parser.parse_args()
     try:
-        if args.operation == 'identity':
+        if args.operation == 'version':
+            print(version.product_version())
+        elif args.operation == 'quick':
+            print(json.dumps(quick(args.version)))
+        elif args.operation == 'winsw':
+            print(fetch_winsw(args.output or ROOT / 'backend/build/WinSW-x64.exe'))
+        elif args.operation == 'identity':
             info = identity(args.version)
             write_json(ROOT / 'backend/build/build-version.json', info)
             print(info['version'])

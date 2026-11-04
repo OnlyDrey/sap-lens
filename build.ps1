@@ -3,7 +3,7 @@
 [CmdletBinding()]
 param(
     [ValidateSet('desktop','service','docker','linux-native','all')][string[]]$Platform=@('all'),
-    [Parameter(Mandatory=$true)][string]$Version,
+    [string]$Version='',
     [switch]$Clean,[switch]$NoCache,[switch]$ReuseValidation,
     [string]$OutputDir='',
     [string]$WindowsHost='',[string]$WindowsRepository='',
@@ -18,7 +18,8 @@ $OutputEncoding=[Console]::OutputEncoding
 $env:PYTHONUTF8='1'
 Push-Location $PSScriptRoot
 try {
-    $arguments=@('scripts/build-deployments.py','--version',$Version)
+    $arguments=@('scripts/build-deployments.py')
+    if ($Version) { $arguments+=@('--version',$Version) }
     foreach ($target in $Platform) { $arguments+=@('--platform',$target) }
     if ($Clean) { $arguments+='--clean' }
     if ($NoCache) { $arguments+='--no-cache' }
