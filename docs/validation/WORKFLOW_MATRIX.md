@@ -850,3 +850,68 @@ GUI. Windows package-verifier contracts passed on Linux; this is not EXE runtime
 acceptance. Repeated source-mode and packaged launches, tray exit, shutdown and
 retry on the affected Windows machine remain required before declaring the
 intermittent issue resolved. Original reference/private files remain outside Git.
+
+## 2026-11-04 — Recovery and complete-assignment bulk review
+
+Delivered on `work`, without a product-version, dependency or workflow change:
+
+| Phases | Implementation | Commit |
+| --- | --- | --- |
+| 1–2 | Explicit trusted desktop-session recovery, safe nested entry routing, differentiated access/network errors; no write replay | `bf9d84c` |
+| 3–4 | Isolated single/bulk profiler and canonical confirmed-row feedback, independent of background subject refresh | `f35a765` |
+| 5 | Reviews navigation: Work queue, Bulk Review, Remediation | `e0e2826` |
+| 6 | Complete active imported-assignment scope, including non-conflict users; conservative base-role families, exact suffix/group filters; atomic Keep/Remove/Investigate | `a1b9934` |
+| 7 | Explorer Roles shortcut transfers effective filters and explicitly selects the complete matching set | `63108fd` |
+| 8 | Queue, Dashboard coverage, periods, remediation, CSV and report models share assignment scope; conflict counts and formal acceptance stay independent | `dd303e8` |
+
+Targeted evidence (FULL was intentionally not run):
+
+- Recovery: 6 backend checks and 4 focused browser checks passed. Wrong-origin
+  requests remain forbidden; session recovery preserves safe view history and does
+  not replay writes. Native Windows session rotation remains untested.
+- Feedback: 19 review-coverage backend tests, 5 decision/race/failure browser checks
+  and 2 confirmation/performance checks passed. See the measured distributions and
+  limitations in [SoD architecture](../architecture/SOD.md#confirmed-assignment-feedback-and-write-profiling).
+  Backend p95/bulk speed improvement is not established; the confirmed-row UI no
+  longer waits for the subsequent subject read.
+- Navigation: the focused tab/deep-link workflow passed. Phase 6 passed 95 affected
+  backend checks, two final safety rechecks and 6 browser workflows (some coverage
+  overlaps previous checks). Explorer transfer and Roles evidence modal: 2 passed.
+- Final integration: 176 targeted backend checks across `test_sod_bulk_review`,
+  `test_sod_governance`, `test_sod_periods_v2`, `test_sod_review_coverage` and
+  `test_sod_reports` initially had 173 passes and 3 failures. Two expectations
+  counted only conflict assignments and now include the synthetic non-conflict
+  assignment. The report incorrectly used the complete review population for its
+  conflict-user metric; it now counts actual finding subjects. All three affected
+  tests passed their targeted rechecks.
+- Three new backend integration checks passed: non-conflict decisions synchronize
+  queue/KPI/remediation/export/action tracking; period progress and DOCX/PDF retain
+  those decisions; legacy snapshots retain their original scope and reject full
+  previews instead of substituting current records. An initial new-test assertion
+  used `decision` rather than the canonical summary `label`; its corrected recheck
+  passed. DOCX/PDF generation was checked after adding the render assertions.
+- Final focused browser batch: 7/9 initially passed. The persistent-tab test was
+  toggling an already selected group off, and the Dashboard test submitted only
+  the legacy conflict selection. They now preserve the selected group and submit
+  the explicit complete assignment scope. Both rechecks passed, plus a new test
+  proving restored legacy role-search semantics survive group-filter changes
+  (3/3). That check also guards the correction preserving `search` mode when the
+  shared filter panel updates. No assertions or safety gates were removed.
+- TypeScript and production build passed after the final frontend correction;
+  changed-file ESLint and Ruff, documentation links (94 Markdown files), test-map
+  ownership and `git diff --check` passed. Existing large-chunk build warnings are
+  non-blocking. No new dependencies were installed.
+- Light 375px and dark 1280px bulk previews passed bounded-layout checks and were
+  inspected. Screenshots/logs/traces remain outside tracked files.
+
+The focused outgoing-diff review found only source, tests, the existing profiler
+and canonical documentation. No new datasets, workbooks, screenshots, snapshots,
+credentials, private-key material, employee email addresses or organization-specific
+reference files are included. Accepted historical branding is unchanged. This is
+not a new exhaustive repository/history security audit.
+
+Not executed: full regression, fresh dependency audits/package builds (their inputs
+are unchanged), native Windows/WebView2/SCM, real systemd, reboot/recovery, UNC or
+production-data performance acceptance. No manual GitHub workflow or release was
+created. Local full regression remains available explicitly through
+`python scripts/validate.py --level full`; it is not an ordinary development gate.
