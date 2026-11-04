@@ -1,5 +1,7 @@
 """Window-owned WebView2 runtime with no subprocesses or console dependency."""
 import hmac
+from datetime import datetime, timezone
+import traceback
 import json
 import logging
 from logging.handlers import RotatingFileHandler
@@ -127,6 +129,47 @@ class DesktopStartupError(Exception):
     pass
 
 
+class StartupFailure(DesktopStartupError):
+    """Authored failure classification; exception details never enter the startup page."""
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+
+
+class StartupAttempt:
+    def __init__(self):
+        self.identity = secrets.token_hex(8)
+        self.started = time.monotonic()
+        self.phase = 'initialization'
+
+    def event(self, stage, result, error=None, **context):
+        self.phase = stage
+        details = dict(attempt=self.identity, timestamp=datetime.now(timezone.utc).isoformat(),
+                       elapsed_ms=round((time.monotonic()-self.started)*1000), stage=stage, result=result,
+                       pid=os.getpid(), **context)
+        if error is not None:
+            details['exception'] = type(error).__name__
+            # Traceback locations only: no exception values, source lines, paths or locals.
+            chain = []
+            current = error
+            while current is not None and len(chain) < 5:
+                chain.append(dict(exception=type(current).__name__, locations=[f'{Path(frame.filename).name}:{frame.lineno}:{frame.name}' for frame in traceback.extract_tb(current.__traceback__)]))
+                current = current.__cause__
+            details['traceback'] = chain
+        logger.log(logging.ERROR if error is not None or result == 'failed' else logging.INFO,
+                   'desktop_startup %s', json.dumps(details, sort_keys=True))
+
+
+def startup_timeout():
+    try:
+        value = float(os.environ.get('SAP_LENS_DESKTOP_STARTUP_TIMEOUT', '15'))
+        if not 1 <= value <= 180:
+            raise ValueError()
+        return value
+    except ValueError:
+        raise StartupFailure('INVALID_STARTUP_TIMEOUT', 'Startup timeout must be between 1 and 180 seconds. Check the desktop environment configuration.') from None
+
+
 def is_windows() -> bool:
     return sys.platform == 'win32'
 
@@ -163,6 +206,7 @@ class NativeDialogs:
         self._window = None
         self._desktop = None
         self._picker_lock = threading.Lock()
+        self._retry_startup = None
 
     def desktop_runtime(self, token: str):
         if not isinstance(token, str) or not hmac.compare_digest(token.encode(), self._token.encode()):
@@ -182,6 +226,16 @@ class NativeDialogs:
             raise ValueError('Application request is not authorized.')
         if self._desktop: self._desktop.exit()
         elif self._window: self._window.destroy()
+
+    def retry_startup(self, token: str):
+        if not isinstance(token, str) or not hmac.compare_digest(token.encode(), self._token.encode()):
+            raise ValueError('Application request is not authorized.')
+        return bool(self._retry_startup and self._retry_startup())
+
+    def startup_log_location(self, token: str):
+        if not isinstance(token, str) or not hmac.compare_digest(token.encode(), self._token.encode()):
+            raise ValueError('Application request is not authorized.')
+        return str(config_dir() / 'sap-lens.log')
 
     def choose_csv(self, token: str):
         if not isinstance(token, str) or not hmac.compare_digest(token.encode(), self._token.encode()):
@@ -314,9 +368,19 @@ class ManagedBackend:
         self._closed = False
         self.server = uvicorn.Server(uvicorn.Config(
             app, log_config=None, access_log=False, timeout_graceful_shutdown=2))
-        self.worker = threading.Thread(target=self.server.run,
-                                       kwargs={'sockets': [listener]},
+        self.error = None
+        self.exit_code = None
+        self.worker = threading.Thread(target=self._run,
                                        name='sap-lens-api', daemon=True)
+
+    def _run(self):
+        try:
+            self.server.run(sockets=[self.listener])
+            self.exit_code = 0 if self.server.started else 1
+        except BaseException as error:
+            # Uvicorn may use SystemExit for startup errors; preserve it for diagnostics.
+            self.error = error
+            self.exit_code = error.code if isinstance(error, SystemExit) and isinstance(error.code, int) else 1
 
     def start(self, timeout: float = 15, canceled=None):
         with self._lifecycle_lock:
@@ -325,9 +389,46 @@ class ManagedBackend:
         deadline = time.monotonic() + timeout
         while not self.server.started:
             if canceled and canceled.is_set(): return
-            if not self.worker.is_alive() or time.monotonic() > deadline:
-                raise RuntimeError('The local application service did not become ready.')
-            time.sleep(0.025)
+            if not self.worker.is_alive():
+                raise StartupFailure('BACKEND_EXITED', 'The local backend stopped during initialization. Review the startup log and retry.') from self.error
+            if time.monotonic() >= deadline:
+                raise StartupFailure('INITIALIZATION_TIMEOUT', 'Backend initialization exceeded the startup deadline. Review the startup log before retrying.')
+            if canceled: canceled.wait(.025)
+            else: time.sleep(.025)
+
+    def wait_ready(self, origin, identity, deadline, canceled, attempt):
+        from urllib.request import build_opener, ProxyHandler, HTTPRedirectHandler
+        from urllib.error import URLError
+        class NoRedirect(HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                raise StartupFailure('UNEXPECTED_SERVICE', 'The local service redirected its readiness check. No other service will be used.')
+        opener = build_opener(ProxyHandler({}), NoRedirect())
+        probes = 0
+        while not canceled.is_set():
+            if not self.worker.is_alive():
+                raise StartupFailure('BACKEND_EXITED', 'The local backend stopped before readiness. Review the startup log and retry.') from self.error
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise StartupFailure('READINESS_TIMEOUT', 'The local backend did not answer its readiness checks. Review the startup log and retry.')
+            probes += 1
+            try:
+                with opener.open(origin + '/health', timeout=min(.5, remaining)) as response:
+                    if response.status != 200:
+                        raise ValueError('Unexpected health status')
+                    body = response.read(8193)
+                    if len(body) > 8192: raise ValueError('Unexpected health size')
+                    health = json.loads(body)
+                if not isinstance(health, dict) or health.get('app') != 'sap-lens' or health.get('instance_id') != identity or health.get('status') not in {'ok','loading','needs_configuration'}:
+                    raise ValueError('Unexpected service identity')
+                if not self.worker.is_alive():
+                    raise StartupFailure('BACKEND_EXITED', 'The local backend stopped during readiness. Review the startup log and retry.')
+                attempt.event('readiness', 'ready', probe=probes)
+                return
+            except (URLError, TimeoutError, ConnectionError, OSError) as error:
+                attempt.event('readiness', 'unavailable', probe=probes, category=type(error).__name__)
+            except (ValueError, TypeError) as error:
+                raise StartupFailure('UNEXPECTED_SERVICE', 'The local service returned an unexpected readiness response. No other service will be used.') from error
+            canceled.wait(min(.1, max(0, deadline-time.monotonic())))
 
     def close(self):
         with self._lifecycle_lock:
@@ -341,6 +442,7 @@ class ManagedBackend:
         self.listener.close()
         # API and loader threads are daemon threads inside this process. No
         # orphan child process remains even when a network filesystem stalls.
+        return not self.worker.is_alive()
 
 
 def resource_path(name: str) -> Path:
@@ -361,6 +463,7 @@ def run() -> int:
     closing = threading.Event()
     crashed = threading.Event()
     stage = 'initialization'
+    attempt = StartupAttempt()
     try:
         if is_windows():
             instance = WindowsInstance()
@@ -368,29 +471,36 @@ def run() -> int:
                 if not activate_existing_window():
                     report_error('SAP Lens is already starting or running. Switch to its application window.')
                 return 0
-        if is_windows() and not webview2_available():
-            raise DesktopStartupError(
-                'Microsoft Edge WebView2 Runtime is required. Install the Evergreen WebView2 Runtime '
-                'from Microsoft, or ask your IT administrator, then reopen SAP Lens. No Python or Node.js installation is needed.')
+        stage = 'application data directory'
         directory = config_dir()
         directory.mkdir(parents=True, exist_ok=True)
+        try:
+            handler = RotatingFileHandler(directory / 'sap-lens.log', maxBytes=2_000_000,
+                                          backupCount=2, encoding='utf-8')
+            handler.addFilter(AppLogFilter())
+            handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(name)s: %(message)s'))
+            logging.getLogger().addHandler(handler)
+            logging.getLogger().setLevel(logging.INFO)
+        except OSError:
+            logger.warning('Desktop file logging unavailable; check application data permissions')
+        if is_windows() and not webview2_available():
+            raise DesktopStartupError('Microsoft Edge WebView2 Runtime is required. Install the Evergreen WebView2 Runtime from Microsoft, or ask your IT administrator, then reopen SAP Lens. No Python or Node.js installation is needed.')
+        attempt.event('storage_recovery', 'starting')
+        stage = 'storage_recovery'
         from storage_lease import StorageLease
         storage_lease = StorageLease(directory,'desktop').acquire()
+        attempt.event('instance', 'owned', stale_runtime=(directory/'runtime.json').exists())
         from application_backups import startup
         startup(storage_lease)
+        attempt.event('storage_recovery', 'ready', database='stopped_store_recovery_complete')
         from config import get_settings
         get_settings.cache_clear()
-        handler = RotatingFileHandler(directory / 'sap-lens.log', maxBytes=2_000_000,
-                                      backupCount=2, encoding='utf-8')
-        handler.addFilter(AppLogFilter())
-        handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(name)s: %(message)s'))
-        logging.getLogger().addHandler(handler)
-        logging.getLogger().setLevel(logging.INFO)
         stage = 'application resources'
         import webview
         from startup_screen import startup_html, state_script, palette_script
         listener = reserve_listener(APP_PORT)
         port = listener.getsockname()[1]
+        attempt.event('listener', 'reserved', host='127.0.0.1', port=port)
         origin = f'http://127.0.0.1:{port}'
         token = secrets.token_urlsafe(32)
         identity = secrets.token_hex(16)
@@ -418,15 +528,24 @@ def run() -> int:
             dialogs._desktop = background
             window.events.closing += background.on_closing
 
+        retry_requested = threading.Event()
+        retry_allowed = threading.Event()
+        def request_retry():
+            with startup_lock:
+                if closing.is_set() or not retry_allowed.is_set(): return False
+                retry_allowed.clear()
+                retry_requested.set()
+                return True
+        dialogs._retry_startup = request_retry
+
         def watch_backend():
-            nonlocal backend, runtime_file
+            nonlocal backend, listener, origin, identity, runtime_file, attempt
             try:
-                # This callback runs off the GUI thread, so slow service startup
-                # cannot block painting, closing or moving the startup window.
                 deadline = time.monotonic() + 15
                 while not window.events.loaded.wait(.1):
                     if closing.is_set(): return
-                    if time.monotonic() >= deadline: raise RuntimeError('Startup window was not ready.')
+                    if time.monotonic() >= deadline:
+                        raise StartupFailure('WINDOW_TIMEOUT', 'The startup window did not finish loading. Close SAP Lens and check WebView2.')
                 if closing.is_set(): return
                 if background:
                     try:
@@ -436,50 +555,93 @@ def run() -> int:
                         background.last_error='Windows tray unavailable; normal closing is active.'
                         background.restore()
                         logger.warning('Tray unavailable; normal desktop shutdown retained')
-                from main import create_app, frontend_dir
-                if not frontend_dir.is_dir(): raise RuntimeError('Frontend resources are missing.')
-                app = create_app(origin=origin, session_token=token, instance_id=identity, browser_access=True, desktop_preferences=background.preferences_change if background else None)
-                from config import get_settings
-                window.evaluate_js(palette_script(get_settings()))
-                with startup_lock:
-                    if closing.is_set(): return
-                    backend = ManagedBackend(app, listener)
-                backend.start(canceled=closing)
-                if closing.is_set(): return
-                window.evaluate_js(state_script('Connecting to local service…'))
-                from urllib.request import build_opener, ProxyHandler
-                with build_opener(ProxyHandler({})).open(origin + '/health', timeout=5) as response:
-                    health = json.load(response)
-                if health.get('instance_id') != identity:
-                    raise RuntimeError('Local instance readiness check failed.')
-                logger.info('Local application service ready')
-                if background: background.ready_backend()
-                with startup_lock:
-                    if closing.is_set(): return
-                    runtime_file = directory / 'runtime.json'
-                    runtime_file.write_text(json.dumps({'pid': os.getpid(), 'origin': origin,
-                                                       'instance_id': identity}), encoding='utf-8')
-                window.evaluate_js(state_script('Loading configuration…'))
-                if closing.is_set(): return
-                # Replace the bootstrap entry: Back must never revisit initialization.
-                window.evaluate_js('window.location.replace(' + json.dumps(f'{origin}/#session={token}') + ')')
-            except Exception:
-                if closing.is_set(): return
+            except Exception as error:
+                attempt.event('window', 'failed', error, code=getattr(error,'code','WINDOW_FAILED'))
                 crashed.set()
-                if background: background.failed_backend()
-                logger.error('Desktop local service startup unsuccessful')
-                try:
-                    window.evaluate_js(state_script('Startup needs attention',
-                        'The local service did not become ready. Close and reopen SAP Lens. If it happens again, review the local application log or contact IT.'))
-                except Exception:
-                    report_error('SAP Lens could not display its startup screen. Close and reopen the application; saved settings are retained.')
-                    window.destroy()
+                report_error('The SAP Lens startup window could not initialize. Check WebView2 and the application log.')
+                window.destroy()
                 return
+
+            while not closing.is_set():
+                stage = 'configuration'
+                try:
+                    if listener.fileno() < 0:
+                        listener = reserve_listener(APP_PORT)
+                        origin = f'http://127.0.0.1:{listener.getsockname()[1]}'
+                        identity = secrets.token_hex(16)
+                        if background: background.origin = origin
+                    timeout = startup_timeout()
+                    deadline = time.monotonic() + timeout
+                    attempt.event('attempt', 'starting', host='127.0.0.1', port=listener.getsockname()[1])
+                    window.evaluate_js(state_script('Starting backend…'))
+                    attempt.event('configuration', 'starting')
+                    from config import get_settings
+                    settings = get_settings()
+                    attempt.event('configuration', 'ready')
+                    window.evaluate_js(palette_script(settings))
+                    stage = 'application'
+                    from main import create_app, frontend_dir
+                    if not frontend_dir.is_dir():
+                        raise StartupFailure('ASSETS_MISSING', 'Compiled frontend files are missing. Rebuild or reinstall the application package.')
+                    app = create_app(origin=origin, session_token=token, instance_id=identity, browser_access=True,
+                                     desktop_preferences=background.preferences_change if background else None,
+                                     startup_observer=lambda phase,result,error=None,owner=attempt:owner.event(phase,result,error))
+                    with startup_lock:
+                        if closing.is_set(): return
+                        backend = ManagedBackend(app, listener)
+                    stage = 'backend'
+                    backend.start(timeout=max(.001, deadline-time.monotonic()), canceled=closing)
+                    if closing.is_set(): return
+                    window.evaluate_js(state_script('Connecting to local service…'))
+                    stage = 'readiness'
+                    backend.wait_ready(origin, identity, deadline, closing, attempt)
+                    if closing.is_set(): return
+                    if background: background.ready_backend()
+                    with startup_lock:
+                        if closing.is_set(): return
+                        runtime_file = directory / 'runtime.json'
+                        from config import atomic_write
+                        atomic_write(runtime_file, json.dumps({'pid': os.getpid(), 'origin': origin,
+                                                              'instance_id': identity}).encode())
+                    window.evaluate_js(state_script('Loading configuration…'))
+                    if closing.is_set(): return
+                    window.evaluate_js('window.location.replace(' + json.dumps(f'{origin}/#session={token}') + ')')
+                    attempt.event('startup', 'ready', host='127.0.0.1', port=listener.getsockname()[1])
+                    crashed.clear()
+                    break
+                except Exception as error:
+                    if closing.is_set(): return
+                    crashed.set()
+                    if background: background.failed_backend()
+                    code = getattr(error,'code', {'configuration':'CONFIGURATION_FAILED','application':'APPLICATION_INIT_FAILED'}.get(stage,'STARTUP_FAILED'))
+                    attempt.event(stage, 'failed', error, code=code,
+                                  worker_exit_code=backend.exit_code if backend else None)
+                    stopped = backend.close() if backend else True
+                    if not backend: listener.close()
+                    attempt.event('cleanup', 'stopped' if stopped else 'incomplete')
+                    if stopped:
+                        retry_allowed.set()
+                    message = str(error) if isinstance(error, StartupFailure) else 'Initialization could not complete. Review the startup log and check configuration and storage permissions.'
+                    if not stopped:
+                        message = 'Backend shutdown is incomplete. Close SAP Lens fully before starting it again; retry is disabled to prevent duplicate writers.'
+                    try:
+                        window.evaluate_js(state_script('Startup needs attention', message, code, stopped))
+                    except Exception:
+                        report_error('SAP Lens could not display its startup screen. Close the application; saved settings are retained.')
+                        window.destroy()
+                        return
+                    while not closing.is_set() and not retry_requested.wait(.1): pass
+                    if closing.is_set(): return
+                    retry_requested.clear()
+                    backend = None
+                    # Reserve the next socket inside the guarded attempt, never outside its error path.
+                    attempt = StartupAttempt()
+                    get_settings.cache_clear()
             while not closing.wait(0.5):
                 if background: background.check_tray()
                 if not backend.worker.is_alive():
                     crashed.set()
-                    logger.error('Local service stopped unexpectedly')
+                    attempt.event('runtime','failed',backend.error,code='BACKEND_EXITED',worker_exit_code=backend.exit_code)
                     if background: background.failed_backend()
                     report_error('The local SAP Lens service stopped. Reopen SAP Lens to continue; your settings are retained.')
                     if not background or not background.tray: window.destroy()
@@ -492,15 +654,17 @@ def run() -> int:
                       debug=False, private_mode=True, icon=str(resource_path('assets/sap-lens.ico')))
         return 1 if crashed.is_set() else 0
     except DesktopStartupError as exc:
+        attempt.event(stage,'failed',exc,code=getattr(exc,'code','DESKTOP_PREREQUISITE'))
         report_error(str(exc))
         return 1
     except Exception as exc:
         # Avoid logging URL fragments, native bridge state or CSV contents.
-        logger.error('Desktop failure during %s (%s)', stage, type(exc).__name__)
-        report_error('SAP Lens could not start. Check that Microsoft Edge WebView2 Runtime is installed, '
-                     'then try again. If the problem continues, check the local SAP Lens log and your profile permissions.')
+        attempt.event(stage,'failed',exc,code='DESKTOP_INITIALIZATION_FAILED')
+        report_error('SAP Lens could not complete ' + stage + '. No new backend was started. '
+                     'Check the local application log and application-data permissions; keep saved data and recovery files intact.')
         return 1
     finally:
+        attempt.event('shutdown','starting')
         with startup_lock:
             closing.set()
         if background:

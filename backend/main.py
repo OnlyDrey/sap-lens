@@ -33,13 +33,19 @@ class DataSettings(BaseModel):
 
 
 def create_app(origin: str | None = None, session_token: str | None = None,
-               instance_id: str | None = None, server=None, browser_access: bool = False, desktop_preferences=None) -> FastAPI:
+               instance_id: str | None = None, server=None, browser_access: bool = False, desktop_preferences=None, startup_observer=None) -> FastAPI:
     from deployment import server_mode, ServerSettings, AuthThrottle
     if server is None and server_mode():
         server = ServerSettings.from_env()
+    def notify(stage, result, error=None):
+        if startup_observer: startup_observer(stage, result, error)
+    notify('data_loader', 'starting')
     loader = DataLoader()
+    notify('data_loader', 'ready')
+    notify('scheduler', 'starting')
     from scheduler import Scheduler
     scheduler = Scheduler(loader)
+    notify('scheduler', 'created')
     allowed_origins = list(server.origins) if server else [origin] if origin else get_settings().cors_origins
     if not server and any(not _is_loopback_origin(value) for value in allowed_origins):
         raise ValueError('Only explicit HTTP loopback origins are supported.')
@@ -60,21 +66,25 @@ def create_app(origin: str | None = None, session_token: str | None = None,
 
         scheduled = asyncio.create_task(scheduler.loop())
         task = None
-        if get_settings().data_csv_path or get_settings().user_csv_path or get_settings().employee_csv_path or get_settings().employee_snapshot_id or get_settings().sod_csv_path:
-            task = asyncio.create_task(initial_load())
-            # One scheduling turn lets the task mark the loader as loading before the first request is served,
-            # so a client never reads an empty, idle backend while persisted data is still being restored.
+        try:
+            if get_settings().data_csv_path or get_settings().user_csv_path or get_settings().employee_csv_path or get_settings().employee_snapshot_id or get_settings().sod_csv_path:
+                task = asyncio.create_task(initial_load())
+            else:
+                loader.error = 'Choose a SAP role catalogue or user access CSV in Settings.'
+            # Start the supervised scheduler and let persisted-data loading mark its state.
             await asyncio.sleep(0)
-        else:
-            loader.error = 'Choose a SAP role catalogue or user access CSV in Settings.'
-        yield
-        scheduled.cancel()
-        with suppress(asyncio.CancelledError):
-            await scheduled
-        if task:
-            task.cancel()
-            with suppress(asyncio.CancelledError):
-                await task
+            if scheduled.done(): scheduled.result()
+            notify('scheduler', 'ready')
+            notify('initialization', 'ready')
+            yield
+        except Exception as error:
+            notify('initialization','failed',error)
+            raise
+        finally:
+            scheduled.cancel()
+            if task: task.cancel()
+            await asyncio.gather(scheduled, *([task] if task else []), return_exceptions=True)
+            notify('initialization', 'stopped')
 
     app = FastAPI(title='SAP Lens API', version=VERSION, lifespan=lifespan,
                   docs_url=None, redoc_url=None)
