@@ -40,7 +40,7 @@ def load(context, validity='active', as_of=None):
             versions['employees'] = get_settings().employee_snapshot_id
         return dict(context=context, findings=result['users'], generation=result['generation'], as_of=result['as_of'], coverage=result['coverage'],
                     period=None, frozen=False, reviewable=validity == 'active', only_current=validity == 'active', versions=versions, frozen_decisions=None,
-                    query=query)
+                    query=query, assignment_source=result.get('_assignment_source', {}), catalogue_names=result.get('_catalogue_names', ()), assignment_validity=validity)
     with periods.lock:
         index = periods.read()
         period = periods.find(index, context)
@@ -50,7 +50,7 @@ def load(context, validity='active', as_of=None):
     frozen = period.state in periods.FROZEN
     return dict(context=context, findings=saved['analysis']['users'], generation=period.snapshot, as_of=saved['evaluation_date'], coverage=saved['analysis']['coverage'],
                 period=period.model_dump(mode='json'), frozen=frozen, reviewable=period.state in {'Draft', 'In review'}, only_current=True,
-                versions=saved.get('source_versions', {}), frozen_decisions=saved.get('decisions') if frozen else None, query=None, legacy=saved.get('model') != 2)
+                versions=saved.get('source_versions', {}), frozen_decisions=saved.get('decisions') if frozen else None, query=None, legacy=saved.get('model') != 2, assignment_source=saved.get('assignment_source'), catalogue_names=saved.get('catalogue_names',()), assignment_validity=validity)
 
 
 def model_for(bundle):
@@ -63,6 +63,79 @@ def model_for(bundle):
     with _cache_lock:
         _derived['entry'] = (key, model)
     return model
+
+
+def review_model_for(bundle):
+    """Source-only extension of the prepared conflict model, never an input to conflict detection."""
+    base=model_for(bundle)
+    source=bundle.get('assignment_source')
+    if bundle['coverage']['status']!='available':return base
+    if source is None:return base  # Historical periods without this cut retain only their original evidence.
+    key=(bundle['context'],bundle['generation'],bundle.get('assignment_validity','active'))
+    with _cache_lock:
+        hit=_derived.get('review')
+        if hit and hit[0]==key:return hit[1]
+    from collections import defaultdict
+    from user_access import interval_status, sap_date
+    from sod_analysis import _digest
+    model={user:dict(entry,assignments=dict(entry['assignments']),groups=set(entry['groups'])) for user,entry in base.items()}
+    day=date.fromisoformat(bundle['as_of']) if isinstance(bundle['as_of'],str) else bundle['as_of']
+    validity=bundle.get('assignment_validity','active')
+    for user,record in source.items():
+        for row in record['assignments']:
+            status=interval_status(sap_date(row.get('valid_from')),sap_date(row.get('valid_to')),day)
+            if validity!='all' and status!=validity:continue
+            name=row['role_name']
+            if not name:continue
+            entry=model.setdefault(user,dict(user=user,findings={},activities={},assignments={},groups=set(),account=None))
+            path=dict(actual_assigned_role=name,role_valid_from=row.get('valid_from'),role_valid_to=row.get('valid_to'),user_group=row.get('user_group',''))
+            aid=governance.assignment_id(user,path)
+            if aid not in entry['assignments']:
+                entry['assignments'][aid]=dict(id=aid,user=user,role=name,valid_from=row.get('valid_from'),valid_to=row.get('valid_to'),user_group=row.get('user_group',''),
+                    interval_status=status,matching_status=row.get('match_status','unknown'),catalogue_roles=set(row.get('catalogue_roles') or []),single_roles=set(),supplies=defaultdict(set),risks=set(),
+                    evidence_version=_digest(['sod-assignment-evidence',1,aid,[]]))
+            entry['assignments'][aid]=dict(entry['assignments'][aid],catalogue_tcodes=tuple(row.get('tcodes') or [code for codes in entry['assignments'][aid]['supplies'].values() for code in codes]))
+            if row.get('user_group'):entry['groups'].add(row['user_group'])
+    with _cache_lock:_derived['review']=(key,model)
+    return model
+
+
+def assignment_view(bundle,model,state,q):
+    """Apply existing assignment predicates to the complete validated review population."""
+    if bundle.get('assignment_source') is None:
+        raise HTTPException(409,'This historical period lacks a full assignment snapshot. Use its retained evidence or create a new period; current imports are never substituted.')
+    allowed=allowed_assignments(model,state,q)
+    constrained=any(q.get(key) for key in ('risk','risks','criticality','criticalities','risk_type','category','categories','multiple_risks','acceptance','activity_decision'))
+    risk_scope=visible_cells(bundle,model,state,q) if constrained else None
+    users=wanted_users(q)
+    result={}
+    for user,entry in model.items():
+        if users and user.casefold() not in users:continue
+        if q.get('username') and not text_matches(user,q['username']):continue
+        if risk_scope is not None and user not in risk_scope:continue
+        ids=allowed[user]
+        if q.get('search') and not text_matches(user,q['search']):
+            ids={aid for aid in ids if text_matches(entry['assignments'][aid]['role'],q['search'])}
+        if not ids:continue
+        risks=set(entry['findings']) if risk_scope is None else risk_scope[user]
+        result[user]=dict(entry,visible_assignments=ids,findings={key:value for key,value in entry['findings'].items() if key in risks},
+                         activities={key:value for key,value in entry['activities'].items() if value['risks']&risks})
+    return result
+
+
+def family_map(bundle):
+    from access_package import role_families
+    source=bundle.get('assignment_source') or {}
+    names={row['role_name'] for record in source.values() for row in record['assignments'] if row.get('role_name')}
+    return role_families(names,bundle.get('catalogue_names',()))
+
+
+def role_filters_match(value,q):
+    wanted=many(q,'role','roles')
+    families=q.get('role_families') or []
+    exact=q.get('role_exact') or []
+    if not wanted and not families and not exact:return True
+    return bool(value in exact or wanted and role_selection_matches(value,wanted,q.get('role_match','search')) or families and q.get('_family_map',{}).get(value) in families)
 
 
 def decision_data(bundle):
@@ -129,7 +202,7 @@ def any_match(value, wanted):
 def _path_matches(finding, q):
     paths = [path for side in finding['evidence'].values() for path in side]
     roles = many(q, 'role', 'roles')
-    if roles and not any(role_selection_matches(path.get('actual_assigned_role', ''),roles,q.get('role_match','search')) for path in paths):
+    if (roles or q.get('role_families') or q.get('role_exact')) and not any(role_filters_match(path.get('actual_assigned_role',''),q) for path in paths):
         return False
     wanted = wanted_suffixes(q)
     if wanted and not any(suffix_matches(path.get('actual_assigned_role', ''), wanted) for path in paths):
@@ -141,7 +214,7 @@ def _path_matches(finding, q):
 
 
 def assignment_filters_active(q):
-    return any(q.get(name) for name in ('role', 'roles', 'role_suffix', 'role_suffixes', 'group', 'groups', 'activity', 'activities', 'tcode', 'tcodes', 'assignment_decision')) or q.get('review_status') not in (None, '', 'all')
+    return any(q.get(name) for name in ('role', 'roles', 'role_families', 'role_exact', 'role_suffix', 'role_suffixes', 'group', 'groups', 'activity', 'activities', 'tcode', 'tcodes', 'assignment_decision')) or q.get('review_status') not in (None, '', 'all')
 
 
 #: Review status filter of the assignment queue: lifecycle values each choice keeps. The default working view is 'attention'.
@@ -166,7 +239,7 @@ def allowed_assignments(model, state, q):
     for user, entry in model.items():
         ids = set()
         for aid, assignment in entry['assignments'].items():
-            if not role_selection_matches(assignment['role'], many(q, 'role', 'roles'),q.get('role_match','search')):
+            if not role_filters_match(assignment['role'],q):
                 continue
             if not suffix_matches(assignment['role'], wanted):
                 continue
@@ -176,7 +249,7 @@ def allowed_assignments(model, state, q):
             if wanted_activities and not any(any_match(name, wanted_activities) for name in assignment['supplies']):
                 continue
             wanted_codes = many(q, 'tcode', 'tcodes')
-            if wanted_codes and not any(any_match(code, wanted_codes) for codes in assignment['supplies'].values() for code in codes):
+            if wanted_codes and not any(any_match(code,wanted_codes) for code in (assignment.get('catalogue_tcodes',()) if q.get('assignment_scope')=='all' else [code for codes in assignment['supplies'].values() for code in codes])):
                 continue
             if q.get('assignment_decision') and state['assignment'][aid][0] != q['assignment_decision']:
                 continue
@@ -216,10 +289,11 @@ def visible_cells(bundle, model, state, q):
 def scoped(context, q):
     """bundle, full model, decision state and the filtered view for one request."""
     bundle = load(context, q.get('validity', 'active'), q.get('as_of'))
-    model = model_for(bundle)
+    q=dict(q,_family_map=family_map(bundle) if q.get('role_families') else {})
+    model = review_model_for(bundle) if q.get('assignment_scope')=='all' else model_for(bundle)
     observe(bundle, model)
     state = states_for(bundle, model)
-    view = governance.restrict(model, visible_cells(bundle, model, state, q), allowed_assignments(model, state, q) if assignment_filters_active(q) else None)
+    view = assignment_view(bundle,model,state,q) if q.get('assignment_scope')=='all' else governance.restrict(model, visible_cells(bundle, model, state, q), allowed_assignments(model, state, q) if assignment_filters_active(q) else None)
     return bundle, model, state, view
 
 

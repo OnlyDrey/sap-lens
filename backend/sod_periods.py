@@ -134,6 +134,7 @@ def capture(identifier,evaluation_date,legacy=False):
     return dict(version=1,source='sod-period',**marker,period_id=identifier,captured_at=now(),evaluation_date=evaluation_date.isoformat(),analysis=result,risks=risk_items,reviews=baseline,
                 source_versions=versions,source_metadata={name:dict(imported_at=ref.imported_at,checked_at=ref.checked_at) for name,ref in config.data_lifecycle.sources.items()},
                 source_counts=dict(users=len(state.users.users),roles=len(state.roles),matrix_records=len(state.sod['records'])),
+                catalogue_names=list(state.roles),assignment_source={user:dict(assignments=[{key:row.get(key) for key in ('role_name','valid_from','valid_to','user_group','catalogue_roles','match_status','tcodes')} for row in value['assignments']]) for user,value in state.users.users.items()},
                 complete_users=complete,metadata=described,organization=config.organization.model_dump(),logo_id=config.logo_id,
                 identity_notice=reviews.IDENTITY_NOTICE,limitation='Evaluation uses retained imported evidence at an explicit date; it does not reconstruct unexported historical SAP authorizations.')
 

@@ -165,3 +165,27 @@ def csv_rows(rows):
     """Unique valid generated names in deterministic order: (name, description, suffix, validation)."""
     unique = {row['name']: (row['name'], row['description'] or '', row['suffix'], VALIDATION_LABEL[row['validation']]) for row in reversed(rows) if row['name'] and row['exportable']}
     return sorted(unique.values(), key=lambda item: (item[0].casefold(), item[0]))
+
+
+def role_families(names, catalogue=()):
+    """Safe display families using the existing business-role naming evidence.
+
+    Unknown/opaque/release identifiers and interior wildcard patterns remain exact.
+    An explicit catalogue :* family or a suffix recognized under multiple business
+    stems supplies the organizational evidence; a colon alone never does.
+    """
+    names=tuple(names)
+    catalogue=tuple(catalogue)
+    known=naming_evidence((*names,*catalogue))
+    explicit={normalize_role(name) for name in catalogue if name.endswith(':*') and name.count('*')==1 and role_scope(name)=='business'}
+    result={}
+    for name in names:
+        if role_scope(name)!='business' or len(name.split(':'))<4:continue
+        if '*' in name:
+            if name.endswith(':*') and name.count('*')==1:result[name]=name
+            continue
+        stem,_,suffix=name.rpartition(':')
+        if suffix_error(normalize_suffix(suffix)) is not None:continue
+        if suffix_kind(name,known)=='organizational' or normalize_role(stem+':*') in explicit:
+            result[name]=stem+':*'
+    return result

@@ -621,7 +621,7 @@ class QueueTests(GovernanceCase):
 
     def test_review_subject_capability_uses_exact_context_identities(self):
         result = self.get('/api/sod/review-subjects', usernames=['SYN_A', 'SYN_B', 'SYN_C', 'SYN_A_SUFFIX', 'employee-only'])
-        self.assertEqual(result['users'], ['SYN_A', 'SYN_B'])
+        self.assertEqual(result['users'], ['SYN_A', 'SYN_B', 'SYN_C'])
         self.assertEqual(self.get('/api/sod/review-subjects')['users'], [])
         self.assertEqual(self.get('/api/sod/review-subjects', usernames=['syn_a'])['users'], [])
         self.assertEqual(self.client.get('/api/sod/review-subjects', headers=H, params=[('usernames', str(i)) for i in range(201)]).status_code, 422)

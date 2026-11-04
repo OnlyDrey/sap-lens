@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef,useState } from 'react'
 import {useQuery} from '@tanstack/react-query'
 import {apiRequest} from '@/api/client'
 import {invalidateSod} from './SodShared'
@@ -19,7 +19,8 @@ const COPY: Record<BulkAction, { title: string; verb: string; effect: string; co
 const counted = (items: string[]) => [...items.reduce((map, value) => map.set(value, (map.get(value) || 0) + 1), new Map<string, number>())].sort(([x], [y]) => x.localeCompare(y))
 
 /** Confirmation and result of a batch review. Success is shown only for assignments the server reports as persisted. */
-export function BulkReviewDialog({ action, picks: livePicks, info:liveInfo, atomic=false, onClose, onApplied }: { action: BulkAction; picks: AssignmentPick[]; info: ContextInfo & { revision: number }; atomic?:boolean; onClose: () => void; onApplied: (recorded: string[]) => void }) {
+export function BulkReviewDialog({ action, picks: livePicks, info:liveInfo, atomic=false, onClose, onApplied,scopeSummary:liveScopeSummary }: { scopeSummary?:string;action: BulkAction; picks: AssignmentPick[]; info: ContextInfo & { revision: number }; atomic?:boolean; onClose: () => void; onApplied: (recorded: string[]) => void }) {
+  const [scopeSummary]=useState(liveScopeSummary),saveLock=useRef(false)
   const [info]=useState(liveInfo) // Freeze revision/context with the preview, never refresh them underneath a confirmation.
   const copy = COPY[action], qc = useQueryClient()
   // The dialog reports on the selection it was opened with, even after saved assignments leave the live selection.
@@ -32,10 +33,12 @@ export function BulkReviewDialog({ action, picks: livePicks, info:liveInfo, atom
   const reviewed = picks.filter((pick) => atomic&&pick.has_review || pick.decision === 'Keep' || pick.decision === 'Removal required')
   const ready = !!effectiveReviewer.trim() && !!rationale.trim() && (!reviewed.length || replace) && !busy
   const apply = async () => {
+    if(saveLock.current)return
+    saveLock.current=true
     setBusy(true); setError('')
     try {
       const response = await sodPost<BulkResult>('/api/sod/decisions/assignment/bulk', {
-        context: info.context, expected_revision: info.revision, expected_generation: info.generation, action, atomic, reviewer: effectiveReviewer.trim(), justification: rationale.trim(), replace_existing: replace, track_action: action === 'Investigate' && track,
+        context: info.context, expected_revision: info.revision, expected_generation: info.generation, action, atomic, reviewer: effectiveReviewer.trim(), justification: rationale.trim(), replace_existing: replace, track_action: !atomic && action === 'Investigate' && track,
         items: picks.map((pick) => ({ key: pick.key, user: pick.user, ref: pick.ref, evidence_version: pick.evidence_version })),
       })
       if(!runtime.data?.username)rememberReviewer(reviewer)
@@ -44,7 +47,7 @@ export function BulkReviewDialog({ action, picks: livePicks, info:liveInfo, atom
       await invalidateSod(qc)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'The review could not be saved. Nothing was reported as saved.')
-    } finally { setBusy(false) }
+    } finally { saveLock.current=false;setBusy(false) }
   }
   if (result) {
     const problems = result.failed.length + result.skipped.length
@@ -73,6 +76,7 @@ export function BulkReviewDialog({ action, picks: livePicks, info:liveInfo, atom
           <div><dt>Role suffixes</dt><dd>{suffixes.length}</dd></div>
         </dl>
         <p className="ui-description">{copy.effect}</p>
+        {scopeSummary&&<p className="ui-description">Filter scope: {scopeSummary}</p>}
         <section aria-label="Selected SAP users"><h3 className="text-sm font-semibold">SAP users</h3>
           <ul className="bulk-chip-list">{users.slice(0, 30).map(([name, count]) => <li key={name}><StatusBadge>{name} · {count}</StatusBadge></li>)}{users.length > 30 && <li className="ui-description">and {users.length - 30} more users</li>}</ul></section>
         <section aria-label="Selected role suffixes"><h3 className="text-sm font-semibold">Role suffixes</h3>
@@ -84,7 +88,7 @@ export function BulkReviewDialog({ action, picks: livePicks, info:liveInfo, atom
             <Checkbox checked={replace} onChange={(event) => setReplace(event.target.checked)}>Replace the existing decisions of these {reviewed.length} assignments</Checkbox>
           </section>
         )}
-        {action === 'Investigate' && <Checkbox checked={track} onChange={(event) => setTrack(event.target.checked)}>Also track one investigation action per assignment (existing open actions are reused)</Checkbox>}
+        {action === 'Investigate' && !atomic && <Checkbox checked={track} onChange={(event) => setTrack(event.target.checked)}>Also track one investigation action per assignment (existing open actions are reused)</Checkbox>}
         <div className="review-dialog-fields">
           <FormField label="Reviewer"><Input maxLength={120} value={effectiveReviewer} readOnly={!!runtime.data?.username} placeholder="Your name (self-declared)" onChange={(event) => setReviewer(event.target.value)} /></FormField>
           <FormField label="Rationale"><Input maxLength={2000} value={rationale} placeholder="Why this applies to the selected assignments" onChange={(event) => setRationale(event.target.value)} /></FormField>

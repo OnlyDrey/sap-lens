@@ -105,7 +105,9 @@ def captured(query):
                 source_text=source['source_text'], business_category=local.get('business_category', ''), risk_type=source['risk_type'])})
     generation = generation_for(key)
     value = {**result, **enriched, 'generation': generation,
-             'sources': {**result['sources'], 'references': source_refs}}
+             'sources': {**result['sources'], 'references': source_refs},
+             '_assignment_source': snapshot.users.users if settings.features.sod and settings.features.user_role_mapping else {},
+             '_catalogue_names': tuple(snapshot.roles)}
     with _cache_lock:
         _cached_key, _cached_snapshot, _cached_value = key, snapshot, value
     return value

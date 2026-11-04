@@ -431,3 +431,38 @@ history retain the chosen tab. Access Explorer remains the analysis workspace.
 The confirmation freezes its context, source generation and decision revision
 with the selected assignments; background reads cannot silently refresh a preview
 into permission to overwrite a newer decision.
+
+### Complete Bulk Role Review and base-role filters
+
+Bulk Review defaults to all active imported user–role assignments matching its
+filters, including users/roles without detected conflicts. Choose Keep, Remove or
+Investigate, explicitly select assignments (or all matching across pages), inspect
+the preview and continue to the final confirmation. Remove is a recommendation,
+never an SAP operation. Reviewer and rationale follow the existing review policy.
+Previously reviewed assignments are excluded by default; including them requires
+an additional replacement confirmation. The preview shows selected users, roles,
+assignments, excluded/unchanged rows and current/proposed decisions. Selection
+outside current filters is counted explicitly. Context, generation and revision
+are frozen; stale or protected atomic submissions save nothing.
+
+The shared Assigned role selector groups only recognized business-role families
+using the existing naming evidence or an explicit catalogue `:*` pattern. New
+family choices and new exact fallback choices are stored separately from legacy
+role/search selections. Multiple choices are OR; exact suffix choices are OR;
+role and suffix categories combine with AND. Unproven suffixes, opaque identifiers,
+release-role tokens and interior wildcard patterns stay exact rather than being
+silently grouped. The current CSV assignment parser remains unchanged; catalogue
+wildcards are not treated as direct transaction assignments.
+
+Saved exact filters are not converted or broadened. Clear/reset removes the new
+family/exact fields as well. Explicit prefix/wildcard modes expose a separate
+pattern input; SAP User Group selections remain exact. All-page previews are
+bounded to 5000 assignments and atomic submissions to 1000: narrow larger scopes
+before confirming. No truncated set is silently applied.
+
+New review periods capture the full assignment cut and catalogue naming evidence
+privately. Current imports never replace that period's evidence. Older immutable
+periods without a full assignment cut retain their original conflict evidence;
+the full-population preview reports that limitation rather than using current
+records. Non-active validity views are for inspection; decisions require active
+reviewable evidence and an editable period.

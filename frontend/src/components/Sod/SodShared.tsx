@@ -64,9 +64,9 @@ export function useSodSubject(): [SodSubject | null, (value: SodSubject | null) 
  * only those, so an unsupported selection stays stored (and is restored on a page that supports it) without affecting results elsewhere.
  * Filters never touch the review context (`sodContext`), decisions, snapshots or evidence: they only scope what is shown and exported.
  */
-export const SHARED_DIMENSIONS: Partial<Record<FilterField, [string, string]>> = {
+export const SHARED_DIMENSIONS: Partial<Record<FilterField, [string, string, ...string[]]>> = {
   group: ['group', 'groups'], username: ['username', 'usernames'], risk: ['risk', 'risks'], activity: ['activity', 'activities'],
-  tcode: ['tcode', 'tcodes'], category: ['category', 'categories'], role: ['role', 'roles'],
+  tcode: ['tcode', 'tcodes'], category: ['category', 'categories'], role: ['role', 'roles','role_families','role_exact'],
 }
 const SCOPE_FIELDS: FilterField[] = ['group', 'username', 'risk', 'activity', 'role', 'tcode', 'category']
 /** Which shared dimensions each page applies. Role conflicts filter catalogue roles, so assigned-role, user and activity selections do not apply there. */
@@ -79,16 +79,13 @@ const sharedPairs = (fields: FilterField[]) => fields.flatMap((field) => (SHARED
 /** A page's filters: its own slot plus the shared dimensions it supports. */
 export function readFilters(stored: Record<string, SodFilterState> | undefined, name: string, fields: FilterField[] = PAGE_FIELDS[name] ?? [], base: Filters = emptyFilters): Filters {
   const shared = stored?.shared ?? {}, result: Filters = { ...base, ...stored?.[name] }
-  for (const [single, plural] of sharedPairs(fields)) {
-    if (single in shared) result[single] = shared[single]
-    if (plural in shared) result[plural] = shared[plural]
-  }
+  for (const keys of sharedPairs(fields)) for(const key of keys)if(key in shared)result[key]=shared[key]
   return result
 }
 /** Splits a page's filters back into the shared context (only the dimensions the page supports) and its own slot. */
 export function writeFilters(stored: Record<string, SodFilterState> | undefined, name: string, fields: FilterField[], value: Filters): Record<string, SodFilterState> {
   const shared: SodFilterState = { ...stored?.shared }
-  for (const [single, plural] of sharedPairs(fields)) { shared[single] = (value[single] as string) ?? ''; shared[plural] = (value[plural] as string[]) ?? [] }
+  for (const keys of sharedPairs(fields))keys.forEach((key,index)=>{shared[key]=(value[key] as string|string[])??(index===0?'':[])})
   const local = Object.fromEntries(Object.entries(value).filter(([key]) => !SHARED_KEYS.includes(key))) as SodFilterState
   return { ...stored, shared, [name]: local }
 }
@@ -206,21 +203,22 @@ function OptionField({ name, label, max, value, onChange, filters }: { name: str
 }
 
 /** Multi-select over the evidence values of one field; the options follow the other active filters so Select all acts on the values available in the current filter context. */
-function MultiOptionField({ field, listName, label, values, onChange, filters }: { field: string; listName: string; label: string; values: string[]; onChange: (values: string[]) => void; filters: Filters }) {
+function MultiOptionField({ field, listName, label, values, onChange, filters }: { field: string; listName: string; label: string; values: string[]; onChange: (values: string[],families?:string[]) => void; filters: Filters }) {
   const [context] = useSodContext()
   const [term, setTerm] = useState('')
-  const others = scopeParams(context, { ...filters, [field]: '', [listName]: [] })
+  const others = scopeParams(context, { ...filters, [field]: '', [listName]: [],...(field==='role'?{role_families:[],role_exact:[]}: {}) })
   others.set('field', field); others.set('term', term); others.set('limit', '200')
+  if(field==='role')others.set('group_roles','true')
   const options = useQuery({
     queryKey: ['sod-filter-options', field, others.toString()],
-    queryFn: () => sod<{ items: string[]; total: number }>('/api/sod/filter-options', others),
+    queryFn: () => sod<{ items: string[]; total: number;family_values?:string[] }>('/api/sod/filter-options', others),
     placeholderData: keepPreviousData,
     staleTime: 15_000,
   })
   const items = options.data?.items || []
   return (
     <FormField label={label}>
-      <MultiSelectFilter label={label} values={values} options={items} onChange={onChange} onSearch={setTerm} loading={options.isFetching && !options.data}
+      <MultiSelectFilter label={label} values={values} options={items} onChange={values=>onChange(values,options.data?.family_values||[])} onSearch={setTerm} loading={options.isFetching && !options.data}
         hasMore={(options.data?.total || 0) > items.length} scope="within the other active filters" />
     </FormField>
   )
@@ -238,12 +236,12 @@ export function SodFilters({ view, filters, setFilters, fields, sorts, actions, 
   const apply = (value: Record<string, unknown>) => {
     onReset?.()
     const next = { ...defaults, ...value } as Filters
-    for (const name of Object.keys(FIELD_LABELS).concat(Object.keys(DECISION_LABELS), ['validity', 'account_status', 'multiple_risks'])) if (!shown.has(name)) { next[name] = defaults[name] ?? ''; if (MULTI[name]) next[MULTI[name]] = [] }
+    for (const name of Object.keys(FIELD_LABELS).concat(Object.keys(DECISION_LABELS), ['validity', 'account_status', 'multiple_risks'])) if (!shown.has(name)) { next[name] = defaults[name] ?? ''; if (MULTI[name]) next[MULTI[name]] = [];if(name==='role'){next.role_families=[];next.role_exact=[]} }
     setFilters(next)
   }
   const list = (name: string) => (Array.isArray(filters[name]) ? (filters[name] as string[]) : [])
   const MULTI: Record<string, string> = { username: 'usernames', role_suffix: 'role_suffixes', risk: 'risks', activity: 'activities', group: 'groups', role: 'roles', tcode: 'tcodes', category: 'categories', criticality: 'criticalities' }
-  const isDefault = (name: string) => text(name) === (typeof defaults[name] === 'string' ? (defaults[name] as string) : '') && (!MULTI[name] || !list(MULTI[name]).length)
+  const isDefault = (name: string) => text(name) === (typeof defaults[name] === 'string' ? (defaults[name] as string) : '') && (!MULTI[name] || !list(MULTI[name]).length) && (name!=='role'||!list('role_families').length&&!list('role_exact').length)
   const active = [...shown].filter((name) => !isDefault(name)).length + (text('search') ? 1 : 0)
   const field = (name: FilterField) => {
     if (name === 'validity') return (
@@ -297,7 +295,11 @@ export function SodFilters({ view, filters, setFilters, fields, sorts, actions, 
       </FormField>
     )
     const [label, max] = FIELD_LABELS[name]
-    if (MULTI[name]) return <MultiOptionField key={name} field={name} listName={MULTI[name]} label={label} values={list(MULTI[name])} onChange={(values) => setFilters({ ...filters, [name]: '', [MULTI[name]]: values })} filters={filters} />
+    if (MULTI[name]) return <MultiOptionField key={name} field={name} listName={MULTI[name]} label={label} values={name==='role'?[...new Set([...list('roles'),...list('role_families'),...list('role_exact')])]:list(MULTI[name])} onChange={(values,families=[]) => {
+      if(name!=='role')return setFilters({...filters,[name]:'',[MULTI[name]]:values})
+      const legacy=new Set(list('roles')),family=new Set([...families,...list('role_families')])
+      setFilters({...filters,role:'',roles:values.filter(value=>legacy.has(value)),role_families:values.filter(value=>!legacy.has(value)&&family.has(value)),role_exact:values.filter(value=>!legacy.has(value)&&!family.has(value))})
+    }} filters={filters} />
     return <OptionField key={name} name={name} label={label} max={max} value={text(name)} onChange={(value) => update(name, value)} filters={filters} />
   }
   const sidebar = (

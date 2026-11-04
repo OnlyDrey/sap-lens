@@ -182,7 +182,8 @@
     "sod-evidence-modals",
     "sod-work-queue-visual",
     "sod-review-performance",
-    "sod-configuration-recovery"
+    "sod-configuration-recovery",
+    "sod-complete-bulk"
    ]
   },
   "shared-ui": {
@@ -426,7 +427,8 @@
     "frontend/src/components/Sod/**",
     "frontend/src/api/sod.ts",
     "frontend/src/components/Settings/Sod*",
-    "backend/resources/reference-defaults.json"
+    "backend/resources/reference-defaults.json",
+    "backend/access_package.py"
    ],
    "areas": [
     "sod"

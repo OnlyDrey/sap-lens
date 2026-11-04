@@ -371,3 +371,14 @@ retaining their raw lifecycle/export fields. Approval gates and old report snaps
 unchanged. Assignment rows/history additionally expose source-bound `remediation_verification`
 or `verification` metadata: status, safe reason, source snapshot/import time and original
 decision event ID. Verification never replaces the original Remove decision.
+
+SoD assignment queries accept `assignment_scope=all` for the validated imported
+population; the default conflict-analysis scope is unchanged. Bulk selection,
+rows and CSV share the existing scoped assignment predicates. `role_families`
+selects proven family identifiers, `role_exact` holds new exact choices, and
+legacy `role`/`roles` plus `role_match` retain their original behavior. Role filter
+options accept `group_roles=true` and return `family_values` for safe UI
+classification. Groups/suffixes remain exact selections. Atomic Keep, Remove and
+Investigate use the same per-assignment history service; separate remediation
+mutations cannot be mixed into the atomic write. The server validates assignment
+user, stable ID, exact role, evidence version, source generation and revision.

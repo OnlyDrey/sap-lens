@@ -33,11 +33,12 @@ def scope_query(context: str = Query('current', pattern=legacy.CONTEXT_PATTERN),
                 activity: str = Query('', max_length=512),
                 usernames: list[str] = Query(default=[], max_length=100), role_suffixes: list[str] = Query(default=[], max_length=100),
                 risks: list[str] = Query(default=[], max_length=100), activities: list[str] = Query(default=[], max_length=100), groups: list[str] = Query(default=[], max_length=100),
-                roles: list[str] = Query(default=[], max_length=100), tcodes: list[str] = Query(default=[], max_length=100), categories: list[str] = Query(default=[], max_length=50),
+                roles: list[str] = Query(default=[], max_length=100), role_families: list[str] = Query(default=[], max_length=100), role_exact: list[str] = Query(default=[], max_length=100), tcodes: list[str] = Query(default=[], max_length=100), categories: list[str] = Query(default=[], max_length=50),
                 criticalities: list[str] = Query(default=[], max_length=50),
                 account_status: Literal['', 'locked', 'unlocked', 'ad_disabled', 'ad_enabled', 'unknown'] = '', multiple_risks: bool = False,
                 activity_decision: Lifecycle = '', assignment_decision: Lifecycle = '', acceptance: Lifecycle = '',
                 review_status: Literal['', 'attention', 'pending', 'investigating', 'reviewed', 'all'] = '',
+                assignment_scope: Literal['conflicts','all'] = 'conflicts',
                 sort: Literal['subject', 'findings', 'group'] = 'subject', descending: bool = False):
     return locals()
 
@@ -138,23 +139,25 @@ def option_values(model, field):
 
 
 @router.get('/filter-options')
-def filter_options(q: dict = Depends(scope_query), field: OPTION_FIELDS = 'risk', term: str = Query('', max_length=128), limit: int = Query(50, ge=1, le=200)):
+def filter_options(q: dict = Depends(scope_query), field: OPTION_FIELDS = 'risk', term: str = Query('', max_length=128), limit: int = Query(50, ge=1, le=200), group_roles: bool = False):
     """Searchable predefined filter values taken from the imported SoD evidence of this context."""
     plural = {'username': 'usernames', 'role_suffix': 'role_suffixes', 'risk': 'risks', 'activity': 'activities', 'group': 'groups', 'role': 'roles', 'tcode': 'tcodes', 'category': 'categories', 'criticality': 'criticalities'}
-    own = (field, plural[field]) if field in plural else (field,)
+    own = (field, plural[field], 'role_families','role_exact') if field=='role' else (field, plural[field]) if field in plural else (field,)
     other = {name: ([] if isinstance(value, list) else '') if name in own else value for name, value in q.items()}
-    neutral = {'context', 'validity', 'as_of', 'sort', 'descending'}
+    neutral = {'context', 'validity', 'as_of', 'sort', 'descending','assignment_scope'}
     if any(value for name, value in other.items() if name not in neutral):
         # Options follow the other active filters, so Select all acts on the values available in the current filter context.
         bundle, _, _, view = scope.scoped(q['context'], dict(other, sort='subject', descending=False))
         values = option_values(view, field)
     else:
         bundle = scope.load(q['context'], q['validity'], q['as_of'])
-        values = option_values(scope.model_for(bundle), field)
+        values = option_values(scope.review_model_for(bundle) if q.get('assignment_scope')=='all' else scope.model_for(bundle), field)
+    families=scope.family_map(bundle) if field=='role' and group_roles else {}
+    if families:values=sorted({families.get(value,value) for value in values},key=lambda value:(value.casefold(),value))
     needle = term.strip().casefold()
     if needle:
         values = [value for value in values if needle in value.casefold()]
-    return dict(info(bundle), field=field, items=values[:limit], total=len(values))
+    return dict(info(bundle), field=field, items=values[:limit], total=len(values),family_values=sorted(set(families.values())))
 
 
 HEATMAP_COLUMNS = {kind: ['SAP_USER_GROUP', 'RISK_ID' if kind == 'risk' else 'ACTIVITY', 'USERS_WITH_ITEM', 'USERS_IN_GROUP_WITH_ITEMS'] for kind in ('risk', 'activity')}
@@ -172,7 +175,7 @@ def group_heatmap_export(kind: Literal['risk', 'activity'], q: dict = Depends(sc
 def _explorer(table, q):
     bundle, model, state, view = scope.scoped(q['context'], q)
     rows = governance.explorer_rows(table, view, state)
-    if table == 'access_list':
+    if table == 'access_list' and q.get('assignment_scope')!='all':
         shown = {(row['user'], aid) for row in rows for aid in [row['id']]}
         rows = [row for row in rows if (row['user'], row['id']) in shown and set(row['risks']) & set(view[row['user']]['findings'])]
     if q['descending']:
@@ -255,7 +258,7 @@ def review_subjects(context: str = Query('current', pattern=legacy.CONTEXT_PATTE
     Batched and independent of page filters; no employee or role-name inference.
     """
     bundle = scope.load(context, 'active', None)
-    model = scope.model_for(bundle)
+    model = scope.review_model_for(bundle)
     return dict(info(bundle), users=sorted(set(usernames).intersection(model)))
 
 
@@ -264,7 +267,7 @@ def subject(q: dict = Depends(scope_query), user: str = Query(..., max_length=51
             activity: str = Query('', max_length=512)):
     """Shared investigation workspace: evidence path, decisions, history pointers and removal impact."""
     bundle = scope.load(q['context'], q['validity'], q['as_of'])
-    model = scope.model_for(bundle)
+    model = scope.review_model_for(bundle)
     entry = model.get(user)
     if entry is None:
         raise HTTPException(404, 'The SAP user has no detected conflict evidence in this context.')
@@ -367,7 +370,7 @@ def _status_match(item, status, awaiting):
 def _queue(q, kind, status):
     bundle, model, state, view = scope.scoped(q['context'], q)
     items = governance.queue_items(view, state)
-    if q['context'] == 'current' and bundle['reviewable'] and not any(q.get(name) for name in ('search', 'risk', 'risks', 'username', 'usernames', 'role', 'roles', 'role_suffix', 'role_suffixes', 'tcode', 'tcodes', 'activity', 'activities', 'group', 'groups', 'criticality', 'criticalities', 'category', 'categories', 'assignment_decision', 'review_status')):
+    if q['context'] == 'current' and bundle['reviewable'] and not any(q.get(name) for name in ('search', 'risk', 'risks', 'username', 'usernames', 'role', 'roles', 'role_families', 'role_exact', 'role_suffix', 'role_suffixes', 'tcode', 'tcodes', 'activity', 'activities', 'group', 'groups', 'criticality', 'criticalities', 'category', 'categories', 'assignment_decision', 'review_status')):
         known = dict(activity={item['key'] for entry in model.values() for item in entry['activities'].values()},
                      assignment={aid for entry in model.values() for aid in entry['assignments']},
                      acceptance={finding['finding_id'] for entry in model.values() for finding in entry['findings'].values()},
@@ -521,6 +524,7 @@ def _locate(model, kind, item):
         return (found, found['key'], found['evidence_version'], governance.activity_detail(entry, item.ref)) if found else None
     if kind == 'assignment':
         found = entry['assignments'].get(item.key)
+        if found and found['role']!=item.ref:return None
         return (found, found['id'], found['evidence_version'], governance.listify({k: v for k, v in found.items()})) if found else None
     found = entry['findings'].get(item.ref)
     return (found, found['finding_id'], found['evidence_version'], found) if found else None
@@ -536,7 +540,7 @@ def decide(kind: Literal['activity', 'assignment', 'acceptance','risk'], body: D
         raise HTTPException(409, 'This context accepts no decisions. Frozen periods and non-current evidence are read-only.')
     if bundle['generation'] != body.expected_generation:
         raise HTTPException(409, 'SoD evidence changed. Reload before reviewing.')
-    model = scope.model_for(bundle)
+    model = scope.review_model_for(bundle) if kind=='assignment' else scope.model_for(bundle)
     items = []
     for item in body.items:
         located = _locate(model, kind, item)
@@ -619,11 +623,11 @@ def _bulk_assignment_review(body: BulkAssignmentBody):
         raise HTTPException(409, 'SoD evidence changed. Reload before reviewing.')
     if len({item.key for item in body.items}) != len(body.items):
         raise HTTPException(422, 'Each assignment may be listed once.')
-    if body.atomic and (body.action not in {'Keep','Remove'} or body.track_action):
-        raise HTTPException(422,'Atomic assignment review supports Keep or Remove without separate action mutations.')
+    if body.atomic and body.track_action:
+        raise HTTPException(422,'Atomic assignment review does not support separate action mutations.')
     from uuid import uuid4
     operation_id=uuid4().hex
-    model = scope.model_for(bundle)
+    model = scope.review_model_for(bundle)
     state = scope.states_for(bundle, model)
     tracked = {item.assignment_id for item in scope.actions_for(bundle) if item.assignment_id and item.status != 'Cancelled' and item.recommended == 'Investigate assignment'}
     ready, skipped, failed = [], [], []

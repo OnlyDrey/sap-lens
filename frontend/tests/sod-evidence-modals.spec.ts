@@ -125,7 +125,7 @@ test('shared username review actions switch users without stale evidence and pre
   await expect(table).toBeVisible()
   const row=table.getByRole('row').filter({has:page.getByRole('link',{name:names.a,exact:true})})
   await expect(row).toContainText('FIN')
-  await expect(table.getByRole('button',{name:`Open ${names.c} in SoD Review`,exact:true})).toHaveCount(0)
+  await expect(table.getByRole('button',{name:`Open ${names.c} in SoD Review`,exact:true})).toBeVisible() // Active assignments are reviewable even without conflicts.
   await row.getByRole('button',{name:`Copy username ${names.a}`,exact:true}).click()
   await expect(panel).toHaveCount(0)
   const action=row.getByRole('button',{name:`Open ${names.a} in SoD Review`,exact:true})

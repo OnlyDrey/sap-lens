@@ -90,6 +90,6 @@ function Queue() {
 
 
 function BulkReviewPage(){
- const [context]=useSodContext(),[filters,setFilters]=useSodFilters('bulk',['group','username','role','role_suffix']),[,setTab]=useHistoryValue('sodReviews')
+ const [context]=useSodContext(),[filters,setFilters]=useSodFilters('bulk',['group','username','role','role_suffix','risk','activity','tcode','category']),[,setTab]=useHistoryValue('sodReviews')
  return <SodQueueBulk embedded context={context} filters={filters} onFiltersChange={setFilters} onClose={()=>setTab('queue')}/>
 }
