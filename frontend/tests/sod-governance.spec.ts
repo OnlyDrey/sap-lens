@@ -65,7 +65,11 @@ test('activity, role assignment and risk acceptance are separate decisions and n
   await expect(acceptance.getByRole('alert')).toContainText('different people')
   await acceptance.getByRole('textbox', { name: 'Approver (must differ from reviewer)', exact: true }).fill('Synthetic Approver')
   await acceptance.getByRole('button', { name: 'Save decision', exact: true }).click()
-  await expect(panel.getByRole('region', { name: 'Risk Review', exact: true })).toContainText('Accepted')
+  // Review and formal acceptance are separate: the row badge keeps the review state, acceptance is shown in the status popover.
+  const riskReview = panel.getByRole('region', { name: 'Risk Review', exact: true })
+  await riskReview.getByRole('button', { name: 'Review method for R1', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: 'Review method for R1', exact: true }).getByRole('region', { name: 'Formal acceptance', exact: true })).toContainText('Accepted')
+  await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
   await expect(cellButton(page, `${names.a}`, 'R1')).toContainText('Pending')
   await expect(cellButton(page, `${names.a}`, 'R1')).toHaveAttribute('aria-label',/formal risk acceptance Accepted/)
@@ -172,8 +176,10 @@ test('activity matrix is a review entry point and shows role counts and decision
 test('work queue has one row per user, batch review lives in the workspace and the queue exports', async ({ page }) => {
   await openSod(page, 'Reviews')
   const table = page.getByRole('table', { name: 'SoD review work queue' })
-  await expect(table.getByRole('row')).toHaveCount(3)
-  await expect(page.getByRole('button', { name: /^Needs review\s*2$/ })).toBeVisible()
+  // One row per SAP user: A and B have conflicts; C holds one role of a risk-relevant activity and is part of the complete assignment scope.
+  await expect(table.getByRole('row')).toHaveCount(4) // header and three users
+  await expect(table.getByRole('row').filter({ hasText: names.c })).toHaveCount(1)
+  await expect(page.getByRole('button', { name: /^Needs review\s*3$/ })).toBeVisible()
   await expect(page.getByRole('button', { name: /^Complete\s*0$/ })).toBeVisible()
   const rowA = table.getByRole('row').filter({ hasText: names.a })
   await expect(rowA).toContainText('0/9')
@@ -225,7 +231,7 @@ test('remediation separates proposals from verification and keeps tracked action
   await page.getByRole('tab', { name: 'Remediation', exact: true }).click()
   const table = page.getByRole('table', { name: 'Access remediation rows' })
   await expect(table.locator('thead th')).toHaveText(['SAP user','SAP User Group','Role assignment','Validity','Review','Remediation','Actions'])
-  await expect(table.getByRole('link',{name:new RegExp('Open SAP user')})).toHaveCount(0)
+  await expect(table.getByRole('link',{name:`Open SAP user ${names.a}`,exact:true})).toHaveCount(1) // the SAP user column uses the shared identity action: one user, one link
   await page.getByRole('button', { name: 'Expand all', exact: true }).click()
   await expect(table).toContainText('Remove assignment') // activity rows with verification sit under the user and role parent
   await expect(table).toContainText('Still present in current evidence')

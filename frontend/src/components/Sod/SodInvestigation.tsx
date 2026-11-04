@@ -159,7 +159,7 @@ function InvestigationContent({context,user,risk,activity,onScope,reviewTab,setR
           </Toolbar>
           {data.account && <p className="ui-description flex flex-wrap items-center gap-x-2 gap-y-1"><span>Directory match</span><StatusBadge tone={data.account.directory_match === 'matched' ? 'success' : ['ambiguous', 'unmatched'].includes(data.account.directory_match) ? 'warning' : 'neutral'}>{sentenceCase(data.account.directory_match)}</StatusBadge><span>AD {data.account.ad_status}{data.account.lock_status ? ` · SAP ${data.account.lock_status}` : ''}</span></p>}
           {scoped && <p className="ui-description" role="status">Showing only {risk ? `risk ${risk}` : `activity ${activity}`} and the evidence behind it.{onScope && <> <Button variant="ghost" onClick={() => onScope({ user })}>Show all review items for {user}</Button></>}</p>}
-          <p className="ui-description">Access review coverage can derive from current role or activity decisions. Formal risk acceptance and verified remediation remain separate; planned removals never change detected conflicts.</p>
+          <p className="ui-description">Potential conflict evidence, not effective authorization. Access review coverage can derive from current role or activity decisions. Formal risk acceptance and verified remediation remain separate; planned removals never change detected conflicts.</p>
         </section>
 
 

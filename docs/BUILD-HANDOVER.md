@@ -390,3 +390,33 @@ are mode 0644 (scripts are started through the Python interpreter, not executed 
 build passed. PowerShell was not used: the receipt records `not_verified: ["powershell"]`, and the only mentions in the log are 3 skipped tests.
 
 Not covered by this acceptance: real systemd boot, reboot/recovery, a second host, Docker (no daemon here), Windows, the full regression and GitHub Actions.
+
+## Linux permission audit and SoD test stabilization (after `227b950`)
+
+**Permission audit (Linux native).** The 0644 archive modes are intentional and sufficient. Nothing is executed directly: documented
+commands are `python3.12 scripts/install-linux-server.py ...`, `ExecStart` is `<prefix>/current/.venv/bin/python <prefix>/current/backend/server.py`
+(the script is an argument; the venv interpreter gets its execute bit from `venv`), and the installer forces the installed release tree to
+root-owned 0755 directories and 0644 files, so archive bits would be overridden anyway. Installed layout: releases immutable and not
+writable by `saplens`; data directory `saplens:saplens` 0700; config 0640 group `saplens`; unit 0644. The unit keeps NoNewPrivileges,
+ProtectSystem=strict, PrivateTmp, PrivateDevices, ProtectHome, `UMask=0077`. The offline wheelhouse is world-readable and holds no secrets.
+Locked by `DeploymentContracts.test_linux_native_files_are_started_through_the_interpreter_so_no_executable_bits_are_needed`.
+
+**Installation contract.** Validated without privilege through the build's offline `--user` install smoke test (install, start, status, restart,
+stop, backup, upgrade/restore path, Unicode paths). Not performed: privileged system install, a real systemd boot, `User=saplens` creation,
+`ProtectSystem` behavior under systemd, reboot/recovery. Those need a real systemd host.
+
+**SoD governance tests (3 failures, all test drift after deliberate redesign; no application regression).**
+- `:33` risk acceptance: since `603cd38` the Risk Review row shows the review state and acceptance is shown in the "Formal acceptance" section
+  of the row status popover. The test now opens that popover and asserts `Accepted` there.
+- `:172` work queue: the queue now includes every user in the complete assignment scope (`a1b9934`), so user C appears. Expected counts
+  updated to header plus 3 rows and "Needs review 3", with an explicit assertion that C has one row.
+- `:206` remediation: the SAP user column uses the shared identity action (open-user link). The "no links" assertion became exactly one link
+  for the remediated user.
+`sod-governance.spec.ts` 11/11, with `sod-stability` and `sod-analysis` 26/26 passed. `check:types` and the production build pass; ESLint reports 0 errors (111 pre-existing warnings).
+
+**Evidence messaging.** `sod-analysis.spec.ts:23` also asserted "Potential conflict evidence, not effective authorization" on the investigation
+panel and was failing silently outside the smoke scope. The SoD Overview kept the statement but the panel did not, so the same wording now opens
+the panel's existing description paragraph (no new element, no old subtitle restored).
+
+**Note.** The Linux package from `227b950` predates this panel sentence; rebuild before any release. Windows readiness: `build.ps1`
+(5.1 baseline, static checks only) and the checklist above are ready for a real Windows x64 host; nothing was run on Windows.
