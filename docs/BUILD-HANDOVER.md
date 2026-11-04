@@ -245,3 +245,14 @@ real exports, credentials, databases, caches or original reference workbooks.
 11. Commit/push validated logical stages to origin/work normally, verify live HEAD
     and clean status, and report native gaps honestly. Never modify main, force
     push, publish releases or dispatch workflows without separate authorization.
+
+## Continuation update (after `26db497`)
+
+- `examples/synthetic.csv` was removed. `examples/role-catalogue.example.csv` covers the same schema (including PARENT_AGR and
+  Effective_Role). The browser fixture is now `frontend/tests/fixtures/role-catalogue-minimal.csv`; see `examples/README.md`.
+- Re-verified on Linux: `test_unified_build` (33 tests), `python scripts/build.py quick --non-interactive --dry-run`, an invalid
+  target exiting 2 with a clear message, workflow contracts, actionlint, documentation links.
+- `python scripts/build.py package --platform linux --target server --non-interactive --skip-setup` stopped with exit 3 and the
+  message that PowerShell 7 is required (not installed here). A real Linux, Docker or Windows package build is still NOT executed.
+- Pre-existing failure found, unrelated to the build work: `frontend/tests/desktop.spec.ts` "application information displays the
+  resolved API identity" fails at `26db497` (the locator `Application version` now matches two elements, a strict-mode violation).
