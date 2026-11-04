@@ -129,10 +129,15 @@ as executed results.
 
 ## Build on x64 Windows
 
-Use the [central build guide](BUILD.md#commands), selecting `service` on a genuine
-Windows x64 builder. It provisions the wrapper and reuses canonical validation,
-metadata and package verification. The root build output is `dist/<version>/`;
-the lower-level packager's intermediate runtime is `dist/server/<version>/`.
+Use the [central build guide](BUILD.md#windows-only-development-modes) for
+`build-local.ps1 -Mode Build -IncludeService`, or select `service` through the
+[cross-platform wrapper](BUILD.md#commands). Both resolve the product version
+without requiring an override. The local Windows path writes service archives
+under its printed `dist/local/packages/<local-version>/<run-id>/service-archives/`;
+the cross-platform path writes `dist/<version>/`. WinSW is automatically acquired
+and SHA-256 checked; an explicit offline `-WinSW` path is also checked. Service
+packaging does not register/start SCM; actual installation and lifecycle acceptance
+require an administrator on Windows.
 No tags, releases or remote commits are created by local builds.
 
 The selected wrapper is WinSW 2.12.0 x64, SHA-256

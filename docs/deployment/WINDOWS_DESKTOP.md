@@ -18,7 +18,11 @@ download software or bypass enterprise controls. The application remains unsigne
 ## Obtain and verify the package
 
 Build `Windows Desktop` or `All` with **Build Deployment Packages** after approval,
-or use the documented [local build](BUILD.md). The output is:
+or use the [installer/deployment build](BUILD.md#commands). For local portable EXE
+development, the canonical [Windows Build mode](BUILD.md#windows-only-development-modes)
+uses the authoritative version without `-Version`; its output is a portable ZIP,
+not this installer-first archive. Neither build path grants production acceptance.
+The installer deployment output is:
 
 `sap-lens-win-desktop-x64-v<version>.zip`. GitHub Releases publish only the
 archive, not loose checksum sidecars. Actions retain their checksum internally for

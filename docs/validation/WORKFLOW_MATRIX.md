@@ -935,3 +935,62 @@ workflows passed, including light 375px and dark 1280px layout checks; previews 
 inspected. TypeScript/production build, changed-file ESLint/Ruff, links, test-map
 ownership and whitespace checks passed. Full regression and native Windows
 acceptance were intentionally not run. Existing large-chunk build warning remains.
+
+## Windows local build repair (2026-11-04)
+
+The audit retained active specialized compilers, installer/service lifecycle,
+Linux/Docker, release and CI scripts. Root wrappers already delegate; no obsolete
+standalone cleanup script was proved safe to remove. Unique Windows prerequisite,
+PATH/proxy and execution-policy guidance moved from the build guide into
+`docs/development/DEVELOPMENT.md`; BUILD remains authoritative for modes/outputs.
+Historical validation records and release behavior were preserved.
+
+Confirmed code issues and repairs:
+
+- Quick provisioned the entire toolchain and ran the full backend suite. It now
+  performs read-only/offline configuration/version/source checks plus existing
+  PowerShell/docs/whitespace checks, without installs, receipts or packaging.
+- Local/server/canonical fallback paths rewrote dotted beta versions as legacy
+  hyphen versions, while the root PowerShell wrapper required a redundant version
+  argument. All default through the existing product mechanism; explicit legacy
+  overrides remain accepted and no product version is modified. The resolved
+  value is passed to the canonical packager after resolution.
+- Local Build/Validate now use five packaging backend modules and one-worker
+  browser smoke checks. A distinct schema-2 receipt describes that evidence;
+  old receipts fail closed. CI/deployment attestations, PE/privacy/identity
+  verification, audits and native EXE/ZIP smoke requirements remain unchanged.
+- Optional `-IncludeService` uses the existing headless compiler and verified ZIP
+  export. WinSW acquisition is shared, bounded, hash-checked before activation and
+  rechecks its cache. Offline overrides are still hash-checked; corrupt caches and
+  failed downloads do not activate an executable.
+- Service packaging previously launched the administrator-only manager for a
+  self-test. It now compiles a disposable asInvoker harness calling the same
+  `ServiceSetup.SelfTest`; the shipped manager's administrator manifest is intact.
+  The modified compiler was added to the existing PowerShell parser check list.
+
+Executed on Linux/Python 3.12, using synthetic fixtures:
+
+- Initial focused local/version/deployment checks: 45 tests, 2 PowerShell skips.
+- Expanded build/workflow/package contracts: 89 tests, 3 PowerShell skips and one
+  new-test mock error. Mocking `subprocess.run` also intercepted `check_output`'s
+  Git lookup; scoping the Git mock corrected it. Its isolated recheck passed.
+- Version/default/release safeguards: 39 tests passed after the canonical default
+  correction. Final affected entry/dependency/workflow checks: 32 passed after
+  the service self-test and local-branch cleanup. Coverage overlaps earlier runs;
+  these are targeted evidence, not a full-suite count.
+- The actual platform-independent `local-build.py quick` and `version` commands
+  passed with no product/receipt mutations. Cache/network/integrity failure tests,
+  incomplete/stale receipt rejection and failed-export manifest checks passed.
+- Workflow trigger/job/artifact contracts, changed Python Ruff/compile checks,
+  documentation links, test ownership and whitespace passed. No workflow was
+  dispatched, dependency installed, product version bumped or binary committed.
+
+Pending: PowerShell parser/5.1-versus-7 execution, real Quick/Build commands,
+PyInstaller EXE/service archives, .NET/Inno compilation, WebView2/SCM and reboot/UNC
+acceptance. `pwsh` and Windows are unavailable here; source/static checks do not
+certify those paths. WinSW download verification was tested with synthetic bytes
+and a patched test pin; no new upstream binary was executed. Full regression and
+unaffected frontend/package dependency audits were intentionally not rerun.
+
+Next native check, from a synchronized Windows x64 checkout:
+` .\scripts\build-local.ps1 -Mode Quick `, followed by Build if successful.

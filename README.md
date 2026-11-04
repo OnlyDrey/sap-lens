@@ -64,6 +64,16 @@ see the [validation matrix](docs/deployment/README.md#validation-status).
 and history. Actions artifacts are available only after successful approved builds
 and have finite retention. Local builds never publish releases, tags or commits.
 
+Local Windows build entry point (from the repository root):
+
+```powershell
+.\scripts\build-local.ps1 -Mode Quick
+.\scripts\build-local.ps1 -Mode Build
+```
+
+Version resolution, prerequisites, optional service packaging and output paths are
+in the [build guide](docs/deployment/BUILD.md#windows-only-development-modes).
+
 ## Licensing
 
 SAP Lens is proprietary software. All rights reserved; no open-source license is
