@@ -13,7 +13,7 @@ import {SodFilters} from './SodShared'
 import {BulkReviewDialog} from './SodBulkReview'
 
 /** Selection is explicit and retained across filters; preview uses canonical assignment selection, never visible-page rows. */
-export function SodQueueBulk({context,filters:initial,onClose,embedded=false,onFiltersChange}:{context:string;filters:Filters;onClose:()=>void;embedded?:boolean;onFiltersChange?:(value:Filters)=>void}){
+export function SodQueueBulk({context,filters:initial,onClose,embedded=false,onFiltersChange,selectMatching=false,onSelectionConsumed}:{context:string;filters:Filters;onClose:()=>void;embedded?:boolean;selectMatching?:boolean;onSelectionConsumed?:()=>void;onFiltersChange?:(value:Filters)=>void}){
  const [offset,setOffset]=useState(0)
  const [filters,setFilters]=useState<Filters>({...initial,assignment_scope:'all',role_match:initial.role_match||'exact',review_status:'all'}),[selected,setSelected]=useState(new Map<string,AssignmentPick>()),[includeReviewed,setIncludeReviewed]=useState(false),[action,setAction]=useState<BulkAction>('Keep'),[confirm,setConfirm]=useState(false),[notice,setNotice]=useState('')
  const initialKey=JSON.stringify(initial)
@@ -25,6 +25,12 @@ export function SodQueueBulk({context,filters:initial,onClose,embedded=false,onF
  useEffect(()=>setOffset(0),[queryKey])
  const data=result.data,stamp=data?`${context}:${data.generation}:${data.revision}`:''
  useEffect(()=>{if(!stamp)return;if(version.current&&version.current!==stamp){setSelected(new Map());setNotice('Source evidence or decisions changed. Review the preview and select again.')}version.current=stamp},[stamp])
+ useEffect(()=>{
+  if(!selectMatching||!data||result.isFetching)return
+  if(data.truncated)setNotice('The matching scope exceeds the preview limit. Narrow it before selecting all; nothing was selected automatically.')
+  else setSelected(new Map(data.items.map(row=>[row.key,row])))
+  onSelectionConsumed?.()
+ },[selectMatching,data,result.isFetching,onSelectionConsumed])
  const toggle=(row:AssignmentPick)=>setSelected(previous=>{const next=new Map(previous);if(next.has(row.key))next.delete(row.key);else next.set(row.key,row);return next})
  const protectedPick=(row:AssignmentPick)=>row.has_review??['Keep','Removal required'].includes(row.decision)
  const all=[...selected.values()],same=(row:AssignmentPick)=>action==='Keep'&&row.decision==='Keep'||action==='Remove'&&row.decision==='Removal required'||action==='Investigate'&&row.decision==='Investigate',eligible=all.filter(row=>(includeReviewed||!protectedPick(row))&&!same(row)),excluded=all.length-eligible.length

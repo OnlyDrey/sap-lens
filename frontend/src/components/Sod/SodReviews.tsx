@@ -4,7 +4,7 @@ import { Kpi } from '@/components/Shared/Kpi'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { downloadFile, scopeParams, sod, EXPORT_NAME, type ContextInfo, type UserQueueRow } from '@/api/sod'
-import { useHistoryValue } from '@/hooks/useViewHistory'
+import { useHistoryValue,useViewHistory } from '@/hooks/useViewHistory'
 import { Button } from '@/components/Shared/Button'
 import { UserGroupCell } from '@/components/Shared/UserGroup'
 import { ArrowUpDown, ArrowDown, ArrowUp, ClipboardCheck, ListChecks, Wrench } from 'lucide-react'
@@ -90,6 +90,6 @@ function Queue() {
 
 
 function BulkReviewPage(){
- const [context]=useSodContext(),[filters,setFilters]=useSodFilters('bulk',['group','username','role','role_suffix','risk','activity','tcode','category']),[,setTab]=useHistoryValue('sodReviews')
- return <SodQueueBulk embedded context={context} filters={filters} onFiltersChange={setFilters} onClose={()=>setTab('queue')}/>
+ const [context]=useSodContext(),[filters,setFilters]=useSodFilters('bulk',['group','username','role','role_suffix','risk','activity','tcode','category']),[,setTab]=useHistoryValue('sodReviews'),{view,change}=useViewHistory()
+ return <SodQueueBulk embedded selectMatching={!!view.bulkSelectMatching} onSelectionConsumed={()=>change({bulkSelectMatching:false},true)} context={context} filters={filters} onFiltersChange={setFilters} onClose={()=>setTab('queue')}/>
 }

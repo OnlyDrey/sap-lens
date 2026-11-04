@@ -85,3 +85,26 @@ test('a replacement import rejects an already frozen confirmation without partia
  const subject=await(await request.get('/api/sod/subject',{headers,params:{user:`${names.c}_ONLY`}})).json()
  expect(subject.overview.assignments[0].event).toBeNull()
 })
+
+
+test('Access Explorer transfers the effective base role and suffix into one preselected bulk scope',async({page})=>{
+ await openSod(page,'Access Explorer')
+ await page.getByRole('tab',{name:'Roles',exact:true}).click()
+ await select(page,'Assigned role',family)
+ await select(page,'Role suffix','CDK')
+ const roles=page.getByRole('table',{name:'User & role lookup',exact:true})
+ await expect(roles).toContainText(family.replace('*','CDK'))
+ let writes=0
+ page.on('request',request=>{if(request.method()==='POST'&&request.url().includes('/api/sod/decisions/'))writes++})
+ await page.getByRole('button',{name:'Review matching assignments',exact:true}).click()
+ await expect(page.getByRole('tab',{name:'Bulk Review',exact:true})).toHaveAttribute('aria-selected','true')
+ const preview=page.getByRole('table',{name:'Bulk assignment preview',exact:true})
+ await expect(preview.locator('tbody tr')).toHaveCount(2)
+ await expect(preview).toContainText(`${names.c}_ONLY`)
+ await expect(preview).not.toContainText('SYN_READ:ENO')
+ await expect(page.getByRole('button',{name:'Continue to confirmation (2)',exact:true})).toBeEnabled()
+ expect(writes).toBe(0)
+ await page.goBack()
+ await expect(page.getByRole('tab',{name:'Roles',exact:true})).toHaveAttribute('aria-selected','true')
+ await expect(roles).toContainText(readRole)
+})

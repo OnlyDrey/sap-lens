@@ -23,7 +23,7 @@ import { SodPill } from '@/lib/sodAppearance'
 import { UserGroupCell } from '@/components/Shared/UserGroup'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import { kpiTone, stateTone } from '@/lib/kpiTone'
-import { type FilterField, keepWithinContext, useFilterChangeReset, reviewStatusParam, SodArea, RoleCodeList, CoverageNotice, SodFilters, useSodContext, useSodFilters, useSodSubject } from './SodShared'
+import { type FilterField, keepWithinContext, useFilterChangeReset, reviewStatusParam, SodArea, RoleCodeList, CoverageNotice, SodFilters, writeFilters, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 
 type TableName = Exclude<SodExplorerTable, 'roles'>
 interface Row {
@@ -150,16 +150,18 @@ const pickKey = (pick: AssignmentPick) => pick.key
 
 function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: SodExplorerTable) => void }) {
   const [context] = useSodContext(),
-    [filters, setFiltersState] = useSodFilters('explorer', FIELDS[table]),
+    [storedFilters, setFiltersState] = useSodFilters('explorer', FIELDS[table]),
     [offset, setOffset] = useState(0),
     [, setSelected] = useSodSubject(),
     [busy, setBusy] = useState(false),
     [evidence, setEvidence] = useState<Evidence | null>(null),
-    { change } = useViewHistory(),
+    { view,change } = useViewHistory(),
     [pageSize, setPageSizeState] = useState(50),
     [dialog, setDialog] = useState<BulkAction | null>(null),
     [gathering, setGathering] = useState(false),
     [gatherNote, setGatherNote] = useState('')
+  const filters:Filters={...storedFilters,assignment_scope:table==='lookup'?'all':'conflicts'}
+  const openBulk=()=>change({sodView:'reviews',sodReviews:'bulk',sodSubject:null,bulkSelectMatching:true,sodFilters:writeFilters(view.sodFilters,'bulk',['group','username','role','risk','activity','tcode','category'],{...filters,role_match:filters.role_match||'search',assignment_scope:'all',review_status:'all'})})
   const selection = useBulkSelection<AssignmentPick>(pickKey)
   const setPageSize = (value: number) => { setPageSizeState(value); setOffset(0) }
   useFilterChangeReset(filters, () => setOffset(0))
@@ -205,6 +207,7 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
         sorts={[{ value: 'subject', label: 'Name' }]}
         actions={<>
           {(table === 'user_risk' || table === 'user_activity') && <Select aria-label="Group users by" value={table} onChange={(event) => onTable(event.target.value as SodExplorerTable)}><option value="user_risk">Grouped by risk</option><option value="user_activity">Grouped by activity</option></Select>}
+          {table==='lookup'&&<Button disabled={result.isFetching||!data?.reviewable} title="Reviews all active assignments matching these filters, including non-conflict roles and all pages." onClick={openBulk}>Review matching assignments</Button>}
           <ExportCSVButton loading={busy} disabled={!data?.total} onClick={() => void download(`/api/sod/explorer/${table}/export`, EXPORT_NAME)} title="Exports every filtered row across pages." />
           {table === 'user_risk' && context === 'current' && <Button disabled={busy || !data?.total} variant="outline" onClick={() => void download('/api/sod/analysis/export', /^sap-lens-sod-users-findings-\d{4}-\d{2}-\d{2}\.csv$/, { kind: 'users' })}>Export evidence CSV</Button>}
         </>}>

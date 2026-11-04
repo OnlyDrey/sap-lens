@@ -466,3 +466,9 @@ periods without a full assignment cut retain their original conflict evidence;
 the full-population preview reports that limitation rather than using current
 records. Non-active validity views are for inspection; decisions require active
 reviewable evidence and an editable period.
+
+In Access Explorer → Roles, **Review matching assignments** opens Bulk Review
+with the effective role, suffix, user and group scope and selects the complete
+matching set across pages. This includes assignments without a detected conflict.
+The shortcut never records a decision; inspect the frozen preview and confirm
+explicitly. Returning to Explorer preserves its filters.
