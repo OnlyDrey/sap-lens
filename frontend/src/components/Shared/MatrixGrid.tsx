@@ -118,7 +118,7 @@ export function MatrixGrid({ caption, rowLabel, columns, rows, cell, onSelect, o
   const renderRow = (row: { id: string; label: string; sub?: string; group?: string; groups?: string[] }, r: number) => (
             <tr key={row.id}>
               <th scope="row" className="matrix-row-head" title={row.sub || undefined}>
-                {codeRows ? <SAPUserLink routeLink={false} username={row.label} onOpen={onRow ? () => onRow(row.id) : undefined} openLabel={`Open ${row.label}`}/> : onRow ? <button type="button" className="matrix-row-button" onClick={() => onRow(row.id)} aria-label={`Open ${row.label}`}>{row.label}</button> : row.label}
+                {codeRows ? <SAPUserLink username={row.label} openLabel={`Open ${row.label}`}/> : onRow ? <button type="button" className="matrix-row-button" onClick={() => onRow(row.id)} aria-label={`Open ${row.label}`}>{row.label}</button> : row.label}
                 {row.sub && <span className="sr-only">{row.sub}</span>}
               </th>
               {groupColumn && <td className="matrix-identity-group"><UserGroupCell groups={row.groups} /></td>}

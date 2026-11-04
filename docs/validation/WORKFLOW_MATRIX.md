@@ -788,3 +788,18 @@ Fixtures and screenshots use synthetic identities only; generated screenshots,
 logs and browser artifacts remain outside Git. Historical accepted privacy
 findings are unchanged. No claim is made about inspection of a production user's
 actual records.
+
+### SAP username interaction correction — 2026-11-04
+
+Matrix usernames no longer invoke review opening. Shared SAP codeblocks expose
+separate username and Open user controls for direct User Details navigation,
+independent Copy, and the explicit review-panel button. Navigation clears the
+review target; no intermediate username popover is used. Each action stops click
+propagation; route links retain modified-click semantics.
+
+FAST validation: 5 targeted browser tests passed (one worker), including all four
+interactions, keyboard navigation, exact copy, parent-event isolation, user
+switching, stale responses and role-save checks. Production build/TypeScript,
+changed-component ESLint, test mapping, documentation links (94 files, 0 failures)
+and diff whitespace checks passed. No backend code changed; backend/full
+regression and native Windows acceptance were intentionally not rerun.

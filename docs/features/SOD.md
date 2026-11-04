@@ -166,7 +166,7 @@ One shared heatmap, **Conflicts by SAP User Group**, sits directly under the Rev
 - Every SoD page (matrices, Access Explorer, Role Conflicts, User Conflicts) uses the same **Filters** sidebar: search, Saved Filters and all filters live there. The toolbar keeps only sort, direction, row mode, Export CSV and Reset.
 - Risk, activity, group, user, role, transaction and business area fields suggest values taken from the imported evidence (searchable, bounded). A typed value that is not suggested still filters.
 - Risk and Activity matrices show tiles for users, distinct user-risk or user-activity pairs and each explicit review status (formal Pending/Accepted/Rejected/Outdated; activity Pending/Approved/Conditional legacy/Removal required/Outdated). Counts cover the whole filtered matrix, not the visible page; a status tile toggles the matching filter.
-- A matrix cell opens the investigation drawer for that one user-risk or user-activity: only the matching activities, role assignments, normal Risk review and formal acceptance are listed, with **Show all review items** to widen it. A user row opens everything. The business area reuses the configured module icon and color when it names a module.
+- A matrix cell opens the investigation drawer for that one user-risk or user-activity: only the matching activities, role assignments, normal Risk review and formal acceptance are listed, with **Show all review items** to widen it. The username and Open user icon navigate directly to User Details; the panel icon opens all review items. The business area reuses the configured module icon and color when it names a module.
 - CSV exports use exactly the filters shown, including assignment validity (active, expired, future, unknown, all).
 
 ## Shared SoD filters
@@ -390,7 +390,10 @@ recommendations and actual SAP verification remain separate.
 
 ### Shared username review action
 
-Supported SAP username codeblocks include **Open in SoD Review** after Copy.
+Supported SAP username codeblocks contain four independent interactions: username
+and Open user icon navigate directly to User Details, Copy copies the exact
+identifier, and **Open in SoD Review** opens or switches the review sidebar.
+There is no intermediate username popover.
 The action is available only when that SAP identity has detected conflict evidence
 in the selected review context. It opens the same non-modal panel from SoD and
 User Access, including Account Review and release assignment tables. Employee-only

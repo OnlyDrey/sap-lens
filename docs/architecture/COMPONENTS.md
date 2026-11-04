@@ -323,7 +323,9 @@ Escape or has already consumed the event; parent behavior no longer depends on l
 
 ### Optional identifier actions and SoD review navigation
 
-`RoleIdentifier.action` accepts an optional trailing control after exact Copy;
+`RoleIdentifier.separateOpenAction` gives SAP usernames separate text and icon
+controls for the same direct user navigation. `RoleIdentifier.action` accepts an
+optional trailing control after exact Copy;
 identifier fitting includes that control. `SAPUserLink` adds the shared
 `PanelRightOpen` action with tooltip, username-specific accessible label and
 `aria-pressed` state. `reviewSupported={false}` disables capability registration
