@@ -360,3 +360,9 @@ Docker: the CLI exists but no daemon is reachable, so Docker acceptance is block
   `docs/archive/validation/LOCAL_VALIDATION_LOG_2026-11.md` (relative links adjusted).
 - `docs/development/CI.md` now states current behavior, checked against the workflow files; superseded passages are preserved in
   `docs/archive/validation/CI_HISTORY_PRE_THREE_LEVEL.md`. R8 reports and handoffs were left in place.
+
+## Script audit result
+
+All 54 tracked files under `scripts/` were audited: 0 removed, 0 migrated, 0 merged (before and after: 54). The inventory with a purpose per
+script is in `docs/BUILD.md` ("Script inventory"), guarded by `ScriptInventoryTests` so new scripts must be documented. Remaining
+debt: `test-service-management.ps1` is not executed by any build step; Python migration of the legacy stage engine needs Windows parity tests.

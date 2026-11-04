@@ -116,6 +116,16 @@ class RoutingTests(unittest.TestCase):
         self.assertIn('--verify-output',str(commands));self.assertNotIn('publish',str(commands));self.assertNotIn('git tag',str(commands))
 
 
+class ScriptInventoryTests(unittest.TestCase):
+    def test_every_tracked_script_is_documented_in_the_build_guide(self):
+        import subprocess
+        guide=(ROOT/'docs/BUILD.md').read_text(encoding='utf-8').split('## Script inventory',1)[1].split('\n## ',1)[0]
+        files=subprocess.check_output(['git','ls-files','scripts'],cwd=ROOT,text=True).split()
+        missing=[f for f in files if not f.startswith('scripts/build_system/') and f.removeprefix('scripts/') not in guide]
+        self.assertEqual(missing,[],'add new scripts to the Script inventory table in docs/BUILD.md')
+        self.assertIn('build_system/*',guide)
+
+
 class BootstrapperStaticTests(unittest.TestCase):
     """No PowerShell is available on Linux CI: these are static guards for the Windows PowerShell 5.1 baseline, not execution evidence."""
     def test_root_bootstrapper_keeps_the_51_baseline_and_forwards_help(self):
