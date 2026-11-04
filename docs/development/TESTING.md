@@ -234,3 +234,8 @@ it never uses configured user data. No server, browser or real dataset is requir
 Keep generated results outside Git. Compare the same corpus/sample count/environment.
 Measurements and limitations: [SoD architecture](../architecture/SOD.md#measured-request-local-review-state-reuse).
 This focused profiler is not a replacement for correctness tests or release regression.
+
+
+Bulk Review selection helpers have dependency-free unit checks:
+`node --test frontend/tests/unit/sod-bulk.test.ts` (Node 24/25). Browser coverage
+remains in the mapped SoD specs; these helper checks do not replace it.

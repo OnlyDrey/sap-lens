@@ -915,3 +915,23 @@ are unchanged), native Windows/WebView2/SCM, real systemd, reboot/recovery, UNC 
 production-data performance acceptance. No manual GitHub workflow or release was
 created. Local full regression remains available explicitly through
 `python scripts/validate.py --level full`; it is not an ordinary development gate.
+
+
+## 2026-11-04 — Compact Bulk Review UX
+
+Commits `ea02dea` through `c715e96` refine shared-filter placement, complete-scope
+eligibility counts, page/all-eligible selection, prior-review hiding, compact
+decisions, identity actions and frozen preview/action bar. Out-of-filter selections
+remain disclosed but never execute. No migrations, dependencies, product-version
+or CI changes were introduced.
+
+Targeted evidence: 3 filter compatibility backend checks, 1 complete-scope count
+check, then 23 affected atomic/complete-assignment tests passed. Four Node selection
+unit checks passed. Browser checks: 4 decision/handoff workflows passed; 9/10
+integration/compatibility checks initially passed, with a new fixture attempting
+to select a group unavailable under its own role filters. Correcting it to a valid
+username filter preserved the exclusion assertion. The final 4 affected/recheck
+workflows passed, including light 375px and dark 1280px layout checks; previews were
+inspected. TypeScript/production build, changed-file ESLint/Ruff, links, test-map
+ownership and whitespace checks passed. Full regression and native Windows
+acceptance were intentionally not run. Existing large-chunk build warning remains.

@@ -288,7 +288,8 @@ formal acceptance and review decisions remain unchanged.
 role names (default), explicit role prefixes or wildcard patterns; suffixes and
 users remain multi-selectable. SAP User Groups always match exactly. Select all
 uses the complete server-filtered scope, not just the visible preview page;
-explicit selections remain selected when filters change. Scopes above 5000 preview
+explicit selections are retained when filters change, but out-of-filter selections
+are disclosed and excluded from execution. Scopes above 5000 preview
 records must be narrowed, and each confirmed operation is limited to 1000 changes.
 
 Preview shows current/proposed decisions and excluded assignments. Previously recorded decisions, including outdated and Investigate decisions, are
@@ -480,3 +481,32 @@ it has no invented activity or risk decision. Remediation labels these rows
 **No linked SoD activity**. Conflict counts and formal risk acceptance remain
 independent. Existing immutable periods without a complete assignment snapshot
 continue to use their retained scope.
+
+
+### Compact Bulk Review selection
+
+The shared sidebar owns the scope. Recognized base-role families and exact suffixes
+combine as before; legacy prefix/wildcard/search modes remain under **Advanced role
+matching** without changing saved filters or Explorer handoff.
+
+**Users** and **Assignments** count all current matches; **Eligible** counts those
+that can change under the proposed decision and inclusion policy. These totals
+are calculated server-side, before the bounded preview. Previously reviewed
+assignments are hidden by default. **Include previously reviewed** reveals them
+without selecting them; switching it off clears their selections. Unchanged
+decisions remain non-executable.
+
+The header checkbox selects eligible assignments on the current page, including
+an indeterminate state. When additional pages exist, **Select all N matching
+eligible assignments** selects the complete loaded eligible scope. Selections
+survive pagination. Out-of-filter selections have a separate disclosure and clear
+action; they never enter the operation. A truncated scope cannot be selected all
+at once; narrow it for a complete preview.
+
+Keep, Remove and Investigate change only the proposed decision. The table action
+bar shows the executable selected count. **Preview** and **Review N assignments**
+open the same frozen confirmation with current/proposed assignments, reviewer,
+rationale, filters, period and source/review revisions. **Mark N role assignments
+for removal** records a recommendation, never a SAP change. Reconsidering prior
+decisions requires the additional replacement checkbox. Atomic validation, source
+checks, period gates and per-assignment immutable history are unchanged.
