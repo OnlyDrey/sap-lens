@@ -16,7 +16,7 @@ a build-machine venv is never relocated. No compiler/Rust toolchain should be ne
 
 ## Download and install
 
-Build `Linux Native/systemd` or `All` using [manual packaging](BUILD.md).
+Build `Linux Native/systemd` or `All` using [manual packaging](../BUILD.md).
 Extract GitHub's download wrapper, verify the sidecar checksum, then extract the
 inner archive into a new staging directory:
 

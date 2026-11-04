@@ -3,7 +3,7 @@
 ## Runtime scope
 
 For prerequisites, installation, upgrades and recovery use [Windows Desktop](../deployment/WINDOWS_DESKTOP.md).
-For local/Actions commands use [Build](../deployment/BUILD.md). This document owns
+For local/Actions commands use [Build](../BUILD.md). This document owns
 WebView2, listener, native-bridge and shutdown internals, plus native QA boundaries.
 The legacy portable ZIP and the multi-platform installer bundle are distinct
 formats; their exact contents are specified by their canonical packagers.
@@ -40,7 +40,7 @@ Settings are stored per user, independently of the EXE. Logs omit source paths, 
 Deployment packaging wraps its verified portable payload with the per-user Setup
 and manifest; it does not implement a second desktop application build. UPX stays
 disabled. [CI](../development/CI.md) owns workflow orchestration and
-[Build](../deployment/BUILD.md) owns user commands.
+[Build](../BUILD.md) owns user commands.
 
 The packaged smoke test uses isolated synthetic settings and checks PE resources,
 GUI subsystem, instance identity, readiness, origin/capability enforcement, visible

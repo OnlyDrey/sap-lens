@@ -9,12 +9,12 @@ same origin. It does not import WebView2. No SAP interpretation changes are made
 
 | Target | Packaging / runtime | Build | Install, configuration and troubleshooting |
 | --- | --- | --- | --- |
-| Windows Desktop | Windows Desktop x64 / EXE + WebView2 | [Build](BUILD.md) | [Desktop guide](WINDOWS_DESKTOP.md) |
-| Windows Server | Windows Service x64 / WinSW + SCM | [Build](BUILD.md) | [Service guide](WINDOWS_SERVICE.md) |
-| Linux Docker | Linux Docker amd64 / container | [Build](BUILD.md) | [Docker guide](LINUX_DOCKER.md) |
-| Linux Native | Linux Native x64 / Python 3.12 + systemd or manual process | [Build](BUILD.md) | [Native guide](LINUX_NATIVE.md) |
+| Windows Desktop | Windows Desktop x64 / EXE + WebView2 | [Build](../BUILD.md) | [Desktop guide](WINDOWS_DESKTOP.md) |
+| Windows Server | Windows Service x64 / WinSW + SCM | [Build](../BUILD.md) | [Service guide](WINDOWS_SERVICE.md) |
+| Linux Docker | Linux Docker amd64 / container | [Build](../BUILD.md) | [Docker guide](LINUX_DOCKER.md) |
+| Linux Native | Linux Native x64 / Python 3.12 + systemd or manual process | [Build](../BUILD.md) | [Native guide](LINUX_NATIVE.md) |
 
-Start with the **[central build guide](BUILD.md)** to select an operating system and package (or all),
+Start with the **[central build guide](../BUILD.md)** to select an operating system and package (or all),
 choose a version and obtain artifacts from Actions or local builds. Installation
 machines do not need Node.js or React compilation. Desktop/service contain their
 Python runtime; Linux Native requires Python 3.12 and system libraries.

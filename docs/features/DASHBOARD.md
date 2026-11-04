@@ -127,7 +127,7 @@ retain their actionable recovery buttons and established status semantics.
 
 - [Employee Directory, feature dependencies and persistence](../data/EMPLOYEE_DIRECTORY.md)
 - [Transaction evidence and assignment date filters](FILTERS.md)
-- [Local builds and native Windows validation](../deployment/BUILD.md)
+- [Local builds and native Windows validation](../BUILD.md)
 
 Automated Chromium screenshots cover both themes at 375, 800 and 1280 pixels.
 They do not replace Windows/WebView2, native file-dialog or UNC-share validation.

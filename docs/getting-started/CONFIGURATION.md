@@ -101,7 +101,7 @@ UI. Account Review CSV export is a separate explicit export containing identity
 and review information; do not confuse it with the redacted support report.
 
 See [Employee Directory](../data/EMPLOYEE_DIRECTORY.md), [Account Review](../features/ACCOUNT_REVIEW.md),
-and [local Windows testing](../deployment/BUILD.md).
+and [local Windows testing](../BUILD.md).
 
 ## Investigation filter storage and data coverage
 

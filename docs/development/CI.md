@@ -44,7 +44,7 @@ That changes remote workflow state and requires explicit authorization; it is
 not performed by the local build scripts or by adding this documentation.
 Re-enable before relying on required checks, then submit a normal commit/event.
 
-For local commands use [Build](../deployment/BUILD.md). No YAML change is
+For local commands use [Build](../BUILD.md). No YAML change is
 required merely to skip one explicitly authorized push.
 
 ## Workflows and checks
@@ -201,6 +201,6 @@ Windows Service, Docker, Linux native and All. Shared validation is performed on
 for the exact commit/run; independent platform jobs retain package audits, native
 checks and distribution roundtrips. It publishes a GitHub release only when `publish_release` is explicitly enabled and every selected package passes; it does not push registry images.
 The existing Windows release workflow remains unchanged. See
-[deployment artifacts and attestation](../deployment/BUILD.md) and
+[deployment artifacts and attestation](../BUILD.md) and
 [current packaging validation](../archive/validation/PACKAGING_VALIDATION.md). Four workflow files are
 now explicitly covered by the repository workflow contract.

@@ -108,7 +108,7 @@ build/install procedure, pending native acceptance testing.
 ## Download from Actions
 
 Choose `Windows Server Service` or `All` in
-[Build Deployment Packages](BUILD.md). After a successful approved
+[Build Deployment Packages](../BUILD.md). After a successful approved
 run, download `sap-lens-win-service-x64-v<version>`, extract GitHub's wrapper ZIP,
 verify the inner ZIP's `.sha256`, and extract it into a new installation directory.
 The inner ZIP contains `app/` (headless EXE/Python runtime/frontend), pinned WinSW,
@@ -129,15 +129,13 @@ as executed results.
 
 ## Build on x64 Windows
 
-Use the [central build guide](BUILD.md#windows-only-development-modes) for
-`build-local.ps1 -Mode Build -IncludeService`, or select `service` through the
-[cross-platform wrapper](BUILD.md#commands). Both resolve the product version
-without requiring an override. The local Windows path writes service archives
-under its printed `dist/local/packages/<local-version>/<run-id>/service-archives/`;
-the cross-platform path writes `dist/<version>/`. WinSW is automatically acquired
-and SHA-256 checked; an explicit offline `-WinSW` path is also checked. Service
-packaging does not register/start SCM; actual installation and lifecycle acceptance
-require an administrator on Windows.
+Use the [central build guide](../BUILD.md#commands):
+`build.ps1 -Mode package -Platform windows -Target service` (or target `all` for
+installer/desktop plus service). Version resolution is automatic; deployment
+archives default to `dist/<version>/`. WinSW is acquired and SHA-256 checked;
+internal offline `-WinSW` overrides are still checked. Packaging does not install
+SCM; actual service installation/lifecycle acceptance needs Windows administration.
+
 No tags, releases or remote commits are created by local builds.
 
 The selected wrapper is WinSW 2.12.0 x64, SHA-256

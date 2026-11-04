@@ -225,3 +225,9 @@ on the repaired `work` SHA: `linux-native` and `windows-all`, with
 `all` run is an alternative that shares validation once but rebuilds Docker.
 Re-running the old failed run would test its original commit, not these fixes.
 Full Regression remains optional and is not a build/release prerequisite.
+
+
+Build, package, release adapters and CI timing runners use the shared
+`scripts/build.py` entry point with explicit non-interactive parameters. Setup
+Actions, runner ownership, trigger/permission/job graph, artifact provenance and
+release gates are unchanged. See the [authoritative build guide](../BUILD.md#release-preparation-and-ci).

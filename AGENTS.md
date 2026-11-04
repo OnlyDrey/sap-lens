@@ -135,14 +135,14 @@ From the repository root (full list and risk-based selection:
 - Server mode must use separate mutable storage, enforce its authentication and
   host/origin boundary, and keep browser uploads local to the configured server.
   Optional disabled/missing sources are not permission to erase valid snapshots.
-- `build.sh`/`build.ps1` delegate local orchestration; canonical packaging remains
-  in `scripts/`. Keep legacy desktop release behavior separate from deployment
+- `build.ps1`/`scripts/build.py` are the public build interfaces; canonical packaging remains
+  in specialized internal `scripts/` helpers. Keep legacy desktop release behavior separate from deployment
   publication. No automatic tags/releases/registry pushes from local builds.
 - Reuse frontend Shared components, semantic tokens and isolated Component Library
   previews. Navigation links, content tabs, filters and actions have distinct
   semantics; preserve keyboard focus and source evidence.
 - Start at [documentation index](docs/README.md), [deployment](docs/deployment/README.md),
-  [local builds](docs/deployment/BUILD.md),
+  [local builds](docs/BUILD.md),
   [design system](docs/architecture/DESIGN_SYSTEM.md) and
   [component APIs](docs/architecture/COMPONENTS.md). Update the canonical guide and index
   when behavior/commands change, rather than copying procedures into new reports.

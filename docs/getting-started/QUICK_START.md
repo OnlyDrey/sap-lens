@@ -9,7 +9,7 @@
 - Developer: [run from source without an EXE](../development/DEVELOPMENT.md).
 
 Obtain artifacts from an authorized successful build or build them using the
-[central build guide](../deployment/BUILD.md). No pre-existing download is implied.
+[central build guide](../BUILD.md). No pre-existing download is implied.
 Linux clients use a browser; no separate Linux GUI executable is supplied.
 
 ## 2. Configure safely

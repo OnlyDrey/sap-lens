@@ -48,7 +48,7 @@ and changes no main/default-branch or repository protection settings.
 
 
 For multi-platform Alpha/Beta/RC/Stable channels and optional publication, use
-[Build — manual workflow](BUILD.md#manual-build). This document describes the
+[Build — manual workflow](../BUILD.md#manual-build). This document describes the
 separate legacy Windows Application workflow; its beta-hyphen allocation rules
 do not apply to deployment packaging. GitHub Releases is the release-history record.
 
@@ -99,15 +99,12 @@ In the frozen application it is required and loaded from sys._MEIPASS. Missing,
 invalid or oversized packaged metadata fails closed; runtime CI variables are
 neither needed nor read. The version remains available offline after EXE replacement.
 
-With no generated metadata, source development clearly reports
-**0.0.0-dev.local**. Standalone `scripts/build-windows.ps1` remains supported:
-outside CI its packaging stage generates a deterministic
-`<requested-version>+local.<source-SHA-prefix>` identity, with no invented run ID.
-The supported local wrapper supplies the requested version; direct lower-level
-invocations default to 0.1.0 unless `SAP_LENS_LOCAL_VERSION` is set. See the
-[local Windows build guide](BUILD.md) for commands and prerequisites. CI never takes that path: it requires the
-already resolved identity. The frontend's npm manifest version is tooling
-metadata, not a runtime application version source and is not packaged.
+With no generated identity, source development uses the authoritative product
+version from `backend/resources/product-version.json`. Frontend manifests mirror
+that resource; they are not independent version sources. The unified build CLI
+passes the resolved version to canonical compilers. Portable local artifacts use
+`<requested-version>+local.<source-SHA-prefix>` without a fabricated CI run;
+CI keeps its existing resolved same-run identity. See the [build guide](../BUILD.md).
 
 The existing health/OpenAPI version and authenticated `/api/version` use this
 same runtime value. The existing footer shows SAP Lens v<version>, with a

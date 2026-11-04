@@ -51,7 +51,7 @@ see the [validation matrix](docs/deployment/README.md#validation-status).
 
 ## Find your guide
 
-- [Build packages](docs/deployment/BUILD.md): Actions selections, versions, local commands, prerequisites and outputs.
+- [Build packages](docs/BUILD.md): Actions selections, versions, local commands, prerequisites and outputs.
 - [Features](docs/features/README.md): investigation, comparisons, review, [SoD](docs/features/SOD.md) and Saved Filters.
 - [Data & CSV](docs/data/README.md): four independent sources, formats, replacement and persistence.
 - [Configuration](docs/getting-started/CONFIGURATION.md): settings, storage and recovery.
@@ -67,12 +67,12 @@ and have finite retention. Local builds never publish releases, tags or commits.
 Local Windows build entry point (from the repository root):
 
 ```powershell
-.\scripts\build-local.ps1 -Mode Quick
-.\scripts\build-local.ps1 -Mode Build
+.\build.ps1 -Mode quick
+.\build.ps1 -Mode build -Platform windows -Target desktop
 ```
 
 Version resolution, prerequisites, optional service packaging and output paths are
-in the [build guide](docs/deployment/BUILD.md#windows-only-development-modes).
+in the [build guide](docs/BUILD.md#commands).
 
 ## Licensing
 

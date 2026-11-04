@@ -12,5 +12,5 @@
 - [Validation tracker](../validation/README.md): the repository CSV checklist (22 functional areas) with validation status, separate manual approval, findings and a future-improvements backlog, and the Excel workbook generator.
 - [Dependency maintenance](DEPENDENCY_MAINTENANCE.md): dated upstream/deprecation decisions, not a current audit result.
 
-Build distributable packages using [Build](../deployment/BUILD.md); do not copy its
+Build distributable packages using [Build](../BUILD.md); do not copy its
 packaging pipeline into development instructions. Follow [AGENTS.md](../../AGENTS.md).

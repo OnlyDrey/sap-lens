@@ -993,4 +993,42 @@ and a patched test pin; no new upstream binary was executed. Full regression and
 unaffected frontend/package dependency audits were intentionally not rerun.
 
 Next native check, from a synchronized Windows x64 checkout:
-` .\scripts\build-local.ps1 -Mode Quick `, followed by Build if successful.
+` .\build.ps1 -Mode quick `, followed by the selected build/package target if successful (superseded public entry point).
+
+## Unified build engine (2026-11-04)
+
+Public commands are now `build.ps1` and `scripts/build.py`; the authoritative
+instructions are [Build](../BUILD.md). The previous local-build commands above
+remain implementation history, not the preferred public interface.
+
+Implemented: modular standard-library CLI/prerequisites/runner/target adapters;
+interactive defaults and explicit CI non-interactive behavior; consented per-user
+winget bootstrap with no unchecked downloads or policy bypasses; project-local
+setup; canonical Windows/Linux/Docker packagers; targeted/default and explicit
+full-test scopes; read-only release preparation and existing guarded CI release
+adapters; bounded logs/exit codes; and lock-aware allowlisted cleanup.
+
+All four workflows route relevant operations through the engine, retaining setup
+actions, permissions, triggers, graph, timing tags, artifact names and attestation/
+publication policy. The redundant root `build.sh` was removed after its only active
+help-test caller migrated. Specialized compilers, installer/runtime/service/release
+utilities retain actual engine consumers. Current links migrated to `docs/BUILD.md`;
+the old deployment guide is a short navigation stub. Historical evidence is retained.
+
+Executed: the real public targeted deployment command passed 196 checks (193
+passed, 3 PowerShell-dependent skips), with no failures/errors. Two subsequent
+focused release-environment checks passed after ensuring release validation reuses
+project dependencies without unnecessary frontend setup. The real public Quick
+command passed from `/tmp`, proving repository-independent path resolution.
+Repository/privacy/docs/workflow/test-profile checks passed (47 tests). Whole
+Python Ruff, pinned actionlint, workflow semantic/mutation contracts, test ownership,
+Markdown links (95 documents), compile and whitespace checks passed. No real system
+installer, native package build, GitHub dispatch or full application regression ran.
+
+The earlier targeted CLI/compatibility batches overlap this final evidence and are
+not added to its total. Test fixtures use synthetic users/bytes only. Consent,
+declined setup, compatible/incompatible tools, menu/dry-run, venv reuse, child exit,
+CI admission, benchmark forwarding, artifact routing and cleanup ownership were
+tested with mocks. Real Windows/Python-absent bootstrap, PowerShell 5.1/7 parsing
+and parameter binding, winget, .NET/Inno/PyInstaller, WebView2/SCM and target-platform
+acceptance remain pending; this Linux host has no PowerShell or Windows runtime.
