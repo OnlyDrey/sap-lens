@@ -1,3 +1,4 @@
+import {ApiError} from '@/api/client'
 import type { HTMLAttributes, ReactNode } from 'react'
 import { AlertTriangle, Info, Loader2, RotateCw } from 'lucide-react'
 import { Button } from './Button'
@@ -136,6 +137,7 @@ export function SectionHeader({title,icon,children}:{title:string;icon?:ReactNod
 
 /** Application-level failure state with a plain-language message and an optional retry; never shows parser internals. */
 export function ErrorState({ error, onRetry, title = 'This view could not be loaded' }: { error: unknown; onRetry?: () => void; title?: string }) {
+  if(error instanceof ApiError&&error.kind==='session')return null // One shared configuration/session recovery notice.
   const message = error instanceof Error && error.message ? error.message : 'An unexpected problem occurred. Retry, or reload the application.'
   return (
     <div role="alert" className="ui-card grid gap-2">

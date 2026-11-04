@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -150,7 +150,7 @@ def create_app(origin: str | None = None, session_token: str | None = None,
             guarded = session_token is not None or request.method == 'POST'
             if request.method != 'OPTIONS' and guarded and not hmac.compare_digest(
                     request.headers.get('x-sap-lens', '').encode(), request_header.encode()):
-                return JSONResponse({'detail': 'Application request is not authorized.'}, status_code=403)
+                return JSONResponse({'detail': 'Application request is not authorized.', **({'code':'stale_session'} if browser_access else {})}, status_code=403)
         from application_backups import pending
         if request.method=='POST' and not request.url.path.startswith('/api/backups') and pending():
             return JSONResponse({'detail':'Backup/restore restart is pending. Restart SAP Lens or cancel it in Settings → Backup & Restore before editing.'},status_code=409)
@@ -281,6 +281,18 @@ def create_app(origin: str | None = None, session_token: str | None = None,
                 html = (frontend_dir/'index.html').read_text(encoding='utf-8')
                 html = html.replace('<head>',f'<head><script nonce="{nonce}">{handoff}</script>',1)
                 return HTMLResponse(html,headers={'Cache-Control':'no-store'})
+        def spa_entry(path: str, request: Request):
+            query = ('?' + request.url.query) if request.url.query else ''
+            return RedirectResponse('/' + query + '#/' + path)
+        def register_entry(section):
+            def entry(request: Request):
+                return spa_entry(section, request)
+            def nested(request: Request, rest: str):
+                return spa_entry(section + '/' + rest, request)
+            app.add_api_route('/'+section, entry, methods=['GET'], include_in_schema=False)
+            app.add_api_route('/'+section+'/{rest:path}', nested, methods=['GET'], include_in_schema=False)
+        for section in ('dashboard','role-lookup','user-access','release-roles','sod'):
+            register_entry(section)
         app.mount('/', StaticFiles(directory=str(frontend_dir), html=True), name='frontend')
     return app
 

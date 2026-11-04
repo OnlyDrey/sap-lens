@@ -5,7 +5,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ModuleRegistryProvider } from './components/Modules/ModuleRegistry'
-import { StartupGate } from './components/Layout/StartupGate'
+import { StartupGate, FrontendRecoveryBoundary } from './components/Layout/StartupGate'
 import { App } from './App'
 import './index.css'
 import './styles/components.css'
@@ -13,7 +13,7 @@ import { ApiError } from './api/client'
 import { installFocusReveal } from './lib/focusVisibility'
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 5 * 60 * 1000, retry: (count, error) => count < 2 && !(error instanceof ApiError && error.kind === 'client') } },
+  defaultOptions: { queries: { staleTime: 5 * 60 * 1000, retry: (count, error) => count < 2 && !(error instanceof ApiError && error.status>=400&&error.status<500) } },
 })
 const rootElement = document.getElementById('root')
 if (!rootElement) throw new Error('Root element #root not found')
@@ -34,7 +34,7 @@ installFocusReveal()
 createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <ModuleRegistryProvider><ViewHistory><ApplicationDataProvider><StartupGate><SodReviewNavigationProvider><App /></SodReviewNavigationProvider></StartupGate></ApplicationDataProvider></ViewHistory></ModuleRegistryProvider>
+      <ModuleRegistryProvider><ViewHistory><ApplicationDataProvider><FrontendRecoveryBoundary><StartupGate><SodReviewNavigationProvider><App /></SodReviewNavigationProvider></StartupGate></FrontendRecoveryBoundary></ApplicationDataProvider></ViewHistory></ModuleRegistryProvider>
     </QueryClientProvider>
   </StrictMode>
 )

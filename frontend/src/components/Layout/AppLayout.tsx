@@ -8,7 +8,7 @@ import { useHistoryValue } from '@/hooks/useViewHistory'
 import { type ReactNode, useState, useRef } from 'react'
 import { RefreshCw, Sun, Moon, Settings, Loader2, Database } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { apiRequest } from '@/api/client'
+import { apiRequest, ApiError, recoverTrustedSession } from '@/api/client'
 import { fetchConfiguration } from '@/api/configuration'
 import { SettingsView } from '@/components/Settings/SettingsView'
 
@@ -64,7 +64,7 @@ export function AppLayout({
     try {
       await dataState.refresh()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Refresh failed')
+      setErr(e instanceof ApiError&&e.kind==='session'?null:e instanceof Error ? e.message : 'Refresh failed')
     } finally {refreshLock.current=false}
   }
 
@@ -166,7 +166,8 @@ export function AppLayout({
         </div>
       )}
       {configurationQuery.isError && !settingsOpen && <div role="alert" className="service-notice">
-        <strong>Local service unavailable.</strong><span>The current view is retained. Retry the connection; navigation does not restart the backend.</span>
+        <strong>{configurationQuery.error instanceof ApiError&&configurationQuery.error.kind==='session'?'Local session changed.':configurationQuery.error instanceof ApiError&&['authentication','permission'].includes(configurationQuery.error.kind)?'Access needs attention.':'Local service unavailable.'}</strong><span>{configurationQuery.error instanceof Error?configurationQuery.error.message:'The current view is retained. Retry the connection.'}</span>
+        {configurationQuery.error instanceof ApiError&&configurationQuery.error.kind==='session'&&<button className="settings-secondary-button" onClick={recoverTrustedSession}>Reload trusted session</button>}
         <button className="settings-secondary-button" onClick={() => void configurationQuery.refetch()} disabled={configurationQuery.isFetching}>Retry connection</button>
       </div>}
       {dataState.loading && !configurationQuery.isError && !settingsOpen && <div role="status" className="service-notice">

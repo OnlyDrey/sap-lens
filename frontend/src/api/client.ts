@@ -20,7 +20,7 @@ export function applicationToken(): string { return desktopSession || '1' }
 
 /** Failure classes the UI can explain: network (no response), server (5xx), client (4xx) and format (a response that is not the expected JSON). */
 export class ApiError extends Error {
-  constructor(message: string, readonly kind: 'network' | 'server' | 'client' | 'format', readonly status = 0) {
+  constructor(message: string, readonly kind: 'network' | 'server' | 'client' | 'format' | 'session' | 'authentication' | 'permission', readonly status = 0) {
     super(message)
     this.name = 'ApiError'
   }
@@ -32,6 +32,14 @@ function problemDetail(data: unknown, status: number): string {
   if (Array.isArray(detail)) return (detail as {loc?:string[];msg?:string}[]).slice(0,3).map(e=>`${(e.loc||[]).slice(1).join('.')}: ${e.msg||'Invalid value'}`).join('; ')
   if (status >= 500) return `SAP Lens could not complete the request (server error ${status}). Retry; if it persists, check the application logs.`
   return `Request failed (${status})`
+}
+
+/** Explicit top-level navigation obtains a fresh capability through the guarded root document.
+ * History carries only existing safe view/filter state; failed writes are never replayed. */
+export function recoverTrustedSession(){
+ const hash=location.hash.startsWith('#/')?location.hash:''
+ history.replaceState(history.state,'','/'+location.search+hash)
+ location.reload()
 }
 
 // Same-origin fetch keeps the desktop bundle small and needs no HTTP client dependency.
@@ -54,7 +62,8 @@ const apiClient = {
     try { data = text === '' ? undefined : JSON.parse(text) } catch { parsed = false }
     if (!response.ok) {
       const reference=response.headers.get('X-Request-ID')||''
-      throw new ApiError(problemDetail(parsed ? data : undefined, response.status)+(/^[a-f0-9]{32}$/.test(reference)?` Reference: ${reference}`:''), response.status >= 500 ? 'server' : 'client', response.status)
+      if(response.status===403&&(data as {code?:string}|undefined)?.code==='stale_session')throw new ApiError('The local session changed after a restart. Reload the trusted session to reconnect; unsaved form input may need to be entered again.','session',403)
+      throw new ApiError(problemDetail(parsed ? data : undefined, response.status)+(/^[a-f0-9]{32}$/.test(reference)?` Reference: ${reference}`:''), response.status===401?'authentication':response.status===403?'permission':response.status >= 500 ? 'server' : 'client', response.status)
     }
     if (!parsed) throw new ApiError('SAP Lens received an unexpected response instead of data. Retry, or reload the application.', 'format', response.status)
     return { data: (data ?? {}) as T }

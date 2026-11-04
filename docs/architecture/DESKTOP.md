@@ -306,3 +306,25 @@ resolved. Repeated source-mode and packaged EXE launches on the affected Windows
 machine, including recovery and explicit tray exit, remain required. Retain the
 new attempt diagnostics if the failure recurs. Vite timing findings remain
 separate from this runtime validation.
+
+## Open browser tabs after a restart
+
+The API capability is per launch; an old tab retains its previous capability until
+it navigates through the trusted root document. A rejected desktop capability now
+returns a safe `stale_session` classification, distinct from unreachable service,
+server sign-in (401), and permission/origin failures (403). The shared notice offers
+**Reload trusted session** rather than claiming the backend is unavailable.
+
+Recovery is explicit: it reloads the same configured origin's root, retaining the
+hash route and existing safe view/filter history. It never fetches a capability
+through an unguarded API, switches host/port, loosens CORS, or replays a failed
+write. Unsaved form input may be lost, as the recovery notice explains. A temporary
+outage can use the existing bounded read/retry controls instead. Changed lazy
+assets show an explicit reload fallback; no automatic reload loop is introduced.
+
+Supported path-style entry points (`/dashboard`, `/role-lookup`, `/user-access`,
+`/release-roles`, `/sod` and their nested paths) redirect to the existing hash
+router. API, asset and unknown root paths retain their normal handlers/404s.
+Host/port, peer, Origin and document handoff checks still apply. `localhost` and
+`127.0.0.1` work only as explicitly permitted by the owned desktop listener;
+server authentication and configured trusted origins remain independent.

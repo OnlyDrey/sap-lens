@@ -218,3 +218,53 @@ test('bootstrap Unicode survives legacy Python stdout and explicit UTF-8 HTTP de
   await page.evaluate(() => (window as unknown as {sapLensStartup:{setState:(label:string)=>void}}).sapLensStartup.setState('Connecting to local service…'))
   await expect(page.getByRole('status')).toHaveText('Connecting to local service…')
 })
+
+test('stale desktop session recovers through a trusted document without replaying failed writes',async({page})=>{
+ await page.goto('/#session=browser-test-session')
+ await navigate(page,'Role Lookup')
+ await page.evaluate(()=>history.replaceState({...history.state,sapLensView:{...history.state.sapLensView,sodFilters:{shared:{groups:['SYN_GROUP']}}}},''))
+ let changed=true,posts=0,newReads=0
+ await page.route('**/api/**',async route=>{
+  const request=route.request(),offered=request.headers()['x-sap-lens']
+  if(request.method()==='POST')posts++
+  if(changed&&offered!=='synthetic-rotated')return route.fulfill({status:403,contentType:'application/json',body:JSON.stringify({detail:'Application request is not authorized.',code:'stale_session'})})
+  if(offered==='synthetic-rotated'){newReads++;return route.continue({headers:{...request.headers(),'x-sap-lens':'browser-test-session'}})}
+  await route.continue()
+ })
+ await page.route('**/',async route=>{
+  if(!route.request().isNavigationRequest())return route.continue()
+  const response=await route.fetch(),body=(await response.text()).replace('<head>',`<head><script nonce="synthetic-recovery">sessionStorage.setItem('sap-lens-session','synthetic-rotated')</script>`)
+  const headers={...response.headers(),'content-security-policy':response.headers()['content-security-policy'].replace("script-src 'self'","script-src 'self' 'nonce-synthetic-recovery'")}
+  await route.fulfill({response,headers,body})
+ })
+ await page.getByRole('button',{name:'Refresh role data from CSV',exact:true}).click()
+ await expect(page.getByRole('button',{name:'Reload trusted session',exact:true})).toBeVisible()
+ expect(posts).toBe(1)
+ await page.getByRole('button',{name:'Reload trusted session',exact:true}).click()
+ await expect(page.getByRole('heading',{name:'Role Lookup',exact:true})).toBeVisible()
+ await expect(page.getByRole('button',{name:'Reload trusted session',exact:true})).toHaveCount(0)
+ expect(await page.evaluate(()=>history.state.sapLensView.sodFilters.shared.groups)).toEqual(['SYN_GROUP'])
+ expect(newReads).toBeGreaterThan(0)
+ expect(posts).toBe(1)
+ await expect(page).toHaveURL(/#\/role-lookup/)
+ changed=false
+})
+
+test('asset replacement offers an explicit bounded reload preserving the route',async({page})=>{
+ await page.goto('/#session=browser-test-session')
+ await navigate(page,'User Access')
+ await page.evaluate(()=>window.dispatchEvent(new Event('vite:preloadError',{cancelable:true})))
+ await expect(page.getByRole('heading',{name:'Application recovery',exact:true})).toBeVisible()
+ await expect(page).toHaveURL(/#\/user-access/)
+ await page.getByRole('button',{name:'Reload application',exact:true}).click()
+ await expect(page.getByRole('heading',{name:'User Access',exact:true})).toBeVisible()
+ await expect(page.getByRole('heading',{name:'Application recovery',exact:true})).toHaveCount(0)
+})
+
+for(const status of [401,403])test(`HTTP ${status} is access failure, not an unreachable backend`,async({page})=>{
+ await page.route('**/api/configuration',route=>route.fulfill({status,contentType:'application/json',body:JSON.stringify({detail:status===401?'Server access is not authorized.':'Your account does not have permission for this operation.'})}))
+ await page.goto('/#session=browser-test-session')
+ await expect(page.getByRole('alert')).toContainText(status===401?'Server access is not authorized.':'does not have permission')
+ await expect(page.getByText('Local service unavailable.',{exact:true})).toHaveCount(0)
+ await expect(page.getByRole('button',{name:'Reload trusted session',exact:true})).toHaveCount(0)
+})
