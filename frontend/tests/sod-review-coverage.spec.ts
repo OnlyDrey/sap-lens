@@ -19,6 +19,15 @@ test('review tabs preserve shared reviewer, unsaved input and match derived queu
 })
 for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`review coverage tabs ${theme} ${width}`,async({page,request},info)=>{
  await request.post('/api/configuration/theme',{headers,data:{theme}});await page.setViewportSize({width,height:950});await openSod(page,'Reviews');await page.getByRole('button',{name:`Open review for ${names.a}`,exact:true}).click();const panel=page.getByRole('dialog');await expect(panel.getByRole('tab',{name:'Roles 0/4',exact:true})).toBeVisible();await panel.getByRole('tab',{name:'Roles 0/4',exact:true}).focus();await page.keyboard.press('ArrowRight');await expect(panel.getByRole('tab',{name:'Activities 0/3',exact:true})).toBeFocused();const trigger=panel.getByRole('button',{name:'Review method for A',exact:true});await trigger.focus();await page.keyboard.press('Enter');const popover=page.getByRole('dialog',{name:'Review method for A',exact:true});await expect(popover).toContainText('Not reviewed');const bounds=await popover.boundingBox();expect(bounds!.x).toBeGreaterThanOrEqual(0);expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(width);await page.screenshot({path:info.outputPath(`review-tabs-${theme}-${width}.png`)});await page.keyboard.press('Escape');await expect(trigger).toBeFocused();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
+ await panel.getByRole('tab',{name:/^Risks/}).click()
+ const riskRow=panel.locator('.sod-review-row').filter({has:page.getByRole('button',{name:'Review risk R1',exact:true})})
+ await expect(riskRow.getByRole('button',{name:'Review risk R1',exact:true})).toHaveText('Review')
+ await expect(riskRow.locator('.sod-review-description')).not.toContainText('Formal acceptance:')
+ const boundsReview=await riskRow.getByRole('button',{name:'Review risk R1',exact:true}).boundingBox()
+ expect(boundsReview!.x).toBeGreaterThanOrEqual(0);expect(boundsReview!.x+boundsReview!.width).toBeLessThanOrEqual(width)
+ await expect(riskRow.getByRole('button',{name:'Decide risk acceptance R1',exact:true})).toBeVisible()
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
+ await page.screenshot({path:info.outputPath(`risk-review-${theme}-${width}.png`)})
 })
 
 test('role decisions update immediately and activity approval derives without a synthetic event',async({page})=>{

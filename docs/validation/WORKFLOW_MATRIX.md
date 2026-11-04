@@ -748,3 +748,43 @@ real employee data/reference workbooks or detected credential-pattern matches. F
 regression, dependency re-audits and native Windows/SCM/systemd acceptance were intentionally
 not repeated. Historical CI failures remain failed runs; final automatic CI must be reported
 separately after push, without claiming unexecuted package/runtime acceptance.
+
+## SoD username navigation and group consistency — 2026-11-04
+
+Baseline `f7f6d82`; implementation commits `a120962`, `d0cc91c`, `6b85e99`.
+
+- **Confirmed defect:** an orphaned historical activity sorted before current
+  items initialized a Work Queue row with no groups. The synthetic regression
+  failed before the fix. Aggregation now merges groups only from current scoped
+  evidence, preserving missing/multiple groups and all review counts.
+- **UI:** compact Risk Review actions, no repeated inline formal-acceptance badge;
+  one application-level review panel with shared username actions, exact subject
+  eligibility, persistent tab and isolated user state. Unsupported modal and
+  Component Library contexts omit the action.
+- **Backend:** 8 targeted `test_sod_governance.QueueTests` passed, including
+  historical-first aggregation, missing/multiple groups, exact capability lookup,
+  authentication and batch limits. The original pre-fix regression failed as
+  expected; no backend failures remain in the executed scope.
+- **Browser:** 28 tests passed across `global-navigation`,
+  `sod-assignment-decisions`, `sod-evidence-modals`, `sod-review-coverage` (one worker).
+  Covers user switching, stale responses, discard protection, roles/activity/risk
+  decisions, bulk updates, independent formal acceptance and existing navigation.
+  After the final capability/unsupported-context adjustments, 3 affected tests
+  passed again, including isolated Component Library previews.
+- **Visual:** reviewed Risk Review screenshots in light/dark at 375, 800, 1280,
+  1600 px. Controls remain reachable; narrow rows wrap intentionally. Automated
+  assertions check viewport bounds, focus restoration and no page overflow.
+- **Static/build:** TypeScript and production Vite build passed; targeted ESLint
+  has 0 errors and 10 pre-existing hook warnings in Access components. Ruff passed
+  for changed Python files. Test ownership: 20 tests passed; map check passed.
+  Lucide catalogue: 1447 identifiers verified. Documentation links: 94 Markdown
+  files, 0 failures; external URLs were not fetched.
+- **Not executed:** full backend/browser regression (explicitly excluded), native
+  Windows/WebView2, SCM, real systemd and UNC acceptance. No dependency, packaging,
+  workflow or product-version changes; those checks were not repeated. New
+  automatic GitHub validation is separate from this local evidence.
+
+Fixtures and screenshots use synthetic identities only; generated screenshots,
+logs and browser artifacts remain outside Git. Historical accepted privacy
+findings are unchanged. No claim is made about inspection of a production user's
+actual records.
