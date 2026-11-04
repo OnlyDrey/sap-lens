@@ -651,7 +651,7 @@ class QueueTests(GovernanceCase):
         counts = self.get('/api/sod/queue', kind='activity')['counts']
         self.assertEqual((counts['Removal required'], counts['Reviewed']), (1, 2))  # Removal is assessed access, not activity approval.
         self.assertEqual(self.get('/api/sod/queue', status='Risk acceptance pending')['total'], 3)
-        self.assertEqual(self.get('/api/sod/queue', kind='assignment', status='Pending')['total'], 5)
+        self.assertEqual(self.get('/api/sod/queue', kind='assignment', status='Pending')['total'], 6)
         self.assertEqual(self.client.get('/api/sod/queue/export', headers=H).status_code, 200)
 
     def test_user_queue_has_one_row_per_user_with_independent_progress(self):

@@ -586,3 +586,57 @@ class CompleteAssignmentReviewTests(BulkCase):
         before=decisions.read().model_dump()
         self.bulk(items,'Remove',status=409,atomic=True)
         self.assertEqual(decisions.read().model_dump(),before)
+
+    def test_nonconflict_decision_synchronizes_queue_overview_remediation_and_export(self):
+        before=self.get('/api/sod/overview')['governance']
+        selected=self.all_selection(usernames=['U_ONLY'])
+        self.bulk([{key:row[key] for key in ('key','user','ref','evidence_version')} for row in selected['items']],'Remove',atomic=True)
+        queue=self.get('/api/sod/queue/users',usernames=['U_ONLY'])['items']
+        self.assertEqual(len(queue),1)
+        self.assertEqual(queue[0]['assignment'],dict(total=1,decided=1))
+        self.assertEqual(queue[0]['activity'],dict(total=0,decided=0))
+        self.assertEqual(queue[0]['removal'],1)
+        after=self.get('/api/sod/overview')['governance']
+        self.assertEqual(after['users_with_conflicts'],before['users_with_conflicts'])
+        self.assertEqual(after['acceptance'],before['acceptance'])
+        self.assertEqual(after['review_coverage']['assignment']['reviewed'],before['review_coverage']['assignment']['reviewed']+1)
+        rows=self.get('/api/sod/remediation',usernames=['U_ONLY'])['items']
+        self.assertEqual(len(rows),1)
+        self.assertEqual((rows[0]['activity'],rows[0]['risks'],rows[0]['recommended']),('',[],'Remove assignment'))
+        self.assertIsNone(rows[0]['activity_summary'])
+        self.assertEqual(rows[0]['assignment_summary']['label'],'Remove')
+        for path in ('/api/sod/queue/export','/api/sod/remediation/export'):
+            response=self.client.get(path,headers=H,params={'usernames':'U_ONLY'})
+            self.assertEqual(response.status_code,200)
+            self.assertIn('U_ONLY',response.text)
+        tracked=self.post('/api/sod/remediation/actions',dict(context='current',expected_revision=decisions.read().revision,actor='Synthetic Reviewer',user='U_ONLY',assignment_id=selected['items'][0]['key'],role=selected['items'][0]['ref'],recommended='Remove assignment',reason='Synthetic follow-up',owner='Synthetic Owner'))
+        self.assertTrue(tracked)
+
+    def test_full_assignment_period_progress_and_report_retain_nonconflict_decisions(self):
+        import sod_periods as periods
+        import sod_reports as reports
+        revision=self.get('/api/sod/periods')['revision']
+        period=self.post('/api/sod/periods',dict(name='Synthetic assignment report',start='2026-01-01',end='2026-12-31',evaluation_date='2026-10-27',expected_revision=revision))['period']['id']
+        selected=self.get('/api/sod/explorer/access_list/selection',context=period,assignment_scope='all',usernames=['U_ONLY'])
+        body=dict(context=period,expected_revision=selected['revision'],expected_generation=selected['generation'],atomic=True,action='Remove',reviewer='Synthetic Reviewer',justification='Synthetic follow-up',items=[{key:row[key] for key in ('key','user','ref','evidence_version')} for row in selected['items']])
+        self.post('/api/sod/decisions/assignment/bulk',body)
+        record=periods.read().items[0]
+        self.assertEqual(periods.outstanding(record)['assignment'].get('Removal required'),1)
+        report=reports.remediation_model(period,reports.RemediationOptions())
+        self.assertIn('U_ONLY',str(report))
+        self.assertIn('Remove assignment',str(report))
+        self.assertTrue(reports.render_docx(report).startswith(b'PK'))
+        self.assertTrue(reports.render_pdf(report).startswith(b'%PDF'))
+
+    def test_legacy_period_queue_keeps_retained_scope_without_using_current_assignments(self):
+        from unittest.mock import patch
+        import sod_scope as scope
+        revision=self.get('/api/sod/periods')['revision']
+        period=self.post('/api/sod/periods',dict(name='Synthetic legacy scope',start='2026-01-01',end='2026-12-31',evaluation_date='2026-10-27',expected_revision=revision))['period']['id']
+        retained=dict(scope.load(period),assignment_source=None)
+        with patch.object(scope,'load',return_value=retained):
+            queue=self.get('/api/sod/queue/users',context=period)
+            self.assertNotIn('U_ONLY',[row['user'] for row in queue['items']])
+            self.assertEqual(self.get('/api/sod/remediation',context=period)['items'],[])
+            response=self.client.get('/api/sod/explorer/access_list/selection',headers=H,params={'context':period,'assignment_scope':'all'})
+            self.assertEqual(response.status_code,409)

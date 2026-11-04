@@ -12,18 +12,18 @@ for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(
  await expect(page.getByRole('button',{name:/^Removal recommended/})).toBeVisible()
  if(width>=1280){const action=queue.getByRole('button',{name:/^Open review for/}).first();const bounds=await action.boundingBox();expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(width)}
  const trigger=page.getByRole('button',{name:'Bulk review',exact:true});await trigger.click()
- const panel=page.getByRole('dialog',{name:'Bulk role assignment review',exact:true})
- await expect(panel.getByRole('table',{name:'Bulk assignment preview'}).locator('tbody tr')).toHaveCount(5)
- const selectAll=panel.getByRole('button',{name:/^Select all 5 matching assignments/});await selectAll.click()
- await expect(panel.getByRole('button',{name:'Continue to confirmation (5)'})).toBeEnabled()
+ const panel=page.getByRole('region',{name:'Bulk role assignment review',exact:true})
+ await expect(panel.getByRole('table',{name:'Bulk assignment preview'}).locator('tbody tr')).toHaveCount(6)
+ const selectAll=panel.getByRole('button',{name:/^Select all 6 matching assignments/});await selectAll.click()
+ await expect(panel.getByRole('button',{name:'Continue to confirmation (6)'})).toBeEnabled()
  const bounds=await panel.boundingBox();expect(bounds!.x).toBeGreaterThanOrEqual(0);expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(width)
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
  await page.screenshot({path:info.outputPath(`queue-bulk-${theme}-${width}.png`)})
- await page.keyboard.press('Escape');await expect(panel).toBeHidden();await expect(trigger).toBeFocused()
+ await page.getByRole('tab',{name:'Work queue',exact:true}).click();await expect(panel).toBeHidden();await expect(trigger).toBeVisible()
 })
 
 test('Dashboard and Work Queue agree after bulk role assessment without formal risk acceptance',async({page,request})=>{
- const selection=await(await request.get('/api/sod/explorer/access_list/selection',{headers})).json() as import('../src/api/sod').AssignmentSelection
+ const selection=await(await request.get('/api/sod/explorer/access_list/selection',{headers,params:{assignment_scope:'all'}})).json() as import('../src/api/sod').AssignmentSelection
  const result=await request.post('/api/sod/decisions/assignment/bulk',{headers,data:{context:'current',expected_revision:selection.revision,expected_generation:selection.generation,items:selection.items.map(({key,user,ref,evidence_version})=>({key,user,ref,evidence_version})),action:'Keep',atomic:true,reviewer:'Synthetic Reviewer',justification:'Synthetic full assignment assessment'}})
  expect(result.ok()).toBeTruthy()
  await page.goto('/#session=browser-test-session');await page.getByRole('link',{name:'Dashboard',exact:true}).click()

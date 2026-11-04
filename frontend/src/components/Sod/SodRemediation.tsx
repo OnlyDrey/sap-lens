@@ -29,7 +29,7 @@ const TRACKABLE = ['Remove assignment', 'Investigate assignment']
 const STATUSES = ['Open', 'In progress', 'Completed', 'Cancelled']
 interface TrackedAction { id: string; user: string; activity: string; risk_id: string; assignment_id: string; role: string; recommended: string; reason: string; owner: string; due_date: string | null; status: string; completion_evidence: string; verification: string; history: { timestamp: string; actor: string; note: string }[] }
 interface Row {
-  assignment_summary?:DecisionSummary;activity_summary?:DecisionSummary;
+  assignment_summary?:DecisionSummary;activity_summary?:DecisionSummary|null;
   user: string; activity: string; risks: string[]; role: string; catalogue_roles?: string[]; user_group?: string; assignment_id: string; valid_from: string | null; valid_to: string | null
   activity_decision: string; assignment_decision: string; risk_acceptance: string[]; recommended: string; reason: string; controls: string
   action: TrackedAction | null; owner: string; due_date: string | null; action_status: string; overdue: boolean; verification: string
@@ -154,7 +154,7 @@ export function RemediationView() {
         <p className="ui-description">A proposed removal is not completed remediation. Verification compares with the latest imported evidence and is only conclusive when source coverage is complete.</p>
         {verifiedOnly ? <p className="ui-description" role="status">Verified removals need a tracked removal action and a newer User-Role import that no longer contains the assignment. A completed status alone never verifies. They are listed under Tracked actions.</p> : data.items.length ? <>
           <Toolbar aria-label="Remediation row controls">
-            <span className="ui-description" role="status">{parents.length} {parents.length === 1 ? 'assignment' : 'assignments'} · {data.items.length} activity {data.items.length === 1 ? 'row' : 'rows'} on this page</span>
+            <span className="ui-description" role="status">{parents.length} {parents.length === 1 ? 'assignment' : 'assignments'} · {data.items.filter(row=>row.activity).length} activity {data.items.filter(row=>row.activity).length === 1 ? 'row' : 'rows'} on this page</span>
             <Button size="compact" onClick={() => setOpenKeys(new Set(parents.map((parent) => parent.key)))}><ChevronsDown size={14} aria-hidden="true"/>Expand all</Button>
             <Button size="compact" onClick={() => setOpenKeys(new Set())}><ChevronsUp size={14} aria-hidden="true"/>Collapse all</Button>
           </Toolbar>
@@ -169,7 +169,7 @@ export function RemediationView() {
                   <td><UserGroupCell groups={first.user_group} /></td>
                   <td><div className="flex items-center gap-1"><button type="button" className="sod-expand-toggle shrink-0" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} activities and risks for ${parent.user} ${first.role}`} onClick={() => toggleKey(parent.key)}>{open ? <ChevronDown size={14} aria-hidden="true"/> : <ChevronRight size={14} aria-hidden="true"/>}</button><RemediationRole role={first.role} catalogueRoles={first.catalogue_roles}/></div></td>
                   <td className="whitespace-nowrap"><dl className="validity-dates"><div><dt>Valid from</dt><dd>{formatDate(first.valid_from)}</dd></div><div><dt>Valid to</dt><dd>{formatDate(first.valid_to)}</dd></div></dl></td>
-                  <td><PrimaryDecisionBadge summary={first.assignment_summary}/><p className="text-xs text-muted">{decided}/{parent.rows.length} activities decided</p></td>
+                  <td><PrimaryDecisionBadge summary={first.assignment_summary}/><p className="text-xs text-muted">{first.activity ? `${decided}/${parent.rows.filter(row=>row.activity).length} activities decided` : 'No linked SoD activity'}</p></td>
                   <td>{tracked.action_status}{parent.rows.some((row) => row.overdue) && <StatusBadge tone="error">Overdue</StatusBadge>}<p className="text-xs text-muted">{tracked.owner || 'No owner'} · {tracked.due_date ? formatDate(tracked.due_date) : 'No due date'}</p></td>
                   <td className="col-actions"><div className="flex flex-wrap justify-end gap-1">
                     {data.reviewable && parent.rows.some((row) => TRACKABLE.includes(row.recommended)) && <Button size="compact" onClick={() => setEditing(parent.rows.find((row) => TRACKABLE.includes(row.recommended))!)}><ClipboardCheck size={14} aria-hidden="true"/>{tracked.action ? 'Update action' : 'Track action'}</Button>}
@@ -177,8 +177,8 @@ export function RemediationView() {
                   </div></td>
                 </tr>}
                 children={parent.rows.map((row) => <tr key={row.activity} className="remediation-child">
-                  <td colSpan={2}><span className="remediation-child-title">Activity</span> <SodPill kind="activity" value={row.activity} /> <span className="id-pill-list" aria-label={`Risks for ${row.activity}`}>{row.risks.map((risk) => <SodPill key={risk} kind="risk" value={risk} />)}</span></td>
-                  <td colSpan={2}>Activity <PrimaryDecisionBadge summary={row.activity_summary}/> · Formal acceptance: {row.risk_acceptance.join(', ') || '—'}</td>
+                  <td colSpan={2}><span className="remediation-child-title">Activity</span> <span>{row.activity ? <SodPill kind="activity" value={row.activity} /> : 'No linked SoD activity'}</span> <span className="id-pill-list" aria-label={`Risks for ${row.activity}`}>{row.risks.map((risk) => <SodPill key={risk} kind="risk" value={risk} />)}</span></td>
+                  <td colSpan={2}>Activity {row.activity ? <PrimaryDecisionBadge summary={row.activity_summary ?? undefined}/> : 'Not applicable'} · Formal acceptance: {row.risk_acceptance.join(', ') || '—'}</td>
                   <td><StatusBadge tone={row.recommended === 'Remove assignment' ? 'error' : row.recommended === 'Investigate assignment' ? 'warning' : 'neutral'}>{row.recommended}</StatusBadge><p className="text-xs">{row.reason}{row.controls&&<span className="block">Controls: {row.controls}</span>}</p></td>
                   <td className="text-xs" colSpan={2}>Verification: {row.verification}</td>
                 </tr>)} />

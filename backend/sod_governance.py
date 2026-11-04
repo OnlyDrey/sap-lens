@@ -465,12 +465,12 @@ def remediation_rows(model, state, actions, verify, today=None, include_pending=
     for user, entry in sorted(model.items()):
         for aid, assignment in sorted(shown(entry).items(), key=lambda pair: (pair[1]['role'], pair[0])):
             a_state, a_event = state['assignment'][aid]
-            for name in sorted(assignment['supplies']):
+            for name in sorted(assignment['supplies']) or ['']:
                 activity = entry['activities'].get(name)
-                if activity is None:
+                if activity is None and name:
                     continue
-                risks = sorted(assignment['risks'] & activity['risks'])
-                c_state, c_event = state['activity'][activity['key']]
+                risks = sorted(assignment['risks'] & activity['risks']) if activity else []
+                c_state, c_event = state['activity'][activity['key']] if activity else ('Pending', None)
                 accept = [state['acceptance'][entry['findings'][risk]['finding_id']] for risk in risks if risk in entry['findings']]
                 accept_states = {item[0] for item in accept}
                 if a_state == 'Removal required':
@@ -494,7 +494,7 @@ def remediation_rows(model, state, actions, verify, today=None, include_pending=
                 action = tracked.get((aid, recommended)) if recommended in ('Remove assignment', 'Investigate assignment') else None
                 rows.append(dict(user=user, activity=name, risks=risks, role=assignment['role'], catalogue_roles=sorted(assignment['catalogue_roles']), assignment_id=aid, valid_from=assignment['valid_from'],
                                  valid_to=assignment['valid_to'], user_group=assignment['user_group'], activity_decision=c_state, assignment_decision=a_state,
-                                 activity_summary=effective_decision(entry,state,'activity',activity['key']),assignment_summary=effective_decision(entry,state,'assignment',aid),
+                                 activity_summary=effective_decision(entry,state,'activity',activity['key']) if activity else None,assignment_summary=effective_decision(entry,state,'assignment',aid),
                                  risk_acceptance=sorted(accept_states), recommended=recommended, reason=reason,
                                  controls=(c_event.controls if c_event and c_event.controls else next((e.controls for _, e in accept if e and e.controls), '')),
                                  action=action.model_dump(mode='json') if action else None,

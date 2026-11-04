@@ -472,3 +472,11 @@ with the effective role, suffix, user and group scope and selects the complete
 matching set across pages. This includes assignments without a detected conflict.
 The shortcut never records a decision; inspect the frozen preview and confirm
 explicitly. Returning to Explorer preserves its filters.
+
+The review queue, Dashboard review coverage, review-period progress, remediation
+and reports use the same complete assignment population. An assignment with no
+linked conflict activity can be approved, recommended for removal or investigated;
+it has no invented activity or risk decision. Remediation labels these rows
+**No linked SoD activity**. Conflict counts and formal risk acceptance remain
+independent. Existing immutable periods without a complete assignment snapshot
+continue to use their retained scope.

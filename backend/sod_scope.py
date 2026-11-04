@@ -289,6 +289,8 @@ def visible_cells(bundle, model, state, q):
 def scoped(context, q):
     """bundle, full model, decision state and the filtered view for one request."""
     bundle = load(context, q.get('validity', 'active'), q.get('as_of'))
+    if q.get('_review_population') and bundle.get('assignment_source') is not None:
+        q=dict(q, assignment_scope='all')
     q=dict(q,_family_map=family_map(bundle) if q.get('role_families') else {})
     model = review_model_for(bundle) if q.get('assignment_scope')=='all' else model_for(bundle)
     observe(bundle, model)

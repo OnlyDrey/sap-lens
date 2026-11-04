@@ -182,7 +182,7 @@ class DeletionTests(PeriodV2Case):
         self.decide_everything(pid)
         done = next(item for item in self.get('/api/sod/periods')['items'] if item['id'] == pid)['progress']
         # Formal gates are satisfied, but untouched role assignments remain unreviewed.
-        self.assertEqual((done['decided'],done['total'],done['blocking']),(8,13,0))
+        self.assertEqual((done['decided'],done['total'],done['blocking']),(8,14,0))
 
     def test_period_with_recorded_work_is_archived_not_destroyed(self):
         pid = self.new_period('In progress')

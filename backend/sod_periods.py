@@ -155,7 +155,7 @@ def review_revision(saved):
 def outstanding(period):
     """Review-population gaps for a v2 period: undecided or outdated activities and risk acceptances."""
     import sod_scope as scope
-    bundle=scope.load(period.id);model=scope.model_for(bundle);state=scope.states_for(bundle,model)
+    bundle=scope.load(period.id);model=scope.review_model_for(bundle);state=scope.states_for(bundle,model)
     result={}
     for kind in ('activity','assignment','acceptance'):
         counts={}
@@ -263,7 +263,7 @@ def save_review(identifier,finding_id,annotation,expected_revision,expected_revi
 
 def _decision_rows(period):
     import sod_scope as scope
-    bundle=scope.load(period.id);model=scope.model_for(bundle);state=scope.states_for(bundle,model)
+    bundle=scope.load(period.id);model=scope.review_model_for(bundle);state=scope.states_for(bundle,model)
     import sod_governance as governance
     return {(item['kind'],item['user'],item['ref']):item['lifecycle'] for item in governance.queue_items(model,state)}
 

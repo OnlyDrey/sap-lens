@@ -156,7 +156,8 @@ def governance_overview():
     import sod_scope as scope
     bundle=scope.load('current')
     if bundle['coverage']['status']!='available':return dict(available=False,reason=bundle['coverage'].get('reason'),missing=bundle['coverage'].get('missing',[]))
-    model=scope.model_for(bundle);change=scope.observe(bundle,model);state=scope.states_for(bundle,model)
+    conflicts=scope.model_for(bundle);change=scope.observe(bundle,conflicts)
+    model=scope.review_model_for(bundle);state=scope.states_for(bundle,model)
     def tally(kind):
         result={}
         for life,_ in state[kind].values():result[life]=result.get(life,0)+1
@@ -175,10 +176,10 @@ def governance_overview():
     frozen=[item for item in index.items if not item.deleted_at and item.state in periods.FROZEN and item.approval_date]
     latest=max(frozen,key=lambda item:(item.approval_date,item.modified),default=None)
     latest_approval=dict(id=latest.id,name=latest.name,state=latest.state,approval_date=latest.approval_date.isoformat(),approver=latest.approver) if latest else None
-    return dict(available=True,latest_approval=latest_approval,users_with_conflicts=len(model),user_risk_findings=sum(len(entry['findings']) for entry in model.values()),
+    return dict(available=True,latest_approval=latest_approval,users_with_conflicts=len(conflicts),user_risk_findings=sum(len(entry['findings']) for entry in conflicts.values()),
                 activities=tally('activity'),assignments=tally('assignment'),acceptance=tally('acceptance'),
                 review_coverage={kind:dict(total=len(values),reviewed=sum(value['reviewed'] for value in values.values())) for kind,values in state['coverage'].items()},
-                assignments_marked_remove=sum(1 for life,_ in state['assignment'].values() if life=='Removal required'),concentration=governance.conflict_concentration(model),
+                assignments_marked_remove=sum(1 for life,_ in state['assignment'].values() if life=='Removal required'),concentration=governance.conflict_concentration(conflicts),
                 remediation=dict(open_actions=len(open_actions),overdue=sum(1 for item in open_actions if item.due_date and item.due_date<today),
                                  removal_without_action=len({(row['user'],row['assignment_id']) for row in rows if row['recommended']=='Remove assignment' and not row['action']}),
                                  verification=scope.removal_verification(actions)[0]),

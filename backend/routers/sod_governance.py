@@ -368,7 +368,7 @@ def _status_match(item, status, awaiting):
 
 
 def _queue(q, kind, status):
-    bundle, model, state, view = scope.scoped(q['context'], q)
+    bundle, model, state, view = scope.scoped(q['context'], dict(q, _review_population=True))
     items = governance.queue_items(view, state)
     if q['context'] == 'current' and bundle['reviewable'] and not any(q.get(name) for name in ('search', 'risk', 'risks', 'username', 'usernames', 'role', 'roles', 'role_families', 'role_exact', 'role_suffix', 'role_suffixes', 'tcode', 'tcodes', 'activity', 'activities', 'group', 'groups', 'criticality', 'criticalities', 'category', 'categories', 'assignment_decision', 'review_status')):
         known = dict(activity={item['key'] for entry in model.values() for item in entry['activities'].values()},
@@ -710,7 +710,7 @@ def decision_evidence(kind: Literal['activity', 'assignment', 'acceptance','risk
 
 
 def remediation_data(q):
-    bundle, model, state, view = scope.scoped(q['context'], q)
+    bundle, model, state, view = scope.scoped(q['context'], dict(q, _review_population=True))
     frozen = bundle['frozen_decisions']
     actions = scope.actions_for(bundle)
     verify = (lambda user, aid: (frozen.get('verification') or {}).get(aid, 'Not assessed at approval')) if frozen is not None else scope.make_verifier({item.user for item in actions if item.assignment_id})
@@ -788,7 +788,7 @@ def save_action(body: ActionBody):
     bundle = scope.load(body.context)
     if bundle['frozen']:
         raise HTTPException(409, 'Frozen periods retain their remediation actions unchanged. Track follow-up in current evidence.')
-    model = scope.model_for(bundle)
+    model = scope.review_model_for(bundle)
     entry = model.get(body.user)
     if entry is None or body.assignment_id and body.assignment_id not in entry['assignments']:
         raise HTTPException(409, 'The action refers to evidence that is not present in this context.')
