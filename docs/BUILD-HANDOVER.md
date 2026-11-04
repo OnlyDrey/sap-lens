@@ -366,3 +366,27 @@ Docker: the CLI exists but no daemon is reachable, so Docker acceptance is block
 All 54 tracked files under `scripts/` were audited: 0 removed, 0 migrated, 0 merged (before and after: 54). The inventory with a purpose per
 script is in `docs/BUILD.md` ("Script inventory"), guarded by `ScriptInventoryTests` so new scripts must be documented. Remaining
 debt: `test-service-management.ps1` is not executed by any build step; Python migration of the legacy stage engine needs Windows parity tests.
+
+## SoD smoke repair and Linux acceptance (commit `bb03221`)
+
+**Root cause of the smoke failure.** Commit `6b85e99` (SoD workspace redesign) intentionally removed the investigation-panel subtitle
+"Potential conflict evidence, not effective authorization". The panel now states its scope ("Showing only risk R1 and the evidence behind
+it."). The functionality the smoke test covers (matrix counts, opening the scoped panel, both activities, Escape and focus return) is
+intact; only the assertion was obsolete. Fix: the assertion now checks the current scoped notice (no assertion removed or weakened).
+Product observation: the panel itself no longer carries the "not effective authorization" wording (it remains on the SoD Overview and
+in the docs); restoring it is a product decision, not done here.
+
+**Targeted result.** `sod-governance.spec.ts`: 8 passed, 3 failed. The smoke test passes. The 3 failures (`:33` activity/role/risk
+decisions, `:172` work queue, `:206` remediation) are NOT smoke tests, fail independently of this change (only the first test was
+edited) and are separate pre-existing baseline drift, not investigated here.
+
+**Linux package acceptance: PASSED (Linux x64 host, this build only).** `python scripts/build.py package --platform linux --target
+server --non-interactive` with user-local Node 24.22.2 completed in 127 s. Artifact `sap-lens-linux-native-x64-v1.0.0-beta.2.tar.gz`
+(22,288,261 bytes), SHA-256 `8f5e64a7...ad6807`, matching `.sha256` and `SHA256SUMS.txt` (both verified with `sha256sum -c`). Manifest:
+status passed, package verified, runtime smoke tested, version 1.0.0-beta.2, source commit `bb03221`. Archive: 1478 regular entries, no
+`.ps1`, no CSV/settings/env, no dotfiles or `.pyc`; includes `deploy/linux/sap-lens.service` (hardened: NoNewPrivileges, ProtectSystem=strict,
+PrivateTmp, runs as `saplens`), `scripts/install-linux-server.py`, `scripts/run-installed-server.py` and an offline wheelhouse. All entries
+are mode 0644 (scripts are started through the Python interpreter, not executed directly). The offline install/runtime smoke test inside the
+build passed. PowerShell was not used: the receipt records `not_verified: ["powershell"]`, and the only mentions in the log are 3 skipped tests.
+
+Not covered by this acceptance: real systemd boot, reboot/recovery, a second host, Docker (no daemon here), Windows, the full regression and GitHub Actions.
