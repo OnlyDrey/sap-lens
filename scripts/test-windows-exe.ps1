@@ -100,7 +100,7 @@ try {
         New-Item -ItemType Directory -Force $directory | Out-Null
         # Reuse the first launch's saved configuration to check persistence.
         if ($scenario -eq 'relaunch') { $directory = Join-Path $testRoot 'first-launch' }
-        $csvPath = Join-Path $directory 'synthetic.csv'
+        $csvPath = Join-Path $directory 'role-catalogue.csv'
 @'
 FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT
 FI,DEMO:A,Synthetic A,SHARED,Shared,DEMO,Demo

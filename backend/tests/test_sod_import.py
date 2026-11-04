@@ -21,7 +21,7 @@ class SodImportTests(unittest.TestCase):
     def write(self, rows, headers=HEADERS, encoding='utf-8', delimiter=','):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
-        path = Path(directory.name) / 'synthetic.csv'
+        path = Path(directory.name) / 'role-catalogue.csv'
         with path.open('w', encoding=encoding, newline='') as stream:
             writer = csv.DictWriter(stream, fieldnames=headers, delimiter=delimiter)
             writer.writeheader()

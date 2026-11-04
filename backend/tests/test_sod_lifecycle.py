@@ -176,7 +176,7 @@ class SodLifecycleTests(unittest.TestCase):
         with patch.dict(os.environ,environment):
             config.get_settings.cache_clear()
             client=TestClient(create_app(server=ServerSettings.from_env()),base_url='http://127.0.0.1:18743',client=('127.0.0.1',50000))
-            headers={'X-SAP-Lens':'1','X-Upload-Filename':'synthetic.csv'}
+            headers={'X-SAP-Lens':'1','X-Upload-Filename':'role-catalogue.csv'}
             upload=client.post('/api/server/uploads/sod',content=self.path.read_bytes(),headers=headers)
             self.assertEqual(upload.status_code,200,upload.text)
             path=upload.json()['path']

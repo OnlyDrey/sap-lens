@@ -85,7 +85,7 @@ for (const theme of ['light', 'dark'] as const) {
 
 test('filter availability is keyboard accessible, persists and preserves explicit color and role data', async ({ page, request }) => {
   const directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-ui-filter-'))
-  const file = path.join(directory, 'synthetic.csv')
+  const file = path.join(directory, 'role-catalogue.csv')
   writeFileSync(file, 'FUNCTION_KEY,AGR_NAME,TCODE\nFI,Z_UI_FINANCE,FB03\nMM,Z_UI_BUYER,ME23N\nLOCAL_FIN,Z_UI_LOCAL,FB03\n')
   try {
     const settings = (await (await request.get('/api/configuration', { headers })).json()).settings

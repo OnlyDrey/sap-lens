@@ -60,7 +60,7 @@ test.beforeEach(async ({ request }) => {
     'USERNAME,ROLE_NAME,USER_GROUP,FIRST_NAME,LAST_NAME,EMAIL,USER_VALID_FROM,USER_VALID_TO,USER_LOCKED,USER_TYPE,ROLE_VALID_FROM,ROLE_VALID_TO\nDEMO_OPEN,ZC:FI:VIEW,UNLICENSED,SAP,Open,open@example.test,20000101,99991231,0,A,20000101,99991231\nDEMO_LOCKED,,DIALOG,Demo,Locked,locked@example.test,20000101,99991231,1,A,,\nSAP_MANAGER,,DIALOG,SAP,Manager,manager@example.test,20000101,99991231,0,A,,\nDEMO_UNKNOWN,,DIALOG,Demo,Unknown,,20000101,99991231,,S,,\n',
   )
   const settings = await current(request)
-  settings.data_csv_path = path.resolve('tests/fixtures/synthetic.csv')
+  settings.data_csv_path = path.resolve('tests/fixtures/role-catalogue-minimal.csv')
   settings.user_csv_path = users
   settings.features.employee_directory = true
   expect(

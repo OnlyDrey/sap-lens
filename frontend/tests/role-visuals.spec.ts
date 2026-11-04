@@ -59,7 +59,7 @@ for (const theme of ['dark', 'light'] as const) {
     request
   }, testInfo) => {
     const directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-identifiers-'))
-    const file = path.join(directory, 'synthetic.csv')
+    const file = path.join(directory, 'role-catalogue.csv')
     const identifier = 'DEMO_' + 'LONG_IDENTIFIER_'.repeat(24)
     writeFileSync(
       file,
@@ -272,7 +272,7 @@ test('clipboard denial is announced and leaves exact identifier selectable', asy
     })
   )
   await page.goto('/#session=browser-test-session')
-  await activateCSV(page,'roles',path.resolve('tests/fixtures/synthetic.csv'))
+  await activateCSV(page,'roles',path.resolve('tests/fixtures/role-catalogue-minimal.csv'))
   await page.getByRole('button',{name:'Back to SAP Lens',exact:true}).click()
   await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'Role Lookup',exact:true}).click()
   const card = page.getByRole('article').first()
@@ -290,7 +290,7 @@ for (const theme of ['light', 'dark'] as const) {
   test(`copy success overlays the identifier for exactly two seconds without resizing in ${theme}`, async ({ page, context, request }, info) => {
     const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
     expect((await request.post('/api/configuration', { headers, data: { ...settings,
-      data_csv_path: path.resolve('tests/fixtures/synthetic.csv'), theme } })).ok()).toBeTruthy()
+      data_csv_path: path.resolve('tests/fixtures/role-catalogue-minimal.csv'), theme } })).ok()).toBeTruthy()
     await context.grantPermissions(['clipboard-read', 'clipboard-write'])
     await page.goto('/#session=browser-test-session')
     await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'Role Lookup',exact:true}).click()

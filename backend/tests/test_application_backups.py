@@ -261,7 +261,7 @@ class BackupTests(unittest.TestCase):
         for value in ('../escape','/etc/passwd','x'*32):
             with self.assertRaises(ValueError):backups.download(value,data=self.data)
         config_value=AppConfig();from config_models import SourceSnapshot
-        config_value.data_lifecycle.sources['roles']=SourceSnapshot(snapshot='f'*64,path='synthetic.csv',imported_at='2026-01-01T00:00:00Z',checked_at='2026-01-01T00:00:00Z')
+        config_value.data_lifecycle.sources['roles']=SourceSnapshot(snapshot='f'*64,path='role-catalogue.csv',imported_at='2026-01-01T00:00:00Z',checked_at='2026-01-01T00:00:00Z')
         (self.source/'settings.json').write_text(config_value.model_dump_json())
         with self.assertRaises(ValueError):backups.validate_store(self.source)
 

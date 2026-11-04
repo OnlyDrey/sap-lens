@@ -20,10 +20,11 @@ class RepositoryPrivacyTests(unittest.TestCase):
         self.assertIsNone(AppConfig().logo_id)
 
     def test_synthetic_examples_and_no_configuration_paths(self):
-        with (ROOT/'examples/synthetic.csv').open() as stream:
+        with (ROOT/'examples/role-catalogue.example.csv').open(encoding='utf-8-sig') as stream:
             rows=list(csv.DictReader(stream))
         self.assertTrue(rows)
-        self.assertTrue(all(r['AGR_NAME'].startswith('DEMO_') and 'Synthetic' in r['TEXT'] for r in rows))
+        self.assertTrue(all('SYN' in r['AGR_NAME'].upper() for r in rows))
+        self.assertFalse((ROOT/'examples/synthetic.csv').exists(), 'the obsolete example was superseded by the linked example datasets')
         example=json.loads((ROOT/'examples/synthetic-profile.sap-lens.json').read_text())
         self.assertEqual(example['settings']['data_csv_path'],'')
         self.assertEqual(example['settings']['organization']['name'],'Example Inc.')
@@ -33,7 +34,7 @@ class RepositoryPrivacyTests(unittest.TestCase):
         for file in ['csv-data/snapshots/private.json','nested/csv-data/reports/private.json','saved-filters.json','nested/saved-filters.json','account-review.json','nested/account-review.json','local-config/settings.json','user-branding/private.png','app-data/runtime.json','local.csv','private.sap-lens.json']:
             result=subprocess.run(['git','check-ignore','-q',file],cwd=ROOT)
             self.assertEqual(result.returncode,0,file)
-        for file in ['examples/synthetic.csv','frontend/tests/fixtures/synthetic.csv','examples/synthetic-profile.sap-lens.json']:
+        for file in ['examples/role-catalogue.example.csv','frontend/tests/fixtures/role-catalogue-minimal.csv','examples/synthetic-profile.sap-lens.json']:
             result=subprocess.run(['git','check-ignore','-q',file],cwd=ROOT)
             self.assertEqual(result.returncode,1,file)
         build=(ROOT/'scripts/build-windows.ps1').read_text()

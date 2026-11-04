@@ -7,7 +7,7 @@ test.beforeEach(async({request})=>{expect((await request.post('/api/configuratio
 const settings=(page:import('@playwright/test').Page)=>page.getByRole('region',{name:'SAP Lens settings',exact:true})
 
 test('full-window navigation preserves draft and main analysis state and warns before discard',async({page,request})=>{
- await request.post('/api/settings',{headers,data:{data_csv_path:path.resolve('tests/fixtures/synthetic.csv')}})
+ await request.post('/api/settings',{headers,data:{data_csv_path:path.resolve('tests/fixtures/role-catalogue-minimal.csv')}})
  await page.goto('/#session=browser-test-session')
   await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'Role Lookup',exact:true}).click()
  await page.getByRole('article').first().getByRole('button',{name:'Add to comparison',exact:true}).click()
@@ -159,7 +159,7 @@ test('branded startup document displays real status messages and recovery withou
 })
 
 test('active role loading is explained and a subsequent CSV error opens source recovery',async({page,request})=>{
- await request.post('/api/settings',{headers,data:{data_csv_path:path.resolve('tests/fixtures/synthetic.csv')}})
+ await request.post('/api/settings',{headers,data:{data_csv_path:path.resolve('tests/fixtures/role-catalogue-minimal.csv')}})
  let phase='loading'
  await page.route('**/api/configuration',async route=>{const response=await route.fetch();const data=await response.json();await route.fulfill({json:{...data,loading:phase==='loading',error:phase==='error'?'Synthetic data read failed. Choose another file.':null}})})
  await page.goto('/#session=browser-test-session')

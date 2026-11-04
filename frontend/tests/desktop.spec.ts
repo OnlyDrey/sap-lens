@@ -8,7 +8,7 @@ const testOrigin = `http://127.0.0.1:${process.env.SAP_LENS_BROWSER_TEST_PORT ||
 // and the native picker itself remains on the manual Windows checklist.
 test('first launch, native picker contract, invalid CSV, persistence and private session reload', { tag: '@smoke' }, async ({ page, request }) => {
   expect((await request.post('/api/configuration/reset', {headers: {'X-SAP-Lens': 'browser-test-session'}})).ok()).toBeTruthy()
-  const file = path.resolve('tests/fixtures/synthetic.csv')
+  const file = path.resolve('tests/fixtures/role-catalogue-minimal.csv')
   const errors: string[] = []
   const external: string[] = []
   page.on('pageerror', error => errors.push(error.message))
@@ -61,7 +61,7 @@ test('first launch, native picker contract, invalid CSV, persistence and private
 test('application information displays the resolved API identity for beta stable and development builds', async ({ page, request }) => {
   expect((await request.post('/api/configuration/reset', {headers})).ok()).toBeTruthy()
   const settings = (await (await request.get('/api/configuration', {headers})).json()).settings
-  settings.data_csv_path = path.resolve('tests/fixtures/synthetic.csv')
+  settings.data_csv_path = path.resolve('tests/fixtures/role-catalogue-minimal.csv')
   expect((await request.post('/api/configuration', {headers, data:settings})).ok()).toBeTruthy()
   const actual = await (await request.get('/api/version', {headers})).json()
   const health = await (await request.get('/health')).json()

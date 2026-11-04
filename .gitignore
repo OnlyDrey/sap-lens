@@ -59,7 +59,6 @@ htmlcov/
 # User-owned application data (generic fixtures remain versioned)
 *.csv
 !**/fixtures/*.csv
-!examples/synthetic.csv
 !examples/role-catalogue.example.csv
 !examples/user-access.example.csv
 !examples/employee-directory.example.csv

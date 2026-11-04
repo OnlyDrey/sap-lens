@@ -75,7 +75,7 @@ class ServerTests(ServerTestBase):
         for key in headers:
             self.assertEqual(client.get('/api/roles',headers={k:v for k,v in headers.items() if k!=key}).status_code,401)
     def test_csv_upload_preview_confirmation_path_confinement_and_redaction(self):
-        client=self.client();headers={'X-SAP-Lens':'1','X-Upload-Filename':'synthetic.csv','Content-Type':'text/csv'}
+        client=self.client();headers={'X-SAP-Lens':'1','X-Upload-Filename':'role-catalogue.csv','Content-Type':'text/csv'}
         content=b'AGR_NAME,TEXT,TCODE\nZC:DEMO,Synthetic,MIGO\n'
         for name in ['../private.csv','a%2Fprivate.csv','bad.txt','C%3Aevil.csv']:
             self.assertEqual(client.post('/api/server/uploads/roles',content=content,headers={**headers,'X-Upload-Filename':name}).status_code,400)
@@ -137,7 +137,7 @@ LOCAL={'X-SAP-Lens':'1'}
 
 class UploadPathTests(ServerTestBase):
     """Upload staging and source confinement on canonical paths (Linux and Windows)."""
-    def stage(self,client,name='synthetic.csv',content=CONTENT):
+    def stage(self,client,name='role-catalogue.csv',content=CONTENT):
         header=name if name.isascii() else quote(name)  # a browser sends non-ASCII names percent-encoded
         return client.post('/api/server/uploads/roles',content=content,headers={**LOCAL,'X-Upload-Filename':header,'Content-Type':'text/csv'})
 

@@ -24,7 +24,7 @@ test.beforeEach(async ({ request }) => {
   const settings = (
     await (await request.get('/api/configuration', { headers })).json()
   ).settings
-  settings.data_csv_path = path.resolve('tests/fixtures/synthetic.csv')
+  settings.data_csv_path = path.resolve('tests/fixtures/role-catalogue-minimal.csv')
   settings.user_csv_path = users
   expect(
     (

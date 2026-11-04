@@ -65,7 +65,7 @@ test.beforeEach(async ({ request }) => {
     'USERNAME,ROLE_NAME,EMAIL,USER_GROUP,USER_VALID_FROM,USER_VALID_TO,ROLE_VALID_FROM,ROLE_VALID_TO\nDEMO_EMPLOYEE,ZC:FI:VIEW, EMPLOYEE@example.test ,DEMO,20200101,99991231,20200101,99991231\nDEMO_NO_EMAIL,,,DEMO,20200101,99991231,,\nSAP_MANAGER,,manager@example.test,DEMO,20200101,99991231,,\n',
   )
   const current = await settings(request)
-  current.data_csv_path = path.resolve('tests/fixtures/synthetic.csv')
+  current.data_csv_path = path.resolve('tests/fixtures/role-catalogue-minimal.csv')
   current.user_csv_path = users
   expect(
     (await request.post('/api/configuration', { headers, data: current })).ok(),
