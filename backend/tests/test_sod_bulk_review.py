@@ -640,3 +640,17 @@ class CompleteAssignmentReviewTests(BulkCase):
             self.assertEqual(self.get('/api/sod/remediation',context=period)['items'],[])
             response=self.client.get('/api/sod/explorer/access_list/selection',headers=H,params={'context':period,'assignment_scope':'all'})
             self.assertEqual(response.status_code,409)
+
+
+    def test_eligibility_counts_cover_the_complete_scope_even_when_preview_is_truncated(self):
+        from unittest.mock import patch
+        selected=self.all_selection(usernames=['U_ONLY'])
+        self.bulk([{key:row[key] for key in ('key','user','ref','evidence_version')} for row in selected['items']],'Keep',atomic=True)
+        with patch('routers.sod_governance.SELECTION_LIMIT',1):
+            result=self.all_selection(role_exact=['ZC:MM:READ:CDK'])
+        self.assertEqual(result['total'],2)
+        self.assertTrue(result['truncated'])
+        self.assertEqual(len(result['items']),1)
+        self.assertEqual(result['eligible_counts']['Keep'],dict(unreviewed=1,include_reviewed=1))
+        self.assertEqual(result['eligible_counts']['Remove'],dict(unreviewed=1,include_reviewed=2))
+        self.assertEqual(result['eligible_counts']['Investigate'],dict(unreviewed=1,include_reviewed=2))

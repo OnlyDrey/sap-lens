@@ -575,7 +575,10 @@ def assignment_selection(q: dict = Depends(scope_query)):
     if scope.revision()!=before: raise HTTPException(409,'Review decisions changed during preview. Reload before selecting assignments.')
     items = [dict(key=row['id'], user=row['user'], ref=row['role'], suffix=row['suffix'], evidence_version=row['evidence_version'],
                   decision=row['decision'], user_group=row['user_group'],has_review=row['has_review'],previous_decision=row['previous_decision']) for row in rows[:SELECTION_LIMIT]]
-    return dict(info(bundle), revision=before, items=items, matching_users=len({row['user'] for row in rows}), matching_roles=len({row['role'] for row in rows}), total=len(rows), truncated=len(rows) > SELECTION_LIMIT, limit=SELECTION_LIMIT)
+    eligible_counts={action:dict(unreviewed=sum(not row['has_review'] and row['decision']!=life for row in rows) if bundle['reviewable'] else 0,
+                                 include_reviewed=sum(row['decision']!=life for row in rows) if bundle['reviewable'] else 0)
+                     for action,life in (('Keep','Keep'),('Remove','Removal required'),('Investigate','Investigate'))}
+    return dict(info(bundle), eligible_counts=eligible_counts, revision=before, items=items, matching_users=len({row['user'] for row in rows}), matching_roles=len({row['role'] for row in rows}), total=len(rows), truncated=len(rows) > SELECTION_LIMIT, limit=SELECTION_LIMIT)
 
 
 BULK_MAX = 1000

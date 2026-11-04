@@ -244,7 +244,7 @@ export interface AssignmentPick {
   decision: Lifecycle
   user_group: string
 }
-export interface AssignmentSelection extends ContextInfo { matching_users?:number;matching_roles?:number; items: AssignmentPick[]; total: number; truncated: boolean; limit: number }
+export interface AssignmentSelection extends ContextInfo { eligible_counts?:Record<BulkAction,{unreviewed:number;include_reviewed:number}>; matching_users?:number;matching_roles?:number; items: AssignmentPick[]; total: number; truncated: boolean; limit: number }
 export type BulkAction = 'Keep' | 'Remove' | 'Investigate'
 export interface BulkOutcome { key: string; user: string; ref: string; reason: string }
 export interface BulkResult { operation_id?:string; action: BulkAction; recorded: string[]; skipped: BulkOutcome[]; failed: BulkOutcome[]; tracked_actions?: string[]; revision: number }
