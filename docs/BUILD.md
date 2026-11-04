@@ -48,9 +48,11 @@ copies of the public interface.
 - Windows x64: PowerShell 5.1 or 7; WebView2 for desktop runtime smoke checks.
   Service-manager compilation requires .NET Framework 4.8.
 - Native Linux packaging: Linux x86-64 and Python 3.12/system libraries from the
-  [native guide](deployment/LINUX_NATIVE.md). Shared local package validation also
-  requires PowerShell 7 to parse the Windows scripts; no Windows binary is built
-  on Linux.
+  [native guide](deployment/LINUX_NATIVE.md). Linux native and Docker packaging are
+  Python-only and do not require PowerShell. If `pwsh` happens to be installed, the
+  shared validation also parses the Windows scripts; without it that one check is
+  recorded as *not verified* in the local receipt (never as passed). Windows hosts and
+  CI always run it. No Windows binary is built on Linux.
 - Docker: a running Linux amd64 Docker engine and `docker compose`.
 
 Detailed Windows installation, PATH, proxy/CA and tool checks live in
@@ -264,7 +266,7 @@ not a competing set of instructions.
 - Missing Python: use approved Python 3.12 x64/winget and reopen PowerShell.
 - Missing/incompatible Node: install the project-supported version; do not install
   an unrelated latest major. A failed per-user winget install has no admin fallback.
-- Missing Docker/Compose or Linux PowerShell: use approved manual platform setup.
+- Missing Docker/Compose: use approved manual platform setup. PowerShell is needed only for Windows targets.
 - Stale receipt: rebuild without `--skip-setup`, on the exact clean commit.
 - TLS/proxy or audit failure: use approved trust settings and resolve the advisory;
   never disable verification or ignore audits to finish packaging.

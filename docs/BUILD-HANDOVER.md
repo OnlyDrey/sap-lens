@@ -295,3 +295,48 @@ systemd, any GitHub workflow run.
    `python scripts/build.py test --scope full --non-interactive` (browser tests need `PLAYWRIGHT_EXECUTABLE_PATH` if the pinned
    Chromium build is missing).
 4. Only with explicit authorization, run the workflow checks on GitHub.
+
+## Consolidation session (after `8227f4a`)
+
+**Linux PowerShell dependency (resolved).** Trace: `scripts/build.py` -> `build_system/targets.py` -> `build-deployments.py` ->
+`deployment-package.py native` and `test-native-deployment.py` (Linux native) or `package-docker.py` (Docker). Those are Python-only.
+PowerShell was needed only for (a) a blanket engine gate in `prerequisites.py`, (b) the `check-powershell.ps1` parse check of the
+Windows scripts in the shared local validation, and (c) the Windows packaging targets. Now: the engine requires PowerShell only on
+Windows hosts (Windows PowerShell 5.1 or 7); `build-deployments.py` requires it only for local Windows targets; without `pwsh` the
+parse check is skipped and the local receipt records `not_verified: ["powershell"]` (accepted only on non-Windows hosts; CI and Windows
+must still pass every check). Tests: `test_local_deployments`, `test_unified_build`.
+
+**PowerShell 5.1.** Static audit of `build.ps1` and the helpers found no 7-only syntax; `build.ps1` declares `#requires -Version 5.1`.
+`-Help` is now forwarded to the Python CLI when Python exists. A static guard test was added. Not executed on Windows.
+
+**Playwright baseline.** `desktop.spec.ts` resolved-API-identity test now scopes the version assertion to the footer (Settings also
+shows the version legitimately); no assertion weakened. `desktop.spec.ts` passes (2 tests).
+
+**Engine and targets (dry runs on Linux).** quick, test, linux/docker package and clean resolve correctly; Windows targets refuse on
+Linux with a clear message (exit 2); an invalid target exits 2. All four workflows enter through the engine; workflow contracts pass.
+
+**Dataset cleanup.** Re-verified: no remaining `synthetic.csv` reference.
+
+### Readiness
+
+| Area | Status |
+| --- | --- |
+| Unified Python engine, CLI, dry-run, exit codes | Implemented and targeted-validated |
+| Linux/Docker routing without PowerShell | Implemented and targeted-validated (mocked); real build blocked here |
+| `build.ps1` (5.1 baseline) | Implemented, statically checked; awaiting native Windows acceptance |
+| Windows desktop, installer, service packaging | Implemented; awaiting native acceptance |
+| Linux native / Docker package | Implemented; real build blocked: local Node is 22 (needs 24 or 25); Docker not run |
+| GitHub workflow integration | Implemented, contracts and actionlint pass; awaiting runner acceptance |
+| Full regression | Not run (deferred; not authorized) |
+
+Implementation complete, awaiting full regression and native platform acceptance. Not production-ready by targeted tests alone.
+
+### Exact acceptance commands (deferred)
+
+- Windows x64, PowerShell 5.1 and 7: `.\build.ps1 -Mode quick`; `.\build.ps1 -Mode build -Platform windows -Target desktop`;
+  `.\build.ps1 -Mode package -Platform windows -Target installer`; `.\build.ps1 -Mode package -Platform windows -Target service`;
+  also test with Python absent (decline, then consent) and `-NonInteractive`.
+- Linux (Node 24/25, Python 3.12): `python3.12 scripts/build.py package --platform linux --target server --non-interactive`;
+  Docker: `python3.12 scripts/build.py package --platform docker --target server --non-interactive`.
+- Workflows (needs authorization): `python scripts/check-workflows.py`, `python scripts/ci.py lint`, then the approved runner runs.
+- Full regression (needs authorization): `python scripts/build.py test --scope full --non-interactive`.

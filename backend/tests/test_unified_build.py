@@ -116,6 +116,18 @@ class RoutingTests(unittest.TestCase):
         self.assertIn('--verify-output',str(commands));self.assertNotIn('publish',str(commands));self.assertNotIn('git tag',str(commands))
 
 
+class BootstrapperStaticTests(unittest.TestCase):
+    """No PowerShell is available on Linux CI: these are static guards for the Windows PowerShell 5.1 baseline, not execution evidence."""
+    def test_root_bootstrapper_keeps_the_51_baseline_and_forwards_help(self):
+        import re
+        text=(ROOT/'build.ps1').read_text(encoding='utf-8')
+        self.assertTrue(text.startswith('#requires -Version 5.1'))
+        for token in (r'\?\?',r'\?\.',r'-AsHashtable',r'-Parallel',r'\$IsWindows',r'\$IsLinux',r'utf8NoBOM',r'\s&&\s'):
+            self.assertIsNone(re.search(token,text),token)
+        self.assertIn("'--help'",text);self.assertIn('Windows_NT',text)
+        self.assertNotIn('Set-ExecutionPolicy',text);self.assertNotIn('Bypass',text)
+
+
 class PrerequisiteTests(unittest.TestCase):
     def test_powershell_is_required_for_windows_hosts_only_not_for_linux_packaging(self):
         args=SimpleNamespace(mode='package',platform='linux',skip_setup=False,install_system=False)

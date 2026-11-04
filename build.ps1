@@ -64,6 +64,7 @@ try {
     foreach ($pair in @(@('--setup',$Setup),@('--setup-only',$SetupOnly),@('--skip-setup',$SkipSetup),@('--install-system',$InstallSystem),@('--non-interactive',$nonInteractiveRun),@('--dry-run',$DryRun),@('--confirm-clean',$ConfirmClean),@('--no-cache',$NoCache),@('--verbose',[bool]$PSBoundParameters['Verbose']),@('--help',$Help))) {
         if ($pair[1]) { $arguments+=$pair[0] }
     }
+    if ($Help) { $arguments+='--help' }
     & $python @arguments
     $exitCode=$LASTEXITCODE
 } catch { Write-Host $_.Exception.Message -ForegroundColor Red } finally {
