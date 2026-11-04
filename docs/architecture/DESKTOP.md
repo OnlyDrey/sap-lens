@@ -217,3 +217,24 @@ ready; no timeout or page reload loses investigation context. Root/API host, ori
 CSP, session capability, loopback binding and selected-port rules remain unchanged.
 See the [desktop guide](../deployment/WINDOWS_DESKTOP.md#optional-system-tray-operation)
 for user options, startup cleanup and native acceptance criteria.
+
+## Startup investigation (2026-11-04)
+
+The launch path is `desktop.run` → exclusive storage lease → stopped-store
+backup/restore recovery → reserved socket → trusted startup HTML → `create_app`
+→ owned Uvicorn thread → ASGI lifespan → HTTP identity check → compiled frontend.
+Configuration uses versioned JSON recovery/migration. There is no database
+connection/migration stage in this launch path; individual persistent stores are
+opened by their existing services. Backup/restore recovery must finish under the
+lease before any scheduler or data writer starts. CSV restoration is background
+work and must not be confused with failure of the HTTP service.
+
+Confirmed gaps at the investigation baseline (`be6e6c6`): one failed HTTP probe
+aborts startup; the generic failure hides its stage/exception; file logging starts
+after storage recovery; no controlled retry exists. The Windows intermittent
+trigger has not been reproduced or established from a user runtime log.
+
+The launcher serves existing `frontend/dist`; it never invokes Node, Vite or a
+frontend build. Vite `PLUGIN_TIMINGS` measures the separate build command and is
+not evidence of desktop runtime startup latency. No build dependencies or timing
+constants were changed during this investigation.
