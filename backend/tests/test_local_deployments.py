@@ -137,6 +137,21 @@ class LocalDeploymentReceiptTests(unittest.TestCase):
             target.write_bytes(original)
         self.assertEqual(pkg.require_inputs()['identity'],self.info)
 
+    def test_a_non_windows_receipt_may_leave_only_the_powershell_check_unverified_and_says_so(self):
+        records=[dict(stage=stage,status='passed') for stage in pkg.CHECKS-{'powershell'}]
+        (self.temporary/'sap-lens-ci-timings.jsonl').write_text('\n'.join(map(json.dumps,records)))
+        with patch.object(pkg.sys,'platform','linux'):
+            with self.assertRaises(ValueError):pkg.record_local()  # missing without the explicit declaration
+            with patch.dict(os.environ,{'SAP_LENS_SKIPPED_CHECKS':'powershell,types'}):
+                receipt=pkg.record_local()
+            self.assertEqual(receipt['not_verified'],['powershell']);self.assertNotIn('powershell',receipt['checks']);self.assertIn('types',receipt['checks'])
+            self.assertEqual(pkg.require_inputs()['identity'],self.info)
+            path=self.root/'backend/build/deployment-local-validation.json'
+            pkg.write(path,{**receipt,'not_verified':['types']})  # no other check may be declared unverified
+            with self.assertRaises(ValueError):pkg.require_inputs()
+        with patch.object(pkg.sys,'platform','win32'),patch.dict(os.environ,{'SAP_LENS_SKIPPED_CHECKS':'powershell'}),self.assertRaises(ValueError):
+            pkg.record_local()
+
     @unittest.skipUnless(sys.platform=='linux','POSIX virtualenv interpreter links')
     def test_only_standard_local_interpreter_and_lib_aliases_are_permitted(self):
         environment=self.root/'backend/build/python-env'

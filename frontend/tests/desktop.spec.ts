@@ -70,22 +70,23 @@ test('application information displays the resolved API identity for beta stable
   expect((await request.get('/api/version')).status()).toBe(403)
   let identity = {app:'SAP Lens',version:'0.1.0-beta-1',mode:'beta'}
   await page.route('**/api/version', route => route.fulfill({json:identity}))
+  const footerVersion = page.getByRole('contentinfo').getByLabel('Application version', {exact:true}) // the footer; Settings also shows the version
   for (const [version, mode] of [['0.1.0-beta-1','beta'],['0.1.0','stable'],['0.1.0-dev.123.2','build'],['0.0.0-dev.local','local'],['0.1.0-beta-4+local.aaaaaaaaaaaa','local-build']]) {
     identity = {app:'SAP Lens',version,mode}
     await page.goto('/#session=browser-test-session')
     await page.reload() // A running app's version is immutable; simulate a fresh process for each identity.
-    await expect(page.getByLabel('Application version', {exact:true})).toContainText(`SAP Lens v${version}`)
-    if (mode === 'local-build') await expect(page.getByLabel('Application version')).toContainText('Local build')
-    if (mode === 'build' || mode === 'local') await expect(page.getByLabel('Application version')).toContainText('Development build')
-    else await expect(page.getByLabel('Application version')).not.toContainText('Development build')
+    await expect(footerVersion).toContainText(`SAP Lens v${version}`)
+    if (mode === 'local-build') await expect(footerVersion).toContainText('Local build')
+    if (mode === 'build' || mode === 'local') await expect(footerVersion).toContainText('Development build')
+    else await expect(footerVersion).not.toContainText('Development build')
     await page.reload()
-    await expect(page.getByLabel('Application version')).toContainText(version)
+    await expect(footerVersion).toContainText(version)
   }
   identity = {app:'SAP Lens',version:'0.1.0-beta-1',mode:'beta'}
   for (const theme of ['light','dark']) {
     expect((await request.post('/api/configuration/theme',{headers,data:{theme}})).ok()).toBeTruthy()
     await page.reload()
-    await expect(page.getByLabel('Application version')).toContainText('0.1.0-beta-1')
+    await expect(footerVersion).toContainText('0.1.0-beta-1')
     await page.screenshot({path:test.info().outputPath(`version-${theme}.png`), fullPage:true, animations:'disabled'})
   }
 })

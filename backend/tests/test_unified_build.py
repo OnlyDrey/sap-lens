@@ -117,6 +117,14 @@ class RoutingTests(unittest.TestCase):
 
 
 class PrerequisiteTests(unittest.TestCase):
+    def test_powershell_is_required_for_windows_hosts_only_not_for_linux_packaging(self):
+        args=SimpleNamespace(mode='package',platform='linux',skip_setup=False,install_system=False)
+        with patch.object(deps,'locate',side_effect=lambda name:None if name in('pwsh','powershell') else name),patch.object(deps,'inspect_tool',return_value=True),\
+             patch.object(deps.sys,'version_info',(3,12,0,'final',0)):
+            with patch.object(deps.os,'name','posix'):deps.check_tools(args,Mock(),False)
+            with patch.object(deps.os,'name','nt'),self.assertRaises(BuildError) as raised:deps.check_tools(args,Mock(),False)
+        self.assertEqual(raised.exception.code if hasattr(raised.exception,'code') else 3,3);self.assertIn('5.1',str(raised.exception))
+
     def test_missing_node_and_compatible_existing_tool_detection(self):
         with patch.object(deps,'locate',return_value=None):self.assertIsNone(deps.inspect_tool('node'))
         for major in (24,25):

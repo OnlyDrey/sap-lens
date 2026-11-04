@@ -50,8 +50,10 @@ def check_tools(args,runner,interactive):
     if args.mode in ('build','package') and sys.version_info[:2]!=(3,12):raise BuildError('The existing packaging toolchain requires Python 3.12 x64.',3)
     names=[] if args.mode=='clean' else ['git'] if args.mode=='release' else ['git','node','npm']
     if args.platform in ('docker','all') and args.mode in ('build','package'):names+=['docker']
-    if args.mode in ('build','package') and not (locate('pwsh') or os.name=='nt' and locate('powershell')):
-        raise BuildError('Packaging validation requires PowerShell 7 on Linux or PowerShell 5.1/7 on Windows. Install it through approved tools.',3)
+    # PowerShell is a Windows-target prerequisite (Windows PowerShell 5.1 or 7). Linux and Docker packaging on Linux is Python-only;
+    # the optional script parse check runs there only when pwsh happens to be installed.
+    if args.mode in ('build','package') and os.name=='nt' and not (locate('powershell') or locate('pwsh')):
+        raise BuildError('Windows packaging requires Windows PowerShell 5.1 (included with Windows) or PowerShell 7. Install it through approved tools.',3)
     for name in names:
         if inspect_tool(name):continue
         if name=='npm' and inspect_tool('node'):

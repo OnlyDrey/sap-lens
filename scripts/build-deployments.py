@@ -65,7 +65,7 @@ def prerequisite_versions():
     npm = subprocess.check_output([tool('npm'), '--version'], text=True).strip()
     if int(node.split('.')[0]) not in (24, 25) or int(npm.split('.')[0]) not in (10, 11):
         raise ValueError('Use Node 24 LTS (recommended) or 25, with npm 10 or 11.')
-    return tool('pwsh') if shutil.which('pwsh') else tool('powershell')
+    return shutil.which('pwsh') or shutil.which('powershell')  # None is acceptable only when no local target needs PowerShell
 
 
 def remote_command(system, repository, source, version, targets, flags):
@@ -176,6 +176,11 @@ class Builder:
         if self.validation_started: raise ValueError('Shared local validation failed earlier in this run; inspect build.log. No repeated full suite was started.')
         self.validation_started = True
         self.powershell = prerequisite_versions()
+        needs_powershell = any(host_for(t, self.system) == self.system and t in ('desktop', 'service') for t in requested(self.args.platform))
+        if not self.powershell and needs_powershell: raise ValueError('Windows packaging requires Windows PowerShell 5.1 or PowerShell 7.')
+        # Linux and Docker packaging is Python-only. Without PowerShell the script parse check cannot run: it is recorded as not verified, never as passed.
+        self.env.pop('SAP_LENS_SKIPPED_CHECKS', None)
+        if not self.powershell: self.env['SAP_LENS_SKIPPED_CHECKS'] = 'powershell'
         pkg = module('deployment-package')
         if self.args.clean:
             for name in ('python-env', 'audit-env', 'deployment-local-validation.json'):
@@ -210,13 +215,13 @@ class Builder:
         commands = [
             ('pip_check', [self.python, '-m', 'pip', 'check']),
             ('workflow_lint', [self.python, 'scripts/ci.py', 'lint']),
-            ('powershell', [self.powershell, '-NoProfile', '-File', 'scripts/check-powershell.ps1']),
             ('backend', [self.python, 'scripts/run-tests.py', *(['regression'] if self.args.scope=='full' else ['targeted','deployment']), '--backend']),
             ('types', [tool('npm'), '--prefix', 'frontend', 'run', 'check:types']),
             ('catalog', [tool('node'), 'scripts/sync-lucide-catalog.mjs', '--check']),
             ('build', [tool('npm'), '--prefix', 'frontend', 'run', 'build']),
             ('javascript_audit', [tool('npm'), '--prefix', 'frontend', 'audit', '--omit=dev']),
         ]
+        if self.powershell: commands.insert(2, ('powershell', [self.powershell, '-NoProfile', '-File', 'scripts/check-powershell.ps1']))
         for stage, command in commands: self.run(stage, command, timed=stage)
         installed = subprocess.check_output([str(self.python), '-m', 'pip', 'list', '--format=freeze'], env=self.env, text=True)
         requirements = Path(self.env['RUNNER_TEMP']) / 'audit-installed.txt'; requirements.write_text(installed)
