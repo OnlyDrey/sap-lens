@@ -51,12 +51,12 @@ test('bulk Keep and Remove immediately show authoritative role statuses and inde
  await openSod(page,'Reviews')
  for(const action of ['Keep','Remove']){
   await page.getByRole('tab',{name:'Bulk Review',exact:true}).click();const preview=page.getByRole('region',{name:'Bulk role assignment review',exact:true})
-  if(action==='Remove'){await preview.getByRole('checkbox',{name:'Include previously reviewed assignments',exact:true}).check();await preview.getByRole('combobox',{name:'Proposed decision',exact:true}).selectOption('Remove')}
-  await preview.getByRole('button',{name:'Select all 6 matching assignments',exact:true}).click();await preview.getByRole('button',{name:'Continue to confirmation (6)',exact:true}).click()
+  if(action==='Remove'){await preview.getByRole('checkbox',{name:'Include previously reviewed',exact:true}).check();await preview.getByRole('group',{name:'Proposed decision',exact:true}).getByRole('button',{name:'Remove',exact:true}).click()}
+  await preview.getByRole('checkbox',{name:'Select eligible assignments on current page',exact:true}).check();await preview.getByRole('button',{name:'Review 6 assignments',exact:true}).click()
   const confirm=page.getByRole('dialog',{name:action==='Keep'?'Keep assignments':'Recommend removal',exact:true})
   await confirm.getByRole('textbox',{name:'Reviewer',exact:true}).fill('Synthetic Bulk Reviewer');await confirm.getByRole('textbox',{name:'Rationale',exact:true}).fill('Synthetic decision-status validation')
   if(action==='Remove')await confirm.getByRole('checkbox',{name:/Replace the existing decisions/}).check()
-  await confirm.getByRole('button',{name:action==='Keep'?'Keep 6 assignments':'Recommend removal for 6 assignments',exact:true}).click();await expect(confirm).toContainText('6 of 6 assignments saved');await confirm.getByRole('button',{name:'Done',exact:true}).click()
+  await confirm.getByRole('button',{name:action==='Keep'?'Keep 6 assignments':'Mark 6 role assignments for removal',exact:true}).click();await expect(confirm).toContainText('6 of 6 assignments saved');await confirm.getByRole('button',{name:'Done',exact:true}).click()
   await page.getByRole('tab',{name:'Work queue',exact:true}).click();await page.getByRole('button',{name:`Open review for ${names.a}`,exact:true}).click();const panel=page.getByRole('dialog'),roles=panel.getByRole('region',{name:'Role Assignment Review',exact:true})
   await expect(roles.getByRole('button',{name:/^Review method for/})).toHaveText(Array(4).fill(action==='Keep'?'Approved':'Remove'))
   await panel.getByRole('tab',{name:/^Risks/}).click();await expect(panel.getByRole('button',{name:/^Review method for R/})).toHaveText(['Pending','Pending'])

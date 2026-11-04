@@ -33,11 +33,11 @@ async function preview(page:Page){
  await expect(table).not.toContainText('SYN_READ:ENO')
  return table
 }
-for(const [action,decision,confirm] of [['Keep','Keep','Keep 2 assignments'],['Remove','Remove','Recommend removal for 2 assignments'],['Investigate','Investigate','Mark for investigation: 2 assignments']] as const)test(`complete bulk ${action} reviews active non-conflict assignments with traceable history`,async({page,request})=>{
+for(const [action,decision,confirm] of [['Keep','Keep','Keep 2 assignments'],['Remove','Remove','Mark 2 role assignments for removal'],['Investigate','Investigate','Mark for investigation: 2 assignments']] as const)test(`complete bulk ${action} reviews active non-conflict assignments with traceable history`,async({page,request})=>{
  await preview(page)
- await page.getByRole('button',{name:'Select all 2 matching assignments',exact:true}).click()
- await page.getByLabel('Proposed decision',{exact:true}).selectOption(action)
- await page.getByRole('button',{name:'Continue to confirmation (2)',exact:true}).click()
+ await page.getByRole('checkbox',{name:'Select eligible assignments on current page',exact:true}).check()
+ await page.getByRole('group',{name:'Proposed decision',exact:true}).getByRole('button',{name:action,exact:true}).click()
+ await page.getByRole('button',{name:'Review 2 assignments',exact:true}).click()
  const dialog=page.getByRole('dialog')
  await expect(dialog).toContainText('Filter scope:')
  await dialog.getByRole('textbox',{name:'Reviewer',exact:true}).fill('Synthetic Bulk Reviewer')
@@ -83,8 +83,8 @@ test('legacy exact selections remain exact while new family chips clear and rest
 })
 test('a replacement import rejects an already frozen confirmation without partial decisions',async({page,request})=>{
  await preview(page)
- await page.getByRole('button',{name:'Select all 2 matching assignments',exact:true}).click()
- await page.getByRole('button',{name:'Continue to confirmation (2)',exact:true}).click()
+ await page.getByRole('checkbox',{name:'Select eligible assignments on current page',exact:true}).check()
+ await page.getByRole('button',{name:'Review 2 assignments',exact:true}).click()
  const dialog=page.getByRole('dialog')
  await dialog.getByRole('textbox',{name:'Reviewer',exact:true}).fill('Synthetic Reviewer')
  await dialog.getByRole('textbox',{name:'Rationale',exact:true}).fill('Synthetic frozen preview')
@@ -113,7 +113,7 @@ test('Access Explorer transfers the effective base role and suffix into one pres
  await expect(preview.locator('tbody tr')).toHaveCount(2)
  await expect(preview).toContainText(`${names.c}_ONLY`)
  await expect(preview).not.toContainText('SYN_READ:ENO')
- await expect(page.getByRole('button',{name:'Continue to confirmation (2)',exact:true})).toBeEnabled()
+ await expect(page.getByRole('button',{name:'Review 2 assignments',exact:true})).toBeEnabled()
  expect(writes).toBe(0)
  await page.goBack()
  await expect(page.getByRole('tab',{name:'Roles',exact:true})).toHaveAttribute('aria-selected','true')
@@ -133,5 +133,5 @@ test('restored legacy role searches keep their semantics when a group filter cha
  await expect(table.locator('tbody tr')).toHaveCount(3)
  await select(page,'SAP User Group','FIN')
  await expect(table.locator('tbody tr')).toHaveCount(2)
- await expect(page.getByRole('combobox',{name:'Role matching mode',exact:true})).toHaveValue('search')
+ await page.getByText('Advanced role matching · Legacy search',{exact:true}).click();await expect(page.getByRole('combobox',{name:'Role matching mode',exact:true})).toHaveValue('search')
 })

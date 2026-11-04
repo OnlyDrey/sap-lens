@@ -9,6 +9,8 @@ import { rememberedReviewer, rememberReviewer } from '@/lib/reviewer'
 import { Dialog } from '@/components/Shared/Dialog'
 import { Button } from '@/components/Shared/Button'
 import { Checkbox, FormField, Input } from '@/components/Shared/Controls'
+import {DataTable} from '@/components/Shared/Presentation'
+import {LifecycleBadge} from './SodShared'
 import { StatusBadge } from '@/components/Shared/Presentation'
 
 const COPY: Record<BulkAction, { title: string; verb: string; effect: string; confirm: string }> = {
@@ -67,13 +69,17 @@ export function BulkReviewDialog({ action, picks: livePicks, info:liveInfo, atom
   }
   return (
     <Dialog title={copy.title} onClose={() => { if (!busy) onClose() }}
-      footer={<><Button disabled={busy} onClick={onClose}>Cancel</Button><Button variant={action === 'Remove' ? 'destructive' : 'primary'} loading={busy} disabled={!ready} onClick={() => void apply()}>{copy.confirm} {picks.length} {picks.length === 1 ? 'assignment' : 'assignments'}</Button></>}>
+      footer={<><Button disabled={busy} onClick={onClose}>Cancel</Button><Button variant={action === 'Remove' ? 'destructive' : 'primary'} loading={busy} disabled={!ready} onClick={() => void apply()}>{action==='Remove'&&atomic?`Mark ${picks.length} role assignments for removal`:`${copy.confirm} ${picks.length} ${picks.length===1?'assignment':'assignments'}`}</Button></>}>
       <div className="bulk-dialog" role="region" aria-label="Batch review summary">
         <dl className="bulk-dialog-summary">
           <div><dt>Assignments affected</dt><dd>{picks.length}</dd></div>
           <div><dt>SAP users</dt><dd>{users.length}</dd></div>
           <div><dt>Distinct roles</dt><dd>{roles}</dd></div>
           <div><dt>Role suffixes</dt><dd>{suffixes.length}</dd></div>
+          <div><dt>Proposed decision</dt><dd>{action}</dd></div>
+          <div><dt>Review period</dt><dd>{info.period?.name || (info.context==='current'?'Current evidence':info.context)}</dd></div>
+          <div><dt>Review revision</dt><dd>{info.revision}</dd></div>
+          <div><dt>Source revision</dt><dd className="break-all">{info.generation}</dd></div>
         </dl>
         <p className="ui-description">{copy.effect}</p>
         {scopeSummary&&<p className="ui-description">Filter scope: {scopeSummary}</p>}
@@ -81,6 +87,7 @@ export function BulkReviewDialog({ action, picks: livePicks, info:liveInfo, atom
           <ul className="bulk-chip-list">{users.slice(0, 30).map(([name, count]) => <li key={name}><StatusBadge>{name} · {count}</StatusBadge></li>)}{users.length > 30 && <li className="ui-description">and {users.length - 30} more users</li>}</ul></section>
         <section aria-label="Selected role suffixes"><h3 className="text-sm font-semibold">Role suffixes</h3>
           <ul className="bulk-chip-list">{suffixes.map(([name, count]) => <li key={name}><StatusBadge>{name} · {count}</StatusBadge></li>)}</ul></section>
+        <details><summary className="cursor-pointer">Selected assignments ({picks.length})</summary><DataTable caption="Confirmed assignment scope" density="compact"><thead><tr><th>SAP user</th><th>Assigned role</th><th>Current decision</th><th>Proposed decision</th></tr></thead><tbody>{picks.map(pick=><tr key={pick.key}><td>{pick.user}</td><td className="font-mono">{pick.ref}</td><td><LifecycleBadge value={pick.decision}/></td><td>{action}</td></tr>)}</tbody></DataTable></details>
         {!!reviewed.length && (
           <section aria-label="Existing decisions" className="review-dialog-trigger">
             <h3>{reviewed.length} {reviewed.length === 1 ? 'assignment has' : 'assignments have'} an earlier review decision</h3>
