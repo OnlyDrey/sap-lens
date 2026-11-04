@@ -420,10 +420,13 @@ def queue_users(q: dict = Depends(scope_query), progress: Literal['', 'outstandi
     bundle, items, _ = _queue(q, '', '')
     rows = {}
     for item in items:
-        row = rows.setdefault(item['user'], dict(user=item['user'], groups=item.get('groups', []), activity=dict(total=0, decided=0), assignment=dict(total=0, decided=0), acceptance=dict(total=0, decided=0), removal=0, historical=0))
+        row = rows.setdefault(item['user'], dict(user=item['user'], groups=[], activity=dict(total=0, decided=0), assignment=dict(total=0, decided=0), acceptance=dict(total=0, decided=0), removal=0, historical=0))
         if item['lifecycle'] in {'Historical', 'Resolved'}:
             row['historical'] += 1
             continue
+        # Historical items may sort first and have no current source groups.
+        # Aggregate only current scoped evidence; never infer groups from history.
+        row['groups'] = sorted(set(row['groups']).union(item.get('groups', [])))
         part = row[item['kind']]
         part['total'] += 1
         part['decided'] += item.get('review_coverage',{}).get('reviewed',item['lifecycle'] in scope.DECIDED)

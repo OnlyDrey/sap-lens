@@ -607,6 +607,22 @@ class VerificationTests(GovernanceCase):
 
 
 class QueueTests(GovernanceCase):
+    def test_historical_first_item_does_not_hide_current_user_groups(self):
+        self.decide('activity', [self.activity_item('SYN_A', 'A')], 'Approved')
+        changed = snapshot()
+        base = dict(RISK='R1', CRITICITY='H', TYPE='S', TEXT='Synthetic risk', ACTVT1='Z', ACTVT2='B', TTEXT='Synthetic')
+        changed.sod = build_sod([dict(base, ACTIVITY_SLOT='ACTVT1', ACTIVITY='Z', TCODE='X1'),
+                                 dict(base, ACTIVITY_SLOT='ACTVT2', ACTIVITY='B', TCODE='X2')])
+        cache._cache = changed
+        rows = {row['user']: row for row in self.get('/api/sod/queue/users')['items']}
+        self.assertGreater(rows['SYN_A']['historical'], 0)
+        self.assertEqual(rows['SYN_A']['groups'], ['FIN'])
+        self.assertEqual(rows['SYN_B']['groups'], ['P2P'])
+        filtered = self.get('/api/sod/queue/users', group='FIN')['items']
+        self.assertEqual([(row['user'], row['groups']) for row in filtered], [('SYN_A', ['FIN'])])
+        self.assertEqual(rows['SYN_A']['total'], filtered[0]['total'])
+        self.assertEqual(rows['SYN_A']['decided'], filtered[0]['decided'])
+
     def test_queue_status_filters_and_counts(self):
         queue = self.get('/api/sod/queue')
         self.assertEqual(queue['counts']['Pending'], queue['total'])
