@@ -3,6 +3,14 @@ import test_sod_governance as fixture
 import sod_decisions as decisions
 
 class CoverageTests(fixture.GovernanceCase):
+    def test_confirmed_assignment_projection_matches_canonical_subject(self):
+        row=self.subject('SYN_A')['overview']['assignments'][0]
+        for decision in ('Keep','Remove','Investigate','Pending'):
+            result=self.decide('assignment',[dict(key=row['id'],user='SYN_A',ref=row['role'],evidence_version=row['evidence_version'])],decision)
+            current=next(item for item in self.subject('SYN_A')['overview']['assignments'] if item['id']==row['id'])
+            projection=result['confirmed_assignments'][row['id']]
+            self.assertEqual(projection,{key:current[key] for key in projection})
+
     def test_roles_cover_activities_and_risks_without_fabricating_decisions(self):
         before=self.subject('SYN_A')['overview']
         for row in before['assignments']:

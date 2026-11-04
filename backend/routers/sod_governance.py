@@ -551,8 +551,11 @@ def decide(kind: Literal['activity', 'assignment', 'acceptance','risk'], body: D
                                           approver=body.approver, controls=body.controls, expires=body.expires, source_versions=bundle['versions'])
         if body.context == 'current':
             with publication_guard(bundle['query'], body.expected_generation):
-                return record()
-        return record()
+                result=record()
+        else:result=record()
+        if kind=='assignment':
+            result['confirmed_assignments']={event['key']:governance.assignment_confirmation(model[event['user']]['assignments'][event['key']],decisions.Event.model_validate(event)) for event in result['events']}
+        return result
     except ValueError as error:
         raise HTTPException(422, str(error)) from None
 

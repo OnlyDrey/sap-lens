@@ -20,6 +20,8 @@ test('review saving shows immediate action feedback and preserves confirmed deci
    });observer.observe(element,{attributes:true,attributeFilter:['aria-busy','aria-pressed']})
   },{once:true,capture:true})
  })
+ const profiler=await page.context().newCDPSession(page);await profiler.send('Performance.enable')
+ const beforeMetrics=await profiler.send('Performance.getMetrics')
  const begin=Date.now();await keep.click();await expect(keep).toHaveAttribute('aria-busy','true')
  const feedback=Date.now()-begin,busy=await panel.getByRole('group',{name:'Decision for ROLE_B'}).locator('[aria-busy="true"]').count()
  expect(busy).toBe(1)
@@ -32,7 +34,11 @@ test('review saving shows immediate action feedback and preserves confirmed deci
  await page.waitForLoadState('networkidle')
  const dom=await keep.evaluate(element=>({pending_ms:Number(element.dataset.pending)-Number(element.dataset.started),confirmed_after_release_ms:Number(element.dataset.confirmed)-Number(element.dataset.released)}))
  expect(gets.filter(path=>path==='/api/sod/filter-options')).toHaveLength(0)
- const measured={dom,feedback_ms:feedback,api_after_release_ms:api,confirmed_after_release_ms:confirmed,get_requests:gets.length,paths:gets}
+ const afterMetrics=await profiler.send('Performance.getMetrics')
+ const delta=(name:string)=>1000*((afterMetrics.metrics.find(item=>item.name===name)?.value||0)-(beforeMetrics.metrics.find(item=>item.name===name)?.value||0))
+ const browser_work={script_ms:delta('ScriptDuration'),layout_and_style_ms:delta('LayoutDuration')+delta('RecalcStyleDuration')}
+ await profiler.detach()
+ const measured={dom,browser_work,feedback_ms:feedback,api_after_release_ms:api,confirmed_after_release_ms:confirmed,get_requests:gets.length,paths:gets}
  console.log('REVIEW_METRICS',JSON.stringify(measured));await info.attach('review-metrics',{body:JSON.stringify(measured),contentType:'application/json'})
 })
 
@@ -63,4 +69,20 @@ test('a concurrent decision on the same assignment is not automatically overwrit
  expect(posts).toBe(1)
  const history=await(await request.get('/api/sod/decisions/assignment/history',{headers,params:{context:'current',key:row.id}})).json()
  expect(history.items.map((item:{decision:string})=>item.decision)).toEqual(['Remove'])
+})
+
+
+test('confirmed assignment feedback does not wait for a slow subject refresh',async({page})=>{
+ await openSod(page,'Reviews');await page.getByRole('button',{name:`Open review for ${names.a}`,exact:true}).click()
+ const panel=page.locator('.ui-side-panel'),keep=panel.getByRole('button',{name:'Keep ROLE_B',exact:true})
+ await panel.getByRole('textbox',{name:'Reviewer (self-reported)',exact:true}).fill('Synthetic Reviewer')
+ let release!:()=>void;const blocked=new Promise<void>(resolve=>{release=resolve})
+ await page.route('**/api/sod/subject?*',async route=>{await blocked;await route.continue()})
+ try{
+  await keep.click()
+  await expect(keep).toHaveAttribute('aria-pressed','true')
+  await expect(keep).toBeEnabled()
+  await expect(panel.getByRole('button',{name:'Review method for ROLE_B',exact:true})).toHaveText('Approved')
+  await expect(panel.getByRole('tab',{name:'Roles 1/4',exact:true})).toBeVisible()
+ }finally{release()}
 })

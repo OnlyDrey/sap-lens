@@ -262,6 +262,17 @@ def effective_decision(entry,state,kind,key):
         disagreement=kind=='activity' and explicit and derived!='Pending' and explicit_label!=derived)
 
 
+def assignment_confirmation(assignment, event):
+    """Confirmed row presentation from the just-persisted event, using canonical lifecycle/coverage rules.
+
+    This is not a new decision store or a derived activity/risk assessment.
+    """
+    entry=dict(assignments={assignment['id']:assignment},activities={},findings={})
+    state=states({event.user:entry},{'assignment':{event.key:event},'activity':{},'acceptance':{},'risk':{}})
+    return dict(decision=state['assignment'][event.key][0],event=event.model_dump(mode='json'),
+                decision_summary=effective_decision(entry,state,'assignment',event.key),review_coverage=state['coverage']['assignment'][event.key])
+
+
 def decision_summary(entry,state,kind,key):
     """Separate formal acceptance presentation from the four primary access decisions."""
     if kind!='acceptance':return effective_decision(entry,state,kind,key)

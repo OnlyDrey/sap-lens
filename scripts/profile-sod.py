@@ -48,6 +48,35 @@ def measure(client,url,headers,samples):
                 decision_store_reads=read_count,payload_bytes=len(response.content),python_peak_kib=round(peak/1024,1),source_analysis_hit_rate=analysis_hits,prepared_index_hit_rate=index_hits)
 
 
+def measure_writes(post, selection, items, samples, bulk=False):
+    """Measure JSON-store work separately from HTTP/validation; there is no SQL database."""
+    times=[];storage=[];recalculation=[];reads=[]
+    original_write=decisions._write
+    original_states=governance.states
+    def timed_write(data):
+        started=time.perf_counter()
+        try:return original_write(data)
+        finally:storage.append((time.perf_counter()-started)*1000)
+    def timed_states(*args,**kwargs):
+        started=time.perf_counter()
+        try:return original_states(*args,**kwargs)
+        finally:recalculation.append((time.perf_counter()-started)*1000)
+    for index in range(samples):
+        body=dict(context='current',expected_revision=decisions.read().revision,expected_generation=selection['generation'],items=items,
+                  reviewer='Synthetic Profiler',justification='Synthetic save measurement')
+        if bulk:body.update(action='Remove' if index%2 else 'Keep',atomic=True,replace_existing=True)
+        else:body.update(decision='Remove' if index%2 else 'Keep')
+        with patch.object(decisions,'_write',new=timed_write),patch.object(governance,'states',new=timed_states),patch.object(decisions,'read',wraps=decisions.read) as read:
+            started=time.perf_counter()
+            post('/api/sod/decisions/assignment'+('/bulk' if bulk else ''),body)
+            times.append((time.perf_counter()-started)*1000)
+            reads.append(read.call_count)
+    def distribution(values):
+        return dict(p50_ms=round(statistics.median(values),3),p95_ms=round(sorted(values)[min(len(values)-1,int(.95*len(values)))],3)) if values else dict(p50_ms=0,p95_ms=0)
+    return dict(**distribution(times),assignments_per_save=len(items),api_requests_per_measured_save=1,
+                json_store_reads_per_save=statistics.mean(reads),sql_query_count=0,storage_write=distribution(storage),derived_states=distribution(recalculation))
+
+
 def run(users,samples):
     headers={'X-SAP-Lens':'synthetic-profile-capability'}
     with tempfile.TemporaryDirectory(prefix='sap-lens-profile-') as temporary:
@@ -84,11 +113,9 @@ def run(users,samples):
                                 measurements={name:measure(client,url,headers,samples) for name,url in endpoints.items()})
                     profiler=cProfile.Profile();profiler.enable();get(endpoints['risk_review']);profiler.disable()
                     result['profile_top']=[dict(function=f'{Path(key[0]).name}:{key[2]}',calls=value[1],self_ms=round(value[2]*1000,3),cumulative_ms=round(value[3]*1000,3)) for key,value in sorted(pstats.Stats(profiler).stats.items(),key=lambda pair:pair[1][3],reverse=True)[:12]]
-                    item=next(iter(picked.values()));writes=[]
-                    for index in range(samples):
-                        body=dict(context='current',expected_revision=decisions.read().revision,expected_generation=selection['generation'],items=[item],decision='Remove' if index%2 else 'Keep',reviewer='Synthetic Profiler',justification='Synthetic save measurement')
-                        start=time.perf_counter();post('/api/sod/decisions/assignment',body);writes.append((time.perf_counter()-start)*1000)
-                    result['decision_save']=dict(p50_ms=round(statistics.median(writes),3),p95_ms=round(sorted(writes)[min(len(writes)-1,int(.95*len(writes)))],3),api_requests_per_measured_save=1)
+                    item=next(iter(picked.values()))
+                    result['decision_save']=measure_writes(post,selection,[item],samples)
+                    result['bulk_decision_save']=measure_writes(post,selection,list(picked.values())[:100],samples,bulk=True)
                     return result
             finally:cache.clear_cache();config.get_settings.cache_clear()
 

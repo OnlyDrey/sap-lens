@@ -94,14 +94,17 @@ function InvestigationContent({context,user,risk,activity,onScope,reviewTab,setR
     setQuickBusy(previous=>new Map(previous).set(row.id,decision))
     const savedReviewer = reviewer.trim(), justification = quickRationale.trim() || QUICK_RATIONALE
     const save = async () => {
+      let confirmed=false
       try {
         for (let attempt = 0; attempt < 2; attempt++) {
           const current = qc.getQueryData<Subject>(['sod-subject', params.toString()]) ?? data
           if (!current) return
           try {
-            const recorded=await sodPost<{revision:number}>('/api/sod/decisions/assignment', { context: current.context, expected_revision: current.revision, expected_generation: current.generation, items: [item(row.id, row.role, row.evidence_version)],
+            const recorded=await sodPost<{revision:number;confirmed_assignments?:Record<string,Pick<OverviewAssignment,'decision'|'event'|'decision_summary'|'review_coverage'>>}>('/api/sod/decisions/assignment', { context: current.context, expected_revision: current.revision, expected_generation: current.generation, items: [item(row.id, row.role, row.evidence_version)],
               decision, reviewer:savedReviewer, approver: '', justification, controls: '', expires: null })
-            qc.setQueryData<Subject>(['sod-subject',params.toString()],previous=>previous?{...previous,revision:recorded.revision}:previous)
+            const patch=recorded.confirmed_assignments?.[row.id]
+            confirmed=!!patch
+            qc.setQueryData<Subject>(['sod-subject',params.toString()],previous=>previous&&previous.generation===current.generation&&previous.revision<=recorded.revision?{...previous,revision:recorded.revision,overview:{...previous.overview,assignments:previous.overview.assignments.map(item=>item.id===row.id&&patch?{...item,...patch}:item)}}:previous)
             break
           } catch (cause) {
             // Another save moved the shared revision: reload it once and retry this one assignment.
@@ -115,7 +118,8 @@ function InvestigationContent({context,user,risk,activity,onScope,reviewTab,setR
           }
         }
         try { sessionStorage.setItem(reviewerKey, savedReviewer) } catch { /* optional convenience */ }
-        await invalidateSod(qc,['sod-subject',params.toString()])
+        if(confirmed)void invalidateSod(qc,['sod-subject',params.toString()]).catch(()=>{})
+        else await invalidateSod(qc,['sod-subject',params.toString()])
       } catch (cause) {
         setQuickError(`${decision === 'Keep' ? 'Keep' : decision === 'Investigate' ? 'Investigate' : 'Removal recommendation'} for ${row.role} was not saved. ${cause instanceof Error ? cause.message : 'Try again.'}`)
       } finally {

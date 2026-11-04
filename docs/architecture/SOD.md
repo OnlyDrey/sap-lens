@@ -228,3 +228,27 @@ request-local validated decision snapshot, so the next request sees committed ch
 The subject API exposes `risk_review_summary`, `risk_review` and `risk_review_event` beside
 the existing formal fields; the UI migration uses those separate fields. Historical report
 snapshots are not rewritten.
+
+### Confirmed assignment feedback and write profiling
+
+`profile-sod.py` now measures single and atomic bulk writes separately, including
+JSON-store reads, serialization/atomic-write time and derived-state time. This
+runtime uses private JSON stores, so SQL query count is zero. No global decision
+cache or weaker persistence path was introduced.
+
+On a successful assignment write the API returns the just-committed row's canonical
+lifecycle, event, primary summary and coverage. The frontend patches only that
+matching source generation/revision and row. It does not show a permanent choice
+before persistence. Background subject/counter reads reconcile derived activities
+and risks; those reads no longer keep the clicked action spinning. Errors leave
+the confirmed state unchanged, and concurrent/stale decisions retain existing guards.
+
+Synthetic local measurements (100 users, 400 assignments, 20 samples; not production
+benchmarks): single-write p50/p95 was 21.43/32.15 ms before and 18.72/33.56 ms after;
+100-assignment bulk was 172.70/285.53 ms before and 217.79/314.49 ms after. The bulk
+write path was unchanged; timings vary and no backend speedup is claimed. Single
+JSON writes used one decision-store read, bulk two; atomic validation/history were
+retained. Browser DOM confirmation after request release improved from one sample
+of 67.9 ms to 43.0 ms. A blocked-subject-read regression verifies confirmed row
+feedback does not depend on that read finishing. These figures do not establish
+Windows or production-dataset latency guarantees.
