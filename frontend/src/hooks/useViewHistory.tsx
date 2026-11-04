@@ -4,7 +4,7 @@ export type ReleaseDrill = { status?: string; username?: string; role_search?: s
 export type SodFilterState = Record<string,string|boolean|number|string[]>
 export type SodView = 'overview'|'risk-matrix'|'activity-matrix'|'explorer'|'reviews'|'periods'|'reports'
 export type SodExplorerTable = 'user_risk'|'user_activity'|'access_list'|'lookup'|'roles'
-type View = { userTrail?:string[]; sodView?:SodView; sodFilters?:Record<string,SodFilterState>; sodContext?:string; sodSubject?:{user:string;risk?:string;activity?:string}|null; sodExplorer?:SodExplorerTable; sodReviews?:'queue'|'remediation'; assignmentBand?:string; catalogueArea?:string; accountReviewFilters?:{search:string;licenses:string[];states:string[];sort:string;descending:boolean}; userComparison?:{sort?:string;descending?:boolean;a:string;b:string;validity:string;kind:string;difference:string;search:string;areas:string[]}; accessMode?: 'directory'|'review'|'compare'; reviewFindings?: string[]; kpiNavigation?: Partial<Record<'roles'|'users'|'releases',number>>; settingsTarget?: 'roles' | 'users' | 'employees' | 'sod' | 'diagnostics' | 'features'; page: 'dashboard' | 'roles' | 'users' | 'releases' | 'sod'; user: string; release: ReleaseDrill | null; detailRole: string | null; comparison: boolean; settings: boolean; releaseContext: string; userContext: { role?: string; tcode?: string } }
+type View = { userTrail?:string[]; sodView?:SodView; sodFilters?:Record<string,SodFilterState>; sodContext?:string; sodSubject?:{user:string;risk?:string;activity?:string}|null; sodExplorer?:SodExplorerTable; sodReviews?:'queue'|'bulk'|'remediation'; assignmentBand?:string; catalogueArea?:string; accountReviewFilters?:{search:string;licenses:string[];states:string[];sort:string;descending:boolean}; userComparison?:{sort?:string;descending?:boolean;a:string;b:string;validity:string;kind:string;difference:string;search:string;areas:string[]}; accessMode?: 'directory'|'review'|'compare'; reviewFindings?: string[]; kpiNavigation?: Partial<Record<'roles'|'users'|'releases',number>>; settingsTarget?: 'roles' | 'users' | 'employees' | 'sod' | 'diagnostics' | 'features'; page: 'dashboard' | 'roles' | 'users' | 'releases' | 'sod'; user: string; release: ReleaseDrill | null; detailRole: string | null; comparison: boolean; settings: boolean; releaseContext: string; userContext: { role?: string; tcode?: string } }
 const paths = { dashboard: 'dashboard', roles: 'role-lookup', users: 'user-access', releases: 'release-roles', sod:'sod' }
 const defaults: View = { page: 'dashboard', user: '', release: null, detailRole: null, comparison: false, settings: false, releaseContext: '', userContext: {} }
 export function userAccessHref(mode:'directory'|'review'|'compare') {return '#/user-access'+(mode==='directory'?'':mode==='review'?'/account-review':'/compare')}
@@ -13,7 +13,7 @@ export function userHref(username:string){return '#/user-access/user/'+encodeURI
 export function pageHref(page:'dashboard'|'roles'|'users'|'releases'|'sod'){return page==='users'?userAccessHref('directory'):page==='sod'?sodHref('overview'):`#/${paths[page]}`}
 export function sodHref(view:SodView){return '#/sod'+(view==='overview'?'':`/${view}`)}
 function viewUrl(view:View) {
- const base=view.page==='sod'?sodHref(view.sodView||'overview'):view.page==='users'?((view.accessMode||'directory')==='directory'&&view.user?userHref(view.user):userAccessHref(view.accessMode||'directory')):`#/${paths[view.page]}`
+ const base=view.page==='sod'?sodHref(view.sodView||'overview')+(view.sodView==='reviews'&&view.sodReviews&&view.sodReviews!=='queue'?'/'+view.sodReviews:''):view.page==='users'?((view.accessMode||'directory')==='directory'&&view.user?userHref(view.user):userAccessHref(view.accessMode||'directory')):`#/${paths[view.page]}`
  const query=location.hash.startsWith('#/')?location.hash.split('?').slice(1).join('?'):''
  return base+(query?'?'+query:'')
 }
@@ -26,6 +26,7 @@ function readView(): View {
  if(page==='sod'){
   const part=segments[1],views:SodView[]=['risk-matrix','activity-matrix','explorer','reviews','periods','reports']
   base.sodView=views.find(item=>item===part)||(part==='users'||part==='roles'?'explorer':'overview')
+  if(part==='reviews')base.sodReviews=segments[2]==='bulk'?'bulk':segments[2]==='remediation'?'remediation':'queue'
   if(part==='users')base.sodExplorer='user_risk'
   if(part==='roles')base.sodExplorer='roles'
  }

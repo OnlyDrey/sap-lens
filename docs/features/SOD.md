@@ -420,3 +420,14 @@ uses current scoped items even when retained historical reviews sort first;
 historical-only items cannot erase or supply current groups. Missing groups stay
 missing, and multiple source groups are preserved. Groups are never inferred from
 role suffixes, AD membership or related usernames.
+
+### Reviews navigation
+
+Reviews contains **Work queue → Bulk Review → Remediation**. Bulk Review embeds
+the same assignment selector and confirmation component used by the existing
+review tools. Work queue's Bulk review action opens that tab. Direct routes are
+`#/sod/reviews`, `#/sod/reviews/bulk` and `#/sod/reviews/remediation`; reload and view
+history retain the chosen tab. Access Explorer remains the analysis workspace.
+The confirmation freezes its context, source generation and decision revision
+with the selected assignments; background reads cannot silently refresh a preview
+into permission to overwrite a newer decision.

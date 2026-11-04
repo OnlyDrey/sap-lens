@@ -19,7 +19,8 @@ const COPY: Record<BulkAction, { title: string; verb: string; effect: string; co
 const counted = (items: string[]) => [...items.reduce((map, value) => map.set(value, (map.get(value) || 0) + 1), new Map<string, number>())].sort(([x], [y]) => x.localeCompare(y))
 
 /** Confirmation and result of a batch review. Success is shown only for assignments the server reports as persisted. */
-export function BulkReviewDialog({ action, picks: livePicks, info, atomic=false, onClose, onApplied }: { action: BulkAction; picks: AssignmentPick[]; info: ContextInfo & { revision: number }; atomic?:boolean; onClose: () => void; onApplied: (recorded: string[]) => void }) {
+export function BulkReviewDialog({ action, picks: livePicks, info:liveInfo, atomic=false, onClose, onApplied }: { action: BulkAction; picks: AssignmentPick[]; info: ContextInfo & { revision: number }; atomic?:boolean; onClose: () => void; onApplied: (recorded: string[]) => void }) {
+  const [info]=useState(liveInfo) // Freeze revision/context with the preview, never refresh them underneath a confirmation.
   const copy = COPY[action], qc = useQueryClient()
   // The dialog reports on the selection it was opened with, even after saved assignments leave the live selection.
   const [picks] = useState(livePicks)

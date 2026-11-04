@@ -190,3 +190,20 @@ test('SAP username, open icon, copy and review icon have four isolated interacti
  await expect(page).toHaveURL(new RegExp(`user-access/user/${names.a}$`))
  await expect(page.locator('.ui-side-panel,.ui-popover')).toHaveCount(0)
 })
+
+
+test('Reviews has ordered Work queue, Bulk Review and Remediation tabs with a shared bulk builder',async({page})=>{
+ await openSod(page,'Reviews')
+ const tabs=page.getByRole('tablist',{name:'Review areas',exact:true})
+ await expect(tabs.getByRole('tab')).toHaveText(['Work queue','Bulk Review','Remediation'])
+ await tabs.getByRole('tab',{name:'Bulk Review',exact:true}).click()
+ await expect(page.getByRole('heading',{name:'Bulk role assignment review',exact:true})).toBeVisible()
+ await expect(page.getByRole('table',{name:'Bulk assignment preview',exact:true})).toBeVisible()
+ await expect(page).toHaveURL(/sod\/reviews\/bulk/)
+ await page.reload()
+ await expect(tabs.getByRole('tab',{name:'Bulk Review',exact:true})).toHaveAttribute('aria-selected','true')
+ await tabs.getByRole('tab',{name:'Remediation',exact:true}).click()
+ await expect(tabs.getByRole('tab',{name:'Remediation',exact:true})).toHaveAttribute('aria-selected','true')
+ await tabs.getByRole('tab',{name:'Work queue',exact:true}).click()
+ await expect(page.getByRole('table',{name:'SoD review work queue',exact:true})).toBeVisible()
+})
