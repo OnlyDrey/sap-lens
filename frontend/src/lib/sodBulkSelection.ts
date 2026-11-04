@@ -21,3 +21,7 @@ export function selectAssignmentPage(selected:ReadonlyMap<string,AssignmentPick>
  for(const row of rows)if(select)next.set(row.key,row);else next.delete(row.key)
  return next
 }
+
+export function sortBulkRows(rows:readonly AssignmentPick[]) {
+ return [...rows].sort((a,b)=>a.user.localeCompare(b.user,'en') || a.ref.localeCompare(b.ref,'en') || a.key.localeCompare(b.key,'en'))
+}

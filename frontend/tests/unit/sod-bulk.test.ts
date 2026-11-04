@@ -30,3 +30,10 @@ test('previously reviewed and unchanged selections cannot enter an executable op
  assert.equal(bulkSelectionScope([pending,kept],selected,'Keep',true).executable.length,1)
  assert.equal(bulkSelectionScope([pending,kept],selected,'Remove',true).executable.length,2)
 })
+
+import {sortBulkRows} from '../../src/lib/sodBulkSelection.ts'
+test('assignment order is deterministic before pagination, including repeated role intervals',()=>{
+ const rows=[{...row('Pending'),key:'3',user:'SYN_B'},{...row('Pending'),key:'2'},{...row('Pending'),key:'1'}]
+ assert.deepEqual(sortBulkRows(rows).map(r=>r.key),['3','1','2'])
+ assert.deepEqual(rows.map(r=>r.key),['3','2','1'])
+})
