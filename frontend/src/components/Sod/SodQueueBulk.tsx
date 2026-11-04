@@ -25,7 +25,8 @@ export function SodQueueBulk({context,filters:initial,onClose,embedded=false,onF
  const version=useRef(''),params=scopeParams(context,filters)
  const result=useQuery({queryKey:['sod-bulk-preview',params.toString()],queryFn:()=>sod<AssignmentSelection>('/api/sod/explorer/access_list/selection',params)})
  const queryKey=params.toString()
- useEffect(()=>setOffset(0),[queryKey])
+ useEffect(()=>setOffset(0),[queryKey,includeReviewed])
+ useEffect(()=>{if(!includeReviewed)setSelected(previous=>{const next=new Map([...previous].filter(([,row])=>!hasPriorReview(row)));return next.size===previous.size?previous:next})},[includeReviewed])
  const data=result.data,stamp=data?`${context}:${data.generation}:${data.revision}`:''
  useEffect(()=>{if(!stamp)return;if(version.current&&version.current!==stamp){setSelected(new Map());setNotice('Source evidence or decisions changed. Review the preview and select again.')}version.current=stamp},[stamp])
  useEffect(()=>{
@@ -38,7 +39,7 @@ export function SodQueueBulk({context,filters:initial,onClose,embedded=false,onF
  const protectedPick=hasPriorReview
  const all=[...selected.values()],selection=bulkSelectionScope(data?.items||[],selected,action,includeReviewed,data?.reviewable??false)
  const eligible=selection.executable,excluded=all.length-eligible.length,outside=selection.outside.length
- const previewRows=data?.items||[],pageRows=previewRows.slice(offset,offset+50),pageEligible=pageRows.filter(row=>isEligibleAssignment(row,action,includeReviewed,data?.reviewable??false))
+ const previewRows=(data?.items||[]).filter(row=>includeReviewed||!hasPriorReview(row)),pageRows=previewRows.slice(offset,offset+50),pageEligible=pageRows.filter(row=>isEligibleAssignment(row,action,includeReviewed,data?.reviewable??false))
  const pageSelected=pageEligible.filter(row=>selected.has(row.key)).length
  const summary=[['SAP users',[filters.username,...(Array.isArray(filters.usernames)?filters.usernames:[])]],['SAP User Groups',[filters.group,...(Array.isArray(filters.groups)?filters.groups:[])]],['Roles',[filters.role,...['roles','role_exact','role_families'].flatMap(key=>Array.isArray(filters[key])?filters[key] as string[]:[])]],['Suffixes',[filters.role_suffix,...(Array.isArray(filters.role_suffixes)?filters.role_suffixes:[])]],['Validity',[filters.validity||'active']]].map(([label,values])=>`${label}: ${(values as string[]).filter(Boolean).join(', ')||'All'}`).join(' · ')
  if(confirm&&data)return <BulkReviewDialog scopeSummary={summary} atomic action={action} picks={eligible} info={data} onClose={embedded?()=>setConfirm(false):onClose} onApplied={()=>{if(embedded)setSelected(new Map())}}/>
