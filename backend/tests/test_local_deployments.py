@@ -114,6 +114,7 @@ class LocalDeploymentReceiptTests(unittest.TestCase):
         self.context.start();self.addCleanup(self.context.stop)
         self.env=patch.dict(os.environ,{'GITHUB_ACTIONS':'false','RUNNER_TEMP':str(self.temporary)})
         self.env.start();self.addCleanup(self.env.stop)
+        os.environ.pop('SAP_LENS_SKIPPED_CHECKS',None)  # the builder sets it when pwsh is absent; tests declare it explicitly
 
     def test_builder_isolates_production_data_and_global_pip_destinations(self):
         args=SimpleNamespace(version='0.1.0-beta.1',output_dir=self.root/'backend/build/output',invocation='d'*32)
