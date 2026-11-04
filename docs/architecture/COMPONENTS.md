@@ -320,3 +320,22 @@ authoritative subject-row summaries, reuses
 Popover/StatusBadge/RoleIdentifier and noninteractive SoD pills, and omits unavailable
 metadata. `openListOwnsEscape` protects parent dialogs/panels when a portalled popover owns
 Escape or has already consumed the event; parent behavior no longer depends on listener order.
+
+### Optional identifier actions and SoD review navigation
+
+`RoleIdentifier.action` accepts an optional trailing control after exact Copy;
+identifier fitting includes that control. `SAPUserLink` adds the shared
+`PanelRightOpen` action with tooltip, username-specific accessible label and
+`aria-pressed` state. `reviewSupported={false}` disables capability registration
+in isolated previews and unsupported modal contexts. `routeLink={false}` preserves
+existing button-only navigation; `copyLabel` and `openLabel` retain caller labels.
+
+`SodReviewNavigationProvider` batches registered canonical SAP identities (200 per
+request) against `/api/sod/review-subjects` using the selected review context.
+It reuses React Query and view history rather than maintaining a second review
+store. The application owns one `SodInvestigation` panel, yielding to role details
+and Settings. Its panel and selected tab persist across user changes, while its
+content is keyed by context and user to isolate queries, forms, selections and
+pending callbacks. Decision changes do not refetch source-only eligibility;
+source publication does invalidate it. An open decision form protects user
+switching with explicit discard confirmation.

@@ -274,10 +274,9 @@ puts users requiring review first, then username ascending (regardless of their 
 in navigation history and Saved Filters. Formal acceptance stays distinct from
 risk access-review completion.
 
-The progress bar/count occupy one line; nonzero removal recommendations appear
-beneath it. Clicking a SAP username opens its User Access profile, while **Open
-review** continues to open the SoD workspace. The copy action copies the exact
-username without navigating; route links retain normal modified-click behavior.
+Clicking a SAP username opens its User Access profile, while **Open review**
+continues to open the SoD workspace. Copy remains independent; route links retain
+normal modified-click behavior.
 
 The Work Queue keeps removal recommendations in its KPI/filter and exports, rather than
 repeating them in a table column or beneath each progress bar. Progress calculations,
@@ -388,3 +387,33 @@ information. Existing explicit-review filters, status counters and raw export li
 columns retain their meanings; a derived badge does not turn an explicit Pending event into
 an explicit Approved event. Remediation uses the same effective badge projection, while
 recommendations and actual SAP verification remain separate.
+
+### Shared username review action
+
+Supported SAP username codeblocks include **Open in SoD Review** after Copy.
+The action is available only when that SAP identity has detected conflict evidence
+in the selected review context. It opens the same non-modal panel from SoD and
+User Access, including Account Review and release assignment tables. Employee-only
+records, isolated Component Library previews and modal contexts without sidebar
+navigation do not offer it.
+
+Selecting another user updates the existing panel and preserves its Roles,
+Activities or Risks tab. User-specific selections, forms and simulation state are
+isolated; an open decision form requires confirmation before switching users.
+Only the current exact user's action is highlighted. Page filters and scroll are
+unchanged; copy does not open the panel.
+
+Risk Review rows place selection, risk identifier, decision, **Review**, formal
+acceptance action and details toggle before a separate description. Controls wrap
+on narrow screens. Formal acceptance remains a separate action and popover value;
+it is not repeated inline in every description.
+
+### SAP User Group provenance
+
+User Access and SAP Identity summarize imported `USER_GROUP` values. SoD shows the
+groups from the contributing assignment evidence for its review context and
+validity scope. Different scopes can legitimately differ. Work Queue aggregation
+uses current scoped items even when retained historical reviews sort first;
+historical-only items cannot erase or supply current groups. Missing groups stay
+missing, and multiple source groups are preserved. Groups are never inferred from
+role suffixes, AD membership or related usernames.

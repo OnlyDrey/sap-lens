@@ -775,7 +775,7 @@ Baseline `f7f6d82`; implementation commits `a120962`, `d0cc91c`, `6b85e99`.
   1600 px. Controls remain reachable; narrow rows wrap intentionally. Automated
   assertions check viewport bounds, focus restoration and no page overflow.
 - **Static/build:** TypeScript and production Vite build passed; targeted ESLint
-  has 0 errors and 10 pre-existing hook warnings in Access components. Ruff passed
+  has 0 errors and 11 pre-existing hook warnings across the changed source files. Ruff passed
   for changed Python files. Test ownership: 20 tests passed; map check passed.
   Lucide catalogue: 1447 identifiers verified. Documentation links: 94 Markdown
   files, 0 failures; external URLs were not fetched.

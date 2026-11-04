@@ -291,6 +291,7 @@ Evidence and exports are bounded; see [SoD architecture](SOD.md) and the
 | GET | `/api/sod/matrix/{risk,activity}/group-export` | Long-format CSV of the SAP user group heatmap (`sap-lens-sod-group-{risk,activity}-heatmap-DATE.csv`), honoring the shared filters |
 | GET | `/api/sod/filter-options` | Searchable predefined filter values (`field`, `term`, `limit`) from the imported evidence of the context; unaffected by the other filters |
 | GET | `/api/sod/explorer/{user_risk,user_activity,access_list,lookup}` and `/export` | Explorer tables and filtered CSV; user rows carry `groups` (assignment rows `user_group`) and the user-activity, queue and remediation exports include the SAP User Group |
+| GET | `/api/sod/review-subjects` | Authenticated, read-only capability lookup: `context` and up to 200 repeated `usernames` return exact canonical SAP identities present in the same active-evidence model as the subject panel; independent of page filters, with normal context metadata. No employee/role inference or review writes. |
 | GET | `/api/sod/subject` | Investigation workspace: risk, activities, contributing assignments, decisions, removal impact, and an `overview` of all the user's activities, assignments and risks |
 | POST | `/api/sod/simulate` | Read-only what-if removal of assignments for one user |
 | GET | `/api/sod/queue`, `/queue/export` | Review work queue (`kind`, `status`) with status counts; CSV |

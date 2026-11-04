@@ -36,7 +36,7 @@ Role sections retain the actual existing ZC/ZO investigation scopes; these namin
 
 - Main navigation items are real `<a href>` links (`#/dashboard`, `#/role-lookup`, `#/user-access`, `#/release-roles`, `#/sod`). A plain click is handled in-app and closes Settings; Ctrl/Cmd/Shift/middle click and "Open in new tab" use the browser. Leaving Settings with unsaved changes asks `Discard unsaved settings changes?` (`lib/settingsGuard.ts`); opening a link in a new tab never discards the draft.
 - SAP usernames are links to `#/user-access/user/<username>` (directory, Account Review, SoD, manager links). A missing user shows the normal not-found state. Manager links append to a route-based trail, so User Details shows **Back to previous user: NAME** and browser Back/Forward follow it.
-- DOM order is interaction order; there are no positive `tabindex` values. The User Directory order is Search users, SAP User Group, Filter users by role, Show expired assignments, transaction filter, Sort users, Descending, Clear filters at every breakpoint. Code blocks have no extra tab stop; the copy button is the only stop. `tests/a11y-audit.spec.ts` checks focus visibility, clipping and unnamed controls.
+- DOM order is interaction order; there are no positive `tabindex` values. The User Directory order is Search users, SAP User Group, Filter users by role, Show expired assignments, transaction filter, Sort users, Descending, Clear filters at every breakpoint. Identifier text adds no tab stop; available Open user, Copy and Open in SoD Review controls follow DOM order. `tests/a11y-audit.spec.ts` checks focus visibility, clipping and unnamed controls.
 - Secondary navigation (`SecondaryNavigation`) accepts an optional Lucide icon and has no count badges; counts belong in the result summary.
 - Stacked list rows use `.ui-list-row`: bottom separator, no rounded or double borders, with hover, active and focus-visible states.
 
@@ -55,3 +55,10 @@ The navbar no longer displays the full updated timestamp. Dashboard and Data Sou
 Keep exact identifier copy, manager-to-SAP-user navigation, record Previous/Next and browser Back behavior. Popovers close on outside click, Escape and history traversal, restoring trigger focus for keyboard dismissal. Tables may scroll within their named focusable region; controls and page-level navigation must remain within the viewport.
 
 See [Component Library](COMPONENTS.md) for APIs and [UI validation](../archive/validation/UI_CONSOLIDATION_VALIDATION.md) for actual checks and platform limits.
+
+The shared SAP username codeblock can open the application-level SoD Review panel
+without changing the parent page. Exact user selection is stored in existing view
+history; switching preserves the panel tab and isolates user-bound evidence state.
+Closing clears the active indicator. Existing open-user links, modified clicks
+and copy actions remain independent. Unsupported modal and preview contexts omit
+the additional review action. See [SoD usage](../features/SOD.md#shared-username-review-action).
