@@ -68,7 +68,8 @@ test('Risk Review rows keep identity and status with separate review and formal 
   await panel.getByRole('tab', { name: /^Risks/ }).click()
   const row = panel.locator('.sod-review-row').filter({ has: page.getByRole('button', { name: /^Decide risk acceptance / }) }).first()
   await expect(row).toBeVisible()
-  await expect(row.getByRole('button',{name:'Review risk R1',exact:true})).toBeVisible()
+  await expect(row.getByRole('button',{name:'Review risk R1',exact:true})).toHaveText('Review')
+  await expect(row.getByText('Formal acceptance:', {exact:false})).toHaveCount(0)
   const [box, decide, check, status] = [await row.locator('.sod-review-compact').boundingBox(), await row.getByRole('button', { name: /^Decide risk acceptance / }).boundingBox(), await row.getByRole('checkbox').boundingBox(), await row.locator('.sod-review-compact .evidence-badge').first().boundingBox()]
   expect(Math.abs((decide!.y + decide!.height / 2) - (check!.y + check!.height / 2))).toBeLessThan(20) // one primary line
   expect(decide!.x + decide!.width).toBeGreaterThan(box!.x + box!.width - 80) // actions at the right edge
