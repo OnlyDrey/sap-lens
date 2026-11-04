@@ -247,6 +247,18 @@ def _decision_map(entry, state):
     return {name: state['activity'][item['key']][0] for name, item in entry['activities'].items()}
 
 
+@router.get('/review-subjects')
+def review_subjects(context: str = Query('current', pattern=legacy.CONTEXT_PATTERN),
+                    usernames: list[str] = Query(default=[], max_length=200)):
+    """Resolve exact visible SAP identities against the same model as the review panel.
+
+    Batched and independent of page filters; no employee or role-name inference.
+    """
+    bundle = scope.load(context, 'active', None)
+    model = scope.model_for(bundle)
+    return dict(info(bundle), users=sorted(set(usernames).intersection(model)))
+
+
 @router.get('/subject')
 def subject(q: dict = Depends(scope_query), user: str = Query(..., max_length=512), risk: str = Query('', max_length=512),
             activity: str = Query('', max_length=512)):

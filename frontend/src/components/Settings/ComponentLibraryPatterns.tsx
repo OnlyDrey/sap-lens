@@ -25,7 +25,7 @@ export function ComponentLibraryPatterns() {
   const percent = (251 / 264) * 100
   return (
     <Card aria-label="Summaries and data presentation">
-      <div className="grid gap-2"><h3>SAP user link</h3><SAPUserLink username="SYN_DEMO_USER" onOpen={()=>setDemoUser('Synthetic user navigation preview')}/>{demoUser&&<p role="status">{demoUser}</p>}</div>
+      <div className="grid gap-2"><h3>SAP user link</h3><SAPUserLink reviewSupported={false} username="SYN_DEMO_USER" onOpen={()=>setDemoUser('Synthetic user navigation preview')}/>{demoUser&&<p role="status">{demoUser}</p>}</div>
       <h2>Summaries &amp; data presentation</h2>
       <p className="ui-description">Which component shows what: a KPI for a prominent figure, an information list for secondary facts, a chart for a real distribution, a table for comparable records, a badge for status and a codeblock for an exact identifier.</p>
       <div className="demo-grid">

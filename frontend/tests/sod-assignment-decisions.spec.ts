@@ -14,7 +14,7 @@ const pressed = async (page: Page, role: string) => ({
 })
 async function openUser(page: Page) {
   await openSod(page, 'Risk Matrix')
-  await page.getByRole('button', { name: new RegExp(`^Open ${names.a}`) }).click()
+  await page.getByRole('button', { name: `Open ${names.a}`, exact:true }).click()
   const quick = page.getByRole('dialog', { name: new RegExp(`^${names.a}`) })
   await quick.getByRole('textbox', { name: 'Reviewer (self-reported)', exact: true }).fill('Synthetic Reviewer')
 }
@@ -40,7 +40,7 @@ test('each role assignment of one user keeps its own decision when others are de
   expect(await pressed(page, 'ROLE_A2')).toEqual({ keep: 'false', remove: 'true', investigate: 'false' })
   // Persisted: reload and reopen.
   await page.reload()
-  await page.getByRole('button', { name: new RegExp(`^Open ${names.a}`) }).click()
+  await page.getByRole('button', { name: `Open ${names.a}`, exact:true }).click()
   expect(await pressed(page, 'ROLE_A1')).toEqual({ keep: 'false', remove: 'true', investigate: 'false' })
   expect(await pressed(page, 'ROLE_A2')).toEqual({ keep: 'false', remove: 'true', investigate: 'false' })
   expect(await pressed(page, 'ROLE_B')).toEqual({ keep: 'true', remove: 'false', investigate: 'false' })

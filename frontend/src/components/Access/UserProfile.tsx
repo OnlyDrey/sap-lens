@@ -5,7 +5,7 @@ import {
 } from '@/components/Shared/AccountStatus'
 import { UserRound, ShieldCheck, Building2 } from 'lucide-react'
 import type { UserDetail } from '@/api/access'
-import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
+import { SAPUserLink } from '@/components/Shared/SAPUserLink'
 import { formatDate } from '@/lib/dateFormat'
 import { useEmployeeMatch, ManagerSummary, DirectoryMatchDetails, ReturnToPreviousUser } from './EmployeeEnrichment'
 export function UserProfile({ user }: { user: UserDetail }) {
@@ -30,7 +30,7 @@ export function UserProfile({ user }: { user: UserDetail }) {
           <div>
             <dt>Username</dt>
             <dd>
-              <RoleIdentifier value={user.username} label="username" />
+              <SAPUserLink username={user.username} copyLabel="username"/>
             </dd>
           </div>
           <div>

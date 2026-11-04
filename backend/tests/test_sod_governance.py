@@ -607,6 +607,26 @@ class VerificationTests(GovernanceCase):
 
 
 class QueueTests(GovernanceCase):
+    def test_queue_groups_preserve_missing_and_multiple_source_values(self):
+        multi = user('ROLE_A1', group='FIN')
+        multi['assignments'].extend(user('ROLE_B', group='FIN-CHILD')['assignments'])
+        cache._cache = snapshot(extra_users={'SYN_MULTI': multi, 'SYN_MISSING': user('ROLE_AB', group='')})
+        rows = {row['user']: row for row in self.get('/api/sod/queue/users')['items']}
+        self.assertEqual(rows['SYN_MULTI']['groups'], ['FIN', 'FIN-CHILD'])
+        self.assertEqual(rows['SYN_MISSING']['groups'], [])
+        self.assertNotIn('SYN_MISSING', [row['user'] for row in self.get('/api/sod/queue/users', group='FIN')['items']])
+        self.assertEqual(next(row for row in self.get('/api/sod/queue/users', group='FIN')['items'] if row['user']=='SYN_MULTI')['groups'], ['FIN', 'FIN-CHILD'])
+        ordered = self.get('/api/sod/queue/users', queue_sort='group')['items']
+        self.assertEqual([row['groups'] for row in ordered], sorted([row['groups'] for row in ordered]))
+
+    def test_review_subject_capability_uses_exact_context_identities(self):
+        result = self.get('/api/sod/review-subjects', usernames=['SYN_A', 'SYN_B', 'SYN_C', 'SYN_A_SUFFIX', 'employee-only'])
+        self.assertEqual(result['users'], ['SYN_A', 'SYN_B'])
+        self.assertEqual(self.get('/api/sod/review-subjects')['users'], [])
+        self.assertEqual(self.get('/api/sod/review-subjects', usernames=['syn_a'])['users'], [])
+        self.assertEqual(self.client.get('/api/sod/review-subjects', headers=H, params=[('usernames', str(i)) for i in range(201)]).status_code, 422)
+        self.assertNotEqual(self.client.get('/api/sod/review-subjects', params={'usernames':'SYN_A'}).status_code, 200)
+
     def test_historical_first_item_does_not_hide_current_user_groups(self):
         self.decide('activity', [self.activity_item('SYN_A', 'A')], 'Approved')
         changed = snapshot()

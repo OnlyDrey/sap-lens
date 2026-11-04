@@ -1,5 +1,4 @@
 import { Dialog } from '@/components/Shared/Dialog'
-import { userHref } from '@/hooks/useViewHistory'
 import { type ReviewEvidence } from '@/components/Shared/ReviewFindings'
 import { PageHeader, MetadataList } from '@/components/Shared/Presentation'
 import { ClipboardCheck as PageIcon } from 'lucide-react'
@@ -20,7 +19,7 @@ import { apiRequest, applicationToken } from '@/api/client'
 import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
 import { AccountStatus } from '@/components/Shared/AccountStatus'
 import { FilterChip } from '@/components/Shared/FilterChip'
-import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
+import { SAPUserLink } from '@/components/Shared/SAPUserLink'
 import { Select } from '@/components/Shared/Select'
 import { MultiSelectFilter } from '@/components/Shared/MultiSelectFilter'
 import { csvField } from '@/lib/accessExport'
@@ -395,7 +394,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
                     const change = row.position_change as PositionChange
                     return (
                       <tr key={row.username}>
-                        <td><RoleIdentifier value={row.username} label="username" onOpen={() => onUser(row.username)} href={userHref(row.username)} openLabel={`Open SAP user ${row.username}`} openButtonProps={{ 'data-user': row.username }} /></td>
+                        <td><SAPUserLink username={row.username} copyLabel="username" onOpen={()=>onUser(row.username)}/></td>
                         <td>{row.name || 'Unknown'}</td>
                         <td><PositionCell department={change.previous_department} title={change.previous_title} /></td>
                         <td><PositionCell department={change.current_department} title={change.current_title} changed={change.fields} /></td>
@@ -490,11 +489,10 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
                 {data.items.map((row) => (
                   <tr key={row.username}>
                     <td>
-                      <RoleIdentifier
-                        value={row.username}
-                        label="username"
+                      <SAPUserLink
+                        username={row.username}
+                        copyLabel="username"
                         onOpen={() => onUser(row.username)}
-                        href={userHref(row.username)}
                         openLabel={row.username}
                         openButtonProps={{
                           disabled: busy,
@@ -571,7 +569,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
         >
           <section aria-label="SAP identity" className="review-dialog-section"><h3>SAP identity</h3>
             <MetadataList items={[
-              {label:'SAP username',value:<RoleIdentifier value={editing.username} label="username"/>},
+              {label:'SAP username',value:<SAPUserLink reviewSupported={false} username={editing.username} copyLabel="username"/>},
               {label:'Name',value:editing.name||'Name unavailable'},
               {label:'SAP User Group',value:editing.groups.join(', ')||'Group unavailable'},
               {label:'Directory match',value:matchLabel(editing.match_status)},

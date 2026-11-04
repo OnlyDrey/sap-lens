@@ -1,3 +1,4 @@
+import {SAPUserLink} from '@/components/Shared/SAPUserLink'
 import {ExportCSVButton} from '@/components/Shared/ExportCSVButton'
 import { ASSIGNMENT_BANDS, LEGACY_ASSIGNMENT_BANDS } from '@/lib/assignmentBands'
 import { USER_ACCESS_VIEWS } from '@/lib/navigationItems'
@@ -38,7 +39,6 @@ import {
 } from "@/api/access";
 import { RoleIdentifier } from "@/components/Shared/RoleIdentifier";
 import { RoleModuleBadge } from "@/components/Shared/RoleModuleBadge";
-import { userHref } from '@/hooks/useViewHistory';
 import {
   dates,
   EvidenceNote,
@@ -279,14 +279,7 @@ export function UserAccess({
                         .join(", ") || "Unknown"}
                     </td>
                     <td>
-                      <RoleIdentifier
-                        value={user.username}
-                        label="username"
-                        onOpen={() => openUser(user.username)}
-                        href={userHref(user.username)}
-                        openLabel={user.username}
-                        openButtonProps={{ 'data-user': user.username }}
-                      />
+                      <SAPUserLink username={user.username} copyLabel="username" onOpen={()=>openUser(user.username)} openLabel={user.username}/>
                     </td>
                     <td>{user.first_name || "—"}</td>
                     <td>{user.last_name || "—"}</td>

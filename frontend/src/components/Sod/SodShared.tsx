@@ -114,11 +114,12 @@ export function useFilterChangeReset(filters: Filters, reset: () => void) {
   useEffect(() => { if (previous.current !== key) { previous.current = key; reset() } }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
 }
 
-export const refreshKeys = ['sod-bulk-preview','dashboard','sod-filter-options', 'sod-matrix', 'sod-subject', 'sod-queue', 'sod-explorer', 'sod-overview', 'sod-remediation', 'sod-periods', 'sod-period', 'sod-context']
+export const refreshKeys = ['sod-review-subjects','sod-bulk-preview','dashboard','sod-filter-options', 'sod-matrix', 'sod-subject', 'sod-queue', 'sod-explorer', 'sod-overview', 'sod-remediation', 'sod-periods', 'sod-period', 'sod-context']
 export async function invalidateSod(qc:QueryClient,reviewFocus?:readonly unknown[]) {
   if(!reviewFocus)return Promise.all(refreshKeys.map(key=>qc.invalidateQueries({queryKey:[key]})))
   const affected=(query:{queryKey:readonly unknown[]})=>{
     const key=String(query.queryKey[0]);if(!refreshKeys.includes(key))return false
+    if(key==='sod-review-subjects')return false // Review decisions do not change source identity eligibility.
     if(key!=='sod-filter-options')return true
     // Source-only choices cannot change after a review. Review-scoped choices can.
     const params=new URLSearchParams(typeof query.queryKey[2]==='string'?query.queryKey[2]:'')

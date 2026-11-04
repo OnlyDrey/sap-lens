@@ -130,7 +130,7 @@ function AssignedUsers({ role, context, filters, onInvestigate, onUser }: { role
           <thead><tr><th>SAP user</th><th>SAP User Group</th><th>Assignment</th><th className="col-actions"><span className="sr-only">Actions</span></th></tr></thead>
           <tbody>{[...users].sort(([a], [b]) => a.localeCompare(b)).map(([user, rows]) => (
             <tr key={user}>
-              <td><RoleIdentifier value={user} label="SAP username" onOpen={() => onUser(user)} openLabel={`Open SAP user ${user}`} /></td>
+              <td><SAPUserLink reviewSupported={false} routeLink={false} username={user} onOpen={()=>onUser(user)}/></td>
               <td className="whitespace-nowrap">{[...new Set(rows.map((row) => row.user_group || 'No user group'))].join(', ')}</td>
               <td>{rows.length === 1
                 ? <span>{formatDate(rows[0].valid_from)} → {formatDate(rows[0].valid_to)}{rows[0].interval_status && rows[0].interval_status !== 'active' ? ` · ${rows[0].interval_status}` : ''}</span>

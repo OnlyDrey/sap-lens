@@ -1,9 +1,9 @@
+import {SAPUserLink} from '@/components/Shared/SAPUserLink'
 import { Fragment, useMemo, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { downloadFile, scopeParams, sod, sodPost, EXPORT_NAME, type DecisionSummary,type AssignmentRow, type ContextInfo } from '@/api/sod'
 import { useViewHistory } from '@/hooks/useViewHistory'
 import { Button } from '@/components/Shared/Button'
-import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import {PrimaryDecisionBadge} from './SodDecisionStatus'
 import { Kpi } from '@/components/Shared/Kpi'
 import { UserGroupCell } from '@/components/Shared/UserGroup'
@@ -165,7 +165,7 @@ export function RemediationView() {
               const decided = parent.rows.filter((row) => ['Approved','Keep','Conditional','Removal required','Rejected'].includes(row.activity_decision)).length
               return <ParentRows key={parent.key} open={open}
                 parent={<tr className="remediation-parent" data-open={open || undefined}>
-                  <td><RoleIdentifier value={parent.user} label="SAP username"/></td>
+                  <td><SAPUserLink username={parent.user}/></td>
                   <td><UserGroupCell groups={first.user_group} /></td>
                   <td><div className="flex items-center gap-1"><button type="button" className="sod-expand-toggle shrink-0" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} activities and risks for ${parent.user} ${first.role}`} onClick={() => toggleKey(parent.key)}>{open ? <ChevronDown size={14} aria-hidden="true"/> : <ChevronRight size={14} aria-hidden="true"/>}</button><RemediationRole role={first.role} catalogueRoles={first.catalogue_roles}/></div></td>
                   <td className="whitespace-nowrap"><dl className="validity-dates"><div><dt>Valid from</dt><dd>{formatDate(first.valid_from)}</dd></div><div><dt>Valid to</dt><dd>{formatDate(first.valid_to)}</dd></div></dl></td>

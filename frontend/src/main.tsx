@@ -1,3 +1,4 @@
+import {SodReviewNavigationProvider} from './hooks/useSodReviewNavigation'
 import { ApplicationDataProvider } from './state/ApplicationData'
 import { ViewHistory, initializeViewHistory } from './hooks/useViewHistory'
 import { StrictMode } from 'react'
@@ -33,7 +34,7 @@ installFocusReveal()
 createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <ModuleRegistryProvider><ViewHistory><ApplicationDataProvider><StartupGate><App /></StartupGate></ApplicationDataProvider></ViewHistory></ModuleRegistryProvider>
+      <ModuleRegistryProvider><ViewHistory><ApplicationDataProvider><StartupGate><SodReviewNavigationProvider><App /></SodReviewNavigationProvider></StartupGate></ApplicationDataProvider></ViewHistory></ModuleRegistryProvider>
     </QueryClientProvider>
   </StrictMode>
 )

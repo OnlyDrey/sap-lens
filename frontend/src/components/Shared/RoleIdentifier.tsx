@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type ButtonHTMLAttributes } from 'react'
 import { Check, Copy, ArrowUpRight } from 'lucide-react'
 
 /** SAP identifiers are rendered as one unbroken string: no characters are inserted, copy writes the exact value. */
@@ -39,6 +39,7 @@ function watch(root: HTMLElement) {
 }
 
 interface RoleIdentifierProps {
+  action?: ReactNode
   moduleId?: string | null
   value: string
   label?: string
@@ -49,7 +50,7 @@ interface RoleIdentifierProps {
   openButtonProps?: ButtonHTMLAttributes<HTMLButtonElement> & { 'data-user'?: string }
 }
 
-export function RoleIdentifier({ moduleId: _moduleId, value, label = 'role identifier', onOpen, href, openLabel, openButtonProps }: RoleIdentifierProps) {
+export function RoleIdentifier({ action, moduleId: _moduleId, value, label = 'role identifier', onOpen, href, openLabel, openButtonProps }: RoleIdentifierProps) {
   const [message, setMessage] = useState('')
   const timer = useRef<ReturnType<typeof setTimeout>>(), root = useRef<HTMLSpanElement>(null)
   useEffect(() => () => clearTimeout(timer.current), [])
@@ -58,7 +59,7 @@ export function RoleIdentifier({ moduleId: _moduleId, value, label = 'role ident
     if (!node) return
     fit(node)
     return watch(node)
-  }, [value])
+  }, [value, action])
   return (
     <span
       ref={root}
@@ -89,6 +90,7 @@ export function RoleIdentifier({ moduleId: _moduleId, value, label = 'role ident
           <Copy size={14} aria-hidden="true" />
         )}
       </button>
+      {action}
       <span className="role-copy-feedback" role="status">
         {message}
       </span>

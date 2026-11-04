@@ -1,3 +1,4 @@
+import {useSodReviewSwitchGuard} from '@/hooks/useSodReviewNavigation'
 import {SodDecisionStatus} from './SodDecisionStatus'
 import {ContentTabList} from '@/components/Shared/Navigation'
 import {apiRequest} from '@/api/client'
@@ -42,7 +43,18 @@ const DECIDED = new Set(['Approved', 'Keep', 'Accepted', 'Conditional', 'Removal
 const progressOf = (rows: { decision?: string; acceptance?: string; review_coverage?: ReviewCoverage }[]) => rows.filter((row) => row.review_coverage?.reviewed ?? DECIDED.has((row.decision ?? row.acceptance) as string)).length
 
 /** Unified review workspace for one SAP user: three independent review sections, history on demand and read-only supporting evidence. */
-export function SodInvestigation({ context, user, risk, activity, onClose, onScope }: { context: string; user: string; risk?: string; activity?: string; onClose: () => void; onScope?: (subject: { user: string }) => void }) {
+type InvestigationProps = {context:string;user:string;risk?:string;activity?:string;onClose:()=>void;onScope?:(subject:{user:string})=>void}
+
+export function SodInvestigation(props:InvestigationProps){
+ const [reviewTab,setReviewTab]=useState<Kind>('assignment')
+ const {user,risk,activity,onClose}=props
+ return <SidePanel title={`${user}${risk ? ` · ${risk}` : activity ? ` · ${activity}` : ''}`} onClose={onClose}>
+  {/* The panel and tab persist; forms, selections and pending callbacks belong to one evidence scope. */}
+  <InvestigationContent key={JSON.stringify([props.context,user])} {...props} reviewTab={reviewTab} setReviewTab={setReviewTab}/>
+ </SidePanel>
+}
+
+function InvestigationContent({context,user,risk,activity,onScope,reviewTab,setReviewTab}:InvestigationProps & {reviewTab:Kind;setReviewTab:(tab:Kind)=>void}) {
   const qc = useQueryClient(),
     { change } = useViewHistory(),
     [form, setForm] = useState<FormState | null>(null),
@@ -56,12 +68,13 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
     [quickBusy, setQuickBusy] = useState<Map<string,string>>(new Map()),
     [quickError, setQuickError] = useState(''),
     formRef = useRef<HTMLDivElement>(null)
+  useSodReviewSwitchGuard(!!form)
   const params = scopeParams(context, emptyFilters, { user, ...(risk ? { risk } : {}), ...(activity ? { activity } : {}) })
   const query = useQuery({ queryKey: ['sod-subject', params.toString()], queryFn: () => sod<Subject>('/api/sod/subject', params) })
   const runtime=useQuery({queryKey:['review-runtime-identity'],queryFn:()=>apiRequest<{username:string;role:string}>('/api/runtime'),retry:false})
   const authenticated=!!runtime.data?.username
   const reviewer=runtime.data?.username||quickReviewer
-  const [reviewTab,setReviewTab]=useState<Kind>('assignment'),tabId=useId()
+  const tabId=useId()
   const data = query.data
   const ok = !!data?.reviewable
   useEffect(() => { if (form) formRef.current?.scrollIntoView?.({ block: 'nearest' }) }, [form])
@@ -131,8 +144,7 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
   const batch = (kind: Kind, heading: string, rows: Item[]) => setForm({ kind, items: rows, heading })
   const focus = (name: string, kind: 'activity' | 'risk') => (kind === 'activity' ? activity === name : risk === name)
   return (
-    <SidePanel title={`${user}${risk ? ` · ${risk}` : activity ? ` · ${activity}` : ''}`} subtitle={data ? <>Potential conflict evidence, not effective authorization · evaluation {formatDate(data.as_of)}</> : undefined} onClose={onClose}
-      footer={data ? <><span className="text-xs" role="status">{done} of {total} reviews completed</span></> : undefined}>
+    <>
       {query.isError ? <ErrorState error={query.error} onRetry={() => void query.refetch()} /> : !data || !overview ? <LoadingState /> : <>
         <section className="sod-section" aria-label="Subject summary">
           <Toolbar>
@@ -224,7 +236,8 @@ export function SodInvestigation({ context, user, risk, activity, onClose, onSco
         </details>
       </>}
       {action && data && <ActionDialog context={context} revision={data.revision} user={user} assignment={action.assignment} risk={risk} onClose={() => setAction(null)} onSaved={async () => { setAction(null); await invalidateSod(qc) }} />}
-    </SidePanel>
+      {data&&<p className="text-xs" role="status">{done} of {total} reviews completed · evaluation {formatDate(data.as_of)}</p>}
+    </>
   )
 }
 

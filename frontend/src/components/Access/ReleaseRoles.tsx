@@ -1,3 +1,4 @@
+import {SAPUserLink} from '@/components/Shared/SAPUserLink'
 import {ExportCSVButton} from '@/components/Shared/ExportCSVButton'
 import {useAssignmentCSVExport} from '@/hooks/useAssignmentCSVExport'
 import { PageHeader } from '@/components/Shared/Presentation'
@@ -626,7 +627,7 @@ function ReleaseRoleUsersPanel({ role, filters, status, dates, onUser, onClose }
             <thead><tr><th>SAP username</th><th>Name</th><th>SAP User Group</th><th>Assignment</th><th className="col-actions"><span className="sr-only">Details</span></th></tr></thead>
             <tbody>{data.items.map((a) => (
               <tr key={a.id}>
-                <td><RoleIdentifier value={a.username} label="SAP username" onOpen={() => onUser(a.username)} openLabel={`Open user ${a.username}`} /></td>
+                <td><SAPUserLink routeLink={false} username={a.username} onOpen={()=>onUser(a.username)} openLabel={`Open user ${a.username}`}/></td>
                 <td className="release-user-name">{a.display_name || <span className="text-muted">Not available</span>}</td>
                 <td className="whitespace-nowrap">{a.user_group || 'Unknown'}</td>
                 <td><AssignmentStatus value={a.status} /><dl className="validity-dates"><div><dt>Valid from</dt><dd>{formatDate(a.valid_from)}</dd></div><div><dt>Valid to</dt><dd>{formatDate(a.valid_to)}</dd></div></dl></td>

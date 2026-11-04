@@ -1,3 +1,5 @@
+import {SodInvestigation} from '@/components/Sod/SodInvestigation'
+import {useSodSubject,useSodContext} from '@/components/Sod/SodShared'
 import {SodWorkspace} from '@/components/Sod/SodWorkspace'
 import {applicationToken} from '@/api/client'
 import { MainNavigation, MainNavigationGroup, MainNavigationItem } from '@/components/Shared/Navigation'
@@ -21,6 +23,7 @@ import { fetchConfiguration } from '@/api/configuration'
 
 export function App() {
   const { isDark, toggle } = useTheme()
+  const [subject,setSubject]=useSodSubject(), [sodContext]=useSodContext()
   const [page] = useHistoryValue('page')
   const [settingsOpen] = useHistoryValue('settings')
   const [kpiNavigation] = useHistoryValue('kpiNavigation')
@@ -109,6 +112,7 @@ export function App() {
       </div>}
       {visited.has('users') && <div hidden={page!=='users'}><MappingAvailability><UserAccess key={`${JSON.stringify(userContext)}:${kpiNavigation?.users || 0}`} initialUser={selectedUser} initialRole={userContext.role} initialTcode={userContext.tcode} onRole={setDetailRole} onRelease={investigateRelease}/></MappingAvailability></div>}
       {visited.has('releases') && <div hidden={page!=='releases'}><MappingAvailability><ReleaseRoles key={`${releaseContext}:${kpiNavigation?.releases || 0}`} initialRole={releaseDrill?.role || ''} onUser={user=>investigateUsers({user})}/></MappingAvailability></div>}
+      {sodEnabled&&subject&&!detailRole&&!settingsOpen&&<SodInvestigation context={sodContext} user={subject.user} risk={subject.risk} activity={subject.activity} onClose={()=>setSubject(null)} onScope={setSubject}/>}
       <RoleDetailPanel navigation={page === 'roles' && detailRole ? catalogueNavigation : undefined} parent={page === 'sod' ? 'SoD' : page === 'users' ? 'User Access' : page === 'releases' ? 'Release Roles' : 'Role Lookup'} roleName={detailRole} onClose={() => setDetailRole(null)} onUsers={role=>investigateUsers({role})} onTcodeUsers={tcode=>investigateUsers({tcode})}/>
     </AppLayout>
   )

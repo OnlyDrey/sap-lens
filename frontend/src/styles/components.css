@@ -1427,3 +1427,6 @@ summary:focus-visible,div[tabindex="0"]:focus-visible,a.role-identifier-link:foc
 .sod-work-queue th:nth-child(3) { width:14%; }
 .sod-work-queue th:last-child { width:14%; }
 .sod-work-queue th svg { flex-shrink:0; }
+
+/* Optional codeblock actions share selected semantics without changing identifier text. */
+.role-identifier button[aria-pressed="true"] { background:color-mix(in srgb,var(--accent) 12%,var(--surface)); color:var(--accent); }
