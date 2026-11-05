@@ -10,7 +10,7 @@ import {
 } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchConfiguration } from '@/api/configuration'
-import { refreshData } from '@/api/client'
+import { onDataRevision, refreshData } from '@/api/client'
 import type { RefreshSummary } from '@/components/Shared/RefreshReport'
 
 /** Source snapshot identity is separate from the SAP refresh timestamp. */
@@ -80,6 +80,9 @@ export function ApplicationDataProvider({ children }: { children: ReactNode }) {
     pendingLoad.current = false
     void synchronize(revision, force)
   }, [configuration.data, synchronize])
+  // Data published by anyone (another user, a scheduled refresh, a restart) is noticed by the first response that carries the newer revision:
+  // only the views that are on screen are re-read, and queries still in flight for the old revision are cancelled so they cannot repopulate the cache.
+  useEffect(() => onDataRevision(() => { void synchronize(observed.current ?? 'revision', true); void qc.invalidateQueries({ queryKey: ['configuration'] }) }), [qc, synchronize])
   const refresh = useCallback(async () => {
     if (running.current || configuration.data?.loading) return
     running.current = true

@@ -3,7 +3,7 @@
 Resume guide for a new session: read [AGENTS.md](../../AGENTS.md), this file, `git status` and `git log --oneline -15`; the repository state is authoritative, correct this file where it differs.
 CI policy: GitHub Actions runs only on push to `main` after an explicitly approved merge; all validation is local; `work` pushes never trigger it.
 
-**Last update:** 2026-11-05 (end of Phase C)
+**Last update:** 2026-11-05 (end of Phase D)
 
 ## Plan and status
 
@@ -20,15 +20,16 @@ CI policy: GitHub Actions runs only on push to `main` after an explicitly approv
 | Step 4 | Data retention (source), daily check, one-time approval | Completed | `8247da6` |
 | Retention completion | Separate source and review retention, logical timestamps, journalled recoverable review cleanup | Completed | `70ae519` |
 | A | Backup retention (automatic 90 days, migration and manual protected) | Completed | `2ab0b0d` |
-| B | Employee Directory fingerprint, derived copy, shared SAP/AD matcher | Completed (pushed with this update) | see Git log |
-| C | Backend/API performance (`/api/access/users`, dashboard, memory) | Completed (pushed with this update) | see Git log |
-| D | Frontend/API cache consistency (revision-aware) | Pending | |
+| B | Employee Directory fingerprint, derived copy, shared SAP/AD matcher | Completed | `eccc0b4` |
+| C | Backend/API performance (`/api/access/users`, dashboard, memory) | Completed | `21cc4f3` |
+| D | Frontend/API cache consistency (`X-Data-Revision`, stale-response repeat, atomic review saves) | Completed | see Git log |
 | E | Parallel browser test stabilization | Pending | |
 | F | Final validation: full backend, browser, benchmarks, report | Pending | |
 
 ## Local validation (latest)
 
 * Backend full run before the retention work: 1430 tests (3 failures were the workflow tests edited mid-run; re-run OK). Targeted suites for every phase pass.
+* Phase D: backend test_data_revision (15), account_review, application, server, workflows pass; unit tests 14; browser revision-consistency (3), dashboard-user-transactions, account-review-refinement, csv-lifecycle (41 total) pass; tsc and ruff clean. ESLint reports one pre-existing error (irregular whitespace in `tests/remediation-export.spec.ts`), unrelated.
 * Browser: targeted specs per phase pass; full browser suite not yet run (final phase).
 
 ## Measured performance (192 000 assignment rows, synthetic, this container)
@@ -74,6 +75,8 @@ Matcher lifetime verified by test: repeated refreshes keep only the current (SAP
 * Verify and document how the automatic-backup count limit (`keep`) and the 90-day policy interact: 90 days is a maximum, not a guaranteed minimum. The Settings UI must state both mechanisms and the cleanup preview must say which rule makes each backup eligible. (Pending, scheduled with Phase F unless an integrity issue appears earlier.)
 
 * Phase C checks: (1) the shared SAP/AD matcher must not retain obsolete datasets or grow without bound after repeated refreshes (test with weak references); (2) repeat the changed-directory refresh benchmark in Phase F to decide whether 6.6 s to 7.1 s is noise or a regression; (3) profile before optimizing `/api/access/users`, Dashboard and changed-source refresh memory; (4) keep API contracts, filtering semantics, SoD behavior and review integrity.
+
+* Phase D priorities: data correctness over request count; expose/track the active source revision in source-dependent responses; invalidate caches only for the revision that changed; stale in-flight responses must not replace newer data; filters, sorting, pagination and selection stay consistent after refresh; multi-user correctness; review submissions validated server-side against the current source/review revision; no polling or broad invalidation where a targeted revision mechanism exists; keep API contracts.
 
 ## Decisions requiring user approval
 

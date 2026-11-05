@@ -5,7 +5,8 @@
    "description": "Dashboard metrics, drill-downs and SoD summary",
    "backend": [],
    "browser": [
-    "dashboard-user-transactions"
+    "dashboard-user-transactions",
+    "revision-consistency"
    ]
   },
   "role-lookup": {
@@ -97,6 +98,7 @@
    "description": "CSV import, source lifecycle, refresh and snapshots",
    "backend": [
     "test_import_checks",
+    "test_data_revision",
     "test_refresh_performance",
     "test_persistent_cache",
     "test_source_store",

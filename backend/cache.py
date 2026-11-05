@@ -1,7 +1,9 @@
 """Atomic data generations; parsing/previews never silently rewrite role relationships."""
 import hashlib
 import logging
+import secrets
 import threading
+import weakref
 from copy import copy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -39,6 +41,25 @@ class _CacheState:
 
 _cache = _CacheState()
 _load_lock = threading.Lock()
+
+# Revision of what the API currently serves. `boot` identifies this process (a restart is always newer than anything seen before); `publication` counts
+# observed replacements of the SAP dataset object, `directory` those of the Employee Directory. Counting happens when the revision is read, so any code that
+# publishes (including tests that assign the dataset directly) is covered; two publications between two reads count as one change, which is all a client needs.
+_BOOT = secrets.token_hex(3)
+_revision_lock = threading.Lock()
+_observed = dict(ref=None, publication=0)
+
+
+def revision_token():
+    """`boot.publication.directory`: opaque for callers except for ordering within one boot (higher is newer). Sent with every API response."""
+    from employee_directory import store
+    with _revision_lock:
+        current = _cache
+        previous = _observed['ref']
+        if previous is None or previous() is not current:
+            _observed['publication'] += 1
+            _observed['ref'] = weakref.ref(current)
+        return f"{_BOOT}.{_observed['publication']}.{store.generation}"
 
 
 def _build_catalog(path=None, configuration=None, records=None, report=None):

@@ -123,14 +123,20 @@ def accounts(search: str = Query('', max_length=256), finding: str = Query('', m
 def decision(username: str, request: Decision):
     if not request.reviewer.strip() or not request.rationale.strip(): raise HTTPException(422, 'Reviewer and rationale are required.')
     with review.lock:
+        snapshot = cache.get_snapshot()
         _, _, items, _ = current()
         row = next((r for r in items if r['username'].strip().upper() == username.strip().upper()), None)
         if row is None: raise HTTPException(404, 'SAP user not found.')
         if row['evidence_version'] != request.evidence_version: raise HTTPException(409, 'Identity evidence changed. Refresh the review before saving.')
         from server_access import ACTOR
-        if ACTOR.get() and request.expected_decision != (row['decision']['timestamp'] if row['decision'] else ''):
+        # Authenticated server users always need the version they saw; a client that sends it (desktop included) gets the same protection.
+        if (ACTOR.get() or request.expected_decision is not None) and request.expected_decision != (row['decision']['timestamp'] if row['decision'] else ''):
             raise HTTPException(409, 'Another user changed this review. Reload before saving.')
-        review.save_decision(row['username'], dict(**request.model_dump(exclude={'expected_decision'}), evidence_schema=2, identity_version=row['identity_version'], timestamp=datetime.now(timezone.utc).isoformat()))
+        # Publication is held still from the final check to the write (as for SoD decisions): the evidence just validated cannot be replaced meanwhile.
+        with cache._load_lock:
+            if cache.get_snapshot() is not snapshot:
+                raise HTTPException(409, 'Source data changed while saving. Refresh the review before saving.')
+            review.save_decision(row['username'], dict(**request.model_dump(exclude={'expected_decision'}), evidence_schema=2, identity_version=row['identity_version'], timestamp=datetime.now(timezone.utc).isoformat()))
     return {'status': 'saved'}
 
 

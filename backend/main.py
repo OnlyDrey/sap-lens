@@ -158,6 +158,8 @@ def create_app(origin: str | None = None, session_token: str | None = None,
         from server_access import ACTOR
         principal = getattr(request.state, 'server_principal', None)
         actor_token = ACTOR.set(principal[0] if principal else '')
+        # Read before the handler runs: data published while it runs makes the token older than the data (a harmless re-fetch), never newer.
+        data_token = cache.revision_token() if request.url.path.startswith('/api/') else ''
         try:
             response = await call_next(request)
         except Exception as error:
@@ -171,6 +173,8 @@ def create_app(origin: str | None = None, session_token: str | None = None,
         response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=()'
         if request.url.path.startswith(('/api/', '/health')):
             response.headers['Cache-Control'] = 'no-store'
+        if data_token:
+            response.headers['X-Data-Revision'] = data_token
         nonce = getattr(request.state,'desktop_nonce',None)
         script_policy = "'self'" + (f" 'nonce-{nonce}'" if nonce else '')
         response.headers['Content-Security-Policy'] = (

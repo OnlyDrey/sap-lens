@@ -273,3 +273,8 @@ disposable storage: `import`, `startup` / `startup-warm` (sources dynamic, the d
 ## CI policy and local validation
 
 GitHub Actions CI runs only on push to `main`; pushes to `work`, feature branches and pull requests do not trigger it ([CI policy](CI.md)). Run the Fast/FEATURE validation locally after every phase and the full regression (`python scripts/run-tests.py regression` and the complete browser suite) before merging into `main`.
+
+
+## Revision consistency
+
+`backend/tests/test_data_revision.py` covers the `X-Data-Revision` token and review submissions during source changes (Account Review and SoD). `frontend/tests/unit/data-revision.test.ts` covers response classification; `frontend/tests/revision-consistency.spec.ts` covers a stale response being repeated and a newer revision from another user being noticed without the configuration poll. Feature: data-sources.

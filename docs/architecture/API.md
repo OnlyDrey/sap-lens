@@ -2,6 +2,14 @@
 
 Desktop: the owned `http://127.0.0.1:<selected-port>` origin, preferring `18743`. Development: Vite on `18743` proxies these routes to `127.0.0.1:18744`. Data/settings/health responses are `Cache-Control: no-store`.
 
+### Data revision (`X-Data-Revision`)
+
+Every `/api/` response carries `X-Data-Revision: <boot>.<publication>.<directory>` and `GET /api/configuration` repeats it as `data_generation`. `boot` is random per process (a restarted server is always newer), `publication` counts published SAP datasets, `directory` is the Employee Directory generation. The token is captured before the handler runs, so it is never newer than the data the response was built from. The frontend compares tokens per response: an older token on a GET is discarded and the request repeated once, a newer token invalidates the dataset queries and re-reads the configuration immediately instead of waiting for the 3 s poll. Responses without the header (older servers) are ignored by the client.
+
+### Concurrent review submissions
+
+Account Review decisions are rejected with `409` when the identity evidence changed since the user opened the review (`evidence_version`), when another user already saved a decision (`expected_decision`, enforced for authenticated users and for any client that sends it), or when a new dataset was published between validation and write (checked under the load lock). Nothing is written on `409`; the client reloads and the user decides again. SoD decisions keep their `expected_revision`/`expected_generation` and publication guard.
+
 | Method | Route | Purpose |
 | --- | --- | --- |
 | GET | `/health` | App/version/instance identity, load status, role count, last successful load |

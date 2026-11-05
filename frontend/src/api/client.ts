@@ -1,5 +1,6 @@
 import { recordSession, sessionSnapshot } from './session'
 import { blocksRequests } from '@/lib/sessionState'
+import { RevisionTracker } from '@/lib/dataRevision'
 import type {
   ModuleInfo,
   RoleSummary,
@@ -47,9 +48,18 @@ export function recoverTrustedSession(){
  location.reload()
 }
 
+// Every API response names the revision of the data it was built from. A response older than one already seen is never allowed to stand in for newer data
+// (a GET is repeated once; the server then answers from the current data), and a newer one tells the application that data changed, whoever changed it.
+const revisions = new RevisionTracker()
+const revisionListeners = new Set<() => void>()
+export function onDataRevision(listener: () => void): () => void {
+  revisionListeners.add(listener)
+  return () => { revisionListeners.delete(listener) }
+}
+
 // Same-origin fetch keeps the desktop bundle small and needs no HTTP client dependency.
 const apiClient = {
-  async request<T>(path: string, method: string, body?: unknown): Promise<{ data: T }> {
+  async request<T>(path: string, method: string, body?: unknown, repeated = false): Promise<{ data: T }> {
     // While the session is known to be invalid nothing is sent: no failing request storm, no write queued for later replay.
     if (blocksRequests(sessionSnapshot())) throw new ApiError(STALE_MESSAGE, 'session', 403)
     let response: Response
@@ -68,6 +78,9 @@ const apiClient = {
     let parsed = true
     try { data = text === '' ? undefined : JSON.parse(text) } catch { parsed = false }
     if (response.ok) recordSession('success')
+    const seen = revisions.observe(response.headers.get('X-Data-Revision'))
+    if (seen === 'stale' && method === 'GET' && !repeated) return this.request<T>(path, method, body, true)
+    if (seen === 'newer') for (const listener of [...revisionListeners]) listener()
     if (!response.ok) {
       const reference=response.headers.get('X-Request-ID')||''
       if(response.status===403&&(data as {code?:string}|undefined)?.code==='stale_session'){recordSession('stale');throw new ApiError(STALE_MESSAGE,'session',403)}
