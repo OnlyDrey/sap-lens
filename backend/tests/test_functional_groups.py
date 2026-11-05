@@ -171,6 +171,68 @@ class Persistence(Store):
             backups.validate_store(root)
 
 
+class AccessAnalysis(unittest.TestCase):
+    GROUP = dict(id='fg_000000000001', name='Purchasing', status='active')
+
+    @staticmethod
+    def state(spec):
+        from types import SimpleNamespace
+        def user(name, roles):
+            return dict(username=name, assignments=[dict(role_name=r, valid_from=f, valid_to=t) for r, f, t in roles])
+        return SimpleNamespace(users=SimpleNamespace(users={n.upper(): user(n, r) for n, r in spec.items()}))
+
+    def run_analysis(self, spec, members=None):
+        from functional_group_analysis import analyse
+        return analyse(self.state(spec), members or list(spec), self.GROUP)
+
+    def test_common_uncommon_and_deviations_use_unique_active_pairs(self):
+        base = [('Z_BUY', '20000101', '99991231'), ('Z_PO', '20000101', '99991231')]
+        spec = {f'U{i}': list(base) for i in range(5)}
+        spec['U5'] = base + [('Z_PAY', '20000101', '99991231'),
+                             ('Z_PO', '20000101', '99991231'),   # duplicate interval of a held role: counted once
+                             ('Z_OLD', '20000101', '20010101')]  # expired: ignored
+        result = self.run_analysis(spec)
+        roles = {r['role']: r for r in result['roles']}
+        self.assertEqual((roles['Z_BUY']['users'], roles['Z_BUY']['kind']), (6, 'common'))
+        self.assertEqual((roles['Z_PAY']['users'], roles['Z_PAY']['kind'], round(roles['Z_PAY']['frequency'], 3)), (1, 'uncommon', 0.167))
+        self.assertNotIn('Z_OLD', roles)
+        self.assertEqual(roles['Z_PO']['users'], 6)
+        self.assertEqual([(u['username'], u['additional_roles']) for u in result['users'] if u['additional_roles']], [('U5', ['Z_PAY'])])
+        self.assertEqual((result['deviations'], result['eligible'], result['distinct_roles']), (1, 6, 3))
+
+    def test_missing_common_roles_and_deterministic_order(self):
+        full = [('A', '20000101', '99991231'), ('B', '20000101', '99991231')]
+        spec = {'U1': full, 'U2': full, 'U3': full, 'U4': [full[0]]}
+        first = self.run_analysis(spec)
+        self.assertEqual(self.run_analysis(dict(reversed(list(spec.items())))), first)
+        self.assertEqual([(u['username'], u['missing_common_roles']) for u in first['users'] if u['missing_common_roles']], [('U4', ['B'])])
+
+    def test_small_groups_and_incomplete_coverage_are_limitations_not_conclusions(self):
+        result = self.run_analysis({'U1': [('A', '20000101', '99991231')], 'U2': [('B', '20000101', '99991231')]}, members=['U1', 'U2', 'GHOST'])
+        self.assertFalse(result['comparable'])
+        self.assertEqual(result['not_in_import'], ['GHOST'])
+        self.assertTrue(any('not in the SAP user import' in text for text in result['limitations']))
+        self.assertTrue(any('at least 3' in text for text in result['limitations']))
+        self.assertTrue(all(r['kind'] == 'not compared' for r in result['roles']))
+        self.assertTrue(all(not u['additional_roles'] and not u['missing_common_roles'] for u in result['users']))
+
+    def test_endpoint_is_read_only_and_reports_unknown_groups(self):
+        import test_account_review as base
+        case = type('Case', (), {})()
+        case.write_users = lambda: base.AccountReviewTests.write_users(case)
+        base.AccountReviewTests.setUp(case)
+        try:
+            self.assertEqual(case.client.get('/api/functional-groups/analysis/fg_000000000000', headers=base.H).status_code, 404)
+            gid = case.client.post('/api/functional-groups', headers=base.H, json=dict(name='Finance')).json()['id']
+            for name in ('DEMO_NORMAL', 'DEMO_OPEN'):
+                case.client.put(f'/api/functional-groups/users/{name}', headers=base.H, json=dict(group_id=gid, reviewer='R', rationale='', expected_revision=0))
+            result = case.client.get(f'/api/functional-groups/analysis/{gid}', headers=base.H).json()
+            self.assertEqual((result['members'], result['eligible'], result['comparable']), (2, 2, False))
+            self.assertEqual(fg.public_user(fg.read(), 'DEMO_NORMAL')['revision'], 1)  # analysis changed nothing
+        finally:
+            base.AccountReviewTests.tearDown(case)
+
+
 class Suggestions(Store):
     def test_rules_match_explain_and_report_ambiguity(self):
         buy, plan = self.group('Purchasing'), self.group('Planning')

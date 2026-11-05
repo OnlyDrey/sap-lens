@@ -122,6 +122,18 @@ def options():
     return organization.options(state, available(state))
 
 
+@router.get('/analysis/{gid}', dependencies=[Depends(require_mapping)])
+def analysis(gid: str):
+    """Advisory access comparison inside one Functional Group (unique active user and role pairs)."""
+    from functional_group_analysis import analyse
+    data = fg.read()
+    group = data['groups'].get(gid)
+    if group is None:
+        raise HTTPException(404, 'Functional Group not found.')
+    members = [user['username'] for user in data['users'].values() if user['group_id'] == gid]
+    return analyse(cache.get_snapshot(), members, group)
+
+
 @router.get('/rules')
 def rules():
     return dict(items=fg.list_rules())
