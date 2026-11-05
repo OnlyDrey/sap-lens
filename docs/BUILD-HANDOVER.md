@@ -475,3 +475,25 @@ executes the real PowerShell functions against fake interpreters (spaces in path
 **Native Windows acceptance: PENDING.** Not run on Windows. Please verify with PowerShell 5.1 on the reporting machine:
 `powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1 -Verbose -Mode quick` (expect no install prompt and the selected 3.12.3 path),
 then `.\build.ps1 -Help`. Also test py-launcher-only and PATH-only machines, a path with spaces, a 32-bit 3.12, and a declined install.
+
+## Remediation export, prerequisites, dist layout and Windows tests (after `0de1dc5`)
+
+**Remediation CSV.** `Export CSV` is now a menu: Role Assignments (`USERNAME;ROLE;SAP User Group;Decision Status`, one row per unique user and role, filters
+respected across pages, `sap-lens-sod-role-assignments-YYYY-MM-DD.csv`) and Detailed Remediation (unchanged). Disagreeing decisions for one pair are
+shown as `Mixed (A / B)`. Tests: `RoleAssignmentExportTests`, `RoleAssignmentRowTests`, `frontend/tests/remediation-export.spec.ts`.
+
+**Prerequisites.** Project-local checks and repair (venv, pinned pip with a system trust store retry only for the bootstrap, locked dependencies, Node/npm)
+are mode-aware; TLS verification is never disabled and `--trusted-host` is not used. TLS failure wording detection was extended (`53709f9`).
+
+**Artifact layout.** `dist/` was already the single root; it is now defined once in `scripts/build_system/layout.py`, ignored as `/dist/`, and `clean`
+refuses symlinks and junctions. The proposed `windows/linux/docker` subfolders were not introduced: moving packages would change CI upload, release
+collection and Windows script contracts that cannot be validated here. Contract tests: `backend/tests/test_artifact_layout.py`.
+
+**Windows test failures (five), root causes.**
+1. `RoutingTests` skip-setup test: it assumed a Linux host and failed on Windows because native Linux packaging is correctly refused there. The test now
+   pins the host, and a new test keeps the restriction (refused without a trusted builder, planned with `--linux-host`).
+2. `PythonDiscoveryContractTests` (four subtests): the harness used `-Command` with `$args` (unpopulated, so `Path` was null) and `#!/bin/sh` fakes that
+   Windows cannot execute. It now runs a `-File` script fed by environment variables and uses `.cmd` fakes on Windows. Production code is unchanged.
+
+**Status: Windows execution NOT performed.** Run on Windows PowerShell 5.1 and 7:
+`python -m unittest discover -s backend/tests -p test_unified_build.py -v` and `.\build.ps1 -Mode test -Platform windows`.
