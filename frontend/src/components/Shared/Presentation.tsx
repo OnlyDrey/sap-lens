@@ -137,7 +137,8 @@ export function SectionHeader({title,icon,children}:{title:string;icon?:ReactNod
 
 /** Application-level failure state with a plain-language message and an optional retry; never shows parser internals. */
 export function ErrorState({ error, onRetry, title = 'This view could not be loaded' }: { error: unknown; onRetry?: () => void; title?: string }) {
-  if(error instanceof ApiError&&error.kind==='session')return null // One shared configuration/session recovery notice.
+  // The global SessionNotice owns the message and the reconnect action; the view only says it cannot show its data.
+  if(error instanceof ApiError&&error.kind==='session')return <div role="status" className="session-empty"><strong>Unable to load this view</strong><span>Your local session needs to be reconnected before this can be displayed.</span></div>
   const message = error instanceof Error && error.message ? error.message : 'An unexpected problem occurred. Retry, or reload the application.'
   return (
     <div role="alert" className="ui-card grid gap-2">

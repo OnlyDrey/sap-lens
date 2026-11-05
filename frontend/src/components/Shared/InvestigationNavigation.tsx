@@ -1,3 +1,4 @@
+import { ApiError } from '@/api/client'
 import { Button, IconButton } from './Button'
 import { StatusBadge } from './Presentation'
 import { AccountStatus } from './AccountStatus'
@@ -28,7 +29,7 @@ export function DetailNavigation({ parent, current, onBack, previousUser, index 
       <IconButton variant="ghost" label="Next" tooltip={`Next ${noun} in filtered results`} disabled={!onNext || index >= total - 1} onClick={onNext}><ChevronRight size={16} aria-hidden="true"/></IconButton>
     </nav>}
     {loading && <p role="status" className="detail-navigation-note">Locating record in filtered results…</p>}
-    {error && <p role="alert" className="detail-navigation-note text-[var(--error)]">Record navigation unavailable. {error.message}</p>}
+    {error && !(error instanceof ApiError && error.kind === 'session') && <p role="alert" className="detail-navigation-note text-[var(--error)]">Record navigation unavailable. {error.message}</p>}
     {missing && <p role="status" className="detail-navigation-note">This record is missing or no longer matches these filters. Return to the list to review the current results.</p>}
   </div>
 }

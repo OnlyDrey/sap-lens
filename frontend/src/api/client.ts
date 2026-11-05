@@ -1,3 +1,5 @@
+import { recordSession, sessionSnapshot } from './session'
+import { blocksRequests } from '@/lib/sessionState'
 import type {
   ModuleInfo,
   RoleSummary,
@@ -17,6 +19,7 @@ try {
 if (fragment.has('session')) window.history.replaceState(null, '', window.location.pathname + window.location.search)
 
 export function applicationToken(): string { return desktopSession || '1' }
+const STALE_MESSAGE = 'SAP Lens restarted and your previous local session is no longer valid. Reconnect to continue.'
 
 /** Failure classes the UI can explain: network (no response), server (5xx), client (4xx) and format (a response that is not the expected JSON). */
 export class ApiError extends Error {
@@ -37,6 +40,7 @@ function problemDetail(data: unknown, status: number): string {
 /** Explicit top-level navigation obtains a fresh capability through the guarded root document.
  * History carries only existing safe view/filter state; failed writes are never replayed. */
 export function recoverTrustedSession(){
+ recordSession('reconnect')
  const hash=location.hash.startsWith('#/')?location.hash:''
  history.replaceState(history.state,'','/'+location.search+hash)
  location.reload()
@@ -45,6 +49,8 @@ export function recoverTrustedSession(){
 // Same-origin fetch keeps the desktop bundle small and needs no HTTP client dependency.
 const apiClient = {
   async request<T>(path: string, method: string, body?: unknown): Promise<{ data: T }> {
+    // While the session is known to be invalid nothing is sent: no failing request storm, no write queued for later replay.
+    if (blocksRequests(sessionSnapshot())) throw new ApiError(STALE_MESSAGE, 'session', 403)
     let response: Response
     const controller = new AbortController()
     const timer = method === 'GET' ? setTimeout(()=>controller.abort(),10000) : undefined
@@ -53,16 +59,17 @@ const apiClient = {
       headers: { 'Content-Type': 'application/json', 'X-SAP-Lens': applicationToken() },
       body: body === undefined ? undefined : JSON.stringify(body),
       cache: 'no-store',
-    }) } catch (error) { throw new ApiError(error instanceof DOMException&&error.name==='AbortError' ? 'The read request timed out. The backend may still be running; retry this read.' : 'SAP Lens could not connect. Retry and check the backend service if the problem persists.', 'network') }
+    }) } catch (error) { recordSession('network'); throw new ApiError(error instanceof DOMException&&error.name==='AbortError' ? 'The read request timed out. The backend may still be running; retry this read.' : 'SAP Lens could not connect. Retry and check the backend service if the problem persists.', 'network') }
     finally { if(timer)clearTimeout(timer) }
     // Read text first: a proxy or crash page is not JSON and must not surface as a parser exception.
     const text = await response.text().catch(() => '')
     let data: unknown
     let parsed = true
     try { data = text === '' ? undefined : JSON.parse(text) } catch { parsed = false }
+    if (response.ok) recordSession('success')
     if (!response.ok) {
       const reference=response.headers.get('X-Request-ID')||''
-      if(response.status===403&&(data as {code?:string}|undefined)?.code==='stale_session')throw new ApiError('The local session changed after a restart. Reload the trusted session to reconnect; unsaved form input may need to be entered again.','session',403)
+      if(response.status===403&&(data as {code?:string}|undefined)?.code==='stale_session'){recordSession('stale');throw new ApiError(STALE_MESSAGE,'session',403)}
       throw new ApiError(problemDetail(parsed ? data : undefined, response.status)+(/^[a-f0-9]{32}$/.test(reference)?` Reference: ${reference}`:''), response.status===401?'authentication':response.status===403?'permission':response.status >= 500 ? 'server' : 'client', response.status)
     }
     if (!parsed) throw new ApiError('SAP Lens received an unexpected response instead of data. Retry, or reload the application.', 'format', response.status)

@@ -1,3 +1,4 @@
+import { ApiError } from '@/api/client';
 import { Button } from '@/components/Shared/Button'
 import { FormField, controlClass } from '@/components/Shared/Controls'
 import { LoadingState } from '@/components/Shared/Presentation'
@@ -95,14 +96,24 @@ export function EvidenceNote() {
 export function QueryState({
   loading,
   error,
+  subject = 'this view',
 }: {
   loading: boolean;
   error: Error | null;
+  subject?: string;
 }) {
+  // A session or connection problem is reported once by the global SessionNotice; the page only says what it cannot show.
+  const sessionProblem = error instanceof ApiError && error.kind === 'session'
   return (
     <>
       {loading && <LoadingState/>}
-      {error && (
+      {error && sessionProblem && (
+        <div role="status" className="session-empty">
+          <strong>Unable to load {subject}</strong>
+          <span>Your local session needs to be reconnected before this can be displayed.</span>
+        </div>
+      )}
+      {error && !sessionProblem && (
         <p role="alert" className="text-[var(--error)]">
           {error.message}
         </p>

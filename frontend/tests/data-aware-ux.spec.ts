@@ -103,12 +103,12 @@ test('loading and reconnect stay contextual during Back and Forward', async ({ p
   await expect(page.locator('.startup-screen')).toHaveCount(0)
   failed = true
   // The application-scoped poll detects service loss even while refresh is busy.
-  await expect(page.getByText('Local service unavailable.',{exact:true})).toBeVisible()
+  await expect(page.locator('.session-notice')).toContainText('Connection lost') // the shared session notice replaces the old banner
   await expect(page.getByRole('heading',{name:'Loading CSV data…',exact:true})).toHaveCount(0)
   await expect(page.locator('.startup-screen')).toHaveCount(0)
   await page.unroute('**/api/configuration')
   await page.getByRole('button',{name:'Retry connection',exact:true}).click()
-  await expect(page.getByText('Local service unavailable.',{exact:true})).toHaveCount(0)
+  await expect(page.locator('.session-notice')).toHaveCount(0)
   await expect(page.getByRole('heading',{name:'User Access',exact:true})).toBeVisible()
 })
 
@@ -238,11 +238,11 @@ test('stale desktop session recovers through a trusted document without replayin
   await route.fulfill({response,headers,body})
  })
  await page.getByRole('button',{name:'Refresh role data from CSV',exact:true}).click()
- await expect(page.getByRole('button',{name:'Reload trusted session',exact:true})).toBeVisible()
+ await expect(page.getByRole('button',{name:'Reconnect session',exact:true})).toBeVisible()
  expect(posts).toBe(1)
- await page.getByRole('button',{name:'Reload trusted session',exact:true}).click()
+ await page.getByRole('button',{name:'Reconnect session',exact:true}).click()
  await expect(page.getByRole('heading',{name:'Role Lookup',exact:true})).toBeVisible()
- await expect(page.getByRole('button',{name:'Reload trusted session',exact:true})).toHaveCount(0)
+ await expect(page.getByRole('button',{name:'Reconnect session',exact:true})).toHaveCount(0)
  expect(await page.evaluate(()=>history.state.sapLensView.sodFilters.shared.groups)).toEqual(['SYN_GROUP'])
  expect(newReads).toBeGreaterThan(0)
  expect(posts).toBe(1)
@@ -265,6 +265,6 @@ for(const status of [401,403])test(`HTTP ${status} is access failure, not an unr
  await page.route('**/api/configuration',route=>route.fulfill({status,contentType:'application/json',body:JSON.stringify({detail:status===401?'Server access is not authorized.':'Your account does not have permission for this operation.'})}))
  await page.goto('/#session=browser-test-session')
  await expect(page.getByRole('alert')).toContainText(status===401?'Server access is not authorized.':'does not have permission')
- await expect(page.getByText('Local service unavailable.',{exact:true})).toHaveCount(0)
- await expect(page.getByRole('button',{name:'Reload trusted session',exact:true})).toHaveCount(0)
+ await expect(page.locator('.session-notice')).toHaveCount(0)
+ await expect(page.getByRole('button',{name:'Reconnect session',exact:true})).toHaveCount(0)
 })

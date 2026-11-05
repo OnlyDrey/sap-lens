@@ -9,6 +9,8 @@ import { type ReactNode, useState, useRef } from 'react'
 import { RefreshCw, Sun, Moon, Settings, Loader2, Database } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { apiRequest, ApiError, recoverTrustedSession } from '@/api/client'
+import { useSession } from '@/api/session'
+import { SessionNotice } from './SessionNotice'
 import { fetchConfiguration } from '@/api/configuration'
 import { SettingsView } from '@/components/Settings/SettingsView'
 
@@ -28,6 +30,7 @@ export function AppLayout({
   onToggleTheme
 }: Props) {
   const dataState=useApplicationData()
+  const sessionIssue = ['manual', 'failed', 'reconnecting', 'disconnected'].includes(useSession().phase) // SessionNotice owns every connection or session message
   const configurationQuery = useQuery({
     queryKey: ['configuration'], queryFn: fetchConfiguration, retry:false
   })
@@ -165,7 +168,8 @@ export function AppLayout({
         </div>
         </div>
       )}
-      {configurationQuery.isError && !settingsOpen && <div role="alert" className="service-notice">
+      {!settingsOpen && <SessionNotice onRetry={() => void configurationQuery.refetch()} retrying={configurationQuery.isFetching} />}
+      {configurationQuery.isError && !settingsOpen && !sessionIssue && <div role="alert" className="service-notice">
         <strong>{configurationQuery.error instanceof ApiError&&configurationQuery.error.kind==='session'?'Local session changed.':configurationQuery.error instanceof ApiError&&['authentication','permission'].includes(configurationQuery.error.kind)?'Access needs attention.':'Local service unavailable.'}</strong><span>{configurationQuery.error instanceof Error?configurationQuery.error.message:'The current view is retained. Retry the connection.'}</span>
         {configurationQuery.error instanceof ApiError&&configurationQuery.error.kind==='session'&&<button className="settings-secondary-button" onClick={recoverTrustedSession}>Reload trusted session</button>}
         <button className="settings-secondary-button" onClick={() => void configurationQuery.refetch()} disabled={configurationQuery.isFetching}>Retry connection</button>
