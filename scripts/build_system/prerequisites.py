@@ -71,9 +71,10 @@ def prepare_environment(root,runner,*,packaging=False,frontend=True):
     if directory.exists() and not python.is_file():raise BuildError('Project environment is incomplete. Review/remove only that generated environment, then retry setup.',3)
     if not python.exists():runner.run('Create project-local Python environment',[sys.executable,'-m','venv',directory])
     try:
-        info=json.loads(subprocess.check_output([str(python),'-c','import sys,json; print(json.dumps(list(sys.version_info[:2])))'],text=True,timeout=15))
-    except (OSError,ValueError,subprocess.SubprocessError) as error:raise BuildError('Cannot inspect the project Python environment. Repair it using Python 3.12.',3) from error
-    if info!=[3,12]:raise BuildError('Project environment uses another Python version; preserve/recreate it using Python 3.12.',3)
+        info=json.loads(subprocess.check_output([str(python),'-c','import sys,json; print(json.dumps(list(sys.version_info[:2])+[64 if sys.maxsize>2**32 else 32]))'],text=True,timeout=15))
+    except (OSError,ValueError,subprocess.SubprocessError) as error:raise BuildError(f'Cannot inspect the project Python environment {directory}: it is broken or incomplete. It was left untouched; remove or repair only that environment yourself, then retry.',3) from error
+    if info[:2]!=[3,12]:raise BuildError(f'Project environment {directory} uses Python {info[0]}.{info[1]}, not 3.12. It was left untouched; preserve or remove it yourself, then retry so a 3.12 x64 environment is created.',3)
+    if info[2:]!=[64]:raise BuildError(f'Project environment {directory} uses 32-bit Python; 64-bit Python 3.12 is required. It was left untouched; preserve or remove it yourself, then retry.',3)
     runner.run('Repair/ensure local pip',[python,'-m','ensurepip'])
     requirements=['-r','backend/requirements-dev.txt']
     if packaging:requirements+=['-r','backend/requirements-build.txt']

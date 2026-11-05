@@ -71,9 +71,13 @@ From an approved checkout, in x64 PowerShell:
 .\build.ps1 -Mode package -Platform windows -Target installer
 ```
 
-The bootstrapper can start **without Python installed**. It checks the Python
-launcher, PATH and standard per-user locations for Python 3.12 x64. If missing,
-interactive execution offers the official `Python.Python.3.12` winget package with
+The bootstrapper can start **without Python installed**. It runs every candidate and
+accepts only Python 3.12.x that is 64-bit, in this order: an existing project `.venv`,
+the Python launcher (`py -3.12`), `python3.12`/`python` on PATH, then other registered
+installations (`py -0p`, the Windows registry). Microsoft Store app execution aliases are
+skipped. Nothing is printed on success (use `-Verbose` to see the selected interpreter);
+when no candidate is accepted it lists each one with the reason (version, architecture or
+failed probe). Only then, interactive execution offers the official `Python.Python.3.12` winget package with
 an explicit confirmation. It requests per-user/x64 installation, verifies the
 result, and never silently falls back to a machine-wide/elevated installer.
 
@@ -263,7 +267,9 @@ not a competing set of instructions.
   combination; `3`: missing/incompatible prerequisite, denied setup or lock ownership.
 - Child tool failures retain their exit code; timeout is `124`. Nonzero always means
   failure. Logs identify the operation and captured diagnostics.
-- Missing Python: use approved Python 3.12 x64/winget and reopen PowerShell.
+- Missing Python: read the `Python discovery:` list the bootstrapper prints for every rejected candidate. If none is
+  listed, use approved Python 3.12 x64/winget and reopen PowerShell. An existing `.venv` that is not 3.12 x64 is reported
+  and left untouched; remove or repair it yourself.
 - Missing/incompatible Node: install the project-supported version; do not install
   an unrelated latest major. A failed per-user winget install has no admin fallback.
 - Missing Docker/Compose: use approved manual platform setup. PowerShell is needed only for Windows targets.

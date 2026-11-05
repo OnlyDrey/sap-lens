@@ -11,25 +11,92 @@ param(
     [switch]$Help
 )
 $ErrorActionPreference = 'Stop'
+# The probe must not contain double quotes: Windows PowerShell 5.1 strips embedded double quotes from native-command arguments, which
+# turns a literal such as "P" into a bare name and makes every interpreter fail with a NameError (the reported "Python is missing" bug).
+$script:PythonProbe = 'import sys; print(sys.executable); print(sys.version.split()[0]); print(64 if sys.maxsize>2**32 else 32)'
+
+function Test-PythonCandidate {
+    param([string]$Source, [string]$Path, [string[]]$Prefix = @())
+    $result = New-Object psobject -Property @{ Source = $Source; Path = $Path; Executable = ''; Version = ''; Bits = ''; Compatible = $false; Result = '' }
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'   # native stderr must not become a terminating error under -ErrorAction Stop
+    try {
+        $lines = @(& $Path @Prefix -c $script:PythonProbe 2>$null)
+        $code = $LASTEXITCODE
+    } catch {
+        $result.Result = 'Rejected - the interpreter could not be started'
+        return $result
+    } finally { $ErrorActionPreference = $saved }
+    if ($code -ne 0 -or $lines.Count -lt 3) { $result.Result = "Rejected - the interpreter failed its probe (exit code $code)"; return $result }
+    $result.Executable = [string]$lines[0]; $result.Version = [string]$lines[1]; $result.Bits = [string]$lines[2]
+    if ($result.Version -notmatch '^3\.12\.') { $result.Result = "Rejected - Python 3.12 is required (found $($result.Version))"; return $result }
+    if ($result.Bits -ne '64') { $result.Result = 'Rejected - 64-bit Python is required'; return $result }
+    if (-not (Test-Path -LiteralPath $result.Executable)) { $result.Result = 'Rejected - the reported interpreter path does not exist'; return $result }
+    $result.Compatible = $true; $result.Result = 'Compatible'
+    return $result
+}
+
+function Get-PythonCandidates {
+    # Deterministic order: project .venv, Python launcher, PATH, other registered installations. No hardcoded install locations.
+    $seen = @{}
+    $list = @()
+    $venv = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
+    if (Test-Path -LiteralPath $venv) { $list += @{ Source = 'project .venv'; Path = $venv; Prefix = @() } }
+    $launcher = Get-Command py -ErrorAction SilentlyContinue
+    if ($launcher) { $list += @{ Source = 'Python launcher (py -3.12)'; Path = $launcher.Source; Prefix = @('-3.12') } }
+    foreach ($name in @('python3.12', 'python')) {
+        foreach ($command in @(Get-Command $name -All -ErrorAction SilentlyContinue)) {
+            if ($command.CommandType -ne 'Application') { continue }
+            $list += @{ Source = "PATH ($name)"; Path = $command.Source; Prefix = @() }
+        }
+    }
+    if ($launcher) {
+        $saved = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try { foreach ($row in @(& $launcher.Source -0p 2>$null)) { if ("$row" -match '([A-Za-z]:\\.*python[w]?\.exe)\s*$') { $list += @{ Source = 'registered (py -0p)'; Path = $Matches[1]; Prefix = @() } } } } catch { } finally { $ErrorActionPreference = $saved }
+    }
+    if ($env:OS -eq 'Windows_NT') {
+        foreach ($key in @('HKCU:\Software\Python\PythonCore\3.12\InstallPath', 'HKLM:\Software\Python\PythonCore\3.12\InstallPath', 'HKLM:\Software\WOW6432Node\Python\PythonCore\3.12\InstallPath')) {
+            try {
+                $entry = Get-ItemProperty -LiteralPath $key -ErrorAction Stop
+                $exe = $entry.ExecutablePath
+                if (-not $exe -and $entry.'(default)') { $exe = Join-Path $entry.'(default)' 'python.exe' }
+                if ($exe) { $list += @{ Source = 'registered (registry)'; Path = $exe; Prefix = @() } }
+            } catch { }
+        }
+    }
+    $unique = @()
+    foreach ($item in $list) {
+        $id = ([string]$item.Path + '|' + ($item.Prefix -join ' ')).ToLowerInvariant()
+        if ($seen.ContainsKey($id)) { continue }
+        $seen[$id] = $true; $unique += $item
+    }
+    return $unique
+}
+
 function Find-BuildPython {
-    $candidates=@()
-    if (Get-Command py -ErrorAction SilentlyContinue) { $candidates+=@{Command='py';Arguments=@('-3.12')} }
-    foreach ($name in @('python3.12','python')) {
-        $command=Get-Command $name -ErrorAction SilentlyContinue
-        if ($command -and $command.Source -notmatch '\\WindowsApps\\') { $candidates+=@{Command=$command.Source;Arguments=@()} }
-    }
-    foreach ($path in @((Join-Path $env:LOCALAPPDATA 'Programs/Python/Python312/python.exe'),(Join-Path $env:ProgramFiles 'Python312/python.exe'))) {
-        if (Test-Path -LiteralPath $path) { $candidates+=@{Command=$path;Arguments=@()} }
-    }
-    foreach ($candidate in $candidates) {
-        try {
-            $prefix=$candidate.Arguments
-            $commandPath=$candidate.Command
-            $resolved=& $commandPath @prefix -c 'import sys,struct; print(sys.executable); sys.exit(0 if sys.version_info[:2]==(3,12) and struct.calcsize("P")==8 else 1)' 2>$null
-            if ($LASTEXITCODE -eq 0 -and $resolved -and (Test-Path -LiteralPath $resolved)) { return [string]$resolved }
-        } catch { continue }
+    $script:PythonDiagnostics = @()
+    foreach ($candidate in (Get-PythonCandidates)) {
+        if ($candidate.Path -match '\\WindowsApps\\') {
+            $script:PythonDiagnostics += New-Object psobject -Property @{ Source = $candidate.Source; Path = $candidate.Path; Version = ''; Bits = ''; Compatible = $false; Result = 'Skipped - Microsoft Store app execution alias (not a real interpreter)' }
+            continue
+        }
+        $probe = Test-PythonCandidate -Source $candidate.Source -Path $candidate.Path -Prefix $candidate.Prefix
+        $script:PythonDiagnostics += $probe
+        if ($probe.Compatible) {
+            Write-Verbose ("Python discovery: using {0} ({1}, {2}-bit, {3})" -f $probe.Executable, $probe.Version, $probe.Bits, $candidate.Source)
+            return [string]$probe.Executable
+        }
     }
     return $null
+}
+
+function Write-PythonDiscovery {
+    Write-Host 'Python discovery:'
+    if (-not $script:PythonDiagnostics -or $script:PythonDiagnostics.Count -eq 0) { Write-Host '  No Python interpreter was found (checked the project .venv, the Python launcher, PATH and registered installations).'; return }
+    foreach ($row in $script:PythonDiagnostics) {
+        $shown = if ($row.Version) { "$($row.Version), $($row.Bits)-bit" } else { 'not inspected' }
+        Write-Host ("  {0}: {1}`n    {2} -> {3}" -f $row.Source, $row.Path, $shown, $row.Result)
+    }
 }
 if ($env:OS -ne 'Windows_NT') { Write-Host 'Use python3.12 scripts/build.py on Linux. This bootstrapper supports Windows x64.'; exit 2 }
 if ($env:PROCESSOR_ARCHITECTURE -ne 'AMD64') { Write-Host 'Use x64 PowerShell on Windows x64; ARM/32-bit build hosts are not supported.'; exit 2 }
@@ -45,6 +112,7 @@ try {
     $env:PYTHONUTF8='1'
     $python=Find-BuildPython
     if (-not $python) {
+        Write-PythonDiscovery
         if ($Help) { Write-Host 'SAP Lens: .\build.ps1 -Mode quick|test|build|package|release|clean [-Platform windows|linux|docker] [-Target desktop|installer|service|server|all]. Install Python 3.12 x64 or opt in with -InstallSystem.'; exit 0 }
         if ($SkipSetup -or $DryRun) { Write-Host 'Python 3.12 x64 is missing. Install it through approved tools; skip-setup/dry-run will not install it.'; exit 3 }
         $consent=[bool]$InstallSystem
@@ -64,7 +132,6 @@ try {
     foreach ($pair in @(@('--setup',$Setup),@('--setup-only',$SetupOnly),@('--skip-setup',$SkipSetup),@('--install-system',$InstallSystem),@('--non-interactive',$nonInteractiveRun),@('--dry-run',$DryRun),@('--confirm-clean',$ConfirmClean),@('--no-cache',$NoCache),@('--verbose',[bool]$PSBoundParameters['Verbose']),@('--help',$Help))) {
         if ($pair[1]) { $arguments+=$pair[0] }
     }
-    if ($Help) { $arguments+='--help' }
     & $python @arguments
     $exitCode=$LASTEXITCODE
 } catch { Write-Host $_.Exception.Message -ForegroundColor Red } finally {

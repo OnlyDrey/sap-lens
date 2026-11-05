@@ -126,6 +126,82 @@ class ScriptInventoryTests(unittest.TestCase):
         self.assertIn('build_system/*',guide)
 
 
+def _bootstrapper():
+    return (ROOT/'build.ps1').read_text(encoding='utf-8')
+
+
+class PythonDiscoveryContractTests(unittest.TestCase):
+    """Static and interpreter-level guards for the Windows bootstrapper. PowerShell itself is only available on some hosts."""
+    def probe(self):
+        import re
+        match=re.search(r"\$script:PythonProbe = '([^']*)'",_bootstrapper())
+        self.assertIsNotNone(match);return match.group(1)
+
+    def test_probe_has_no_double_quotes_because_windows_powershell_51_strips_them(self):
+        probe=self.probe()
+        self.assertNotIn('"',probe);self.assertNotIn("'",probe)
+        self.assertNotIn('struct.calcsize',probe)  # the original probe quoted "P" and failed for every interpreter
+
+    def test_probe_accepts_python_312_x64_and_reports_the_facts_the_classifier_needs(self):
+        import subprocess
+        interpreter=sys.executable
+        done=subprocess.run([interpreter,'-c',self.probe()],capture_output=True,text=True,check=True)
+        lines=done.stdout.split('\n');self.assertEqual(lines[0],sys.executable)
+        self.assertEqual(lines[1],sys.version.split()[0]);self.assertEqual(lines[2],'64' if sys.maxsize>2**32 else '32')
+
+    def test_probe_survives_the_stripping_of_quotes_unlike_the_original(self):
+        import subprocess
+        original='import sys,struct; print(sys.executable); sys.exit(0 if sys.version_info[:2]==(3,12) and struct.calcsize(P)==8 else 1)'  # as PS 5.1 delivered it
+        broken=subprocess.run([sys.executable,'-c',original],capture_output=True,text=True)
+        self.assertNotEqual(broken.returncode,0)
+        self.assertEqual(subprocess.run([sys.executable,'-c',self.probe()],capture_output=True).returncode,0)
+
+    def test_discovery_order_has_no_hardcoded_install_paths_and_never_deletes(self):
+        text=_bootstrapper()
+        order=[text.index(marker) for marker in ("'project .venv'","'Python launcher (py -3.12)'","PATH ($name)","'registered (py -0p)'","'registered (registry)'")]
+        self.assertEqual(order,sorted(order))
+        for forbidden in ('Python312','LOCALAPPDATA','ProgramFiles','Remove-Item','rmdir','Set-ExecutionPolicy'):
+            self.assertNotIn(forbidden,text)
+        for required in ('Rejected - Python 3.12 is required','Rejected - 64-bit Python is required','Microsoft Store app execution alias','Python discovery:'):
+            self.assertIn(required,text)
+        self.assertLess(text.index('Write-PythonDiscovery\n'),text.index('Install for this user using winget'))  # diagnostics first, install offer last
+        self.assertIn('-Verbose',text.replace('Write-Verbose','-Verbose'))
+
+    def test_arguments_are_forwarded_and_the_child_exit_code_is_returned(self):
+        text=_bootstrapper()
+        for forwarded in ("@('--platform',$Platform)","@('--version',$Version)","@('--target',$Target)","@('--non-interactive',$nonInteractiveRun)","@('--help',$Help)","@('--verbose',[bool]$PSBoundParameters['Verbose'])"):
+            self.assertIn(forwarded,text)
+        self.assertIn('$exitCode=$LASTEXITCODE',text);self.assertTrue(text.rstrip().endswith('exit $exitCode'))
+        self.assertNotIn('$arguments+=$pair[0]-replace',text)
+
+    def test_classification_rules_match_the_requirements(self):
+        """The same rules as Test-PythonCandidate: 3.12.x and 64-bit only."""
+        import re
+        def accepts(version,bits):return bool(re.match(r'^3\.12\.',version)) and bits=='64'
+        for version,bits,expected in [('3.12.3','64',True),('3.12.0','64',True),('3.12.9','64',True),('3.12.3','32',False),('3.14.0','64',False),('3.13.1','64',False),('3.11.9','64',False)]:
+            with self.subTest(version=version,bits=bits):self.assertEqual(accepts(version,bits),expected)
+        text=_bootstrapper()
+        self.assertIn("'^3\\.12\\.'",text);self.assertIn("-ne '64'",text)
+
+    @unittest.skipUnless(__import__('shutil').which('pwsh') or __import__('shutil').which('powershell'),'PowerShell is required to execute the discovery functions')
+    def test_real_discovery_functions_with_fake_interpreters(self):
+        import shutil,stat,subprocess
+        shell=shutil.which('pwsh') or shutil.which('powershell')
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary)
+            def fake(directory,name,version,bits,code=0):
+                folder=root/directory;folder.mkdir();target=folder/name
+                target.write_text(f'#!/bin/sh\necho "{target}"\necho {version}\necho {bits}\nexit {code}\n');target.chmod(target.stat().st_mode|stat.S_IEXEC);return folder
+            cases=[('good dir with spaces','3.12.3','64',0,True),('x86','3.12.3','32',0,False),('py314','3.14.0','64',0,False),('broken','3.12.3','64',3,False)]
+            for directory,version,bits,code,expected in cases:
+                folder=fake(directory,'python',version,bits,code)
+                script=("$ErrorActionPreference='Stop';$ast=[System.Management.Automation.Language.Parser]::ParseFile($args[0],[ref]$null,[ref]$null);"
+                        "foreach($f in $ast.FindAll({param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst]},$false)){. ([scriptblock]::Create($f.Extent.Text))};"
+                        "$script:PythonProbe=[regex]::Match((Get-Content $args[0] -Raw),\"PythonProbe = '([^']*)'\").Groups[1].Value;"
+                        "$env:PATH=$args[1]+[IO.Path]::PathSeparator+$env:PATH;$PSScriptRoot='';$r=Find-BuildPython;if($r){'FOUND'}else{'NONE'}")
+                done=subprocess.run([shell,'-NoProfile','-Command',script,str(ROOT/'build.ps1'),str(folder)],capture_output=True,text=True)
+                with self.subTest(case=directory):self.assertIn('FOUND' if expected else 'NONE',done.stdout,done.stderr)
+
 class BootstrapperStaticTests(unittest.TestCase):
     """No PowerShell is available on Linux CI: these are static guards for the Windows PowerShell 5.1 baseline, not execution evidence."""
     def test_root_bootstrapper_keeps_the_51_baseline_and_forwards_help(self):
@@ -174,7 +250,7 @@ class PrerequisiteTests(unittest.TestCase):
         runner.run.assert_not_called()
 
     def test_setup_creates_local_environment_and_uses_lockfiles(self):
-        with tempfile.TemporaryDirectory() as temporary,patch.object(deps,'locate',return_value='npm'),patch.object(deps.subprocess,'check_output',return_value='[3,12]'):
+        with tempfile.TemporaryDirectory() as temporary,patch.object(deps,'locate',return_value='npm'),patch.object(deps.subprocess,'check_output',return_value='[3,12,64]'):
             root=Path(temporary);runner=Mock();deps.prepare_environment(root,runner)
         commands=[call.args[1] for call in runner.run.call_args_list]
         self.assertIn('venv',commands[0]);self.assertIn('requirements-dev.txt',' '.join(map(str,commands[2])))
@@ -183,9 +259,26 @@ class PrerequisiteTests(unittest.TestCase):
     def test_existing_environment_is_reused_and_incompatible_one_fails(self):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary);python=root/'.venv'/('Scripts/python.exe' if os.name=='nt' else 'bin/python');python.parent.mkdir(parents=True);python.touch();runner=Mock()
-            with patch.object(deps,'locate',return_value='npm'),patch.object(deps.subprocess,'check_output',return_value='[3,12]'):deps.prepare_environment(root,runner)
+            with patch.object(deps,'locate',return_value='npm'),patch.object(deps.subprocess,'check_output',return_value='[3,12,64]'):deps.prepare_environment(root,runner)
             self.assertFalse(any('venv' in call.args[1] for call in runner.run.call_args_list))
             with patch.object(deps.subprocess,'check_output',return_value='[3,13]'),self.assertRaises(BuildError):deps.prepare_environment(root,Mock())
+
+    def test_existing_environments_are_never_replaced_and_each_rejection_explains_itself(self):
+        for probe,reason in [('[3,13,64]','3.13'),('[3,14,64]','3.14'),('[3,11,64]','3.11'),('[3,12,32]','32-bit')]:
+            with self.subTest(probe=probe),tempfile.TemporaryDirectory() as temporary:
+                root=Path(temporary);python=root/'.venv'/('Scripts/python.exe' if os.name=='nt' else 'bin/python');python.parent.mkdir(parents=True);python.touch();runner=Mock()
+                with patch.object(deps.subprocess,'check_output',return_value=probe),self.assertRaises(BuildError) as raised:deps.prepare_environment(root,runner)
+                self.assertIn(reason,str(raised.exception));self.assertIn('left untouched',str(raised.exception))
+                runner.run.assert_not_called();self.assertTrue(python.exists())  # nothing was created, repaired or deleted
+        with tempfile.TemporaryDirectory() as temporary:  # broken interpreter inside the environment
+            root=Path(temporary);python=root/'.venv'/('Scripts/python.exe' if os.name=='nt' else 'bin/python');python.parent.mkdir(parents=True);python.touch()
+            with patch.object(deps.subprocess,'check_output',side_effect=OSError('broken')),self.assertRaises(BuildError) as raised:deps.prepare_environment(root,Mock())
+            self.assertIn('left untouched',str(raised.exception))
+        with tempfile.TemporaryDirectory() as temporary:  # a directory without an interpreter is reported, not replaced
+            root=Path(temporary);(root/'.venv').mkdir();runner=Mock()
+            with self.assertRaises(BuildError):deps.prepare_environment(root,runner)
+            runner.run.assert_not_called()
+
 
 
 class SafetyTests(unittest.TestCase):

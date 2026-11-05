@@ -440,3 +440,38 @@ No backend module is unreferenced.
 examples or caches; runtime resources present (`backend/resources/*.json`, the SoD reference template, `frontend/dist`, `requirements-runtime.txt`,
 `LICENSE.md`, third-party licenses). Docker: the build context is an allowlist (now guarded). Windows: PyInstaller inputs are guarded by the existing
 privacy tests (no `settings.json`, `*.csv` or backend data bundled); a real Windows/Docker package inspection was not performed.
+
+## Windows bootstrapper: Python discovery fix (after `0c8c71b`)
+
+**Reported.** `powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1 -Platform all -Version 0.1.0-beta.3` on Windows PowerShell 5.1
+asked to install Python although `python --version` reported 3.12.3.
+
+**Root cause (reproduced by simulation, not on Windows).** `Find-BuildPython` validated each candidate with
+`python -c 'import sys,struct; ...; struct.calcsize("P")==8 ...'`. Windows PowerShell 5.1 strips embedded double quotes from native-command
+arguments, so Python received `struct.calcsize(P)`, raised `NameError: name 'P' is not defined` and exited 1 for every interpreter, including a valid
+3.12 x64. The loop then found no candidate and offered the install. Running that exact quote-stripped command on a real Python 3.12 reproduced the
+`NameError`. The architecture of the reporter's interpreter was never the issue (and was unverified until now).
+
+**Fix.** The probe now contains no quotes at all (`print(64 if sys.maxsize>2**32 else 32)`), prints interpreter path, version and bitness, and the
+classifier accepts only `3.12.x` + 64-bit + exit code 0. Native stderr can no longer become a terminating error. Discovery order: project `.venv`,
+`py -3.12`, `python3.12`/`python` on PATH (all entries), then registered installs (`py -0p`, registry HKCU/HKLM PEP 514). No hardcoded install paths; paths
+with spaces are passed as separate arguments; Microsoft Store aliases are skipped and explained. `py.exe` is optional. Output: silent on success
+(`-Verbose` shows the choice); on failure a `Python discovery:` list shows source, path, version, bitness and the rejection reason, and only then is
+the install offered. No environment variables are printed.
+
+**Virtual environment.** `.venv` is probed first; an incompatible one (other version, 32-bit, broken, incomplete) is reported with the reason and is
+never deleted or replaced by the tools. Setup creates new environments with the selected interpreter.
+
+**Arguments.** `-Platform all` and `-Version` are forwarded unchanged; `-Help`/`-Verbose` forwarded; the child exit code is returned. `0.1.0-beta.3` is
+accepted because local packages take any valid SemVer prerelease override (`validate_version`), independent of the product version `1.0.0-beta.2` in
+`backend/resources/product-version.json`; the requested value is never rewritten and the dry run modifies no files. Note the invocation passes no
+`-Mode`, so an interactive terminal still shows the mode menu.
+
+**Tests (Linux host, 44 pass, 1 skipped).** Probe has no quotes and works on a real interpreter; the original probe fails once quotes are stripped;
+discovery order, no hardcoded paths, no deletion, diagnostics before the install offer; 3.12.x/64-bit accepted and 3.11/3.13/3.14/32-bit rejected
+(rule check); venv reuse, wrong version, 32-bit, broken and incomplete environments left untouched; argument and exit-code forwarding. One test
+executes the real PowerShell functions against fake interpreters (spaces in path, x86, 3.14, broken) but is skipped here because no PowerShell is installed.
+
+**Native Windows acceptance: PENDING.** Not run on Windows. Please verify with PowerShell 5.1 on the reporting machine:
+`powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1 -Verbose -Mode quick` (expect no install prompt and the selected 3.12.3 path),
+then `.\build.ps1 -Help`. Also test py-launcher-only and PATH-only machines, a path with spaces, a 32-bit 3.12, and a declined install.
