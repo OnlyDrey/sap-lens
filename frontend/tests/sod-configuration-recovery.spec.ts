@@ -8,6 +8,7 @@ test.afterEach(async({request})=>{await cleanup(request,directory)})
 for(const failure of ['server','network'])test(`configuration save errors preserve the ${failure} draft and recover without restart`,async({page})=>{
  const draft=`Synthetic retained ${failure} draft`
  await page.goto('/#session=browser-test-session');await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:'SoD Risk Configuration',exact:true}).click()
+ await page.getByLabel('Search SoD risks',{exact:true}).fill(risk) // earlier specs leave catalogue entries, so the risk may be on a later page
  await page.getByRole('button',{name:`Edit SoD risk ${risk}`,exact:true}).click();const dialog=page.getByRole('dialog',{name:`SoD risk ${risk}`,exact:true})
  await dialog.getByRole('textbox',{name:'Display name',exact:true}).fill(draft)
  await page.route(`**/api/sod/catalogue/${risk}`,route=>failure==='network'?route.abort('connectionrefused'):route.fulfill({status:500,contentType:'application/json',headers:{'X-Request-ID':'a'.repeat(32)},body:JSON.stringify({detail:'Synthetic recoverable storage failure'})}))
