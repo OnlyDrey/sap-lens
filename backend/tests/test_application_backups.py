@@ -354,6 +354,48 @@ class BackupTests(unittest.TestCase):
         self.assertTrue((self.data/'destination-only.json').exists())
         self.assertEqual(backups.read(self.data)['status'],'failed')
 
+    def functional_group_archive(self, name, mutate=None):
+        import functional_groups as fg
+        (self.source / 'functional-groups.json').unlink(missing_ok=True)
+        with patch.object(fg, 'config_dir', return_value=self.source):
+            gid = fg.create_group('Purchasing', 'Buys')['id']
+            fg.classify('SYN_U1', gid, 'start', 0, 'Reviewer')
+            fg.flag_for_review('SYN_U1', 'chg1', 'Directory Department changed from A to B')
+            fg.set_group_status(fg.create_group('Archived group')['id'], 'archived')
+        if mutate: mutate(self.source / 'functional-groups.json')
+        self.archive = self.root / 'exports' / name
+        maintenance.backup(self.source, self.archive, 'desktop', VERSION)
+        return self.source / 'functional-groups.json'
+
+    def test_functional_groups_survive_backup_and_restore_byte_for_byte(self):
+        original = self.functional_group_archive('groups.tar.gz').read_bytes()
+        self.confirm(); self.activate()
+        self.assertEqual((self.data / 'functional-groups.json').read_bytes(), original)
+        import functional_groups as fg
+        data = json.loads(original)
+        user = next(iter(data['users'].values()))
+        self.assertEqual((user['status'], user['revision'], user['review']['change_id']), ('Needs review', 2, 'chg1'))  # status, revision and open review survive
+        self.assertEqual([e['event'] for e in data['history']], ['assigned', 'review_required'])
+        self.assertEqual({g['status'] for g in data['groups'].values()}, {'active', 'archived'})
+        fg.validate_storage(data)
+
+    def test_older_backup_without_functional_groups_restores_to_an_empty_catalogue(self):
+        (self.data / 'functional-groups.json').write_text('{"format":1,"groups":{},"users":{},"history":[],"rules":[]}')
+        self.confirm(); self.activate()
+        self.assertFalse((self.data / 'functional-groups.json').exists())  # replace, not merge: nothing is invented
+        import functional_groups as fg
+        with patch.object(fg, 'config_dir', return_value=self.data):
+            self.assertEqual(fg.read(), fg.empty())
+
+    def test_corrupt_or_broken_functional_group_data_is_rejected_before_activation(self):
+        def break_reference(path):
+            data = json.loads(path.read_text()); next(iter(data['users'].values()))['group_id'] = 'fg_ffffffffffff'; path.write_text(json.dumps(data))
+        for index, mutate in enumerate((break_reference, lambda path: path.write_text('{not json'))):
+            self.functional_group_archive(f'broken{index}.tar.gz', mutate)
+            with self.assertRaises((maintenance.MaintenanceError, ValueError)):  # structural errors and unparsable JSON are both refused
+                self.preview()
+            self.assertFalse((self.data / 'functional-groups.json').exists())
+
     def test_reference_library_is_preserved_by_existing_backup_restore(self):
         from sod_reference import Library
         library=Library(library_version='synthetic-custom',risks={'SYN':{'display_name':'Synthetic reference'}})
