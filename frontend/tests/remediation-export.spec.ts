@@ -24,7 +24,7 @@ async function openRemediation(page: Page) {
   await page.getByRole('tab', { name: 'Remediation', exact: true }).click()
   await expect(page.getByRole('table', { name: 'Access remediation rows' })).toBeVisible()
 }
-const parse = (path: string) => readFileSync(path, 'utf8').replace(/^﻿/, '').split('\r\n').filter(Boolean).map((line) => line.split(';').map((cell) => cell.replace(/^"|"$/g, '').replace(/""/g, '"')))
+const parse = (path: string) => readFileSync(path, 'utf8').replace(/^\uFEFF/, '').split('\r\n').filter(Boolean).map((line) => line.split(';').map((cell) => cell.replace(/^"|"$/g, '').replace(/""/g, '"')))
 
 test('Export CSV is a dropdown with two formats, keyboard operable, and closes after a choice', async ({ page }) => {
   await openRemediation(page)

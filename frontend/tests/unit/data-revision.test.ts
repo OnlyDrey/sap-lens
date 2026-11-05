@@ -42,3 +42,19 @@ test('responses without a usable header change nothing', () => {
   assert.equal(tracker.observe('garbage'), 'same')
   assert.equal(tracker.observe(undefined), 'same')
 })
+
+test('overlapping responses arriving out of order: the older one is stale whichever request was sent first', () => {
+  const tracker = new RevisionTracker()
+  assert.equal(tracker.observe('aaaaaa.1.0'), 'first')
+  assert.equal(tracker.observe('aaaaaa.3.0'), 'newer')     // the later request answered first
+  assert.equal(tracker.observe('aaaaaa.2.0'), 'stale')     // the earlier one answers late: discarded and repeated
+  assert.equal(tracker.observe('aaaaaa.3.0'), 'same')      // the repeat is answered from current data
+})
+
+test('a stale answer never lowers the revision the application already knows', () => {
+  const tracker = new RevisionTracker()
+  tracker.observe('aaaaaa.5.2')
+  for (const old of ['aaaaaa.4.9', 'aaaaaa.5.1', 'aaaaaa.1.0']) assert.equal(tracker.observe(old), 'stale')
+  assert.equal(tracker.observe('aaaaaa.5.2'), 'same')
+  assert.equal(tracker.observe('aaaaaa.5.3'), 'newer')
+})
