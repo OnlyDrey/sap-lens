@@ -6,6 +6,8 @@ it does not merge independent histories. Server HTTP access requires individual
 account authentication and an **administrator** account. Basic/shared-proxy/local
 server deployments use host maintenance instead. Desktop uses its launch capability.
 
+Application data also includes `functional-groups.json` (Functional Group catalogue, classifications and history; see [Functional Groups](../features/FUNCTIONAL_GROUPS.md#persistence-backup-and-migration)).
+
 ## Create a backup
 
 1. Select **Create backup (restart required)**. Editing and scheduled refresh pause.

@@ -167,3 +167,27 @@ test('Access analysis is advisory, shows limitations for a small group and links
   await page.keyboard.press('Escape')
   await expect(dialog).toHaveCount(0)
 })
+
+for (const scheme of ['light', 'dark'] as const) {
+  test(`User Details classification dialog is responsive and keyboard operable in ${scheme} mode at 375px`, async ({ page, request }) => {
+    const name = `Responsive ${scheme} ${unique}`
+    await request.post('/api/functional-groups', { headers, data: { name, description: '' } })
+    await page.emulateMedia({ colorScheme: scheme })
+    await page.setViewportSize({ width: 375, height: 760 })
+    await page.goto(sessionUrl)
+    await page.goto('/#/user-access/user/DEMO_FG')
+    const panel = page.getByRole('region', { name: 'Functional Group', exact: true })
+    await expect(panel).toBeVisible()
+    await panel.getByRole('button', { name: /Assign group|Change or confirm/ }).click()
+    const dialog = page.getByRole('dialog', { name: 'Functional Group for DEMO_FG' })
+    await expect(dialog).toBeVisible()
+    const box = (await dialog.boundingBox())!
+    expect(box.x).toBeGreaterThanOrEqual(0); expect(box.x + box.width).toBeLessThanOrEqual(375)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    await expect(dialog.getByLabel('Reviewer', { exact: true })).toBeVisible()
+    await dialog.getByLabel('Reviewer', { exact: true }).focus()
+    await expect(dialog.getByLabel('Reviewer', { exact: true })).toBeFocused()
+    await page.keyboard.press('Escape')
+    await expect(dialog).toHaveCount(0)
+  })
+}

@@ -107,3 +107,13 @@ and never grants, removes or approves access, creates accepted risks or changes 
   A user's *additional uncommon roles* and *missing common roles* are the differences to prompt investigation, not violations.
 - **Limitations shown instead of conclusions:** fewer than 3 comparable members, and classified members missing from the SAP user import.
 - The dialog links to User Details and Compare users.
+
+## Persistence, backup and migration
+
+- `functional-groups.json` is written atomically after validation and survives restarts. It is part of the application data folder, so the existing
+  [backup and restore](../deployment/BACKUP_RESTORE.md) carries it byte for byte (stable group ids, revisions, history and open reviews). A restore
+  validates it first and rejects broken group references, contradictory states, duplicate names and unparsable files; an older backup without the
+  file restores to an empty catalogue (restore replaces, it never merges).
+- No migration is needed: databases without the file start with no groups and every user `Unassigned`. SAP, Directory and review data are never
+  rewritten. The format is versioned (`format: 1`).
+- Employee Directory imports never write classifications. Repeating an import is idempotent (change events are keyed by identity and import digest).
