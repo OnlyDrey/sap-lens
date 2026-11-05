@@ -64,10 +64,10 @@ test('Access Explorer: Users, Assignments and the role views order and show the 
   await openSod(page, 'Access Explorer')
   const tabs = page.getByRole('tablist', { name: 'Access Explorer views' })
   const table = page.getByRole('table', { name: 'User risk table' })
-  expect(await headerTexts(table)).toEqual(['SAP user', 'SAP User Group', 'Risk', 'Activities', 'Evidence', 'Risk acceptance', 'Open'])
+  expect(await headerTexts(table)).toEqual(['SAP user', 'SAP User Group', 'Risk', 'Activities', 'Evidence', 'Risk decision', 'Open'])
   const row = table.getByRole('row', { name: new RegExp(names.b) }).first()
   await expect(row.locator('.user-group-text')).toHaveText('P2P')
-  await expect(row.locator('p.text-muted')).toHaveCount(0) // nothing beneath the username any more
+  await expect(row.locator('td').first().locator('p.text-muted')).toHaveCount(0) // nothing beneath the username any more
   await page.getByRole('combobox', { name: 'Group users by' }).selectOption('user_activity')
   expect((await headerTexts(page.getByRole('table', { name: 'User activity table' })))).toEqual(['SAP user', 'SAP User Group', 'Activity', 'Risks', 'Evidence', 'Review', 'Open'])
   await tabs.getByRole('tab', { name: 'Assignments', exact: true }).click()

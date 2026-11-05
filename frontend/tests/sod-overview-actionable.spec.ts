@@ -48,6 +48,7 @@ test('Remediation awaiting action opens the filtered list and the Overview no lo
 
 test('Conflicts, Reviews and Remediation rows share one height and spacing', async ({ page }) => {
   await openSod(page)
+  await expect(group(page, 'Conflicts').locator('.info-row').first()).toBeVisible() // rows render after the overview request
   const heights = new Set<number>(), tops: number[] = []
   for (const name of ['Conflicts', 'Reviews', 'Remediation']) {
     const rows = group(page, name).locator('.info-row')

@@ -90,7 +90,7 @@ test('matrix cells are compact, column pills use configured colors and scroll po
   await expect(header.locator('.id-pill-risk')).toHaveAttribute('data-colored', 'true')
   const cell = page.getByRole('button', { name: /^SYN_.*risk R001:/ }).first()
   expect((await cell.innerText()).trim().split('\n').join(' ').length).toBeLessThan(18)
-  await expect(page.getByText('Cells show the risk acceptance status', { exact: false })).toBeVisible()
+  await expect(page.getByText('Cells show the normal Risk review decision', { exact: false })).toBeVisible()
   await expect(header).not.toContainText('Criticality')
   const grid = page.getByRole('region', { name: /Scrollable User by risk matrix/ })
   await grid.evaluate((node) => { node.scrollLeft = 900 })
