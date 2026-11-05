@@ -23,7 +23,7 @@ const STALE_MESSAGE = 'SAP Lens restarted and your previous local session is no 
 
 /** Failure classes the UI can explain: network (no response), server (5xx), client (4xx) and format (a response that is not the expected JSON). */
 export class ApiError extends Error {
-  constructor(message: string, readonly kind: 'network' | 'server' | 'client' | 'format' | 'session' | 'authentication' | 'permission', readonly status = 0) {
+  constructor(message: string, readonly kind: 'network' | 'server' | 'client' | 'format' | 'session' | 'authentication' | 'permission', readonly status = 0, readonly detail?: unknown) {
     super(message)
     this.name = 'ApiError'
   }
@@ -32,6 +32,7 @@ export class ApiError extends Error {
 function problemDetail(data: unknown, status: number): string {
   const detail = (data as { detail?: unknown } | undefined)?.detail
   if (typeof detail === 'string') return detail
+  if (detail && typeof detail === 'object' && typeof (detail as { message?: unknown }).message === 'string') return (detail as { message: string }).message
   if (Array.isArray(detail)) return (detail as {loc?:string[];msg?:string}[]).slice(0,3).map(e=>`${(e.loc||[]).slice(1).join('.')}: ${e.msg||'Invalid value'}`).join('; ')
   if (status >= 500) return `SAP Lens could not complete the request (server error ${status}). Retry; if it persists, check the application logs.`
   return `Request failed (${status})`
@@ -70,7 +71,7 @@ const apiClient = {
     if (!response.ok) {
       const reference=response.headers.get('X-Request-ID')||''
       if(response.status===403&&(data as {code?:string}|undefined)?.code==='stale_session'){recordSession('stale');throw new ApiError(STALE_MESSAGE,'session',403)}
-      throw new ApiError(problemDetail(parsed ? data : undefined, response.status)+(/^[a-f0-9]{32}$/.test(reference)?` Reference: ${reference}`:''), response.status===401?'authentication':response.status===403?'permission':response.status >= 500 ? 'server' : 'client', response.status)
+      throw new ApiError(problemDetail(parsed ? data : undefined, response.status)+(/^[a-f0-9]{32}$/.test(reference)?` Reference: ${reference}`:''), response.status===401?'authentication':response.status===403?'permission':response.status >= 500 ? 'server' : 'client', response.status, parsed ? (data as { detail?: unknown } | undefined)?.detail : undefined)
     }
     if (!parsed) throw new ApiError('SAP Lens received an unexpected response instead of data. Retry, or reload the application.', 'format', response.status)
     return { data: (data ?? {}) as T }

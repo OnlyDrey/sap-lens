@@ -154,3 +154,26 @@ uses its file dialog; browser sessions use the authenticated multipart uploader.
 Uploaded replacements explicitly use Static mode (shown beside the action and in completion
 feedback/source mode); administrator-selected paths retain the chosen Static/Dynamic mode.
 Global/manual/scheduled refresh behavior, inspection and failure recovery are unchanged.
+
+## Import checks: suspicious versus invalid
+
+Every replacement source is compared with the **active revision of the same source** (roles, users, employees or SoD) and with nothing else: not another source, not an
+unactivated or held file. A first import has nothing to compare and is never held.
+
+| Outcome | Meaning | What happens |
+| --- | --- | --- |
+| Invalid | Structurally unusable: no records, wrong headers, bad dates, unreadable | Rejected. Cannot be confirmed. `severity: invalid`, `confirmable: false`. |
+| Suspicious | Valid, but a sharp reduction against the active revision | Parsed and reported, **not activated**. Needs explicit confirmation. `category: needs_confirmation`, `severity: suspicious`. |
+| Normal | Anything else | Activated atomically as before. |
+
+Rules (Settings > Data Sources > Import checks; defaults 30 % and 20 records, changes apply with Apply settings):
+
+- **Reduction:** records or a distinct-entity count falls by more than the limit. Entities per source: roles - catalogue entries and transactions; users - SAP users and assigned roles;
+  employees - directory accounts; SoD - risks.
+- **Missing group:** every record of an organizational group (user group, module area or department) disappears and that group held at least 5 records and 1 % of the previous source.
+- Active sources smaller than the minimum are never held, and the checks can be switched off. The limit is between 1 % and 95 %.
+
+A held import keeps the active data, settings revision and snapshots untouched. The API answers `409` with `code: import_needs_confirmation`, the triggered checks and the old and new counts; the
+Settings dialog shows the same report. Importing again with confirmation (`confirm_anomalies`, upload form field of the same name) activates it through the normal atomic path and appends an entry
+(source, time, actor, triggered checks, old and new record counts; last 100) to `data_lifecycle.confirmations`. A scheduled or startup refresh that finds a suspicious file reports the source as
+failed with `previous_preserved: true` and never activates it.

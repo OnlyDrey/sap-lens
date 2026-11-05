@@ -86,13 +86,13 @@ def upload_router(settings=None):
                 raise MultiPartException('Upload was interrupted. Previous data is unchanged.') from None
         async with lock:
             try:
-                form = await MultiPartParser(request.headers, bounded(), max_files=1, max_fields=2, max_part_size=16384).parse()
+                form = await MultiPartParser(request.headers, bounded(), max_files=1, max_fields=3, max_part_size=16384).parse()
             except TooLarge:
                 raise HTTPException(413, 'CSV exceeds its source size limit.') from None
             except MultiPartException:
                 raise HTTPException(400, 'Invalid or interrupted multipart upload. Choose one CSV file and retry.') from None
             async with close_form(form):
-                if set(form) - {'file', 'revision', 'profile'} or any(len(form.getlist(key)) != 1 for key in form):
+                if set(form) - {'file', 'revision', 'profile', 'confirm_anomalies'} or any(len(form.getlist(key)) != 1 for key in form):
                     raise HTTPException(400, 'Upload one CSV file with one settings revision.')
                 file = form.get('file')
                 if not isinstance(file, UploadFile):
@@ -114,7 +114,7 @@ def upload_router(settings=None):
                     previous = get_settings()
                     old_path = getattr(previous, {'roles':'data_csv_path','users':'user_csv_path','employees':'employee_csv_path','sod':'sod_csv_path'}[source])
                     target = directory / (secrets.token_hex(16) + '-' + name)
-                    selection = SourceSelection(path=str(target), mode='static', revision=revision, profile=profile)
+                    selection = SourceSelection(path=str(target), mode='static', revision=revision, profile=profile, confirm_anomalies=form.get('confirm_anomalies') == 'true')
                 except (ValueError, TypeError, KeyError, ValidationError):
                     raise HTTPException(400, 'The upload revision or import profile is invalid.') from None
                 created = False

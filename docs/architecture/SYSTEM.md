@@ -86,3 +86,19 @@ deterministic work in `<data dir>/cache/derived.sqlite3` (WAL, short transaction
 
 Measured on a synthetic corpus (this container, Python 3.12): 50 000 assignment rows, unchanged-source reload 2.1 s → 0.55 s; 200 000 rows 8.7 s → 3.7 s; the first load after a change
 costs 15 to 20 % more (content hash and write). Remaining reload time is dominated by unpickling the object model.
+
+### How SQLite and the JSON stores stay consistent
+
+SQLite currently holds **only rebuildable derived state**; every authoritative record keeps exactly one home, so nothing is duplicated or converted.
+
+| Event | Authoritative (JSON / snapshots) | SQLite derived cache |
+| --- | --- | --- |
+| Import | Validated records are staged as an immutable content-addressed snapshot; one compare-and-swap save of `settings.json` activates the new revision (or nothing changes). | Unaffected until the next load; the entry for the new content digest is created on first use. Entries for old content simply stop matching. |
+| Held (suspicious) import | Nothing is written; the active revision stays. | Unaffected. |
+| Migration / upgrade | No data conversion is performed for review decisions, periods or evidence; their formats are unchanged and older installations read as before. | Created on demand; an older or newer file is ignored or rebuilt. |
+| Backup | Archived together with the snapshots, as before. | Excluded (`cache/`), so a backup never carries a second copy of source data. |
+| Restore | The archive replaces the JSON stores atomically. | The destination's cache is kept but cannot match the restored content digests, so it is rebuilt on first load; a damaged cache is discarded. |
+| Cleanup / retention | Operates on the JSON stores and snapshots. | Never a retention subject; deleting the folder is always safe. |
+| Concurrent server use | Writers serialize through the existing locks and revision checks. | SQLite WAL with a busy timeout; writes are single short transactions and a failed write only means a later rebuild. |
+
+If a future step stores authoritative data in SQLite, it must add a migration with a verified pre-migration backup and update this table.

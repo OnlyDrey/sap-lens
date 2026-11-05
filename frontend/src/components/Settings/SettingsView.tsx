@@ -12,6 +12,7 @@ import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
 import { DirectoryDiagnostics, DirectorySnapshotRecovery, EmployeeBrowser, FeatureSettings } from './EmployeeDirectory'
 import {SodRiskSettings} from './SodRiskSettings'
 import {FunctionalGroupSettings} from './FunctionalGroupSettings'
+import {ImportChecksSettings} from './ImportChecksSettings'
 import {SourceManager} from './SourceManager'
 import {SodImportEditor} from './SodImportEditor'
 import {rebaseSourceDraft,type CSVSource,type SourceActivation} from '@/api/sources'
@@ -757,6 +758,7 @@ export function SettingsView({
                           onMode={mode=>setDraft(previous=>previous?{...previous,source_modes:{roles:'dynamic',users:'dynamic',employees:'static',sod:'static',...previous.source_modes,[importSource]:mode}}:previous)}
                           onCandidate={path=>setCandidatePaths(previous=>({...previous,[importSource]:path}))} onActivated={sourceActivated} onClear={()=>clearSource(importSource)} onFeatures={()=>setSection(5)}/>
                         {importSource==='employees'&&<><DirectorySnapshotRecovery onPersisted={async()=>{const saved=await fetchConfiguration();qc.setQueryData(['configuration'],saved);setDraft(previous=>previous?rebaseSourceDraft(previous,saved.settings,'employees'):previous);await qc.invalidateQueries({predicate:query=>['diagnostics','data-health','dashboard'].includes(String(query.queryKey[0]))});setMessage('Validated directory records saved locally. The original CSV is no longer required for restart.')}}/><DirectoryDiagnostics sourceView onFeatureSettings={()=>setSection(5)}/><details className="settings-advanced mt-4"><summary>Employee Directory data preview</summary><EmployeeBrowser/></details></>}
+                      <ImportChecksSettings draft={draft} onChange={value=>setDraft(previous=>previous?{...previous,import_checks:value}:previous)}/>
                       {(importSource==='roles'||importSource==='users'||importSource==='sod')&&<details className="settings-advanced" onToggle={event=>setAdvancedSource(event.currentTarget.open)}>
                         <summary>Advanced import format and column mapping</summary>
                         <p className="ui-description">Optional inspection and mapping. Selecting a file imports automatically using the selected format. Apply settings to save format-only changes.</p>

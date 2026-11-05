@@ -13,8 +13,9 @@ from pathlib import Path
 import re
 
 import cache
+import import_checks
 from config import ensure_content_file, config_dir, get_settings, save_configuration
-from config_models import FIELDS, USER_FIELDS, SourceSnapshot, RefreshMetadata
+from config_models import FIELDS, USER_FIELDS, SourceSnapshot, RefreshMetadata, ImportConfirmation as ConfirmationRecord
 from employee_directory import store, persist_directory
 
 NAMES = {'roles': 'Role Catalogue', 'users': 'User–Role Mapping', 'employees': 'Employee Directory', 'sod': 'SoD Matrix'}
@@ -221,7 +222,7 @@ def restore(settings):
     return state
 
 
-def load(settings=None, operation='refresh', before_commit=None, strict=False, force=(), progress=None):
+def load(settings=None, operation='refresh', before_commit=None, strict=False, force=(), progress=None, confirm=()):
     settings = (settings or get_settings()).model_copy(deep=True)
     expected = settings.revision
     settings.revision = expected + 1
@@ -306,6 +307,16 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
                 raise ValueError('The CSV changed during validation. Select it again after the export finishes.')
             checked_files.append((source,path,initial_signature))
             delta = diff_records(source, before, after)
+            # Compare only with the active revision of this same source. Invalid files were rejected above and are never confirmable;
+            # a valid but suspicious replacement waits for explicit confirmation and leaves everything active untouched.
+            check = import_checks.evaluate(source, before, after, settings.import_checks) if before else None
+            if check and check['suspicious']:
+                if source not in confirm:
+                    raise import_checks.ImportHeld(source, check)
+                from server_access import actor
+                settings.data_lifecycle.confirmations = [*settings.data_lifecycle.confirmations, ConfirmationRecord(
+                    source=source, confirmed_at=stamp, actor=actor(), anomalies=[item['message'] for item in check['anomalies']][:20],
+                    old_records=check['old']['records'], new_records=check['new']['records'])][-100:]
             has_changes = bool(delta['added'] or delta['removed'] or delta['modified'])
             if source == 'sod' and ((old.sod.get('report') or {}).get('metadata') or None) != (candidate['report'].get('metadata') or None):
                 has_changes = True  # descriptive metadata changed without any record changing: stage it, so the new descriptions are not silently ignored
@@ -351,7 +362,14 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
             if strict:
                 error.sap_lens_source = source
                 raise
+            if isinstance(error, import_checks.ImportHeld):
+                result.update(status='failed', category='needs_confirmation', severity='suspicious', confirmable=True, previous_preserved=True,
+                              anomalies=error.evaluation['anomalies'], old=error.evaluation['old'], new=error.evaluation['new'], message=str(error),
+                              recovery='Review the change report. If the smaller file is correct, import it again and confirm; otherwise export the complete source again.')
+                results.append(result)
+                continue
             result.update(error_result(error))
+            result.update(severity='invalid', confirmable=False)
             result['previous_preserved'] = bool(old.import_report if source == 'roles' else old.users.report if source == 'users' else old.sod if source == 'sod' else previous_directory)
             if phase == 'stage':
                 result.update(category='storage', message='The validated source could not be staged in private local storage.',

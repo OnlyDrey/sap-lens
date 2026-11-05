@@ -94,6 +94,7 @@ test('refresh reports full removals, traps dialog focus and retains history afte
 }) => {
   await save(request, (c) => {
     c.source_modes.employees = 'dynamic'
+    c.import_checks.enabled = false // this test is about the removal report; holding suspicious shrinkage is covered by import-checks.spec.ts
   })
   await page.goto('/#session=browser-test-session')
   writeFileSync(directory, directoryCsv(16))
@@ -214,6 +215,7 @@ test('snapshot preview is paginated and filters quality warnings after automatic
   page,
   request,
 }) => {
+  await save(request, (c) => { c.import_checks.enabled = false }) // preview paging, not the shrink hold, is under test here
   await page.goto('/#session=browser-test-session')
   await source(page)
   await page

@@ -591,6 +591,9 @@ class UserAccessTests(unittest.TestCase):
         complete=self.get("releases?matrix_complete=true")
         self.assertEqual(len(complete["matrix"]),201)
         self.assertEqual(complete["matrix"],first["matrix"]+last["matrix"])
+        # This test replaces a large source with a small one to check evidence bounds; the hold-for-confirmation rule has its own tests.
+        settings = config.get_settings().model_copy(deep=True); settings.import_checks.enabled = False
+        config.save_configuration(settings, settings.revision)
         path.write_text(
             "USERNAME,USER_GROUP,USER_VALID_FROM,USER_VALID_TO\n"
             + "".join(f"DEMO_ONE,GROUP_{i},20000101,99991231\n" for i in range(51))

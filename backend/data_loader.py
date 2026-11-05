@@ -13,6 +13,9 @@ logger=logging.getLogger(__name__)
 class LoadCancelled(Exception): pass
 
 
+from import_checks import ImportHeld
+
+
 class DataLoader:
     def __init__(self):
         self.loading=False
@@ -36,7 +39,7 @@ class DataLoader:
         self._result=None
         self._cancel=None
 
-    async def load(self,path: str | None=None,persist: bool=False,configuration=None,commit=None,operation=None,force=()):
+    async def load(self,path: str | None=None,persist: bool=False,configuration=None,commit=None,operation=None,force=(),confirm=()):
         if self.loading: raise HTTPException(409,'A CSV is already loading. Wait or cancel it before trying another file.')
         self._workers=[worker for worker in self._workers if worker.is_alive()]
         if len(self._workers)>=2:
@@ -71,8 +74,9 @@ class DataLoader:
                 self.last_failed_load = datetime.now(timezone.utc).isoformat()
                 if source in attempted_paths:
                     self.source_attempts[source] = {'path': attempted_paths[source], 'error': category}
-                self.error=error
-                result.set_exception(HTTPException(400,error))
+                held = category == 'needs_confirmation'
+                self.error = error['message'] if held else error
+                result.set_exception(HTTPException(409 if held else 400, error))
             else:
                 self.last_report = report
                 failures = [r for r in (report or {}).get('sources', []) if r['status'] == 'failed']
@@ -95,8 +99,10 @@ class DataLoader:
             try:
                 from csv_lifecycle import load
                 report = load(settings, operation=operation, before_commit=before_commit,
-                              strict=operation == 'import', force=tuple(force) + (('roles',) if path is not None else ()), progress=progress)
+                              strict=operation == 'import', force=tuple(force) + (('roles',) if path is not None else ()), progress=progress, confirm=tuple(confirm))
             except LoadCancelled: return
+            except ImportHeld as held:
+                source, category, error = held.source, 'needs_confirmation', held.detail()
             except Exception as exc:
                 source = getattr(exc, 'sap_lens_source', None)
                 if isinstance(exc, FileNotFoundError):
