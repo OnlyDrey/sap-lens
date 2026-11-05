@@ -58,6 +58,27 @@ need `PLAYWRIGHT_EXECUTABLE_PATH` for Chromium; report that override.
 - Use synthetic data only. Test the backend rule in a backend test; use Playwright for
   what the browser owns (rendering, keyboard, routing, client-side matching).
 
+### Test categories
+
+| Category | Location | Run by |
+| --- | --- | --- |
+| Backend unit and integration (`unittest`) | `backend/tests/test_*.py` | every profile; Fast Validation selects owning modules |
+| Browser (Playwright) | `frontend/tests/*.spec.ts` | `@smoke` in Fast Validation, the owning specs of a changed spec, everything in regression |
+| Frontend unit (`node --test`) | `frontend/tests/unit/*.test.ts` | `npm --prefix frontend run test:unit`; Fast Validation when frontend files change, Full Validation |
+| Repository integrity (docs links, tracker, workflows, privacy, ownership) | `repository` feature | always, including documentation-only pushes |
+| Platform-specific (Windows, systemd, PowerShell, UNC) | skipped with an explicit reason off-platform | native acceptance, reported separately |
+
+### Retiring a test safely
+
+1. Confirm the production behavior or contract is gone (search for the code, route, option or document it exercised); a failing test is
+   not evidence of obsolescence, and a test that exposes a real defect is fixed by repairing the defect.
+2. Name the replacement coverage, or state why none is needed, in the commit message. Never retire security, migration, backup or
+   regression-for-a-confirmed-defect tests without an equal replacement.
+3. Remove the file from `scripts/test-map.json` (including timing hints), then run `python scripts/run-tests.py check`,
+   `python scripts/check-docs.py` and the tracker tests: the tracker names spec and document paths, and a stale path fails
+   `test_validation_tracker`.
+4. When removing documentation, update the validation tracker (CSV and regenerated workbook) in the same change.
+
 ## Parallelism and isolation
 
 Backend modules run in parallel processes (each test builds its own temporary storage).
