@@ -95,6 +95,18 @@ class Refresh(unittest.TestCase):
         source_store.set_fingerprint('users', snapshot, 'f' * 64)                            # a different parser or profile than the one that built the revision
         self.assertEqual(self.statuses(self.refresh())['users'], ('unchanged', False))
 
+    def test_activation_observes_assignment_lifecycle_and_a_failure_never_fails_the_load(self):
+        import assignment_lifecycle
+        self.write(41)
+        with patch.object(assignment_lifecycle, 'observe') as observe:
+            self.refresh()
+        observe.assert_called_once()
+        self.write(42)
+        with patch.object(assignment_lifecycle, 'observe', side_effect=RuntimeError('unreadable')), self.assertLogs('sap-lens', 'WARNING'):
+            report = self.refresh()
+        self.assertEqual(self.statuses(report)['users'], ('updated', False))
+        self.assertEqual(len(cache.get_snapshot().users.users), 42)
+
     def test_a_missing_store_still_refreshes_correctly(self):
         import shutil
         shutil.rmtree(store_db.directory())

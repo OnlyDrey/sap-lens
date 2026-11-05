@@ -280,7 +280,7 @@ def evidence_for(event):
         raise HTTPException(409, 'Retained decision evidence is unavailable or invalid. History is preserved; restore its snapshot from a private backup.') from None
 
 
-def lifecycle(kind, event, current_version, today=None):
+def lifecycle(kind, event, current_version, today=None, reappeared=None):
     """Lifecycle of one item. ``current_version`` is None when evidence no longer supports the item.
 
     Returns Pending, the decision itself (Approved, Keep, Accepted, Conditional, Rejected, Investigate), Removal required,
@@ -292,6 +292,8 @@ def lifecycle(kind, event, current_version, today=None):
         return 'Historical'
     if event.evidence_version != current_version or kind == 'acceptance' and event.expires and event.expires < (today or date.today()):
         return 'Outdated'
+    if reappeared and event.timestamp < reappeared:
+        return 'Outdated'  # the assignment left the imported data and came back: the earlier decision may concern a different identity
     return 'Removal required' if event.decision == 'Remove' else event.decision
 
 

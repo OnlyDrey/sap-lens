@@ -11,6 +11,7 @@ from fastapi import HTTPException
 import cache
 from config import get_settings
 from search_matching import text_matches, selected_value_matches
+import assignment_lifecycle
 import sod_catalogue
 import sod_decisions as decisions
 import sod_governance as governance
@@ -161,7 +162,9 @@ def latest_for(bundle):
 def states_for(bundle, model):
     """Frozen assessments retain their approval-date lifecycle; live contexts use today."""
     approved = (bundle.get('period') or {}).get('approval_date') if bundle.get('frozen') else None
-    return governance.states(model, latest_for(bundle), today=date.fromisoformat(approved) if approved else None)
+    # Frozen assessments keep their captured evidence: later imports (and reappearance) never rewrite them.
+    return governance.states(model, latest_for(bundle), today=date.fromisoformat(approved) if approved else None,
+                             reappeared=None if bundle.get('frozen') else assignment_lifecycle.reappeared())
 
 
 def actions_for(bundle):

@@ -145,6 +145,7 @@
     "test_sod_catalogue",
     "test_sod_feature",
     "test_sod_governance",
+    "test_assignment_lifecycle",
     "test_sod_group_selection",
     "test_sod_review_coverage",
     "test_sod_inspection",

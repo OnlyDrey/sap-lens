@@ -160,7 +160,8 @@ def validate_store(root, exclude=()):
     from sod_periods import Index
     from sod_reviews import ReviewStorage
     from sod_catalogue import CatalogueStorage
-    models={'settings.json':AppConfig,'sod-decisions.json':Storage,'sod-periods.json':Index,'sod-reviews.json':ReviewStorage,'sod-catalogue.json':CatalogueStorage}
+    from assignment_lifecycle import Storage as LifecycleStorage
+    models={'settings.json':AppConfig,'sod-decisions.json':Storage,'sod-periods.json':Index,'sod-reviews.json':ReviewStorage,'sod-catalogue.json':CatalogueStorage,'assignment-lifecycle.json':LifecycleStorage}
     snapshots={}
     assets=set()
     parsed=[]

@@ -10,6 +10,7 @@ import csv
 import hashlib
 import json
 from pathlib import Path
+import logging
 import re
 
 import cache
@@ -19,6 +20,7 @@ from config import ensure_content_file, config_dir, get_settings, save_configura
 from config_models import FIELDS, USER_FIELDS, SourceSnapshot, RefreshMetadata, ImportConfirmation as ConfirmationRecord
 from employee_directory import store, persist_directory
 
+logger = logging.getLogger('sap-lens')
 NAMES = {'roles': 'Role Catalogue', 'users': 'User–Role Mapping', 'employees': 'Employee Directory', 'sod': 'SoD Matrix'}
 MAX_PRIVATE_BYTES = 256 * 1024 * 1024
 
@@ -539,6 +541,11 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
                 store.error = store.import_error = None
         # The store follows the committed pointer (never the other way round); a failure only means the JSON snapshots are read next time.
         source_store.reconcile(settings, fresh)
+        try:
+            import assignment_lifecycle
+            assignment_lifecycle.observe()  # verified absence / reappearance of decided assignments, from the revision that was just committed
+        except Exception:  # noqa: BLE001 - lifecycle memory must never fail an import; the next load observes again
+            logger.warning('Assignment lifecycle observation failed and will be retried at the next load.')
         for pending_source, (pending_snapshot, pending_value) in pending_fingerprints.items():
             source_store.set_fingerprint(pending_source, pending_snapshot, pending_value)
         from account_review import record_missing_users

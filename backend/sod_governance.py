@@ -17,6 +17,9 @@ def assignment_id(user, path):
                     path.get('role_valid_to') or '', path.get('user_group', '')])
 
 
+REAPPEARED = 'Assignment reappeared after it was removed from the SAP import; review it again. The earlier decision stays in history.'
+
+
 def activity_key(user, activity):
     return _digest(['sod-activity', 1, user, activity])
 
@@ -171,16 +174,20 @@ def restrict(model, visible, allowed=None):
     return result
 
 
-def states(model, latest, today=None):
-    """Decision lifecycle per review item, keyed by subject key. ``latest`` is decisions.latest(context)."""
-    result = dict(activity={}, assignment={}, acceptance={},risk={})
+def states(model, latest, today=None, reappeared=None):
+    """Decision lifecycle per review item, keyed by subject key. ``latest`` is decisions.latest(context).
+
+    ``reappeared`` maps assignment key -> time it came back after a verified absence; an assignment decision recorded before that time is Outdated."""
+    result = dict(activity={}, assignment={}, acceptance={},risk={}, reappeared={})
     for entry in model.values():
         for activity in entry['activities'].values():
             event = latest['activity'].get(activity['key'])
             result['activity'][activity['key']] = (lifecycle('activity', event, activity['evidence_version'], today), event)
         for assignment in entry['assignments'].values():
             event = latest['assignment'].get(assignment['id'])
-            result['assignment'][assignment['id']] = (lifecycle('assignment', event, assignment['evidence_version'], today), event)
+            result['assignment'][assignment['id']] = (lifecycle('assignment', event, assignment['evidence_version'], today, (reappeared or {}).get(assignment['id'])), event)
+            if event and (reappeared or {}).get(assignment['id']) and event.timestamp < reappeared[assignment['id']]:
+                result['reappeared'][assignment['id']] = reappeared[assignment['id']]
         for finding in entry['findings'].values():
             risk_event=latest.get('risk',{}).get(finding['finding_id'])
             result['risk'][finding['finding_id']]=(lifecycle('risk',risk_event,finding['evidence_version'],today),risk_event)
@@ -256,7 +263,7 @@ def effective_decision(entry,state,kind,key):
     if stale and event and event.decision=='Remove':label='Remove'
     tones={'Approved':'success','Remove':'error','Investigate':'warning','Pending':'neutral'}
     return dict(label=label,tone=tones[label],explicit=explicit,stale=stale,
-        basis='Explicit decision' if explicit else 'Previous decision; evidence needs review' if stale else
+        basis='Explicit decision' if explicit else (REAPPEARED if kind=='assignment' and key in state.get('reappeared',{}) and life=='Outdated' else 'Previous decision; evidence needs review') if stale else
               'Derived from current assignment decisions' if kind=='activity' and derived!='Pending' else coverage['provenance'] or 'No current decision',
         assignment_decisions=dict(sorted(distribution.items())),derived_label=derived,explicit_label=explicit_label,
         disagreement=kind=='activity' and explicit and derived!='Pending' and explicit_label!=derived)
@@ -281,7 +288,7 @@ def decision_summary(entry,state,kind,key):
     explicit=event is not None and not stale and life in {'Accepted','Rejected'}
     label,tone=(('Needs review','warning') if life=='Outdated' else ('Historical','neutral')) if stale else (life,'success' if life=='Accepted' else 'error') if explicit else ('Acceptance pending','warning')
     return dict(label=label,tone=tone,explicit=explicit,stale=stale,
-                basis='Explicit decision' if explicit else 'Previous decision; evidence needs review' if stale else state['coverage'][kind][key]['provenance'] or 'No current decision',assignment_decisions={})
+                basis='Explicit decision' if explicit else (REAPPEARED if kind=='assignment' and key in state.get('reappeared',{}) and life=='Outdated' else 'Previous decision; evidence needs review') if stale else state['coverage'][kind][key]['provenance'] or 'No current decision',assignment_decisions={})
 
 
 def _bucket(values):

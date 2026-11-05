@@ -364,6 +364,22 @@ read-only inside the popover. Remove is a recommendation until a later complete 
 verifies disappearance; immutable event values and old report snapshots are never rewritten.
 Escape closes the popover first, restores its trigger and leaves the review open.
 
+### Revalidation against new source revisions
+
+Every activated users revision is compared with the assignments that have at least one decision (`assignment-lifecycle.json`, a small validated store included in backups; nothing else is tracked):
+
+| Case | Result |
+|---|---|
+| Unchanged | The decision stays current. |
+| Changed (other validity, group or role) | A different assignment identity: it starts Pending and never inherits the old decision. Evidence that changes materially still marks a decision Outdated, as before. |
+| Removed | Recorded as absent when absence is verifiable: the user is fully mapped and the assignment is missing, or the user is no longer in the source at all. The decision and its history are kept. |
+| Reappearing | **Outdated** with the reason *Assignment reappeared after it was removed from the SAP import; review it again.* until a new decision is recorded after the reappearance. Outdated approvals grant no activity or risk coverage. |
+| Ambiguous | A user who is present but only partly mapped, a failed or unavailable source, or unavailable SoD/mapping: nothing is marked in either direction. |
+
+A user that disappears and later returns does not inherit decisions (the username may belong to someone else). The status is derived at read time: decision events, retained evidence and
+frozen review periods are never rewritten, and frozen assessments ignore later reappearance. Installations upgraded from an earlier version start with no lifecycle memory, so nothing changes
+until a verified absence is observed. If the file is unreadable it is ignored with a warning (behaviour as before) until restored from a backup.
+
 ### SAP import verification and history
 
 Removal checks use every actual imported assignment, including expired and non-conflicting
