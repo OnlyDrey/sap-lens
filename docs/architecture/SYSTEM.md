@@ -127,14 +127,16 @@ Every authoritative record has exactly one home; SQLite holds derived, verifiabl
 
 ### Measured effect (synthetic corpus, this container, Python 3.12)
 
-Reproduce with `python scripts/benchmarks/data_benchmark.py` ([Testing](../development/TESTING.md#data-path-benchmark)). 192 000 assignment rows (17 MB of CSV), each scenario in a fresh process:
+Reproduce with `python scripts/benchmarks/data_benchmark.py` ([Testing](../development/TESTING.md#data-path-benchmark)). 192 000 assignment rows (17 MB of CSV), real production path
+(`csv_lifecycle.load`), each scenario in a fresh process. "Before" is the unmodified code (original), "Step 1" the SQLite store release, "Step 2" source-specific refresh.
 
-| Scenario | Before | After |
-| --- | --- | --- |
-| Import (parse, derive, stage, activate) | 20.2 s, peak 1017 MB | 21.0 to 21.3 s, peak 1017 MB (about +5 %: typed rows are written) |
-| Start, sources dynamic (default; re-reads and compares the CSVs) | 27.8 s, peak 1164 MB | 28.6 s first, 25.3 s next |
-| Start, sources static (restore from stored data only) | 9.8 s, peak 730 MB | 2.2 s, peak 526 MB |
-| Disk | snapshots 132 MB | snapshots 132 MB + store 65 MB (typed rows plus derived values) |
+| Scenario | Original | Step 1 | Step 2 |
+| --- | --- | --- | --- |
+| Import (parse, derive, stage, activate) | 20.2 s, peak 1017 MB | 21.3 s, peak 1028 MB | 16.4 s, peak 836 MB |
+| Start, Dynamic sources, unchanged files (first after an import / next starts) | 27.8 s, peak 1164 MB | 28.1 s / 21.8 s, peak 1215 MB | 6.7 s / 2.2 s, peak 655 / 525 MB |
+| Refresh, one source changed (users) | not measured | 24.6 s, peak 1251 MB | 15.3 s, peak 1125 MB |
+| Start, Static sources | 9.8 s, peak 730 MB | 6.2 s first / 2.2 s next | 6.5 s first / 2.1 s next, peak 525 MB |
+| Disk after import | snapshots 132 MB | snapshots 132 MB + store 28 MB (rows) | unchanged |
 
-Dropping the raw records from memory after a static start lowers resident memory from 525 MB to 339 MB, which quantifies the saving available once comparisons run against the store instead of
-in-memory lists. For the default dynamic mode the time is dominated by re-parsing and diffing the CSV on every start; avoiding that needs a source-specific unchanged check and is part of the refresh phase.
+The first start after an import still derives the model once (about 4 s) and stores it; later starts load it. Resident memory of a started instance is about 525 MB, of which about 185 MB are the raw
+source records retained for comparisons; removing that retention needs comparisons against the store and is a separate refactor.

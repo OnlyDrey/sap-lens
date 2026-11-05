@@ -57,9 +57,16 @@ def child(scenario, data, catalogue, people):
     if scenario == 'startup-static':  # first static start: switches the modes (not timed), then restores
         config.save_configuration(settings, settings.revision)
     started = time.perf_counter()
+    result = None
     if scenario == 'import':
         config.save_configuration(settings, settings.revision)
-        csv_lifecycle.load(config.get_settings(), operation='refresh', strict=True)
+        result = csv_lifecycle.load(config.get_settings(), operation='refresh', strict=True)
+    elif scenario == 'refresh-users-changed':  # one user's e-mail changes: only the users source is parsed, compared and rebuilt
+        csv_lifecycle.load(config.get_settings(), operation='startup', strict=True)  # the running application (not timed)
+        started = time.perf_counter()
+        text = Path(people).read_text()
+        Path(people).write_text(text.replace('u0@example.test', 'u0-renamed@example.test', 1))
+        result = csv_lifecycle.load(config.get_settings(), operation='refresh', strict=True)
     elif os.environ.get('SAP_LENS_BENCH_PROFILE'):
         import cProfile
         import pstats
@@ -67,7 +74,7 @@ def child(scenario, data, catalogue, people):
         profiler.runcall(csv_lifecycle.load, config.get_settings(), operation='startup', strict=True)
         pstats.Stats(profiler, stream=sys.stderr).sort_stats('cumulative').print_stats(14)
     else:
-        csv_lifecycle.load(config.get_settings(), operation='startup', strict=True)
+        result = csv_lifecycle.load(config.get_settings(), operation='startup', strict=True)
     elapsed = time.perf_counter() - started
     state = cache.get_snapshot()
     def resident():
@@ -78,7 +85,8 @@ def child(scenario, data, catalogue, people):
     state.users.source_records, state.source_records = [], []
     gc.collect()
     without_records = resident()
-    print(json.dumps(dict(scenario=scenario, seconds=round(elapsed, 3), peak_mb=round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024), rss_mb=rss, rss_without_source_records_mb=without_records,
+    statuses = {row['source']: row['status'] for row in (result or {}).get('sources', [])}
+    print(json.dumps(dict(scenario=scenario, sources=statuses, seconds=round(elapsed, 3), peak_mb=round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024), rss_mb=rss, rss_without_source_records_mb=without_records,
                           roles=len(state.roles), users=len(state.users.users), assignments=len(state.users.assignments))))
 
 
@@ -103,7 +111,8 @@ def main():
         catalogue, people, rows = generate(folder, options.roles, options.users, options.assignments)
         data = folder / 'data'
         results = []
-        for scenario in ('import', 'startup', 'startup-warm', 'startup-static', 'startup-static-warm'):
+        sizes = {}
+        for scenario in ('import', 'startup', 'startup-warm', 'refresh-users-changed', 'startup-static', 'startup-static-warm'):
             environment = dict(os.environ, **({'SAP_LENS_BENCH_PROFILE': '1'} if options.profile == scenario else {}))
             run = subprocess.run([sys.executable, __file__, '--child', scenario, str(data), str(catalogue), str(people)], capture_output=True, text=True, check=False, env=environment)
             if options.profile == scenario:
@@ -111,8 +120,9 @@ def main():
             if run.returncode:
                 sys.exit(run.stderr[-2000:])
             results.append(json.loads(run.stdout.strip().splitlines()[-1]))
-        report = dict(assignment_rows=rows, csv_mb=round((catalogue.stat().st_size + people.stat().st_size) / 1e6, 1), data_mb=round(size(data) / 1e6, 1),
-                      snapshots_mb=round(size(data / 'csv-data') / 1e6, 1), cache_mb=round(size(data / 'cache') / 1e6, 1), store_mb=round(size(data / 'store') / 1e6, 1), runs=results)
+            if scenario == 'import':
+                sizes = dict(data_mb=round(size(data) / 1e6, 1), snapshots_mb=round(size(data / 'csv-data') / 1e6, 1), store_mb=round(size(data / 'store') / 1e6, 1))
+        report = dict(assignment_rows=rows, csv_mb=round((catalogue.stat().st_size + people.stat().st_size) / 1e6, 1), sizes_after_import=sizes, sizes_at_end=dict(data_mb=round(size(data) / 1e6, 1), snapshots_mb=round(size(data / 'csv-data') / 1e6, 1), store_mb=round(size(data / 'store') / 1e6, 1)), runs=results)
         print(json.dumps(report, indent=1))
         if options.json:
             Path(options.json).write_text(json.dumps(report, indent=1))

@@ -339,7 +339,8 @@ class UserAccessTests(unittest.TestCase):
         self.assertNotIn(self.temp.name, raw)
 
     def test_diagnostics_permission_errors_are_static_and_successful_refresh_clears_them(self):
-        with patch('cache.build_users', side_effect=PermissionError('private username and filename must not escape')):
+        # An unchanged source is no longer re-read at all; disable that shortcut so the refresh really reads the file and meets the failure.
+        with patch('csv_lifecycle.source_fingerprint', return_value=''), patch('cache.build_users', side_effect=PermissionError('private username and filename must not escape')):
             response=self.client.post('/api/refresh', headers=H)
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()['refresh']['status'], 'partial')

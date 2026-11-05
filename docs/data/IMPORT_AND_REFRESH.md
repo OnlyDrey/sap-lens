@@ -155,6 +155,22 @@ Uploaded replacements explicitly use Static mode (shown beside the action and in
 feedback/source mode); administrator-selected paths retain the chosen Static/Dynamic mode.
 Global/manual/scheduled refresh behavior, inspection and failure recovery are unchanged.
 
+## Source-specific refresh and the unchanged fast path
+
+Start-up (Dynamic sources) and every refresh evaluate each source on its own:
+
+1. **Fingerprint.** For Role Catalogue, User-Role Mapping and SoD Matrix the file content digest is combined with the parsing settings (active import profile or SoD format) and the digest of the
+   parser code. The fingerprint of the input that produced the active revision is stored with that revision in the SQLite store.
+2. **Unchanged:** an equal fingerprint, the same path and a loaded active revision mean parsing would reproduce the active snapshot exactly. The source is reported `unchanged` (marked `fast_path`) and is
+   neither parsed, compared, anomaly-checked, snapshotted nor rebuilt; its `checked_at` is updated. The file is still read once to hash it; the content is never trusted by timestamp or size alone.
+3. **Changed:** only that source takes the full path (parse, validate, compare with the previous approved revision of the same source, anomaly check, snapshot). Users are re-mapped against the
+   catalogue **once**: when the users file is re-read they are already mapped to the final catalogue; when only the catalogue changed, the unchanged users are re-mapped without reading their file.
+4. **Unknown fingerprint** (first start after an upgrade, store missing or rebuilt, different parser) simply takes the full path once and then records the fingerprint.
+
+Activation stays atomic. The new snapshot is written (immutable), its rows are *staged* in the store (invisible to readers), the configuration pointer is committed with the existing compare-and-swap, and
+only then are the staged revisions activated (one short transaction per source). If the commit does not happen, staged revisions are discarded. In memory the published dataset is replaced as one object.
+Snapshot integrity is verified on every start (SHA-256 of the snapshot file against its content address) even when the records come from the store or the derived cache.
+
 ## Import checks: suspicious versus invalid
 
 Every replacement source is compared with the **active revision of the same source** (roles, users, employees or SoD) and with nothing else: not another source, not an

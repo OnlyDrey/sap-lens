@@ -35,37 +35,85 @@ def _entities(source, rows):
     return len({row[column].strip().casefold() for row in rows if row[column].strip()})
 
 
-def ingest(source, snapshot, rows, report, scope=''):
-    """Store the records of a snapshot as the active revision of (source, scope). Idempotent for an already active snapshot.
+def stage(source, snapshot, rows, report, fingerprint='', scope=''):
+    """Write the rows of a validated snapshot as a `staged` revision (invisible to readers of the active revision). Idempotent per snapshot.
 
-    The caller has validated the rows (csv_lifecycle.validate_source): exact field set, strings only. One transaction; on any error nothing changes."""
+    Staging is the slow part of an import and happens before the configuration pointer is committed; `activate` is the instant flip afterwards."""
     columns = store_db.source_columns()[source]
     with transaction() as connection:
-        current = connection.execute('SELECT id, snapshot FROM source_revisions WHERE source=? AND scope=? AND status=\'active\'', (source, scope)).fetchone()
-        if current and current[1] == snapshot:
-            return current[0]
-        existing = connection.execute('SELECT id FROM source_revisions WHERE source=? AND scope=? AND snapshot=?', (source, scope, snapshot)).fetchone()
-        sequence = (connection.execute('SELECT COALESCE(MAX(sequence),0) FROM source_revisions WHERE source=? AND scope=?', (source, scope)).fetchone()[0]) + 1
-        if existing:
-            revision = existing[0]  # reverting to an earlier approved revision: rows are still present and were verified when stored
-            if not connection.execute(f'SELECT 1 FROM rows_{source} WHERE revision_id=? LIMIT 1', (revision,)).fetchone() and rows:
-                connection.execute('DELETE FROM source_revisions WHERE id=?', (revision,))
-                existing = None
-        if not existing:
-            connection.execute('INSERT INTO source_revisions (source, scope, sequence, snapshot, row_count, entity_count, rows_digest, report, status, created, supersedes) '
-                               'VALUES (?,?,?,?,?,?,?,?,\'staged\',?,?)',
-                               (source, scope, sequence, snapshot, len(rows), _entities(source, rows), _digest(rows, columns), json.dumps(report, separators=(',', ':')),
-                                store_db.now(), current[0] if current else None))
-            revision = connection.execute('SELECT id FROM source_revisions WHERE source=? AND scope=? AND snapshot=?', (source, scope, snapshot)).fetchone()[0]
-            marks = ','.join('?' * (len(columns) + 2))
-            names = ','.join(['revision_id', 'ordinal', *[store_db._identifier(name) for name in columns]])
-            connection.executemany(f'INSERT INTO rows_{source} ({names}) VALUES ({marks})',
-                                   ((revision, ordinal, *[row[name] for name in columns]) for ordinal, row in enumerate(rows)))
-        if current:
-            connection.execute('UPDATE source_revisions SET status=\'superseded\' WHERE id=?', (current[0],))
-        connection.execute('UPDATE source_revisions SET status=\'active\', activated=?, sequence=? WHERE id=?', (store_db.now(), sequence, revision))
-        _prune(connection, source, scope)
+        found = connection.execute('SELECT id, status FROM source_revisions WHERE source=? AND scope=? AND snapshot=?', (source, scope, snapshot)).fetchone()
+        if found and connection.execute(f'SELECT 1 FROM rows_{source} WHERE revision_id=? LIMIT 1', (found[0],)).fetchone() or found and not rows:
+            if fingerprint:
+                connection.execute('UPDATE source_revisions SET fingerprint=? WHERE id=?', (fingerprint, found[0]))
+            return found[0]
+        if found:
+            connection.execute('DELETE FROM source_revisions WHERE id=?', (found[0],))   # a revision without rows is not a revision
+        sequence = connection.execute('SELECT COALESCE(MAX(sequence),0) FROM source_revisions WHERE source=? AND scope=?', (source, scope)).fetchone()[0] + 1
+        current = connection.execute('SELECT id FROM source_revisions WHERE source=? AND scope=? AND status=\'active\'', (source, scope)).fetchone()
+        cursor = connection.execute('INSERT INTO source_revisions (source, scope, sequence, snapshot, row_count, entity_count, rows_digest, report, status, created, supersedes, fingerprint) '
+                                    'VALUES (?,?,?,?,?,?,?,?,\'staged\',?,?,?)',
+                                    (source, scope, sequence, snapshot, len(rows), _entities(source, rows), _digest(rows, columns), json.dumps(report, separators=(',', ':')),
+                                     store_db.now(), current[0] if current else None, fingerprint))
+        revision = cursor.lastrowid
+        marks = ','.join('?' * (len(columns) + 2))
+        names = ','.join(['revision_id', 'ordinal', *[store_db._identifier(name) for name in columns]])
+        connection.executemany(f'INSERT INTO rows_{source} ({names}) VALUES ({marks})',
+                               ((revision, ordinal, *[row[name] for name in columns]) for ordinal, row in enumerate(rows)))
         return revision
+
+
+def activate(source, snapshot, scope=''):
+    """Atomically make the staged (or earlier) revision of this snapshot the active one: the previous active revision becomes `superseded` in the same transaction."""
+    with transaction() as connection:
+        target = connection.execute('SELECT id, status FROM source_revisions WHERE source=? AND scope=? AND snapshot=?', (source, scope, snapshot)).fetchone()
+        if not target:
+            raise StoreUnavailable('No staged revision for this snapshot.')
+        if target[1] == 'active':
+            return target[0]
+        connection.execute('UPDATE source_revisions SET status=\'superseded\' WHERE source=? AND scope=? AND status=\'active\'', (source, scope))
+        sequence = connection.execute('SELECT COALESCE(MAX(sequence),0) FROM source_revisions WHERE source=? AND scope=?', (source, scope)).fetchone()[0] + 1
+        connection.execute('UPDATE source_revisions SET status=\'active\', activated=?, sequence=? WHERE id=?', (store_db.now(), sequence, target[0]))
+        _prune(connection, source, scope)
+        return target[0]
+
+
+def ingest(source, snapshot, rows, report, scope='', fingerprint=''):
+    """Stage and activate in two short transactions (used where no commit protocol surrounds the call). Idempotent for an already active snapshot."""
+    stage(source, snapshot, rows, report, fingerprint, scope)
+    return activate(source, snapshot, scope)
+
+
+def discard_staged(scope=None):
+    """Remove revisions that were staged but never activated (the configuration commit they belonged to did not happen)."""
+    try:
+        with transaction() as connection:
+            for (revision,) in connection.execute('SELECT id FROM source_revisions WHERE status=\'staged\'').fetchall():
+                invalidate(connection, [revision])
+                connection.execute('DELETE FROM source_revisions WHERE id=?', (revision,))
+    except (StoreUnavailable, sqlite3.Error):
+        pass
+
+
+def fingerprint(source, snapshot, scope=''):
+    try:
+        connection = store_db.connect(create=False)
+    except StoreUnavailable:
+        return ''
+    try:
+        row = connection.execute('SELECT fingerprint FROM source_revisions WHERE source=? AND scope=? AND snapshot=? AND status=\'active\'', (source, scope, snapshot)).fetchone()
+        return row[0] if row else ''
+    except sqlite3.Error:
+        return ''
+    finally:
+        connection.close()
+
+
+def set_fingerprint(source, snapshot, value, scope=''):
+    try:
+        with transaction() as connection:
+            connection.execute('UPDATE source_revisions SET fingerprint=? WHERE source=? AND scope=? AND snapshot=?', (value, source, scope, snapshot))
+    except (StoreUnavailable, sqlite3.Error):
+        pass
 
 
 def _prune(connection, source, scope):
@@ -175,7 +223,7 @@ def reconcile(settings, fresh=None):
                     rows, report = supplied[1], supplied[2]
                 else:
                     rows, report = read_source(source, reference)
-                ingest(source, reference.snapshot, rows, report)
+                ingest(source, reference.snapshot, rows, report, fingerprint=supplied[3] if supplied and len(supplied) > 3 else '')
                 summary['ingested'].append(source)
             except Exception as error:  # noqa: BLE001 - one damaged source must not stop the others or startup
                 logger.warning('Could not mirror the %s snapshot into the SQLite store (%s).', source, type(error).__name__)

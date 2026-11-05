@@ -98,6 +98,7 @@
     "test_import_checks",
     "test_persistent_cache",
     "test_source_store",
+    "test_source_refresh",
     "test_storage_migration",
     "test_application",
     "test_auto_import",

@@ -192,6 +192,24 @@ def summary(report):
     return {**report, 'sources': [{key:value for key,value in row.items() if key != 'changes'} for row in report['sources']]}
 
 
+def source_fingerprint(source, path, settings):
+    """Identity of the input that produced a source's records: the file content plus the settings and the parser code that shape the parse.
+
+    Equal fingerprint means parsing would reproduce the active snapshot exactly, so a dynamic source can skip parsing, diffing and rebuilding."""
+    import persistent_cache
+    if source == 'roles':
+        shaping = next(p for p in settings.import_profiles if p.id == settings.active_import).model_dump_json()
+    elif source == 'users':
+        shaping = next(p for p in settings.user_import_profiles if p.id == settings.active_user_import).model_dump_json()
+    else:
+        shaping = settings.sod_import.model_dump_json()
+    digest = hashlib.sha256()
+    for part in (source, shaping, persistent_cache.code_digest('csv_import.py', 'user_access.py', 'sod_import.py', 'cache.py')):
+        digest.update(part.encode() + b'\0')
+    digest.update(persistent_cache.file_digest(path).encode())
+    return digest.hexdigest()
+
+
 def verify_snapshot(reference):
     """The authoritative snapshot file still matches its content address. Checked on every restore, even when the records come from the store or the
     derived cache, so damaged evidence is reported exactly as before instead of being masked by a copy."""
@@ -283,6 +301,8 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
     successful = []
     checked_files = []
     fresh = {}
+    pending_fingerprints = {}
+    catalogue_new = users_fresh = False
     def announce(stage, source=None):
         if progress: progress(stage,source)
     def signature(path):
@@ -303,7 +323,7 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
         if old.source_records and settings.module_overrides != current.module_overrides:
             state = cache._build_catalog(settings.data_csv_path, settings, records=old.source_records, report=old.import_report)
             state.users, state.loaded_sources, state.sod = old.users, dict(old.loaded_sources), old.sod
-            changed = True
+            changed = catalogue_new = True
     sources = ['roles', 'users', 'employees']
     if settings.sod_csv_path or old.sod or 'sod' in settings.data_lifecycle.sources or 'sod' in forced:
         sources.append('sod')
@@ -327,6 +347,19 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
             phase = 'read'
             announce('Reading file',source)
             initial_signature=signature(path)
+            fingerprint = source_fingerprint(source, path, settings) if source != 'employees' else ''
+            existing_ref = settings.data_lifecycle.sources.get(source)
+            if (fingerprint and existing_ref and existing_ref.path == path and source not in forced and state.loaded_sources.get(source) == path
+                    and source_store.fingerprint(source, existing_ref.snapshot) == fingerprint and signature(path) == initial_signature):
+                # Same file, same parsing settings and code as the active revision: nothing to parse, compare, rebuild or stage.
+                total = len(old.source_records if source == 'roles' else old.users.source_records if source == 'users' else old.sod.get('records', []))
+                if total:
+                    existing_ref.checked_at = stamp
+                    result.update(status='unchanged', **{**diff_records(source, [], []), 'unchanged': total}, records=total, fast_path=True)
+                    announce('Unchanged',source)
+                    successful.append(source)
+                    results.append(result)
+                    continue
             if source == 'roles':
                 candidate = cache._build_catalog(path, settings)
                 before, after = old.source_records, candidate.source_records
@@ -373,7 +406,7 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
                 if has_changes or source in forced or not existing or existing.path != path:
                     snapshot_report = candidate.import_report if source == 'roles' else candidate['report'] if source == 'sod' else candidate.report
                     identity = write_private('snapshots', dict(version=1, source=source, records=after, report=snapshot_report))
-                    fresh[source] = (identity, after, snapshot_report)
+                    fresh[source] = (identity, after, snapshot_report, fingerprint)
                     new_sod_version = source == 'sod' and (has_changes or not old.sod) and not any(item.snapshot == identity for item in settings.data_lifecycle.sod_history)
                     if new_sod_version and len(settings.data_lifecycle.sod_history) >= 1000:
                         raise ValueError('SoD source history is full. Preserve a backup and review storage before importing another version.')
@@ -382,18 +415,21 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
                         settings.data_lifecycle.sod_history.append(settings.data_lifecycle.sources[source].model_copy(deep=True))
                 else:
                     existing.checked_at = stamp
+                    if fingerprint: pending_fingerprints[source] = (existing.snapshot, fingerprint)
             elif has_changes or source in forced or not settings.employee_snapshot_id:
                 candidate.imported_at = stamp
                 settings.employee_snapshot_id = persist_directory(candidate)
             # A source becomes a publication candidate only after all of its
             # immutable durable inputs have been staged successfully.
             if source == 'roles':
+                catalogue_new |= bool(has_changes or source in forced or not old.roles)
                 candidate.users = state.users
                 candidate.sod = state.sod
                 candidate.loaded_sources = dict(state.loaded_sources)
                 if not has_changes and old.last_loaded: candidate.last_loaded = old.last_loaded
                 state = candidate
             elif source == 'users':
+                users_fresh = True
                 state.users = candidate
             elif source == 'sod':
                 state.sod = candidate
@@ -424,7 +460,7 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
         if not settings.data_csv_path and (state.loaded_sources.get('roles') or 'roles' in settings.data_lifecycle.sources):
             state = cache._CacheState(users=state.users, sod=state.sod, loaded_sources={k:v for k,v in state.loaded_sources.items() if k != 'roles'})
             settings.data_lifecycle.sources.pop('roles', None)
-            sap_cleared = True
+            sap_cleared = catalogue_new = True
             changed = True
         if not settings.user_csv_path and (state.loaded_sources.get('users') or 'users' in settings.data_lifecycle.sources):
             from user_access import UserState
@@ -439,10 +475,9 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
         settings.data_lifecycle.sources.pop('sod', None)
         changed = True
     announce('Updating dependent views')
-    # Always rebuild user-derived indexes against the final catalogue. Replacing
-    # either dataset can remove mappings, wildcard matches and transaction links.
-    # Nothing to re-map when neither source was adopted in this call (a static start restores both from one consistent revision).
-    if state.users.source_records and (changed or any(source in successful for source in ('roles', 'users'))):
+    # User-derived indexes must match the final catalogue: replacing the catalogue can remove mappings, wildcard matches and transaction links.
+    # Users parsed in this call were already mapped against the final catalogue; only users carried over from before need re-mapping.
+    if state.users.source_records and catalogue_new and not users_fresh:
         from user_access import build_users as rebuild_users
         profile = next(p for p in settings.user_import_profiles if p.id == settings.active_user_import)
         state.users = rebuild_users(settings.user_csv_path, profile, state.roles,
@@ -474,6 +509,10 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
                 error=AnalysisValidationError('The CSV changed before activation. Previous data is retained; select it again after the export finishes.')
                 error.sap_lens_source=checked_source
                 raise error
+        # Slow store work happens before the pointer commit, outside every lock: rows are staged invisibly, activation afterwards is one short flip.
+        for staged_source, (staged_id, staged_rows, staged_report, staged_fp) in fresh.items():
+            try: source_store.stage(staged_source, staged_id, staged_rows, staged_report, staged_fp)
+            except Exception: pass  # noqa: BLE001 - the store is optional; reconcile retries after the commit
         with cache._load_lock, store.lock:
             if before_commit: before_commit()
             # CAS covers settings edits, competing imports and concurrent loaders.
@@ -496,6 +535,8 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
                 store.error = store.import_error = None
         # The store follows the committed pointer (never the other way round); a failure only means the JSON snapshots are read next time.
         source_store.reconcile(settings, fresh)
+        for pending_source, (pending_snapshot, pending_value) in pending_fingerprints.items():
+            source_store.set_fingerprint(pending_source, pending_snapshot, pending_value)
         from account_review import record_missing_users
         record_missing_users(state)
         if previous_directory is not None and directory is not None and directory is not previous_directory:
@@ -508,6 +549,7 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
         report['id'] = report_id
         return summary(report)
     except Exception:
+        if fresh: source_store.discard_staged()  # the commit did not happen: staged revisions never become visible
         if report_id and report_id not in get_settings().data_lifecycle.history:
             try: private_path('reports', report_id).unlink(missing_ok=True)
             except OSError: pass

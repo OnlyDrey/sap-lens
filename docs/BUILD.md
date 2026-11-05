@@ -375,7 +375,7 @@ else is an internal helper and is not a supported entrypoint.
 | Verification | verify-windows-package.py, verify-server-bundle.py, verify-desktop-installer.py, verify-desktop-distribution.py, verify-artifact-zip.py, write-windows-metadata.py | KEEP | Package, bundle, installer and ZIP verifiers; version/PE metadata generation |
 | Validation | validate.py (+ validate.sh, validate.ps1), run-tests.py, test-map.json, ci.py, check-workflows.py, check-docs.py, check-powershell.ps1 | KEEP | Validation levels and their thin wrappers (documented in AGENTS.md), test profiles and ownership, CI step runner/summary, workflow contracts, documentation links, PowerShell parse check |
 | Validation | serve-browser-tests.py, sync-lucide-catalog.mjs, frontend-licenses.mjs, product-version.mjs, requirements-audit.txt | KEEP | Browser test server, icon catalogue check, license and version generators, audit tooling pins |
-| Development | validation_tracker.py, generate-examples.py, profile-sod.py, reference-template.py | KEEP | Tracker tooling, deterministic example generator, SoD profiling and reference template; separate from the build engine by design |
+| Development | validation_tracker.py, generate-examples.py, profile-sod.py, benchmarks/data_benchmark.py, reference-template.py | KEEP | Tracker tooling, deterministic example generator, SoD profiling and reference template; separate from the build engine by design |
 
 Remaining debt: `test-service-management.ps1` is not executed by any build step; the legacy `build-windows.ps1` stage engine and the deployment
 builder still own sequencing that could later move into Python, which needs real Windows parity testing first.

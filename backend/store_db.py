@@ -106,7 +106,14 @@ def _v1(connection):
                        'to_version INTEGER NOT NULL, backup_id TEXT, backup_sha256 TEXT, status TEXT NOT NULL, confirmed_at TEXT, confirmed_by TEXT) WITHOUT ROWID')
 
 
-LADDER = {1: _v1}
+def _v2(connection):
+    # Fingerprint of the exact input that produced a revision (file content + the settings and code that shape parsing): lets a dynamic source
+    # that has not changed skip parsing, diffing and rebuilding. Empty means unknown, which always takes the full path.
+    if 'fingerprint' not in {row[1] for row in connection.execute('PRAGMA table_info(source_revisions)')}:
+        connection.execute('ALTER TABLE source_revisions ADD COLUMN fingerprint TEXT NOT NULL DEFAULT \'\'')
+
+
+LADDER = {1: _v1, 2: _v2}
 SCHEMA_VERSION = max(LADDER)
 
 
