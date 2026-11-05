@@ -80,6 +80,31 @@ Quick checks (`quick`) install nothing. `test` prepares only the project `.venv`
 
 **pip and certificates.** Python 3.12 seeds new environments with pip 24.0, which trusts only its bundled certificates and fails with `CERTIFICATE_VERIFY_FAILED` where a corporate proxy's CA lives in the Windows certificate store. The engine therefore moves an old pip to the project's pinned release (`pip==` in `backend/requirements-build.txt`) before installing anything; if that first step fails certificate verification it retries **once** with pip's system-trust-store option (`--use-feature=truststore`), only for this bootstrap, because pip 24.2 and later use the system store by default. Verification is never disabled, `--trusted-host` is never used, and no certificate is added to the machine. If the system store does not contain the CA, ask IT to trust it there (or `pip config set global.cert <file>`) and rerun; repeated runs resume safely.
 
+## Frontend dependencies, shared prerequisites and diagnostics
+
+- **Node.js:** `frontend/package.json` `engines` (Node 24 or 25, npm 10 or 11) is enforced before any build starts, with an actionable message and no automatic
+  Node installation. Node 24 LTS is the CI baseline and the recommended version; Node 25 is accepted, with a one-time note that it is not an LTS release.
+- **Isolated frontend workspace:** the deployment builder (`-Mode build|package` for Windows, Linux native and Docker) never runs `npm ci` in your
+  `frontend/node_modules`. It mirrors the needed sources into `backend/build/frontend-workspace` (a generated, ignored, cleanable path), installs from the
+  committed `package-lock.json` there, runs type check, catalogue check, production build, audit and the browser smoke tests in the workspace, and publishes only
+  the verified `dist` to `frontend/dist`. A running dev server, editor or scanner holding files in `frontend/node_modules` can no longer break a build. The
+  installation is reused while `package.json`, `package-lock.json` and the Node major version are unchanged, so a repeated or second-target build does not reinstall.
+- **Shared prerequisites run once per invocation:** `-Target all` validates and builds the shared frontend assets once; Desktop and Service reuse them. If shared
+  validation fails, the remaining targets are recorded as `blocked` (not attempted) instead of repeating the suite or being reported as packaging failures.
+- **Failure reports:** every failed stage prints the stage, command, working directory, exit code, the real error and the last output lines, and names the detailed
+  log (`dist/<version>/build.log`). Secrets (token variables, URL credentials, `_authToken`) are redacted. `build-manifest.json` carries the same facts per
+  target (`failed_stage`, `failure_class`, `command`, `exit_code`, `error`, `hint`, `output_tail`, `log`), a top-level `shared_validation` record when shared validation
+  failed, and `status: blocked` with `blocked_by: shared_validation` for targets that were not attempted. Failure classes: `dependency_install`, `python_environment`,
+  `frontend_validation`, `frontend_build`, `browser_smoke`, `desktop_packaging`, `service_packaging`, `runtime_smoke`, `validation`.
+- **Windows file locks** (`EPERM`, `EBUSY`, `EACCES`, WinError 5 or 32): the report names the affected file. Transient locks inside the isolated workspace are retried at
+  most twice (3 s, then 8 s); permission errors are never retried. SAP Lens never stops other processes, disables antivirus or asks for administrator rights. To fix a
+  persistent lock, close programs that use the repository (editors, dev servers, terminals in the folder) or exclude `backend/build` from real-time scanning where policy
+  allows, then run the same command again; the build is safe to repeat.
+- **Retry and targeted validation:** rerun the same command (`--skip-setup` reuses a still-valid validation receipt). Run only the build contract checks with
+  `python -m unittest discover -s backend/tests -p test_build_diagnostics.py` and `-p test_local_deployments.py`. Build Desktop and Service together with
+  `.\build.ps1 -Mode build -Platform windows -Target all`.
+- **Windows paths:** the repository path may contain spaces. Very long checkout paths are rejected early with advice to use a shorter path or enable Windows long paths.
+
 ## First-time Windows setup
 
 From an approved checkout, in x64 PowerShell:
