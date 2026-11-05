@@ -64,11 +64,15 @@ export function StartupGate({ children }: { children: ReactNode }) {
 }
 
 
+const OPTIONAL_CHUNKS = /\/Icon(?:Catalog|Picker)-[\w-]+\.js/
+
 /** Rebuilt lazy assets can disappear while an old tab remains open. Never auto-reload drafts or writes. */
 export class FrontendRecoveryBoundary extends Component<{children:ReactNode},{failed:boolean}>{
  state={failed:false}
  static getDerivedStateFromError(){return {failed:true}}
- private assetFailure=(event:Event)=>{event.preventDefault();this.setState({failed:true})}
+ // Optional chunks (the icon catalog) fall back locally, so their failure must not replace the whole application. The event is left alone
+ // (not default-prevented) so the import still rejects into the local fallback; every other failed chunk means the build changed.
+ private assetFailure=(event:Event)=>{if(OPTIONAL_CHUNKS.test(String((event as Event&{payload?:{message?:string}}).payload?.message??'')))return;event.preventDefault();this.setState({failed:true})}
  componentDidMount(){window.addEventListener('vite:preloadError',this.assetFailure)}
  componentWillUnmount(){window.removeEventListener('vite:preloadError',this.assetFailure)}
  render(){return this.state.failed?<section role="alert" className="ui-card m-4 grid gap-3"><h1>Application recovery</h1><p>The application could not render or its built assets changed. Reload to obtain the current application. Saved filters are retained; unsaved form input may be lost.</p><Button onClick={recoverTrustedSession}>Reload application</Button></section>:this.props.children}

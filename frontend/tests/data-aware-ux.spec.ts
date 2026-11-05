@@ -261,6 +261,18 @@ test('asset replacement offers an explicit bounded reload preserving the route',
  await expect(page.getByRole('heading',{name:'Application recovery',exact:true})).toHaveCount(0)
 })
 
+test('a failed optional icon chunk does not replace the application, but any other failed chunk still offers recovery',async({page})=>{
+ await page.goto('/#session=browser-test-session')
+ await navigate(page,'User Access')
+ const handled=await page.evaluate(()=>{const event=Object.assign(new Event('vite:preloadError',{cancelable:true}),{payload:new Error('Failed to fetch dynamically imported module: http://127.0.0.1/assets/IconCatalog-abc123.js')});window.dispatchEvent(event);return event.defaultPrevented})
+ expect(handled).toBe(false) // left to the local fallback
+ const picker=await page.evaluate(()=>{const event=Object.assign(new Event('vite:preloadError',{cancelable:true}),{payload:new Error('Failed to fetch dynamically imported module: http://127.0.0.1/assets/IconPicker-abc123.js')});window.dispatchEvent(event);return event.defaultPrevented})
+ expect(picker).toBe(false) // the picker has its own alert and keeps the saved icon
+ await expect(page.getByRole('heading',{name:'Application recovery',exact:true})).toHaveCount(0)
+ await page.evaluate(()=>window.dispatchEvent(Object.assign(new Event('vite:preloadError',{cancelable:true}),{payload:new Error('Failed to fetch dynamically imported module: http://127.0.0.1/assets/Settings-abc123.js')})))
+ await expect(page.getByRole('heading',{name:'Application recovery',exact:true})).toBeVisible()
+})
+
 for(const status of [401,403])test(`HTTP ${status} is access failure, not an unreachable backend`,async({page})=>{
  await page.route('**/api/configuration',route=>route.fulfill({status,contentType:'application/json',body:JSON.stringify({detail:status===401?'Server access is not authorized.':'Your account does not have permission for this operation.'})}))
  await page.goto('/#session=browser-test-session')
