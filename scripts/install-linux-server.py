@@ -176,6 +176,20 @@ def managed_prefix(prefix):
                     raise maintenance.MaintenanceError('Installation contains administrator-added files; preserve/review them explicitly.')
 
 
+def runtime_preflight(fresh, port=18743):
+    """Checks that need nothing to be changed first. Everything here runs before the first file, user or unit is created."""
+    missing = [name for name in ('venv', 'ensurepip') if importlib.util.find_spec(name) is None]
+    if missing:
+        raise maintenance.MaintenanceError('Python is missing its ' + ' and '.join(missing) + ' module, which the offline installation needs to create the application environment. On Debian or Ubuntu install the matching package (python3.12-venv); nothing was changed.')
+    if fresh:
+        import socket
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            try:
+                probe.bind(('127.0.0.1', port))
+            except OSError:
+                raise maintenance.MaintenanceError(f'Port {port} on 127.0.0.1 is already in use by another program. Stop it or choose another SAP_LENS_PORT in the configuration file first; nothing was changed.') from None
+
+
 def install(args, unit, marker):
     manifest = validate_bundle(); old = installed(args.prefix)
     if args.action == 'upgrade' and old is None: raise maintenance.MaintenanceError('No installation found; use install first.')
@@ -184,6 +198,7 @@ def install(args, unit, marker):
     ancestor = args.prefix.parent
     while not ancestor.exists(): ancestor = ancestor.parent
     if shutil.disk_usage(ancestor).free < total * 4 + 64*1024*1024: raise maintenance.MaintenanceError('Insufficient free space to stage a new immutable release.')
+    runtime_preflight(old is None)
     if not args.user:
         result = subprocess.run(['id', '-u', 'saplens'], capture_output=True, text=True)
         if result.returncode: command('useradd', '--system', '--home-dir', args.data, '--shell', '/usr/sbin/nologin', 'saplens')
@@ -204,13 +219,19 @@ def install(args, unit, marker):
     if release.exists() and not same: raise maintenance.MaintenanceError('A staged release already exists. Inspect it; no files were overwritten.')
     if not same:
         release.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(BUNDLE, release)
-        for path in [release, *release.rglob('*')]: path.chmod(0o755 if path.is_dir() else 0o644)
-        command(sys.executable, '-m', 'venv', release / '.venv')
-        python = release / '.venv/bin/python'
-        command(python, '-m', 'pip', 'install', '--no-index', '--require-hashes', '--find-links', release / 'wheelhouse', '-r', release / 'requirements-runtime.txt')
-        command(python, '-m', 'pip', 'check')
-        command(python, release / 'scripts/run-installed-server.py', '--env', args.config, '--check')
+        try:
+            shutil.copytree(BUNDLE, release)
+            for path in [release, *release.rglob('*')]: path.chmod(0o755 if path.is_dir() else 0o644)
+            command(sys.executable, '-m', 'venv', release / '.venv')
+            python = release / '.venv/bin/python'
+            command(python, '-m', 'pip', 'install', '--no-index', '--require-hashes', '--find-links', release / 'wheelhouse', '-r', release / 'requirements-runtime.txt')
+            command(python, '-m', 'pip', 'check')
+            command(python, release / 'scripts/run-installed-server.py', '--env', args.config, '--check')
+        except BaseException:
+            # Roll back only the release directory created by this run; the active release, the data and the configuration are untouched.
+            if release.is_dir() and not release.is_symlink(): shutil.rmtree(release, ignore_errors=True)
+            print('Installation of the new release failed and its partly staged files were removed. The previous installation (if any), data and configuration are unchanged. Review the message above, fix the cause and rerun.', file=sys.stderr)
+            raise
     if not args.user:
         import grp
         command('chown', 'saplens:saplens', args.data)

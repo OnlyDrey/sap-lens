@@ -57,6 +57,10 @@ origin/allowed hosts/trusted proxy peers. Dynamic CSV paths must be under the
 configured source root; give `saplens` read access. Uploads become Static after
 confirmation and snapshots persist independently of the original client file.
 
+## Installer preflight
+
+Before the first file, user or unit is created, the installer checks Linux x86-64, glibc 2.35+, Python 3.12 with `venv` and `ensurepip` (on Debian or Ubuntu install `python3.12-venv`), root (or `--user`), a running systemd host for system mode, free disk space, an unmanaged existing unit, separate application, data and configuration directories and, for a fresh install, that port 18743 is free. If staging the new release fails afterwards, only the release directory created by that run is removed; an existing installation, the data and the configuration are left as they were. The packaged server needs no Node.js, npm or PyInstaller on the target.
+
 ## Upgrade, rollback and uninstall
 
 Back up the full stopped data directory and administrator environment/secret files.

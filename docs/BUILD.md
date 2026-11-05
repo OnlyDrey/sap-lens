@@ -61,6 +61,25 @@ Destination installations do not need Node or React compilation. Existing packag
 contents, service names, installation paths, binding/security and data storage stay
 unchanged; see the [deployment guides](deployment/README.md).
 
+### Prerequisite matrix
+
+| Prerequisite | Needed for | What the build entry points do | Manual or administrator action |
+| --- | --- | --- | --- |
+| Python 3.12 x64 | build, test, package | Checked (version and 64-bit); `build.ps1` offers a per-user winget install only with consent | Install it yourself on other platforms |
+| Project `.venv` / packaging env | test, build, package | Created if missing; reused if valid; a wrong-version, 32-bit or broken one is reported and **never deleted** | Remove or repair it yourself when told |
+| pip | all Python setup | Seeded if missing; upgraded to the pinned release when older than 24.2 (see below) | None normally |
+| Locked Python dependencies | test, build, package | Installed from the pinned requirement files only when something is missing or different; otherwise skipped | None |
+| Node.js 24/25 and npm 10/11 | frontend, build, package | Checked only; per-user winget install on Windows with consent; **never replaces your global Node** | Install a supported version when missing |
+| Locked frontend dependencies | frontend, build, package | `npm ci` only when `node_modules` is older than `package.json` or the lockfile | None |
+| Git | release, packaging identity | Checked; per-user winget install with consent | Elsewhere install it yourself |
+| Docker engine and Compose | Docker target | Checked only | Install and start it yourself |
+| PowerShell 5.1 or 7 | Windows targets | Checked on Windows; not needed for Linux or Docker packaging | None on Windows |
+| Inno Setup, .NET Framework 4.8, WebView2 | Windows installer, service manager, desktop smoke | Handled by the Windows packaging scripts; see the Windows guides | Administrator approval where policy requires |
+
+Quick checks (`quick`) install nothing. `test` prepares only the project `.venv`; `build`/`package` prepare the packaging environment; `release` needs Git only. System-level installs (Python, Git, Node) always need explicit consent (`--install-system` or an interactive yes).
+
+**pip and certificates.** Python 3.12 seeds new environments with pip 24.0, which trusts only its bundled certificates and fails with `CERTIFICATE_VERIFY_FAILED` where a corporate proxy's CA lives in the Windows certificate store. The engine therefore moves an old pip to the project's pinned release (`pip==` in `backend/requirements-build.txt`) before installing anything; if that first step fails certificate verification it retries **once** with pip's system-trust-store option (`--use-feature=truststore`), only for this bootstrap, because pip 24.2 and later use the system store by default. Verification is never disabled, `--trusted-host` is never used, and no certificate is added to the machine. If the system store does not contain the CA, ask IT to trust it there (or `pip config set global.cert <file>`) and rerun; repeated runs resume safely.
+
 ## First-time Windows setup
 
 From an approved checkout, in x64 PowerShell:

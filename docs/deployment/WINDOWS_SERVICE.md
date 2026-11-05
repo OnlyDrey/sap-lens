@@ -207,6 +207,10 @@ data/log ACLs. Test the path **as the service account**, not as the logged-in us
 The installer deliberately leaves remote share ACLs unchanged; have its administrator
 grant permissions to the domain service identity before starting. No plaintext domain credentials are stored.
 
+## Installer preflight
+
+`manage-server-service.ps1 -Action Install` refuses, before creating any directory, permission or service, on a host that is not 64-bit Windows 10 or Server 2016 or newer, when the port is already in use, when a `SAPLens` service already exists, when the PowerShell session is not elevated, or when the bundle or the WinSW wrapper fails its integrity check. The installed service needs no Python, pip, Node.js or npm. These are static and mocked-test guarantees; real Windows service acceptance is separate.
+
 ## Upgrade, backup and removal
 
 Use an elevated PowerShell and a newly extracted, checksum-verified service

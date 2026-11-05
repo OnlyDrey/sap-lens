@@ -32,6 +32,10 @@ If a problem persists, export the sanitized report from **Settings → Health & 
 | "Origin is not allowed." / "Desktop access requires its exact loopback listener." (403) | The page was opened from another origin or host than the configured one. | Open SAP Lens through the configured public origin and an allowed host. |
 | "Application request is not authorized." (403) | An API address was opened directly without the application session. | Open the application itself; API addresses are not meant for direct browsing. |
 
+## Build setup: pip certificate errors
+
+`CERTIFICATE_VERIFY_FAILED` while installing Python packages almost always means the project environment was seeded with pip 24.0, which does not use the Windows certificate store. Run the official entry point again (`.\build.ps1 -Mode test`): it upgrades pip to the pinned release, retrying once with the system trust store, and then installs the locked dependencies. If it still fails, your proxy's CA is not trusted by Windows: ask IT to install it in the certificate store. SAP Lens never disables verification or uses `--trusted-host`. Other build prerequisites are listed in the [prerequisite matrix](../BUILD.md#prerequisite-matrix).
+
 ## Session disconnected
 
 **Session disconnected** means this window holds a local session from an earlier start of SAP Lens (for example after a restart while the window stayed open). Choose **Reconnect session**; your view and filters are kept. If you typed into a form, SAP Lens asks before reloading because that text is lost. **Connection lost** means the local service is not answering: wait a moment and choose **Retry connection**. If the notice returns after a normal start, close other SAP Lens windows, restart SAP Lens and open **Technical details** for the state and category. Nothing is saved or resubmitted automatically.

@@ -182,6 +182,9 @@ if ($Action -in @('Upgrade','Backup','Restore')) {
 }
 if ($Action -in @('Start','Stop','Restart','Uninstall')) { $installedValues = Read-ServiceConfiguration }
 if ($Action -eq 'Install') {
+    # Preflight: everything below only reads. Nothing is created, registered or copied until all of it passes.
+    if (-not [Environment]::Is64BitOperatingSystem -or [Environment]::OSVersion.Version.Major -lt 10) { throw 'The SAP Lens service requires 64-bit Windows 10, Windows Server 2016 or newer. Nothing was installed.' }
+    if (@(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue).Count) { throw "Port $Port is already in use by another program. Stop it or choose another -Port; nothing was installed." }
     if (Get-Service SAPLens -ErrorAction SilentlyContinue) { throw 'SAPLens already exists. Stop and upgrade it rather than overwriting its configuration.' }
     $report = Get-Content (Join-Path $InstallDirectory 'verification-report.json') -Raw | ConvertFrom-Json
     if ($report.verification -ne 'passed' -or $report.signing -ne 'disabled') { throw 'Missing approved server verification report.' }

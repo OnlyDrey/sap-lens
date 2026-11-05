@@ -22,6 +22,8 @@ import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'backend'))
+sys.path.insert(0, str(ROOT / 'scripts'))
+from build_system import python_env
 from version import make_local_deployment_info,product_version
 
 TARGETS = ('desktop', 'service', 'docker', 'linux-native')
@@ -165,6 +167,16 @@ class Builder:
             subprocess.run(list(map(str, command)), cwd=ROOT, env=child_env, stdout=log,
                            stderr=subprocess.STDOUT, check=True)
 
+    def bootstrap_pip(self, interpreter):
+        """Same pip bootstrap as the build engine: an old seeded pip is moved to the pinned release before any package is installed."""
+        def run(label, command):
+            self.stage = label
+            done = subprocess.run(list(map(str, command)), cwd=ROOT, env=self.env, capture_output=True, text=True)
+            with self.log.open('a', encoding='utf-8') as log: log.write('\n' + label + '\n' + done.stdout + done.stderr)
+            return done.returncode, done.stdout + done.stderr
+        try: python_env.ensure_pip(interpreter, ROOT, run, print)
+        except RuntimeError as error: raise ValueError(str(error)) from None
+
     def save(self):
         if hasattr(self,'started'):self.manifest['total_seconds']=round(time.monotonic()-self.started,2)
         module('deployment-package').write(self.output / 'build-manifest.json', self.manifest)
@@ -205,6 +217,7 @@ class Builder:
             if cold_npm.exists(): shutil.rmtree(cold_npm)
         self.run('Create dedicated build Python environment', [sys.executable, '-m', 'venv', self.python.parent.parent])
         self.run('Create dedicated audit environment', [sys.executable, '-m', 'venv', self.audit.parent.parent])
+        for interpreter in (self.python, self.audit): self.bootstrap_pip(interpreter)
         pip_options = ['--no-cache-dir'] if self.args.no_cache else []
         self.run('Install pinned Python build and test dependencies', [self.python, '-m', 'pip', 'install', *pip_options, '-r', 'backend/requirements-dev.txt', '-r', 'backend/requirements-build.txt'])
         pip_pin = next(line for line in (ROOT / 'backend/requirements-build.txt').read_text().splitlines() if line.startswith('pip=='))
