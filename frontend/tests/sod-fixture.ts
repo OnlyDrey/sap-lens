@@ -13,7 +13,7 @@ const users = () => 'USERNAME,ROLE_NAME,USER_GROUP,ROLE_VALID_FROM,ROLE_VALID_TO
 ].map(([user, role, group]) => `${user},${role},${group},20000101,99991231`).join('\n') + '\n'
 const header = 'RISK,CRITICITY,TYPE,TEXT,ACTVT1,ACTVT2,ACTIVITY_SLOT,ACTIVITY,TCODE,TTEXT\n'
 const risk = (id: string, a: string, b: string, first: string, second: string) => `${id},H,S,Synthetic ${id},${a},${b},ACTVT1,${a},${first},Synthetic\n${id},H,S,Synthetic ${id},${a},${b},ACTVT2,${b},${second},Synthetic\n`
-const matrix = header + risk('R1', 'A', 'B', 'X1', 'X2') + risk('R2', 'A', 'C', 'X1', 'X3')
+export const matrix = header + risk('R1', 'A', 'B', 'X1', 'X2') + risk('R2', 'A', 'C', 'X1', 'X3')
 
 /** Two risks sharing activity A, duplicate role coverage for SYN_A, a single-role conflict for SYN_B and a control user. */
 export const longRoleName = 'ZC:SYN:A_VERY_LONG_ROLE_IDENTIFIER_FOR_LAYOUT_STRESS_TESTING:ABCDEFGHIJKLMNOP:0123456789:QRSTUV'
