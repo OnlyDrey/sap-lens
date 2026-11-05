@@ -203,6 +203,28 @@ class Suggestions(Store):
             fg.delete_rule(rule['id'])
 
 
+class ManagerDetection(unittest.TestCase):
+    def test_only_known_to_different_known_manager_is_a_change(self):
+        import position_changes as changes
+        from test_position_changes import directory, person
+        before = [person('a@example.test', ManagerMail='m1@example.test', ManagerName='One'), person('b@example.test', ManagerMail='m1@example.test'),
+                  person('c@example.test'), person('d@example.test', ManagerMail='m1@example.test'), person('e@example.test', ManagerMail='m1@example.test')]
+        after = [person('a@example.test', ManagerMail='M2@example.test', ManagerName='Two'), person('b@example.test', ManagerMail=' M1@Example.test '),
+                 person('c@example.test', ManagerMail='m2@example.test'), person('d@example.test'), person('f@example.test', ManagerMail='m2@example.test')]
+        events = changes.detect_managers(directory(*before), directory(*after + [person('e@example.test', ManagerMail='m1@example.test')]), '2026-01-01T00:00:00+00:00')
+        self.assertEqual([(e['key'], e['previous_manager'], e['current_manager']) for e in events], [('a@example.test', 'One', 'Two')])
+        self.assertEqual(changes.detect_managers(directory(*before), directory(*before), 'x'), [])  # identical import
+
+    def test_incomplete_replacement_and_ambiguous_identities_create_nothing(self):
+        import position_changes as changes
+        from test_position_changes import directory, person
+        before = [person(f'u{i}@example.test', ManagerMail='m1@example.test') for i in range(6)]
+        self.assertEqual(changes.detect_managers(directory(*before), directory(person('u0@example.test', ManagerMail='m2@example.test')), 'x'), [])
+        duplicate = [person('d@example.test', ManagerMail='m1@example.test'), person('d@example.test', ManagerMail='m1@example.test')]
+        moved = [person('d@example.test', ManagerMail='m2@example.test'), person('d@example.test', ManagerMail='m2@example.test')]
+        self.assertEqual(changes.detect_managers(directory(*duplicate), directory(*moved), 'x'), [])
+
+
 class Api(unittest.TestCase):
     """Router behaviour on a synthetic dataset (reuses the Account Review fixture)."""
     def setUp(self):
@@ -233,6 +255,44 @@ class Api(unittest.TestCase):
         self.assertEqual(self.call('GET', '/history/demo_normal').json()['total'], 1)
         self.assertEqual(self.call('POST', f'/{created["id"]}/archive').json()['status'], 'archived')
         self.assertEqual(self.call('GET', '').json()['items'][0]['user_count'], 1)
+
+    def organisation(self, department, title, manager):
+        from test_position_changes import directory, person
+        return directory(person('normal@example.test', department, title, ManagerMail=manager, ManagerName=manager.split('@')[0]))
+
+    def test_organizational_changes_require_reconfirmation_without_losing_the_group(self):
+        import position_changes as changes
+        gid = self.call('POST', '', json=dict(name='Purchasing')).json()['id']
+        user = '/users/DEMO_NORMAL'
+        self.call('PUT', user, json=dict(group_id=gid, reviewer='Rev', rationale='Buys', expected_revision=0))
+        base = self.organisation('Finance', 'Accountant', 'm1@example.test')
+        changes.record_safely(base, self.organisation('Procurement', 'Accountant', 'm1@example.test'))
+        state = self.call('GET', user).json()['classification']
+        self.assertEqual((state['status'], state['group_id'], state['revision']), ('Needs review', gid, 2))
+        self.assertIn('Directory Department changed from Finance to Procurement', state['review']['reason'])
+        events = self.call('GET', '/history/DEMO_NORMAL').json()
+        self.call('GET', user); self.client.get('/api/account-review', headers=self.base.H)  # repeated reads change nothing
+        self.assertEqual(self.call('GET', '/history/DEMO_NORMAL').json()['total'], events['total'])
+        done = self.call('PUT', user, json=dict(group_id=gid, reviewer='Rev', rationale='Still buying', expected_revision=2, change_id=state['review']['change_id']))
+        self.assertEqual(done.json()['status'], 'Confirmed')
+        changes.record_safely(base, self.organisation('Procurement', 'Accountant', 'm1@example.test'))  # same organizational state again
+        self.assertEqual(self.call('GET', user).json()['classification']['status'], 'Confirmed')
+        changes.record_safely(self.organisation('Procurement', 'Accountant', 'm1@example.test'), self.organisation('Procurement', 'Logistics Lead', 'm1@example.test'))
+        self.assertEqual(self.call('GET', user).json()['classification']['status'], 'Needs review')  # a genuine new change
+
+    def test_manager_change_is_a_separate_signal(self):
+        import position_changes as changes
+        gid = self.call('POST', '', json=dict(name='Purchasing')).json()['id']
+        user = '/users/DEMO_NORMAL'
+        self.call('PUT', user, json=dict(group_id=gid, reviewer='Rev', rationale='Buys', expected_revision=0))
+        changes.record_safely(self.organisation('Finance', 'Accountant', 'm1@example.test'), self.organisation('Finance', 'Accountant', 'm2@example.test'))
+        self.assertEqual(self.call('GET', user).json()['classification']['status'], 'Confirmed')
+        history = self.call('GET', '/history/DEMO_NORMAL').json()['items']
+        self.assertEqual([e['event'] for e in history], ['manager_changed', 'assigned'])
+        self.assertIn('Manager changed from m1 to m2', history[0]['reason'])
+        row = next(r for r in self.client.get('/api/account-review?search=DEMO_NORMAL', headers=self.base.H).json()['items'])
+        self.assertTrue(row['manager_change']['open'] and row['needs_review'] and row['position_change'] is None)
+        self.assertEqual(row['manager']['name'], '')
 
     def test_rules_over_http(self):
         gid = self.call('POST', '', json=dict(name='Finance')).json()['id']

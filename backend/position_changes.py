@@ -78,6 +78,43 @@ def detect(previous, current, detected_at):
     return sorted(events, key=lambda event: event['key']), notices
 
 
+def manager_key(record):
+    """Stable manager identity from imported evidence only: mail, then account name, then DN. Names alone never identify a manager."""
+    for field in ('ManagerMail', 'ManagerSamAccountName', 'ManagerDN'):
+        if value := normalize_text(record.get(field, '')):
+            return value
+    return ''
+
+
+def detect_managers(previous, current, detected_at):
+    """Manager changes between two Directory objects; a separate signal from Department and Job Title changes. Pure.
+
+    Only a known manager replaced by a different known manager is a change: a missing manager (before or after), formatting-only
+    differences, ambiguous employee identities and suspiciously incomplete replacements never create one."""
+    if previous is None or current is None or previous.digest == current.digest or len(current.rows) < MIN_COMPLETE_SHARE * len(previous.rows):
+        return []
+    old, new, events = _unique_by_mail(previous.rows), _unique_by_mail(current.rows), []
+    for key, record in new.items():
+        before = old.get(key)
+        if before is None or not manager_key(before) or not manager_key(record) or manager_key(before) == manager_key(record):
+            continue
+        events.append(dict(
+            id=hashlib.sha256(f'{key}|{current.digest}|manager'.encode()).hexdigest(), key=key, email=record.get('Mail', '').strip(), name=record.get('Name', '').strip(),
+            previous_manager=before.get('ManagerName', '').strip(), previous_manager_email=before.get('ManagerMail', '').strip(),
+            current_manager=record.get('ManagerName', '').strip(), current_manager_email=record.get('ManagerMail', '').strip(),
+            detected_at=detected_at, source_generation=current.digest, previous_generation=previous.digest))
+    return sorted(events, key=lambda event: event['key'])
+
+
+def _validate_manager(event):
+    if not isinstance(event, dict) or not re.fullmatch(r'[a-f0-9]{64}', str(event.get('id', ''))):
+        raise ValueError()
+    datetime.fromisoformat(event['detected_at'])
+    for name in ('key', 'email', 'name', 'previous_manager', 'previous_manager_email', 'current_manager', 'current_manager_email', 'source_generation', 'previous_generation'):
+        if not isinstance(event[name], str) or len(event[name]) > 4096:
+            raise ValueError()
+
+
 def _validate(event):
     if not isinstance(event, dict) or not re.fullmatch(r'[a-f0-9]{64}', str(event.get('id', ''))):
         raise ValueError()
@@ -107,10 +144,30 @@ def read():
         return dict(events=[], notice='Position change records could not be read.')
 
 
+def read_manager_events():
+    """Manager change events from the same private store; unreadable or malformed data yields none (never blocks a read)."""
+    path = config_dir() / 'position-changes.json'
+    try:
+        if not path.exists():
+            return []
+        with path.open('rb') as stream:
+            raw = stream.read(MAX_BYTES + 1)
+        data = json.loads(raw) if len(raw) <= MAX_BYTES else None
+        events = data.get('manager_events', []) if isinstance(data, dict) and data.get('format') == 1 else []
+        if not isinstance(events, list):
+            return []
+        for event in events:
+            _validate_manager(event)
+        return events
+    except (OSError, ValueError, KeyError, TypeError, RecursionError):
+        return []
+
+
 def record(previous, current, now=None):
     """Store changes for a published replacement; idempotent per (identity, source generation)."""
     stamp = (now or datetime.now(timezone.utc)).isoformat()
     events, notices = detect(previous, current, stamp)
+    manager_events = detect_managers(previous, current, stamp)
     if previous is None or current is None or previous.digest == current.digest:
         return 0
     with lock:
@@ -119,7 +176,10 @@ def record(previous, current, now=None):
         added = [event for event in events if event['id'] not in known]
         merged = [*stored['events'], *added]
         merged = sorted(merged, key=lambda event: (event['detected_at'], event['id']))[-MAX_EVENTS:]
-        raw = json.dumps(dict(format=1, events=merged, notice=' '.join(notices) or None), ensure_ascii=False, separators=(',', ':')).encode()
+        stored_managers = read_manager_events()
+        known_managers = {event['id'] for event in stored_managers}
+        managers = sorted([*stored_managers, *(e for e in manager_events if e['id'] not in known_managers)], key=lambda event: (event['detected_at'], event['id']))[-MAX_EVENTS:]
+        raw = json.dumps(dict(format=1, events=merged, manager_events=managers, notice=' '.join(notices) or None), ensure_ascii=False, separators=(',', ':')).encode()
         if len(raw) <= MAX_BYTES:
             atomic_write(config_dir() / 'position-changes.json', raw)
     return len(added)
@@ -136,6 +196,16 @@ def record_safely(previous, current):
 
 def latest_recent(events, today=None):
     """Newest recent change per employee e-mail."""
+    cutoff = datetime.combine(today or datetime.now(timezone.utc).date(), datetime.min.time(), tzinfo=timezone.utc) - timedelta(days=RECENT_DAYS)
+    latest = {}
+    for event in sorted(events, key=lambda event: (event['detected_at'], event['id'])):
+        if datetime.fromisoformat(event['detected_at']) >= cutoff:
+            latest[event['key']] = event
+    return latest
+
+
+def latest_managers(events, today=None):
+    """Newest recent manager change per employee e-mail."""
     cutoff = datetime.combine(today or datetime.now(timezone.utc).date(), datetime.min.time(), tzinfo=timezone.utc) - timedelta(days=RECENT_DAYS)
     latest = {}
     for event in sorted(events, key=lambda event: (event['detected_at'], event['id'])):

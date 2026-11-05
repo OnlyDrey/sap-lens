@@ -276,18 +276,37 @@ def classify(username, group_id, rationale, expected_revision, actor, change_id=
         return public_user(data, username)
 
 
+def _flag(data, user, change_id, reason, actor):
+    if user['group_id'] is None or change_id in user.get('handled', []) or (user.get('review') or {}).get('change_id') == change_id:
+        return False
+    was = dict(group_id=user['group_id'], status=user['status'])
+    user.update(status='Needs review', revision=user['revision'] + 1, updated_at=now(), review=dict(change_id=change_id, reason=reason, required_since=now()))
+    _event(data, user, 'review_required', was, user, actor, reason, change_id)
+    return True
+
+
+def _note_manager(data, user, change_id, reason, actor, seen):
+    key = (user_key(user['username']), change_id)
+    if key in seen:
+        return False
+    state = dict(group_id=user['group_id'], status=user['status'])
+    _event(data, user, 'manager_changed', state, user, actor, reason, change_id)
+    seen.add(key)
+    return True
+
+
+def _seen_manager_notes(data):
+    return {(e['user_key'], e['change_id']) for e in data['history'] if e['event'] == 'manager_changed'}
+
+
 def flag_for_review(username, change_id, reason, actor='system'):
-    """Directory import hook for a Department or Job Title change. Keeps the group, sets `Needs review` once per change id.
-    A completed review is not reset by re-importing the same state; only a new change id re-opens it. Returns True if changed."""
+    """Department or Job Title change. Keeps the group, sets `Needs review` once per change id. A completed review is not reset by
+    re-importing the same state; only a new change id re-opens it. Returns True if changed."""
     with lock:
         data = read()
-        key = user_key(username)
-        user = data['users'].get(key)
-        if user is None or user['group_id'] is None or change_id in user.get('handled', []) or (user.get('review') or {}).get('change_id') == change_id:
+        user = data['users'].get(user_key(username))
+        if user is None or not _flag(data, user, change_id, reason, actor):
             return False
-        was = dict(group_id=user['group_id'], status=user['status'])
-        user.update(status='Needs review', revision=user['revision'] + 1, updated_at=now(), review=dict(change_id=change_id, reason=reason, required_since=now()))
-        _event(data, user, 'review_required', was, user, actor, reason, change_id)
         write(data)
         return True
 
@@ -297,12 +316,51 @@ def note_manager_change(username, change_id, reason, actor='system'):
     with lock:
         data = read()
         user = data['users'].get(user_key(username))
-        if user is None or any(e['event'] == 'manager_changed' and e['change_id'] == change_id and e['user_key'] == user_key(username) for e in data['history'][-2000:]):
+        if user is None or not _note_manager(data, user, change_id, reason, actor, _seen_manager_notes(data)):
             return False
-        state = dict(group_id=user['group_id'], status=user['status'])
-        _event(data, user, 'manager_changed', state, user, actor, reason, change_id)
         write(data)
         return True
+
+
+def _change_text(label, before, after):
+    return f'{label} changed from {before or "empty"} to {after or "empty"}'
+
+
+def apply_organizational_changes(email_by_username, position_events, manager_events):
+    """Apply stored Directory change events to classified users. `email_by_username` maps SAP user name -> normalized Directory e-mail for
+    reliably matched users only. Department or Job Title changes detected after the last confirmation flag the user `Needs review`; Manager
+    changes only add a history signal. Idempotent per event id, so repeating an import or this call changes nothing. Returns changes made."""
+    with lock:
+        data = read()
+        if not data['users']:
+            return 0
+        by_email = {}
+        for event in position_events:
+            by_email.setdefault(event['key'], []).append(event)
+        managers = {}
+        for event in manager_events:
+            managers.setdefault(event['key'], []).append(event)
+        seen, changed = _seen_manager_notes(data), 0
+        for user in data['users'].values():
+            email = email_by_username.get(user['username'].strip().upper())
+            if not email:
+                continue
+            since = user.get('confirmed_at') or user.get('updated_at') or ''
+            for event in sorted(by_email.get(email, []), key=lambda e: (e['detected_at'], e['id'])):
+                if event['detected_at'] <= since:
+                    continue
+                parts = []
+                if 'department' in event['fields']:
+                    parts.append(_change_text('Directory Department', event['previous_department'], event['current_department']))
+                if 'title' in event['fields']:
+                    parts.append(_change_text('Job Title', event['previous_title'], event['current_title']))
+                changed += _flag(data, user, event['id'], '; '.join(parts), 'system')
+            for event in sorted(managers.get(email, []), key=lambda e: (e['detected_at'], e['id'])):
+                if event['detected_at'] > since:
+                    changed += _note_manager(data, user, event['id'], _change_text('Manager', event['previous_manager'], event['current_manager']), 'system', seen)
+        if changed:
+            write(data)
+        return changed
 
 
 def user_history(username, offset=0, limit=25):

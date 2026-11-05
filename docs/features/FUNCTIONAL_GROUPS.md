@@ -48,3 +48,19 @@ Advisory only. A rule has an optional Directory Department (equals, ignoring cas
 listed with its reason (for example "Directory Department = Supply Chain and Job Title contains Purchaser"). A single suggestion is offered only
 when all matching rules name the same group; otherwise the dialog says the match is ambiguous and the reviewer chooses. Suggestions never assign
 a group and are only computed from an unambiguous Directory match.
+
+## Organizational change handling
+
+Employee Directory imports reuse the existing change detector (`position_changes.py`); there is no second detector. Imports never write
+Functional Groups. Stored change events are applied to classified users when Account Review or User Details is read (idempotent, never failing the read):
+
+| Directory change | Functional Group | Account Review |
+| --- | --- | --- |
+| Directory Department or Job Title (known value replaced by a different known value) | Group is kept. Status becomes `Needs review` with the reason and the change id. Only an explicit confirm, change or clear (with the change id) returns it to `Confirmed` or `Unassigned`. | Existing Position change priority review. |
+| Manager (known manager replaced by a different known manager) | Group and status untouched. A `manager_changed` history event is added once. | `manager_change` signal on the row (organizational review, not a mandatory reconfirmation). The new manager gets no review permission. |
+
+Idempotency: events are identified by identity and import digest. A change is applied only when detected after the user's last confirmation, and each
+change id is applied once, so repeating an import or re-reading never resets a completed review; a genuinely new change creates a new requirement.
+Missing values, formatting-only differences, ambiguous identities and suspiciously incomplete imports create no change. Users without a group are not
+flagged. No SAP role is removed or granted by any of this. Reporting relationships are the imported direct-report links (manager mail, then account
+name, then DN); they are never inferred from Department and there is no recursive hierarchy.

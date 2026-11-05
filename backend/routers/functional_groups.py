@@ -52,6 +52,34 @@ def directory_context(username):
                 manager=employee['manager']['name'], manager_email=employee['manager']['email'])
 
 
+def sync_organizational_changes():
+    """Apply stored Directory change events to classified users. Never fails a read: the import itself is unaffected."""
+    import logging
+    from employee_directory import match_sap_identity, normalized, sap_email_owners
+    from position_changes import read as read_changes, read_manager_events
+    from .employees import available
+    try:
+        if not fg.read()['users']:
+            return 0
+        state = cache.get_snapshot()
+        directory = available(state)
+        changes, managers = read_changes(), read_manager_events()
+        if not directory or not (changes['events'] or managers):
+            return 0
+        owners = sap_email_owners(state.users.users.values())
+        classified = {user['username'].strip().upper() for user in fg.read()['users'].values()}
+        emails = {}
+        for user in state.users.users.values():
+            if user['username'].strip().upper() in classified:
+                match = match_sap_identity(directory, user, owners)
+                if match['status'] == 'matched' and match['employee']['email']:
+                    emails[user['username'].strip().upper()] = normalized(match['employee']['email'])
+        return fg.apply_organizational_changes(emails, changes['events'], managers)
+    except Exception:  # noqa: BLE001 - advisory synchronisation must not break reads
+        logging.getLogger('sap-lens').warning('Functional Group review synchronisation failed; classifications are unchanged.')
+        return 0
+
+
 def known_user(username):
     users = cache.get_snapshot().users.users
     for user in users.values():
@@ -104,6 +132,7 @@ def delete_rule(rule_id: str):
 @router.get('/users/{username:path}', dependencies=[Depends(require_mapping)])
 def classification(username: str):
     username = known_user(username)
+    sync_organizational_changes()
     data = fg.read()
     context = directory_context(username)
     suggestion = fg.suggest(context.get('department', ''), context.get('title', ''), data) if context and context.get('match_status') == 'matched' else None

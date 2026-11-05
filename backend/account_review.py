@@ -63,9 +63,10 @@ def validate_storage(data):
     return data['decisions']
 
 
-def rows(state, directory, saved, groups, today=None, position=None):
+def rows(state, directory, saved, groups, today=None, position=None, managers=None):
     today = today or date.today()
     position = position or {}
+    managers = managers or {}
     configured = {g.strip().casefold() for g in groups}
     result = []
     owners = sap_email_owners(state.users.users.values())
@@ -97,17 +98,24 @@ def rows(state, directory, saved, groups, today=None, position=None):
         change = position.get(normalize_text(employee['email'])) if employee and match['status'] == 'matched' and employee.get('email') else None
         # A decision recorded after the change reviews it; reusing the Account Review decision avoids a second record.
         open_change = bool(change and (not stored or datetime.fromisoformat(stored['timestamp']) < datetime.fromisoformat(change['detected_at'])))
-        needs = bool(findings or stale or open_change)
+        mgr_event = managers.get(normalize_text(employee['email'])) if employee and match['status'] == 'matched' and employee.get('email') else None
+        # Like a position change, a manager change is reviewed by any later decision. It is an organizational review signal only.
+        open_manager = bool(mgr_event and (not stored or datetime.fromisoformat(stored['timestamp']) < datetime.fromisoformat(mgr_event['detected_at'])))
+        needs = bool(findings or stale or open_change or open_manager)
         result.append(dict(username=user['username'], name=' / '.join(' '.join(n).strip() for n in user['names'] if any(n)),
                            groups=user['groups'], sap_validity=valid, lock_status=locked, ad_status=ad,
                            match_status=match['status'], findings=findings, unlicensed=unlicensed,
                            evidence_version=version, identity_version=identity, evidence=dict(accounts=user['accounts'][:25],account_total=len(user['accounts']),assignment_records=len(user['assignments']),sap_emails=user['emails'][:5],directory_email=employee.get('email') if employee else None), decision=decision, history_count=len(stored.get('history',[])) if stored else 0, stale=stale,
-                           review_state='Needs review' if not decision or stale or open_change else decision['state'],
+                           review_state='Needs review' if not decision or stale or open_change or open_manager else decision['state'],
                            needs_review=needs,
                            position_change=dict(id=change['id'], open=open_change, fields=change['fields'], previous_department=change['previous_department'],
                                                 current_department=change['current_department'], previous_title=change['previous_title'], current_title=change['current_title'],
                                                 detected_at=change['detected_at'], source_generation=change['source_generation'],
                                                 previous_imported_at=change.get('previous_imported_at') or None, current_imported_at=change.get('current_imported_at') or None) if change else None,
+                           manager=dict(name=employee['manager']['name'], email=employee['manager']['email'], status=employee['manager']['status']) if employee else None,
+                           manager_change=dict(id=mgr_event['id'], open=open_manager, previous_manager=mgr_event['previous_manager'], current_manager=mgr_event['current_manager'],
+                                               previous_manager_email=mgr_event['previous_manager_email'], current_manager_email=mgr_event['current_manager_email'],
+                                               detected_at=mgr_event['detected_at']) if mgr_event else None,
                            priority='High' if open_change else 'Normal' if needs else 'None', priority_order=0 if open_change else 1 if needs else 2))
     return result
 
@@ -153,19 +161,20 @@ def record_missing_users(state):
 _cached = None
 
 
-def cached_rows(state, directory, saved, groups, today, position=None):
+def cached_rows(state, directory, saved, groups, today, position=None, managers=None):
     """One bounded publication cache; page/export reads do not re-hash every assignment."""
     global _cached
-    key = (state.last_loaded, directory.digest if directory else None, digest(saved), tuple(groups), today, tuple(sorted(position or {})) , tuple(event['id'] for event in (position or {}).values()))
+    key = (state.last_loaded, directory.digest if directory else None, digest(saved), tuple(groups), today, tuple(sorted(position or {})) , tuple(event['id'] for event in (position or {}).values()), tuple(event['id'] for event in (managers or {}).values()))
     with lock:
         if _cached is None or _cached[0] != key:
             # Cache derived rows only; do not retain a second full SAP snapshot.
-            _cached = (key, rows(state, directory, saved, groups, today, position))
+            _cached = (key, rows(state, directory, saved, groups, today, position, managers))
         return _cached[1]
 
 
 def current_rows(state, directory, saved, groups, today):
     """Review rows including recent employee position changes; the one place that combines them."""
-    from position_changes import latest_recent, read
+    from position_changes import latest_managers, latest_recent, read, read_manager_events
     position = latest_recent(read()['events'], today) if directory else {}
-    return cached_rows(state, directory, saved, groups, today, position), position
+    managers = latest_managers(read_manager_events(), today) if directory else {}
+    return cached_rows(state, directory, saved, groups, today, position, managers), {**position, **{'m:' + k: v for k, v in managers.items()}}

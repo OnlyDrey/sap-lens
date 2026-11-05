@@ -27,6 +27,8 @@ class Decision(StrictModel):
 
 
 def current():
+    from .functional_groups import sync_organizational_changes
+    sync_organizational_changes()
     state = cache.get_snapshot()
     directory = available(state)
     saved = review.decisions()
