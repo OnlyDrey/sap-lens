@@ -278,3 +278,20 @@ GitHub Actions CI runs only on push to `main`; pushes to `work`, feature branche
 ## Revision consistency
 
 `backend/tests/test_data_revision.py` covers the `X-Data-Revision` token and review submissions during source changes (Account Review and SoD). `frontend/tests/unit/data-revision.test.ts` covers response classification; `frontend/tests/revision-consistency.spec.ts` covers a stale response being repeated and a newer revision from another user being noticed without the configuration poll. Feature: data-sources.
+
+## Browser parallelism experiment (SoD feature, 222 to 245 tests, 4 CPUs, 16 GB)
+
+| Mode | Wall | CPU | Largest process | Result |
+| --- | --- | --- | --- | --- |
+| 1 Playwright worker | 15.1 min | 419 s | 325 MB | 3 failed (state left by `sod-configuration-recovery`, fixed) |
+| 2 workers, one server | 12.0 min | 466 s | 316 MB | 14 failed |
+| 3 workers, one server | 12.8 min | 587 s | 306 MB | 34 failed |
+| 1 process (`--browser-jobs 1`) | 12.3 min | 396 s | 718 MB | 2 failed (recovery spec, fixed) |
+| 2 processes, own server each | 5.6 min | 366 s | 345 MB | 0 failed |
+| 3 processes, own server each | 5.4 min | 383 s | 345 MB | 0 failed |
+
+Findings
+* Several workers against one server fail because the specs reset configuration and swap the active SoD source, which is global state. This is shared state, not load, so timeouts or retries would only hide it. Workers stay at 1.
+* Process-level parallelism (separate server, port and storage per process) is clean. Two processes halve the wall time; a third gains little on 4 CPUs because the shard of the slowest spec files still takes about 5.4 min. Use `--browser-jobs 2` for large browser runs.
+* Root cause of the sequential failures: a configuration reset keeps catalogue edits, so a spec that edits a shared risk ID changes later specs. Specs that save catalogue edits must use their own risk IDs and locate them through search, because earlier entries can push them off the first page.
+* Specs that wait on a dataset change use `expect.poll` on a request counter or visible text, not fixed delays.

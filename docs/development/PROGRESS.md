@@ -3,7 +3,7 @@
 Resume guide for a new session: read [AGENTS.md](../../AGENTS.md), this file, `git status` and `git log --oneline -15`; the repository state is authoritative, correct this file where it differs.
 CI policy: GitHub Actions runs only on push to `main` after an explicitly approved merge; all validation is local; `work` pushes never trigger it.
 
-**Last update:** 2026-11-05 (end of Phase D)
+**Last update:** 2026-11-05 (end of Phase E)
 
 ## Plan and status
 
@@ -23,13 +23,14 @@ CI policy: GitHub Actions runs only on push to `main` after an explicitly approv
 | B | Employee Directory fingerprint, derived copy, shared SAP/AD matcher | Completed | `eccc0b4` |
 | C | Backend/API performance (`/api/access/users`, dashboard, memory) | Completed | `21cc4f3` |
 | D | Frontend/API cache consistency (`X-Data-Revision`, stale-response repeat, atomic review saves) | Completed | see Git log |
-| E | Parallel browser test stabilization | Pending | |
+| E | Parallel browser test stabilization | Completed (findings in TESTING.md) | see Git log |
 | F | Final validation: full backend, browser, benchmarks, report | Pending | |
 
 ## Local validation (latest)
 
 * Backend full run before the retention work: 1430 tests (3 failures were the workflow tests edited mid-run; re-run OK). Targeted suites for every phase pass.
 * Phase D: backend test_data_revision (15), account_review, application, server, workflows pass; unit tests 14; browser revision-consistency (3), dashboard-user-transactions, account-review-refinement, csv-lifecycle (41 total) pass; tsc and ruff clean. ESLint reports one pre-existing error (irregular whitespace in `tests/remediation-export.spec.ts`), unrelated.
+* Phase E: SoD browser feature passes with 2 and 3 processes (222/222); several workers on one server are not safe (shared global state).
 * Browser: targeted specs per phase pass; full browser suite not yet run (final phase).
 
 ## Measured performance (192 000 assignment rows, synthetic, this container)
