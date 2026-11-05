@@ -355,3 +355,36 @@ test('multi-select and bulk selection are keyboard operable with visible focus',
   for (let step = 0; step < names.length; step++) { seen.push(await page.evaluate(() => (document.activeElement as HTMLElement).textContent?.trim() || '')); await page.keyboard.press('Tab') }
   expect(seen).toEqual(names)
 })
+
+test('the removal recommendation modal is compact: four metrics, a details line and a short copyable source revision', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  for (const width of [1280, 375]) {
+    await page.setViewportSize({ width, height: 800 })
+    await openAssignments(page)
+    await pick(page, 'Role suffix', 'CDK')
+    await page.keyboard.press('Escape')
+    await expect.poll(() => roles(page)).toHaveLength(3)
+    await page.getByRole('checkbox', { name: 'Select all assignments on this page' }).check()
+    await toolbar(page).getByRole('button', { name: 'Recommend removal', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Recommend removal' })
+    const summary = dialog.getByRole('region', { name: 'Batch review summary' })
+    await expect(summary.locator('dl.bulk-dialog-summary > div')).toHaveCount(4)
+    await expect(summary.locator('dl.bulk-dialog-summary dt')).toHaveText(['Assignments affected', 'SAP users', 'Distinct roles', 'Role suffixes'])
+    const details = summary.getByRole('list', { name: 'Review details' }).or(summary.locator('dl.bulk-dialog-meta'))
+    await expect(details).toContainText('Proposed decision'); await expect(details).toContainText('Review period'); await expect(details).toContainText('Review revision')
+    const code = summary.locator('.short-hash code')
+    const full = await code.getAttribute('title')
+    expect(full && full.length).toBeGreaterThan(14)
+    const shown = (await code.textContent()) || ''
+    expect(shown).toContain('…'); expect(shown.length).toBeLessThan((full || '').length)
+    expect(await code.evaluate((element) => element.getBoundingClientRect().height)).toBeLessThan(30) // one line
+    await summary.getByRole('button', { name: 'Copy source revision' }).click()
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(full)   // the complete value is copied
+    await expect(summary.getByText('Full source revision:', { exact: false })).toBeAttached()
+    await expect(dialog).toContainText('no role is removed from SAP')
+    const overflow = await dialog.evaluate((element) => element.scrollWidth > element.clientWidth + 1)
+    expect(overflow).toBe(false)
+    await expect(dialog.getByRole('button', { name: /^Recommend removal for/ })).toBeVisible()
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+  }
+})

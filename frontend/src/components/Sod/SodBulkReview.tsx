@@ -8,6 +8,7 @@ import { sodPost, type AssignmentPick, type BulkAction, type BulkResult, type Co
 import { rememberedReviewer, rememberReviewer } from '@/lib/reviewer'
 import { Dialog } from '@/components/Shared/Dialog'
 import { Button } from '@/components/Shared/Button'
+import { ShortHash } from '@/components/Shared/ShortHash'
 import { Checkbox, FormField, Input } from '@/components/Shared/Controls'
 import {DataTable} from '@/components/Shared/Presentation'
 import {LifecycleBadge} from './SodShared'
@@ -76,17 +77,21 @@ export function BulkReviewDialog({ action, picks: livePicks, info:liveInfo, atom
           <div><dt>SAP users</dt><dd>{users.length}</dd></div>
           <div><dt>Distinct roles</dt><dd>{roles}</dd></div>
           <div><dt>Role suffixes</dt><dd>{suffixes.length}</dd></div>
+        </dl>
+        <dl className="bulk-dialog-meta" aria-label="Review details">
           <div><dt>Proposed decision</dt><dd>{action}</dd></div>
           <div><dt>Review period</dt><dd>{info.period?.name || (info.context==='current'?'Current evidence':info.context)}</dd></div>
           <div><dt>Review revision</dt><dd>{info.revision}</dd></div>
-          <div><dt>Source revision</dt><dd className="break-all">{info.generation}</dd></div>
+          <div><dt>Source revision</dt><dd><ShortHash value={String(info.generation)} label="source revision" /></dd></div>
         </dl>
         <p className="ui-description">{copy.effect}</p>
-        {scopeSummary&&<p className="ui-description">Filter scope: {scopeSummary}</p>}
-        <section aria-label="Selected SAP users"><h3 className="text-sm font-semibold">SAP users</h3>
-          <ul className="bulk-chip-list">{users.slice(0, 30).map(([name, count]) => <li key={name}><StatusBadge>{name} · {count}</StatusBadge></li>)}{users.length > 30 && <li className="ui-description">and {users.length - 30} more users</li>}</ul></section>
-        <section aria-label="Selected role suffixes"><h3 className="text-sm font-semibold">Role suffixes</h3>
-          <ul className="bulk-chip-list">{suffixes.map(([name, count]) => <li key={name}><StatusBadge>{name} · {count}</StatusBadge></li>)}</ul></section>
+        {scopeSummary&&<p className="ui-description bulk-dialog-scope"><strong>Filter scope</strong> {scopeSummary}</p>}
+        <div className="bulk-dialog-scopes">
+          <section aria-label="Selected SAP users"><h3 className="text-sm font-semibold">SAP users</h3>
+            <ul className="bulk-chip-list">{users.slice(0, 30).map(([name, count]) => <li key={name}><StatusBadge>{name} · {count}</StatusBadge></li>)}{users.length > 30 && <li className="ui-description">and {users.length - 30} more users</li>}</ul></section>
+          <section aria-label="Selected role suffixes"><h3 className="text-sm font-semibold">Role suffixes</h3>
+            <ul className="bulk-chip-list">{suffixes.map(([name, count]) => <li key={name}><StatusBadge>{name} · {count}</StatusBadge></li>)}</ul></section>
+        </div>
         <details><summary className="cursor-pointer">Selected assignments ({picks.length})</summary><DataTable caption="Confirmed assignment scope" density="compact"><thead><tr><th>SAP user</th><th>Assigned role</th><th>Current decision</th><th>Proposed decision</th></tr></thead><tbody>{picks.map(pick=><tr key={pick.key}><td>{pick.user}</td><td className="font-mono">{pick.ref}</td><td><LifecycleBadge value={pick.decision}/></td><td>{action}</td></tr>)}</tbody></DataTable></details>
         {!!reviewed.length && (
           <section aria-label="Existing decisions" className="review-dialog-trigger">
