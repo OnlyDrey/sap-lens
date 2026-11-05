@@ -490,6 +490,7 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
                   skipped=sum(r['status'] == 'skipped' for r in results),
                   status='partial' if failed and successful else 'failed' if failed else 'changed' if updated else 'unchanged')
     report_id = None
+    store_operation = None
     try:
         if operation == 'refresh' and report['checked']:
             if failed: settings.data_lifecycle.last_failed_refresh = stamp
@@ -510,8 +511,11 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
                 error.sap_lens_source=checked_source
                 raise error
         # Slow store work happens before the pointer commit, outside every lock: rows are staged invisibly, activation afterwards is one short flip.
+        if fresh:
+            source_store.recover_orphans()  # staged by operations that no longer exist (older than an hour, not live here)
+            store_operation = source_store.begin()
         for staged_source, (staged_id, staged_rows, staged_report, staged_fp) in fresh.items():
-            try: source_store.stage(staged_source, staged_id, staged_rows, staged_report, staged_fp)
+            try: source_store.stage(staged_source, staged_id, staged_rows, staged_report, staged_fp, owner=store_operation)
             except Exception: pass  # noqa: BLE001 - the store is optional; reconcile retries after the commit
         with cache._load_lock, store.lock:
             if before_commit: before_commit()
@@ -549,7 +553,6 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
         report['id'] = report_id
         return summary(report)
     except Exception:
-        if fresh: source_store.discard_staged()  # the commit did not happen: staged revisions never become visible
         if report_id and report_id not in get_settings().data_lifecycle.history:
             try: private_path('reports', report_id).unlink(missing_ok=True)
             except OSError: pass
@@ -564,6 +567,8 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
         report.update(status='failed', updated=0, unchanged=0,
                       failed=sum(r['status'] == 'failed' for r in results), id=None)
         return summary(report)
+    finally:
+        source_store.end(store_operation)  # only this operation's staged-but-never-activated revisions; other loaders' are untouched
 
 
 def history():

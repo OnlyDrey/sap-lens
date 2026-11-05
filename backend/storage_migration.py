@@ -95,6 +95,8 @@ def run(lease, server=None):
         if not installation_present(data) and not store_db.path().exists():
             store_db.connect().close()
             return dict(state='fresh')
+        if store_db.path().exists():
+            source_store.recover_orphans(0)  # nothing is live at start-up: revisions staged by an interrupted operation are orphans
         pending = [item for item in _records(data) if item.get('status') in {'backup_verified', 'migrating'}]
         if store_db.path().exists():
             problems = store_db.health()

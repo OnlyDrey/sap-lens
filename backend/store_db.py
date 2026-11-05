@@ -113,7 +113,14 @@ def _v2(connection):
         connection.execute('ALTER TABLE source_revisions ADD COLUMN fingerprint TEXT NOT NULL DEFAULT \'\'')
 
 
-LADDER = {1: _v1, 2: _v2}
+def _v3(connection):
+    # Staging ownership: the operation that staged a revision. Cleanup only ever removes revisions owned by its own operation; revisions of
+    # operations that no longer exist are recovered by age or at start-up. Activation clears the owner.
+    if 'owner' not in {row[1] for row in connection.execute('PRAGMA table_info(source_revisions)')}:
+        connection.execute('ALTER TABLE source_revisions ADD COLUMN owner TEXT NOT NULL DEFAULT \'\'')
+
+
+LADDER = {1: _v1, 2: _v2, 3: _v3}
 SCHEMA_VERSION = max(LADDER)
 
 

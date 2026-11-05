@@ -13,6 +13,9 @@ import hashlib
 import json
 import logging
 import sqlite3
+import threading
+import uuid
+from datetime import datetime, timezone
 
 import store_db
 from store_db import StoreUnavailable, transaction
@@ -20,6 +23,49 @@ from store_db import StoreUnavailable, transaction
 logger = logging.getLogger('sap-lens')
 KEEP_SUPERSEDED = 2
 SOURCES = ('roles', 'users', 'sod')
+ORPHAN_AGE_SECONDS = 3600
+_operations = {}   # live operation id -> set of (source, scope, snapshot) it staged or shares
+_operations_lock = threading.Lock()
+
+
+def begin():
+    """A new staging operation. Everything it stages is owned by it; `end` removes only what it still owns."""
+    owner = uuid.uuid4().hex
+    with _operations_lock:
+        _operations[owner] = set()
+    return owner
+
+
+def end(owner):
+    """Finish an operation (success, failure or cancellation): its staged-but-never-activated revisions are removed, other operations' are not touched."""
+    if not owner:
+        return
+    try:
+        discard_staged(owner)
+    finally:
+        with _operations_lock:
+            _operations.pop(owner, None)
+
+
+class operation:
+    def __enter__(self):
+        self.owner = begin()
+        return self.owner
+
+    def __exit__(self, kind, value, trace):
+        end(self.owner)
+        return False
+
+
+def _claim(owner, key):
+    with _operations_lock:
+        if owner in _operations:
+            _operations[owner].add(key)
+
+
+def _other_claimant(owner, key):
+    with _operations_lock:
+        return next((other for other, keys in _operations.items() if other != owner and key in keys), None)
 
 
 def _digest(rows, columns):
@@ -35,11 +81,12 @@ def _entities(source, rows):
     return len({row[column].strip().casefold() for row in rows if row[column].strip()})
 
 
-def stage(source, snapshot, rows, report, fingerprint='', scope=''):
+def stage(source, snapshot, rows, report, fingerprint='', scope='', owner=''):
     """Write the rows of a validated snapshot as a `staged` revision (invisible to readers of the active revision). Idempotent per snapshot.
 
     Staging is the slow part of an import and happens before the configuration pointer is committed; `activate` is the instant flip afterwards."""
     columns = store_db.source_columns()[source]
+    _claim(owner, (source, scope, snapshot))
     with transaction() as connection:
         found = connection.execute('SELECT id, status FROM source_revisions WHERE source=? AND scope=? AND snapshot=?', (source, scope, snapshot)).fetchone()
         if found and connection.execute(f'SELECT 1 FROM rows_{source} WHERE revision_id=? LIMIT 1', (found[0],)).fetchone() or found and not rows:
@@ -54,6 +101,7 @@ def stage(source, snapshot, rows, report, fingerprint='', scope=''):
                                     'VALUES (?,?,?,?,?,?,?,?,\'staged\',?,?,?)',
                                     (source, scope, sequence, snapshot, len(rows), _entities(source, rows), _digest(rows, columns), json.dumps(report, separators=(',', ':')),
                                      store_db.now(), current[0] if current else None, fingerprint))
+        connection.execute('UPDATE source_revisions SET owner=? WHERE id=?', (owner, cursor.lastrowid))
         revision = cursor.lastrowid
         marks = ','.join('?' * (len(columns) + 2))
         names = ','.join(['revision_id', 'ordinal', *[store_db._identifier(name) for name in columns]])
@@ -72,26 +120,55 @@ def activate(source, snapshot, scope=''):
             return target[0]
         connection.execute('UPDATE source_revisions SET status=\'superseded\' WHERE source=? AND scope=? AND status=\'active\'', (source, scope))
         sequence = connection.execute('SELECT COALESCE(MAX(sequence),0) FROM source_revisions WHERE source=? AND scope=?', (source, scope)).fetchone()[0] + 1
-        connection.execute('UPDATE source_revisions SET status=\'active\', activated=?, sequence=? WHERE id=?', (store_db.now(), sequence, target[0]))
+        connection.execute('UPDATE source_revisions SET status=\'active\', activated=?, sequence=?, owner=\'\' WHERE id=?', (store_db.now(), sequence, target[0]))
         _prune(connection, source, scope)
         return target[0]
 
 
 def ingest(source, snapshot, rows, report, scope='', fingerprint=''):
     """Stage and activate in two short transactions (used where no commit protocol surrounds the call). Idempotent for an already active snapshot."""
-    stage(source, snapshot, rows, report, fingerprint, scope)
-    return activate(source, snapshot, scope)
+    with operation() as owner:
+        stage(source, snapshot, rows, report, fingerprint, scope, owner)
+        return activate(source, snapshot, scope)
 
 
-def discard_staged(scope=None):
-    """Remove revisions that were staged but never activated (the configuration commit they belonged to did not happen)."""
+def discard_staged(owner):
+    """Remove the staged revisions that belong to this operation. A revision another live operation also staged (same snapshot) is handed over, not deleted."""
+    if not owner:
+        return
     try:
         with transaction() as connection:
-            for (revision,) in connection.execute('SELECT id FROM source_revisions WHERE status=\'staged\'').fetchall():
-                invalidate(connection, [revision])
-                connection.execute('DELETE FROM source_revisions WHERE id=?', (revision,))
+            for revision, source, scope, snapshot in connection.execute('SELECT id, source, scope, snapshot FROM source_revisions WHERE status=\'staged\' AND owner=?', (owner,)).fetchall():
+                other = _other_claimant(owner, (source, scope, snapshot))
+                if other:
+                    connection.execute('UPDATE source_revisions SET owner=? WHERE id=?', (other, revision))
+                else:
+                    invalidate(connection, [revision])
+                    connection.execute('DELETE FROM source_revisions WHERE id=?', (revision,))
     except (StoreUnavailable, sqlite3.Error):
         pass
+
+
+def recover_orphans(older_than=ORPHAN_AGE_SECONDS):
+    """Remove staged revisions whose operation no longer exists: at start-up (`older_than=0`, nothing is live yet) or, while running, those older than
+    an hour that no live operation of this process owns. Active and superseded revisions are never touched. Returns the number removed."""
+    removed = 0
+    try:
+        with transaction() as connection:
+            with _operations_lock:
+                live = set(_operations)
+            now = datetime.now(timezone.utc)
+            for revision, owner, created in connection.execute('SELECT id, owner, created FROM source_revisions WHERE status=\'staged\'').fetchall():
+                if owner in live:
+                    continue
+                if older_than and (now - datetime.fromisoformat(created)).total_seconds() < older_than:
+                    continue
+                invalidate(connection, [revision])
+                connection.execute('DELETE FROM source_revisions WHERE id=?', (revision,))
+                removed += 1
+    except (StoreUnavailable, sqlite3.Error, ValueError):
+        pass
+    return removed
 
 
 def fingerprint(source, snapshot, scope=''):

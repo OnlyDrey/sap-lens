@@ -168,7 +168,7 @@ Start-up (Dynamic sources) and every refresh evaluate each source on its own:
 4. **Unknown fingerprint** (first start after an upgrade, store missing or rebuilt, different parser) simply takes the full path once and then records the fingerprint.
 
 Activation stays atomic. The new snapshot is written (immutable), its rows are *staged* in the store (invisible to readers), the configuration pointer is committed with the existing compare-and-swap, and
-only then are the staged revisions activated (one short transaction per source). If the commit does not happen, staged revisions are discarded. In memory the published dataset is replaced as one object.
+only then are the staged revisions activated (one short transaction per source). Each load is a staging *operation* with its own identifier; staged revisions are owned by it. If the commit does not happen, or the load fails or is cancelled, only that operation's staged revisions are discarded (a snapshot two overlapping loaders both staged is handed to the remaining one, never deleted under it). Revisions left by a process that died are orphans: they are removed at start-up and, while running, when older than an hour and not owned by a live operation. Activation clears ownership. In memory the published dataset is replaced as one object.
 Snapshot integrity is verified on every start (SHA-256 of the snapshot file against its content address) even when the records come from the store or the derived cache.
 
 ## Import checks: suspicious versus invalid
