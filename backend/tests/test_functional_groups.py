@@ -294,6 +294,41 @@ class Api(unittest.TestCase):
         self.assertTrue(row['manager_change']['open'] and row['needs_review'] and row['position_change'] is None)
         self.assertEqual(row['manager']['name'], '')
 
+    def review(self, query=''):
+        return self.client.get('/api/account-review' + query, headers=self.base.H).json()
+
+    def test_account_review_rows_filters_and_options(self):
+        gid = self.call('POST', '', json=dict(name='Finance')).json()['id']
+        self.call('PUT', '/users/DEMO_NORMAL', json=dict(group_id=gid, reviewer='Rev', rationale='', expected_revision=0))
+        row = next(r for r in self.review('?search=DEMO_NORMAL')['items'])
+        self.assertEqual((row['functional_group']['name'], row['classification']['status'], row['classification_review']), ('Finance', 'Confirmed', False))
+        self.assertEqual(self.review('?search=DEMO_OPEN')['items'][0]['classification']['status'], 'Unassigned')
+        everything = self.review('?limit=100')
+        self.assertEqual({r['username'] for r in self.review(f'?functional_groups={gid}')['items']}, {'DEMO_NORMAL'})
+        unassigned = {r['username'] for r in self.review('?functional_groups=unassigned&limit=100')['items']}
+        self.assertEqual(unassigned, {r['username'] for r in everything['items']} - {'DEMO_NORMAL'})
+        both = self.review(f'?functional_groups={gid}&functional_groups=unassigned&limit=100')
+        self.assertEqual(both['total'], everything['total'])  # OR within a filter
+        self.assertEqual(self.review(f'?functional_groups={gid}&review_states=Approved for deactivation')['total'], 0)  # AND between filters
+        self.assertEqual({o['value'] for o in everything['functional_group_options']}, {'unassigned', gid})
+        self.assertTrue(everything['manager_options'])
+        self.assertEqual(self.review('?managers=nobody@example.test')['total'], 0)
+
+    def test_classification_review_is_a_finding_and_counts_as_requiring_review(self):
+        import position_changes as changes
+        gid = self.call('POST', '', json=dict(name='Finance')).json()['id']
+        self.call('PUT', '/users/DEMO_NORMAL', json=dict(group_id=gid, reviewer='Rev', rationale='', expected_revision=0))
+        changes.record_safely(self.organisation('Finance', 'Accountant', 'm1@example.test'), self.organisation('Sales', 'Accountant', 'm1@example.test'))
+        queue = self.review('?findings=functional_group_review')
+        self.assertEqual([r['username'] for r in queue['items']], ['DEMO_NORMAL'])
+        row = queue['items'][0]
+        self.assertTrue(row['classification_review'] and row['needs_review'])
+        # The SAP role decision model is untouched: a role decision does not confirm the classification.
+        saved = self.client.post('/api/account-review/decision/DEMO_NORMAL', headers=self.base.H, json=dict(state='No action required', reviewer='Rev', rationale='Roles fine', evidence_version=row['evidence_version']))
+        self.assertEqual(saved.status_code, 200, saved.text)
+        after = self.review('?findings=functional_group_review')['items'][0]
+        self.assertEqual((after['classification']['status'], after['review_state']), ('Needs review', 'No action required'))
+
     def test_rules_over_http(self):
         gid = self.call('POST', '', json=dict(name='Finance')).json()['id']
         rule = self.call('POST', '/rules', json=dict(group_id=gid, department='Finance')).json()

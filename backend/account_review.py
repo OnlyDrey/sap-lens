@@ -63,8 +63,9 @@ def validate_storage(data):
     return data['decisions']
 
 
-def rows(state, directory, saved, groups, today=None, position=None, managers=None):
+def rows(state, directory, saved, groups, today=None, position=None, managers=None, classifications=None):
     today = today or date.today()
+    classifications = classifications or {}
     position = position or {}
     managers = managers or {}
     configured = {g.strip().casefold() for g in groups}
@@ -101,7 +102,9 @@ def rows(state, directory, saved, groups, today=None, position=None, managers=No
         mgr_event = managers.get(normalize_text(employee['email'])) if employee and match['status'] == 'matched' and employee.get('email') else None
         # Like a position change, a manager change is reviewed by any later decision. It is an organizational review signal only.
         open_manager = bool(mgr_event and (not stored or datetime.fromisoformat(stored['timestamp']) < datetime.fromisoformat(mgr_event['detected_at'])))
-        needs = bool(findings or stale or open_change or open_manager)
+        classified = classifications.get(user['username'].strip().upper())
+        classification_review = bool(classified and classified['status'] == 'Needs review')
+        needs = bool(findings or stale or open_change or open_manager or classification_review)
         result.append(dict(username=user['username'], name=' / '.join(' '.join(n).strip() for n in user['names'] if any(n)),
                            groups=user['groups'], sap_validity=valid, lock_status=locked, ad_status=ad,
                            match_status=match['status'], findings=findings, unlicensed=unlicensed,
@@ -116,6 +119,9 @@ def rows(state, directory, saved, groups, today=None, position=None, managers=No
                            manager_change=dict(id=mgr_event['id'], open=open_manager, previous_manager=mgr_event['previous_manager'], current_manager=mgr_event['current_manager'],
                                                previous_manager_email=mgr_event['previous_manager_email'], current_manager_email=mgr_event['current_manager_email'],
                                                detected_at=mgr_event['detected_at']) if mgr_event else None,
+                           functional_group=classified['group'] if classified else None,
+                           classification=dict(status=classified['status'], revision=classified['revision'], review=classified['review'], confirmed_at=classified['confirmed_at']) if classified else dict(status='Unassigned', revision=0, review=None, confirmed_at=None),
+                           classification_review=classification_review,
                            priority='High' if open_change else 'Normal' if needs else 'None', priority_order=0 if open_change else 1 if needs else 2))
     return result
 
@@ -161,20 +167,20 @@ def record_missing_users(state):
 _cached = None
 
 
-def cached_rows(state, directory, saved, groups, today, position=None, managers=None):
+def cached_rows(state, directory, saved, groups, today, position=None, managers=None, classifications=None):
     """One bounded publication cache; page/export reads do not re-hash every assignment."""
     global _cached
-    key = (state.last_loaded, directory.digest if directory else None, digest(saved), tuple(groups), today, tuple(sorted(position or {})) , tuple(event['id'] for event in (position or {}).values()), tuple(event['id'] for event in (managers or {}).values()))
+    key = (state.last_loaded, directory.digest if directory else None, digest(saved), tuple(groups), today, tuple(sorted(position or {})) , tuple(event['id'] for event in (position or {}).values()), tuple(event['id'] for event in (managers or {}).values()), digest(classifications or {}))
     with lock:
         if _cached is None or _cached[0] != key:
             # Cache derived rows only; do not retain a second full SAP snapshot.
-            _cached = (key, rows(state, directory, saved, groups, today, position, managers))
+            _cached = (key, rows(state, directory, saved, groups, today, position, managers, classifications))
         return _cached[1]
 
 
-def current_rows(state, directory, saved, groups, today):
+def current_rows(state, directory, saved, groups, today, classifications=None):
     """Review rows including recent employee position changes; the one place that combines them."""
     from position_changes import latest_managers, latest_recent, read, read_manager_events
     position = latest_recent(read()['events'], today) if directory else {}
     managers = latest_managers(read_manager_events(), today) if directory else {}
-    return cached_rows(state, directory, saved, groups, today, position, managers), {**position, **{'m:' + k: v for k, v in managers.items()}}
+    return cached_rows(state, directory, saved, groups, today, position, managers, classifications), {**position, **{'m:' + k: v for k, v in managers.items()}}

@@ -64,3 +64,22 @@ change id is applied once, so repeating an import or re-reading never resets a c
 Missing values, formatting-only differences, ambiguous identities and suspiciously incomplete imports create no change. Users without a group are not
 flagged. No SAP role is removed or granted by any of this. Reporting relationships are the imported direct-report links (manager mail, then account
 name, then DN); they are never inferred from Department and there is no recursive hierarchy.
+
+## Account Review integration
+
+There is no second queue. Functional Group review extends the existing Account Review rows, filters and dialog:
+
+- **Rows** carry `functional_group`, `classification` (status, revision, open review), `classification_review`, `manager` and `manager_change`.
+  A classification in `Needs review` counts as requiring review but never changes the SAP role decision (`review_state`): a role decision does not
+  confirm the classification and the reverse.
+- **Table:** one compact *Functional Group* column (group, `Needs review` pill, manager as a small second line). Findings list manager changes and
+  Functional Group reconfirmation. New findings for the Review finding filter: `manager_change`, `functional_group_review`.
+- **Filters** (Organization section, multi-select, OR within a filter and AND between filters, evaluated server-side before pagination):
+  `functional_groups` (group ids or `unassigned`) and `managers` (imported manager mail, or `none`). Both are part of Saved Filters.
+- **Review dialog:** a *Functional Group review* section for classified users shows the current group and status, Directory Department, Job Title
+  and Manager before and after, the detection date and any advisory suggestion, with the classification actions **Confirm current group**,
+  **Change group** and **Clear group** (plus **Keep unassigned** for an unassigned outcome). They are classification actions, not Keep, Remove or
+  Investigate. A reviewer name is required, clearing requires a rationale, the outcome carries the change id that triggered it, and a stale
+  revision is rejected with HTTP 409.
+- **History:** classification events live in the Functional Group history (User Details and API `history/{username}`); SAP role decisions stay in
+  the existing Account Review history.

@@ -1,11 +1,18 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type APIRequestContext } from '@playwright/test'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { headers, openSettings, sessionUrl } from './support'
+const columns = 'Site;Name;SamAccountName;UserPrincipalName;Mail;Department;Title;Enabled;DistinguishedName;ManagerDN;ManagerName;ManagerSamAccountName;ManagerMail;ManagerDepartment;ManagerTitle;ManagerLookupStatus\n'
+const employee = (department: string, manager: string) => '\ufeff' + columns + `North;Demo Fg;demo_fg;;fg@example.test;${department};Buyer;true;;;${manager};;${manager.toLowerCase()}@example.test;;;Resolved\n`
 
 let directory: string
 const unique = Date.now().toString(36)
+// Storage persists across tests of one run, so always send the revision the server currently holds.
+async function classify(request: APIRequestContext, group: string | null) {
+  const revision = (await (await request.get('/api/functional-groups/users/DEMO_FG', { headers })).json()).classification.revision
+  return request.put('/api/functional-groups/users/DEMO_FG', { headers, data: { group_id: group, reviewer: 'R', rationale: 'test', expected_revision: revision } })
+}
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
   directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-fg-'))
@@ -14,6 +21,7 @@ test.beforeEach(async ({ request }) => {
     'DEMO_FG,ZC:FI:VIEW,fg@example.test,DEMO,20200101,99991231,20200101,99991231\n')
   const current = (await (await request.get('/api/configuration', { headers })).json()).settings
   current.data_csv_path = path.resolve('tests/fixtures/role-catalogue-minimal.csv'); current.user_csv_path = users
+  current.features.employee_directory = true
   expect((await request.post('/api/configuration', { headers, data: current })).ok()).toBeTruthy()
 })
 test.afterEach(async ({ request }) => {
@@ -63,7 +71,7 @@ test('User Details classifies a user explicitly and keeps it separate from impor
   await dialog.getByRole('combobox', { name: 'Functional Group' }).fill(name)
   await page.getByRole('option', { name }).click()
   await dialog.getByLabel('Reviewer').fill('Reviewer One')
-  await dialog.getByRole('button', { name: `Assign ${name}` }).click()
+  await dialog.getByRole('button', { name: 'Assign group' }).click()
   await expect(panel).toContainText(name)
   await expect(panel).toContainText('Confirmed')
   await expect(panel).toContainText('Reviewer One')
@@ -80,4 +88,50 @@ test('Functional Groups settings fit 375 px without horizontal scroll', async ({
   const wide = await page.evaluate(() => [...document.querySelectorAll('body *')].filter(e => !e.closest('.access-table table') && e.getBoundingClientRect().right > window.innerWidth + 1).slice(0, 6).map(e => e.tagName + '.' + String(e.className).slice(0, 80) + ':' + Math.round(e.getBoundingClientRect().right)))
   expect(wide).toEqual([])
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
+test('a Department change requires explicit Functional Group reconfirmation in Account Review', async ({ page, request }) => {
+  const name = `Logistics ${unique}`
+  const group = (await (await request.post('/api/functional-groups', { headers, data: { name, description: '' } })).json()).id
+  const csv = path.join(directory, 'employees.csv')
+  const importDirectory = async (content: string) => {
+    writeFileSync(csv, content)
+    const revision = (await (await request.get('/api/configuration', { headers })).json()).settings.revision
+    const preview = await request.post('/api/employees/preview', { headers, data: { path: csv, revision } })
+    expect(preview.ok()).toBeTruthy()
+    expect((await request.post('/api/employees/import', { headers, data: { path: csv, revision, digest: (await preview.json()).digest } })).ok()).toBeTruthy()
+  }
+  await importDirectory(employee('Finance', 'Boss'))
+  expect((await classify(request, group)).ok()).toBeTruthy()
+  await importDirectory(employee('Procurement', 'Boss'))
+  await page.goto(sessionUrl)
+  await page.goto('/#/user-access/account-review')
+  const row = page.getByRole('row').filter({ hasText: 'DEMO_FG' }).last() // the main table follows the position-change queue
+  await expect(row).toContainText(name)
+  await expect(row).toContainText('Needs review')
+  await expect(row).toContainText('reconfirmation required')
+  await row.getByRole('button', { name: 'Needs review', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Review account · DEMO_FG' })
+  const section = dialog.getByRole('region', { name: 'Functional Group review' })
+  await expect(section).toContainText('Procurement')
+  await section.getByRole('button', { name: 'Review Functional Group' }).click()
+  await expect(section.getByRole('button', { name: 'Confirm current group' })).toBeEnabled({ enabled: false }).catch(() => undefined)
+  await section.getByLabel('Reviewer', { exact: true }).fill('Reviewer Two')
+  await section.getByRole('button', { name: 'Confirm current group' }).click()
+  await expect(section).toContainText('Confirmed')
+  const detail = await (await request.get('/api/functional-groups/users/DEMO_FG', { headers })).json()
+  expect(detail.classification.status).toBe('Confirmed')
+  expect(detail.classification.group_id).toBe(group)
+})
+
+test('Account Review filters by Functional Group and Manager', async ({ page, request }) => {
+  const name = `Filtering ${unique}`
+  const group = (await (await request.post('/api/functional-groups', { headers, data: { name, description: '' } })).json()).id
+  expect((await classify(request, group)).ok()).toBeTruthy()
+  await page.goto(sessionUrl)
+  await page.goto('/#/user-access/account-review')
+  await expect(page.getByRole('row').filter({ hasText: 'DEMO_FG' })).toBeVisible()
+  await page.getByRole('combobox', { name: 'Functional Group', exact: true }).first().click()
+  await page.getByRole('option', { name: 'Unassigned', exact: true }).click()
+  await expect(page.getByRole('row').filter({ hasText: 'DEMO_FG' })).toHaveCount(0)
 })

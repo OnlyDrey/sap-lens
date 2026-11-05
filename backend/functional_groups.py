@@ -226,6 +226,12 @@ def public_user(data, username):
                 rationale=user.get('rationale', ''), review=user.get('review'))
 
 
+def classification_map(data=None):
+    """{UPPER SAP USER NAME: public classification} for every classified user; users without a record are Unassigned by default."""
+    data = data or read()
+    return {user['username'].strip().upper(): public_user(data, user['username']) for user in data['users'].values()}
+
+
 def _event(data, user, event, previous, new, actor, reason, change_id=''):
     data['history'].append(dict(
         id=uuid.uuid4().hex, event=event, user_key=user_key(user['username']), username=user['username'],
