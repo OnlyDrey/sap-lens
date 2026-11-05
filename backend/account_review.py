@@ -105,12 +105,16 @@ def rows(state, directory, saved, groups, today=None, position=None, managers=No
         classified = classifications.get(user['username'].strip().upper())
         classification_review = bool(classified and classified['status'] == 'Needs review')
         needs = bool(findings or stale or open_change or open_manager or classification_review)
+        # Workflow status is separate from the finding (which stays in `findings`) and from the decision (`review_state`): a review is complete when the
+        # latest decision is "No action required" and nothing new asks for reassessment (changed evidence, an open organizational change or reconfirmation).
+        # Investigating and Approved for deactivation stay open because follow-up work is outstanding.
+        completed = bool(decision and decision['state'] == 'No action required' and not stale and not open_change and not open_manager and not classification_review)
         result.append(dict(username=user['username'], name=' / '.join(' '.join(n).strip() for n in user['names'] if any(n)),
                            groups=user['groups'], sap_validity=valid, lock_status=locked, ad_status=ad,
                            match_status=match['status'], findings=findings, unlicensed=unlicensed,
                            evidence_version=version, identity_version=identity, evidence=dict(accounts=user['accounts'][:25],account_total=len(user['accounts']),assignment_records=len(user['assignments']),sap_emails=user['emails'][:5],directory_email=employee.get('email') if employee else None), decision=decision, history_count=len(stored.get('history',[])) if stored else 0, stale=stale,
                            review_state='Needs review' if not decision or stale or open_change or open_manager else decision['state'],
-                           needs_review=needs,
+                           needs_review=needs, workflow_status='completed' if completed else 'open',
                            position_change=dict(id=change['id'], open=open_change, fields=change['fields'], previous_department=change['previous_department'],
                                                 current_department=change['current_department'], previous_title=change['previous_title'], current_title=change['current_title'],
                                                 detected_at=change['detected_at'], source_generation=change['source_generation'],

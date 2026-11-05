@@ -7,7 +7,7 @@ import { kpiTone } from '@/lib/kpiTone'
 import { InfoTip } from '@/components/Shared/InfoTip'
 import { StackedBar } from '@/components/Shared/Charts'
 import { FilterLayout, FilterSection, PageToolbar, SortControl } from '@/components/Shared/FilterLayout'
-import { FormField } from '@/components/Shared/Controls'
+import { Checkbox, FormField } from '@/components/Shared/Controls'
 import { SearchInput } from '@/components/Shared/Controls'
 import { Button } from '@/components/Shared/Button'
 import { SavedFilters } from '@/components/Shared/SavedFilters'
@@ -68,6 +68,7 @@ interface Row {
   stale: boolean
   review_state: string
   needs_review: boolean
+  workflow_status: 'open' | 'completed'
   priority: 'High' | 'Normal' | 'None'
   position_change: PositionChange | null
   evidence?:ReviewEvidence
@@ -81,6 +82,7 @@ interface Results {
   data_revision: string
   summary: Record<string, number | null>
   finding_labels: Record<string, string>
+  completed_hidden?: number
   review_states: string[]
   functional_group_options: { value: string; label: string }[]
   manager_options: { value: string; label: string; count: number }[]
@@ -120,6 +122,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
   const [search, setSearch] = useState(retained?.search||''),
     [licenses, setLicenses] = useState<string[]>(retained?.licenses||[]),
     [states, setStates] = useState<string[]>(retained?.states||[]),
+    [includeCompleted, setIncludeCompleted] = useState(false),
     [groupFilter, setGroupFilter] = useState<string[]>([]),
     [managerFilter, setManagerFilter] = useState<string[]>([]),
     [sort, setSort] = useState(retained?.sort||'username'),
@@ -148,7 +151,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
   }, [search])
   useEffect(
     () => setOffset(0),
-    [term, findings.join('|'), licenses.join('|'), states.join('|'), groupFilter.join('|'), managerFilter.join('|'), sort, descending],
+    [term, findings.join('|'), licenses.join('|'), states.join('|'), groupFilter.join('|'), managerFilter.join('|'), includeCompleted, sort, descending],
   )
   const params = new URLSearchParams({
     search: term,
@@ -158,6 +161,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
   findings.forEach(value => params.append('findings', value))
   licenses.forEach(value => params.append('license_groups', value))
   states.forEach(value => params.append('review_states', value))
+  if (includeCompleted) params.set('include_completed', 'true')
   groupFilter.forEach(value => params.append('functional_groups', value))
   managerFilter.forEach(value => params.append('managers', value))
   const generation = useRef(0)
@@ -229,7 +233,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
   }
   const findingOptions = ['any', 'matched', 'directory_missing', 'directory_ambiguous', 'reviewed', 'pending', 'position_change', 'manager_change', 'functional_group_review', ...Object.keys(data?.finding_labels || {}), 'stale']
   const findingLabel = (key: string) => FINDING_NAMES[key] || data?.finding_labels[key] || key
-  const clearAll = () => { setOffset(0); setSearch(''); setTerm(''); setFindings([]); setLicenses([]); setStates([]); setGroupFilter([]); setManagerFilter([]); setSort('username'); setDescending(false) }
+  const clearAll = () => { setOffset(0); setSearch(''); setTerm(''); setFindings([]); setLicenses([]); setStates([]); setGroupFilter([]); setManagerFilter([]); setIncludeCompleted(false); setSort('username'); setDescending(false) }
   const queueParams = 'finding=position_change&sort=priority&limit=25'
   const queue = useQuery({
     queryKey: ['account-review', 'position-queue'],
@@ -424,7 +428,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
           {queue.data && queue.data.total > queue.data.items.length && <p className="ui-description">Showing {queue.data.items.length} of {queue.data.total}. Use the Review finding filter to see all.</p>}
         </section>
       )}
-      <FilterLayout label="Filters" activeCount={findings.length + licenses.length + states.length + groupFilter.length + managerFilter.length + (search ? 1 : 0)} onClear={clearAll} clearDisabled={!(findings.length || licenses.length || states.length || groupFilter.length || managerFilter.length || search) && sort === 'username' && !descending}
+      <FilterLayout label="Filters" activeCount={(includeCompleted ? 1 : 0) + findings.length + licenses.length + states.length + groupFilter.length + managerFilter.length + (search ? 1 : 0)} onClear={clearAll} clearDisabled={!(includeCompleted || findings.length || licenses.length || states.length || groupFilter.length || managerFilter.length || search) && sort === 'username' && !descending}
         toolbar={<PageToolbar>
           <SortControl label="Sort account reviews" value={sort} options={SORTS} descending={descending} onChange={setSort} onDescending={setDescending} />
           <Button className="settings-secondary-button" disabled={busy || !data?.loaded} onClick={() => void exportCSV()}>
@@ -434,7 +438,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
         </PageToolbar>}
         sidebar={<div className="grid min-w-0 gap-3" role="search" aria-label="Review filters">
           <FilterSection title="Saved Filters">
-            <SavedFilters showClear={false} view="review" state={{search,findings,licenses,states,groups:groupFilter,managers:managerFilter,sort,descending}} apply={s=>{if(Array.isArray(s.groups))setGroupFilter(s.groups.filter((item:string)=>(data?.functional_group_options||[]).some(o=>o.value===item)));if(Array.isArray(s.managers))setManagerFilter(s.managers.filter((item:string)=>(data?.manager_options||[]).some(o=>o.value===item)));if(typeof s.search==='string')setSearch(s.search);if(Array.isArray(s.findings))setFindings(s.findings.filter(item=>findingOptions.includes(item)));if(Array.isArray(s.licenses))setLicenses(s.licenses.filter(item=>['classified','exclude'].includes(item)));if(Array.isArray(s.states))setStates(s.states.filter(item=>(data?.review_states||[]).includes(item)));if(['username','name','sap_validity','lock_status','ad_status','review_state'].includes(String(s.sort)))setSort(String(s.sort));if(typeof s.descending==='boolean')setDescending(s.descending)}} clear={()=>{setSearch('');setFindings([]);setLicenses([]);setStates([]);setSort('username');setDescending(false)}}/>
+            <SavedFilters showClear={false} view="review" state={{search,findings,licenses,states,groups:groupFilter,managers:managerFilter,includeCompleted,sort,descending}} apply={s=>{setIncludeCompleted(s.includeCompleted===true);if(Array.isArray(s.groups))setGroupFilter(s.groups.filter((item:string)=>(data?.functional_group_options||[]).some(o=>o.value===item)));if(Array.isArray(s.managers))setManagerFilter(s.managers.filter((item:string)=>(data?.manager_options||[]).some(o=>o.value===item)));if(typeof s.search==='string')setSearch(s.search);if(Array.isArray(s.findings))setFindings(s.findings.filter(item=>findingOptions.includes(item)));if(Array.isArray(s.licenses))setLicenses(s.licenses.filter(item=>['classified','exclude'].includes(item)));if(Array.isArray(s.states))setStates(s.states.filter(item=>(data?.review_states||[]).includes(item)));if(['username','name','sap_validity','lock_status','ad_status','review_state'].includes(String(s.sort)))setSort(String(s.sort));if(typeof s.descending==='boolean')setDescending(s.descending)}} clear={()=>{setSearch('');setFindings([]);setLicenses([]);setStates([]);setSort('username');setDescending(false)}}/>
           </FilterSection>
           <FilterSection title="Search">
             <SearchInput className={inputClass} aria-label="Search account reviews" placeholder="Search" value={search} onChange={(e) => setSearch(e.target.value)} onClear={() => setSearch('')} />
@@ -449,6 +453,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
             <FormField label="Review decision">
               <MultiSelectFilter label="Review decision" values={states} options={data?.review_states || []} onChange={setStates} placeholder="All decisions" />
             </FormField>
+            <Checkbox checked={includeCompleted} onChange={event => setIncludeCompleted(event.target.checked)}>Include completed reviews</Checkbox>
           </FilterSection>
           <FilterSection title="Organization">
             <FormField label="Functional Group">
@@ -467,7 +472,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
         {managerFilter.map(value => <FilterChip key={`manager-${value}`} removeLabel={`Remove manager ${data?.manager_options.find(o => o.value === value)?.label ?? value}`} onRemove={() => setManagerFilter(managerFilter.filter(item => item !== value))}>Manager: {data?.manager_options.find(o => o.value === value)?.label ?? value}</FilterChip>)}
         {search && <FilterChip removeLabel="Remove account search filter" onRemove={() => { setSearch(''); setTerm('') }}>Search: {search}</FilterChip>}
       </div>}
-      <div className="results-toolbar ui-toolbar"><strong>{data?.total.toLocaleString() ?? '…'} accounts</strong></div>
+      <div className="results-toolbar ui-toolbar"><strong>{data?.total.toLocaleString() ?? '…'} accounts</strong>{!!data?.completed_hidden && <span className="ui-description" role="status"> · {data.completed_hidden.toLocaleString()} completed review{data.completed_hidden === 1 ? '' : 's'} hidden · <Button size="compact" variant="ghost" onClick={() => setIncludeCompleted(true)}>Show reviewed</Button></span>}</div>
       <QueryState
         loading={result.isLoading || (dataLoading && !data?.loaded)}
         error={result.error}
@@ -566,6 +571,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
                       >
                         {row.review_state}
                       </Button>
+                      {row.workflow_status === 'completed' && <p className="ui-description">Review completed</p>}
                       {row.stale && (
                         <p className="text-[var(--warning)]">
                           Evidence changed — review again

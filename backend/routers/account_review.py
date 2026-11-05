@@ -71,7 +71,7 @@ def accounts(search: str = Query('', max_length=256), finding: str = Query('', m
              review_state: Literal['', 'Needs review', 'Investigating', 'Approved for deactivation', 'No action required'] = '',
              findings: list[str] = Query([], max_length=32), license_groups: list[Literal['classified', 'exclude']] = Query([], max_length=2),
              review_states: list[Literal['Needs review', 'Investigating', 'Approved for deactivation', 'No action required']] = Query([], max_length=4),
-             functional_groups: list[str] = Query([], max_length=50), managers: list[str] = Query([], max_length=50),
+             include_completed: bool = False, functional_groups: list[str] = Query([], max_length=50), managers: list[str] = Query([], max_length=50),
              sort: Literal['username', 'name', 'sap_validity', 'lock_status', 'ad_status', 'review_state', 'priority'] = 'username',
              descending: bool = False, offset: int = Query(0, ge=0), limit: int = Query(25, ge=1, le=100)):
     state, directory, items, generation = current()
@@ -85,6 +85,7 @@ def accounts(search: str = Query('', max_length=256), finding: str = Query('', m
                    mismatch=sum('ad_disabled_open' in r['findings'] for r in items),
                    requiring_review=sum(r['needs_review'] for r in items), position_changes=sum(bool(r['position_change'] and r['position_change']['open']) for r in items), unlicensed=sum(r['unlicensed'] for r in items),
                    reviewed=sum(bool(r['decision']) and r['review_state'] != 'Needs review' and not r['stale'] for r in items),
+                   completed=sum(r['workflow_status'] == 'completed' for r in items),
                    pending=sum(not r['decision'] or r['review_state'] == 'Needs review' or r['stale'] for r in items))
     if not state.users.report: summary = {key: None for key in summary}
     term = search.strip()
@@ -98,17 +99,21 @@ def accounts(search: str = Query('', max_length=256), finding: str = Query('', m
                 or name == 'manager_change' and bool(r['manager_change'] and r['manager_change']['open']) or name == 'functional_group_review' and r['classification_review'] or name in r['findings'])
     # Both classifications selected (or neither) do not narrow the list.
     license_filter = licenses if len(licenses) == 1 else set()
-    items = [r for r in items if (not term or search_fields(term,r['username'],r['name'],*r['groups']))
+    # Completed reviews leave the default active queue. Asking for a completed decision (or "Completed reviews") explicitly always shows them.
+    show_completed = include_completed or 'No action required' in states or 'reviewed' in wanted
+    matching = [r for r in items if (not term or search_fields(term,r['username'],r['name'],*r['groups']))
              and (not wanted or any(has(r, name) for name in wanted))
              and (not license_filter or r['unlicensed'] == ('classified' in license_filter))
              and (not states or r['review_state'] in states)
              and (not functional_groups or ((r['functional_group'] or {}).get('id') or 'unassigned') in functional_groups)
              and (not managers or manager_key(r) in managers)]
+    hidden = 0 if show_completed else sum(r['workflow_status'] == 'completed' for r in matching)
+    items = matching if show_completed else [r for r in matching if r['workflow_status'] != 'completed']
     if sort == 'priority':
         items.sort(key=lambda r: (r['priority_order'], r['position_change']['detected_at'] if r['position_change'] else '', r['username'].casefold()), reverse=descending)
     else:
         items.sort(key=lambda r: (r[sort].casefold(), r['username'].casefold()), reverse=descending)
-    return dict(items=items[offset:offset+limit], total=len(items), offset=offset, limit=limit,
+    return dict(items=items[offset:offset+limit], total=len(items), offset=offset, limit=limit, completed_hidden=hidden, include_completed=show_completed,
                 functional_group_options=functional_group_options(), manager_options=manager_options(everything),
                 loaded=bool(state.users.report), directory_available=bool(directory), summary=summary,
                 data_revision=generation, finding_labels=review.FINDINGS, review_states=review.STATES)

@@ -110,7 +110,8 @@ class ReviewIntegration(unittest.TestCase):
         saved = self.client.post('/api/account-review/decision/DEMO_OPEN', headers=H, json=dict(state='No action required', reviewer='Reviewer', rationale='Role change confirmed with the manager.', evidence_version=row['evidence_version']))
         self.assertEqual(saved.status_code, 200, saved.text)
         self.assertEqual(self.client.get('/api/account-review?finding=position_change', headers=H).json()['items'], [])  # reviewed, so no longer an open position change
-        _, row = self.row()
+        self.assertNotIn('DEMO_OPEN', [item['username'] for item in self.client.get('/api/account-review', headers=H).json()['items']])  # completed: out of the default queue
+        _, row = self.row('?include_completed=true')
         self.assertFalse(row['position_change']['open'])
         self.assertEqual((row['review_state'], row['priority']), ('No action required', 'Normal' if row['needs_review'] else 'None'))
         self.assertEqual(self.client.get('/api/account-review/history/DEMO_OPEN', headers=H).json()['total'], 0)  # no duplicate decision was created
