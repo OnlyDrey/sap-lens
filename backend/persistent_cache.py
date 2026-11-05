@@ -27,7 +27,7 @@ MAX_ENTRY_BYTES = 1024 * 1024 * 1024
 _lock = threading.RLock()
 _code_digest = {}
 ALLOWED_PREFIXES = ('pydantic', 'pydantic_core', 'models', 'user_access', 'cache', 'role_matching', 'module_registry', 'config_models', 'csv_import', 'collections',
-                    'datetime', 'decimal', 'copyreg', 'enum', 'typing', 'dataclasses', 'uuid', 'fractions', 'zoneinfo', 'sod_import')
+                    'datetime', 'decimal', 'copyreg', 'enum', 'typing', 'dataclasses', 'uuid', 'fractions', 'zoneinfo', 'sod_import', 'employee_directory')
 ALLOWED_BUILTINS = {'set', 'frozenset', 'dict', 'list', 'tuple', 'bytearray', 'bytes', 'complex', 'range', 'slice', 'object', 'int', 'float', 'str', 'bool'}
 
 

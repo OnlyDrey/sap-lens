@@ -388,3 +388,29 @@ def forget_retired(snapshots):
             connection.executemany('DELETE FROM retired_snapshots WHERE snapshot=?', [(item,) for item in snapshots])
     except (StoreUnavailable, sqlite3.Error):
         pass
+
+
+def directory_fingerprint(snapshot):
+    """Fingerprint recorded for the Employee Directory snapshot (the directory is not stored as typed rows; only this derived fact lives in the store)."""
+    try:
+        connection = store_db.connect(create=False)
+    except StoreUnavailable:
+        return ''
+    try:
+        row = connection.execute("SELECT value FROM meta WHERE key='directory_fingerprint'").fetchone()
+        if not row:
+            return ''
+        recorded = json.loads(row[0])
+        return recorded.get('fingerprint', '') if recorded.get('snapshot') == snapshot else ''
+    except (sqlite3.Error, ValueError, AttributeError):
+        return ''
+    finally:
+        connection.close()
+
+
+def set_directory_fingerprint(snapshot, fingerprint):
+    try:
+        with transaction() as connection:
+            connection.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('directory_fingerprint', ?)", (json.dumps(dict(snapshot=snapshot, fingerprint=fingerprint)),))
+    except (StoreUnavailable, sqlite3.Error):
+        pass

@@ -151,11 +151,63 @@ def persist_directory(directory):
 
 
 def read_snapshot(identity):
+    """The directory of a stored snapshot. The snapshot file is always read and verified against its content address (damaged evidence is never masked);
+    only the parsing, validation and index building are skipped when an authenticated derived copy for exactly this snapshot and this parser code exists."""
     with snapshot_path(identity).open('rb') as stream:
         raw = stream.read(128 * 1024 * 1024 + 1)
     if len(raw) > 128 * 1024 * 1024 or hashlib.sha256(raw).hexdigest() != identity:
         raise ValueError('Directory snapshot failed its integrity check.')
-    return validate_snapshot(json.loads(raw))
+    try:
+        import persistent_cache
+        key = persistent_cache.dependency_key(snapshot=identity, code=persistent_cache.code_digest('employee_directory.py'))
+        cached = persistent_cache.get('directory', key)
+        if isinstance(cached, Directory):
+            return cached
+    except Exception:  # noqa: BLE001 - the cache is optional
+        persistent_cache = None
+    directory = validate_snapshot(json.loads(raw))
+    try:
+        if persistent_cache:
+            persistent_cache.put('directory', key, directory)
+    except Exception:  # noqa: BLE001
+        pass
+    return directory
+
+
+def directory_fingerprint(path):
+    """Identity of the input that produced a directory: the CSV content and the parser code (the format is fixed, there is no import profile)."""
+    import persistent_cache
+    digest = hashlib.sha256()
+    for part in ('employees', persistent_cache.code_digest('employee_directory.py'), persistent_cache.file_digest(path)):
+        digest.update(part.encode() + b'\0')
+    return digest.hexdigest()
+
+
+class _IdentityMatcher:
+    """SAP user -> directory match, computed once per (SAP dataset, directory) pair and shared by Data Health, Account Review, organization filters and the SoD
+    analysis. It lives on the SAP dataset object, so a refresh that replaces either side starts a new matcher; nothing is kept across datasets."""
+
+    def __init__(self, users_state, directory):
+        self.directory = directory
+        self.owners = sap_email_owners(users_state.users.values())
+        self.memo = {}
+
+    def __call__(self, user):
+        key = user.get('username')           # the canonical name is already unique per SAP user; no per-call normalisation
+        found = self.memo.get(key)
+        if found is None:
+            found = match_sap_identity(self.directory, user, self.owners)
+            if key:
+                self.memo[key] = found
+        return found
+
+
+def identity_matcher(users_state, directory):
+    cache = users_state.__dict__.setdefault('_identity_matchers', {})
+    matcher = cache.get('current')
+    if matcher is None or matcher.directory is not directory:
+        matcher = cache['current'] = _IdentityMatcher(users_state, directory)
+    return matcher
 
 
 def validate_snapshot(data):

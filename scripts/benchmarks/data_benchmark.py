@@ -22,6 +22,24 @@ ROOT = Path(__file__).resolve().parents[2]
 BACKEND = Path(os.environ.get('SAP_LENS_BENCH_BACKEND') or ROOT / 'backend')  # point at another checkout's backend/ to compare revisions
 
 
+DIRECTORY_HEADERS = 'Site;Name;SamAccountName;UserPrincipalName;Mail;Department;Title;Enabled;DistinguishedName;ManagerDN;ManagerName;ManagerSamAccountName;ManagerMail;ManagerDepartment;ManagerTitle;ManagerLookupStatus'.split(';')
+
+
+def generate_directory(directory, employees):
+    """One employee per SAP user (matching e-mail u<n>@example.test) with a manager chain: every tenth employee manages the next nine."""
+    path = directory / 'directory.csv'
+    with path.open('w', newline='') as stream:
+        writer = csv.writer(stream, delimiter=';')
+        writer.writerow(DIRECTORY_HEADERS)
+        for number in range(employees):
+            boss = number - number % 10
+            managed = number != boss
+            writer.writerow(['HQ', f'Employee {number}', f'emp{number}', f'emp{number}@example.test', f'u{number}@example.test', f'D{number % 20}', f'Title {number % 7}', 'True',
+                             f'CN=emp{number},OU=Staff,DC=example,DC=test', f'CN=emp{boss},OU=Staff,DC=example,DC=test' if managed else '', f'Employee {boss}' if managed else '',
+                             f'emp{boss}' if managed else '', f'u{boss}@example.test' if managed else '', f'D{boss % 20}' if managed else '', f'Title {boss % 7}' if managed else '', ''])
+    return path
+
+
 def generate(directory, roles, users, assignments):
     random.seed(1)
     catalogue = directory / 'roles.csv'
@@ -44,7 +62,7 @@ def generate(directory, roles, users, assignments):
     return catalogue, people, rows
 
 
-def child(scenario, data, catalogue, people):
+def child(scenario, data, catalogue, people, employees=''):
     os.environ.update(SAP_LENS_CONFIG_DIR=str(data), DATA_CSV_PATH='')
     sys.path.insert(0, str(BACKEND))
     import cache
@@ -52,6 +70,10 @@ def child(scenario, data, catalogue, people):
     import csv_lifecycle
     settings = config.get_settings().model_copy(deep=True)
     settings.data_csv_path, settings.user_csv_path = catalogue, people
+    if employees:
+        settings.employee_csv_path = employees
+        settings.features.employee_directory = True
+        settings.source_modes.employees = 'dynamic'
     if scenario.startswith('startup-static'):
         settings.source_modes.roles = settings.source_modes.users = 'static'  # restore from stored data only, no re-read of the CSV files
     if scenario == 'startup-static':  # first static start: switches the modes (not timed), then restores
@@ -60,6 +82,12 @@ def child(scenario, data, catalogue, people):
     result = None
     if scenario == 'import':
         config.save_configuration(settings, settings.revision)
+        result = csv_lifecycle.load(config.get_settings(), operation='refresh', strict=True)
+    elif scenario == 'refresh-directory-changed':  # one employee changes department and manager: only the directory is parsed, compared and re-matched
+        csv_lifecycle.load(config.get_settings(), operation='startup', strict=True)  # the running application (not timed)
+        started = time.perf_counter()
+        text = Path(employees).read_text()
+        Path(employees).write_text(text.replace(';D5;Title 5;', ';D6;Title 5;', 1))
         result = csv_lifecycle.load(config.get_settings(), operation='refresh', strict=True)
     elif scenario == 'refresh-users-changed':  # one user's e-mail changes: only the users source is parsed, compared and rebuilt
         csv_lifecycle.load(config.get_settings(), operation='startup', strict=True)  # the running application (not timed)
@@ -85,8 +113,14 @@ def child(scenario, data, catalogue, people):
     state.users.source_records, state.source_records = [], []
     gc.collect()
     without_records = resident()
+    remap = None
+    if employees:  # identity mapping of every SAP user against the directory (the work behind Data Health, Account Review and the SoD analysis)
+        from routers import employees as directory_routes
+        began = time.perf_counter()
+        directory_routes.directory_status(snapshot=state)
+        remap = round(time.perf_counter() - began, 3)
     statuses = {row['source']: row['status'] for row in (result or {}).get('sources', [])}
-    print(json.dumps(dict(scenario=scenario, sources=statuses, seconds=round(elapsed, 3), peak_mb=round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024), rss_mb=rss, rss_without_source_records_mb=without_records,
+    print(json.dumps(dict(scenario=scenario, sources=statuses, remap_seconds=remap, seconds=round(elapsed, 3), peak_mb=round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024), rss_mb=rss, rss_without_source_records_mb=without_records,
                           roles=len(state.roles), users=len(state.users.users), assignments=len(state.users.assignments))))
 
 
@@ -102,19 +136,21 @@ def main():
     parser.add_argument('--assignments', type=int, default=12)
     parser.add_argument('--json')
     parser.add_argument('--profile', choices=['startup', 'startup-static', 'startup-static-warm'], help='print the top functions of one scenario')
-    parser.add_argument('--child', nargs=4)
+    parser.add_argument('--employees', type=int, default=0, help='also import an Employee Directory with this many employees (matched to the first SAP users)')
+    parser.add_argument('--child', nargs='+')
     options = parser.parse_args()
     if options.child:
         return child(*options.child)
     with tempfile.TemporaryDirectory(prefix='sap-lens-bench-') as folder:
         folder = Path(folder)
         catalogue, people, rows = generate(folder, options.roles, options.users, options.assignments)
+        directory_csv = str(generate_directory(folder, options.employees)) if options.employees else ''
         data = folder / 'data'
         results = []
         sizes = {}
-        for scenario in ('import', 'startup', 'startup-warm', 'refresh-users-changed', 'startup-static', 'startup-static-warm'):
+        for scenario in ('import', 'startup', 'startup-warm', 'refresh-users-changed', *(('refresh-directory-changed',) if options.employees else ()), 'startup-static', 'startup-static-warm'):
             environment = dict(os.environ, **({'SAP_LENS_BENCH_PROFILE': '1'} if options.profile == scenario else {}))
-            run = subprocess.run([sys.executable, __file__, '--child', scenario, str(data), str(catalogue), str(people)], capture_output=True, text=True, check=False, env=environment)
+            run = subprocess.run([sys.executable, __file__, '--child', scenario, str(data), str(catalogue), str(people), *([directory_csv] if directory_csv else [])], capture_output=True, text=True, check=False, env=environment)
             if options.profile == scenario:
                 print(run.stderr[-3500:], file=sys.stderr)
             if run.returncode:

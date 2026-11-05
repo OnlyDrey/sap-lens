@@ -86,7 +86,8 @@
   "employee-directory": {
    "description": "Employee Directory import and enrichment",
    "backend": [
-    "test_employee_directory"
+    "test_employee_directory",
+    "test_directory_cache"
    ],
    "browser": [
     "employee-directory"

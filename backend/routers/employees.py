@@ -10,7 +10,7 @@ import cache
 from config import get_settings, save_configuration
 from config_models import StrictModel
 from daemon_tasks import daemon_call
-from employee_directory import parse_directory, store, persist_directory, discard_snapshot, sap_email_owners, match_sap_identity
+from employee_directory import parse_directory, store, persist_directory, discard_snapshot, sap_email_owners, match_sap_identity, identity_matcher
 from user_access import normalize_username
 
 router = APIRouter(prefix='/api/employees', tags=['Employee Directory'])
@@ -52,8 +52,8 @@ def directory_status(private=False, snapshot=None):
         key = (id(snapshot), snapshot.last_loaded, directory.digest)
         with _coverage_lock:
             if key != _coverage_key:
-                owners = sap_email_owners(snapshot.users.users.values())
-                value = Counter(match_sap_identity(directory, user, owners)['status'] for user in snapshot.users.users.values())
+                matcher = identity_matcher(snapshot.users, directory)
+                value = Counter(matcher(user)['status'] for user in snapshot.users.users.values())
                 _coverage_key, _coverage_value = key, value
             coverage.update(_coverage_value)
     if status == 'healthy' and (report.get('duplicate_emails') or report.get('missing_emails') or report.get('missing_identifiers') or any(report.get('duplicate_identifiers',{}).values()) or

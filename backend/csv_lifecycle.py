@@ -349,7 +349,20 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
             phase = 'read'
             announce('Reading file',source)
             initial_signature=signature(path)
-            fingerprint = source_fingerprint(source, path, settings) if source != 'employees' else ''
+            if source == 'employees':
+                from employee_directory import directory_fingerprint
+                fingerprint = directory_fingerprint(path)
+                if (previous_directory is not None and settings.employee_snapshot_id and source not in forced and state.loaded_sources.get('employees', path) == path
+                        and source_store.directory_fingerprint(settings.employee_snapshot_id) == fingerprint and signature(path) == initial_signature):
+                    # Same CSV content and parser code as the stored directory: no parse, no comparison, no position-change pass, no re-matching.
+                    total = len(previous_directory.rows)
+                    result.update(status='unchanged', **{**diff_records(source, [], []), 'unchanged': total}, records=total, fast_path=True)
+                    announce('Unchanged', source)
+                    successful.append(source)
+                    results.append(result)
+                    continue
+            else:
+                fingerprint = source_fingerprint(source, path, settings)
             existing_ref = settings.data_lifecycle.sources.get(source)
             if (fingerprint and existing_ref and existing_ref.path == path and source not in forced and state.loaded_sources.get(source) == path
                     and source_store.fingerprint(source, existing_ref.snapshot) == fingerprint and signature(path) == initial_signature):
@@ -421,6 +434,9 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
             elif has_changes or source in forced or not settings.employee_snapshot_id:
                 candidate.imported_at = stamp
                 settings.employee_snapshot_id = persist_directory(candidate)
+                if fingerprint: pending_fingerprints[source] = (settings.employee_snapshot_id, fingerprint)
+            elif fingerprint:
+                pending_fingerprints[source] = (settings.employee_snapshot_id, fingerprint)
             # A source becomes a publication candidate only after all of its
             # immutable durable inputs have been staged successfully.
             if source == 'roles':
@@ -547,7 +563,8 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
         except Exception:  # noqa: BLE001 - lifecycle memory must never fail an import; the next load observes again
             logger.warning('Assignment lifecycle observation failed and will be retried at the next load.')
         for pending_source, (pending_snapshot, pending_value) in pending_fingerprints.items():
-            source_store.set_fingerprint(pending_source, pending_snapshot, pending_value)
+            if pending_source == 'employees': source_store.set_directory_fingerprint(pending_snapshot, pending_value)
+            else: source_store.set_fingerprint(pending_source, pending_snapshot, pending_value)
         from account_review import record_missing_users
         record_missing_users(state)
         if previous_directory is not None and directory is not None and directory is not previous_directory:

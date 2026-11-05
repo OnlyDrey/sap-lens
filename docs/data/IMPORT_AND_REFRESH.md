@@ -159,7 +159,7 @@ Global/manual/scheduled refresh behavior, inspection and failure recovery are un
 
 Start-up (Dynamic sources) and every refresh evaluate each source on its own:
 
-1. **Fingerprint.** For Role Catalogue, User-Role Mapping and SoD Matrix the file content digest is combined with the parsing settings (active import profile or SoD format) and the digest of the
+1. **Fingerprint.** For Role Catalogue, User-Role Mapping, SoD Matrix and Employee Directory ([details](EMPLOYEE_DIRECTORY.md#fingerprint-derived-copy-and-shared-identity-matching)) the file content digest is combined with the parsing settings (active import profile or SoD format) and the digest of the
    parser code. The fingerprint of the input that produced the active revision is stored with that revision in the SQLite store.
 2. **Unchanged:** an equal fingerprint, the same path and a loaded active revision mean parsing would reproduce the active snapshot exactly. The source is reported `unchanged` (marked `fast_path`) and is
    neither parsed, compared, anomaly-checked, snapshotted nor rebuilt; its `checked_at` is updated. The file is still read once to hash it; the content is never trusted by timestamp or size alone.

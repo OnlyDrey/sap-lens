@@ -3,7 +3,7 @@
 Resume guide for a new session: read [AGENTS.md](../../AGENTS.md), this file, `git status` and `git log --oneline -15`; the repository state is authoritative, correct this file where it differs.
 CI policy: GitHub Actions runs only on push to `main` after an explicitly approved merge; all validation is local; `work` pushes never trigger it.
 
-**Last update:** 2026-11-05 (end of Phase A)
+**Last update:** 2026-11-05 (end of Phase B)
 
 ## Plan and status
 
@@ -19,8 +19,8 @@ CI policy: GitHub Actions runs only on push to `main` after an explicitly approv
 | CI policy | CI only on push to `main` | Completed | `2451753` |
 | Step 4 | Data retention (source), daily check, one-time approval | Completed | `8247da6` |
 | Retention completion | Separate source and review retention, logical timestamps, journalled recoverable review cleanup | Completed | `70ae519` |
-| A | Backup retention (automatic 90 days, migration and manual protected) | Completed (pushed with this update) | see Git log |
-| B | Employee Directory fingerprint and persistent cache | Pending | |
+| A | Backup retention (automatic 90 days, migration and manual protected) | Completed | `2ab0b0d` |
+| B | Employee Directory fingerprint, derived copy, shared SAP/AD matcher | Completed (pushed with this update) | see Git log |
 | C | Backend/API performance (`/api/access/users`, dashboard, memory) | Pending | |
 | D | Frontend/API cache consistency (revision-aware) | Pending | |
 | E | Parallel browser test stabilization | Pending | |
@@ -40,12 +40,28 @@ CI policy: GitHub Actions runs only on push to `main` after an explicitly approv
 | Static start | 9.8 s, peak 730 MB | 2.1 s, peak 525 MB |
 | Refresh, one source changed | 24.6 s, peak 1251 MB | 15.3 s, peak 1125 MB |
 
+### Employee Directory (100 000 employees, 20 000 SAP users, this container, fresh process per scenario)
+
+| Scenario | Before (`2ab0b0d`) | After |
+| --- | --- | --- |
+| Start, unchanged files (warm) | 8.0 s, peak 703 MB | 1.7 s, peak 460 MB |
+| Static start (warm) | 8.3 s | 1.7 s |
+| Refresh, only users changed | 8.9 s | 3.7 s |
+| Refresh, only the directory changed | 6.6 s | 7.1 s (full path, as intended; within noise) |
+| Import | 12.3 s | 9.6 s (not attributed: the first import does the same work) |
+| Identity mapping of every SAP user, first call / repeat | 0.5 s each call | about 0.6 s first (about 10 to 15 % overhead), 0.04 s repeat |
+
+Component timings at 100 000 rows: parse 2.4 s, comparison 3.5 s, snapshot restore 1.8 s (derived copy: 0.8 s).
+
 ## Known limitations and risks
 
 * Resident memory ~525 MB, of which ~185 MB raw source records retained; changed-source refresh peaks above 1.1 GB (Phase C).
 * First start after a change derives the model once (~4 s).
-* Employee Directory is still parsed on every check (Phase B).
 * Native Windows, WebView2 and systemd paths are not validated here.
+
+## Final-validation requirements added by the user
+
+* Verify and document how the automatic-backup count limit (`keep`) and the 90-day policy interact: 90 days is a maximum, not a guaranteed minimum. The Settings UI must state both mechanisms and the cleanup preview must say which rule makes each backup eligible. (Pending, scheduled with Phase F unless an integrity issue appears earlier.)
 
 ## Decisions requiring user approval
 
@@ -53,4 +69,4 @@ None open.
 
 ## Next actions
 
-Phase B: Employee Directory fingerprint and persistent cache, then Phase C.
+Phase C: backend/API performance (`/api/access/users`, dashboard, source-refresh memory), then D, E, F (including the backup count-versus-90-day documentation and preview-rule requirement).

@@ -8,7 +8,7 @@ import logging
 from fastapi import HTTPException
 from config import atomic_write, config_dir
 from user_access import interval_status, sap_date
-from employee_directory import sap_email_owners, match_sap_identity
+from employee_directory import identity_matcher, sap_email_owners, match_sap_identity  # noqa: F401 - re-exported for callers and tests
 from position_changes import normalize_text
 
 lock = threading.RLock()
@@ -70,9 +70,9 @@ def rows(state, directory, saved, groups, today=None, position=None, managers=No
     managers = managers or {}
     configured = {g.strip().casefold() for g in groups}
     result = []
-    owners = sap_email_owners(state.users.users.values())
+    matcher = identity_matcher(state.users, directory) if directory else None
     for user in state.users.users.values():
-        match = match_sap_identity(directory, user, owners) if directory else {'status': 'directory_unavailable', 'employee': None}
+        match = matcher(user) if directory else {'status': 'directory_unavailable', 'employee': None}
         employee = match['employee']
         ad = employee['account_status'] if employee else 'Unknown'
         valid = validity(user['accounts'], today)

@@ -4,7 +4,7 @@ Both come from stored or imported evidence only: the classification store and th
 duplicate and ambiguous identities. Manager is the imported reporting link (manager mail), never inferred from Department. Unmatched users
 have manager key `none`; users without a classification are `unassigned`."""
 import functional_groups as fg
-from employee_directory import match_sap_identity, normalized, sap_email_owners
+from employee_directory import identity_matcher, normalized
 
 NO_USER = '\u0000'  # sentinel that matches no SAP user: an empty selection result must still filter everything out
 
@@ -23,10 +23,10 @@ def manager_map(state, directory):
     """{UPPER SAP USER: manager key} for every user (`none` when unmatched or the manager is unknown)."""
     if not directory:
         return {}
-    owners = sap_email_owners(users_of(state))
+    matcher = identity_matcher(state.users, directory)
     result = {}
     for user in users_of(state):
-        match = match_sap_identity(directory, user, owners)
+        match = matcher(user)
         result[user['username'].strip().upper()] = manager_key_for(match['employee']) if match['status'] == 'matched' else 'none'
     return result
 
@@ -41,7 +41,7 @@ def selection(state, directory, functional_groups=(), managers=()):
         return None
     wanted_groups, wanted_managers = set(functional_groups), {normalized(value) for value in managers}
     classes = fg.classification_map() if wanted_groups else {}
-    owners = sap_email_owners(users_of(state)) if wanted_managers and directory else None
+    matcher = identity_matcher(state.users, directory) if wanted_managers and directory else None
 
     def keep(user):
         if wanted_groups and group_key(classes, user['username']) not in wanted_groups:
@@ -49,7 +49,7 @@ def selection(state, directory, functional_groups=(), managers=()):
         if wanted_managers:
             key = 'none'
             if directory:
-                match = match_sap_identity(directory, user, owners)
+                match = matcher(user)
                 key = manager_key_for(match['employee']) if match['status'] == 'matched' else 'none'
             if key not in wanted_managers:
                 return False
@@ -85,9 +85,9 @@ def options(state, directory):
         counts[key] = counts.get(key, 0) + 1
     labels = {}
     if directory:
-        owners = sap_email_owners(users_of(state))
+        matcher = identity_matcher(state.users, directory)
         for user in users_of(state):
-            match = match_sap_identity(directory, user, owners)
+            match = matcher(user)
             key = manager_key_for(match['employee']) if match['status'] == 'matched' else 'none'
             managers[key] = managers.get(key, 0) + 1
             if key != 'none':
