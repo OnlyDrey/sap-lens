@@ -1,26 +1,24 @@
 name: Fast Validation
-# Level 1 of three: automatic, cheap feedback on work and main. It selects what to run from the change (scripts/run-tests.py changed,
+# Level 1 of three: the only automatic workflow, and it runs on push to main only (merges). Pushes to work, feature branches and pull requests never trigger CI. It selects what to run from the change (scripts/run-tests.py changed,
 # rules in scripts/test-map.json): documentation-only pushes skip Node and the browser, frontend changes add build, lint and the @smoke browser
 # tests, and any backend source, script, workflow, dependency or unmapped path runs the whole backend suite. The complete browser suite
 # belongs to the manual Full Regression workflow; Build & Release never depends on either.
 on:
   push:
-    branches: [work, main]
-  pull_request:
     branches: [main]
 permissions:
   contents: read
 concurrency:
-  # Push and PR status checks cannot cancel each other.
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # Every push to main is validated: a newer merge never cancels the run for an earlier one.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   fast:
     name: Backend & Frontend
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+      BASE_SHA: ${{ github.event.before }}
     steps:
       - name: Check out source
         id: checkout

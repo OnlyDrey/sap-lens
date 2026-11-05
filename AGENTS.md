@@ -74,11 +74,24 @@ From the repository root (full list and risk-based selection:
 - Deliver in logically complete, validated increments with conventional subjects
   (`feat(scope):`, `fix(scope):`, `docs:`). Push each phase to `origin/work` once its
   targeted FEATURE validation passes (see Lean development and validation policy), never force-push or rewrite
-  history, and verify the result with `git ls-remote origin work`. Allow the
-  automatic Fast Validation workflow to run; do not tag, release or manually
-  dispatch workflows without authorization. A passing Fast Validation run is not
-  proof that deployment packages were built; report package availability only
-  after checking the workflow runs and artifacts.
+  history, and verify the result with `git ls-remote origin work`. Do not tag,
+  release or manually dispatch workflows without authorization. A passing Fast
+  Validation run is not proof that deployment packages were built; report package
+  availability only after checking the workflow runs and artifacts.
+
+## GitHub Actions CI policy (permanent)
+
+- **CI runs only on push to `main`** (completed merges): `validate.yml` is the single automatic workflow and its only trigger is `push: branches: [main]`.
+  The trigger is the push to `main`, not `pull_request`. No workflow runs on `work`, feature branches or pull requests, and none may be triggered
+  indirectly from them (no `workflow_run`, `workflow_call`, `schedule`, `pull_request(_target)` or repository-event triggers anywhere).
+- Intermediate and final development pushes to `work` do not trigger CI. Do not run CI manually (`workflow_dispatch` of Full Validation, Build Windows
+  Application or Build Deployment Packages) unless the repository owner explicitly authorizes it for that run.
+- Validation moves local: run Fast Validation (`python scripts/validate.py --level fast|feature`, targeted tests) after each development phase, and the full local
+  regression (`python scripts/run-tests.py regression` plus the complete browser suite) before merging into `main`.
+- Existing validation jobs, security checks and release protections stay in place; they only run on `main` pushes or on an authorized manual dispatch.
+  `scripts/check-workflows.py` and `backend/tests/test_workflows.py` enforce the trigger policy; changing a trigger requires updating those contracts deliberately.
+- Never merge into `main`, publish a release or tag without explicit authorization. When a commit that only changes workflows must be pushed to `work`,
+  `[skip ci]` in its message is an additional safeguard.
 
 ## Working efficiently (AI agents)
 

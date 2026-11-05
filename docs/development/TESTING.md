@@ -269,3 +269,7 @@ SAP_LENS_BENCH_BACKEND=/path/to/other/checkout/backend python scripts/benchmarks
 Synthetic, deterministic data is generated in a temporary directory (nothing under the repository, nothing from a real installation) and each scenario runs in a fresh process against
 disposable storage: `import`, `startup` / `startup-warm` (sources dynamic, the default) and `startup-static` / `startup-static-warm`. Output: seconds, peak and resident memory, snapshot and store sizes.
 `--profile <scenario>` prints the hottest functions. Compare runs only on the same machine, corpus and Python version; keep result files outside Git.
+
+## CI policy and local validation
+
+GitHub Actions CI runs only on push to `main`; pushes to `work`, feature branches and pull requests do not trigger it ([CI policy](CI.md)). Run the Fast/FEATURE validation locally after every phase and the full regression (`python scripts/run-tests.py regression` and the complete browser suite) before merging into `main`.

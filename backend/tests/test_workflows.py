@@ -16,13 +16,13 @@ class WorkflowTests(unittest.TestCase):
     def test_actual_workflows_satisfy_contract(self):
         contracts.validate(self.workflows)
 
-    def test_trigger_matrix_fast_is_automatic_and_everything_else_is_manual(self):
+    def test_trigger_matrix_only_a_push_to_main_runs_ci_everything_else_is_manual(self):
         # (Fast Validation, Full Validation, Build Windows Application, Build Deployment Packages); a pull request's branch is its target.
         for event, branch, expected in [
-            ('push', 'work', (True, False, False, False)),
+            ('push', 'work', (False, False, False, False)),
             ('push', 'main', (True, False, False, False)),
             ('push', 'feature/synthetic', (False, False, False, False)),
-            ('pull_request', 'main', (True, False, False, False)),
+            ('pull_request', 'main', (False, False, False, False)),
             ('pull_request', 'work', (False, False, False, False)),
             ('pull_request', 'feature/target', (False, False, False, False)),
             ('workflow_dispatch', 'work', (False, True, True, True)),
@@ -37,6 +37,15 @@ class WorkflowTests(unittest.TestCase):
     def test_branch_path_or_manual_trigger_drift_rejected(self):
         for filename, event, value in [
             ('validate.yml', 'push', {'branches': ['work']}),
+            ('validate.yml', 'push', {'branches': ['work', 'main']}),
+            ('validate.yml', 'push', {'branches': ['main', 'feature/**']}),
+            ('validate.yml', 'pull_request', {'branches': ['main']}),
+            ('validate.yml', 'pull_request_target', {'branches': ['main']}),
+            ('validate.yml', 'workflow_dispatch', ''),
+            ('validate.yml', 'schedule', [{'cron': '0 3 * * *'}]),
+            ('build-windows.yml', 'pull_request', {'branches': ['main']}),
+            ('build-deployments.yml', 'pull_request', {'branches': ['work']}),
+            ('build-deployments.yml', 'workflow_call', ''),
             ('validate.yml', 'push', ''),
             ('validate.yml', 'pull_request', {'paths': ['backend/**']}),
             ('full-validation.yml', 'push', ''),

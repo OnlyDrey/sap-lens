@@ -1,8 +1,20 @@
 # CI architecture
 
-## Temporarily skip automatic CI
+## Policy: CI runs only on push to `main`
 
-For a push that should not consume Actions minutes, put **`[skip ci]`** in its
+Fast Validation is triggered **only** by a push to `main` (a completed merge). Pushes to `work` or any other branch, pull requests, schedules, other workflows and
+repository events never start a workflow, so development pushes consume no Actions minutes. The trigger is `push` to `main`, not `pull_request`.
+Full Validation and the two Build workflows are `workflow_dispatch` only and are run by hand only when the repository owner explicitly authorizes it.
+
+Validation therefore happens locally: Fast Validation after each development phase (`python scripts/validate.py --level fast`, targeted tests per
+[Testing](TESTING.md)) and the complete local regression (`python scripts/run-tests.py regression` and the full browser suite) before merging into `main`.
+`scripts/check-workflows.py` and `backend/tests/test_workflows.py` fail on any other trigger, so the policy cannot drift unnoticed. Merging into `main` and
+publishing releases still require explicit authorization.
+
+
+## Skipping CI on a push to `main`
+
+Pushes to `work` and pull requests no longer start CI. For a push to `main` that should not consume Actions minutes, put **`[skip ci]`** in its
 commit message. GitHub supports this for `push` and `pull_request` workflows;
 no YAML edit, repository setting or dependency change is needed.
 
@@ -51,7 +63,7 @@ required merely to skip one explicitly authorized push.
 
 | Workflow / file | Exact triggers | Jobs and responsibility |
 | --- | --- | --- |
-| Fast Validation / `.github/workflows/validate.yml` | push to `work` or `main`; pull_request targeting `main` | One job, Backend & Frontend: checks selected from the change (`scripts/run-tests.py changed`). Mandatory: pip check, Ruff, workflow contracts, actionlint, portable PowerShell checks and selected backend tests. Frontend changes add type check, ESLint, icon catalogue, build, production audit and browser smoke |
+| Fast Validation / `.github/workflows/validate.yml` | push to `main` only (no `work`, feature-branch or pull_request trigger) | One job, Backend & Frontend: checks selected from the change (`scripts/run-tests.py changed`). Mandatory: pip check, Ruff, workflow contracts, actionlint, portable PowerShell checks and selected backend tests. Frontend changes add type check, ESLint, icon catalogue, build, production audit and browser smoke |
 | Build Deployment Packages / `.github/workflows/build-deployments.yml` | workflow_dispatch only; one `build_target` dropdown (`all`, `windows-all`, `windows-desktop`, `windows-service`, `linux-all`, `linux-docker`, `linux-native`) | A planning job resolves the selection, then lightweight shared validation (no backend or browser suite), then the selected independent Desktop, Service, Docker and native packaging jobs (unselected ones are skipped); publication takes only the planned, verified packages |
 | Full Validation / `.github/workflows/full-validation.yml` | workflow_dispatch only; no push, pull_request, schedule or workflow_call trigger | Backend & Repository and Frontend & Browser run independently in parallel. Never a prerequisite for building or publishing |
 | Build Windows Application / `.github/workflows/build-windows.yml` | workflow_dispatch only; caller selects branch/ref | Optional Reserve Release Version job before Windows Build & Verification (no regression stages); optional dependent Publish Verified Windows Release job for explicit beta/stable mode |

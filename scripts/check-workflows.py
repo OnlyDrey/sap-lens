@@ -172,7 +172,13 @@ def validate(workflows):
     require(download['with']=={'artifact-ids':'${{ steps.eligible.outputs.artifact_ids }}','path':'dist/publication','merge-multiple':'true','digest-mismatch':'error'}, 'Collect only selected immutable same-run artifacts with strict digests')
     require(deployment_publish['env'].get('DEPLOYMENT_IDENTITY')=='${{ needs.validation.outputs.identity }}' and deployment_publish['env'].get('DEPLOYMENT_NEEDS')=='${{ toJSON(needs) }}' and deployment_publish['env'].get('PUBLISH_RELEASE')=='${{ inputs.publish_release }}', 'Publication context must come from validated job results')
     require(not any(s.get('uses','').startswith('actions/') and 'login' in s.get('uses','') or 'release-windows.py publish' in s.get('run','') or ('deployment-release.py' in s.get('run','') and key!='publish' and not (key=='plan' and s.get('run','').strip()=='python scripts/deployment-release.py plan')) for key,j in deployment['jobs'].items() for s in j['steps']), 'Build jobs may not publish releases or images')
-    require(fast['on'] == {'push': {'branches': ['work', 'main']}, 'pull_request': {'branches': ['main']}}, 'Fast runs on pushes to work and main and on pull requests to main')
+    require(fast['on'] == {'push': {'branches': ['main']}}, 'CI policy: Fast Validation runs on push to main only (merges); no work, feature-branch or pull_request trigger')
+    for name, workflow in workflows.items():
+        triggers = workflow['on']
+        require(not ({'pull_request', 'pull_request_target', 'workflow_run', 'workflow_call', 'schedule', 'release', 'create', 'delete', 'issue_comment', 'repository_dispatch'} & set(triggers)),
+                f'CI policy: {name} may not be triggered by pull requests, other workflows, schedules or repository events')
+        require(set(triggers) <= {'push', 'workflow_dispatch'} and ('push' not in triggers or name == 'validate.yml'), f'CI policy: only validate.yml may run on push; {name} is dispatched by hand only, with the repository owner\'s authorization')
+        require('work' not in str(triggers.get('push', {}).get('branches', [])), f'CI policy: {name} may not run on pushes to work')
     require(set(full['on']) == {'workflow_dispatch'}, 'Full Regression is manual only: no push, pull request, schedule or workflow_call trigger')
     require(int(fast['jobs']['fast']['timeout-minutes']) <= 15, 'Fast Validation must stay a short job')
     # Full Regression is evidence, never a prerequisite: nothing that builds or publishes may run the complete suites or consult a regression result.
@@ -187,9 +193,7 @@ def validate(workflows):
         require('full-validation' not in source and 'full validation' not in source and "'backend', 'browser'" not in source, f'{script} may not require a Full Regression result or the complete suites')
     require(not ({'backend', 'browser'} & set(re.findall(r"CHECKS=\{([^}]*)\}", (ROOT / 'scripts/deployment-package.py').read_text(encoding='utf-8'))[0].replace("'", '').split(','))), 'The sealed validation receipt may not require the complete suites')
     require(set(windows['on']) == {'workflow_dispatch'}, 'Windows must be manual-only')
-    require(fast['concurrency']['cancel-in-progress'] == 'true' and
-            'github.event_name' in fast['concurrency']['group'] and
-            'github.event.pull_request.number' in fast['concurrency']['group'], 'Fast push and PR concurrency must be isolated')
+    require(fast['concurrency']['cancel-in-progress'] == 'false' and 'github.ref' in fast['concurrency']['group'] and 'pull_request' not in str(fast), 'Every push to main is validated; Fast Validation has no pull request context')
     require(full['concurrency']['cancel-in-progress'] == 'false' and 'github.ref' in full['concurrency']['group'], 'A manual Full Regression is never cancelled by another dispatch')
     require(windows['concurrency'] == {'group': 'sap-lens-windows-distribution', 'cancel-in-progress': 'false'}, 'Manual builds must be serialized without cancelling active builds')
     require(set(windows['jobs']) == {'reserve-version', 'windows-exe', 'publish-release'}, 'Keep the complete Windows build together; isolate publication')

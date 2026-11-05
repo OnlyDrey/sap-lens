@@ -1,10 +1,10 @@
 # CI/CD architecture
 
-SAP Lens separates validation from packaging. Three levels exist, and only the first runs automatically.
+SAP Lens separates validation from packaging. Three levels exist, and only the first runs automatically, and only on a push to `main` (see the CI policy in [CI](../development/CI.md)). Local Fast Validation follows each development phase and a full local regression precedes every merge into `main`.
 
 | Level | Workflow | Trigger | Purpose |
 | --- | --- | --- | --- |
-| A. Fast Validation | `validate.yml` | push to `work` or `main`; pull request to `main` | Cheap, change-based feedback |
+| A. Fast Validation | `validate.yml` | push to `main` only (merges); never `work`, feature branches or pull requests | Cheap, change-based feedback |
 | B. Build & Release | `build-deployments.yml` (all targets), `build-windows.yml` (legacy Windows desktop) | `workflow_dispatch` only | Build, verify and optionally publish selected packages |
 | C. Full Regression | `full-validation.yml` | `workflow_dispatch` only | Complete backend and browser regression |
 
