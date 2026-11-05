@@ -73,6 +73,7 @@
    "description": "Account Review decisions and position-change priority review",
    "backend": [
     "test_account_review",
+    "test_functional_groups",
     "test_position_changes"
    ],
    "browser": [

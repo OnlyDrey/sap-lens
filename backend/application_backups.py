@@ -180,6 +180,10 @@ def validate_store(root, exclude=()):
             if item.parent==root and item.name=='account-review.json':
                 from account_review import validate_storage
                 validate_storage(value)
+            if item.parent==root and item.name=='functional-groups.json':
+                from functional_groups import validate_storage as validate_groups
+                try: validate_groups(value)
+                except (ValueError,KeyError,TypeError): raise engine.MaintenanceError('Functional Group data is invalid or has broken references.') from None
             if item.parent.name=='employee-directory':
                 from employee_directory import validate_snapshot
                 validate_snapshot(value)

@@ -20,6 +20,7 @@ import cache
 from config import get_settings
 from data_loader import DataLoader
 from routers import comparison, modules, roles, access, employees, dashboard, account_review, user_comparison, data_health, saved_filters, data_sources, sod, sod_analysis, sod_reviews, sod_periods, sod_reports, sod_governance
+from routers import functional_groups as functional_groups_router
 from request_limits import RequestBodyLimit
 from version import VERSION, BUILD_INFO
 from configuration_routes import configuration_router
@@ -188,6 +189,7 @@ def create_app(origin: str | None = None, session_token: str | None = None,
     app.include_router(employees.router)
     app.include_router(dashboard.router)
     app.include_router(account_review.router)
+    app.include_router(functional_groups_router.router)
     app.include_router(user_comparison.router)
     app.include_router(data_health.router)
     app.include_router(saved_filters.router)
