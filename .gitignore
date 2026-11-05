@@ -79,9 +79,6 @@ htmlcov/
 *.tsbuildinfo
 SAP-Lens-diagnostics*.json
 
-# Supported local Windows builds and validation receipts
-/dist/local/
-
 # Private imported Employee Directory snapshots (never build inputs)
 **/employee-directory/
 
@@ -93,15 +90,7 @@ SAP-Lens-diagnostics*.json
 # Local canonical CSV snapshots and private refresh evidence
 **/csv-data/
 
-# Cross-platform service distributions and private access configuration
-/dist/server/
 *.secret
-
-# Verified cross-platform distribution output
-/dist/deployment/
-
-# Versioned local cross-platform outputs (source/build assets remain tracked)
-/dist/[0-9]*/
 
 # Private SoD annotations and review indexes
 sod-catalogue.json
@@ -111,5 +100,5 @@ sod-periods.json
 # Local validation reports, traces and synthetic browser artifacts
 /build/validation/
 
-# Shared build engine cleanup ownership
-/dist/.sap-lens-clean.lock
+# Every generated distributable (scripts/build_system/layout.py): local, deployment, server, publication, versioned outputs and the cleanup lock
+/dist/

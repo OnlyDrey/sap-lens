@@ -200,6 +200,20 @@ missing. Reusing compiled inputs additionally requires their existing fresh,
 source/tool/version-bound receipt. System tools still need separate explicit
 consent (`--install-system` or an interactive Yes).
 
+## Output layout
+
+All distributable output is written under the repository-root `dist/`, which Git ignores completely (`/dist/`) and the Docker allowlist context never includes; temporary work and logs stay in `backend/build`, `frontend/dist` and `build/`. `scripts/build_system/layout.py` is the single description used by the clean command and the layout tests:
+
+| Directory | Holds |
+| --- | --- |
+| `dist/local/` | Portable Windows desktop builds, run records and receipts |
+| `dist/deployment/` | Verified deployment archives and checksums: Windows desktop and service, Linux native, Docker image archive |
+| `dist/server/` | Windows service distributions |
+| `dist/<version>/` | Per-version output of the cross-platform builder, with its manifest and `SHA256SUMS.txt` |
+| `dist/publication/` | Same-run artifacts collected by the guarded release job (never written locally) |
+
+Docker images stay in Docker; only exported archives and metadata land in `dist/`. The package folders were not split further by platform because the GitHub upload contracts, release collection and verification read these exact paths; the platform is part of each package name. `clean` removes only the generated locations above plus `backend/build`, `backend/dist` and `frontend/dist`, refuses symbolic links and Windows junctions anywhere on the path, requires `--confirm-clean`, and never touches sources, user data or databases.
+
 ## Outputs and versioning
 
 `backend/resources/product-version.json` remains authoritative through

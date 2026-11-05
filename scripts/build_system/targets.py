@@ -88,7 +88,7 @@ def plan(args,python=None):
         case 'clean':pass
     return commands
 
-CLEAN_PATHS=('backend/build','backend/dist','frontend/dist','dist/local','dist/deployment')
+from .layout import GENERATED as CLEAN_PATHS  # one authoritative list of generated output
 def clean(args,runner):
     paths=[ROOT/name for name in CLEAN_PATHS]
     if args.output:
@@ -96,7 +96,7 @@ def clean(args,runner):
         if chosen not in paths:raise BuildError('Clean output must be one of the documented generated directories, never arbitrary user storage.')
         paths=[chosen]
     for path in paths:
-        if any(parent.is_symlink() for parent in (path,*path.parents)):raise BuildError('Refusing to clean a linked build directory.')
+        if any(parent.is_symlink() or parent.is_junction() for parent in (path,*path.parents)):raise BuildError('Refusing to clean a linked build directory (symbolic link or Windows junction).')
         if Path(sys.executable).resolve().is_relative_to(path.resolve()):raise BuildError('Run clean from a Python interpreter outside the directory being cleaned.')
     if not args.confirm_clean:raise BuildError('Clean needs explicit --confirm-clean (or use --dry-run to inspect paths).')
     guard=ROOT/'dist/.sap-lens-clean.lock'
