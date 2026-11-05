@@ -1,4 +1,5 @@
 """Atomic data generations; parsing/previews never silently rewrite role relationships."""
+import hashlib
 import logging
 import threading
 from copy import copy
@@ -8,6 +9,7 @@ from pathlib import Path
 from collections.abc import Callable
 
 from config import get_settings
+import persistent_cache
 from csv_import import CsvImport
 from user_access import UserState, build_users
 from module_registry import module_definition, resolve_module
@@ -124,6 +126,26 @@ def _build_catalog(path=None, configuration=None, records=None, report=None):
                        last_loaded=datetime.now(timezone.utc),tcode_index=index,import_report=report,analysis=analysis)
 
 
+CODE = ('cache.py', 'csv_import.py', 'user_access.py', 'role_matching.py', 'models.py', 'module_registry.py')
+
+
+def _persisted(kind, path, inputs, build, state=None):
+    """Load the parsed model of an unchanged source from the derived cache instead of parsing the CSV again.
+
+    The key covers the file content, the settings that shape the parse, the catalogue the users are mapped against and the code that builds it."""
+    try:
+        settings = inputs[0] if isinstance(inputs, tuple) else inputs
+        relevant = (inputs[1].model_dump_json() if isinstance(inputs, tuple) else '') + settings.model_dump_json(exclude={'revision'})
+        deps = persistent_cache.dependency_key(file=persistent_cache.file_digest(path), settings=hashlib.sha256(relevant.encode()).hexdigest(),
+                                               catalogue=getattr(state, 'catalogue_key', '') if state is not None else '', code=persistent_cache.code_digest(*CODE))
+    except (OSError, ValueError, AttributeError):
+        return build()
+    value, hit = persistent_cache.cached(kind, deps, build)
+    if kind == 'roles' and isinstance(value, _CacheState):
+        value.catalogue_key = deps  # users depend on the exact catalogue they were mapped against
+    return value
+
+
 def build_cache(path=None, configuration=None):
     settings = configuration or get_settings()
     catalogue_path = path if path is not None else settings.data_csv_path
@@ -135,12 +157,12 @@ def build_cache(path=None, configuration=None):
             # Static source identity only; no source data enters logs or public reports.
             error.sap_lens_source = kind
             raise
-    state = read_source('roles', lambda: _build_catalog(catalogue_path, settings)) if catalogue_path else _CacheState(last_loaded=datetime.now(timezone.utc))
+    state = read_source('roles', lambda: _persisted('roles', catalogue_path, settings, lambda: _build_catalog(catalogue_path, settings))) if catalogue_path else _CacheState(last_loaded=datetime.now(timezone.utc))
     if catalogue_path: state.loaded_sources['roles'] = catalogue_path
     if settings.user_csv_path:
         profile = next(p for p in settings.user_import_profiles if p.id == settings.active_user_import)
         if settings.features.user_role_mapping:
-            state.users = read_source('users', lambda: build_users(settings.user_csv_path, profile, state.roles))
+            state.users = read_source('users', lambda: _persisted('users', settings.user_csv_path, (settings, profile, catalogue_path), lambda: build_users(settings.user_csv_path, profile, state.roles), state))
             state.loaded_sources['users'] = settings.user_csv_path
         else:
             # An intentionally disabled optional source cannot prevent catalogue startup.

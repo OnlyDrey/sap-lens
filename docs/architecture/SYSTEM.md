@@ -69,3 +69,20 @@ uses a separate directory and a process-held lease. Browser uploads stage inputs
 for the existing CSV validation/confirmation lifecycle. Desktop startup and its
 release pipeline remain independent. See [deployment modes and operations](../deployment/README.md)
 and [access-boundary assumptions](../deployment/SECURITY.md).
+
+## Derived-state cache (SQLite)
+
+Parsing the imported CSV sources into the in-memory model dominates start-up and refresh time. `backend/persistent_cache.py` keeps the *result* of that
+deterministic work in `<data dir>/cache/derived.sqlite3` (WAL, short transactions, schema version in `user_version`) and loads it again when nothing it depends on has changed.
+
+- **Never authoritative:** it holds only rebuildable structures. Review decisions, periods, evidence, settings and the source files themselves are not stored here; deleting the folder
+  costs one rebuild. The folder is excluded from application backups and is not restored.
+- **Dependency-aware key:** file content digest of the source, the settings that shape the parse, the digest of the catalogue the users were mapped against, and the digest of the code
+  modules that build the value. An edit to any of them (including a code change) is a different entry, so a stale structure is never served; there is no TTL.
+- **Safe by construction:** every entry carries an HMAC made with a private per-installation key (`cache/.cache-key`, owner-only). A tampered, foreign or unreadable entry is discarded and
+  rebuilt instead of being loaded. Any SQLite error only means "no cache"; a failing cache write never fails an import or load. A database written by a newer version is ignored.
+- **Bounded:** the latest three entries per kind are kept.
+- Each load returns fresh objects, so callers can never share mutable cached state.
+
+Measured on a synthetic corpus (this container, Python 3.12): 50 000 assignment rows, unchanged-source reload 2.1 s → 0.55 s; 200 000 rows 8.7 s → 3.7 s; the first load after a change
+costs 15 to 20 % more (content hash and write). Remaining reload time is dominated by unpickling the object model.

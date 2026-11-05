@@ -95,6 +95,7 @@
   "data-sources": {
    "description": "CSV import, source lifecycle, refresh and snapshots",
    "backend": [
+    "test_persistent_cache",
     "test_application",
     "test_auto_import",
     "test_csv_area_labels",
