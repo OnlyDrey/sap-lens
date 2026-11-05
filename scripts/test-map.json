@@ -198,6 +198,7 @@
     "decision-controls",
     "multi-select-clear-all",
     "session-recovery",
+    "tooltip-visibility",
     "startup-recovery",
     "shared-ui-r5",
     "status-consistency-r6",

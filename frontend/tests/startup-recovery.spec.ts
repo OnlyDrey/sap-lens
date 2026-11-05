@@ -52,7 +52,7 @@ for (const width of [375, 800, 1280]) {
 
 test('Retry connection re-queries, and Backup & Restore opens on demand in dark mode', async ({ page }) => {
   let calls = 0
-  await page.route('**/api/configuration', route => { calls++; return route.fulfill({ status: 403, json: STALE }) })
+  await page.route('**/api/configuration', route => { calls++; return route.abort('connectionrefused') })
   await page.goto('/#session=browser-test-session')
   await page.emulateMedia({ colorScheme: 'dark' })
   await page.getByRole('button', { name: 'Retry connection' }).click()
