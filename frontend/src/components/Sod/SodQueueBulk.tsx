@@ -1,3 +1,4 @@
+import {DecisionChoice} from '@/components/Shared/DecisionChoice'
 import {Check,Trash2,Search} from 'lucide-react'
 import {Pagination} from '@/components/Access/Shared'
 import {useEffect,useRef,useState} from 'react'
@@ -58,7 +59,7 @@ export function SodQueueBulk({context,filters:initial,onClose,embedded=false,onF
     {data.truncated&&<p role="alert">This scope exceeds {data.limit} preview records. Narrow the filters before selecting all; no truncated set is applied automatically.</p>}
     {eligible.length>1000&&<p role="alert">Choose at most 1000 assignments per confirmed operation.</p>}
     {notice&&<p role="status">{notice}</p>}
-    <fieldset className="min-w-0"><legend className="mb-1 text-sm">Proposed decision</legend><div role="group" aria-label="Proposed decision" className="flex flex-wrap gap-1">{(['Keep','Remove','Investigate'] as const).map(value=><Button key={value} size="compact" aria-pressed={action===value} variant={action===value?(value==='Remove'?'destructive':'primary'):'secondary'} onClick={()=>setAction(value)}>{value==='Keep'?<Check size={14} aria-hidden="true"/>:value==='Remove'?<Trash2 size={14} aria-hidden="true"/>:<Search size={14} aria-hidden="true"/>}{value}</Button>)}</div></fieldset>
+    <fieldset className="min-w-0"><legend className="mb-1 text-sm">Proposed decision</legend><DecisionChoice label="Proposed decision" value={action} onChange={setAction}/></fieldset>
     <Checkbox checked={includeReviewed} onChange={event=>setIncludeReviewed(event.target.checked)}>Include previously reviewed</Checkbox>
     <p className="ui-description">Unchanged decisions are not written. Reconsidering earlier reviews requires explicit replacement confirmation.</p>
     <Toolbar><span role="status">{all.length} selected · {new Set(all.map(row=>row.user)).size} users</span>{selection.matching.length>pageEligible.length&&<Button disabled={data.truncated||result.isFetching} onClick={()=>setSelected(previous=>selectAssignmentPage(previous,selection.matching,true))}>Select all {selection.matching.length} matching eligible assignments</Button>}<Button variant="ghost" disabled={!all.length} onClick={()=>setSelected(new Map())}>Clear assignment selection</Button></Toolbar>

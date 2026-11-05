@@ -527,7 +527,7 @@ export function ComponentLibrary() {
         <SectionHeader title="Selection, page sizes and row actions" icon={<Info size={18}/>}/>
         <p className="ui-description">Bulk selection works on stable identifiers; the toolbar states how many items are affected and where they are. Page sizes and row action menus are shared by every list.</p>
         <BulkToolbar label="Demo bulk toolbar" summary="2 demo assignments selected" scope="1 on this page · 1 on other pages · 12 match the current filters">
-          <Button size="compact">Select all 12 matching</Button><Button size="compact">Clear selection</Button><Button size="compact">Keep</Button><Button size="compact">Investigate</Button><Button size="compact" variant="destructive">Recommend removal</Button>
+          <Button size="compact">Select all 12 matching</Button><Button size="compact">Clear selection</Button><Button size="compact">Investigate</Button><Button size="compact">Keep</Button><Button size="compact" variant="destructive">Recommend removal</Button>
         </BulkToolbar>
         <Pagination label="Demo sized pagination" offset={demoOffset} total={60} limit={demoSize} onChange={setDemoOffset} pageSizes={PAGE_SIZES} onPageSize={(size)=>{setDemoSize(size);setDemoOffset(0)}}/>
         <Toolbar>

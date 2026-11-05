@@ -325,7 +325,7 @@ test('the bulk toolbar stays usable with the filter sidebar open at 800 px and w
     if (width < 1024) await page.keyboard.press('Escape')
     await page.getByRole('checkbox', { name: 'Select all assignments on this page' }).check()
     await expect(toolbar(page)).toBeVisible()
-    for (const name of ['Keep', 'Investigate', 'Recommend removal', 'Clear selection']) await expect(toolbar(page).getByRole('button', { name, exact: true })).toBeVisible()
+    for (const name of ['Investigate', 'Keep', 'Recommend removal', 'Clear selection']) await expect(toolbar(page).getByRole('button', { name, exact: true })).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
   }
 })
@@ -349,7 +349,7 @@ test('multi-select and bulk selection are keyboard operable with visible focus',
   await row.focus(); await page.keyboard.press('Space')
   await expect(toolbar(page)).toContainText('1 assignment selected')
   await expect(row).toHaveCSS('outline-style', 'solid')
-  const names = ['Select all 1 matching', 'Clear selection', 'Keep', 'Investigate', 'Recommend removal']
+  const names = ['Select all 1 matching', 'Clear selection', 'Investigate', 'Keep', 'Recommend removal']
   await toolbar(page).getByRole('button').first().focus()
   const seen: string[] = []
   for (let step = 0; step < names.length; step++) { seen.push(await page.evaluate(() => (document.activeElement as HTMLElement).textContent?.trim() || '')); await page.keyboard.press('Tab') }

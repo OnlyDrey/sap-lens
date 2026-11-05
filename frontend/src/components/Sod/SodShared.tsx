@@ -162,7 +162,7 @@ export function ContextBar() {
 
 const DECISION_OPTIONS: Record<string, string[]> = {
   activity_decision: ['Pending', 'Approved', 'Conditional', 'Removal required', 'Outdated'],
-  assignment_decision: ['Pending', 'Keep', 'Removal required', 'Investigate', 'Outdated'],
+  assignment_decision: ['Pending', 'Investigate', 'Keep', 'Removal required', 'Outdated'],
   acceptance: ['Pending', 'Accepted', 'Rejected', 'Outdated'],
 }
 

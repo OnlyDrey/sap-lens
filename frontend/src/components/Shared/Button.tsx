@@ -7,7 +7,7 @@ import {
 } from 'react'
 import { Loader2 } from 'lucide-react'
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive'
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive' | 'success'
   size?: 'default' | 'compact' | 'icon'
   loading?: boolean
 }

@@ -1,3 +1,4 @@
+import { decisionVariant } from '@/components/Shared/DecisionChoice'
 import {useSodReviewSwitchGuard} from '@/hooks/useSodReviewNavigation'
 import {SodDecisionStatus} from './SodDecisionStatus'
 import {ContentTabList} from '@/components/Shared/Navigation'
@@ -31,7 +32,7 @@ export interface Item { key: string; user: string; ref: string; evidence_version
 export interface FormState { kind: Kind; items: Item[]; heading: string; decision?: string }
 const OPTIONS: Record<Kind, { value: string; label: string }[]> = {
   activity: [{ value: 'Approved', label: 'Approved: the user needs this activity' },{value:'Conditional',label:'Approved with conditions (retained review model)'}, { value: 'Investigate', label: 'Investigate: further assessment is required' }, { value: 'Remove', label: 'Remove: the user should not have this activity' }, { value: 'Pending', label: 'Reset to pending' }],
-  assignment: [{ value: 'Keep', label: 'Keep this role assignment' }, { value: 'Remove', label: 'Remove this role assignment' }, { value: 'Investigate', label: 'Investigate: further investigation is required' }, { value: 'Pending', label: 'Reset to pending' }],
+  assignment: [{ value: 'Investigate', label: 'Investigate: further investigation is required' }, { value: 'Keep', label: 'Keep this role assignment' }, { value: 'Remove', label: 'Remove this role assignment' }, { value: 'Pending', label: 'Reset to pending' }],
   risk:[{value:'Approved',label:'Approved: the risk is acceptable for this review'},{value:'Remove',label:'Remove: remediation is required'},{value:'Investigate',label:'Investigate: further assessment is required'},{value:'Pending',label:'Reset to pending'}],
   acceptance: [{ value: 'Accepted', label: 'Accept the risk' }, { value: 'Rejected', label: 'Reject the risk' }, { value: 'Pending', label: 'Reset to pending' }],
 }
@@ -269,9 +270,9 @@ function AssignmentReviewRow({ user,context,row, description, ok, checked, onChe
         <div className="sod-assignment-role"><RoleIdentifier value={row.role} onOpen={onOpenRole} openLabel={`Open catalogue role ${row.catalogue_roles[0] || row.role}`} />{description && <p className="sod-assignment-description" title={description}>{description}</p>}</div>
         <SodDecisionStatus kind="assignment" label={row.role} status={row.decision} summary={row.decision_summary} event={row.event} coverage={row.review_coverage} user={user} context={context} assignmentId={row.id} validFrom={row.valid_from} validTo={row.valid_to} verification={row.remediation_verification} activities={row.activities} risks={row.risks} name={description}/>
         {ok && <span className="sod-decision-icons" role="group" aria-label={`Decision for ${row.role}`}>
-          <IconButton label={`Keep ${row.role}`} tooltip="Keep this role assignment" variant={kept ? 'primary' : 'secondary'} aria-pressed={kept} loading={pendingAction==='Keep'} disabled={busy} onClick={() => onDecide('Keep')}><Check size={16} aria-hidden="true" /></IconButton>
-          <IconButton label={`Investigate ${row.role}`} tooltip="Mark for further investigation (not a final decision)" variant={investigating ? 'primary' : 'secondary'} aria-pressed={investigating} loading={pendingAction==='Investigate'} disabled={busy} onClick={() => onDecide('Investigate')}><Search size={16} aria-hidden="true" /></IconButton>
-          <IconButton label={`Remove ${row.role}`} tooltip="Recommend removing this role assignment (no change in SAP)" variant={removed ? 'destructive' : 'secondary'} aria-pressed={removed} loading={pendingAction==='Remove'} disabled={busy} onClick={() => onDecide('Remove')}><Trash2 size={16} aria-hidden="true" /></IconButton>
+          <IconButton label={`Investigate ${row.role}`} tooltip="Mark for further investigation (not a final decision)" variant={decisionVariant('Investigate', investigating)} aria-pressed={investigating} loading={pendingAction==='Investigate'} disabled={busy} onClick={() => onDecide('Investigate')}><Search size={16} aria-hidden="true" /></IconButton>
+          <IconButton label={`Keep ${row.role}`} tooltip="Keep this role assignment" variant={decisionVariant('Keep', kept)} aria-pressed={kept} loading={pendingAction==='Keep'} disabled={busy} onClick={() => onDecide('Keep')}><Check size={16} aria-hidden="true" /></IconButton>
+          <IconButton label={`Remove ${row.role}`} tooltip="Recommend removing this role assignment (no change in SAP)" variant={decisionVariant('Remove', removed)} aria-pressed={removed} loading={pendingAction==='Remove'} disabled={busy} onClick={() => onDecide('Remove')}><Trash2 size={16} aria-hidden="true" /></IconButton>
         </span>}
         <IconButton label={`${open ? 'Hide' : 'Show'} details for ${row.role}`} tooltip={open ? 'Hide evidence' : 'Show evidence'} variant="ghost" aria-expanded={open} aria-controls={detailId} onClick={() => setOpen(!open)}><DisclosureChevron open={open} /></IconButton>
       </div>

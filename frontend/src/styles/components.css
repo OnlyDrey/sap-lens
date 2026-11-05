@@ -10,6 +10,10 @@
 .ui-button-ghost { background:transparent; border-color:transparent; }
 .ui-button-destructive { color:var(--error); border-color:var(--error); }
 .ui-button-destructive:hover:not(:disabled) { background:var(--error-bg); }
+.ui-button-success { color:var(--success); border-color:var(--success); }
+.ui-button-success:hover:not(:disabled) { background:var(--success-bg); }
+/* A selected decision is also marked by weight and an inner ring, never by color alone. */
+.decision-choice [aria-pressed="true"],.sod-decision-icons [aria-pressed="true"] { box-shadow:inset 0 0 0 1px currentColor; font-weight:600; }
 .ui-button-compact { min-height:var(--control-compact); padding:var(--space-1) var(--space-2); }
 .ui-button-icon,.settings-icon-button { width:var(--control-height); padding:var(--space-2); flex-shrink:0; }
 .ui-button svg { flex-shrink:0; }

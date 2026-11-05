@@ -231,8 +231,8 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
               scope={`${pageSelected} on this page · ${picks.length - pageSelected} on other pages or outside the current filters · ${data.total.toLocaleString()} match the current filters`}>
               <Button size="compact" disabled={gathering || !data.total} onClick={() => void selectAllMatching()}>Select all {data.total.toLocaleString()} matching</Button>
               <Button size="compact" onClick={() => { selection.clear(); setGatherNote('') }}>Clear selection</Button>
-              <Button size="compact" disabled={!picks.length} onClick={() => setDialog('Keep')}>Keep</Button>
               <Button size="compact" disabled={!picks.length} onClick={() => setDialog('Investigate')}>Investigate</Button>
+              <Button size="compact" disabled={!picks.length} onClick={() => setDialog('Keep')}>Keep</Button>
               <Button size="compact" variant="destructive" disabled={!picks.length} onClick={() => setDialog('Remove')}>Recommend removal</Button>
             </BulkToolbar>
             : <p className="ui-description">Select assignments with the checkboxes, or <Button size="compact" variant="ghost" disabled={gathering || !data.total} onClick={() => void selectAllMatching()}>select all {data.total.toLocaleString()} matching</Button> to review them together. Reviews record decisions only; nothing changes in SAP.</p>}
