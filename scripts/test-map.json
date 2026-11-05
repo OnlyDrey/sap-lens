@@ -252,6 +252,7 @@
   "deployment": {
    "description": "Packaging, build metadata and release contracts",
    "backend": [
+    "test_build_diagnostics",
     "test_artifact_zip",
     "test_build_report",
     "test_build_version",

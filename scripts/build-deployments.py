@@ -23,7 +23,7 @@ import uuid
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'backend'))
 sys.path.insert(0, str(ROOT / 'scripts'))
-from build_system import python_env
+from build_system import failures, frontend_workspace, python_env
 from version import make_local_deployment_info,product_version
 
 TARGETS = ('desktop', 'service', 'docker', 'linux-native')
@@ -138,6 +138,7 @@ class Builder:
         self.stage = 'Prerequisites'
         self.validated = False
         self.validation_started = False
+        self.shared_failure = None
         self.powershell = None
         self.env = os.environ.copy()
         for key in ('PIP_TARGET','PIP_PREFIX','PIP_USER','PYTHONPATH','PYTHONHOME','SAP_LENS_DATA_DIR','SAP_LENS_SOURCE_DIR','SAP_LENS_DEPLOYMENT_MODE'):
@@ -145,6 +146,7 @@ class Builder:
         self.env.update(SAP_LENS_BUILD_SCOPE=getattr(args,'scope','targeted'), PYTHONUTF8='1', PYTHONIOENCODING='utf-8', DATA_CSV_PATH='', USER_CSV_PATH='')
         self.build = ROOT / 'backend/build'
         self.build.mkdir(parents=True, exist_ok=True)
+        self.workspace = self.build / 'frontend-workspace'
         self.python = self.build / ('python-env/Scripts/python.exe' if self.system == 'Windows' else 'python-env/bin/python')
         self.audit = self.build / ('audit-env/Scripts/python.exe' if self.system == 'Windows' else 'audit-env/bin/python')
         self.env['PATH'] = str(self.python.parent) + os.pathsep + self.env.get('PATH', '')
@@ -153,19 +155,48 @@ class Builder:
         self.env['SAP_LENS_CONFIG_DIR'] = str(self.build / 'deployment-test-settings')
         Path(self.env['RUNNER_TEMP']).mkdir(parents=True, exist_ok=True)
 
-    def run(self, label, command, timed=None):
+    def failure_class(self, label):
+        """Which part of the build a stage belongs to, so the manifest can tell a dependency problem from a packaging problem."""
+        text = label.lower()
+        if 'frontend dependencies' in text: return 'dependency_install'
+        if 'python' in text and ('install' in text or 'environment' in text): return 'python_environment'
+        if label == 'build': return 'frontend_build'
+        if label in ('types', 'catalog'): return 'frontend_validation'
+        if text.startswith('browser regression'): return 'browser_smoke'
+        if 'canonical windows package' in text: return getattr(self, 'current_target', None) + '_packaging' if getattr(self, 'current_target', None) else 'packaging'
+        if 'native' in text and 'smoke' in text or 'runtime' in text: return 'runtime_smoke'
+        if 'package' in text: return 'packaging'
+        return 'validation'
+
+    def run(self, label, command, timed=None, cwd=None):
         self.stage = label
         print(label, flush=True)
         if timed:
-            command = [str(self.python), 'scripts/ci.py', 'run', timed, '--', *map(str, command)]
+            command = [str(self.python), str(ROOT / 'scripts' / 'ci.py'), 'run', timed, '--', *map(str, command)]
         child_env = self.env.copy()
         if any(Path(str(value)).name == 'test-native-deployment.py' for value in command):
             for key in ('SAP_LENS_CONFIG_DIR','SAP_LENS_DATA_DIR','SAP_LENS_SOURCE_DIR','SAP_LENS_DEPLOYMENT_MODE'):
                 child_env.pop(key,None)
+        directory = Path(cwd) if cwd else ROOT
         with self.log.open('a', encoding='utf-8') as log:
             log.write('\n' + label + '\n'); log.flush()
-            subprocess.run(list(map(str, command)), cwd=ROOT, env=child_env, stdout=log,
-                           stderr=subprocess.STDOUT, check=True)
+            start = log.tell()
+            try:
+                subprocess.run(list(map(str, command)), cwd=directory, env=child_env, stdout=log, stderr=subprocess.STDOUT, check=True)
+            except subprocess.CalledProcessError as error:
+                log.flush()
+                # The terminal and the manifest get the real cause; the complete output stays in build.log.
+                with self.log.open('r', encoding='utf-8', errors='replace') as reader:
+                    reader.seek(start); output = reader.read()
+                raise failures.StageFailure(label, command, directory, error.returncode, output, self.log, self.failure_class(label)) from None
+
+    def prepare_workspace(self):
+        """Mirror the sources into the isolated frontend workspace. The developer's frontend/node_modules is never touched."""
+        self.stage = 'Prepare isolated frontend workspace'
+        if os.name == 'nt' and len(str(self.workspace)) > 110:
+            raise frontend_workspace.WorkspaceError(f'The repository path is too long for the isolated frontend workspace ({self.workspace}). Move the checkout to a shorter path (for example C:\\src\\sap-lens) or enable Windows long paths.')
+        frontend_workspace.mirror(ROOT, self.workspace)
+        return self.workspace, self.workspace / 'frontend'
 
     def bootstrap_pip(self, interpreter):
         """Same pip bootstrap as the build engine: an old seeded pip is moved to the pinned release before any package is installed."""
@@ -185,8 +216,15 @@ class Builder:
 
     def validate(self):
         if self.validated: return
-        if self.validation_started: raise ValueError('Shared local validation failed earlier in this run; inspect build.log. No repeated full suite was started.')
+        if self.validation_started: raise failures.BlockedByShared(getattr(self, 'shared_failure', None))
         self.validation_started = True
+        try:
+            self.run_shared_validation()
+        except Exception as error:  # remembered once: every later target is blocked by it, never revalidated
+            self.shared_failure = error
+            raise
+
+    def run_shared_validation(self):
         self.powershell = prerequisite_versions()
         needs_powershell = any(host_for(t, self.system) == self.system and t in ('desktop', 'service') for t in requested(self.args.platform))
         if not self.powershell and needs_powershell: raise ValueError('Windows packaging requires Windows PowerShell 5.1 or PowerShell 7.')
@@ -222,20 +260,24 @@ class Builder:
         self.run('Install pinned Python build and test dependencies', [self.python, '-m', 'pip', 'install', *pip_options, '-r', 'backend/requirements-dev.txt', '-r', 'backend/requirements-build.txt'])
         pip_pin = next(line for line in (ROOT / 'backend/requirements-build.txt').read_text().splitlines() if line.startswith('pip=='))
         self.run('Install pinned audit tooling', [self.audit, '-m', 'pip', 'install', *pip_options, pip_pin, '-r', 'scripts/requirements-audit.txt'])
-        self.run('Install locked frontend dependencies', [tool('npm'), '--prefix', 'frontend', 'ci', '--no-audit', '--no-fund', *(['--cache', self.env['RUNNER_TEMP'] + '/cold-npm'] if self.args.no_cache else [])])
+        workspace, frontend = self.prepare_workspace()
+        cache = ['--cache', self.env['RUNNER_TEMP'] + '/cold-npm'] if self.args.no_cache else []
+        node_version = subprocess.check_output([tool('node'), '--version'], text=True, env=self.env).strip().lstrip('v')
+        frontend_workspace.install(workspace, frontend_workspace.dependency_stamp(ROOT, node_version), lambda label: self.run(
+            label, [tool('npm'), '--prefix', frontend, 'ci', '--no-audit', '--no-fund', *cache], cwd=workspace))
         timing = Path(self.env['RUNNER_TEMP']) / 'sap-lens-ci-timings.jsonl'
         if timing.exists(): timing.unlink()
         commands = [
             ('pip_check', [self.python, '-m', 'pip', 'check']),
             ('workflow_lint', [self.python, 'scripts/ci.py', 'lint']),
             ('backend', [self.python, 'scripts/run-tests.py', *(['regression'] if self.args.scope=='full' else ['targeted','deployment']), '--backend']),
-            ('types', [tool('npm'), '--prefix', 'frontend', 'run', 'check:types']),
+            ('types', [tool('npm'), '--prefix', frontend, 'run', 'check:types']),
             ('catalog', [tool('node'), 'scripts/sync-lucide-catalog.mjs', '--check']),
-            ('build', [tool('npm'), '--prefix', 'frontend', 'run', 'build']),
-            ('javascript_audit', [tool('npm'), '--prefix', 'frontend', 'audit', '--omit=dev']),
+            ('build', [tool('npm'), '--prefix', frontend, 'run', 'build']),
+            ('javascript_audit', [tool('npm'), '--prefix', frontend, 'audit', '--omit=dev']),
         ]
         if self.powershell: commands.insert(2, ('powershell', [self.powershell, '-NoProfile', '-File', 'scripts/check-powershell.ps1']))
-        for stage, command in commands: self.run(stage, command, timed=stage)
+        for stage, command in commands: self.run(stage, command, timed=stage, cwd=workspace if stage in ('types', 'catalog', 'build', 'javascript_audit') else None)
         installed = subprocess.check_output([str(self.python), '-m', 'pip', 'list', '--format=freeze'], env=self.env, text=True)
         requirements = Path(self.env['RUNNER_TEMP']) / 'audit-installed.txt'; requirements.write_text(installed)
         self.run('Audit all installed build/runtime dependencies', [self.audit, '-m', 'pip_audit', '--disable-pip', '--no-deps', '-r', requirements], timed='python_audit')
@@ -244,8 +286,10 @@ class Builder:
             if not Path(browser).is_file(): raise ValueError('Configured Playwright executable does not exist.')
             print('Using the explicitly configured Playwright browser executable.')
         else:
-            self.run('Install the pinned Playwright Chromium headless shell', [tool('node'), 'frontend/node_modules/playwright/cli.js', 'install', 'chromium', '--only-shell'])
-        self.run('Browser regression tests', [tool('npm'), '--prefix', 'frontend', 'run', 'test:browser', '--', '--workers=1', *([] if self.args.scope=='full' else ['--grep','@smoke'])], timed='browser')
+            self.run('Install the pinned Playwright Chromium headless shell', [tool('node'), frontend / 'node_modules/playwright/cli.js', 'install', 'chromium', '--only-shell'], cwd=workspace)
+        self.run('Browser regression tests', [tool('npm'), '--prefix', frontend, 'run', 'test:browser', '--', '--workers=1', *([] if self.args.scope=='full' else ['--grep','@smoke'])], timed='browser', cwd=workspace)
+        self.stage = 'Publish verified frontend assets'
+        print(f'{self.stage}: {frontend_workspace.publish_dist(workspace, ROOT)} files', flush=True)
         self.run('Seal successful local validation', [self.python, 'scripts/deployment-package.py', 'record-local'])
         self.validated = True
 
@@ -253,6 +297,7 @@ class Builder:
         if target == 'docker':
             actual = subprocess.check_output([tool('docker'), 'info', '--format', '{{.OSType}}/{{.Architecture}}'], text=True).strip()
             if actual not in ('linux/x86_64', 'linux/amd64'): raise ValueError('Select an x86-64 Linux Docker engine (Docker Desktop Linux containers on Windows).')
+        self.current_target = target
         self.validate()
         stem, ext = STEMS[target]; name = f'sap-lens-{stem}-v{self.args.version}{ext}'
         if (self.output / name).exists(): raise ValueError('Artifact already exists. Choose a new --output-dir; existing packages are preserved.')
@@ -312,6 +357,24 @@ class Builder:
                     for filename in (row['artifact'], row['artifact'] + '.sha256'): shutil.copyfile(destination / filename, self.output / filename)
                 self.manifest['targets'][target] = row or dict(status='failed', error='Remote builder did not report the requested target.')
 
+    def record_of(self, error):
+        if isinstance(error, failures.StageFailure): return error.as_record()
+        return dict(failed_stage=self.stage, failure_class='validation', error=str(error) if isinstance(error, ValueError) else type(error).__name__ + ': ' + str(error))
+
+    def failed_row(self, target, error):
+        """A target's own failure, or `blocked` when shared validation (not this target) failed. Blocked targets are never attempted or revalidated."""
+        base = dict(built=False, package_verified=False, runtime_smoke_tested=False, host_os=self.system)
+        shared = getattr(self, 'shared_failure', None)
+        if shared is not None and (error is shared or isinstance(error, failures.BlockedByShared)):
+            record = self.record_of(shared)
+            if 'shared_validation' not in self.manifest:
+                self.manifest['shared_validation'] = dict(status='failed', **record)
+                print(shared.summary() if isinstance(shared, failures.StageFailure) else 'Shared validation failed: ' + str(shared), file=sys.stderr, flush=True)
+            return dict(status='blocked', blocked_by='shared_validation', error=f'Not attempted: shared validation failed at "{record["failed_stage"]}" ({record["failure_class"]}).', **base)
+        record = self.record_of(error)
+        if isinstance(error, failures.StageFailure): print(error.summary(), file=sys.stderr, flush=True)
+        return dict(status='failed', **base, **record)
+
     def execute(self):
         targets = requested(self.args.platform)
         remote_groups = {}
@@ -327,7 +390,7 @@ class Builder:
             if host_for(target, self.system) != self.system: continue
             try: self.manifest['targets'][target] = self.local(target)
             except (ValueError, OSError, subprocess.CalledProcessError) as error:
-                self.manifest['targets'][target] = dict(status='failed', built=False, package_verified=False, runtime_smoke_tested=False, failed_stage=self.stage, error=str(error) if isinstance(error, ValueError) else type(error).__name__)
+                self.manifest['targets'][target] = self.failed_row(target, error)
             self.save()
         for target in targets:
             row = self.manifest['targets'][target]

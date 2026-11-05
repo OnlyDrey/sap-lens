@@ -25,7 +25,12 @@ def inspect_tool(name):
         supported=range(int(node_range[1]),int(node_range[2])) if name=='node' else (10,11)
         if not match or int(match[1]) not in supported:
             raise BuildError(f'Incompatible {name} {value}: this project needs Node {node_range[1]} or {int(node_range[2])-1} and npm 10 or 11 (frontend/package.json engines). SAP Lens does not replace your global Node.js: install a supported version with your approved tools (or a per-user version manager) and reopen the terminal.',3)
+    if name=='node' and int(match[1])%2==1 and not NOTED:
+        NOTED.append(value)
+        print(f'Note: Node.js {value} is a Current (non-LTS) release. It satisfies the project engines, but Node.js 24 LTS is the CI baseline and the recommended version for reproducible builds.')
     return path
+
+NOTED=[]  # the non-LTS note is shown once per run
 
 def install_system(name,runner,consent=False,interactive=False,prompt=input):
     if os.name!='nt' or name not in ('git','node') or not locate('winget'):
