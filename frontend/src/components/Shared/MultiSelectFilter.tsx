@@ -5,7 +5,7 @@ import { Button } from './Button'
 import { FilterChip } from './FilterChip'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, ChevronDown, ChevronUp, FilterX, ListChecks, Search, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, FilterX, ListChecks, Search, X, XCircle } from 'lucide-react'
 
 /** Searchable multi-select. The list stays open while options are toggled and closes on outside click, Escape, Tab or Close. Values combine with OR; the caller owns the AND between filters.
  * Selections are independent of the search text: narrowing the list never drops a selected value. Select all applies to the options currently shown. */
@@ -97,9 +97,12 @@ export function MultiSelectFilter({ label, values, options, onChange, onSearch, 
             </div>
           </div>, document.body)}
       </div>
-      {values.length > 0 && <div className="flex flex-wrap items-center gap-2" role="group" aria-label={`Selected ${label}`}>
-        {values.map(value => <FilterChip key={value} removeLabel={`Remove ${label} ${value}`} onRemove={() => onChange(values.filter(item => item !== value))}>{optionLabel(value)}</FilterChip>)}
-        {values.length > 1 && <Button size="compact" variant="ghost" aria-label={`Clear all ${label} selections`} onClick={() => onChange([])}>Clear all</Button>}
+      {values.length > 0 && <div className="multi-selected" role="group" aria-label={`Selected ${label}`}>
+        <div className="flex flex-wrap items-center gap-2">
+          {values.map(value => <FilterChip key={value} removeLabel={`Remove ${label} ${value}`} onRemove={() => onChange(values.filter(item => item !== value))}>{optionLabel(value)}</FilterChip>)}
+        </div>
+        {/* A separate, right-aligned action below the chips: it clears only this field and never looks like a selected value. */}
+        <Button size="compact" variant="ghost" className="multi-clear-all" aria-label={`Clear all ${label} selections`} onClick={() => onChange([])}><XCircle size={14} aria-hidden="true" />Clear all ({values.length})</Button>
       </div>}
     </div>
   )

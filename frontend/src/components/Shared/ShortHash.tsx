@@ -18,7 +18,7 @@ export function ShortHash({ value, label }: { value: string; label: string }) {
         try { await navigator.clipboard.writeText(value); setCopied('Copied') } catch { setCopied('Copy failed') }
         timer.current = setTimeout(() => setCopied(''), 2000)
       }}>{copied === 'Copied' ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}</IconButton>
-      <span role="status" className="sr-only">{copied}</span>
+      <span aria-live="polite" className="sr-only">{copied}</span>
     </span>
   )
 }

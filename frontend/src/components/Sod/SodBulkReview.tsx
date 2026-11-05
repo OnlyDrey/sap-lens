@@ -85,7 +85,7 @@ export function BulkReviewDialog({ action, picks: livePicks, info:liveInfo, atom
           <div><dt>Source revision</dt><dd><ShortHash value={String(info.generation)} label="source revision" /></dd></div>
         </dl>
         <p className="ui-description">{copy.effect}</p>
-        {scopeSummary&&<p className="ui-description bulk-dialog-scope"><strong>Filter scope</strong> {scopeSummary}</p>}
+        {scopeSummary&&<p className="ui-description bulk-dialog-scope"><strong>Filter scope:</strong> {scopeSummary}</p>}
         <div className="bulk-dialog-scopes">
           <section aria-label="Selected SAP users"><h3 className="text-sm font-semibold">SAP users</h3>
             <ul className="bulk-chip-list">{users.slice(0, 30).map(([name, count]) => <li key={name}><StatusBadge>{name} · {count}</StatusBadge></li>)}{users.length > 30 && <li className="ui-description">and {users.length - 30} more users</li>}</ul></section>

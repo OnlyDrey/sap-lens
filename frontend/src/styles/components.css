@@ -1444,3 +1444,5 @@ summary:focus-visible,div[tabindex="0"]:focus-visible,a.role-identifier-link:foc
 
 /* Optional codeblock actions share selected semantics without changing identifier text. */
 .role-identifier button[aria-pressed="true"] { background:color-mix(in srgb,var(--accent) 12%,var(--surface)); color:var(--accent); }
+.multi-selected { display:grid; gap:var(--space-1); min-width:0; }
+.multi-selected .multi-clear-all { justify-self:end; }

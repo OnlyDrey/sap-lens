@@ -14,7 +14,7 @@ Paths below are relative to `frontend/src/components/`. The inventory covers reu
 
 | Component / canonical implementation | Real usage and variants | Styling / accessibility / migration decision |
 | --- | --- | --- |
-| `Shared/Button.tsx`: Button | Access exports/review, pagination, detail actions, library; primary/secondary/outline/ghost/destructive, default/compact/icon, loading/disabled | Central tokens; native button/default type=button, forwarded ref, disabled/aria-busy. Replaces duplicated routine action markup incrementally |
+| `Shared/Button.tsx`: Button | Access exports/review, pagination, detail actions, library; primary/secondary/outline/success/ghost/destructive, default/compact/icon, loading/disabled | Central tokens; native button/default type=button, forwarded ref, disabled/aria-busy. Replaces duplicated routine action markup incrementally |
 | IconButton / Tooltip, same file | Navbar utilities, comparison user links, library | Required label; focus/hover tooltip, Escape, disabled/loading states. No hidden text-only dependency |
 | ButtonGroup, same file | Release Table/Matrix, transaction AND/OR, library | Native pressed buttons, named group; this is a presentation/filter control, not page navigation |
 | `Shared/Controls.tsx`: Input / SearchInput | Library and shared form contract; legacy Settings/Access inputs use `controlClass` | IDs/ARIA forwarded; search icon space, invalid/disabled states; no copied theme color literals |
@@ -26,7 +26,7 @@ Paths below are relative to `frontend/src/components/`. The inventory covers reu
 | `Shared/NorwegianDateInput.tsx` | Assignment date controls, library | Existing localized portal calendar/manual entry, focus/keyboard behavior and maximum-date safety preserved |
 | `Shared/AssignmentDateFilters.tsx` | User/role/release assignment tables | Existing apply/cancel/date-bound semantics retained; chips now canonical |
 | `Shared/TransactionFilter.tsx` / useTransactionFilter | Role Lookup, User Directory/Details, library | Existing multi-code live/deferred state and AND/OR; operator group/chip reuse replaces repeated UI. This is the real multi-value selector showcased |
-| `Shared/MultiSelectFilter.tsx` | Release Area and Release Group, SoD SAP username and Role suffix, library | Searchable multi-select combobox whose list stays open while options are toggled (outside click, Escape, Tab or Close dismiss it); Select all acts on the listed options and states its scope, Clear selection and removable chips; selections survive searching. Values combine with OR, the caller combines filters with AND |
+| `Shared/MultiSelectFilter.tsx` | Release Area and Release Group, SoD SAP username and Role suffix, library | Searchable multi-select combobox whose list stays open while options are toggled (outside click, Escape, Tab or Close dismiss it); Select all acts on the listed options and states its scope, Clear selection and removable chips; below the chips a separate right-aligned ghost **Clear all (n)** action (with an `XCircle` icon and the live count) clears only that field and is hidden when nothing is selected; selections survive searching. Values combine with OR, the caller combines filters with AND |
 | `Shared/BulkSelection.tsx` | SoD Access Explorer Assignments, library | `useBulkSelection` keeps an explicit snapshot keyed by stable identifiers; `RowCheckbox`, `PageCheckbox` (indeterminate) and the `BulkToolbar` with count and scope. DOM order equals reading order; the toolbar wraps |
 | `Shared/RoleEntry.tsx`, `RoleIdentifier.tsx`, `ConfirmDialog.tsx` | Role Lookup, Single Roles, Access Package, comparison, Release Roles, SoD lists, library | One role presentation (module badge, description, wrapping copyable identifier; compact, standard, detailed); confirmation dialog whose button names the action. The header is one centered line: pill, description (`Shared/TruncatedText`: ellipsis, and a button revealing the full text on hover, keyboard focus, click or tap only while it is cut off), actions that never shrink, one minimum header height |
 | `Shared/PackageToggle.tsx`, `Shared/AccessPackageBar.tsx` | Role Lookup cards, Release Roles rows and Matrix cells, floating access package action | One round Plus/Check toggle and one floating package action for catalogue and release roles; the package store is shared and unlimited |
@@ -56,6 +56,12 @@ Paths below are relative to `frontend/src/components/`. The inventory covers reu
 | Settings navigation/sidebar, diagnostics and health source cards | Existing Settings workspace | Existing section IDs preserved, Component Library ordered immediately before About. Detailed source/diagnostic responsibilities retained |
 
 Native confirmation dialogs remain the existing deletion safeguard. There is no separate custom ConfirmationDialog or new toast service to showcase. Do not create a second abstraction simply to populate the library.
+
+## Decision controls
+
+`Shared/DecisionChoice` owns the three proposed assignment decisions. They are always presented in the order **Investigate, Keep, Remove** (`DECISION_ORDER`); the values, API payloads and stored records are unchanged and nothing is preselected by the component. Unselected controls use the neutral `secondary` styling. Only the selected one takes its semantic styling through `decisionVariant`: Investigate the configurable primary theme color (`primary`), Keep the success tokens (`success` button variant) and Remove the danger tokens (`destructive`). Selection is also marked without color (`aria-pressed`, weight and an inner ring). Reuse `decisionVariant` for icon-only variants such as the role assignment row; do not add page-level color overrides.
+
+`Shared/ShortHash` shows a technical identifier (for example a source revision) on one line as a shortened value with a copy action; the full value stays in the title, the clipboard and the accessible text, and is never altered in the records.
 
 ## KPI
 
