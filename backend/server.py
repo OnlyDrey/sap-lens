@@ -57,6 +57,8 @@ def run():
             startup(lease,settings)
             from config import get_settings
             get_settings.cache_clear()
+            from storage_migration import run as migrate_storage
+            logging.info('SQLite store: %s', migrate_storage(lease,settings).get('state','unknown'))
             stage='application resources'
             from main import create_app, frontend_dir
             if not (frontend_dir/'index.html').is_file(): raise ValueError('Build the production frontend before starting the server.')

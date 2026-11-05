@@ -1,4 +1,5 @@
 import {BackupHistory,BackupScheduling} from './BackupPlanning'
+import {StorageUpgrade} from './StorageUpgrade'
 import {useRef,useState} from 'react'
 import {useQuery,useQueryClient} from '@tanstack/react-query'
 import {DatabaseBackup,Download,RotateCcw,RefreshCw,FileUp} from 'lucide-react'
@@ -24,6 +25,7 @@ export function BackupRestore(){
  }
  return <section aria-label="Application backup and restore" className="grid min-w-0 gap-4">
   <p className="ui-description">Transfer application datasets, decisions, history, review periods and saved filters. Full replacement, not a merge. Archives contain sensitive personal and access data and are <strong>not encrypted</strong>. Store them securely.</p>
+  <StorageUpgrade/>
   {status.isLoading?<LoadingState/>:status.error?<ErrorState error={status.error} onRetry={()=>void status.refetch()}/>:<>
    <div className="space-y-2"><Toolbar><span className="text-xs text-muted">{current?.kind?`Last recorded ${current.kind} operation`:'Operation status'}</span><StatusBadge>{status.isFetching?'Checking status…':labels[current?.status||'idle']||'Unknown'}</StatusBadge><Button variant="ghost" disabled={busy} onClick={()=>void status.refetch()}><RefreshCw size={16} aria-hidden="true"/>Check status</Button></Toolbar>{current?.message&&<p role="status">{current.message}</p>}{current?.completed_at&&<p className="ui-description">Last operation: {new Date(current.completed_at).toLocaleString()}</p>}
     {pending&&<><p className="ui-description">Editing and scheduled refresh are paused. Desktop: choose Exit SAP Lens from the tray, then launch SAP Lens again. Closing a window may leave the backend running. Server: an administrator must restart the Windows service, systemd unit or Docker container. A browser cannot restart the host. Reconnect and return here; Ready enables Download backup.</p><Button variant="secondary" disabled={busy||Boolean(current?.recovery_required)||['preparing','creating'].includes(current?.status||'')} onClick={()=>void run(()=>apiRequest('/api/backups/cancel','POST'))}>Cancel pending operation</Button></>}

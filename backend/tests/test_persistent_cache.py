@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import cache
 import config
 import persistent_cache as store
+import store_db
 
 
 class CacheCase(unittest.TestCase):
@@ -39,38 +40,38 @@ class StoreTests(CacheCase):
     def test_tampered_entries_are_discarded_not_unpickled(self):
         deps = store.dependency_key(x=1)
         store.put('users', deps, {'ok': True})
-        connection = sqlite3.connect(store.directory() / 'derived.sqlite3')
+        connection = sqlite3.connect(store.directory() / 'sap-lens.sqlite3')
         connection.execute('UPDATE derived SET payload=?', (b'not a trusted pickle',)); connection.commit(); connection.close()
         with self.assertLogs('sap-lens', 'WARNING'):
             self.assertIsNone(store.get('users', deps))
-        connection = sqlite3.connect(store.directory() / 'derived.sqlite3')
+        connection = sqlite3.connect(store.directory() / 'sap-lens.sqlite3')
         self.assertEqual(connection.execute('SELECT COUNT(*) FROM derived').fetchone()[0], 0)   # removed, so the next load rebuilds
         connection.close()
 
     def test_a_foreign_secret_invalidates_every_entry(self):
         deps = store.dependency_key(x=1)
         store.put('users', deps, {'ok': True})
-        (store.directory() / '.cache-key').write_bytes(b'k' * 32)
+        (store.directory() / '.key').write_bytes(b'k' * 32)
         self.assertIsNone(store.get('users', deps))
 
     def test_corrupt_database_file_is_only_a_miss(self):
         store.put('users', 'd', {'ok': True})
-        (store.directory() / 'derived.sqlite3').write_bytes(b'garbage' * 50)
+        (store.directory() / 'sap-lens.sqlite3').write_bytes(b'garbage' * 50)
         for suffix in ('-wal', '-shm'):
-            (store.directory() / ('derived.sqlite3' + suffix)).unlink(missing_ok=True)
+            (store.directory() / ('sap-lens.sqlite3' + suffix)).unlink(missing_ok=True)
         self.assertIsNone(store.get('users', 'd'))
         self.assertFalse(store.put('users', 'd', {'ok': True}))   # failing to cache never fails the load
         self.assertEqual(store.cached('users', 'd', lambda: 7)[0], 7)
 
     def test_newer_schema_is_refused_and_older_data_is_untouched(self):
         store.put('users', 'd', 1)
-        connection = sqlite3.connect(store.directory() / 'derived.sqlite3'); connection.execute('PRAGMA user_version=99'); connection.close()
+        connection = sqlite3.connect(store.directory() / 'sap-lens.sqlite3'); connection.execute('PRAGMA user_version=99'); connection.close()
         self.assertIsNone(store.get('users', 'd'))
 
     def test_store_is_bounded_per_kind(self):
         for number in range(store.KEEP_PER_KIND + 3):
             store.put('users', f'd{number}', number)
-        connection = sqlite3.connect(store.directory() / 'derived.sqlite3')
+        connection = sqlite3.connect(store.directory() / 'sap-lens.sqlite3')
         self.assertEqual(connection.execute("SELECT COUNT(*) FROM derived WHERE kind='users'").fetchone()[0], store.KEEP_PER_KIND)
         connection.close()
         self.assertEqual(store.get('users', f'd{store.KEEP_PER_KIND + 2}'), store.KEEP_PER_KIND + 2)  # the newest survive
@@ -78,13 +79,13 @@ class StoreTests(CacheCase):
     @unittest.skipIf(os.name == 'nt', 'POSIX permission bits')
     def test_secret_is_private(self):
         store.put('users', 'd', 1)
-        self.assertEqual((store.directory() / '.cache-key').stat().st_mode & 0o077, 0)
+        self.assertEqual((store.directory() / '.key').stat().st_mode & 0o077, 0)
 
     def test_pragmas_and_schema(self):
         store.put('users', 'd', 1)
-        connection = sqlite3.connect(store.directory() / 'derived.sqlite3')
-        self.assertEqual(connection.execute('PRAGMA journal_mode').fetchone()[0], 'wal')
-        self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0], store.SCHEMA_VERSION)
+        connection = sqlite3.connect(store.directory() / 'sap-lens.sqlite3')
+        self.assertEqual(connection.execute('PRAGMA journal_mode').fetchone()[0], 'wal')  # persistent in the file header
+        self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0], store_db.SCHEMA_VERSION)
         self.assertTrue(connection.execute('PRAGMA integrity_check').fetchone()[0] == 'ok')
         connection.close()
 
@@ -154,14 +155,14 @@ class LoadIntegration(CacheCase):
 
     def test_corrupt_cache_is_rebuilt_transparently(self):
         self.configure(); cache.load_cache()
-        (store.directory() / 'derived.sqlite3').write_bytes(b'broken')
+        (store.directory() / 'sap-lens.sqlite3').write_bytes(b'broken')
         cache.load_cache()
         self.assertTrue(cache.get_snapshot().users.users)
 
     def test_the_cache_directory_is_not_part_of_application_backups(self):
         import application_backups as backups
         self.configure(); cache.load_cache()
-        self.assertIn('cache', backups.protected(store.directory().parent))
+        self.assertIn('store', backups.protected(store.directory().parent))
 
 
 if __name__ == '__main__':

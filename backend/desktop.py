@@ -495,6 +495,8 @@ def run() -> int:
         attempt.event('storage_recovery', 'ready', database='stopped_store_recovery_complete')
         from config import get_settings
         get_settings.cache_clear()
+        from storage_migration import run as migrate_storage
+        attempt.event('storage_upgrade', migrate_storage(storage_lease).get('state', 'unknown'))
         stage = 'application resources'
         import webview
         from startup_screen import startup_html, state_script, palette_script

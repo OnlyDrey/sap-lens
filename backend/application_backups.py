@@ -99,7 +99,7 @@ def pending(data=None):
 def protected(data, server=None):
     """Preserve security roots wholesale; reject credentials under a data subtree."""
     data=Path(data).resolve()
-    roots={'deployment.json','.sap-lens-instance.lock','runtime.json','logs','.application-backups','cache'}
+    roots={'deployment.json','.sap-lens-instance.lock','runtime.json','logs','.application-backups','cache','store'}
     values=[os.environ.get('SAP_LENS_AUTH_SECRET_FILE',''),os.environ.get('SAP_LENS_USERS_FILE','')]
     if server: values.extend([server.accounts,server.tls_cert,server.tls_key])
     values.extend(os.environ.get(key,'') for key in ('SAP_LENS_TLS_CERT_FILE','SAP_LENS_TLS_KEY_FILE'))

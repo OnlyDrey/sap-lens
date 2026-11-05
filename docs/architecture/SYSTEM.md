@@ -70,35 +70,71 @@ for the existing CSV validation/confirmation lifecycle. Desktop startup and its
 release pipeline remain independent. See [deployment modes and operations](../deployment/README.md)
 and [access-boundary assumptions](../deployment/SECURITY.md).
 
-## Derived-state cache (SQLite)
+## SQLite store: source revisions and derived state
 
-Parsing the imported CSV sources into the in-memory model dominates start-up and refresh time. `backend/persistent_cache.py` keeps the *result* of that
-deterministic work in `<data dir>/cache/derived.sqlite3` (WAL, short transactions, schema version in `user_version`) and loads it again when nothing it depends on has changed.
+One database, `<data dir>/store/sap-lens.sqlite3`, is the only SQLite file (`backend/store_db.py`: connection, schema ladder, permissions, signing key). It is a **rebuildable,
+optional** structure. The validated JSON stores and the immutable, content-addressed snapshots under `csv-data/snapshots` remain the authority and the format older versions read;
+review decisions, periods, frozen evidence and settings never move. If the database is missing, damaged or from a newer version, SAP Lens reads the snapshots exactly as before.
 
-- **Never authoritative:** it holds only rebuildable structures. Review decisions, periods, evidence, settings and the source files themselves are not stored here; deleting the folder
-  costs one rebuild. The folder is excluded from application backups and is not restored.
-- **Dependency-aware key:** file content digest of the source, the settings that shape the parse, the digest of the catalogue the users were mapped against, and the digest of the code
-  modules that build the value. An edit to any of them (including a code change) is a different entry, so a stale structure is never served; there is no TTL.
-- **Safe by construction:** every entry carries an HMAC made with a private per-installation key (`cache/.cache-key`, owner-only). A tampered, foreign or unreadable entry is discarded and
-  rebuilt instead of being loaded. Any SQLite error only means "no cache"; a failing cache write never fails an import or load. A database written by a newer version is ignored.
-- **Bounded:** the latest three entries per kind are kept.
-- Each load returns fresh objects, so callers can never share mutable cached state.
+| Table | Content | Authority |
+| --- | --- | --- |
+| `source_revisions`, `rows_roles`, `rows_users`, `rows_sod` | Typed (one column per field) copy of the records of a snapshot. A revision is keyed by the snapshot digest, carries a row count and a rows digest, and has a `sequence`. | Derived from the snapshot; `source_store.reconcile` makes it follow the committed configuration, never the other way round. |
+| `derived` | Authenticated serialized model (catalogue, users, assignment indexes) keyed by snapshot digest, settings that shape the derivation, catalogue digest and code digest. Lists the revisions it depends on. | Rebuildable. |
+| `migrations`, `meta` | Upgrade records and schema facts. | Mirror of `.application-backups/migration/<id>/record.json`. |
 
-Measured on a synthetic corpus (this container, Python 3.12): 50 000 assignment rows, unchanged-source reload 2.1 s → 0.55 s; 200 000 rows 8.7 s → 3.7 s; the first load after a change
-costs 15 to 20 % more (content hash and write). Remaining reload time is dominated by unpickling the object model.
+- **Revisions and atomic replacement.** Per (source, scope) exactly one revision is `active`; a partial unique index makes the database itself reject a second one. Replacing a source is
+  one transaction: insert the new rows, flip the old revision to `superseded`, activate the new one. Readers see the old or the new revision, never a mixture. The latest two superseded
+  revisions are kept (previous approved revision for comparison and rollback); pruning a revision deletes its rows and exactly the derived values that list it. The import workflow itself is
+  unchanged in this step; the next phase writes revisions as part of the import transaction.
+- **One representation of the raw records.** A derived entry does not contain the raw records; on a hit they are re-attached from the revision. The first derived cache (a separate
+  `cache/derived.sqlite3` with whole-state pickles keyed by file hash) was folded into this store and is removed on upgrade.
+- **Integrity.** Revision rows are verified against the recorded row count and digest on every read; a mismatch discards the revision and falls back to the snapshot. Derived entries carry an HMAC
+  (`store/.key`, owner-only, 32 random bytes) that is verified *before* deserialization, and deserialization is additionally restricted to data containers and this application's own model
+  classes, so even a validly signed payload cannot name `os`, `subprocess` or `builtins.eval`. The directory is created `0700` and the database `0600` (WAL files inherit it) on POSIX;
+  on Windows the data directory's private ACL applies.
+- **Concurrency.** WAL, `busy_timeout` 15 s, one short-lived connection per operation (never shared between threads), `BEGIN IMMEDIATE` for every write, a process-wide lock around the
+  connection lifecycle. The storage lease keeps one application process per data directory (desktop and server alike); additional processes (maintenance CLI, tests) are safe because SQLite
+  serializes writers and WAL lets readers proceed.
+- **Schema versions.** `PRAGMA user_version` plus an ordered ladder of idempotent steps, each in its own transaction. A database written by a newer version is neither opened for writing nor
+  modified or deleted; SAP Lens runs from the snapshots.
+
+### Upgrade of an existing installation
+
+`backend/storage_migration.py` runs at startup under the storage lease (desktop and server), before requests are served, and never blocks startup.
+
+1. Detect: no `store/` and an installation with settings or `csv-data` present, otherwise a fresh install (empty store, no backup).
+2. **Verified backup first**, with the same archive engine as manual backups (`maintenance.backup` + `verify`, SHA-256 per file and for the archive), stored at
+   `.application-backups/migration/<id>/pre-migration.tar.gz` with a JSON `record.json`. If it cannot be created and verified (space, permissions), the migration does not run and is retried at the next start.
+3. Mirror every active snapshot into the store and prove each revision reads back with a valid digest. Any failure leaves the record `migrating`; the next start resumes with the same backup.
+4. **Retention until confirmed.** The archive is kept until an administrator confirms in *Settings > Backup & Restore* (or `POST /api/storage/migration/confirm`). Confirmation re-checks the store and then releases
+   the archive. Nothing deletes it by age; scheduled-backup retention only manages numbered operation folders.
+5. Recovery: a damaged database is moved aside as `sap-lens.sqlite3.corrupt-<time>` and rebuilt from the snapshots; the pre-migration archive restores the previous installation byte-for-byte
+   with the existing `maintenance.py restore` (tested). Because the JSON stores are never modified, an older SAP Lens can also be started on the upgraded directory.
 
 ### How SQLite and the JSON stores stay consistent
 
-SQLite currently holds **only rebuildable derived state**; every authoritative record keeps exactly one home, so nothing is duplicated or converted.
+Every authoritative record has exactly one home; SQLite holds derived, verifiable copies.
 
-| Event | Authoritative (JSON / snapshots) | SQLite derived cache |
+| Event | Authoritative (JSON / snapshots) | SQLite store |
 | --- | --- | --- |
-| Import | Validated records are staged as an immutable content-addressed snapshot; one compare-and-swap save of `settings.json` activates the new revision (or nothing changes). | Unaffected until the next load; the entry for the new content digest is created on first use. Entries for old content simply stop matching. |
+| Import | Validated records are staged as an immutable snapshot; one compare-and-swap save of `settings.json` activates the new revision (or nothing changes). | After the commit, `reconcile` ingests that snapshot as the active revision (one transaction). A failure only means the snapshot is read next time. |
 | Held (suspicious) import | Nothing is written; the active revision stays. | Unaffected. |
-| Migration / upgrade | No data conversion is performed for review decisions, periods or evidence; their formats are unchanged and older installations read as before. | Created on demand; an older or newer file is ignored or rebuilt. |
-| Backup | Archived together with the snapshots, as before. | Excluded (`cache/`), so a backup never carries a second copy of source data. |
-| Restore | The archive replaces the JSON stores atomically. | The destination's cache is kept but cannot match the restored content digests, so it is rebuilt on first load; a damaged cache is discarded. |
-| Cleanup / retention | Operates on the JSON stores and snapshots. | Never a retention subject; deleting the folder is always safe. |
-| Concurrent server use | Writers serialize through the existing locks and revision checks. | SQLite WAL with a busy timeout; writes are single short transactions and a failed write only means a later rebuild. |
+| Migration / upgrade | No conversion of review decisions, periods or evidence; formats unchanged. | Built from the snapshots after a verified backup; resumable; see above. |
+| Backup | Archived with the snapshots, as before. | Excluded (`store/`, `cache/`), so an archive never carries a second copy of source data. |
+| Restore | The archive replaces the JSON stores atomically. | The destination's store is kept; it is reconciled to the restored configuration at the next start (new snapshot digests are ingested, a damaged store is rebuilt). |
+| Cleanup / retention | Operates on the JSON stores and snapshots. | Follows: superseded revisions beyond the kept two are pruned together with their derived values. |
+| Concurrent server use | Existing locks and revision checks serialize writers. | WAL, short immediate transactions, busy timeout; reads never block on writers. |
 
-If a future step stores authoritative data in SQLite, it must add a migration with a verified pre-migration backup and update this table.
+### Measured effect (synthetic corpus, this container, Python 3.12)
+
+Reproduce with `python scripts/benchmarks/data_benchmark.py` ([Testing](../development/TESTING.md#data-path-benchmark)). 192 000 assignment rows (17 MB of CSV), each scenario in a fresh process:
+
+| Scenario | Before | After |
+| --- | --- | --- |
+| Import (parse, derive, stage, activate) | 20.2 s, peak 1017 MB | 21.0 to 21.3 s, peak 1017 MB (about +5 %: typed rows are written) |
+| Start, sources dynamic (default; re-reads and compares the CSVs) | 27.8 s, peak 1164 MB | 28.6 s first, 25.3 s next |
+| Start, sources static (restore from stored data only) | 9.8 s, peak 730 MB | 2.2 s, peak 526 MB |
+| Disk | snapshots 132 MB | snapshots 132 MB + store 65 MB (typed rows plus derived values) |
+
+Dropping the raw records from memory after a static start lowers resident memory from 525 MB to 339 MB, which quantifies the saving available once comparisons run against the store instead of
+in-memory lists. For the default dynamic mode the time is dominated by re-parsing and diffing the CSV on every start; avoiding that needs a source-specific unchanged check and is part of the refresh phase.

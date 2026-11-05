@@ -97,6 +97,8 @@
    "backend": [
     "test_import_checks",
     "test_persistent_cache",
+    "test_source_store",
+    "test_storage_migration",
     "test_application",
     "test_auto_import",
     "test_csv_area_labels",
@@ -228,6 +230,7 @@
     "ui-polish-actions",
     "settings-r2",
     "application-backups",
+   "storage-upgrade",
     "application-footer"
    ]
   },

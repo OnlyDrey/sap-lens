@@ -258,3 +258,14 @@ This focused profiler is not a replacement for correctness tests or release regr
 Dependency-free frontend unit checks (`frontend/tests/unit/*.test.ts`: session state machine, Bulk Review selection helpers) run with
 `npm --prefix frontend run test:unit`, in Fast Validation whenever frontend files change and in Full Validation. Browser coverage
 remains in the mapped specs; these checks do not replace it.
+
+### Data-path benchmark
+
+```sh
+python scripts/benchmarks/data_benchmark.py --roles 800 --users 16000 --assignments 12 --json out.json
+SAP_LENS_BENCH_BACKEND=/path/to/other/checkout/backend python scripts/benchmarks/data_benchmark.py ...   # compare revisions
+```
+
+Synthetic, deterministic data is generated in a temporary directory (nothing under the repository, nothing from a real installation) and each scenario runs in a fresh process against
+disposable storage: `import`, `startup` / `startup-warm` (sources dynamic, the default) and `startup-static` / `startup-static-warm`. Output: seconds, peak and resident memory, snapshot and store sizes.
+`--profile <scenario>` prints the hottest functions. Compare runs only on the same machine, corpus and Python version; keep result files outside Git.

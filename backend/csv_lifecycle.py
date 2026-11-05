@@ -14,6 +14,7 @@ import re
 
 import cache
 import import_checks
+import source_store
 from config import ensure_content_file, config_dir, get_settings, save_configuration
 from config_models import FIELDS, USER_FIELDS, SourceSnapshot, RefreshMetadata, ImportConfirmation as ConfirmationRecord
 from employee_directory import store, persist_directory
@@ -191,8 +192,37 @@ def summary(report):
     return {**report, 'sources': [{key:value for key,value in row.items() if key != 'changes'} for row in report['sources']]}
 
 
+def verify_snapshot(reference):
+    """The authoritative snapshot file still matches its content address. Checked on every restore, even when the records come from the store or the
+    derived cache, so damaged evidence is reported exactly as before instead of being masked by a copy."""
+    path = private_path('snapshots', reference.snapshot)
+    digest = hashlib.sha256()
+    with path.open('rb') as stream:
+        if path.stat().st_size > MAX_PRIVATE_BYTES:
+            raise ValueError('Private data failed its integrity check.')
+        for block in iter(lambda: stream.read(1024 * 1024), b''):
+            digest.update(block)
+    if digest.hexdigest() != reference.snapshot:
+        raise ValueError('Private data failed its integrity check.')
+
+
+def stored_source(source, reference):
+    """(records, report) of a snapshot: from its verified SQLite revision when present, otherwise from the immutable JSON snapshot, which then
+    repopulates the store. The JSON snapshot stays the authority; the store only makes the same records cheaper to read and to query."""
+    found = source_store.read(source, reference.snapshot)
+    if found:
+        return found
+    rows, report = read_source(source, reference)
+    try:
+        source_store.ingest(source, reference.snapshot, rows, report)
+    except Exception:  # noqa: BLE001 - the store is optional
+        pass
+    return rows, report
+
+
 def restore(settings):
-    """Rebuild derived mappings from durable canonical observations, never pickles."""
+    """Rebuild derived mappings from durable canonical observations. Serialized derived values are used only when authenticated and keyed to this
+    exact snapshot, catalogue, settings and code; otherwise the records are read and the model is derived again."""
     state = cache._CacheState()
     imported = []
     errors = set()
@@ -202,15 +232,27 @@ def restore(settings):
         if not ref or ref.path != path:
             continue
         try:
-            rows, report = read_source(source, ref)
+            verify_snapshot(ref)
+            def records(source=source, ref=ref):
+                return stored_source(source, ref)[0]
+            def revision(source=source, ref=ref):
+                found = source_store.revision_id(source, ref.snapshot)
+                return (found,) if found else ()
             if source == 'sod':
                 from sod_import import build_sod
+                rows, report = stored_source(source, ref)
                 state.sod = build_sod(rows, report)
             elif source == 'roles':
-                state = cache._build_catalog(path, settings, records=rows, report=report)
+                def derive(ref=ref, path=path):
+                    rows, report = stored_source('roles', ref)
+                    return cache._build_catalog(path, settings, records=rows, report=report)
+                state = cache._persisted('roles', path, cache.roles_dependencies(settings), derive, identity=ref.snapshot, revisions=lambda r=revision: r(), rows=records, revision=settings.revision)
             else:
                 profile = next(p for p in settings.user_import_profiles if p.id == settings.active_user_import)
-                state.users = cache.build_users(path, profile, state.roles, records=rows, report=report)
+                def derive(ref=ref, catalogue=state.roles, profile=profile, path=path):
+                    rows, report = stored_source('users', ref)
+                    return cache.build_users(path, profile, catalogue, records=rows, report=report)
+                state.users = cache._persisted('users', path, cache.users_dependencies(settings), derive, state, identity=ref.snapshot, revisions=lambda r=revision: r(), rows=records)
             state.loaded_sources[source] = path
             if source != 'sod': imported.append(datetime.fromisoformat(ref.imported_at))
         except (OSError, ValueError, KeyError, TypeError):
@@ -240,6 +282,7 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
     stamp = now()
     successful = []
     checked_files = []
+    fresh = {}
     def announce(stage, source=None):
         if progress: progress(stage,source)
     def signature(path):
@@ -328,8 +371,9 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
             if source != 'employees':
                 existing = settings.data_lifecycle.sources.get(source)
                 if has_changes or source in forced or not existing or existing.path != path:
-                    identity = write_private('snapshots', dict(version=1, source=source, records=after,
-                                                               report=candidate.import_report if source == 'roles' else candidate['report'] if source == 'sod' else candidate.report))
+                    snapshot_report = candidate.import_report if source == 'roles' else candidate['report'] if source == 'sod' else candidate.report
+                    identity = write_private('snapshots', dict(version=1, source=source, records=after, report=snapshot_report))
+                    fresh[source] = (identity, after, snapshot_report)
                     new_sod_version = source == 'sod' and (has_changes or not old.sod) and not any(item.snapshot == identity for item in settings.data_lifecycle.sod_history)
                     if new_sod_version and len(settings.data_lifecycle.sod_history) >= 1000:
                         raise ValueError('SoD source history is full. Preserve a backup and review storage before importing another version.')
@@ -397,7 +441,8 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
     announce('Updating dependent views')
     # Always rebuild user-derived indexes against the final catalogue. Replacing
     # either dataset can remove mappings, wildcard matches and transaction links.
-    if state.users.source_records:
+    # Nothing to re-map when neither source was adopted in this call (a static start restores both from one consistent revision).
+    if state.users.source_records and (changed or any(source in successful for source in ('roles', 'users'))):
         from user_access import build_users as rebuild_users
         profile = next(p for p in settings.user_import_profiles if p.id == settings.active_user_import)
         state.users = rebuild_users(settings.user_csv_path, profile, state.roles,
@@ -449,6 +494,8 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
                 store.import_error = directory_result['message']
             elif directory_result['status'] in {'updated','unchanged'}:
                 store.error = store.import_error = None
+        # The store follows the committed pointer (never the other way round); a failure only means the JSON snapshots are read next time.
+        source_store.reconcile(settings, fresh)
         from account_review import record_missing_users
         record_missing_users(state)
         if previous_directory is not None and directory is not None and directory is not previous_directory:

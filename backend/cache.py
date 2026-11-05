@@ -129,18 +129,44 @@ def _build_catalog(path=None, configuration=None, records=None, report=None):
 CODE = ('cache.py', 'csv_import.py', 'user_access.py', 'role_matching.py', 'models.py', 'module_registry.py')
 
 
-def _persisted(kind, path, inputs, build, state=None):
-    """Load the parsed model of an unchanged source from the derived cache instead of parsing the CSV again.
+def roles_dependencies(settings):
+    """Settings that shape the derived catalogue (not the revision counter, which changes on every save and is re-applied on a hit)."""
+    profile = next(p for p in settings.import_profiles if p.id == settings.active_import)
+    return profile.model_dump_json() + settings.model_dump_json(include={'module_overrides'})
 
-    The key covers the file content, the settings that shape the parse, the catalogue the users are mapped against and the code that builds it."""
+
+def users_dependencies(settings):
+    return next(p for p in settings.user_import_profiles if p.id == settings.active_user_import).model_dump_json()
+
+
+def _persisted(kind, path, relevant, build, state=None, identity=None, revisions=(), rows=None, revision=None):
+    """Load the derived model of an unchanged source from the derived cache instead of deriving it again.
+
+    The key covers the source identity (the active snapshot digest on the production path, the file digest for a direct file load), the settings
+    that shape the derivation (`relevant`), the catalogue the users are mapped against and the code that builds it. With `rows`, the raw source
+    records are not duplicated into the cache entry: they stay in the source revision and are re-attached from it on a hit."""
     try:
-        settings = inputs[0] if isinstance(inputs, tuple) else inputs
-        relevant = (inputs[1].model_dump_json() if isinstance(inputs, tuple) else '') + settings.model_dump_json(exclude={'revision'})
-        deps = persistent_cache.dependency_key(file=persistent_cache.file_digest(path), settings=hashlib.sha256(relevant.encode()).hexdigest(),
+        deps = persistent_cache.dependency_key(source=identity or persistent_cache.file_digest(path), settings=hashlib.sha256(relevant.encode()).hexdigest(),
                                                catalogue=getattr(state, 'catalogue_key', '') if state is not None else '', code=persistent_cache.code_digest(*CODE))
     except (OSError, ValueError, AttributeError):
         return build()
-    value, hit = persistent_cache.cached(kind, deps, build)
+    value = persistent_cache.get(kind, deps)
+    if value is not None and rows is not None:
+        try:
+            value.source_records = rows()
+        except Exception:  # noqa: BLE001 - records unavailable: derive again from the snapshot
+            value = None
+    if value is None:
+        value = build()
+        stored = copy(value) if rows is not None else value
+        if rows is not None:
+            stored.source_records = []
+        persistent_cache.put(kind, deps, stored, revisions() if callable(revisions) else revisions)
+    elif kind == 'roles' and revision is not None:
+        # The analysis block records the configuration revision of the build; a hit reports the current one, exactly as a fresh build would.
+        for analysis in {id(item): item for item in (value.analysis, *(role.analysis for role in value.roles.values()))}.values():
+            if isinstance(analysis, dict) and 'configuration_revision' in analysis:
+                analysis['configuration_revision'] = revision
     if kind == 'roles' and isinstance(value, _CacheState):
         value.catalogue_key = deps  # users depend on the exact catalogue they were mapped against
     return value
@@ -157,12 +183,12 @@ def build_cache(path=None, configuration=None):
             # Static source identity only; no source data enters logs or public reports.
             error.sap_lens_source = kind
             raise
-    state = read_source('roles', lambda: _persisted('roles', catalogue_path, settings, lambda: _build_catalog(catalogue_path, settings))) if catalogue_path else _CacheState(last_loaded=datetime.now(timezone.utc))
+    state = read_source('roles', lambda: _persisted('roles', catalogue_path, roles_dependencies(settings), lambda: _build_catalog(catalogue_path, settings), revision=settings.revision)) if catalogue_path else _CacheState(last_loaded=datetime.now(timezone.utc))
     if catalogue_path: state.loaded_sources['roles'] = catalogue_path
     if settings.user_csv_path:
         profile = next(p for p in settings.user_import_profiles if p.id == settings.active_user_import)
         if settings.features.user_role_mapping:
-            state.users = read_source('users', lambda: _persisted('users', settings.user_csv_path, (settings, profile, catalogue_path), lambda: build_users(settings.user_csv_path, profile, state.roles), state))
+            state.users = read_source('users', lambda: _persisted('users', settings.user_csv_path, users_dependencies(settings), lambda: build_users(settings.user_csv_path, profile, state.roles), state))
             state.loaded_sources['users'] = settings.user_csv_path
         else:
             # An intentionally disabled optional source cannot prevent catalogue startup.
