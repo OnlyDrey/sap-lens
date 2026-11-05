@@ -224,5 +224,25 @@ class ChangeSelectionTests(unittest.TestCase):
         self.assertIsInstance(files, list)  # the working tree against HEAD; empty or the current edits
 
 
+class FrontendUnitTestWiringTests(unittest.TestCase):
+    """Node unit tests were once present but executed by nothing; keep them reachable from the script and both validation workflows."""
+    def test_unit_tests_are_run_by_the_package_script_and_the_workflows(self):
+        import json
+        files = sorted((ROOT / 'frontend/tests/unit').glob('*.test.ts'))
+        self.assertTrue(files)
+        script = json.loads((ROOT / 'frontend/package.json').read_text())['scripts']['test:unit']
+        self.assertIn('tests/unit/*.test.ts', script)
+        for workflow in ('validate.yml', 'full-validation.yml'):
+            text = (ROOT / '.github/workflows' / workflow).read_text()
+            self.assertIn('run unit -- npm --prefix frontend run test:unit', text, workflow)
+            self.assertRegex(text, r'CI_(?:REQUIRED|OPTIONAL): [^\n]*\bunit\b', workflow)
+
+    def test_frontend_source_and_unit_test_changes_run_the_frontend_stage_without_extra_specs(self):
+        for path in ('frontend/src/lib/sessionState.ts', 'frontend/tests/unit/sod-bulk.test.ts'):
+            plan = runner.plan_changes([path])
+            self.assertTrue(plan['frontend'], path)   # the stage that now includes the unit step
+            self.assertEqual(plan['specs'], [], path)  # no browser spec is named by these paths
+
+
 if __name__ == '__main__':
     unittest.main()

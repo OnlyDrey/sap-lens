@@ -116,6 +116,7 @@ def main(argv=None):
             if any(path.startswith('frontend/src/') for path in paths) or args.area:
                 import shutil
                 commands.append([shutil.which('npm') or 'npm','--prefix','frontend','run','check:types'])
+                commands.append([shutil.which('npm') or 'npm','--prefix','frontend','run','test:unit'])
         for command in commands:
             code=execute(command,log,env,args.timeout)
             if code:print(f'{args.level.upper()}: FAILED ({code}); details: {log}');return code

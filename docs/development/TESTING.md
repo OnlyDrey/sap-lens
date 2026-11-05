@@ -234,6 +234,6 @@ Measurements and limitations: [SoD architecture](../architecture/SOD.md#measured
 This focused profiler is not a replacement for correctness tests or release regression.
 
 
-Bulk Review selection helpers have dependency-free unit checks:
-`node --test frontend/tests/unit/sod-bulk.test.ts` (Node 24/25). Browser coverage
-remains in the mapped SoD specs; these helper checks do not replace it.
+Dependency-free frontend unit checks (`frontend/tests/unit/*.test.ts`: session state machine, Bulk Review selection helpers) run with
+`npm --prefix frontend run test:unit`, in Fast Validation whenever frontend files change and in Full Validation. Browser coverage
+remains in the mapped specs; these checks do not replace it.

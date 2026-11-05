@@ -11,6 +11,7 @@
     "dev:backend": "cd ../backend && python -m uvicorn main:app --host 127.0.0.1 --port 18744 --reload",
     "test:browser": "playwright test",
     "check:types": "tsc --noEmit",
+    "test:unit": "node --test tests/unit/*.test.ts",
     "lint": "eslint . --max-warnings 111",
     "prebuild": "node ../scripts/product-version.mjs"
   },
