@@ -173,14 +173,111 @@ class NodeBaseline(unittest.TestCase):
         from build_system.runner import BuildError
         for version, noted in (('25.8.0', True), ('24.11.0', False)):
             prerequisites.NOTED.clear()
-            with patch.object(prerequisites, 'locate', return_value='node'), patch.object(prerequisites.subprocess, 'check_output', return_value=version), patch('builtins.print') as output:
+            with patch.object(prerequisites, 'locate', return_value='node'), patch.object(prerequisites.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, version + '\n', '')), patch('builtins.print') as output:
                 self.assertEqual(prerequisites.inspect_tool('node'), 'node')
                 prerequisites.inspect_tool('node')  # repeated inspection stays quiet
             messages = [call.args[0] for call in output.call_args_list if call.args]
             self.assertEqual(len([m for m in messages if 'Node.js 24 LTS' in m]), 1 if noted else 0, version)
         for version in ('22.12.0', '26.0.0'):
-            with patch.object(prerequisites, 'locate', return_value='node'), patch.object(prerequisites.subprocess, 'check_output', return_value=version), self.assertRaisesRegex(BuildError, 'Incompatible node'):
+            with patch.object(prerequisites, 'locate', return_value='node'), patch.object(prerequisites.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, version + '\n', '')), self.assertRaisesRegex(BuildError, 'Incompatible node'):
                 prerequisites.inspect_tool('node')
+
+
+def finished(stdout='', code=0, stderr=''):
+    return subprocess.CompletedProcess([], code, stdout, stderr)
+
+
+class ToolDetection(unittest.TestCase):
+    """A tool that exists but cannot be queried is diagnosed precisely; only a genuinely absent tool is reported missing."""
+    NPM = 'C:\\Program Files\\nodejs\\npm.CMD'
+
+    def inspect(self, name='npm', **run):
+        from build_system import prerequisites
+        with patch.object(prerequisites, 'locate', return_value=run.pop('path', self.NPM)), patch.object(prerequisites.subprocess, 'run', **run) as call:
+            try:
+                return prerequisites.inspect_tool(name), call
+            except Exception as error:
+                return error, call
+
+    def test_working_cmd_installation_with_spaces_in_the_path_passes(self):
+        result, call = self.inspect(return_value=finished('11.21.1\n'))
+        self.assertEqual(result, self.NPM)
+        self.assertEqual(call.call_args.args[0], [self.NPM, '--version'])          # the resolved .CMD path is executed as one argument
+        kwargs = call.call_args.kwargs
+        self.assertEqual((kwargs['stdin'], kwargs['timeout'], kwargs['capture_output']), (subprocess.DEVNULL, 15, True))  # no console input, bounded, output kept
+        self.assertFalse(kwargs.get('shell', False))
+
+    def test_git_and_docker_version_sentences_are_accepted(self):
+        for name, text in (('git', 'git version 2.43.0.windows.1'), ('docker', 'Docker version 27.1.1, build 6312585')):
+            self.assertEqual(self.inspect(name, return_value=finished(text + '\n'), path='C:\\Tools\\' + name + '.exe')[0], 'C:\\Tools\\' + name + '.exe')
+
+    def test_which_is_asked_for_the_bare_name_so_pathext_decides_the_extension(self):
+        from build_system import prerequisites
+        with patch.object(prerequisites.shutil, 'which', return_value=self.NPM) as which:
+            self.assertEqual(prerequisites.locate('npm'), self.NPM)
+        which.assert_called_once_with('npm')
+
+    def test_absent_tool_is_the_only_case_reported_as_missing(self):
+        from build_system import prerequisites
+        with patch.object(prerequisites, 'locate', return_value=None):
+            self.assertIsNone(prerequisites.inspect_tool('npm'))
+
+    def test_failures_are_diagnosed_with_path_command_exit_code_and_stderr(self):
+        from build_system.runner import BuildError
+        cases = {
+            'nonzero': (dict(return_value=finished('', 3, 'npm error code EACCES\nfailed')), ['exit code: 3', 'EACCES', 'reported an error']),
+            'launch': (dict(side_effect=OSError(5, 'Access is denied')), ['could not start', 'OSError', 'Access is denied']),
+            'timeout': (dict(side_effect=subprocess.TimeoutExpired('npm', 15)), ['timed out', 'no answer within 15 s']),
+            'invalid': (dict(return_value=finished('<html>proxy</html>\n')), ['Unexpected version output', 'proxy']),
+        }
+        for label, (run, expected) in cases.items():
+            result, _ = self.inspect(**run)
+            self.assertIsInstance(result, BuildError, label)
+            self.assertEqual(result.code, 3, label)
+            text = str(result)
+            for needle in ['SAP Lens build prerequisite check failed', 'Python:', sys.executable, 'Resolved executable:', self.NPM, 'Command:', '"C:\\Program Files\\nodejs\\npm.CMD" --version',
+                           'Suggested action:', *expected]:
+                self.assertIn(needle, text, (label, needle))
+            self.assertNotIn('is missing', text, label)
+
+    def test_unsupported_versions_name_the_resolved_executable_and_the_policy(self):
+        from build_system.runner import BuildError
+        for version in ('9.9.9', '12.0.0'):
+            result, _ = self.inspect(return_value=finished(version + '\n'))
+            self.assertIsInstance(result, BuildError)
+            self.assertIn(f'Incompatible npm {version}', str(result)); self.assertIn(self.NPM, str(result)); self.assertIn('npm 10 or 11', str(result))
+        for version in ('10.9.2', '11.21.1'):
+            self.assertEqual(self.inspect(return_value=finished(version + '\n'))[0], self.NPM)
+
+    def test_secrets_in_tool_output_are_not_repeated(self):
+        with patch.dict(os.environ, {'NPM_TOKEN': 'token-value-987654'}):
+            result, _ = self.inspect(return_value=finished('', 1, 'registry rejected token-value-987654'))
+        self.assertNotIn('token-value-987654', str(result))
+
+    def test_a_different_python_interpreter_is_what_the_report_names(self):
+        with patch.object(sys, 'executable', 'D:\\Tools\\Python 3.12\\python.exe'):
+            result, _ = self.inspect(return_value=finished('', 1, 'x'))
+        self.assertIn('D:\\Tools\\Python 3.12\\python.exe', str(result))
+
+    def test_diagnostics_flag_prints_resolution_only_when_requested(self):
+        with patch.dict(os.environ, {'SAP_LENS_BUILD_DIAGNOSTICS': '1', 'PATHEXT': '.COM;.CMD'}), patch('builtins.print') as output:
+            self.inspect(return_value=finished('11.21.1\n'))
+        text = ' '.join(str(call.args[0]) for call in output.call_args_list if call.args)
+        self.assertIn('[diagnostics] npm: status=ok', text); self.assertIn('PATHEXT=.COM;.CMD', text)
+        with patch.dict(os.environ, {'SAP_LENS_BUILD_DIAGNOSTICS': ''}), patch('builtins.print') as output:
+            self.inspect(return_value=finished('11.21.1\n'))
+        self.assertFalse(any('[diagnostics]' in str(call.args[0]) for call in output.call_args_list if call.args))
+
+    def test_check_tools_never_installs_or_calls_a_working_but_failing_npm_missing(self):
+        from build_system import prerequisites
+        from build_system.runner import BuildError
+        args = SimpleNamespace(mode='build', platform='windows', skip_setup=False, install_system=False)
+        def probe(name):
+            return self.NPM if name != 'npm' else (_ for _ in ()).throw(BuildError('SAP Lens build prerequisite check failed', 3))
+        with patch.object(prerequisites, 'inspect_tool', side_effect=probe), patch.object(prerequisites, 'install_system') as install, patch.object(prerequisites, 'locate', return_value='x'), \
+                self.assertRaisesRegex(BuildError, 'prerequisite check failed'):
+            prerequisites.check_tools(args, None, False)
+        install.assert_not_called()
 
 
 class BuilderClassification(unittest.TestCase):

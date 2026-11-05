@@ -84,6 +84,12 @@ Quick checks (`quick`) install nothing. `test` prepares only the project `.venv`
 
 - **Node.js:** `frontend/package.json` `engines` (Node 24 or 25, npm 10 or 11) is enforced before any build starts, with an actionable message and no automatic
   Node installation. Node 24 LTS is the CI baseline and the recommended version; Node 25 is accepted, with a one-time note that it is not an LTS release.
+- **How prerequisite detection works:** each tool (`git`, `node`, `npm`, `docker`) is resolved through `PATH`/`PATHEXT` (so Windows `npm.cmd` is found) and asked for its
+  version with a 15 s timeout, no shell and no console input. Only a tool that is not on `PATH` is "missing". A tool that is found but cannot be started, exits with an
+  error, times out or prints something that is not a version stops the build with a report naming the Python interpreter, the resolved executable, the exact command,
+  the result (exit code, exception or stderr, secrets redacted) and a suggested action; SAP Lens never reinstalls a tool that exists. Set
+  `SAP_LENS_BUILD_DIAGNOSTICS=1` to also print, for every probe, the status, resolved path, version, Python, working directory and `PATHEXT`. To troubleshoot, run the
+  printed command in the same terminal.
 - **Isolated frontend workspace:** the deployment builder (`-Mode build|package` for Windows, Linux native and Docker) never runs `npm ci` in your
   `frontend/node_modules`. It mirrors the needed sources into `backend/build/frontend-workspace` (a generated, ignored, cleanable path), installs from the
   committed `package-lock.json` there, runs type check, catalogue check, production build, audit and the browser smoke tests in the workspace, and publishes only

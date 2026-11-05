@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import subprocess
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -14,6 +15,9 @@ ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'scripts'))
 from build_system import cli, prerequisites as deps, targets
 from build_system.runner import BuildError, Runner
+
+def done(stdout, code=0, stderr=''):
+    return subprocess.CompletedProcess([], code, stdout + '\n', stderr)
 
 
 def args(*values):
@@ -264,9 +268,9 @@ class PrerequisiteTests(unittest.TestCase):
     def test_missing_node_and_compatible_existing_tool_detection(self):
         with patch.object(deps,'locate',return_value=None):self.assertIsNone(deps.inspect_tool('node'))
         for major in (24,25):
-            with patch.object(deps,'locate',return_value='synthetic-node'),patch.object(deps.subprocess,'check_output',return_value=f'{major}.2.0'):
+            with patch.object(deps,'locate',return_value='synthetic-node'),patch.object(deps.subprocess,'run',return_value=done(f'{major}.2.0')):
                 self.assertEqual(deps.inspect_tool('node'),'synthetic-node')
-        with patch.object(deps,'locate',return_value='synthetic-node'),patch.object(deps.subprocess,'check_output',return_value='26.0.0'),self.assertRaises(BuildError):deps.inspect_tool('node')
+        with patch.object(deps,'locate',return_value='synthetic-node'),patch.object(deps.subprocess,'run',return_value=done('26.0.0')),self.assertRaises(BuildError):deps.inspect_tool('node')
 
     def test_declined_install_and_noninteractive_default_never_execute_installer(self):
         for interactive in (True,False):

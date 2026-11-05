@@ -1,4 +1,5 @@
 """pip bootstrap and locked-dependency checks (scripts/build_system/python_env.py). Pure mocks: nothing is installed, no network is used."""
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -144,9 +145,13 @@ class PrepareEnvironmentFlowTests(unittest.TestCase):
         self.assertEqual([call for call in calls if call.startswith('Install')], ['Install locked project Python dependencies'])
 
 
+def done(stdout, code=0, stderr=''):
+    return subprocess.CompletedProcess([], code, stdout + '\n', stderr)
+
+
 class NodeAndFrontendTests(unittest.TestCase):
     def test_unsupported_node_and_missing_npm_have_actionable_guidance(self):
-        with patch.object(deps, 'locate', return_value='node'), patch.object(deps.subprocess, 'check_output', return_value='22.22.0'), self.assertRaises(deps.BuildError) as raised:
+        with patch.object(deps, 'locate', return_value='node'), patch.object(deps.subprocess, 'run', return_value=done('22.22.0')), self.assertRaises(deps.BuildError) as raised:
             deps.inspect_tool('node')
         self.assertIn('22.22.0', str(raised.exception)); self.assertIn('does not replace your global Node.js', str(raised.exception))
         with patch.object(deps, 'locate', return_value=None):

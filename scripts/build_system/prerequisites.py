@@ -5,26 +5,72 @@ import re
 import shutil
 import subprocess
 import sys
-from . import python_env
+from . import failures, python_env
 from .runner import ROOT, BuildError
 
 def locate(name):
     return shutil.which(name)
 
-def inspect_tool(name):
+TOOL_TIMEOUT=15
+PROBES={'node':['-p','process.versions.node'],'npm':['--version'],'git':['--version'],'docker':['--version']}
+
+class ToolProbe:
+    """What happened when a prerequisite was asked for its version. `status` is one of
+    missing, launch_failed, nonzero, timeout, invalid_output, ok; nothing here is guessed from a swallowed exception."""
+    def __init__(self,name,status,path=None,value=None,exit_code=None,detail=''):
+        self.name,self.status,self.path,self.value,self.exit_code,self.detail=name,status,path,value,exit_code,detail
+
+def probe_tool(name):
+    """Resolve the tool through PATH/PATHEXT (so Windows npm.cmd works) and run its version probe without a console, stdin or shell."""
     path=locate(name)
-    if not path:return None
-    arguments={'node':['-p','process.versions.node'],'npm':['--version'],'git':['--version'],'docker':['--version']}
+    if not path:return ToolProbe(name,'missing')
+    command=[path,*PROBES[name]]
     try:
-        value=subprocess.check_output([path,*arguments[name]],text=True,stderr=subprocess.DEVNULL,timeout=15).strip()
-    except (OSError,subprocess.SubprocessError):return None
+        # stdin is closed: a version probe never reads input, and an inherited console handle must not matter for a .cmd launched through cmd.exe.
+        done=subprocess.run(command,stdin=subprocess.DEVNULL,capture_output=True,text=True,timeout=TOOL_TIMEOUT)
+    except subprocess.TimeoutExpired as error:
+        return ToolProbe(name,'timeout',path,detail=f'no answer within {TOOL_TIMEOUT} s'+((' ('+failures.tail(error.stderr,5)+')') if isinstance(error.stderr,str) and error.stderr.strip() else ''))
+    except (OSError,subprocess.SubprocessError) as error:
+        return ToolProbe(name,'launch_failed',path,detail=f'{type(error).__name__}: {error}')
+    detail=failures.tail(done.stderr or '',8)
+    if done.returncode:return ToolProbe(name,'nonzero',path,exit_code=done.returncode,detail=detail or failures.tail(done.stdout or '',8))
+    value=(done.stdout or '').strip().splitlines()[-1].strip() if (done.stdout or '').strip() else ''
+    if not re.search(r'\d+\.\d+',value):return ToolProbe(name,'invalid_output',path,value=value[:80],exit_code=0,detail=detail)
+    return ToolProbe(name,'ok',path,value=value,exit_code=0)
+
+ACTIONS={'launch_failed':'The executable was found but could not be started. Run the resolved path in the same terminal; check that it is not blocked, quarantined or corrupted, then repair the installation if it also fails there.',
+         'nonzero':'The executable started but reported an error. Run the command shown in the same terminal to see the full output, then repair that installation.',
+         'timeout':'The executable did not answer in time (antivirus scanning or a stuck first launch are common). Run the command shown in the same terminal; if it answers, retry the build.',
+         'invalid_output':'The executable answered with something that is not a version number. Make sure the first match on PATH is the real tool (check with: where.exe {name}).'}
+RESULTS={'launch_failed':'Execution failed (could not start)','nonzero':'Execution failed (exit code: {code})','timeout':'Execution timed out','invalid_output':'Unexpected version output'}
+
+def tool_report(probe):
+    """The multi-line prerequisite failure: which Python ran the check, which executable was resolved, the exact command and the real result."""
+    command=' '.join(f'"{part}"' if ' ' in part else part for part in [probe.path,*PROBES[probe.name]])
+    result=RESULTS[probe.status].format(code=probe.exit_code)+(f' - output: {probe.value!r}' if probe.status=='invalid_output' else '')
+    details=(probe.detail or '(no output)').replace('\n','\n  ')
+    return '\n'.join(['SAP Lens build prerequisite check failed','',f'Python:\n  {sys.executable}\n  Version: {sys.version.split()[0]}',f'Tool:\n  {probe.name}',
+                      f'Resolved executable:\n  {probe.path}',f'Command:\n  {command}',f'Result:\n  {result}',f'Details:\n  {details}',
+                      f'Suggested action:\n  {ACTIONS[probe.status].format(name=probe.name)}','','SAP Lens never reinstalls a tool that exists. Set SAP_LENS_BUILD_DIAGNOSTICS=1 to print how each tool was resolved.'])
+
+def diagnostics(name,probe):
+    if os.environ.get('SAP_LENS_BUILD_DIAGNOSTICS')=='1':
+        print(f'[diagnostics] {name}: status={probe.status} path={probe.path} value={probe.value} exit={probe.exit_code} python={sys.executable} cwd={os.getcwd()} PATHEXT={os.environ.get("PATHEXT")}',flush=True)
+
+def inspect_tool(name):
+    """Path of a working, supported tool; None only when it is genuinely absent. A tool that exists but fails is a diagnosed error, never "missing"."""
+    probe=probe_tool(name)
+    diagnostics(name,probe)
+    if probe.status=='missing':return None
+    if probe.status!='ok':raise BuildError(tool_report(probe),3)
+    value,path=probe.value,probe.path
     if name in ('node','npm'):
         match=re.match(r'^(\d+)\.',value)
         node_range=re.fullmatch(r'>=(\d+) <(\d+)',json.loads((ROOT/'frontend/package.json').read_text())['engines']['node'])
         if not node_range:raise BuildError('Unsupported Node engine declaration; update the build detector with the project configuration.')
         supported=range(int(node_range[1]),int(node_range[2])) if name=='node' else (10,11)
         if not match or int(match[1]) not in supported:
-            raise BuildError(f'Incompatible {name} {value}: this project needs Node {node_range[1]} or {int(node_range[2])-1} and npm 10 or 11 (frontend/package.json engines). SAP Lens does not replace your global Node.js: install a supported version with your approved tools (or a per-user version manager) and reopen the terminal.',3)
+            raise BuildError(f'Incompatible {name} {value} (resolved: {path}): this project needs Node {node_range[1]} or {int(node_range[2])-1} and npm 10 or 11 (frontend/package.json engines). SAP Lens does not replace your global Node.js: install a supported version with your approved tools (Node 24 LTS is recommended) and reopen the terminal.',3)
     if name=='node' and int(match[1])%2==1 and not NOTED:
         NOTED.append(value)
         print(f'Note: Node.js {value} is a Current (non-LTS) release. It satisfies the project engines, but Node.js 24 LTS is the CI baseline and the recommended version for reproducible builds.')
