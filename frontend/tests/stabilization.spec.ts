@@ -71,7 +71,7 @@ test('comparison uses responsive tiles and shared transaction filtering without 
 })
 test('review validity stays status-only and Release Roles retains the chosen view through filters',async({page})=>{
  await page.goto('/#session=browser-test-session');const nav=page.getByRole('navigation',{name:'Main navigation',exact:true});await nav.getByRole('link',{name:'User Access',exact:true}).click();await page.getByRole('link',{name:'Account Review',exact:true}).click()
- const row=page.getByRole('row').filter({has:page.getByRole('link', { name: 'SYN_VIEW',exact:true})});await expect(row).toBeVisible();await expect(row.locator('.review-account-dates')).toHaveCount(0);await expect(row.locator('td').nth(3)).toContainText('Valid')
+ const row=page.getByRole('row').filter({has:page.getByRole('link', { name: 'SYN_VIEW',exact:true})});await expect(row).toBeVisible();await expect(row.locator('.review-account-dates')).toHaveCount(0);await expect(row.locator('td').nth(4)).toContainText('Valid')
  await nav.getByRole('link',{name:'Release Roles',exact:true}).click();const group=page.getByRole('group',{name:'Release results view',exact:true});await expect(group.getByRole('button').first()).toHaveText('Matrix');await expect(group.getByRole('button',{name:'Matrix',exact:true})).toHaveAttribute('aria-pressed','true');await group.getByRole('button',{name:'Table',exact:true}).click();await page.getByRole('combobox',{name:'Release assignment status',exact:true}).selectOption('all');await expect(group.getByRole('button',{name:'Table',exact:true})).toHaveAttribute('aria-pressed','true')
 })
 test('theme colors are an editable grid that shows every color together and edits, resets and syncs draft logos',async({page,request})=>{

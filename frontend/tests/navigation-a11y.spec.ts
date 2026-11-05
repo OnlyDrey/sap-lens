@@ -112,7 +112,7 @@ const accessibleName = (page: Page) => page.evaluate(() => {
 
 test.describe('User Directory keyboard order', () => {
   // Reading order = DOM order: page toolbar, then the filter sidebar (wide) or no sidebar stops (narrow drawer is closed), then the results.
-  const wide = ['Hide filters', 'Sort users', 'Ascending order, switch to descending', 'Clear filters', 'Close filters', 'Saved filters', 'SAP User Group', 'Filter users by role', 'Roles the user must lack', 'Filter users by transaction', 'Exclude users by transaction', 'Currently valid roles', 'Show expired assignments', 'Search users']
+  const wide = ['Hide filters', 'Sort users', 'Ascending order, switch to descending', 'Clear filters', 'Close filters', 'Saved filters', 'SAP User Group', 'Functional Group', 'Manager', 'Filter users by role', 'Roles the user must lack', 'Filter users by transaction', 'Exclude users by transaction', 'Currently valid roles', 'Show expired assignments', 'Search users']
   const narrow = ['Filters', 'Sort users', 'Ascending order, switch to descending', 'Search users']
   for (const width of [375, 800, 1280, 1600]) test(`Tab and Shift+Tab follow the reading order at ${width}`, async ({ page }) => {
     const order = width >= 1024 ? wide : narrow
@@ -146,15 +146,17 @@ test.describe('User Directory keyboard order', () => {
     await page.keyboard.press('Escape')
     await expect(group).toBeFocused()
     await page.keyboard.press('Tab')
-    expect(await accessibleName(page)).toBe('Filter users by role')
+    expect(await accessibleName(page)).toBe('Functional Group')
   })
 })
 
-test('identifier codeblocks add no keyboard stop: Tab goes from the username link straight to its copy button', async ({ page }) => {
+test('identifier codeblocks add no keyboard stop: Tab goes from the username link through its open action to its copy button', async ({ page }) => {
   await page.goto('/#session=browser-test-session')
   await main(page).getByRole('link', { name: 'User Access', exact: true }).click()
   const link = page.getByRole('link', { name: 'DEMO_ONE', exact: true })
   await link.focus()
+  await page.keyboard.press('Tab')
+  expect(await accessibleName(page)).toBe('Open user details for DEMO_ONE') // the separate open action is the only stop between link and copy
   await page.keyboard.press('Tab')
   expect(await accessibleName(page)).toBe('Copy username DEMO_ONE')
   expect(await page.locator('code[tabindex]:not([tabindex="-1"])').count()).toBe(0)
