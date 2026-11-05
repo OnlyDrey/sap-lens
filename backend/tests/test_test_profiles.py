@@ -116,6 +116,81 @@ class BrowserProcessHygieneTests(unittest.TestCase):
                 if process.poll() is None:
                     process.kill(); process.wait()
 
+    @unittest.skipIf(sys.platform == 'win32', 'process groups and SIGKILL semantics differ on Windows')
+    def test_test_server_exits_and_removes_its_directory_when_its_parent_is_killed(self):
+        """A SIGKILLed Playwright cannot run its own cleanup, so the server it started (via `exec`, as in playwright.config.ts) watches for it."""
+        with socket.socket() as probe:
+            probe.bind(('127.0.0.1', 0)); port = probe.getsockname()[1]
+        with tempfile.TemporaryDirectory() as root:
+            env = {**os.environ, 'TMPDIR': root, 'SAP_LENS_BROWSER_TEST_PORT': str(port)}
+            parent = subprocess.Popen(['sh', '-c', f'exec {sys.executable} -c "import subprocess,sys,time; subprocess.Popen([\'sh\',\'-c\',\'exec {sys.executable} {ROOT / "scripts" / "serve-browser-tests.py"}\']); print(1, flush=True); time.sleep(120)"'],
+                                      env=env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+            try:
+                parent.stdout.readline()
+                deadline = time.time() + 30
+                while time.time() < deadline and not list(Path(root).glob(f'{server.PREFIX}*/{server.OWNER_FILE}')):
+                    time.sleep(0.1)
+                markers = list(Path(root).glob(f'{server.PREFIX}*/{server.OWNER_FILE}'))
+                self.assertEqual(len(markers), 1)
+                pid = int(markers[0].read_text())
+                parent.kill(); parent.wait()                                                       # no chance to clean up
+                deadline = time.time() + 30
+                while time.time() < deadline and (list(Path(root).glob(f'{server.PREFIX}*')) or runner.busy_ports_at(port)):
+                    time.sleep(0.2)
+                self.assertEqual(list(Path(root).glob(f'{server.PREFIX}*')), [], 'the storage directory was removed')
+                self.assertFalse(runner.busy_ports_at(port), 'the port was released')
+                def state_of() -> str:                                                           # a zombie awaiting an init that does not reap is already finished
+                    try:
+                        return Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()[0]
+                    except OSError:
+                        return 'gone'
+                deadline = time.time() + 30
+                while time.time() < deadline and state_of() not in {'Z', 'gone'}:
+                    time.sleep(0.1)
+                state = state_of()
+                self.assertIn(state, {'Z', 'gone'}, 'the server process ended')
+            finally:
+                if parent.poll() is None:
+                    parent.kill(); parent.wait()
+
+    @unittest.skipIf(sys.platform == 'win32', 'signals differ on Windows')
+    def test_runner_stops_the_processes_it_started_when_it_receives_SIGTERM(self):
+        script = (
+            "import importlib.util,subprocess,sys,time\n"
+            f"spec=importlib.util.spec_from_file_location('r','{ROOT / 'scripts' / 'run-tests.py'}');r=importlib.util.module_from_spec(spec);spec.loader.exec_module(r)\n"
+            "with r.cleanup_on_signals():\n"
+            "    child=subprocess.Popen([sys.executable,'-c','import time;time.sleep(120)'],start_new_session=True);r.OWNED.append(child)\n"
+            "    print(child.pid,flush=True)\n"
+            "    try:\n"
+            "        time.sleep(120)\n"
+            "    finally:\n"
+            "        r.stop_owned()\n")
+        process = subprocess.Popen([sys.executable, '-c', script], stdout=subprocess.PIPE, text=True)
+        try:
+            child = int(process.stdout.readline())
+            process.send_signal(signal.SIGTERM)
+            self.assertEqual(process.wait(30), 128 + signal.SIGTERM)
+            deadline = time.time() + 20
+            while time.time() < deadline:
+                try:
+                    os.kill(child, 0)
+                except ProcessLookupError:
+                    break
+                time.sleep(0.1)
+            with self.assertRaises(ProcessLookupError):
+                os.kill(child, 0)
+        finally:
+            if process.poll() is None:
+                process.kill(); process.wait()
+
+    def test_parallel_jobs_use_distinct_ports_and_storage(self):
+        ports = [runner.BASE_PORT + index for index in range(runner.BROWSER_JOBS_MAX)]
+        self.assertEqual(len(set(ports)), runner.BROWSER_JOBS_MAX)
+        self.assertEqual(len({f'{server.PREFIX}{name}' for name in ('a', 'b')}), 2)
+        text = (ROOT / 'scripts' / 'serve-browser-tests.py').read_text()
+        self.assertIn('tempfile.TemporaryDirectory(prefix=PREFIX)', text, 'every server creates its own storage directory')
+        self.assertIn("os.environ['SAP_LENS_CONFIG_DIR'] = directory", text)
+
 
 class ParallelExecutionTests(unittest.TestCase):
     """The browser suite can use up to three isolated processes: deterministic, balanced, bounded and always cleaned up."""

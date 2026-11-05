@@ -18,7 +18,8 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   webServer: {
-    command: 'python ../scripts/serve-browser-tests.py',
+    // `exec` makes the server a direct child of Playwright, so it can notice that Playwright is gone and exit (see serve-browser-tests.py).
+    command: process.platform === 'win32' ? 'python ../scripts/serve-browser-tests.py' : 'exec python ../scripts/serve-browser-tests.py',
     url: `http://127.0.0.1:${port}/health`,
     reuseExistingServer: false,
     // SIGTERM lets the server remove its temporary configuration directory; the default is SIGKILL, which leaks it.

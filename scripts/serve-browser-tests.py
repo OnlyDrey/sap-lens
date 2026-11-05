@@ -5,6 +5,7 @@ import shutil
 import signal
 import sys
 import tempfile
+import threading
 import time
 
 PREFIX = 'sap-lens-browser-'
@@ -50,6 +51,21 @@ def sweep_stale(root: Path, now: float | None = None) -> list[str]:
     return removed
 
 
+def exit_with_parent(poll: float = 0.5) -> None:
+    """End the server (through its SIGTERM handler, so the storage directory is removed) when the process that started it is gone.
+    Playwright starts the server with `exec`, so its parent is Playwright itself; a SIGKILLed Playwright must not leave a server on the test port."""
+    if sys.platform == 'win32':
+        return
+    parent = os.getppid()
+    def watch() -> None:
+        while True:
+            time.sleep(poll)
+            if os.getppid() != parent:
+                os.kill(os.getpid(), signal.SIGTERM)
+                return
+    threading.Thread(target=watch, daemon=True, name='parent-watch').start()
+
+
 def main() -> None:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend'))
     import uvicorn
@@ -62,6 +78,7 @@ def main() -> None:
     # our own that would end the process before the directory below is removed.
     if sys.platform != 'win32':
         signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    exit_with_parent()
     with tempfile.TemporaryDirectory(prefix=PREFIX) as directory:
         (Path(directory) / OWNER_FILE).write_text(str(os.getpid()), encoding='ascii')
         os.environ['SAP_LENS_CONFIG_DIR'] = directory

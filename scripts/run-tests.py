@@ -7,7 +7,7 @@ scripts/test-map.json. See docs/development/TESTING.md.
 from __future__ import annotations
 
 import argparse
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 import json
 import os
 import re
@@ -17,6 +17,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -227,6 +228,11 @@ def build_frontend(force: bool = False) -> dict | None:
     return step('build (includes TypeScript check)', [npm(), '--prefix', str(FRONTEND), 'run', 'build'])
 
 
+def busy_ports_at(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        return probe.connect_ex(('127.0.0.1', port)) == 0
+
+
 def busy_ports(jobs: int) -> list[int]:
     """Ports of this run that another process already listens on. The runner reports them; it never stops a process."""
     busy = []
@@ -275,6 +281,24 @@ def stop_owned(grace: float = 20.0) -> None:
     OWNED.clear()
 
 
+@contextmanager
+def cleanup_on_signals():
+    """SIGTERM and SIGHUP end the runner like Ctrl+C: the `finally` blocks run, so the test servers and browsers this runner started are stopped.
+    Without this a plain `kill` bypasses stop_owned() and leaves servers listening on their test ports."""
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+    names = [name for name in ('SIGTERM', 'SIGHUP') if hasattr(signal, name)]
+    def leave(number, _frame):
+        raise SystemExit(128 + number)
+    previous = {name: signal.signal(getattr(signal, name), leave) for name in names}
+    try:
+        yield
+    finally:
+        for name, handler in previous.items():
+            signal.signal(getattr(signal, name), handler)
+
+
 def playwright_tests(report: dict) -> list[tuple[float, str, str, str]]:
     """(seconds, spec file, title, status) for every test of a Playwright JSON report."""
     found: list[tuple[float, str, str, str]] = []
@@ -306,6 +330,8 @@ def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str
     if kept: kept.mkdir(parents=True,exist_ok=True)
     with nullcontext(str(kept)) if kept else tempfile.TemporaryDirectory(prefix='sap-lens-browser-') as scratch:
         launched: list[tuple[int, int, subprocess.Popen, Path, Path, list[str]]] = []
+        signals = cleanup_on_signals()
+        signals.__enter__()
         try:
             for index, group in enumerate(groups):
                 report, log = Path(scratch) / f'report-{index}.json', Path(scratch) / f'log-{index}.txt'
@@ -321,7 +347,8 @@ def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str
                 launched.append((index, BASE_PORT + index, process, report, log, group))
             codes = [(item, item[2].wait()) for item in launched]
         finally:
-            stop_owned()  # an interrupt or an error must not leave our own Chromium or test servers behind
+            stop_owned()  # an interrupt, a signal or an error must not leave our own Chromium or test servers behind
+            signals.__exit__(None, None, None)
         merged = {'tests': 0, 'failures': 0, 'errors': 0, 'skipped': [], 'shards': [], 'shard_detail': [], 'slowest': [], 'failed': []}
         ok, every = True, []
         for (index, port, _, report, log, group), code in codes:

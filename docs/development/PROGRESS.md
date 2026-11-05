@@ -30,6 +30,7 @@ CI policy: GitHub Actions runs only on push to `main` after an explicitly approv
 
 * Backend full run before the retention work: 1430 tests (3 failures were the workflow tests edited mid-run; re-run OK). Targeted suites for every phase pass.
 * Phase D: backend test_data_revision (15), account_review, application, server, workflows pass; unit tests 14; browser revision-consistency (3), dashboard-user-transactions, account-review-refinement, csv-lifecycle (41 total) pass; tsc and ruff clean. ESLint reports one pre-existing error (irregular whitespace in `tests/remediation-export.spec.ts`), unrelated.
+* Phase E hygiene: runner handles SIGTERM/SIGHUP, test server exits when its parent is killed (verified with a real SIGKILL of Playwright: server and Chromium gone), regression tests in test_test_profiles (25 pass); recovery, catalogue and metadata specs pass together (40/40).
 * Phase E: SoD browser feature passes with 2 and 3 processes (222/222); several workers on one server are not safe (shared global state).
 * Browser: targeted specs per phase pass; full browser suite not yet run (final phase).
 
