@@ -95,8 +95,20 @@ class RoutingTests(unittest.TestCase):
 
     def test_skip_setup_reuses_verified_inputs_not_an_unchecked_skip(self):
         value=args('package','--platform','linux','--target','server','--skip-setup');value.version='1.0.0-beta.2'
-        self.assertIn('--reuse-validation',targets.plan(value)[0][1])
-        self.assertNotIn('--no-verify',targets.plan(value)[0][1])
+        # Native Linux packaging is only planned on a Linux host (or with an explicit trusted builder), so the host is pinned here;
+        # on a Windows runner the unpinned test used to hit that correct restriction instead of the behavior under test.
+        with patch.object(targets.platform,'system',return_value='Linux'):
+            self.assertIn('--reuse-validation',targets.plan(value)[0][1])
+            self.assertNotIn('--no-verify',targets.plan(value)[0][1])
+
+    def test_native_linux_packaging_is_still_refused_from_other_hosts_without_a_trusted_builder(self):
+        value=args('package','--platform','linux','--target','server','--skip-setup');value.version='1.0.0-beta.2'
+        for host in ('Windows','Darwin'):
+            with self.subTest(host=host),patch.object(targets.platform,'system',return_value=host),self.assertRaises(BuildError) as raised:targets.plan(value)
+            self.assertIn('trusted Linux builder',str(raised.exception))
+        value.linux_host='builder.example.org'
+        with patch.object(targets.platform,'system',return_value='Windows'):
+            self.assertIn('--linux-host',targets.plan(value)[0][1])  # the explicit trusted builder is the supported route
 
     def test_ci_tools_are_whitelisted_mode_checked_and_do_not_bootstrap(self):
         value=args('package','--ci-tool','native-package');value.version='1.0.0-beta.2';value.tool_args=['native']
@@ -185,22 +197,48 @@ class PythonDiscoveryContractTests(unittest.TestCase):
 
     @unittest.skipUnless(__import__('shutil').which('pwsh') or __import__('shutil').which('powershell'),'PowerShell is required to execute the discovery functions')
     def test_real_discovery_functions_with_fake_interpreters(self):
+        """Runs the real functions of build.ps1 (Windows PowerShell 5.1, PowerShell 7 or pwsh on Linux) against fake interpreters.
+
+        The harness is a script run with -File and reads its inputs from environment variables: `-Command` does not populate `$args` the
+        way a script does (that was the cause of the reported "Cannot bind argument to parameter 'Path' because it is null"). The fake
+        interpreters are `.cmd` files on Windows and shell scripts elsewhere. Candidate discovery and classification are checked
+        separately, so a real Python 3.12 installed on the test machine cannot satisfy or mask a case.
+        """
         import shutil,stat,subprocess
-        shell=shutil.which('pwsh') or shutil.which('powershell')
+        shell=shutil.which('powershell') if os.name=='nt' else shutil.which('pwsh')
+        shell=shell or shutil.which('pwsh') or shutil.which('powershell')
+        harness='''$ErrorActionPreference = 'Stop'
+$source = $env:SAP_LENS_TEST_BOOTSTRAPPER
+$ast = [System.Management.Automation.Language.Parser]::ParseFile($source, [ref]$null, [ref]$null)
+foreach ($definition in $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $false)) { . ([scriptblock]::Create($definition.Extent.Text)) }
+$script:PythonProbe = [regex]::Match((Get-Content -LiteralPath $source -Raw), "PythonProbe = '([^']*)'").Groups[1].Value
+if (-not $script:PythonProbe) { throw 'The interpreter probe was not found in build.ps1.' }
+$folder = $env:SAP_LENS_TEST_FOLDER
+$env:PATH = $folder + [IO.Path]::PathSeparator + $env:PATH
+$found = @(Get-PythonCandidates | Where-Object { $_.Path -and ((Split-Path -Parent $_.Path) -ieq $folder) })
+if ($found.Count -eq 0) { 'DISCOVERED=False'; exit 0 }
+'DISCOVERED=True'
+$probe = Test-PythonCandidate -Source 'PATH' -Path $found[0].Path -Prefix $found[0].Prefix
+"COMPATIBLE=$($probe.Compatible)"
+"RESULT=$($probe.Result)"
+'''
+        cases=[('good dir with spaces','3.12.3','64',0,True,'Compatible'),('x86','3.12.3','32',0,False,'64-bit'),
+               ('py314','3.14.0','64',0,False,'3.12 is required'),('py311','3.11.9','64',0,False,'3.12 is required'),('broken','3.12.3','64',3,False,'probe')]
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary)
-            def fake(directory,name,version,bits,code=0):
-                folder=root/directory;folder.mkdir();target=folder/name
-                target.write_text(f'#!/bin/sh\necho "{target}"\necho {version}\necho {bits}\nexit {code}\n');target.chmod(target.stat().st_mode|stat.S_IEXEC);return folder
-            cases=[('good dir with spaces','3.12.3','64',0,True),('x86','3.12.3','32',0,False),('py314','3.14.0','64',0,False),('broken','3.12.3','64',3,False)]
-            for directory,version,bits,code,expected in cases:
-                folder=fake(directory,'python',version,bits,code)
-                script=("$ErrorActionPreference='Stop';$ast=[System.Management.Automation.Language.Parser]::ParseFile($args[0],[ref]$null,[ref]$null);"
-                        "foreach($f in $ast.FindAll({param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst]},$false)){. ([scriptblock]::Create($f.Extent.Text))};"
-                        "$script:PythonProbe=[regex]::Match((Get-Content $args[0] -Raw),\"PythonProbe = '([^']*)'\").Groups[1].Value;"
-                        "$env:PATH=$args[1]+[IO.Path]::PathSeparator+$env:PATH;$PSScriptRoot='';$r=Find-BuildPython;if($r){'FOUND'}else{'NONE'}")
-                done=subprocess.run([shell,'-NoProfile','-Command',script,str(ROOT/'build.ps1'),str(folder)],capture_output=True,text=True)
-                with self.subTest(case=directory):self.assertIn('FOUND' if expected else 'NONE',done.stdout,done.stderr)
+            script=root/'harness.ps1';script.write_text(harness,encoding='utf-8')
+            for directory,version,bits,code,compatible,expected in cases:
+                folder=root/directory;folder.mkdir()
+                if os.name=='nt':
+                    target=folder/'python.cmd';target.write_text('\r\n'.join(['@echo off',f'echo {target}',f'echo {version}',f'echo {bits}',f'exit /b {code}'])+'\r\n')
+                else:
+                    target=folder/'python';target.write_text(f'#!/bin/sh\necho "{target}"\necho {version}\necho {bits}\nexit {code}\n');target.chmod(target.stat().st_mode|stat.S_IEXEC)
+                environment={**os.environ,'SAP_LENS_TEST_BOOTSTRAPPER':str(ROOT/'build.ps1'),'SAP_LENS_TEST_FOLDER':str(folder)}
+                done=subprocess.run([shell,'-NoProfile','-ExecutionPolicy','Bypass','-File',str(script)] if os.name=='nt' else [shell,'-NoProfile','-File',str(script)],capture_output=True,text=True,env=environment)
+                with self.subTest(case=directory):
+                    self.assertEqual(done.returncode,0,done.stderr+done.stdout)
+                    self.assertIn('DISCOVERED=True',done.stdout,done.stdout+done.stderr)
+                    self.assertIn(f'COMPATIBLE={compatible}',done.stdout,done.stdout);self.assertIn(expected,done.stdout,done.stdout)
 
 class BootstrapperStaticTests(unittest.TestCase):
     """No PowerShell is available on Linux CI: these are static guards for the Windows PowerShell 5.1 baseline, not execution evidence."""
