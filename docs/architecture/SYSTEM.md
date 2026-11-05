@@ -122,7 +122,7 @@ Every authoritative record has exactly one home; SQLite holds derived, verifiabl
 | Migration / upgrade | No conversion of review decisions, periods or evidence; formats unchanged. | Built from the snapshots after a verified backup; resumable; see above. |
 | Backup | Archived with the snapshots, as before. | Excluded (`store/`, `cache/`), so an archive never carries a second copy of source data. |
 | Restore | The archive replaces the JSON stores atomically. | The destination's store is kept; it is reconciled to the restored configuration at the next start (new snapshot digests are ingested, a damaged store is rebuilt). |
-| Cleanup / retention | Operates on the JSON stores and snapshots. | Follows: superseded revisions beyond the kept two are pruned together with their derived values. |
+| Cleanup / retention | Daily check; superseded, unreferenced source and directory snapshots older than the period (default 24 months) are removed after a one-time administrator approval, never anything referenced or any decision evidence (see [Data retention](../data/IMPORT_AND_REFRESH.md#data-retention)). | Derived entries and revisions of a retired snapshot are removed first; orphans are removed on every run; superseded revisions beyond the kept two are pruned as before. |
 | Concurrent server use | Existing locks and revision checks serialize writers. | WAL, short immediate transactions, busy timeout; reads never block on writers. |
 
 ### Measured effect (synthetic corpus, this container, Python 3.12)

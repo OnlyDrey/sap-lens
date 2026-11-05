@@ -171,6 +171,25 @@ Activation stays atomic. The new snapshot is written (immutable), its rows are *
 only then are the staged revisions activated (one short transaction per source). Each load is a staging *operation* with its own identifier; staged revisions are owned by it. If the commit does not happen, or the load fails or is cancelled, only that operation's staged revisions are discarded (a snapshot two overlapping loaders both staged is handed to the remaining one, never deleted under it). Revisions left by a process that died are orphans: they are removed at start-up and, while running, when older than an hour and not owned by a live operation. Activation clears ownership. In memory the published dataset is replaced as one object.
 Snapshot integrity is verified on every start (SHA-256 of the snapshot file against its content address) even when the records come from the store or the derived cache.
 
+## Data retention
+
+Retention keeps the data directory from growing without bound while never touching what governs decisions. The default is **24 months** (6 to 120), checked **daily**, configured in *Settings > Backup & Restore > Data retention* (administrator).
+
+| Subject to retention (when superseded, unreferenced and older than the period) | Never removed by retention |
+| --- | --- |
+| Role, user and SoD-matrix source snapshots; their SQLite revisions and derived values | Review decisions and every decision event; retained decision evidence |
+| Employee Directory snapshots | Review periods, their frozen snapshots and reports; risk acceptances; remediation actions |
+| Quarantined SQLite stores; pre-re-baseline copies of the lifecycle memory | Settings, account reviews, saved filters, functional groups, application backups, the pre-migration backup (explicit confirmation) |
+
+* **Protection by reference.** Any 64-hex identifier named anywhere in the JSON stores (settings, decisions, periods, reviews, catalogue, reports, configuration recovery copies) or in a non-source snapshot protects the file it names;
+  the newest two superseded snapshots of each source stay as the previous approved revisions; nothing younger than the period is removed; a file that cannot be classified is protected; if the references cannot be read, nothing is removed.
+  An active review period therefore keeps every snapshot it needs, without a rule that has to know about it.
+* **First cleanup needs approval.** The daily check measures and stores a summary; it removes nothing until an administrator has seen the *Preview cleanup* and approved it. The approval is bound to the previewed data
+  (a changed preview must be reviewed again), to this installation (an approval inside a backup restored elsewhere is void) and to the period (shortening it needs a new approval; lengthening does not). After approval the daily check cleans automatically.
+* **Consistency with SQLite.** Derived entries (store revisions, cached models) are removed first, the authoritative file last, each step idempotent; store revisions whose snapshot is gone are removed on every run, so an interrupted cleanup is completed by the next one.
+  The active revision is never removed. Restoring a backup resets file times, which only delays cleanup.
+* **Audit.** `data-retention.json` (validated, included in backups) keeps the policy, the approval (who, when, period) and the last 100 events. Retention does not run while a load, refresh, backup or restore is in progress.
+
 ## Import checks: suspicious versus invalid
 
 Every replacement source is compared with the **active revision of the same source** (roles, users, employees or SoD) and with nothing else: not another source, not an

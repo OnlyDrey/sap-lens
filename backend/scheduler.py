@@ -123,6 +123,11 @@ class Scheduler:
                 except (ValueError,OSError,KeyError,TypeError):
                     log.warning('Backup schedule could not be evaluated; check its configuration and storage permissions.')
                 self.backup_cursor=now
+                try:
+                    from data_retention import tick as retention_tick
+                    await asyncio.to_thread(retention_tick,now,self.loader)
+                except Exception as error:  # noqa: BLE001 - retention never delays or stops the refresh schedule (CancelledError is not an Exception)
+                    log.warning('Data retention could not be evaluated (%s).',type(error).__name__)
                 await self.tick(now)
             except asyncio.CancelledError:
                 raise

@@ -336,3 +336,29 @@ def revisions():
         return []
     finally:
         connection.close()
+
+
+def remove_snapshot(snapshot):
+    """Delete the non-active revisions (rows, derived values) built from a snapshot that is being retired. The active revision is never removed. Returns the count."""
+    try:
+        with transaction() as connection:
+            rows = connection.execute('SELECT id FROM source_revisions WHERE snapshot=? AND status<>\'active\'', (snapshot,)).fetchall()
+            for (revision,) in rows:
+                invalidate(connection, [revision])
+                connection.execute('DELETE FROM source_revisions WHERE id=?', (revision,))
+            return len(rows)
+    except (StoreUnavailable, sqlite3.Error):
+        return 0
+
+
+def drop_missing(exists):
+    """Remove non-active revisions whose snapshot file no longer exists (completes an interrupted cleanup). `exists(snapshot)` answers for the file."""
+    try:
+        with transaction() as connection:
+            gone = [(revision, snapshot) for revision, snapshot in connection.execute('SELECT id, snapshot FROM source_revisions WHERE status=\'superseded\'').fetchall() if not exists(snapshot)]
+            for revision, _ in gone:
+                invalidate(connection, [revision])
+                connection.execute('DELETE FROM source_revisions WHERE id=?', (revision,))
+            return len(gone)
+    except (StoreUnavailable, sqlite3.Error):
+        return 0

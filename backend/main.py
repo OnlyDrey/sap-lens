@@ -197,6 +197,8 @@ def create_app(origin: str | None = None, session_token: str | None = None,
     app.include_router(backups_router)
     from routers.storage import router as storage_router
     app.include_router(storage_router)
+    from routers.retention import router as retention_router
+    app.include_router(retention_router)
     app.include_router(data_sources.router)
     app.include_router(sod.router)
     app.include_router(sod_analysis.router)
