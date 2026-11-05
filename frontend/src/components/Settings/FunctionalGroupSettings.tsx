@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Archive, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react'
+import { Archive, BarChart3, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react'
+import { FunctionalGroupAnalysis } from '@/components/Access/FunctionalGroupAnalysis'
 import { addRule, createGroup, deleteRule, fetchGroups, fetchRules, groupsKey, setGroupArchived, updateGroup, type FunctionalGroup } from '@/api/functionalGroups'
 import { Button } from '@/components/Shared/Button'
 import { Dialog } from '@/components/Shared/Dialog'
@@ -63,7 +64,7 @@ function Rules({ groups }: { groups: FunctionalGroup[] }) {
 
 export function FunctionalGroupSettings() {
   const client = useQueryClient(), query = useQuery({ queryKey: groupsKey, queryFn: fetchGroups })
-  const [search, setSearch] = useState(''), [editing, setEditing] = useState<FunctionalGroup | 'new' | null>(null)
+  const [search, setSearch] = useState(''), [editing, setEditing] = useState<FunctionalGroup | 'new' | null>(null), [analysing, setAnalysing] = useState<FunctionalGroup | null>(null)
   const archive = useMutation({ mutationFn: (group: FunctionalGroup) => setGroupArchived(group.id, group.status === 'active'), onSuccess: () => client.invalidateQueries({ queryKey: ['functional-groups'] }) })
   const items = (query.data?.items ?? []).filter(group => !search.trim() || `${group.name} ${group.description}`.toLowerCase().includes(search.trim().toLowerCase()))
   return (
@@ -81,12 +82,14 @@ export function FunctionalGroupSettings() {
             <tr key={group.id}><td>{group.name}</td><td>{group.description || '—'}</td><td>{group.user_count}</td>
               <td><StatusBadge tone={group.status === 'active' ? 'success' : 'neutral'}>{group.status === 'active' ? 'Active' : 'Archived'}</StatusBadge></td>
               <td><span className="inline-flex gap-1">
+                <Button aria-label={`Analyze access of ${group.name}`} disabled={!group.user_count} title={group.user_count ? 'Compare SAP access within the group (advisory)' : 'No classified users'} onClick={() => setAnalysing(group)}><BarChart3 size={14} aria-hidden="true" /></Button>
                 <Button aria-label={`Edit ${group.name}`} onClick={() => setEditing(group)}><Pencil size={14} aria-hidden="true" /></Button>
                 <Button aria-label={`${group.status === 'active' ? 'Archive' : 'Restore'} ${group.name}`} onClick={() => archive.mutate(group)}>
                   {group.status === 'active' ? <Archive size={14} aria-hidden="true" /> : <RotateCcw size={14} aria-hidden="true" />}</Button></span></td></tr>))}</tbody>
         </DataTable>
       ) : <EmptyState>{query.data.items.length ? 'No Functional Groups match the search.' : 'No Functional Groups yet. Create one to start classifying users.'}</EmptyState>}
       {query.data && <Rules groups={query.data.items} />}
+      {analysing && <FunctionalGroupAnalysis id={analysing.id} name={analysing.name} onClose={() => setAnalysing(null)} />}
       {editing && <GroupDialog group={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
     </section>
   )

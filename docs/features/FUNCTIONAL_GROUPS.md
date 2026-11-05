@@ -95,3 +95,15 @@ In SoD the selection is translated into the existing username filter, so it only
 activity definitions, decisions and approval gates are untouched. SoD subjects without a User Access record count as Unassigned (manager `none`)
 unless classified. Frozen review periods are filtered by the current classification. The simplified Remediation CSV keeps its four-column contract;
 adding Functional Group to an export would be a separate, optional enhancement.
+
+## Access analysis (advisory)
+
+Settings > Functional Groups > *Analyze access* (or `GET /api/functional-groups/analysis/{id}`) compares SAP access inside one group. It is read-only
+and never grants, removes or approves access, creates accepted risks or changes review decisions; follow-up uses the existing workflows.
+
+- **Data:** unique, currently active (user, role) pairs from the SAP user import; repeated intervals, activity rows and risk rows never count twice.
+  Expired and future assignments are ignored.
+- **Calculation:** frequency = members holding the role / compared members. *Common* is at least 60%, *uncommon* at most 25%, otherwise *shared*.
+  A user's *additional uncommon roles* and *missing common roles* are the differences to prompt investigation, not violations.
+- **Limitations shown instead of conclusions:** fewer than 3 comparable members, and classified members missing from the SAP user import.
+- The dialog links to User Details and Compare users.

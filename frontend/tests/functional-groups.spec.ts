@@ -150,3 +150,20 @@ test('User Access filters users by Functional Group on the server and shows the 
   await page.getByRole('button', { name: `Remove Functional Group filter ${name}` }).click()
   await expect(page.getByRole('button', { name: `Remove Functional Group filter ${name}` })).toHaveCount(0)
 })
+
+test('Access analysis is advisory, shows limitations for a small group and links to the user', async ({ page, request }) => {
+  const name = `Analysis ${unique}`
+  const group = (await (await request.post('/api/functional-groups', { headers, data: { name, description: '' } })).json()).id
+  expect((await classify(request, group)).ok()).toBeTruthy()
+  await openSettings(page, 'Functional Groups')
+  const section = page.getByRole('region', { name: 'Functional Groups', exact: true })
+  await section.getByLabel('Search Functional Groups').fill(name)
+  await section.getByRole('button', { name: `Analyze access of ${name}` }).click()
+  const dialog = page.getByRole('dialog', { name: `Access analysis · ${name}` })
+  await expect(dialog).toContainText('Advisory only')
+  await expect(dialog).toContainText('at least 3')                       // too small to compare: a limitation, not a conclusion
+  await expect(dialog.getByRole('link', { name: 'Open SAP user DEMO_FG' })).toBeVisible()
+  await expect(dialog.getByRole('link', { name: 'Compare users' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+})

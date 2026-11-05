@@ -32,3 +32,12 @@ export const saveClassification = (username: string, body: { group_id: string | 
 export type OrganizationOption = { value: string; label: string; count: number }
 export const organizationKey = ['functional-group-options'] as const
 export const fetchOrganizationOptions = () => apiRequest<{ functional_groups: OrganizationOption[]; managers: OrganizationOption[] }>(`${base}/options`)
+
+export type RoleFrequency = { role: string; users: number; eligible: number; frequency: number; kind: 'common' | 'shared' | 'uncommon' | 'not compared' }
+export type Analysis = {
+  group: { id: string; name: string; status: string }; members: number; eligible: number; not_in_import: string[]; distinct_roles: number; common_roles: number
+  deviations: number; comparable: boolean; limitations: string[]; roles: RoleFrequency[]
+  users: { username: string; roles: number; additional_roles: string[]; missing_common_roles: string[] }[]
+  method: { common_at: number; uncommon_at: number; min_members: number; note: string }
+}
+export const fetchAnalysis = (id: string) => apiRequest<Analysis>(`${base}/analysis/${id}`)
