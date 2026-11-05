@@ -193,7 +193,8 @@ test('batch Keep is confirmed with a summary, persists per assignment and keeps 
   await expect(toolbar(page)).toHaveCount(0) // saved assignments leave the selection
   await expect.poll(() => roles(page)).toHaveLength(0) // completed decisions leave the default working view
   await reviewStatus(page, 'Reviewed assignments')
-  await expect(table(page).locator('tbody tr').filter({ hasText: 'Keep' })).toHaveCount(3)
+  // A Keep decision is displayed as Approved (the stored and API value stays Keep, asserted below).
+  await expect(table(page).locator('tbody tr').filter({ hasText: 'Approved' })).toHaveCount(3)
   // Each assignment has its own history event.
   const response = await page.request.get('/api/sod/explorer/access_list', { headers, params: { role_suffix: 'CDK', limit: '50' } })
   const items = (await response.json()).items as { id: string; decision: string }[]

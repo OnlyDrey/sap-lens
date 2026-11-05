@@ -1433,7 +1433,12 @@ summary:focus-visible,div[tabindex="0"]:focus-visible,a.role-identifier-link:foc
 .sod-pill-details .ui-metadata-list dt { color:var(--muted); font-size:var(--font-meta); }
 
 /* Queue widths belong to its eight review columns, rather than catalogue identity columns. */
-.access-table .sod-work-queue { table-layout:fixed; width:100%; min-width:54rem; }
+.access-table .sod-work-queue { table-layout:fixed; width:100%; min-width:64rem; }
+/* The username cell holds the identifier and up to four actions, and the header sort buttons are as wide as their labels: neither may be cut off by its cell or the scrolling frame, so their focus rings stay visible at narrow widths. */
+.sod-workspace .access-table .sod-work-queue td { overflow:visible; }
+.sod-work-queue th .ui-button,.sod-work-queue th button { white-space:normal; text-align:left; }
+/* Keyboard focus scrolls a control flush against the edge of the scrolling frame, where an outside ring would be cut off (the 375px audit measured 1 to 3px of room for a 4px ring). Inside this table the ring is drawn inset instead. */
+.sod-work-queue button:focus-visible,.sod-work-queue a:focus-visible { outline-offset:calc(-1 * var(--focus-width,2px)); }
 .sod-workspace .access-table .sod-work-queue td { min-width:0; }
 .sod-work-queue th, .sod-work-queue td { padding:var(--space-2); vertical-align:middle; }
 .sod-work-queue th:first-child { width:20%; }
