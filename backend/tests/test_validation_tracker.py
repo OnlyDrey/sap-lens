@@ -45,6 +45,18 @@ class TrackerTests(unittest.TestCase):
                 if path and '/' in path:
                     self.assertTrue((ROOT / path).exists(), (row['ID'], path))
 
+    def test_no_column_or_workbook_cell_points_at_a_missing_repository_file(self):
+        """Documentation cleanup must update the tracker: every repository path named anywhere in the CSV or the shipped workbook exists."""
+        path = re.compile(r'(?:docs|backend|frontend|scripts|deploy|\.github)/[\w./@-]*\w\.(?:md|py|tsx|ts|yaml|yml|json|csv|ps1|sh|service|css)(?![\w])')
+        def missing(text):
+            return sorted({m for m in path.findall(text) if not (ROOT / m).exists()})
+        for row in self.rows:
+            for column, value in row.items():
+                self.assertEqual(missing(value or ''), [], (row['ID'], column))
+        with zipfile.ZipFile(ROOT / 'docs/validation/validation-tracker.xlsx') as book:
+            text = ' '.join(book.read(name).decode('utf-8', 'ignore') for name in book.namelist() if name.endswith('.xml'))
+        self.assertEqual(missing(text), [])
+
     def test_nothing_is_approved_or_dated_by_the_tooling(self):
         for row in self.rows:
             if row['Manual approval'] == 'Approved':
