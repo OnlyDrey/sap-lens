@@ -15,6 +15,8 @@ for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(
  const panel=page.getByRole('region',{name:'Bulk role assignment review',exact:true})
  await expect(panel.getByRole('table',{name:'Bulk assignment preview'}).locator('tbody tr')).toHaveCount(6)
  const selectAll=panel.getByRole('checkbox',{name:'Select eligible assignments on current page',exact:true});await selectAll.check()
+ await expect(panel.getByRole('button',{name:'Review 6 assignments'})).toBeDisabled() // Bulk Review needs an explicit decision first
+ await panel.getByRole('group',{name:'Proposed decision',exact:true}).getByRole('button',{name:'Keep',exact:true}).click()
  await expect(panel.getByRole('button',{name:'Review 6 assignments'})).toBeEnabled()
  const bounds=await panel.boundingBox();expect(bounds!.x).toBeGreaterThanOrEqual(0);expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(width)
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()

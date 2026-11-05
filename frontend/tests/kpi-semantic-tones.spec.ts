@@ -47,6 +47,7 @@ test('every zero value is neutral, whatever the metric', async ({ page }) => {
   await overview(page, { available: true, users_with_conflicts: 0, user_risk_findings: 0, assignments_marked_remove: 0, concentration: { multi_risk_users: 0 }, activities: {}, acceptance: {}, remediation: { open_actions: 0, overdue: 0, removal_without_action: 0 } }, { enabled: 0 })
   await openSod(page)
   for (const group of ['Conflicts', 'Reviews', 'Remediation']) {
+    await expect(page.getByRole('region', { name: group, exact: true }).locator('.info-row').first()).toBeVisible()
     const tones = await page.getByRole('region', { name: group, exact: true }).locator('.info-row').evaluateAll((rows) => rows.map((row) => row.getAttribute('data-tone')))
     expect(tones.length).toBeGreaterThan(0)
     expect(new Set(tones)).toEqual(new Set(['neutral']))
@@ -69,6 +70,7 @@ for (const theme of ['light', 'dark']) test(`warning, danger and success values 
   await request.post('/api/configuration', { headers, data: settings })
   await overview(page, POPULATED, { enabled: 5 })
   await openSod(page)
+  await expect(page.locator('.info-row[data-tone="warning"]').first()).toBeVisible() // wait for the overview rows instead of sampling an empty page
   const contrast = await page.evaluate(() => {
     const parse = (value: string) => (value.match(/[\d.]+/g) || []).slice(0, 3).map(Number)
     const lum = ([r, g, b]: number[]) => { const f = (c: number) => { const s = c / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4 }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b) }
