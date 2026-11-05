@@ -153,3 +153,19 @@ staged restore are protected. Cleanup failure leaves the verified archive intact
 Schedules/history are destination-local operational metadata, excluded from exported
 archives along with the operation store; restores do not activate another host's
 backup schedule. Failed and deleted records remain traceable in history.
+
+## Backup retention (three classes)
+
+Backups are classified by explicit metadata written when they are created, never by file name or file time.
+
+| Class | Metadata | Retention |
+| --- | --- | --- |
+| Automatic (scheduled) | `origin: scheduled` in the backup's `result.json` | Removed after **90 days** (configurable, 7 to 3650) counted from the **recorded** completion time, after a one-time administrator approval of the previewed set. The older count limit (`keep`, default 7) of the backup schedule still applies independently and needs no approval. |
+| Manual | `origin: manual` | Kept until an administrator deletes it (the existing delete action requires confirmation and refuses while an operation is pending or a staged restore uses it). Never reclassified, never removed automatically. |
+| Migration | `.application-backups/migration/<id>` | Kept until an administrator confirms the upgrade works; **confirming keeps it**, and it is deleted only by an explicit second step (*Delete pre-migration backup*). The automatic rule never applies to it. |
+
+A backup without reliable metadata (no or unknown origin, unreadable or inconsistent `result.json`, no recorded time, not verified, archive missing or a link, digest mismatch, status other than ready) is protected. Cleanup refuses to run while a backup or restore is pending,
+protects an archive that a staged restore uses, never follows links, and only acts on `backup.tar.gz` inside a numbered backup folder; a deleted backup keeps its small audit record (`status: deleted`). An interrupted cleanup (archive removed, record not yet updated) is completed by the next run.
+
+The policy and approval live in `.application-backups/retention.json`, next to the backups and outside the data a restore replaces, so a restore neither voids the backup approval nor brings an older copy back. Source and review retention work differently after a restore (their approvals are voided and cleanup pauses for 7 days; see
+[Data retention](../data/IMPORT_AND_REFRESH.md#data-retention)). **Archives can contain historical records that source or review retention has already removed from the live installation**; restoring such an archive brings those records back.

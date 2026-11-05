@@ -166,6 +166,7 @@ def status(data=None):
     records = _records(data)
     held = [item for item in records if item.get('status') == 'migrated' and (data / FOLDER / item['id'] / ARCHIVE).is_file()]
     current = held[-1] if held else None
+    kept = [item for item in records if item.get('status') == 'confirmed' and (data / FOLDER / item['id'] / ARCHIVE).is_file()]
     try:
         size = sum(path.stat().st_size for path in store_db.directory().glob('sap-lens.sqlite3*') if path.is_file())
     except OSError:
@@ -176,6 +177,8 @@ def status(data=None):
     result = dict(state=state, schema_version=store_db.SCHEMA_VERSION, size_bytes=size, revisions=[item for item in revisions if item['status'] == 'active'],
                   requires_confirmation=bool(current), backup=None, confirmed=[dict(id=item['id'], confirmed_at=item.get('confirmed_at'), confirmed_by=item.get('confirmed_by'))
                                                                               for item in records if item.get('confirmed_at')])
+    result['retained'] = None if not kept else dict(id=kept[-1]['id'], created=kept[-1]['created'], confirmed_at=kept[-1].get('confirmed_at'), confirmed_by=kept[-1].get('confirmed_by'),
+                                                     size_bytes=kept[-1]['backup']['size'], sha256=kept[-1]['backup']['sha256'])
     if current:
         result['backup'] = dict(id=current['id'], created=current['created'], sha256=current['backup']['sha256'], size_bytes=current['backup']['size'],
                                 app_version=current.get('app_version'), files=current['backup']['files'])
@@ -187,7 +190,8 @@ class NotReady(ValueError):
 
 
 def confirm(identity, actor='', data=None):
-    """An administrator states that the upgraded installation works. Only then is the pre-migration archive released."""
+    """An administrator states that the upgraded installation works. The archive is NOT removed by this: it stays until an administrator deletes it explicitly
+    (`delete_backup`), and the automatic backup retention never applies to it."""
     data = Path(data or config_dir())
     record = next((item for item in _records(data) if item['id'] == identity), None)
     if not record or record.get('status') != 'migrated':
@@ -196,12 +200,25 @@ def confirm(identity, actor='', data=None):
     summary, failed = _mirror_all(data)
     if problems or failed:
         raise NotReady('The upgraded store is not healthy yet, so the backup is kept: ' + '; '.join(problems or failed))
-    archive = _root(data) / identity / ARCHIVE
-    archive.unlink(missing_ok=True)
     record.update(status='confirmed', confirmed_at=store_db.now(), confirmed_by=actor or 'administrator')
     _write(data, record)
     with store_db.transaction() as connection:
         connection.execute('UPDATE migrations SET status=\'confirmed\', confirmed_at=?, confirmed_by=? WHERE id=?', (record['confirmed_at'], record['confirmed_by'], identity))
+    return status(data)
+
+
+def delete_backup(identity, actor='', data=None):
+    """Explicit administrative deletion of a confirmed migration backup (never automatic, never before confirmation)."""
+    data = Path(data or config_dir())
+    record = next((item for item in _records(data) if item['id'] == identity), None)
+    if not record or record.get('status') != 'confirmed':
+        raise NotReady('Only the backup of a confirmed migration can be deleted.')
+    archive = _root(data) / identity / ARCHIVE
+    if archive.is_symlink() or not archive.is_file():
+        raise NotReady('The migration backup is not present.')
+    archive.unlink()
+    record.update(backup_deleted_at=store_db.now(), backup_deleted_by=actor or 'administrator')
+    _write(data, record)
     return status(data)
 
 

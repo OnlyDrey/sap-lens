@@ -8,3 +8,4 @@
 
 Build distributable packages using [Build](../BUILD.md); do not copy its
 packaging pipeline into development instructions. Follow [AGENTS.md](../../AGENTS.md).
+- [Development progress](PROGRESS.md): phase status, commits, measurements and next actions for resuming work.

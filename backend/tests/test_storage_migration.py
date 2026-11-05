@@ -144,12 +144,25 @@ class Confirm(Installation):
         self.identity = migration.status()['backup']['id']
         self.archive = self.data / migration.FOLDER / self.identity / migration.ARCHIVE
 
-    def test_the_backup_is_released_only_by_an_explicit_confirmation(self):
+    def test_confirmation_keeps_the_backup_and_deleting_it_is_a_separate_explicit_step(self):
+        with self.assertRaises(migration.NotReady):
+            migration.delete_backup(self.identity, 'admin')                        # never before confirmation
         result = migration.confirm(self.identity, 'admin@example.test')
-        self.assertFalse(self.archive.exists())
+        self.assertTrue(self.archive.is_file())                                     # confirmation does not delete
         self.assertFalse(result['requires_confirmation'])
-        self.assertEqual(result['confirmed'][0]['confirmed_by'], 'admin@example.test')
+        self.assertEqual((result['retained']['id'], result['confirmed'][0]['confirmed_by']), (self.identity, 'admin@example.test'))
         self.assertEqual(self.run_migration()['state'], 'current')                    # confirmation is durable
+        import backup_schedule
+        os.utime(self.archive, (1, 1))
+        backup_schedule.retention(self.data)                                          # no retention rule touches it
+        self.assertTrue(self.archive.is_file())
+        after = migration.delete_backup(self.identity, 'admin@example.test')
+        self.assertFalse(self.archive.exists())
+        self.assertIsNone(after['retained'])
+        record = next(item for item in migration._records(self.data) if item['id'] == self.identity)
+        self.assertEqual((record['status'], record['backup_deleted_by']), ('confirmed', 'admin@example.test'))
+        with self.assertRaises(migration.NotReady):
+            migration.delete_backup(self.identity, 'admin')                        # nothing left to delete
 
     def test_an_unhealthy_store_cannot_release_the_backup(self):
         store_db.path().write_bytes(b'garbage' * 100)
@@ -246,6 +259,11 @@ class Interfaces(Installation):
         done = client.post('/api/storage/migration/confirm', headers=headers, json={'migration_id': identity, 'confirm': True})
         self.assertEqual(done.status_code, 200)
         self.assertFalse(done.json()['requires_confirmation'])
+        self.assertEqual(done.json()['retained']['id'], identity)                      # kept after confirmation
+        self.assertEqual(client.post('/api/storage/migration/delete-backup', headers=headers, json={'migration_id': identity, 'confirm': False}).status_code, 422)
+        gone = client.post('/api/storage/migration/delete-backup', headers=headers, json={'migration_id': identity, 'confirm': True})
+        self.assertEqual((gone.status_code, gone.json()['retained']), (200, None))
+        self.assertEqual(client.post('/api/storage/migration/delete-backup', headers=headers, json={'migration_id': identity, 'confirm': True}).status_code, 409)
 
 
 if __name__ == '__main__':

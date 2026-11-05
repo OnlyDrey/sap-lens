@@ -17,11 +17,12 @@ class PolicyUpdate(StrictModel):
     enabled: bool
     months: int = Field(ge=data_retention.MIN_MONTHS, le=data_retention.MAX_MONTHS)
     review_months: int | None = Field(default=None, ge=data_retention.MIN_MONTHS, le=data_retention.MAX_MONTHS)
+    backup_days: int | None = Field(default=None, ge=7, le=3650)
 
 
 class Approval(StrictModel):
     confirm: bool
-    category: Literal['source', 'review'] = 'source'
+    category: Literal['source', 'review', 'backup'] = 'source'
     preview_digest: str = Field(pattern=r'^[a-f0-9]{64}$')
 
 
@@ -32,16 +33,16 @@ def status(request: Request):
 
 
 @router.get('/preview')
-async def preview(request: Request, category: Literal['source', 'review'] = 'source'):
+async def preview(request: Request, category: Literal['source', 'review', 'backup'] = 'source'):
     """What a cleanup of one category would remove now (measurement only; the scan runs off the event loop)."""
     admin(request)
-    return await asyncio.to_thread(data_retention.plan_for, category) if category == 'review' else data_retention.public_plan(await asyncio.to_thread(data_retention.plan))
+    return await asyncio.to_thread(data_retention.plan_for, category) if category in {'review', 'backup'} else data_retention.public_plan(await asyncio.to_thread(data_retention.plan))
 
 
 @router.put('/policy')
 def policy(request: Request, body: PolicyUpdate):
     admin(request)
-    return data_retention.set_policy(actor('administrator'), body.enabled, body.months, review_months=body.review_months)
+    return data_retention.set_policy(actor('administrator'), body.enabled, body.months, review_months=body.review_months, backup_days=body.backup_days)
 
 
 @router.post('/approve')

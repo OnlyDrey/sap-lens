@@ -1,9 +1,10 @@
 import { expect, test } from '@playwright/test'
 
 const category = (state: string, months = 24, approval: unknown = null) => ({ months, state, approval })
-const status = (source: string, review: string, history: unknown[] = []) => ({
-  policy: { enabled: true, months: 24, review_months: 24 }, categories: { source: category(source), review: category(review) }, last_check: '2026-01-01T00:00:00+00:00', quiet_until: '', history,
-  scope: { source: ['Superseded role, user and SoD matrix snapshots'], review: ['Completed review periods older than the period, with their decisions, actions and exclusively owned evidence'] },
+const status = (source: string, review: string, history: unknown[] = [], backup = 'awaiting_approval') => ({
+  policy: { enabled: true, months: 24, review_months: 24, backup_days: 90 },
+  categories: { source: category(source), review: category(review), backup: { days: 90, state: backup, approval: null, last_cleanup: '2026-01-03T00:00:00+00:00', next_check: '2026-01-02T00:00:00+00:00', last_preview: { counts: { automatic: 4, manual: 2, unclassified: 0, migration: 1 } } } }, last_check: '2026-01-01T00:00:00+00:00', quiet_until: '', history,
+  scope: { backup: ['Automatic (scheduled) backups older than the period'], source: ['Superseded role, user and SoD matrix snapshots'], review: ['Completed review periods older than the period, with their decisions, actions and exclusively owned evidence'] },
   protected_note: 'Current source data, active and incomplete review periods, anything still referenced, the report log, backups and the newest completed period are never removed.',
 })
 const sourcePreview = {
@@ -66,5 +67,34 @@ test('retention periods are saved explicitly, bounded and independent per catego
   await reviewMonths.fill('36')
   await expect(panel.getByRole('spinbutton', { name: 'Source retention period (months)' })).toHaveValue('24')
   await save.click()
-  expect(saved).toEqual([{ enabled: true, months: 24, review_months: 36 }])
+  expect(saved).toEqual([{ enabled: true, months: 24, review_months: 36, backup_days: 90 }])
+})
+
+test('backup retention shows its 90-day coverage, protects manual and migration backups and needs its own approval', async ({ page }) => {
+  let approved = false
+  const posted: unknown[] = []
+  const preview = {
+    days: 90, count: 1, bytes: 2_097_152, digest: 'e'.repeat(64), counts: { automatic: 4, manual: 2, unclassified: 1, migration: 1 },
+    reasons: { 'Manual backup: removed only by an administrator': 2, 'Migration backup waiting for administrator confirmation': 1, 'No reliable classification (protected)': 1 },
+    sample: [{ id: 'f'.repeat(32), created: '2025-06-01T00:00:00+00:00', bytes: 2_097_152, age_days: 200, note: '' }], protected_sample: [], truncated: false,
+  }
+  await page.route('**/api/retention', route => route.fulfill({ json: status('approved', 'approved', [], approved ? 'approved' : 'awaiting_approval') }))
+  await page.route('**/api/retention/preview?category=backup', route => route.fulfill({ json: preview }))
+  await page.route('**/api/retention/approve', async route => { posted.push(route.request().postDataJSON()); approved = true; await route.fulfill({ json: {} }) })
+  await open(page)
+  const panel = page.getByRole('region', { name: 'Data retention', exact: true })
+  const backup = panel.getByRole('region', { name: 'Backup retention' })
+  await expect(backup.getByRole('spinbutton', { name: 'Backup retention period (days)' })).toHaveValue('90')
+  await expect(backup).toContainText('Automatic backups: 4 · manual (kept): 2 · migration (kept): 1')
+  await expect(backup).toContainText('Last successful cleanup:')
+  await expect(backup).toContainText('Next scheduled check:')
+  await backup.getByRole('button', { name: 'Preview backup cleanup' }).click()
+  await expect(backup).toContainText('1 automatic backup(s)')
+  await expect(backup).toContainText('Protected: 2 · Manual backup')
+  await expect(backup).toContainText('Protected: 1 · Migration backup waiting for administrator confirmation')
+  await expect(backup).toContainText('historical records')
+  await backup.getByRole('checkbox', { name: /I reviewed this backup preview/ }).check()
+  await backup.getByRole('button', { name: 'Approve backup cleanup' }).click()
+  await expect(backup).toContainText('Automatic cleanup approved')
+  expect(posted).toEqual([{ category: 'backup', confirm: true, preview_digest: 'e'.repeat(64) }])
 })

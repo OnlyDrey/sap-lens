@@ -35,6 +35,18 @@ def confirm(request: Request, body: Confirmation):
         raise HTTPException(409, str(error)) from None
 
 
+@router.post('/migration/delete-backup')
+def delete_backup(request: Request, body: Confirmation):
+    """Deletes the pre-migration backup of an already confirmed migration. Explicit and administrator-only."""
+    admin(request)
+    if not body.confirm:
+        raise HTTPException(422, 'Confirm that the pre-migration backup may be deleted.')
+    try:
+        return storage_migration.delete_backup(body.migration_id, actor('administrator'))
+    except storage_migration.NotReady as error:
+        raise HTTPException(409, str(error)) from None
+
+
 class Rebaseline(StrictModel):
     confirm: bool
 

@@ -173,7 +173,7 @@ Snapshot integrity is verified on every start (SHA-256 of the snapshot file agai
 
 ## Data retention
 
-Retention keeps the data directory from growing without bound and never touches current data. It has **two separate categories**, each with its own period (default **24 months**, 6 to 120), its own preview and its own one-time
+Retention keeps the data directory from growing without bound and never touches current data. It has **three separate categories** (source, review and [backup retention](../deployment/BACKUP_RESTORE.md#backup-retention-three-classes): automatic backups 90 days), each with its own period (default **24 months**, 6 to 120), its own preview and its own one-time
 administrator approval, configured in *Settings > Backup & Restore > Data retention*. Source rules are never applied to review records, and review rules never remove source data. The check runs **daily**, does not run while a
 load, refresh, backup or restore is in progress, and removes nothing until the category has been approved.
 

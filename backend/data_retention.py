@@ -278,8 +278,13 @@ def review_plan(months=None, now=None):
     return dict(review_retention.public(found), observed=found['observed'], months=months, digest=digest, generated=(now or datetime.now(timezone.utc)).isoformat(), bytes=0)
 
 
+def backup_plan(now=None):
+    import backup_retention
+    return backup_retention.public(backup_retention.plan(now=now))
+
+
 def plan_for(category, now=None):
-    return plan(now=now) if category == 'source' else review_plan(now=now)
+    return plan(now=now) if category == 'source' else review_plan(now=now) if category == 'review' else backup_plan(now)
 
 
 # --- execution ------------------------------------------------------------------------------------------------------------------------
@@ -406,6 +411,12 @@ def check(now=None, trigger='automatic'):
             review_retention.purge_expired(now)
         except OSError:
             pass
+        try:
+            import backup_retention
+            if backup_retention.check(now) == 'cleaned':
+                outcome = 'cleaned'
+        except Exception as error:  # noqa: BLE001 - backup retention never stops the other categories
+            logger.warning('Backup retention check failed (%s).', type(error).__name__)
         return outcome
 
 
@@ -438,6 +449,9 @@ def tick(now=None, loader=None):
 
 def approve(actor, preview_digest, now=None, category='source'):
     """Administrator approves destructive cleanup of one category for the retention period shown in the preview they saw; the first cleanup runs now."""
+    if category == 'backup':
+        import backup_retention
+        return backup_retention.approve(actor, preview_digest, now)
     with lock:
         data = read()
         found = plan_for(category, now)
@@ -459,7 +473,10 @@ def approve(actor, preview_digest, now=None, category='source'):
         return result
 
 
-def set_policy(actor, enabled, months, now=None, review_months=None):
+def set_policy(actor, enabled, months, now=None, review_months=None, backup_days=None):
+    if backup_days is not None:
+        import backup_retention
+        backup_retention.set_policy(actor, backup_days, now)
     with lock:
         data = read()
         old = data.policy
@@ -493,8 +510,11 @@ def status():
         approval = _approval(data, name)
         return dict(months=months_of(data, name), state=state_label(data, name), last_preview=data.last_preview.get(name, {}),
                     approval=None if not approval else dict(by=approval.by, at=approval.at, months=approval.months, valid=approved(data, name)))
-    return dict(policy=data.policy.model_dump(), categories=dict(source=category('source'), review=category('review')), last_check=data.last_check, quiet_until=data.quiet_until,
+    import backup_retention
+    saved = backup_retention.status()
+    return dict(policy=dict(data.policy.model_dump(), backup_days=saved['days']), categories=dict(source=category('source'), review=category('review'), backup=saved), last_check=data.last_check, quiet_until=data.quiet_until,
                 history=[entry.model_dump() for entry in reversed(data.history[-20:])],
                 scope=dict(source=['Superseded role, user and SoD matrix snapshots and their SQLite copies', 'Superseded Employee Directory snapshots', 'Quarantined stores and pre-re-baseline copies'],
-                           review=['Completed review periods older than the period, with their decisions, actions and exclusively owned evidence']),
+                           review=['Completed review periods older than the period, with their decisions, actions and exclusively owned evidence'],
+                           backup=['Automatic (scheduled) backups older than the period, counted from their recorded creation time']),
                 protected_note='Current source data, active and incomplete review periods, anything still referenced, the report log, backups and the newest completed period are never removed.')

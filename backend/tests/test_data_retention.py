@@ -79,7 +79,7 @@ class Case(unittest.TestCase):
 class Scope(Case):
     def test_defaults_are_24_months_enabled_and_unapproved(self):
         value = retention.status()
-        self.assertEqual((value['policy'], value['categories']['source']['state'], value['categories']['source']['approval']), ({'enabled': True, 'months': 24, 'review_months': 24}, 'awaiting_approval', None))
+        self.assertEqual((value['policy'], value['categories']['source']['state'], value['categories']['source']['approval']), ({'enabled': True, 'months': 24, 'review_months': 24, 'backup_days': 90}, 'awaiting_approval', None))
         self.assertEqual(value['categories']['review']['state'], 'awaiting_approval')
 
     def test_only_superseded_unreferenced_old_snapshots_beyond_the_newest_two_are_candidates(self):
