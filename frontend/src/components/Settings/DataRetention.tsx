@@ -17,8 +17,9 @@ type ReviewPreview = Category & {
   protected_sample: { name: string; state: string; reason: string }[]
 }
 type BackupPreview = Category & {
+  keep: number; count_limit: { id: string; rule: string }[]
   days: number; reasons: Record<string, number>; counts: { automatic: number; manual: number; unclassified: number; migration: number }
-  sample: { id: string; created: string; bytes: number; age_days: number; note: string }[]
+  sample: { id: string; created: string; bytes: number; age_days: number; note: string; rule: string; rules: string[] }[]
 }
 type State = { months: number; days?: number; last_cleanup?: string; next_check?: string | null; last_preview?: Record<string, unknown>; state: 'disabled' | 'approved' | 'awaiting_approval'; approval: { by: string; at: string; months: number; valid: boolean } | null }
 type Retention = {
@@ -83,6 +84,11 @@ export function DataRetention() {
               <FormField label={name === 'backup' ? 'Backup retention period (days)' : `${titles[name]} period (months)`} description={name === 'backup' ? 'Between 7 and 3650. Default 90. Applies to automatic backups only. Shortening it needs a new approval.' : 'Between 6 and 120. Default 24. Shortening it needs a new approval.'}>
                 <input className={controlClass} type="number" min={name === 'backup' ? 7 : 6} max={name === 'backup' ? 3650 : 120} value={shown(name)} onChange={event => setMonths(previous => ({ ...previous, [name]: bound(event.target.value, name) }))} />
               </FormField>
+              {name === 'backup' && <div className="grid gap-0.5 text-xs text-muted" aria-label="Backup retention rules">
+                <span>Rule 1, count limit: the newest {(category as unknown as { keep?: number }).keep ?? 7} automatic backups are kept; older ones are removed when a scheduled backup completes, without approval.</span>
+                <span>Rule 2, age limit: automatic backups older than {shown('backup')} days are removed after approval. This is a maximum, not a guarantee: the count limit can remove a backup earlier.</span>
+                <span>Manual and migration backups are never removed by either rule.</span>
+              </div>}
               {name === 'backup' && <div className="grid gap-0.5 text-xs text-muted" aria-label="Backup retention status">
                 <span>Last successful cleanup: {category.last_cleanup ? new Date(category.last_cleanup).toLocaleString() : 'never'}</span>
                 <span>Next scheduled check: {category.next_check ? new Date(category.next_check).toLocaleString() : 'after the first daily check'}</span>
@@ -104,7 +110,9 @@ export function DataRetention() {
               {found && name === 'backup' && (() => { const value = found as BackupPreview; return (
                 <div className="grid gap-1 text-xs" aria-label="Backup cleanup preview">
                   <p className="ui-description">{value.count === 0 ? `No automatic backup older than ${value.days} days can be removed.` : `${value.count} automatic backup(s), ${megabytes(value.bytes ?? 0)}, older than ${value.days} days would be removed.`} {value.counts.automatic} automatic, {value.counts.manual} manual, {value.counts.migration} migration, {value.counts.unclassified} unclassified.</p>
-                  {value.sample.map(item => <div key={item.id}>Eligible: created {new Date(item.created).toLocaleDateString()} · {item.age_days} days · {megabytes(item.bytes)}{item.note ? ` · ${item.note}` : ''}</div>)}
+                  {value.sample.map(item => <div key={item.id}>Eligible: created {new Date(item.created).toLocaleDateString()} · {item.age_days} days · {megabytes(item.bytes)} · rule: {item.rule}{item.note ? ` · ${item.note}` : ''}</div>)}
+                  {value.count_limit.length > 0 && <p className="ui-description">{value.count_limit.length} more automatic backup(s) are younger than {value.days} days but beyond the newest {value.keep}; the count limit removes them at the next scheduled backup without approval.</p>}
+                  {value.count_limit.map(item => <div key={item.id}>Count limit: {item.rule}</div>)}
                   {Object.entries(value.reasons).map(([reason, count]) => <div key={reason}>Protected: {count} · {reason}</div>)}
                   <p className="ui-description">Archives can contain historical records that source or review retention already removed from the live installation. Manual backups are removed only by an administrator.</p>
                 </div>) })()}

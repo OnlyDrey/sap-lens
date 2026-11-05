@@ -13,8 +13,9 @@ The policy and the approval live in `.application-backups/retention.json`, next 
 neither voids this approval nor brings an older copy of it back. Cleanup needs the same one-time administrator approval as the other retention categories and is
 bound to this installation and to the previewed set. Archives can contain historical records (decisions, periods, source data) that source or review retention
 removed from the live installation; restoring such an archive brings those records back, and after a restore review retention is paused and its approval void.
-This retention is independent of the scheduled-backup count limit (`keep`), which stays as configured: either rule can remove an automatic backup, the older
-count-based rule needs no approval."""
+This retention is independent of the scheduled-backup count limit (`keep`, default 7), which stays as configured: either rule can remove an automatic backup.
+The period is a maximum, not a guaranteed minimum: the count limit removes automatic backups beyond the newest `keep` as soon as a scheduled backup completes,
+without approval and whatever their age, so a backup can be gone long before the period ends. The preview names the rule behind every candidate."""
 import json
 import re
 from datetime import datetime, timedelta, timezone
@@ -182,17 +183,31 @@ def plan(days=None, now=None, data=None):
                 counts['migration'] += 1
     except Exception:  # noqa: BLE001 - migration records are informational here; they are never candidates
         pass
+    limit, over = count_limit(data)
+    for item in items:                                           # the rule that makes each backup removable (information only: the digest binds ids and period)
+        item['rules'] = ['age'] + (['count'] if item['id'] in over else [])
+        item['rule'] = (f"Older than {days} days" + (f" and beyond the newest {limit} automatic backups" if item['id'] in over else ''))
+    early = [dict(id=identity, rule=f'Beyond the newest {limit} automatic backups: removed by the count limit at the next scheduled backup, without approval') for identity in over
+             if identity not in {item['id'] for item in items}]
     import hashlib
     digest = hashlib.sha256(('\n'.join(item['id'] for item in sorted(items, key=lambda row: row['id'])) + f'|{days}').encode()).hexdigest()
     reasons = {}
     for row in protected:
         reasons[row['reason']] = reasons.get(row['reason'], 0) + 1
     return dict(days=days, generated=now.isoformat(), count=len(items), bytes=sum(item['bytes'] for item in items), digest=digest, items=items, protected=protected,
-                reasons=reasons, counts=counts)
+                reasons=reasons, counts=counts, keep=limit, count_limit=early)
+
+
+def count_limit(data=None):
+    """The scheduled-backup count limit (`keep`) and the ids it would remove: automatic, completed and verified backups beyond the newest `keep`.
+    Same selection as `backup_schedule.retention`, which applies it after each scheduled backup without any approval."""
+    keep = backup_schedule.Schedule.model_validate(backup_schedule.settings(data)['schedule']).keep
+    ready = [row for row in backup_schedule.rows(data) if row['origin'] == 'scheduled' and row['status'] == 'ready' and row['verified']]
+    return keep, [row['id'] for row in ready[keep:]]
 
 
 def public(found):
-    return dict(days=found['days'], count=found['count'], bytes=found['bytes'], digest=found['digest'], reasons=found['reasons'], counts=found['counts'],
+    return dict(keep=found['keep'], count_limit=found['count_limit'][:100], days=found['days'], count=found['count'], bytes=found['bytes'], digest=found['digest'], reasons=found['reasons'], counts=found['counts'],
                 sample=found['items'][:100], protected_sample=found['protected'][:100], truncated=len(found['items']) > 100)
 
 
@@ -270,6 +285,6 @@ def status(data=None, now=None):
     last = _moment(state.last_check)
     if last:
         nxt = (last + timedelta(hours=24)).isoformat()
-    return dict(days=state.policy.days, state='approved' if approved(state) else 'awaiting_approval', last_preview=state.last_preview, last_cleanup=state.last_cleanup, last_check=state.last_check,
+    return dict(days=state.policy.days, keep=count_limit(data)[0], state='approved' if approved(state) else 'awaiting_approval', last_preview=state.last_preview, last_cleanup=state.last_cleanup, last_check=state.last_check,
                 next_check=nxt, approval=None if not state.approval else dict(by=state.approval.by, at=state.approval.at, days=state.approval.days, valid=approved(state)),
                 history=[entry.model_dump() for entry in reversed(state.history[-10:])])

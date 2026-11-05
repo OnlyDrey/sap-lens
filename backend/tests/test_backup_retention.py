@@ -238,6 +238,33 @@ class Safety(Case):
         remaining = [identity for identity in os.listdir(self.area) if backups.ID.fullmatch(identity) and (self.area / identity / 'backup.tar.gz').exists()]
         self.assertEqual(len(remaining), 7)                                                   # keep=7 as before, without approval
 
+    def test_the_preview_names_the_rule_of_every_candidate_and_the_period_is_a_maximum_not_a_minimum(self):
+        old = [self.backup(age=200 + number) for number in range(3)]                           # older than 90 days, beyond the newest 7
+        recent = [self.backup(age=number) for number in range(9)]                              # younger than 90 days; the 8th and 9th are beyond the newest 7
+        found = retention.plan(now=NOW, data=self.data)
+        self.assertEqual(found['keep'], 7)
+        self.assertEqual({item['id'] for item in found['items']}, set(old))
+        for item in found['items']:
+            self.assertEqual(item['rules'], ['age', 'count'])                                 # both rules apply: older than 90 days and beyond the newest 7
+            self.assertIn('Older than 90 days and beyond the newest 7', item['rule'])
+        early = {item['id'] for item in found['count_limit']}
+        self.assertEqual(early, set(recent[7:]))                                              # removed long before 90 days by the count limit, no approval
+        self.assertTrue(all('count limit' in item['rule'] for item in found['count_limit']))
+        self.assertTrue(early.isdisjoint(self.eligible()))
+        backup_schedule.retention(self.data)                                                  # the count rule really removes exactly what the preview said
+        gone = {identity for identity in old + recent if not self.exists(identity)}
+        self.assertEqual(gone, set(old) | early)
+
+    def test_an_age_only_candidate_is_labelled_with_the_age_rule_alone(self):
+        for number in range(3):
+            self.backup(age=number)
+        old = self.backup(age=120)                                                            # fewer than 7 newer backups: only the age rule applies
+        item = next(row for row in retention.plan(now=NOW, data=self.data)['items'] if row['id'] == old)
+        self.assertEqual(item['rules'], ['age'])
+        self.assertEqual(item['rule'], 'Older than 90 days')
+        self.assertEqual(retention.plan(now=NOW, data=self.data)['count_limit'], [])
+        self.assertEqual(retention.status(self.data, NOW)['keep'], 7)
+
 
 class RestoreAndCompatibility(Case):
     def test_a_restore_does_not_void_the_backup_approval_or_bring_back_old_state(self):

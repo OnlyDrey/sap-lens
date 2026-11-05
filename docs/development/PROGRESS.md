@@ -24,7 +24,7 @@ CI policy: GitHub Actions runs only on push to `main` after an explicitly approv
 | C | Backend/API performance (`/api/access/users`, dashboard, memory) | Completed | `21cc4f3` |
 | D | Frontend/API cache consistency (`X-Data-Revision`, stale-response repeat, atomic review saves) | Completed | see Git log |
 | E | Parallel browser test stabilization | Completed (findings in TESTING.md) | see Git log |
-| F | Final validation: full backend, browser, benchmarks, report | Pending | |
+| F | Final validation: full backend, browser, benchmarks, report | In Progress | |
 
 ## Local validation (latest)
 
