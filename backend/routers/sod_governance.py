@@ -35,12 +35,26 @@ def scope_query(context: str = Query('current', pattern=legacy.CONTEXT_PATTERN),
                 risks: list[str] = Query(default=[], max_length=100), activities: list[str] = Query(default=[], max_length=100), groups: list[str] = Query(default=[], max_length=100),
                 roles: list[str] = Query(default=[], max_length=100), role_families: list[str] = Query(default=[], max_length=100), role_exact: list[str] = Query(default=[], max_length=100), tcodes: list[str] = Query(default=[], max_length=100), categories: list[str] = Query(default=[], max_length=50),
                 criticalities: list[str] = Query(default=[], max_length=50),
+                functional_groups: list[str] = Query(default=[], max_length=50), managers: list[str] = Query(default=[], max_length=50),
                 account_status: Literal['', 'locked', 'unlocked', 'ad_disabled', 'ad_enabled', 'unknown'] = '', multiple_risks: bool = False,
                 activity_decision: Lifecycle = '', assignment_decision: Lifecycle = '', acceptance: Lifecycle = '',
                 review_status: Literal['', 'attention', 'pending', 'investigating', 'reviewed', 'all'] = '',
                 assignment_scope: Literal['conflicts','all'] = 'conflicts',
                 sort: Literal['subject', 'findings', 'group'] = 'subject', descending: bool = False):
+    # Functional Group and Manager select users by name through the existing username filter; they never alter conflict evaluation.
+    usernames = organizational_usernames(usernames, functional_groups, managers, context, validity, as_of)
     return locals()
+
+
+def organizational_usernames(usernames, functional_groups, managers, context, validity, as_of):
+    if not functional_groups and not managers:
+        return usernames
+    import cache
+    import organization
+    from .employees import available
+    state = cache.get_snapshot()
+    universe = list(scope.model_for(scope.load(context, validity, as_of)))
+    return organization.expand_usernames(state, available(state), usernames, functional_groups, managers, universe)
 
 
 def info(bundle, **extra):

@@ -51,6 +51,9 @@ def save(request:Saved):
             'activity_decision','assignment_decision','review_status','acceptance','validity','as_of','sort','descending','group_by','table','kind','status','queue_sort','role_match','assignment_scope','role_families','role_exact'}
     for view in ('sod_risk_matrix','sod_activity_matrix','sod_explorer','sod_queue'):
         allowed[view]=matrix
+    # Organizational filters: Functional Group and Manager (Account Review keeps its own `groups` key).
+    for view in ('users', 'review', 'sod_users', 'sod_roles', 'sod_risk_matrix', 'sod_activity_matrix', 'sod_explorer', 'sod_queue'):
+        if view in allowed: allowed[view] = set(allowed[view]) | {'functional_groups', 'managers', 'functional_group', 'manager'} | ({'groups'} if view == 'review' else set())
     if not request.rename and set(request.filters)-allowed[request.view]: raise HTTPException(422,'Unsupported filter fields; result datasets cannot be saved.')
     return store.save(request.name,request.view,request.filters,request.id,request.expected,request.rename)
 

@@ -526,6 +526,33 @@ class RoleAssignmentExportTests(GovernanceCase):
         self.assertNotEqual(status['ROLE_A1'], status['ROLE_A2'])
 
 
+class SodOrganizationFilterTests(GovernanceCase):
+    """Functional Group and Manager select SoD users by name; conflict evaluation and the approved CSV contract are untouched."""
+    rows, simplified = RoleAssignmentExportTests.rows, RoleAssignmentExportTests.simplified
+
+    def setUp(self):
+        super().setUp()
+        for user in ('SYN_A', 'SYN_B'):
+            for row in self.subject(user)['activities']:
+                self.decide('activity', [self.activity_item(user, row['activity'])], 'Approved')
+
+    def test_functional_group_filter_selects_users_without_changing_evidence(self):
+        import functional_groups as fg
+        group = fg.create_group('Purchasing')['id']
+        fg.classify('SYN_A', group, 'test', 0, 'Reviewer')
+        _, everyone = self.simplified()
+        _, only_group = self.simplified(functional_groups=group)
+        _, unassigned = self.simplified(functional_groups='unassigned')
+        self.assertEqual({row[0] for row in only_group[1:]}, {'SYN_A'})
+        self.assertNotIn('SYN_A', {row[0] for row in unassigned[1:]})
+        self.assertEqual(sorted(only_group[1:] + unassigned[1:]), sorted(everyone[1:]))  # the two selections partition the same evidence
+        self.assertEqual(only_group[0], ['USERNAME', 'ROLE', 'SAP User Group', 'Decision Status'])  # approved four-column contract
+        empty = fg.create_group('Nobody')['id']
+        self.assertEqual(self.simplified(functional_groups=empty)[1][1:], [])
+        self.assertEqual(self.simplified(functional_groups=group, username='SYN_B')[1][1:], [])  # AND with the existing user filter
+        self.assertEqual(self.simplified(managers='none')[1][1:], everyone[1:])  # no Directory manager links: everyone is "none"
+
+
 class RoleAssignmentRowTests(unittest.TestCase):
     """Resolution rules of role_assignment_rows without the API."""
     def row(self, **values):

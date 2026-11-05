@@ -113,6 +113,15 @@ def restore(gid: str):
     return fg.set_group_status(gid, 'active')
 
 
+@router.get('/options', dependencies=[Depends(require_mapping)])
+def options():
+    """Functional Group and Manager choices (with SAP user counts) for filters in User Access and SoD."""
+    import organization
+    from .employees import available
+    state = cache.get_snapshot()
+    return organization.options(state, available(state))
+
+
 @router.get('/rules')
 def rules():
     return dict(items=fg.list_rules())

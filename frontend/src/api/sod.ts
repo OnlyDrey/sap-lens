@@ -141,10 +141,10 @@ const SCALAR_KEYS = ['search', 'risk', 'criticality', 'risk_type', 'category', '
   'activity_decision', 'assignment_decision', 'acceptance', 'validity', 'as_of', 'sort', 'queue_sort', 'role_match','assignment_scope']
 
 /** Exact multi-select values: OR within the list, AND with every other filter. */
-const MULTI_KEYS = ['usernames', 'role_suffixes', 'risks', 'activities', 'groups', 'roles', 'role_families','role_exact', 'tcodes', 'categories', 'criticalities']
+const MULTI_KEYS = ['functional_groups', 'managers', 'usernames', 'role_suffixes', 'risks', 'activities', 'groups', 'roles', 'role_families','role_exact', 'tcodes', 'categories', 'criticalities']
 
 export const emptyFilters: Filters = {
-  search: '', risk: '', criticality: '', category: '', username: '', usernames: [], role_suffixes: [], risks: [], activities: [], groups: [], roles: [], role_families:[],role_exact:[], tcodes: [], categories: [], criticalities: [], group: '', role: '', role_suffix: '', activity: '', tcode: '', account_status: '', multiple_risks: '', tracking: '',
+  search: '', risk: '', criticality: '', category: '', username: '', functional_groups: [], managers: [], usernames: [], role_suffixes: [], risks: [], activities: [], groups: [], roles: [], role_families:[],role_exact:[], tcodes: [], categories: [], criticalities: [], group: '', role: '', role_suffix: '', activity: '', tcode: '', account_status: '', multiple_risks: '', tracking: '',
   activity_decision: '', assignment_decision: '', acceptance: '', validity: 'active', as_of: '', sort: 'subject', descending: false,
 }
 

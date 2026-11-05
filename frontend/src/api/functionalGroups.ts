@@ -28,3 +28,7 @@ export const deleteRule = (id: string) => apiRequest<{ status: string }>(`${base
 export const fetchUserClassification = (username: string) => apiRequest<UserClassification>(`${base}/users/${encodeURIComponent(username)}`)
 export const saveClassification = (username: string, body: { group_id: string | null; rationale: string; reviewer: string; expected_revision: number; change_id?: string }) =>
   apiRequest<Classification>(`${base}/users/${encodeURIComponent(username)}`, 'PUT', body)
+
+export type OrganizationOption = { value: string; label: string; count: number }
+export const organizationKey = ['functional-group-options'] as const
+export const fetchOrganizationOptions = () => apiRequest<{ functional_groups: OrganizationOption[]; managers: OrganizationOption[] }>(`${base}/options`)

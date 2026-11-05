@@ -329,6 +329,45 @@ class Api(unittest.TestCase):
         after = self.review('?findings=functional_group_review')['items'][0]
         self.assertEqual((after['classification']['status'], after['review_state']), ('Needs review', 'No action required'))
 
+    def users(self, query):
+        result = self.client.get('/api/access/users?limit=100&' + query, headers=self.base.H)
+        self.assertEqual(result.status_code, 200, result.text)
+        return {u['username'] for u in result.json()['items']}
+
+    def test_user_access_filters_by_group_and_manager_server_side(self):
+        gid = self.call('POST', '', json=dict(name='Finance')).json()['id']
+        empty = self.call('POST', '', json=dict(name='Empty')).json()['id']
+        self.call('PUT', '/users/DEMO_NORMAL', json=dict(group_id=gid, reviewer='Rev', rationale='', expected_revision=0))
+        everyone = self.users('')
+        listed = {u['username']: u for u in self.client.get('/api/access/users?limit=100', headers=self.base.H).json()['items']}
+        self.assertEqual((listed['DEMO_NORMAL']['functional_group']['name'], listed['DEMO_NORMAL']['classification_status'], listed['DEMO_OPEN']['functional_group']), ('Finance', 'Confirmed', None))
+        self.assertEqual(self.users(f'functional_groups={gid}'), {'DEMO_NORMAL'})
+        self.assertEqual(self.users('functional_groups=unassigned'), everyone - {'DEMO_NORMAL'})
+        self.assertEqual(self.users(f'functional_groups={gid}&functional_groups=unassigned'), everyone)
+        self.assertEqual(self.users(f'functional_groups={empty}'), set())
+        self.assertEqual(self.users(f'functional_groups={gid}&search=DEMO_OPEN'), set())  # AND with the existing search filter
+        self.assertEqual(self.users('managers=none'), everyone)  # no imported manager links in this directory
+        self.assertEqual(self.users('managers=boss@example.test'), set())
+        page = self.client.get('/api/access/users?limit=1&offset=0&functional_groups=unassigned', headers=self.base.H).json()
+        self.assertEqual((page['total'], len(page['items'])), (len(everyone) - 1, 1))  # totals follow the filter, not the page
+
+    def test_options_and_sod_username_expansion(self):
+        import cache
+        import organization
+        from routers.employees import available
+        gid = self.call('POST', '', json=dict(name='Finance')).json()['id']
+        empty = self.call('POST', '', json=dict(name='Empty')).json()['id']
+        self.call('PUT', '/users/DEMO_NORMAL', json=dict(group_id=gid, reviewer='Rev', rationale='', expected_revision=0))
+        options = self.call('GET', '/options').json()
+        counts = {o['value']: o['count'] for o in options['functional_groups']}
+        self.assertEqual((counts[gid], counts[empty], counts['unassigned']), (1, 0, len(self.users('')) - 1))
+        state = cache.get_snapshot()
+        expand = lambda names, groups: organization.expand_usernames(state, available(state), names, groups, [])
+        self.assertEqual(expand([], [gid]), ['DEMO_NORMAL'])
+        self.assertEqual(expand(['demo_normal', 'DEMO_OPEN'], [gid]), ['DEMO_NORMAL'])  # intersects the explicit user list, case-insensitively
+        self.assertEqual(expand(['DEMO_OPEN'], [gid]), [organization.NO_USER])  # nothing selected still filters everything out
+        self.assertEqual(expand(['DEMO_OPEN'], []), ['DEMO_OPEN'])  # no organizational filter: unchanged
+
     def test_rules_over_http(self):
         gid = self.call('POST', '', json=dict(name='Finance')).json()['id']
         rule = self.call('POST', '/rules', json=dict(group_id=gid, department='Finance')).json()

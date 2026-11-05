@@ -1,3 +1,4 @@
+import { OrganizationFilter } from '@/components/Shared/OrganizationFilter'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { keepPreviousData, useQuery, type QueryClient } from '@tanstack/react-query'
 import { AlertTriangle, CheckCircle2, FilterX, CircleDot, History, Lock, RefreshCw, Search, ShieldCheck, ShieldX, Trash2, Clock3 } from 'lucide-react'
@@ -67,8 +68,9 @@ export function useSodSubject(): [SodSubject | null, (value: SodSubject | null) 
 export const SHARED_DIMENSIONS: Partial<Record<FilterField, [string, string, ...string[]]>> = {
   group: ['group', 'groups'], username: ['username', 'usernames'], risk: ['risk', 'risks'], activity: ['activity', 'activities'],
   tcode: ['tcode', 'tcodes'], category: ['category', 'categories'], role: ['role', 'roles','role_families','role_exact'],
+  functional_group: ['functional_group', 'functional_groups'], manager: ['manager', 'managers'],
 }
-const SCOPE_FIELDS: FilterField[] = ['group', 'username', 'risk', 'activity', 'role', 'tcode', 'category']
+const SCOPE_FIELDS: FilterField[] = ['group', 'functional_group', 'manager', 'username', 'risk', 'activity', 'role', 'tcode', 'category']
 /** Which shared dimensions each page applies. Role conflicts filter catalogue roles, so assigned-role, user and activity selections do not apply there. */
 export const PAGE_FIELDS: Record<string, FilterField[]> = {
   riskMatrix: SCOPE_FIELDS, activityMatrix: SCOPE_FIELDS, explorer: SCOPE_FIELDS, queue: SCOPE_FIELDS, remediation: SCOPE_FIELDS, roles: ['risk', 'tcode', 'category'],
@@ -167,7 +169,7 @@ const DECISION_OPTIONS: Record<string, string[]> = {
 }
 
 export type FilterField = 'group' | 'risk' | 'activity' | 'username' | 'role' | 'role_suffix' | 'tcode' | 'category' | 'criticality' | 'validity' | 'activity_decision' | 'assignment_decision' | 'acceptance'
-  | 'risk_type' | 'composite_role' | 'single_role' | 'account_status' | 'review_status' | 'multiple_risks'
+  | 'risk_type' | 'composite_role' | 'single_role' | 'account_status' | 'review_status' | 'multiple_risks' | 'functional_group' | 'manager'
 const FIELD_LABELS: Record<string, [string, number]> = {
   group: ['SAP User Group', 256], risk: ['Risk ID', 512], activity: ['Activity', 512], username: ['SAP username', 512], role: ['Assigned role', 512], role_suffix: ['Role suffix', 128],
   tcode: ['Transaction code', 256], category: ['Business area', 120], criticality: ['Source criticality', 64], risk_type: ['Risk type', 64],
@@ -240,7 +242,7 @@ export function SodFilters({ view, filters, setFilters, fields, sorts, actions, 
     setFilters(next)
   }
   const list = (name: string) => (Array.isArray(filters[name]) ? (filters[name] as string[]) : [])
-  const MULTI: Record<string, string> = { username: 'usernames', role_suffix: 'role_suffixes', risk: 'risks', activity: 'activities', group: 'groups', role: 'roles', tcode: 'tcodes', category: 'categories', criticality: 'criticalities' }
+  const MULTI: Record<string, string> = { functional_group: 'functional_groups', manager: 'managers', username: 'usernames', role_suffix: 'role_suffixes', risk: 'risks', activity: 'activities', group: 'groups', role: 'roles', tcode: 'tcodes', category: 'categories', criticality: 'criticalities' }
   const isDefault = (name: string) => text(name) === (typeof defaults[name] === 'string' ? (defaults[name] as string) : '') && (!MULTI[name] || !list(MULTI[name]).length) && (name!=='role'||!list('role_families').length&&!list('role_exact').length)
   const active = [...shown].filter((name) => !isDefault(name)).length + (text('search') ? 1 : 0)
   const field = (name: FilterField) => {
@@ -294,6 +296,7 @@ export function SodFilters({ view, filters, setFilters, fields, sorts, actions, 
         </Select>
       </FormField>
     )
+    if (name === 'functional_group' || name === 'manager') return <FormField key={name} label={name === 'manager' ? 'Manager' : 'Functional Group'}><OrganizationFilter kind={name} values={list(MULTI[name])} onChange={values => setFilters({ ...filters, [MULTI[name]]: values })} /></FormField>
     const [label, max] = FIELD_LABELS[name]
     if (MULTI[name]) return <MultiOptionField key={name} field={name} listName={MULTI[name]} label={label} values={name==='role'?[...new Set([...list('roles'),...list('role_families'),...list('role_exact')])]:list(MULTI[name])} onChange={(values,families=[]) => {
       if(name!=='role')return setFilters({...filters,[name]:'',[MULTI[name]]:values})

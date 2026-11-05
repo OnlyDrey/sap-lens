@@ -36,6 +36,7 @@ def analysis_query(kind: Literal['users', 'roles'] = 'users',
                    usernames: list[str] = Query(default=[], max_length=100), risks: list[str] = Query(default=[], max_length=100),
                    criticalities: list[str] = Query(default=[], max_length=50), categories: list[str] = Query(default=[], max_length=50),
                    groups: list[str] = Query(default=[], max_length=100), tcodes: list[str] = Query(default=[], max_length=100),
+                   functional_groups: list[str] = Query(default=[], max_length=50), managers: list[str] = Query(default=[], max_length=50),
                    sort: Literal['subject', 'risk_id', 'criticality', 'evidence_count'] = 'subject',
                    descending: bool = False):
     if any(not name or len(name) > 512 for name in selected_roles):
@@ -43,8 +44,19 @@ def analysis_query(kind: Literal['users', 'roles'] = 'users',
     return dict(kind=kind, validity=validity, as_of=as_of or date.today(), selected_roles=sorted(set(selected_roles)),
                 search=search, risk=risk, criticality=criticality, risk_type=risk_type, category=category,
                 username=username, group=group, composite_role=composite_role, single_role=single_role,
-                tcode=tcode, account_status=account_status, usernames=list(usernames), risks=list(risks), criticalities=list(criticalities),
+                tcode=tcode, account_status=account_status, usernames=organizational_usernames(list(usernames), functional_groups, managers, validity, as_of or date.today()), risks=list(risks), criticalities=list(criticalities),
                 categories=list(categories), groups=list(groups), tcodes=list(tcodes), sort=sort, descending=descending)
+
+
+def organizational_usernames(usernames, functional_groups, managers, validity, as_of):
+    if not functional_groups and not managers:
+        return usernames
+    import organization
+    import sod_scope
+    from .employees import available
+    state = cache.get_snapshot()
+    universe = list(sod_scope.model_for(sod_scope.load('current', validity, as_of)))
+    return organization.expand_usernames(state, available(state), usernames, functional_groups, managers, universe)
 
 
 def context_key(snapshot, settings, saved, query):

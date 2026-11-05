@@ -37,6 +37,8 @@ export interface UserRow {
   account_status: string;
   lock_status: string;
   relevant_roles: number;
+  functional_group?: { id: string; name: string; status: string } | null;
+  classification_status?: 'Unassigned' | 'Confirmed' | 'Needs review';
 }
 export interface UserDetail extends UserRow {
   data_revision: string;

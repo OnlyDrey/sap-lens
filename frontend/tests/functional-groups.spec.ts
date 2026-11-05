@@ -135,3 +135,18 @@ test('Account Review filters by Functional Group and Manager', async ({ page, re
   await page.getByRole('option', { name: 'Unassigned', exact: true }).click()
   await expect(page.getByRole('row').filter({ hasText: 'DEMO_FG' })).toHaveCount(0)
 })
+
+test('User Access filters users by Functional Group on the server and shows the column', async ({ page, request }) => {
+  const name = `Access ${unique}`
+  const group = (await (await request.post('/api/functional-groups', { headers, data: { name, description: '' } })).json()).id
+  expect((await classify(request, group)).ok()).toBeTruthy()
+  await page.goto(sessionUrl)
+  await page.goto('/#/user-access')
+  await expect(page.getByRole('columnheader', { name: 'Functional Group', exact: true })).toBeVisible()
+  await page.getByRole('combobox', { name: 'Functional Group', exact: true }).fill(name)
+  await page.getByRole('option', { name: new RegExp(`^${name}`) }).click()
+  await expect(page.getByRole('row').filter({ hasText: 'DEMO_FG' })).toContainText(name)
+  await expect(page.getByRole('button', { name: `Remove Functional Group filter ${name}` })).toBeVisible()
+  await page.getByRole('button', { name: `Remove Functional Group filter ${name}` }).click()
+  await expect(page.getByRole('button', { name: `Remove Functional Group filter ${name}` })).toHaveCount(0)
+})

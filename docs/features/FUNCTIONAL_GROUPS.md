@@ -83,3 +83,15 @@ There is no second queue. Functional Group review extends the existing Account R
   revision is rejected with HTTP 409.
 - **History:** classification events live in the Functional Group history (User Details and API `history/{username}`); SAP role decisions stay in
   the existing Account Review history.
+
+## Filters in User Access and SoD
+
+Functional Group and Manager filters (multi-select, server-side, so pagination and totals stay correct) are available in Account Review, User Access
+and the SoD views that filter users (matrices, explorer, work queue, remediation). Group values are group ids or `unassigned`; manager values are the
+imported manager mail or `none` (unmatched user or unknown manager). OR applies within a filter and AND with every other filter. `GET
+/api/functional-groups/options` lists the choices with SAP user counts. User Access adds a compact *Functional Group* column.
+
+In SoD the selection is translated into the existing username filter, so it only scopes what is shown and exported: conflict evaluation, risk and
+activity definitions, decisions and approval gates are untouched. SoD subjects without a User Access record count as Unassigned (manager `none`)
+unless classified. Frozen review periods are filtered by the current classification. The simplified Remediation CSV keeps its four-column contract;
+adding Functional Group to an export would be a separate, optional enhancement.

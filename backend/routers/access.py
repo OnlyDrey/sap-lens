@@ -8,6 +8,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, Query, Depends
 from assignment_filters import assignment_dates, within_dates
 import cache
+import organization
 from role_matching import normalize_role
 from transaction_filters import normalized_tcodes, matching_role_names, matching_codes, legacy_groups
 from user_access import (
@@ -119,6 +120,8 @@ def directory_filters(
     role: str = Query("", max_length=512),
     groups: list[str] = Query(default=[], max_length=50, description="SAP User Groups; OR within the list, combined with every other filter by AND"),
     roles: list[str] = Query(default=[], max_length=50, description="Assigned roles; OR within the list, combined with every other filter by AND"),
+    functional_groups: list[str] = Query(default=[], max_length=50, description="Functional Group ids or 'unassigned'; OR within the list"),
+    managers: list[str] = Query(default=[], max_length=50, description="Imported manager mails or 'none'; OR within the list"),
     tcode: str = Query("", max_length=128),
     tcodes: list[str] = Query(default=[], max_length=21),
     transaction_mode: Literal["and", "or"] = "and",
@@ -141,7 +144,7 @@ def directory_filters(
     ] = "username",
     descending: bool = False,
 ):
-    return dict(assignment_band=assignment_band,search=search,group=group,role=role,groups=tuple(groups),roles=tuple(roles),tcode=tcode,tcodes=tcodes,transaction_mode=transaction_mode,status=status,show_expired=show_expired,exclude_transactions=exclude_transactions,exclude_tcodes=exclude_tcodes,exclude_mode=exclude_mode,missing_roles=missing_roles,missing_mode=missing_mode,sort=sort,descending=descending)
+    return dict(assignment_band=assignment_band,search=search,group=group,role=role,groups=tuple(groups),roles=tuple(roles),tcode=tcode,tcodes=tcodes,transaction_mode=transaction_mode,status=status,show_expired=show_expired,exclude_transactions=exclude_transactions,exclude_tcodes=exclude_tcodes,exclude_mode=exclude_mode,missing_roles=missing_roles,missing_mode=missing_mode,functional_groups=tuple(functional_groups),managers=tuple(managers),sort=sort,descending=descending)
 
 
 def missing_users(snapshot, roles, mode, group, status, show_expired, today):
@@ -168,7 +171,7 @@ def missing_users(snapshot, roles, mode, group, status, show_expired, today):
     return found
 
 
-def directory_selection(snapshot, *, search,group,role,tcode,groups=(),roles=(),tcodes,transaction_mode,status,show_expired,sort,descending,today=None,assignment_band="",exclude_transactions=False,exclude_tcodes=(),exclude_mode="any",missing_roles=(),missing_mode="any"):
+def directory_selection(snapshot, *, search,group,role,tcode,groups=(),roles=(),tcodes,transaction_mode,status,show_expired,sort,descending,today=None,assignment_band="",exclude_transactions=False,exclude_tcodes=(),exclude_mode="any",missing_roles=(),missing_mode="any",functional_groups=(),managers=()):
     state = snapshot.users
     wanted_codes = normalized_tcodes([tcode] + tcodes if tcode else tcodes)
     include, include_mode, excluded, excluded_mode = legacy_groups(wanted_codes, transaction_mode, exclude_transactions)
@@ -210,7 +213,11 @@ def directory_selection(snapshot, *, search,group,role,tcode,groups=(),roles=(),
     missing = missing_users(snapshot, missing_roles, missing_mode, group_set, status, show_expired, today) if missing_roles else None
     result = []
     term = search.strip()
+    from .employees import available
+    organization_keep = organization.selection(snapshot, available(snapshot), functional_groups, managers)
     for key, user in state.users.items():
+        if organization_keep and not organization_keep(user):
+            continue
         if missing is not None:
             if key not in missing or (role_list and key not in evidence):
                 continue
@@ -246,7 +253,7 @@ def users(filters:dict=Depends(directory_filters),anchor:str=Query('',max_length
     snapshot=cache.get_snapshot();today=date.today()
     result,evidence=directory_selection(snapshot,**filters,today=today)
     if anchor:return dict(**page(result,offset,limit),navigation=record_navigation(result,anchor,'username',normalize_username))
-    return dict(**page(result,offset,limit),**source_info(snapshot,today),groups=snapshot.users.groups,groups_total=snapshot.users.group_count,
+    return dict(**organization.annotate(page(result,offset,limit)),**source_info(snapshot,today),groups=snapshot.users.groups,groups_total=snapshot.users.group_count,
                 export_assignments=sum(len(audit_assignments(snapshot,u['user_key'],filters,today)) for u in result))
 
 

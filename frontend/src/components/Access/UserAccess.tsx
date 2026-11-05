@@ -28,6 +28,8 @@ import { useHistoryValue, useViewHistory, userAccessHref } from '@/hooks/useView
 import { useRecordNavigation, type RecordNavigationState } from "@/hooks/useRecordNavigation";
 import { DetailNavigation, LockStatus, AssignmentStatus } from "@/components/Shared/InvestigationNavigation";
 import { MultiSelectFilter } from '@/components/Shared/MultiSelectFilter';
+import { ClassificationPill } from './FunctionalGroupPanel';
+import { OrganizationFilter, useOrganizationLabel } from '@/components/Shared/OrganizationFilter';
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -82,7 +84,10 @@ export function UserAccess({
   const [search, setSearch] = useState(""),
     [sort, setSort] = useState("username"),
     [descending, setDescending] = useState(false);
+  const organizationLabel = useOrganizationLabel()
   const [groups, setGroups] = useState<string[]>([]),
+    [functionalGroups, setFunctionalGroups] = useState<string[]>([]),
+    [managers, setManagers] = useState<string[]>([]),
     [offset, setOffset] = useState(0),
     [selected, setSelected] = useHistoryValue('user');
   const { change: changeView } = useViewHistory();
@@ -100,7 +105,7 @@ export function UserAccess({
   const excludeTransaction = useTransactionFilter()
   const [excludeMode,setExcludeMode] = useState<'any'|'all'>('any')
   const transactionGroups = { include: directoryTransaction, includeMode: transactionMode, setIncludeMode: setTransactionMode, exclude: excludeTransaction, excludeMode, setExcludeMode }
-  const activeFilterCount = [groups.length, roles.length, expired, assignmentBand, missingRoles.length, directoryTransaction.codes.length, excludeTransaction.codes.length].filter(Boolean).length
+  const activeFilterCount = [groups.length, functionalGroups.length, managers.length, roles.length, expired, assignmentBand, missingRoles.length, directoryTransaction.codes.length, excludeTransaction.codes.length].filter(Boolean).length
   useEffect(()=>{ directoryTransaction.setChips(initialTcode ? [initialTcode.trim().toUpperCase()] : []) },[initialTcode])
   useEffect(()=>{ if (!directoryTransaction.codes.length) setTransactionMode('and') },[directoryTransaction.key])
   const clearEvidence = () => {setRoles([]); directoryTransaction.clear(); setTransactionMode('and'); excludeTransaction.clear(); setExcludeMode('any'); setMissingRoles([]); setMissingMode('any')}
@@ -111,14 +116,16 @@ export function UserAccess({
   }, [search]);
   useEffect(() => {
     setOffset(0);
-  }, [term, groups, sort, descending, roles, directoryTransaction.deferredKey, transactionMode, excludeTransaction.deferredKey, excludeMode, missingRoles, missingMode, expired, assignmentBand]);
-  const filters = { assignment_band:assignmentBand, search: term, groups, sort, descending, roles, tcodes: directoryTransaction.deferredCodes, transaction_mode: transactionMode, exclude_tcodes: excludeTransaction.deferredCodes, exclude_mode: excludeMode, missing_roles: missingRoles, missing_mode: missingMode, show_expired: expired };
+  }, [term, groups, sort, descending, roles, directoryTransaction.deferredKey, transactionMode, excludeTransaction.deferredKey, excludeMode, missingRoles, missingMode, expired, assignmentBand, functionalGroups, managers]);
+  const filters = { assignment_band:assignmentBand, search: term, groups, functional_groups: functionalGroups, managers, sort, descending, roles, tcodes: directoryTransaction.deferredCodes, transaction_mode: transactionMode, exclude_tcodes: excludeTransaction.deferredCodes, exclude_mode: excludeMode, missing_roles: missingRoles, missing_mode: missingMode, show_expired: expired };
   const navigation = useRecordNavigation('users', filters, selected, setSelected);
   const result = useQuery({
     queryKey: [
       "access-users", assignmentBand,
       term,
       groups,
+      functionalGroups,
+      managers,
       sort,
       descending,
       roles,
@@ -168,8 +175,8 @@ export function UserAccess({
         navigation={navigation}
       />
     );
-  const clearAll=()=>{setAssignmentBand('');setSearch('');setGroups([]);setSort('username');setDescending(false);setRoles([]);directoryTransaction.clear();setTransactionMode('and');excludeTransaction.clear();setExcludeMode('any');setExpired(false);setTerm('');setMissingRoles([]);setMissingMode('any');clearEvidence()}
-  const clearDisabled=!activeFilterCount&&!search&&!roles.length&&!groups.length&&!expired&&!missingRoles.length&&sort==='username'&&!descending
+  const clearAll=()=>{setAssignmentBand('');setSearch('');setGroups([]);setFunctionalGroups([]);setManagers([]);setSort('username');setDescending(false);setRoles([]);directoryTransaction.clear();setTransactionMode('and');excludeTransaction.clear();setExcludeMode('any');setExpired(false);setTerm('');setMissingRoles([]);setMissingMode('any');clearEvidence()}
+  const clearDisabled=!activeFilterCount&&!search&&!roles.length&&!groups.length&&!functionalGroups.length&&!managers.length&&!expired&&!missingRoles.length&&sort==='username'&&!descending
   return (
     <section aria-label="User Access" className="space-y-4">
       {modeButtons}<PageHeader title="User Access" icon={<PageIcon size={22} aria-hidden="true"/>}/>
@@ -187,6 +194,8 @@ export function UserAccess({
         <Filter label="SAP User Group">
           <MultiSelectFilter label="SAP User Group" values={groups} options={result.data?.groups || []} onChange={setGroups} placeholder="All groups · type to search"/>
         </Filter>
+        <Filter label="Functional Group"><OrganizationFilter kind="functional_group" values={functionalGroups} onChange={setFunctionalGroups}/></Filter>
+        <Filter label="Manager"><OrganizationFilter kind="manager" values={managers} onChange={setManagers}/></Filter>
         <Filter label="Filter users by role">
           <MultiSelectFilter label="Filter users by role" values={roles} options={(roleOptions.data || []).slice(0,100).map(item=>item.agr_name)} onChange={setRoles} onSearch={setRoleSearch} loading={roleOptions.isFetching} hasMore={(roleOptions.data?.length||0)>100} optionLabel={value=>{const item=roleOptions.data?.find(item=>item.agr_name===value);return item?.text ? `${value} · ${item.text}` : value}} placeholder="Role name or description" scope="in the role catalogue"/>
         </Filter>
@@ -228,10 +237,12 @@ export function UserAccess({
             placeholder="Username, name, email or group"
           />
         </Filter>
-      {(assignmentBand || roles.length > 0 || groups.length > 0 || search || expired) && <div className="active-filter-row" aria-label="Active user filters">
+      {(assignmentBand || roles.length > 0 || groups.length > 0 || functionalGroups.length > 0 || managers.length > 0 || search || expired) && <div className="active-filter-row" aria-label="Active user filters">
         {assignmentBand&&<FilterChip removeLabel="Remove assignment count filter" onRemove={()=>setAssignmentBand('')}>{assignmentBand} currently valid roles</FilterChip>}
         {expired && <FilterChip removeLabel="Remove expired assignment filter" onRemove={()=>setExpired(false)}>Include Expired Assignments</FilterChip>}
         {roles.map(name => <FilterChip key={`role-${name}`} removeLabel={`Remove role filter ${name}`} onRemove={()=>setRoles(roles.filter(value=>value!==name))}>Role: {name}</FilterChip>)}
+        {functionalGroups.map(value => <FilterChip key={`fg-${value}`} removeLabel={`Remove Functional Group filter ${organizationLabel('functional_group', value)}`} onRemove={()=>setFunctionalGroups(functionalGroups.filter(item=>item!==value))}>Functional Group: {organizationLabel('functional_group', value)}</FilterChip>)}
+        {managers.map(value => <FilterChip key={`mgr-${value}`} removeLabel={`Remove Manager filter ${organizationLabel('manager', value)}`} onRemove={()=>setManagers(managers.filter(item=>item!==value))}>Manager: {organizationLabel('manager', value)}</FilterChip>)}
         {groups.map(name => <FilterChip key={`group-${name}`} removeLabel={`Remove user group filter ${name}`} onRemove={()=>setGroups(groups.filter(value=>value!==name))}>User group: {name}</FilterChip>)}
         {search && <FilterChip removeLabel="Remove user search filter" onRemove={()=>{setSearch('');setTerm('')}}>Search: {search}</FilterChip>}
       </div>}
@@ -258,6 +269,7 @@ export function UserAccess({
                 <tr>
                   {[
                     "User group",
+                    "Functional Group",
                     "Username",
                     "First name",
                     "Last name",
@@ -278,6 +290,7 @@ export function UserAccess({
                         .map((group) => group || "Unknown group")
                         .join(", ") || "Unknown"}
                     </td>
+                    <td>{user.functional_group?.name ?? <span className="text-muted">Unassigned</span>}{user.classification_status === "Needs review" && <> <ClassificationPill status="Needs review"/></>}</td>
                     <td>
                       <SAPUserLink username={user.username} copyLabel="username" onOpen={()=>openUser(user.username)} openLabel={user.username}/>
                     </td>
