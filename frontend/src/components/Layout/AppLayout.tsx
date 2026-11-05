@@ -5,14 +5,14 @@ import { RefreshBanner } from '@/components/Shared/RefreshReport'
 import { useApplicationData } from '@/state/ApplicationData'
 import { Notification } from '@/components/Shared/Notification'
 import { useHistoryValue } from '@/hooks/useViewHistory'
-import { type ReactNode, useState, useRef } from 'react'
+import { type ReactNode, lazy, Suspense, useEffect, useState, useRef } from 'react'
 import { RefreshCw, Sun, Moon, Settings, Loader2, Database } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { apiRequest, ApiError, recoverTrustedSession } from '@/api/client'
 import { useSession } from '@/api/session'
 import { SessionNotice } from './SessionNotice'
 import { fetchConfiguration } from '@/api/configuration'
-import { SettingsView } from '@/components/Settings/SettingsView'
+const SettingsView = lazy(() => import('@/components/Settings/SettingsView').then((module) => ({ default: module.SettingsView })))
 
 interface Props {
   navigation: ReactNode
@@ -50,6 +50,9 @@ export function AppLayout({
   })
   const [savedFeedback, setSavedFeedback] = useState(false)
   const [settingsOpen, setSettingsOpen] = useHistoryValue('settings')
+  // Settings is large but must exist early (it opens itself on first launch and listens for the native bridge). It loads as its own chunk right after the first render instead of inside the entry bundle, and then stays mounted so drafts survive.
+  const [settingsMounted, setSettingsMounted] = useState(false)
+  useEffect(() => { setSettingsMounted(true) }, [])
   const [dataSourceRequest, setDataSourceRequest] = useState(0)
   const reviewDataSource = () => {
     setDataSourceRequest((request) => request + 1)
@@ -136,6 +139,7 @@ export function AppLayout({
         {err && <Notification variant="error" onDismiss={()=>setErr(null)}>{err}</Notification>}
       </header>
 
+      {(settingsOpen || settingsMounted) && <Suspense fallback={null}>
       <SettingsView
         applicationFooter={<ApplicationFooter version={application?.version} mode={application?.mode} note={organization?.footer}/>}
         open={settingsOpen}
@@ -150,6 +154,7 @@ export function AppLayout({
         onSaved={() => setSavedFeedback(true)}
         onDataChanged={onDataChanged}
       />
+      </Suspense>}
       {configuration?.error && !configuration.loading && !settingsOpen && (
         <div className="w-full max-w-screen-2xl mx-auto px-4 sm:px-6 mt-4">
         <div

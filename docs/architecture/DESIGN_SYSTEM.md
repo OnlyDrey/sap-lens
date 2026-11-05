@@ -45,6 +45,10 @@ Date entry remains `NorwegianDateInput`, with Norwegian labels, Monday-first flo
 
 `StatusBadge` owns generic tone presentation. `AccountStatus`, `AssignmentStatus`, `StatusPill` and `SourceBadge` keep their domain-specific labels and rules. Lock indicators preserve their established neutral unlocked/unknown and red locked appearance. AD status is not SAP validity. Loading, empty, notification and evidence-disclosure components use semantic text and icons.
 
+## Error presentation
+
+Connection and session problems are reported once, at application level, by `SessionNotice`; views whose data cannot load show the compact `session-empty` state from `QueryState` or `ErrorState` and never repeat the message or its actions. Other request errors stay local to the view that issued them.
+
 ## Choosing the right summary component
 
 | Need | Use |

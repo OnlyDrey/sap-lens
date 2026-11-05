@@ -347,3 +347,7 @@ content is keyed by context and user to isolate queries, forms, selections and
 pending callbacks. Decision changes do not refetch source-only eligibility;
 source publication does invalidate it. An open decision form protects user
 switching with explicit discard confirmation.
+
+## Session notice and bundle layout
+
+`Layout/SessionNotice` is the only component that renders session or connection state (see [session lifecycle](DESKTOP.md#session-lifecycle-and-recovery-states)). Settings and the SoD workspace and investigation panel are loaded on first use (`lazy` with `Suspense`; Settings then stays mounted so its drafts survive). Measured on the production build: largest chunk 909.5 kB to 361.6 kB, initial JavaScript 926.7 kB to 600.5 kB (gzip 261 kB to 192 kB), at the cost of about 58 more small shared chunks (hoisted lucide icons). Further splitting needs new evidence; do not raise `chunkSizeWarningLimit` or add manual chunks to hide the warning.

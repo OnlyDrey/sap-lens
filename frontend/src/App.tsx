@@ -1,13 +1,12 @@
-import {SodInvestigation} from '@/components/Sod/SodInvestigation'
 import {useSodSubject,useSodContext} from '@/components/Sod/SodShared'
-import {SodWorkspace} from '@/components/Sod/SodWorkspace'
 import {applicationToken} from '@/api/client'
 import { MainNavigation, MainNavigationGroup, MainNavigationItem } from '@/components/Shared/Navigation'
 import { SOD_VIEWS, USER_ACCESS_VIEWS } from '@/lib/navigationItems'
 import { pageHref, sodHref, useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
 import { userAccessHref } from '@/hooks/useViewHistory'
 import { DISCARD_PROMPT, settingsDirty } from '@/lib/settingsGuard'
-import { useState, useCallback, useRef, useLayoutEffect, useEffect } from 'react'
+import { lazy, Suspense, useState, useCallback, useRef, useLayoutEffect, useEffect } from 'react'
+import { LoadingState } from '@/components/Shared/Presentation'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import { RoleList } from '@/components/RoleList/RoleList'
 import { RoleDetailPanel } from '@/components/RoleDetail/RoleDetailPanel'
@@ -20,6 +19,10 @@ import { Dashboard } from '@/components/Dashboard'
 import { useTheme } from '@/hooks/useTheme'
 import { useQuery } from '@tanstack/react-query'
 import { fetchConfiguration } from '@/api/configuration'
+
+// SoD is a large, occasionally visited area: it loads on first use instead of with the application shell.
+const SodWorkspace = lazy(() => import('@/components/Sod/SodWorkspace').then((module) => ({ default: module.SodWorkspace })))
+const SodInvestigation = lazy(() => import('@/components/Sod/SodInvestigation').then((module) => ({ default: module.SodInvestigation })))
 
 export function App() {
   const { isDark, toggle } = useTheme()
@@ -96,7 +99,7 @@ export function App() {
       isDark={isDark}
       onToggleTheme={toggle}>
       {page === 'dashboard' && <Dashboard/>}
-      {page === 'sod' && <SodWorkspace/>}
+      {page === 'sod' && <Suspense fallback={<LoadingState/>}><SodWorkspace/></Suspense>}
       {visited.has('roles') && <div className={page==='roles'?'':'hidden'}>
       {showComparison
         ? <ComparisonView roleNames={selectedRoles} onBack={() => setShowComparison(false)} />
@@ -112,7 +115,7 @@ export function App() {
       </div>}
       {visited.has('users') && <div hidden={page!=='users'}><MappingAvailability><UserAccess key={`${JSON.stringify(userContext)}:${kpiNavigation?.users || 0}`} initialUser={selectedUser} initialRole={userContext.role} initialTcode={userContext.tcode} onRole={setDetailRole} onRelease={investigateRelease}/></MappingAvailability></div>}
       {visited.has('releases') && <div hidden={page!=='releases'}><MappingAvailability><ReleaseRoles key={`${releaseContext}:${kpiNavigation?.releases || 0}`} initialRole={releaseDrill?.role || ''} onUser={user=>investigateUsers({user})}/></MappingAvailability></div>}
-      {sodEnabled&&subject&&!detailRole&&!settingsOpen&&<SodInvestigation context={sodContext} user={subject.user} risk={subject.risk} activity={subject.activity} onClose={()=>setSubject(null)} onScope={setSubject}/>}
+      {sodEnabled&&subject&&!detailRole&&!settingsOpen&&<Suspense fallback={null}><SodInvestigation context={sodContext} user={subject.user} risk={subject.risk} activity={subject.activity} onClose={()=>setSubject(null)} onScope={setSubject}/></Suspense>}
       <RoleDetailPanel navigation={page === 'roles' && detailRole ? catalogueNavigation : undefined} parent={page === 'sod' ? 'SoD' : page === 'users' ? 'User Access' : page === 'releases' ? 'Release Roles' : 'Role Lookup'} roleName={detailRole} onClose={() => setDetailRole(null)} onUsers={role=>investigateUsers({role})} onTcodeUsers={tcode=>investigateUsers({tcode})}/>
     </AppLayout>
   )

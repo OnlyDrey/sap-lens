@@ -32,6 +32,10 @@ If a problem persists, export the sanitized report from **Settings → Health & 
 | "Origin is not allowed." / "Desktop access requires its exact loopback listener." (403) | The page was opened from another origin or host than the configured one. | Open SAP Lens through the configured public origin and an allowed host. |
 | "Application request is not authorized." (403) | An API address was opened directly without the application session. | Open the application itself; API addresses are not meant for direct browsing. |
 
+## Session disconnected
+
+**Session disconnected** means this window holds a local session from an earlier start of SAP Lens (for example after a restart while the window stayed open). Choose **Reconnect session**; your view and filters are kept. If you typed into a form, SAP Lens asks before reloading because that text is lost. **Connection lost** means the local service is not answering: wait a moment and choose **Retry connection**. If the notice returns after a normal start, close other SAP Lens windows, restart SAP Lens and open **Technical details** for the state and category. Nothing is saved or resubmitted automatically.
+
 ## Recovery
 
 Backups and restores are documented per deployment: [Windows desktop](../deployment/WINDOWS_DESKTOP.md#data-and-upgrades),

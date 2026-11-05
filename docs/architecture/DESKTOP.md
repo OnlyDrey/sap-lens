@@ -307,13 +307,33 @@ machine, including recovery and explicit tray exit, remain required. Retain the
 new attempt diagnostics if the failure recurs. Vite timing findings remain
 separate from this runtime validation.
 
+## Session lifecycle and recovery states
+
+One shared state (`frontend/src/lib/sessionState.ts`, written only by the API client, read through `useSession`) tracks the local session:
+`connecting` (before the first answer), `connected`, `disconnected` (the service is unreachable; reads retry with the existing bounded
+query retries and the notice offers **Retry connection**), `manual` (the backend rejected the capability as `stale_session`),
+`reconnecting` and `failed`. A stale session is never cleared by a later success: only an explicit **Reconnect session** (a reload
+through the guarded root document) leaves `manual`. While the session is `manual`, `reconnecting` or `failed`, the client refuses
+every `/api` request locally, so a stale page cannot produce a request storm and no write is sent, queued or replayed.
+
+Presentation: one compact `SessionNotice` at application level (title, one sentence, the action that works for the state,
+expandable **Technical details** with state, category, failure count and time; never the capability). Pages show a compact
+contextual empty state ("Unable to load user details") through `QueryState` and `ErrorState` and do not repeat the message,
+the record-navigation note or the reconnect action. If open dialogs or forms hold typed text, Reconnect first asks for
+confirmation because the reload discards it; nothing is saved or resubmitted automatically, and stale-revision checks are unchanged.
+
+Cause: a desktop launch generates one capability per process and hands it over only through the guarded root document, so the warning
+can only appear when a page holds a capability that does not match the running backend (an old window or tab after a restart, or a
+second instance). A normal launch must not show it; if it does, record the Technical details and the startup log (Settings → Health &
+Diagnostics) and report them.
+
 ## Open browser tabs after a restart
 
 The API capability is per launch; an old tab retains its previous capability until
 it navigates through the trusted root document. A rejected desktop capability now
 returns a safe `stale_session` classification, distinct from unreachable service,
 server sign-in (401), and permission/origin failures (403). The shared notice offers
-**Reload trusted session** rather than claiming the backend is unavailable.
+**Reconnect session** rather than claiming the backend is unavailable.
 
 Recovery is explicit: it reloads the same configured origin's root, retaining the
 hash route and existing safe view/filter history. It never fetches a capability
