@@ -11,7 +11,7 @@ from pathlib import Path
 
 #: First pip release that verifies TLS against the system trust store by default (Python 3.10 and later).
 MINIMUM_PIP = (24, 2)
-TLS_FAILURE = re.compile(r'CERTIFICATE_VERIFY_FAILED|SSLError|certificate verify failed', re.I)
+TLS_FAILURE = re.compile(r'CERTIFICATE_VERIFY_FAILED|SSLCertVerificationError|SSLError|certificate verify failed|unable to get local issuer certificate', re.I)
 
 
 def parse_pip_version(text):

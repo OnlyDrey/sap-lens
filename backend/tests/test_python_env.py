@@ -40,6 +40,12 @@ class PipVersionTests(unittest.TestCase):
 
 
 class EnsurePipTests(unittest.TestCase):
+    def test_every_known_certificate_failure_wording_is_recognized(self):
+        for text in (TLS, 'pip._vendor.urllib3.exceptions.SSLError', "ssl.SSLCertVerificationError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate",
+                     'SSLCertVerificationError: unable to get local issuer certificate'):
+            self.assertTrue(env.TLS_FAILURE.search(text), text)
+        self.assertFalse(env.TLS_FAILURE.search('Connection refused'))
+
     def test_a_current_pip_changes_nothing_and_repeats_cleanly(self):
         run = Recorder([])
         with with_versions((26, 2)):
