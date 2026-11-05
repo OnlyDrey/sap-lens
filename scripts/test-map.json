@@ -101,6 +101,7 @@
     "test_source_refresh",
     "test_staging_ownership",
     "test_data_retention",
+    "test_review_retention",
     "test_storage_migration",
     "test_application",
     "test_auto_import",

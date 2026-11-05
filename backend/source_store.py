@@ -118,6 +118,9 @@ def activate(source, snapshot, scope=''):
             raise StoreUnavailable('No staged revision for this snapshot.')
         if target[1] == 'active':
             return target[0]
+        connection.execute('INSERT OR IGNORE INTO retired_snapshots (snapshot, source, superseded_at) SELECT snapshot, source, ? FROM source_revisions WHERE source=? AND scope=? AND status=\'active\'',
+                           (store_db.now(), source, scope))
+        connection.execute('DELETE FROM retired_snapshots WHERE snapshot=?', (snapshot,))     # reactivated: not superseded any more
         connection.execute('UPDATE source_revisions SET status=\'superseded\' WHERE source=? AND scope=? AND status=\'active\'', (source, scope))
         sequence = connection.execute('SELECT COALESCE(MAX(sequence),0) FROM source_revisions WHERE source=? AND scope=?', (source, scope)).fetchone()[0] + 1
         connection.execute('UPDATE source_revisions SET status=\'active\', activated=?, sequence=?, owner=\'\' WHERE id=?', (store_db.now(), sequence, target[0]))
@@ -362,3 +365,26 @@ def drop_missing(exists):
             return len(gone)
     except (StoreUnavailable, sqlite3.Error):
         return 0
+
+
+def retired_at(snapshot):
+    """ISO time when this snapshot stopped being the active revision of its source, or None when that was never recorded (older installations)."""
+    try:
+        connection = store_db.connect(create=False)
+    except StoreUnavailable:
+        return None
+    try:
+        row = connection.execute('SELECT superseded_at FROM retired_snapshots WHERE snapshot=?', (snapshot,)).fetchone()
+        return row[0] if row else None
+    except sqlite3.Error:
+        return None
+    finally:
+        connection.close()
+
+
+def forget_retired(snapshots):
+    try:
+        with transaction() as connection:
+            connection.executemany('DELETE FROM retired_snapshots WHERE snapshot=?', [(item,) for item in snapshots])
+    except (StoreUnavailable, sqlite3.Error):
+        pass

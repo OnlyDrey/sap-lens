@@ -1,57 +1,70 @@
 import { expect, test } from '@playwright/test'
 
-const baseStatus = (state: string, approval: unknown = null, history: unknown[] = []) => ({
-  policy: { enabled: true, months: 24 }, state, approval, last_check: '2026-01-01T00:00:00+00:00', last_preview: {}, history,
-  scope: [], protected_note: 'Review decisions, evidence, review periods and their reports, backups and anything still referenced are never removed.',
+const category = (state: string, months = 24, approval: unknown = null) => ({ months, state, approval })
+const status = (source: string, review: string, history: unknown[] = []) => ({
+  policy: { enabled: true, months: 24, review_months: 24 }, categories: { source: category(source), review: category(review) }, last_check: '2026-01-01T00:00:00+00:00', quiet_until: '', history,
+  scope: { source: ['Superseded role, user and SoD matrix snapshots'], review: ['Completed review periods older than the period, with their decisions, actions and exclusively owned evidence'] },
+  protected_note: 'Current source data, active and incomplete review periods, anything still referenced, the report log, backups and the newest completed period are never removed.',
 })
-const preview = {
+const sourcePreview = {
   months: 24, count: 3, bytes: 3_145_728, digest: 'c'.repeat(64), categories: { 'users snapshots': { count: 3, bytes: 3_145_728, oldest_days: 900 } },
-  protected: { referenced: 4, recent: 1, kept_newest: 2, unclassified: 0 }, sample: [], truncated: false,
+  protected: { referenced: 4, recent: 1, kept_newest: 2, unclassified: 1, unrecognised: 0 }, sample: [], truncated: false,
+}
+const reviewPreview = {
+  months: 24, count: 1, protected: 3, digest: 'd'.repeat(64), reasons: { 'Active or incomplete review period': 2, 'Newest completed period (comparison baseline)': 1 },
+  sample: [{ name: 'Q1 2024 review', state: 'Closed', completed: '2024-04-15T00:00:00+00:00', age_days: 900, decisions: 42, actions: 3 }], protected_sample: [], truncated: false,
 }
 
-test('the first destructive cleanup needs a preview and an explicit administrator approval', async ({ page }) => {
-  let approved = false
-  const posted: unknown[] = []
-  await page.route('**/api/retention', route => route.fulfill({ json: approved
-    ? baseStatus('approved', { by: 'Admin', at: '2026-01-02T00:00:00+00:00', months: 24, valid: true }, [{ at: '2026-01-02T00:00:00+00:00', trigger: 'manual', status: 'completed', months: 24, removed: { 'users snapshots': 3 }, bytes: 3145728, by: 'Admin', message: '' }])
-    : baseStatus('awaiting_approval') }))
-  await page.route('**/api/retention/preview', route => route.fulfill({ json: preview }))
-  await page.route('**/api/retention/approve', async route => { posted.push(route.request().postDataJSON()); approved = true; await route.fulfill({ json: {} }) })
+async function open(page: import('@playwright/test').Page) {
   await page.goto('/#session=browser-test-session')
   await page.getByRole('button', { name: 'Open settings', exact: true }).click()
   await page.getByRole('tab', { name: 'Backup & Restore', exact: true }).click()
-  const panel = page.getByRole('region', { name: 'Data retention' })
-  await expect(panel).toContainText('Waiting for administrator approval')
-  await expect(panel.getByRole('spinbutton', { name: 'Retention period (months)' })).toHaveValue('24')
-  await expect(panel.getByRole('button', { name: 'Approve and clean up' })).toHaveCount(0)    // nothing can be approved before a preview is seen
-  await panel.getByRole('button', { name: 'Preview cleanup' }).click()
-  await expect(panel).toContainText('3 item(s), 3.0 MB, older than 24 months would be removed')
-  await expect(panel).toContainText('4 still referenced')
-  const approve = panel.getByRole('button', { name: 'Approve and clean up' })
+}
+
+test('source and review retention are separate, each needs its own preview and approval', async ({ page }) => {
+  const approved = { source: false, review: false }
+  const posted: unknown[] = []
+  await page.route('**/api/retention', route => route.fulfill({ json: status(approved.source ? 'approved' : 'awaiting_approval', approved.review ? 'approved' : 'awaiting_approval') }))
+  await page.route('**/api/retention/preview?category=*', route => route.fulfill({ json: route.request().url().includes('category=review') ? reviewPreview : sourcePreview }))
+  await page.route('**/api/retention/approve', async route => { const body = route.request().postDataJSON(); posted.push(body); approved[body.category as 'source' | 'review'] = true; await route.fulfill({ json: {} }) })
+  await open(page)
+  const panel = page.getByRole('region', { name: 'Data retention', exact: true })
+  const source = panel.getByRole('region', { name: 'Source retention' })
+  const review = panel.getByRole('region', { name: 'Review retention' })
+  await expect(source).toContainText('Waiting for administrator approval')
+  await expect(review).toContainText('Completed review periods')
+  await expect(panel.getByRole('button', { name: /Approve .* cleanup/ })).toHaveCount(0)        // nothing can be approved before a preview is seen
+  await review.getByRole('button', { name: 'Preview review cleanup' }).click()
+  await expect(review).toContainText('1 completed review period(s) eligible, 3 protected')
+  await expect(review).toContainText('Q1 2024 review')
+  await expect(review).toContainText('Protected: 2 · Active or incomplete review period')
+  await expect(review).toContainText('can be undone')
+  await expect(source.getByRole('button', { name: 'Approve source cleanup' })).toHaveCount(0)    // the other category is unaffected
+  const approve = review.getByRole('button', { name: 'Approve review cleanup' })
   await expect(approve).toBeDisabled()
-  expect(posted).toEqual([])
-  await panel.getByRole('checkbox', { name: /I reviewed this preview/ }).check()
+  await review.getByRole('checkbox', { name: /I reviewed this review preview/ }).check()
   await approve.click()
-  await expect(panel).toContainText('Automatic cleanup approved')
-  expect(posted).toEqual([{ confirm: true, preview_digest: 'c'.repeat(64) }])
-  await panel.getByText('Retention history').click()
-  await expect(panel).toContainText('manual · completed · Admin')
+  await expect(review).toContainText('Automatic cleanup approved')
+  await expect(source).toContainText('Waiting for administrator approval')
+  expect(posted).toEqual([{ category: 'review', confirm: true, preview_digest: 'd'.repeat(64) }])
+  await source.getByRole('button', { name: 'Preview source cleanup' }).click()
+  await expect(source).toContainText('3 item(s), 3.0 MB eligible')
+  await expect(source).toContainText('1 waiting to be classified')
 })
 
-test('changing the retention period is saved explicitly and bounded', async ({ page }) => {
+test('retention periods are saved explicitly, bounded and independent per category', async ({ page }) => {
   const saved: unknown[] = []
-  await page.route('**/api/retention', route => route.fulfill({ json: baseStatus('approved', { by: 'Admin', at: '2026-01-02T00:00:00+00:00', months: 24, valid: true }) }))
-  await page.route('**/api/retention/policy', async route => { saved.push(route.request().postDataJSON()); await route.fulfill({ json: baseStatus('awaiting_approval') }) })
-  await page.goto('/#session=browser-test-session')
-  await page.getByRole('button', { name: 'Open settings', exact: true }).click()
-  await page.getByRole('tab', { name: 'Backup & Restore', exact: true }).click()
-  const panel = page.getByRole('region', { name: 'Data retention' })
-  const months = panel.getByRole('spinbutton', { name: 'Retention period (months)' })
+  await page.route('**/api/retention', route => route.fulfill({ json: status('approved', 'approved') }))
+  await page.route('**/api/retention/policy', async route => { saved.push(route.request().postDataJSON()); await route.fulfill({ json: status('approved', 'awaiting_approval') }) })
+  await open(page)
+  const panel = page.getByRole('region', { name: 'Data retention', exact: true })
   const save = panel.getByRole('button', { name: 'Save retention settings' })
   await expect(save).toBeDisabled()
-  await months.fill('3')
-  await expect(months).toHaveValue('6')
-  await months.fill('12')
+  const reviewMonths = panel.getByRole('spinbutton', { name: 'Review retention period (months)' })
+  await reviewMonths.fill('3')
+  await expect(reviewMonths).toHaveValue('6')
+  await reviewMonths.fill('36')
+  await expect(panel.getByRole('spinbutton', { name: 'Source retention period (months)' })).toHaveValue('24')
   await save.click()
-  expect(saved).toEqual([{ enabled: true, months: 12 }])
+  expect(saved).toEqual([{ enabled: true, months: 24, review_months: 36 }])
 })

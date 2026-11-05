@@ -365,6 +365,11 @@ def startup(lease,server=None):
                 raise
             journal_path.unlink()
             shutil.rmtree(old)
+            try:
+                import data_retention
+                data_retention.after_restore()
+            except Exception:  # noqa: BLE001 - retention bookkeeping never turns a verified restore into a failure
+                pass
             state.update(status='completed',message='Application data restored. Destination hosting/security retained. Sources are Static; reconfigure paths before enabling Dynamic refresh. Scheduling is disabled.')
         state['completed_at']=stamp()
     except Exception:

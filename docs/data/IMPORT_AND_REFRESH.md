@@ -173,22 +173,47 @@ Snapshot integrity is verified on every start (SHA-256 of the snapshot file agai
 
 ## Data retention
 
-Retention keeps the data directory from growing without bound while never touching what governs decisions. The default is **24 months** (6 to 120), checked **daily**, configured in *Settings > Backup & Restore > Data retention* (administrator).
+Retention keeps the data directory from growing without bound and never touches current data. It has **two separate categories**, each with its own period (default **24 months**, 6 to 120), its own preview and its own one-time
+administrator approval, configured in *Settings > Backup & Restore > Data retention*. Source rules are never applied to review records, and review rules never remove source data. The check runs **daily**, does not run while a
+load, refresh, backup or restore is in progress, and removes nothing until the category has been approved.
 
-| Subject to retention (when superseded, unreferenced and older than the period) | Never removed by retention |
+### Source retention
+
+| Eligible when superseded, unreferenced and older than the period | Never removed |
 | --- | --- |
-| Role, user and SoD-matrix source snapshots; their SQLite revisions and derived values | Review decisions and every decision event; retained decision evidence |
-| Employee Directory snapshots | Review periods, their frozen snapshots and reports; risk acceptances; remediation actions |
-| Quarantined SQLite stores; pre-re-baseline copies of the lifecycle memory | Settings, account reviews, saved filters, functional groups, application backups, the pre-migration backup (explicit confirmation) |
+| Role, user and SoD-matrix snapshots; their SQLite revisions and derived values | The active revision of each source, the newest two previous revisions, anything referenced |
+| Employee Directory snapshots | Settings, backups, the pre-migration backup (explicit confirmation) |
+| Quarantined SQLite stores; pre-re-baseline copies of the lifecycle memory | Anything younger than the period |
 
-* **Protection by reference.** Any 64-hex identifier named anywhere in the JSON stores (settings, decisions, periods, reviews, catalogue, reports, configuration recovery copies) or in a non-source snapshot protects the file it names;
-  the newest two superseded snapshots of each source stay as the previous approved revisions; nothing younger than the period is removed; a file that cannot be classified is protected; if the references cannot be read, nothing is removed.
-  An active review period therefore keeps every snapshot it needs, without a rule that has to know about it.
-* **First cleanup needs approval.** The daily check measures and stores a summary; it removes nothing until an administrator has seen the *Preview cleanup* and approved it. The approval is bound to the previewed data
-  (a changed preview must be reviewed again), to this installation (an approval inside a backup restored elsewhere is void) and to the period (shortening it needs a new approval; lengthening does not). After approval the daily check cleans automatically.
-* **Consistency with SQLite.** Derived entries (store revisions, cached models) are removed first, the authoritative file last, each step idempotent; store revisions whose snapshot is gone are removed on every run, so an interrupted cleanup is completed by the next one.
-  The active revision is never removed. Restoring a backup resets file times, which only delays cleanup.
-* **Audit.** `data-retention.json` (validated, included in backups) keeps the policy, the approval (who, when, period) and the last 100 events. Retention does not run while a load, refresh, backup or restore is in progress.
+* **Logical timestamps.** A revision ages from the moment it was **superseded** (recorded in the SQLite store when the next revision is activated, `retired_snapshots`). Data that predates that record (older installations, directory
+  snapshots) has no reliable moment: it is protected until retention first sees it unreferenced and then ages from that moment. File times are only an extra guard (nothing with a recent file time is removed), never the basis.
+* **Protection by reference.** Any 64-hex identifier named anywhere in the JSON stores or in a non-source snapshot protects the file it names; unclassified files are protected; if references cannot be read, nothing is removed.
+* **Consistency with SQLite.** Derived entries and store revisions of a retired snapshot are removed first, the authoritative file last, each step idempotent; store revisions whose snapshot is gone are removed on every run.
+
+### Review retention
+
+Only a **completed** review period (Approved, Closed, Approved / closed) whose **completion timestamp** (the latest recorded transition into a completed state) is older than the period can be removed, together with the records it owns
+exclusively: its entry in the period index (a deletion record stays: id, name, state, counts, time, reason, `data-retention` as actor), its decision events, risk acceptances, remediation actions and legacy risk reviews, and the private
+snapshot files only it references (frozen period snapshots, retained decision evidence, review finding snapshots). The report log (issued reports are audit evidence) and every other period are kept.
+
+| Protected | Reason shown in the preview |
+| --- | --- |
+| Draft, In review, Ready for approval, Rejected | Active or incomplete review period |
+| No recorded completion transition (the approval date is typed by a person and is not a reliable moment) | Protected until classified; aged from the day retention first classified it |
+| Completed within the period; the newest completed period | Within the retention period / comparison baseline |
+| Open or in-progress remediation actions; risk acceptances that have not expired | Open remediation actions / Risk acceptance has not expired |
+| A snapshot that fails its integrity check | Snapshot integrity could not be verified |
+| The comparison baseline of a report that belongs to a retained period | Baseline of a report belonging to a retained period |
+
+* **Shared evidence is preserved.** After the stores are rewritten, the data directory is scanned for identifiers; only files that nothing names any more (and that are of an owned kind) are moved away.
+* **Recoverable, journalled removal; no cross-store atomicity is claimed.** The period index, decision store, review store and snapshot files are separate files. A full copy of the removed records and a journal are written first; stores are
+  rewritten by id (idempotent); files go to a trash folder instead of being deleted. An interrupted run is **rolled forward** by the next one (it reads the journal; an unreadable journal pauses review retention rather than guessing). While
+  copy and trash are kept (**30 days**, judged by the time recorded in the copy) the cleanup can be **undone** (`POST /api/retention/review/undo`, administrator). Deletion records and the history (last 100 entries) remain.
+* **After a restore** both approvals are void, no cleanup runs for 7 days and a journal carried in the archive is discarded, so a recovered period cannot be purged again before an administrator has reviewed it.
+* **Approval** is bound to the previewed data (a changed preview must be reviewed again), to this installation (an approval inside a backup restored elsewhere is void) and to the period (shortening it needs a new approval). Approving one category never approves the other.
+* Comparisons to a purged period are no longer possible; findings first seen in it are then classified as new (the same consequence as the manual archive of a completed period, which only hides it and keeps everything).
+
+`data-retention.json` (validated, included in backups) holds the policy, both approvals, the first sightings and the bounded history.
 
 ## Import checks: suspicious versus invalid
 

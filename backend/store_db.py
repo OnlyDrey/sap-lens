@@ -120,7 +120,13 @@ def _v3(connection):
         connection.execute('ALTER TABLE source_revisions ADD COLUMN owner TEXT NOT NULL DEFAULT \'\'')
 
 
-LADDER = {1: _v1, 2: _v2, 3: _v3}
+def _v4(connection):
+    # When a snapshot stopped being the active revision of its source. Retention ages superseded source data from this logical moment, not from file times.
+    # The row outlives the pruning of the revision itself and is removed together with the snapshot file.
+    connection.execute('CREATE TABLE IF NOT EXISTS retired_snapshots (snapshot TEXT PRIMARY KEY, source TEXT NOT NULL, superseded_at TEXT NOT NULL) WITHOUT ROWID')
+
+
+LADDER = {1: _v1, 2: _v2, 3: _v3, 4: _v4}
 SCHEMA_VERSION = max(LADDER)
 
 

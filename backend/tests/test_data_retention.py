@@ -35,12 +35,23 @@ class Case(unittest.TestCase):
         config.get_settings.cache_clear(); cache.clear_cache(); self.addCleanup(config.get_settings.cache_clear); self.addCleanup(cache.clear_cache)
         self.now = datetime.now(timezone.utc)
 
+    def log(self, name, age_days):
+        """The logical moment retention knows for an item (first seen unreferenced / superseded), age_days ago."""
+        moment = (self.now - timedelta(days=age_days)).isoformat()
+        data = retention.read(); data.first_seen[name] = moment; retention._write(data)
+        try:
+            with store_db.transaction() as connection:
+                connection.execute('UPDATE retired_snapshots SET superseded_at=? WHERE snapshot=?', (moment, name))
+        except Exception:  # noqa: BLE001
+            pass
+
     def snapshot(self, source='users', tag='a', age_days=900, ingest=False):
         identity = csv_lifecycle.write_private('snapshots', dict(version=1, source=source, records=rows(tag), report={'tag': tag}))
         path = csv_lifecycle.private_path('snapshots', identity)
         os.utime(path, (self.now.timestamp() - age_days * DAY,) * 2)
         if ingest:
             source_store.ingest(source, identity, rows(tag), {'tag': tag})
+        self.log(identity, age_days)
         return identity
 
     def other(self, source, tag, age_days=900):
@@ -68,7 +79,8 @@ class Case(unittest.TestCase):
 class Scope(Case):
     def test_defaults_are_24_months_enabled_and_unapproved(self):
         value = retention.status()
-        self.assertEqual((value['policy'], value['state'], value['approval']), ({'enabled': True, 'months': 24}, 'awaiting_approval', None))
+        self.assertEqual((value['policy'], value['categories']['source']['state'], value['categories']['source']['approval']), ({'enabled': True, 'months': 24, 'review_months': 24}, 'awaiting_approval', None))
+        self.assertEqual(value['categories']['review']['state'], 'awaiting_approval')
 
     def test_only_superseded_unreferenced_old_snapshots_beyond_the_newest_two_are_candidates(self):
         old = [self.snapshot('users', tag, 1000 - n * 10) for n, tag in enumerate('abcde')]       # a is the oldest ... e the newest
@@ -114,6 +126,7 @@ class Scope(Case):
             identity = hashlib.sha256(f'dir{n}'.encode()).hexdigest()
             path = folder / f'{identity}.json'; path.write_text('{"version":1}')
             os.utime(path, (self.now.timestamp() - (900 + n) * DAY,) * 2)
+            self.log(identity, 900 + n)
             ids.append(identity)
         self.store('settings.json', {'employee_snapshot_id': ids[3]})                                                  # the active one is referenced
         found = {item['id'] for item in self.plan()['items'] if item['category'] == 'directory snapshots'}
@@ -123,7 +136,7 @@ class Scope(Case):
         store_db.private_directory()
         old, young = store_db.directory() / 'sap-lens.sqlite3.corrupt-1', store_db.directory() / 'sap-lens.sqlite3.corrupt-2'
         for path, age in ((old, 900), (young, 3)):
-            path.write_bytes(b'x'); os.utime(path, (self.now.timestamp() - age * DAY,) * 2)
+            path.write_bytes(b'x'); os.utime(path, (self.now.timestamp() - age * DAY,) * 2); self.log(path.name, age)
         self.assertEqual({item['id'] for item in self.plan()['items']}, {old.name})
 
 
@@ -131,14 +144,14 @@ class Approval(Case):
     def setUp(self):
         super().setUp()
         self.ids = [self.snapshot('users', tag, 1000 - n * 10) for n, tag in enumerate('abcde')]
-        self.decisions = self.store('sod-decisions.json', {'events': [{'ref': 'ROLE'}]})
-        self.periods = self.store('sod-periods.json', {'periods': []})
+        self.decisions = self.store('sod-decisions.json', {'version': 1, 'revision': 3, 'contexts': {}, 'actions': {}, 'reports': []})
+        self.periods = self.store('sod-periods.json', {'version': 1, 'revision': 2, 'items': [], 'deletions': []})
         self.before = (self.decisions.read_bytes(), self.periods.read_bytes())
 
     def test_nothing_is_removed_before_the_first_approval_even_by_the_daily_check(self):
         self.assertEqual(retention.check(self.now), 'awaiting_approval')
         self.assertTrue(all(self.exists(identity) for identity in self.ids))
-        self.assertEqual(retention.read().last_preview['count'], 3)
+        self.assertEqual(retention.read().last_preview['source']['count'], 3)
 
     def test_approval_is_bound_to_the_previewed_data(self):
         digest = self.plan()['digest']
@@ -155,7 +168,7 @@ class Approval(Case):
         self.assertEqual((self.decisions.read_bytes(), self.periods.read_bytes()), self.before)
         history = retention.read().history
         self.assertEqual([(entry.trigger, entry.by) for entry in history], [('approval', 'Admin One'), ('manual', 'Admin One')])
-        self.assertTrue(retention.status()['approval']['valid'])
+        self.assertTrue(retention.status()['categories']['source']['approval']['valid'])
 
     def test_later_cleanups_run_automatically_on_the_daily_schedule(self):
         self.approve()
@@ -168,17 +181,17 @@ class Approval(Case):
     def test_shortening_the_period_needs_a_new_approval_lengthening_does_not(self):
         self.approve()
         retention.set_policy('Admin One', True, 12, self.now)
-        self.assertEqual(retention.status()['state'], 'awaiting_approval')
+        self.assertEqual(retention.status()['categories']['source']['state'], 'awaiting_approval')
         fresh = self.snapshot('users', 'mid', 500)
         self.assertEqual(retention.check(self.now + timedelta(days=2)), 'awaiting_approval')
         self.assertTrue(self.exists(fresh))
         retention.set_policy('Admin One', True, 36, self.now)
-        self.assertEqual(retention.status()['state'], 'approved')
+        self.assertEqual(retention.status()['categories']['source']['state'], 'approved')
 
     def test_an_approval_restored_onto_another_installation_is_void(self):
         self.approve()
         data = retention.read(); data.approval = data.approval.model_copy(update=dict(instance='0' * 32)); retention._write(data)
-        self.assertEqual(retention.status()['state'], 'awaiting_approval')
+        self.assertEqual(retention.status()['categories']['source']['state'], 'awaiting_approval')
         self.snapshot('users', 'next', 990)
         self.assertEqual(retention.check(self.now + timedelta(days=2)), 'awaiting_approval')
 
@@ -207,6 +220,8 @@ class Approval(Case):
 class Consistency(Case):
     def test_sqlite_revisions_and_derived_values_of_removed_snapshots_go_first_and_the_active_one_stays(self):
         ids = [self.snapshot('users', tag, 1000 - n * 10, ingest=True) for n, tag in enumerate('abcdef')]
+        for n, identity in enumerate(ids):
+            self.log(identity, 1000 - n * 10)                                                                          # superseded moments are recorded when the next import activates
         active = source_store.active('users')['snapshot']
         oldest = source_store.revision_id('users', ids[0])
         persistent_cache.put('users', 'dep-oldest', {'v': 1}, revisions=(oldest,)) if oldest else None
@@ -226,6 +241,7 @@ class Consistency(Case):
         Approval.approve(self)
         later = self.snapshot('users', 'x', 995, ingest=True)                                                          # superseded as soon as the next import is active
         newer = self.snapshot('users', 'n', 5, ingest=True)
+        self.log(later, 995)
         real = Path.unlink
         calls = []
         def failing(path, *args, **kwargs):
@@ -295,7 +311,7 @@ class Interfaces(Case):
     def test_api_policy_preview_and_approval(self):
         ids = [self.snapshot('users', tag, 1000 - n * 10) for n, tag in enumerate('abcd')]
         client, headers = self.client()
-        self.assertEqual(client.get('/api/retention', headers=headers).json()['state'], 'awaiting_approval')
+        self.assertEqual(client.get('/api/retention', headers=headers).json()['categories']['source']['state'], 'awaiting_approval')
         self.assertEqual(client.put('/api/retention/policy', headers=headers, json={'enabled': True, 'months': 3}).status_code, 422)
         self.assertEqual(client.put('/api/retention/policy', headers=headers, json={'enabled': True, 'months': 200}).status_code, 422)
         preview = client.get('/api/retention/preview', headers=headers).json()
@@ -307,7 +323,7 @@ class Interfaces(Case):
         done = client.post('/api/retention/approve', headers=headers, json={'confirm': True, 'preview_digest': preview['digest']})
         self.assertEqual(done.status_code, 200, done.text)
         self.assertEqual(done.json()['removed'], {'users snapshots': 2})
-        self.assertEqual(done.json()['status']['state'], 'approved')
+        self.assertEqual(done.json()['status']['categories']['source']['state'], 'approved')
 
     def test_the_settings_file_validates_for_backup_and_restore(self):
         self.approve()
