@@ -140,3 +140,24 @@ Reproduce with `python scripts/benchmarks/data_benchmark.py` ([Testing](../devel
 
 The first start after an import still derives the model once (about 4 s) and stores it; later starts load it. Resident memory of a started instance is about 525 MB, of which about 185 MB are the raw
 source records retained for comparisons; removing that retention needs comparisons against the store and is a separate refactor.
+
+### Request and refresh performance (192 000 assignment rows, 16 000 SAP users, this container)
+
+Profiling first (`--api --profile api`): the users list and the Dashboard spent 70 % of their time re-parsing the same few date strings for every assignment on every request, and the users list recomputed export totals across all users each time. Changes, all behaviour-preserving:
+
+| Change | Why it is safe |
+| --- | --- |
+| `sap_date` memoized (`lru_cache`) | Pure function of its text; errors are raised again every call, never cached |
+| Dataset-level assignment status counts (Dashboard) and per-user expired counts (users list), memoized per dataset and day | Held on the SAP dataset object, so a refresh or a new day recomputes; excluded from pickling and copying |
+| `diff_records`: exact records cancel first across the whole source, only the remainder is grouped by identifier; records are identified by a tuple of references instead of per-row JSON text | Randomised differential test against the former implementation (counts, ambiguity, missing identifiers, every change) |
+| Snapshots are streamed to a temporary file while hashing instead of building the full text and its bytes | Byte-identical output, so every existing snapshot keeps its identity; the test compares against the former encoding |
+
+| Measurement (median of 5 requests unless noted) | Before | After |
+| --- | --- | --- |
+| `GET /api/access/users?limit=50` | 631 ms | 203 ms |
+| same, sorted | 686 ms | 189 ms |
+| `GET /api/dashboard` | 734 ms | 151 ms |
+| Refresh, users source changed (time / peak memory) | 15.3 s / 1164 MB | 11.2 s / 1071 MB |
+
+What remains: both endpoints still scan every user once per request (selection and summaries, about 0.24 s and 0.17 s of the users page); caching those would need invalidation keyed to the filters and is not done. Peak memory of a changed-source refresh is dominated by the
+old dataset (kept until publication) plus the new one (about 350 MB for 192 000 records); the retained raw source records (about 185 MB per running instance) are unchanged.

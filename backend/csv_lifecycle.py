@@ -16,7 +16,7 @@ import re
 import cache
 import import_checks
 import source_store
-from config import ensure_content_file, config_dir, get_settings, save_configuration
+from config import config_dir, get_settings, save_configuration
 from config_models import FIELDS, USER_FIELDS, SourceSnapshot, RefreshMetadata, ImportConfirmation as ConfirmationRecord
 from employee_directory import store, persist_directory
 
@@ -35,15 +35,62 @@ def private_path(kind, identity):
     return config_dir() / 'csv-data' / kind / f'{identity}.json'
 
 
+def _canonical_chunks(value, rows=2000):
+    """The exact text of json.dumps(value, ensure_ascii=False, separators=(',', ':'), sort_keys=True), produced in pieces so a large snapshot is never held
+    as one string next to its encoded bytes. A long list is encoded `rows` items at a time (the C encoder), which is byte-identical to encoding it whole."""
+    options = dict(ensure_ascii=False, separators=(',', ':'), sort_keys=True)
+    if not isinstance(value, dict):
+        yield json.dumps(value, **options)
+        return
+    yield '{'
+    for position, key in enumerate(sorted(value)):
+        yield ('' if position == 0 else ',') + json.dumps(key, ensure_ascii=False) + ':'
+        item = value[key]
+        if isinstance(item, list) and len(item) > rows:
+            yield '['
+            for start in range(0, len(item), rows):
+                yield ('' if start == 0 else ',') + json.dumps(item[start:start + rows], **options)[1:-1]
+            yield ']'
+        else:
+            yield json.dumps(item, **options)
+    yield '}'
+
+
 def write_private(kind, value):
-    raw = json.dumps(value, ensure_ascii=False, separators=(',', ':'), sort_keys=True).encode('utf-8')
-    if len(raw) > MAX_PRIVATE_BYTES:
-        raise ValueError('Private snapshot or report exceeds its storage limit.')
-    identity = hashlib.sha256(raw).hexdigest()
-    target = private_path(kind, identity)
-    target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    ensure_content_file(target, raw, identity, MAX_PRIVATE_BYTES)
-    return identity
+    """Store a value as immutable content-addressed JSON. Streams to a temporary file while hashing (memory stays flat for 100 MB+ snapshots), then
+    publishes it under its digest. The bytes are identical to those of the former in-memory encoding, so existing snapshots keep their identities."""
+    import os
+    import tempfile
+    parent = private_path(kind, '0' * 64).parent
+    parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    digest, size = hashlib.sha256(), 0
+    descriptor, temporary = tempfile.mkstemp(dir=parent, suffix='.tmp')
+    try:
+        with os.fdopen(descriptor, 'wb') as stream:
+            for piece in _canonical_chunks(value):
+                raw = piece.encode('utf-8')
+                size += len(raw)
+                if size > MAX_PRIVATE_BYTES:
+                    raise ValueError('Private snapshot or report exceeds its storage limit.')
+                digest.update(raw)
+                stream.write(raw)
+            stream.flush()
+            os.fsync(stream.fileno())
+        identity = digest.hexdigest()
+        target = private_path(kind, identity)
+        if target.exists():
+            existing = hashlib.sha256()
+            with target.open('rb') as stream:
+                while block := stream.read(1024 * 1024):
+                    existing.update(block)
+            if existing.hexdigest() == identity:
+                return identity                                 # already stored and verified: reuse
+        os.replace(temporary, target)
+        temporary = None
+        return identity
+    finally:
+        if temporary:
+            Path(temporary).unlink(missing_ok=True)
 
 
 def read_private(kind, identity):
@@ -97,38 +144,40 @@ def diff_records(source, before, after, include_changes=True):
     Exact observations cancel first. Only one remaining old/new observation for
     a stable identifier is called modified; ambiguous groups stay add/remove.
     """
-    groups = [defaultdict(list), defaultdict(list)]
-    missing = 0
-    for target, rows in zip(groups, (before, after)):
-        for row in rows:
-            clean = {k: v for k, v in row.items() if k != 'id'} if 'id' in row else row
-            key = record_key(source, clean)
-            if key is None:
-                missing += 1
-                key = ('missing',)
-            target[key].append(clean)
-    counts = dict(added=0, removed=0, modified=0, unchanged=0)
+    order = {}
+    def identity(row):
+        # Equal records have equal values under equal key names (the `id` bookkeeping field of directory rows is not part of a record): a tuple of references, no
+        # per-row JSON text and no copy. Rows of one source share their key set, so the sort is done once; the key tuple keeps differently shaped rows apart.
+        names = order.get(len(row))
+        if names is None or any(name not in row for name in names) or 'id' in names:
+            names = order[len(row)] = tuple(sorted(name for name in row if name != 'id'))
+        return names, tuple(row[name] for name in names)
+    # Exact observations cancel first, across the whole source: a re-import that changes a handful of rows only has to group those rows by identifier.
+    counted = [Counter(identity(row) for row in rows) for rows in (before, after)]
+    common = counted[0] & counted[1]
+    leftovers = [counted[0] - common, counted[1] - common]
+    counts = dict(added=0, removed=0, modified=0, unchanged=sum(common.values()))
     changes = []
     ambiguous = 0
+    missing = sum(record_key(source, row) is None for rows in (before, after) for row in rows)
+    groups = [defaultdict(list), defaultdict(list)]
+    for target, rows, remaining in zip(groups, (before, after), leftovers):
+        if not remaining:
+            continue
+        remaining = Counter(remaining)
+        for row in rows:
+            fingerprint = identity(row)
+            if remaining.get(fingerprint):
+                remaining[fingerprint] -= 1
+                clean = {k: v for k, v in row.items() if k != 'id'} if 'id' in row else row
+                target[record_key(source, clean) or ('missing',)].append(clean)
     for key in sorted(set(groups[0]) | set(groups[1])):
-        originals = {}
-        buckets = []
-        for group in groups:
-            bucket = Counter()
-            for row in group.get(key, []):
-                fingerprint = json.dumps(row, sort_keys=True, ensure_ascii=False)
-                bucket[fingerprint] += 1
-                originals[fingerprint] = row
-            buckets.append(bucket)
-        common = buckets[0] & buckets[1]
-        counts['unchanged'] += sum(common.values())
-        old = list((buckets[0] - common).elements())
-        new = list((buckets[1] - common).elements())
-        representative = (groups[1].get(key) or groups[0].get(key))[0]
+        old, new = groups[0].get(key, []), groups[1].get(key, [])
+        representative = (new or old)[0]
         display_fields = (['DistinguishedName'] if representative.get('DistinguishedName') else ['SamAccountName']) if source == 'employees' else (['AGR_NAME','CHILD_AGR','PARENT_AGR','Effective_Role','TCODE'] if source == 'roles' else ['USERNAME','ROLE_NAME','USER_GROUP'])
         identifier = ' / '.join(representative.get(field, '') for field in display_fields if representative.get(field)) or 'Unidentified record'
         if len(old) == len(new) == 1 and key != ('missing',):
-            left, right = originals[old[0]], originals[new[0]]
+            left, right = old[0], new[0]
             fields = [dict(field=f, before=left.get(f, ''), after=right.get(f, ''))
                       for f in sorted(set(left) | set(right)) if left.get(f) != right.get(f)]
             counts['modified'] += 1
@@ -137,7 +186,7 @@ def diff_records(source, before, after, include_changes=True):
             if old and new: ambiguous += 1
             for kind, values in [('removed', old), ('added', new)]:
                 counts[kind] += len(values)
-                if include_changes: changes.extend(dict(type=kind, identifier=identifier, fields=[], **{'before' if kind == 'removed' else 'after': originals[value]}) for value in values)
+                if include_changes: changes.extend(dict(type=kind, identifier=identifier, fields=[], **{'before' if kind == 'removed' else 'after': value}) for value in values)
     return dict(**counts, changes=changes, ambiguous_identifiers=ambiguous, missing_identifiers=missing,
                 identity_note='Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.')
 

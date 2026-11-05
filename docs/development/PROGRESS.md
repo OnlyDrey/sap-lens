@@ -3,7 +3,7 @@
 Resume guide for a new session: read [AGENTS.md](../../AGENTS.md), this file, `git status` and `git log --oneline -15`; the repository state is authoritative, correct this file where it differs.
 CI policy: GitHub Actions runs only on push to `main` after an explicitly approved merge; all validation is local; `work` pushes never trigger it.
 
-**Last update:** 2026-11-05 (end of Phase B)
+**Last update:** 2026-11-05 (end of Phase C)
 
 ## Plan and status
 
@@ -21,7 +21,7 @@ CI policy: GitHub Actions runs only on push to `main` after an explicitly approv
 | Retention completion | Separate source and review retention, logical timestamps, journalled recoverable review cleanup | Completed | `70ae519` |
 | A | Backup retention (automatic 90 days, migration and manual protected) | Completed | `2ab0b0d` |
 | B | Employee Directory fingerprint, derived copy, shared SAP/AD matcher | Completed (pushed with this update) | see Git log |
-| C | Backend/API performance (`/api/access/users`, dashboard, memory) | Pending | |
+| C | Backend/API performance (`/api/access/users`, dashboard, memory) | Completed (pushed with this update) | see Git log |
 | D | Frontend/API cache consistency (revision-aware) | Pending | |
 | E | Parallel browser test stabilization | Pending | |
 | F | Final validation: full backend, browser, benchmarks, report | Pending | |
@@ -53,6 +53,16 @@ CI policy: GitHub Actions runs only on push to `main` after an explicitly approv
 
 Component timings at 100 000 rows: parse 2.4 s, comparison 3.5 s, snapshot restore 1.8 s (derived copy: 0.8 s).
 
+### Backend and API (192 000 assignment rows, 16 000 users)
+
+| Measurement | Before | After |
+| --- | --- | --- |
+| `/api/access/users?limit=50` (median of 5) | 631 ms | 203 ms |
+| `/api/dashboard` | 734 ms | 151 ms |
+| Refresh, users changed (time / peak) | 15.3 s / 1164 MB | 11.2 s / 1071 MB |
+
+Matcher lifetime verified by test: repeated refreshes keep only the current (SAP dataset, directory) pair; replaced datasets and directories are collected.
+
 ## Known limitations and risks
 
 * Resident memory ~525 MB, of which ~185 MB raw source records retained; changed-source refresh peaks above 1.1 GB (Phase C).
@@ -63,10 +73,12 @@ Component timings at 100 000 rows: parse 2.4 s, comparison 3.5 s, snapshot resto
 
 * Verify and document how the automatic-backup count limit (`keep`) and the 90-day policy interact: 90 days is a maximum, not a guaranteed minimum. The Settings UI must state both mechanisms and the cleanup preview must say which rule makes each backup eligible. (Pending, scheduled with Phase F unless an integrity issue appears earlier.)
 
+* Phase C checks: (1) the shared SAP/AD matcher must not retain obsolete datasets or grow without bound after repeated refreshes (test with weak references); (2) repeat the changed-directory refresh benchmark in Phase F to decide whether 6.6 s to 7.1 s is noise or a regression; (3) profile before optimizing `/api/access/users`, Dashboard and changed-source refresh memory; (4) keep API contracts, filtering semantics, SoD behavior and review integrity.
+
 ## Decisions requiring user approval
 
 None open.
 
 ## Next actions
 
-Phase C: backend/API performance (`/api/access/users`, dashboard, source-refresh memory), then D, E, F (including the backup count-versus-90-day documentation and preview-rule requirement).
+Phase D: frontend and API cache consistency (revision-aware), then E (parallel browser tests), F (final validation; includes the backup count-versus-90-day requirement and the repeat of the changed-directory refresh benchmark).

@@ -74,6 +74,8 @@ def child(scenario, data, catalogue, people, employees=''):
         settings.employee_csv_path = employees
         settings.features.employee_directory = True
         settings.source_modes.employees = 'dynamic'
+    if scenario == 'api':
+        return api(data, catalogue, people, employees)
     if scenario.startswith('startup-static'):
         settings.source_modes.roles = settings.source_modes.users = 'static'  # restore from stored data only, no re-read of the CSV files
     if scenario == 'startup-static':  # first static start: switches the modes (not timed), then restores
@@ -124,6 +126,45 @@ def child(scenario, data, catalogue, people, employees=''):
                           roles=len(state.roles), users=len(state.users.users), assignments=len(state.users.assignments))))
 
 
+def api(data, catalogue, people, employees):
+    """Request latency (median of 5, first call excluded) of the heavy read endpoints on a started instance; with SAP_LENS_BENCH_PROFILE=api also the hottest functions of each."""
+    import cProfile
+    import pstats
+    import statistics
+    import cache
+    import config
+    import csv_lifecycle
+    from fastapi.testclient import TestClient
+    from main import create_app
+    settings = config.get_settings().model_copy(deep=True)
+    settings.data_csv_path, settings.user_csv_path = catalogue, people
+    if employees:
+        settings.employee_csv_path = employees
+        settings.features.employee_directory = True
+    config.save_configuration(settings, settings.revision)
+    csv_lifecycle.load(config.get_settings(), operation='refresh', strict=True)
+    client = TestClient(create_app(session_token='1'), base_url='http://127.0.0.1:18743')
+    headers = {'X-SAP-Lens': '1'}
+    calls = {'roles': '/api/roles?limit=50', 'users page': '/api/access/users?limit=50', 'users filtered': '/api/access/users?limit=50&groups=G3&search=USER001',
+             'users sorted': '/api/access/users?limit=50&sort=username', 'user detail': '/api/access/users/USER00042', 'dashboard': '/api/dashboard'}
+    report = {}
+    for label, url in calls.items():
+        client.get(url, headers=headers)
+        samples = []
+        for _ in range(5):
+            began = time.perf_counter()
+            response = client.get(url, headers=headers)
+            samples.append((time.perf_counter() - began) * 1000)
+        report[label] = dict(status=response.status_code, ms=round(statistics.median(samples), 1), bytes=len(response.content))
+        if os.environ.get('SAP_LENS_BENCH_PROFILE'):
+            profiler = cProfile.Profile()
+            profiler.runcall(client.get, url, headers=headers)
+            print(f'--- {label}', file=sys.stderr)
+            pstats.Stats(profiler, stream=sys.stderr).sort_stats('cumulative').print_stats('sap-lens/backend', 14)
+    state = cache.get_snapshot()
+    print(json.dumps(dict(scenario='api', api=report, peak_mb=round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024), users=len(state.users.users))))
+
+
 def size(path):
     path = Path(path)
     return sum(p.stat().st_size for p in path.rglob('*') if p.is_file()) if path.is_dir() else (path.stat().st_size if path.exists() else 0)
@@ -135,8 +176,9 @@ def main():
     parser.add_argument('--users', type=int, default=4000)
     parser.add_argument('--assignments', type=int, default=12)
     parser.add_argument('--json')
-    parser.add_argument('--profile', choices=['startup', 'startup-static', 'startup-static-warm'], help='print the top functions of one scenario')
+    parser.add_argument('--profile', choices=['startup', 'startup-static', 'startup-static-warm', 'api'], help='print the top functions of one scenario')
     parser.add_argument('--employees', type=int, default=0, help='also import an Employee Directory with this many employees (matched to the first SAP users)')
+    parser.add_argument('--api', action='store_true', help='also time the heavy read endpoints on a started instance')
     parser.add_argument('--child', nargs='+')
     options = parser.parse_args()
     if options.child:
@@ -148,11 +190,11 @@ def main():
         data = folder / 'data'
         results = []
         sizes = {}
-        for scenario in ('import', 'startup', 'startup-warm', 'refresh-users-changed', *(('refresh-directory-changed',) if options.employees else ()), 'startup-static', 'startup-static-warm'):
+        for scenario in ('import', 'startup', 'startup-warm', 'refresh-users-changed', *(('api',) if options.api else ()), *(('refresh-directory-changed',) if options.employees else ()), 'startup-static', 'startup-static-warm'):
             environment = dict(os.environ, **({'SAP_LENS_BENCH_PROFILE': '1'} if options.profile == scenario else {}))
             run = subprocess.run([sys.executable, __file__, '--child', scenario, str(data), str(catalogue), str(people), *([directory_csv] if directory_csv else [])], capture_output=True, text=True, check=False, env=environment)
             if options.profile == scenario:
-                print(run.stderr[-3500:], file=sys.stderr)
+                print(run.stderr[-60000:], file=sys.stderr)
             if run.returncode:
                 sys.exit(run.stderr[-2000:])
             results.append(json.loads(run.stdout.strip().splitlines()[-1]))

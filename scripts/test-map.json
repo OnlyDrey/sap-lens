@@ -97,6 +97,7 @@
    "description": "CSV import, source lifecycle, refresh and snapshots",
    "backend": [
     "test_import_checks",
+    "test_refresh_performance",
     "test_persistent_cache",
     "test_source_store",
     "test_source_refresh",

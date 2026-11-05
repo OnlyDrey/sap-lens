@@ -268,7 +268,7 @@ SAP_LENS_BENCH_BACKEND=/path/to/other/checkout/backend python scripts/benchmarks
 
 Synthetic, deterministic data is generated in a temporary directory (nothing under the repository, nothing from a real installation) and each scenario runs in a fresh process against
 disposable storage: `import`, `startup` / `startup-warm` (sources dynamic, the default) and `startup-static` / `startup-static-warm`. Output: seconds, peak and resident memory, snapshot and store sizes.
-`--profile <scenario>` prints the hottest functions. Compare runs only on the same machine, corpus and Python version; keep result files outside Git.
+`--employees N` adds an Employee Directory of N employees (matched to the first SAP users) and the `refresh-directory-changed` scenario; `--api` times the heavy read endpoints on a started instance (`--profile api` prints the hottest backend functions per endpoint). `--profile <scenario>` prints the hottest functions. Compare runs only on the same machine, corpus and Python version; keep result files outside Git.
 
 ## CI policy and local validation
 

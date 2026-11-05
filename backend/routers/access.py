@@ -12,6 +12,7 @@ import organization
 from role_matching import normalize_role
 from transaction_filters import normalized_tcodes, matching_role_names, matching_codes, legacy_groups
 from user_access import (
+    expired_assignment_count,
     assignment_view, current_role_count, in_assignment_band,
     interval_status,
     relevant,
@@ -248,13 +249,21 @@ def audit_assignments(snapshot, key, filters, today):
     return [a for a in snapshot.users.users[key]['assignments'] if include_expired or interval_status(sap_date(a['valid_from']), sap_date(a['valid_to']), today) != 'expired']
 
 
+def audit_assignment_count(snapshot, key, filters, today):
+    """len(audit_assignments(...)) without building the list: expired records are counted once per dataset and day."""
+    total = len(snapshot.users.users[key]['assignments'])
+    if filters['show_expired'] or filters['status'] == 'expired':
+        return total
+    return total - expired_assignment_count(snapshot.users, key, today)
+
+
 @router.get('/users')
 def users(filters:dict=Depends(directory_filters),anchor:str=Query('',max_length=512),offset:int=Query(0,ge=0),limit:int=Query(50,ge=1,le=100)):
     snapshot=cache.get_snapshot();today=date.today()
     result,evidence=directory_selection(snapshot,**filters,today=today)
     if anchor:return dict(**page(result,offset,limit),navigation=record_navigation(result,anchor,'username',normalize_username))
     return dict(**organization.annotate(page(result,offset,limit)),**source_info(snapshot,today),groups=snapshot.users.groups,groups_total=snapshot.users.group_count,
-                export_assignments=sum(len(audit_assignments(snapshot,u['user_key'],filters,today)) for u in result))
+                export_assignments=sum(audit_assignment_count(snapshot,u['user_key'],filters,today) for u in result))
 
 
 @router.get('/exports/users')
