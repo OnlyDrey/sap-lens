@@ -197,6 +197,7 @@
     "select-family",
     "decision-controls",
     "multi-select-clear-all",
+    "multiselect-dropdown",
     "session-recovery",
     "tooltip-visibility",
     "startup-recovery",

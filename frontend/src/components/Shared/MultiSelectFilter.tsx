@@ -3,6 +3,7 @@ import { textMatches } from '@/lib/searchMatching'
 import { usePopoverOwners } from './Popover'
 import { Button } from './Button'
 import { FilterChip } from './FilterChip'
+import { useFieldActionSlot } from './Controls'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, ChevronDown, ChevronUp, FilterX, ListChecks, Search, X, XCircle } from 'lucide-react'
@@ -15,7 +16,7 @@ export function MultiSelectFilter({ label, values, options, onChange, onSearch, 
   /** Describes what the option list is limited to (for example the active filters); shown beside Select all. */
   scope?: string
 }) {
-  const owners = usePopoverOwners()
+  const owners = usePopoverOwners(), fieldSlot = useFieldActionSlot()
   const uid = useId(), listId = `${uid}-list`
   const anchor = useRef<HTMLDivElement>(null), popup = useRef<HTMLDivElement>(null), input = useRef<HTMLInputElement>(null)
   const [open, setOpen] = useState(false), [query, setQuery] = useState(''), [index, setIndex] = useState(0), [positioned, setPositioned] = useState(false)
@@ -30,14 +31,18 @@ export function MultiSelectFilter({ label, values, options, onChange, onSearch, 
     const place = () => {
       const box = anchor.current?.getBoundingClientRect(); if (!box) return
       const below = window.innerHeight - box.bottom - 12, above = box.top - 12
-      const natural = Math.min(360, (popup.current?.scrollHeight || 340) + 2), down = below >= natural || below >= above
+      // Natural height comes from the content (header + full list), never from the popup's own scrollHeight: once the box was clamped by a
+      // short result or little space, its scrollHeight equals the clamped height and the popup would never grow back.
+      const list = popup.current?.querySelector<HTMLElement>('[role="listbox"]'), head = popup.current?.querySelector<HTMLElement>('.multi-popup-head')
+      const content = popup.current ? (head?.offsetHeight ?? 0) + (list?.scrollHeight ?? 0) + 2 : 340
+      const natural = Math.min(360, content), down = below >= natural || below >= above
       const height = Math.min(natural, Math.max(0, down ? below : above), Math.max(0, innerHeight - 16))
       setPositioned(true)
       setPosition({ left: Math.max(8, Math.min(box.left, window.innerWidth - Math.min(Math.max(box.width, 300), innerWidth - 16) - 8)), width: Math.min(Math.max(box.width, 300), window.innerWidth - 16),
         top: Math.max(8, Math.min(down ? box.bottom + 4 : box.top - height - 4, innerHeight - height - 8)), maxHeight: height })
     }
     place(); return anchor.current ? observeAnchorLayout(anchor.current, popup.current, place) : undefined
-  }, [open, shown.length])
+  }, [open, shown.length, query, loading, hasMore, values.length])
   useEffect(() => {
     if (!open) return
     const outside = (event: PointerEvent) => { if (!anchor.current?.contains(event.target as Node) && !popup.current?.contains(event.target as Node)) close() }
@@ -52,6 +57,8 @@ export function MultiSelectFilter({ label, values, options, onChange, onSearch, 
     return () => window.removeEventListener('popstate', dismiss)
   }, [])
   const openList = () => { if (!open) { setOpen(true); onSearch?.('') } }
+  // Clears this field only. It sits at the right of the field label (portal into the label row); outside a labelled field it falls back to a row above the chips.
+  const clearAction = values.length > 0 ? <Button size="compact" variant="ghost" className="multi-clear" aria-label={`Clear all ${label} selections`} title={`Clear ${values.length} selected`} onClick={() => onChange([])}><XCircle size={14} aria-hidden="true" />Clear</Button> : null
   const noun = query ? `matching “${query}”` : 'listed'
   return (
     <div className="grid min-w-0 gap-2">
@@ -97,12 +104,11 @@ export function MultiSelectFilter({ label, values, options, onChange, onSearch, 
             </div>
           </div>, document.body)}
       </div>
+      {clearAction && (fieldSlot ? createPortal(clearAction, fieldSlot) : <div className="multi-clear-row">{clearAction}</div>)}
       {values.length > 0 && <div className="multi-selected" role="group" aria-label={`Selected ${label}`}>
         <div className="flex flex-wrap items-center gap-2">
           {values.map(value => <FilterChip key={value} removeLabel={`Remove ${label} ${value}`} onRemove={() => onChange(values.filter(item => item !== value))}>{optionLabel(value)}</FilterChip>)}
         </div>
-        {/* A separate, right-aligned action below the chips: it clears only this field and never looks like a selected value. */}
-        <Button size="compact" variant="ghost" className="multi-clear-all" aria-label={`Clear all ${label} selections`} onClick={() => onChange([])}><XCircle size={14} aria-hidden="true" />Clear all ({values.length})</Button>
       </div>}
     </div>
   )

@@ -1450,7 +1450,12 @@ summary:focus-visible,div[tabindex="0"]:focus-visible,a.role-identifier-link:foc
 /* Optional codeblock actions share selected semantics without changing identifier text. */
 .role-identifier button[aria-pressed="true"] { background:color-mix(in srgb,var(--accent) 12%,var(--surface)); color:var(--accent); }
 .multi-selected { display:grid; gap:var(--space-1); min-width:0; }
-.multi-selected .multi-clear-all { justify-self:end; }
+.ui-field { position:relative; }
+.ui-field-action { position:absolute; top:0; right:0; display:inline-flex; align-items:center; max-width:50%; }
+.ui-field-action:empty { display:none; }
+.ui-field:has(> .ui-field-action:not(:empty)) > label { padding-right:5.5rem; }
+.multi-clear { min-height:1.25rem; height:1.25rem; padding:0 var(--space-1); gap:var(--space-1); font-size:var(--font-meta); background:transparent; white-space:nowrap; }
+.multi-clear-row { display:flex; justify-content:flex-end; }
 .session-notice { display:flex; align-items:flex-start; gap:var(--space-3); margin:var(--space-2) var(--space-4); padding:var(--space-2) var(--space-3); border:1px solid var(--warning); border-radius:var(--radius-control); background:color-mix(in srgb,var(--warning) 8%,var(--surface)); font-size:var(--font-body); }
 .session-notice[data-phase="failed"] { border-color:var(--error); background:var(--error-bg); }
 .session-notice-icon { flex:none; margin-top:2px; color:var(--warning); }
