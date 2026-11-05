@@ -84,6 +84,7 @@ test('legacy exact selections remain exact while new family chips clear and rest
 test('a replacement import rejects an already frozen confirmation without partial decisions',async({page,request})=>{
  await preview(page)
  await page.getByRole('checkbox',{name:'Select eligible assignments on current page',exact:true}).check()
+ await page.getByRole('group',{name:'Proposed decision',exact:true}).getByRole('button',{name:'Keep',exact:true}).click() // the decision is always chosen explicitly
  await page.getByRole('button',{name:'Review 2 assignments',exact:true}).click()
  const dialog=page.getByRole('dialog')
  await dialog.getByRole('textbox',{name:'Reviewer',exact:true}).fill('Synthetic Reviewer')
@@ -113,6 +114,7 @@ test('Access Explorer transfers the effective base role and suffix into one pres
  await expect(preview.locator('tbody tr')).toHaveCount(2)
  await expect(preview).toContainText(`${names.c}_ONLY`)
  await expect(preview).not.toContainText('SYN_READ:ENO')
+ await page.getByRole('group',{name:'Proposed decision',exact:true}).getByRole('button',{name:'Keep',exact:true}).click() // the decision is always chosen explicitly
  await expect(page.getByRole('button',{name:'Review 2 assignments',exact:true})).toBeEnabled()
  expect(writes).toBe(0)
  await page.goBack()
@@ -173,6 +175,7 @@ test('page checkbox is indeterminate and all eligible selection spans pages with
  await select(page,'Assigned role',family);await select(page,'Role suffix','CDK')
  const table=page.getByRole('table',{name:'Bulk assignment preview',exact:true}),header=table.getByRole('checkbox',{name:'Select eligible assignments on current page',exact:true})
  await expect(table.locator('tbody tr')).toHaveCount(50)
+ await page.getByRole('group',{name:'Proposed decision',exact:true}).getByRole('button',{name:'Keep',exact:true}).click() // the decision is always chosen explicitly
  await header.check();await table.locator('tbody tr').first().getByRole('checkbox').uncheck()
  expect(await header.evaluate((node:HTMLInputElement)=>node.indeterminate)).toBeTruthy()
  await expect(page.getByRole('button',{name:'Review 49 assignments',exact:true})).toBeEnabled()

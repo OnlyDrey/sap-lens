@@ -51,7 +51,8 @@ test('bulk Keep and Remove immediately show authoritative role statuses and inde
  await openSod(page,'Reviews')
  for(const action of ['Keep','Remove']){
   await page.getByRole('tab',{name:'Bulk Review',exact:true}).click();const preview=page.getByRole('region',{name:'Bulk role assignment review',exact:true})
-  if(action==='Remove'){await preview.getByRole('checkbox',{name:'Include previously reviewed',exact:true}).check();await preview.getByRole('group',{name:'Proposed decision',exact:true}).getByRole('button',{name:'Remove',exact:true}).click()}
+  if(action==='Remove')await preview.getByRole('checkbox',{name:'Include previously reviewed',exact:true}).check()
+  await preview.getByRole('group',{name:'Proposed decision',exact:true}).getByRole('button',{name:action,exact:true}).click() // the decision is always chosen explicitly
   await preview.getByRole('checkbox',{name:'Select eligible assignments on current page',exact:true}).check();await preview.getByRole('button',{name:'Review 6 assignments',exact:true}).click()
   const confirm=page.getByRole('dialog',{name:action==='Keep'?'Keep assignments':'Recommend removal',exact:true})
   await confirm.getByRole('textbox',{name:'Reviewer',exact:true}).fill('Synthetic Bulk Reviewer');await confirm.getByRole('textbox',{name:'Rationale',exact:true}).fill('Synthetic decision-status validation')

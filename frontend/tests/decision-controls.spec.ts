@@ -78,3 +78,39 @@ test('the role assignment row offers Investigate, Keep, Remove in that order and
   same((await style(row.getByRole('button', { name: 'Keep ROLE_A1', exact: true }))).color, await token(page, '--success', 'color'))
   expect(await style(row.getByRole('button', { name: 'Investigate ROLE_A1', exact: true }))).toEqual(before)
 })
+
+test('Bulk Review starts without a decision, needs an explicit choice to confirm and resets for the next operation', async ({ page }) => {
+  await openBulk(page)
+  const buttons = group(page).getByRole('button')
+  await expect(buttons).toHaveText(['Investigate', 'Keep', 'Remove'])
+  for (const name of ['Investigate', 'Keep', 'Remove']) await expect(button(page, name)).toHaveAttribute('aria-pressed', 'false')   // nothing preselected
+  await expect(page.getByText('No decision selected. Choose Investigate, Keep or Remove to continue.')).toBeVisible()
+  await expect(group(page)).toHaveAttribute('aria-describedby', /.+/)                                                              // announced to assistive technology
+  await expect(page.getByText(/no decision selected/i).first()).toBeVisible()
+  const pageBox = page.getByRole('checkbox', { name: 'Select eligible assignments on current page' })
+  await pageBox.check()
+  const review = page.getByRole('button', { name: /^Review \d+ assignments$/ })
+  await expect(review).toBeDisabled()                                                                                              // no decision, no confirmation
+  await expect(page.getByRole('button', { name: 'Preview', exact: true })).toBeDisabled()
+  await button(page, 'Investigate').click()
+  await expect(button(page, 'Investigate')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByText('No decision selected. Choose Investigate, Keep or Remove to continue.')).toHaveCount(0)
+  await expect(review).toBeEnabled()
+  await review.click()
+  const dialog = page.getByRole('dialog', { name: 'Mark for further investigation' })
+  await expect(dialog).toBeVisible()
+  await dialog.getByRole('textbox', { name: 'Reviewer' }).fill('Synthetic Reviewer')
+  const confirm = dialog.getByRole('button', { name: /^Mark for/ })
+  await expect(confirm).toBeDisabled()                                                                                             // rationale validation is unchanged
+  await dialog.getByRole('textbox', { name: 'Rationale' }).fill('Needs a second look')
+  await confirm.click()
+  await expect(dialog.getByRole('region', { name: 'Batch review result' })).toBeVisible()
+  await dialog.getByRole('button', { name: 'Done' }).click()
+  // The finished operation does not carry its decision into the next one.
+  for (const name of ['Investigate', 'Keep', 'Remove']) await expect(button(page, name)).toHaveAttribute('aria-pressed', 'false')
+  // Leaving and reopening Bulk Review also starts without a decision.
+  await button(page, 'Remove').click()
+  await page.getByRole('tab', { name: 'Work queue', exact: true }).click()
+  await page.getByRole('tab', { name: 'Bulk Review', exact: true }).click()
+  for (const name of ['Investigate', 'Keep', 'Remove']) await expect(button(page, name)).toHaveAttribute('aria-pressed', 'false')
+})
