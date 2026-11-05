@@ -250,16 +250,18 @@ class PrerequisiteTests(unittest.TestCase):
         runner.run.assert_not_called()
 
     def test_setup_creates_local_environment_and_uses_lockfiles(self):
-        with tempfile.TemporaryDirectory() as temporary,patch.object(deps,'locate',return_value='npm'),patch.object(deps.subprocess,'check_output',return_value='[3,12,64]'):
+        with tempfile.TemporaryDirectory() as temporary,patch.object(deps,'locate',return_value='npm'),patch.object(deps.subprocess,'check_output',return_value='[3,12,64]'),\
+             patch.object(deps.python_env,'pip_version',return_value=(26,2)),patch.object(deps.python_env,'dependencies_satisfied',return_value=False):
             root=Path(temporary);runner=Mock();deps.prepare_environment(root,runner)
         commands=[call.args[1] for call in runner.run.call_args_list]
-        self.assertIn('venv',commands[0]);self.assertIn('requirements-dev.txt',' '.join(map(str,commands[2])))
+        self.assertIn('venv',commands[0]);self.assertIn('requirements-dev.txt',' '.join(map(str,commands[1])))
         self.assertIn('ci',commands[-1]);self.assertNotIn('update',str(commands))
 
     def test_existing_environment_is_reused_and_incompatible_one_fails(self):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary);python=root/'.venv'/('Scripts/python.exe' if os.name=='nt' else 'bin/python');python.parent.mkdir(parents=True);python.touch();runner=Mock()
-            with patch.object(deps,'locate',return_value='npm'),patch.object(deps.subprocess,'check_output',return_value='[3,12,64]'):deps.prepare_environment(root,runner)
+            with patch.object(deps,'locate',return_value='npm'),patch.object(deps.subprocess,'check_output',return_value='[3,12,64]'),\
+                 patch.object(deps.python_env,'pip_version',return_value=(26,2)),patch.object(deps.python_env,'dependencies_satisfied',return_value=True):deps.prepare_environment(root,runner)
             self.assertFalse(any('venv' in call.args[1] for call in runner.run.call_args_list))
             with patch.object(deps.subprocess,'check_output',return_value='[3,13]'),self.assertRaises(BuildError):deps.prepare_environment(root,Mock())
 

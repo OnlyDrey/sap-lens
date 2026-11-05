@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import sys
+from . import python_env
 from .runner import ROOT, BuildError
 
 def locate(name):
@@ -23,7 +24,7 @@ def inspect_tool(name):
         if not node_range:raise BuildError('Unsupported Node engine declaration; update the build detector with the project configuration.')
         supported=range(int(node_range[1]),int(node_range[2])) if name=='node' else (10,11)
         if not match or int(match[1]) not in supported:
-            raise BuildError(f'Incompatible {name}: use Node 24/25 and npm 10/11 from project configuration.',3)
+            raise BuildError(f'Incompatible {name} {value}: this project needs Node {node_range[1]} or {int(node_range[2])-1} and npm 10 or 11 (frontend/package.json engines). SAP Lens does not replace your global Node.js: install a supported version with your approved tools (or a per-user version manager) and reopen the terminal.',3)
     return path
 
 def install_system(name,runner,consent=False,interactive=False,prompt=input):
@@ -63,6 +64,15 @@ def check_tools(args,runner,interactive):
     if args.platform in ('docker','all') and args.mode in ('build','package'):
         runner.run('Check Docker Compose',[locate('docker'),'compose','version'],timeout=30)
 
+def frontend_current(root):
+    """npm's own freshness rule: the hidden lockfile it writes into node_modules is newer than package.json and package-lock.json.
+    Anything missing or older means `npm ci` (which is deterministic and rebuilds node_modules from the lockfile)."""
+    base=root/'frontend'
+    hidden=base/'node_modules/.package-lock.json'
+    try:
+        return hidden.is_file() and all(hidden.stat().st_mtime>=(base/name).stat().st_mtime for name in ('package.json','package-lock.json'))
+    except OSError:return False
+
 def prepare_environment(root,runner,*,packaging=False,frontend=True):
     if sys.version_info[:2]!=(3,12):raise BuildError('Project setup requires Python 3.12 to match the locked toolchain.',3)
     directory=root/('backend/build/python-env' if packaging else '.venv')
@@ -75,10 +85,22 @@ def prepare_environment(root,runner,*,packaging=False,frontend=True):
     except (OSError,ValueError,subprocess.SubprocessError) as error:raise BuildError(f'Cannot inspect the project Python environment {directory}: it is broken or incomplete. It was left untouched; remove or repair only that environment yourself, then retry.',3) from error
     if info[:2]!=[3,12]:raise BuildError(f'Project environment {directory} uses Python {info[0]}.{info[1]}, not 3.12. It was left untouched; preserve or remove it yourself, then retry so a 3.12 x64 environment is created.',3)
     if info[2:]!=[64]:raise BuildError(f'Project environment {directory} uses 32-bit Python; 64-bit Python 3.12 is required. It was left untouched; preserve or remove it yourself, then retry.',3)
-    runner.run('Repair/ensure local pip',[python,'-m','ensurepip'])
-    requirements=['-r','backend/requirements-dev.txt']
-    if packaging:requirements+=['-r','backend/requirements-build.txt']
-    runner.run('Install locked project Python dependencies',[python,'-m','pip','install',*requirements])
+    def run(label,command):
+        try:runner.run(label,command);return 0,''
+        except BuildError as error:
+            log=getattr(runner,'last_output',None)
+            return error.code,(log.read_text(encoding='utf-8',errors='replace') if log and log.is_file() else '')
+    try:python_env.ensure_pip(python,root,run,print)
+    except RuntimeError as error:raise BuildError(str(error),3) from None
+    files=['backend/requirements-dev.txt']+(['backend/requirements-build.txt'] if packaging else [])
+    if python_env.dependencies_satisfied(python,root,files):print('Locked Python dependencies are already installed; nothing to change.')
+    else:
+        code,output=run('Install locked project Python dependencies',[python,'-m','pip','install',*sum((['-r',name] for name in files),[])])
+        if code:
+            hint=' The package index certificate could not be verified: trust the corporate CA in the operating system store and retry (certificate checks are never disabled).' if python_env.TLS_FAILURE.search(output) else ''
+            raise BuildError(f'Installing the locked Python dependencies failed (exit {code}). The environment may be partly installed; rerunning is safe.{hint} Logs: {getattr(runner,"directory",None)}',code)
     runner.run('Check local Python dependencies',[python,'-m','pip','check'])
-    if frontend:runner.run('Install locked frontend dependencies',[locate('npm'),'--prefix','frontend','ci','--no-audit','--no-fund'])
+    if frontend:
+        if frontend_current(root):print('Locked frontend dependencies are already installed; nothing to change.')
+        else:runner.run('Install locked frontend dependencies',[locate('npm'),'--prefix','frontend','ci','--no-audit','--no-fund'])
     return python
