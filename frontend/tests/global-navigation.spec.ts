@@ -135,7 +135,7 @@ test('direct user and release investigations locate global position and handle r
   expect((await request.get('/api/access/users?anchor=DEMO_050&limit=1', { headers })).ok()).toBeTruthy()
 })
 
-test('a removed last-page record disables traversal and clamps an obsolete origin page', async ({ page }) => {
+test('a removed last-page record disables traversal and clamps an obsolete origin page', async ({ page, request }) => {
   await page.goto('/#session=browser-test-session'); await destination(page, 'User Access')
   const list = page.getByRole('region', { name: 'User Access', exact: true })
   await pickMulti(list, 'SAP User Group', 'GROUP_KEEP', page)
@@ -148,7 +148,11 @@ test('a removed last-page record disables traversal and clamps an obsolete origi
   await expect(page.getByRole('navigation', { name: 'Detail records' })).toContainText('125 of 125')
   rows = rows.filter(row => row.startsWith(user(0) + ','))
   writeFileSync(source, csv())
-  await page.getByRole('button', { name: 'Refresh role data from CSV', exact: true }).click()
+  // 125 users shrinking to 1 is a sharp reduction: the import checks hold it (active data stays), and the administrator confirms it.
+  const replace = async (confirm: boolean) => request.post('/api/data-sources/users/select', { headers, data: { path: source, mode: 'dynamic', confirm_anomalies: confirm, revision: (await (await request.get('/api/configuration', { headers })).json()).settings.revision } })
+  expect((await replace(false)).status()).toBe(409)
+  await expect(page.getByRole('navigation', { name: 'Detail records' })).toContainText('125 of 125')
+  expect((await replace(true)).ok()).toBeTruthy()
   await expect(page.getByText('This record is missing or no longer matches these filters.', { exact: false })).toBeVisible()
   await expect(page.getByRole('navigation', { name: 'Detail records' })).toHaveCount(0)
   await page.getByRole('button', { name: 'Back to users', exact: true }).click()

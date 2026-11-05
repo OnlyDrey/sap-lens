@@ -185,6 +185,7 @@ test('risk and activity dialogs inherit reference fields without creating overri
     await library.getByLabel('SoD reference workbook').setInputFiles({name:'synthetic-reference.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:referenceFile()})
     await expect(library.getByRole('status')).toContainText('Reference library saved')
     await expect(library.getByLabel('Reference matching summary')).toContainText('1 active risks matched · 1 active activities matched')
+    await page.getByRole('searchbox',{name:'Search SoD risks',exact:true}).fill('F019') // earlier specs leave catalogue entries, so the risk may not be on the first page
     await page.getByRole('button',{name:'Edit SoD risk F019',exact:true}).click()
     const risk=page.getByRole('dialog',{name:'SoD risk F019',exact:true})
     await expect(risk.getByRole('textbox',{name:'Display name',exact:true})).toHaveValue('Synthetic reference risk')
@@ -196,6 +197,7 @@ test('risk and activity dialogs inherit reference fields without creating overri
     const unchanged=(await firstSave).postDataJSON().metadata
     expect(unchanged.display_name).toBe('');expect(unchanged.explanation_en).toBe('');expect(unchanged.mitigating_controls_en).toBe('')
     await expect(risk).toHaveCount(0)
+    await page.getByRole('searchbox',{name:'Search SoD risks',exact:true}).fill('F019') // earlier specs leave catalogue entries, so the risk may not be on the first page
     await page.getByRole('button',{name:'Edit SoD risk F019',exact:true}).click()
     await risk.getByRole('textbox',{name:'Business area',exact:true}).fill('Unsaved synthetic override')
     const version=await(await request.get('/api/sod/reference',{headers})).json()
@@ -210,6 +212,7 @@ test('risk and activity dialogs inherit reference fields without creating overri
     const saved=catalogue.items.find((item:{risk_id:string})=>item.risk_id==='F019')
     expect(saved.local.display_name).toBe('');expect(saved.local.business_category).toBe('');expect(saved.description_review_status).toBe('Needs description review')
     await page.getByRole('tab',{name:'Activities',exact:true}).click()
+    await page.getByRole('searchbox',{name:'Search SoD activities',exact:true}).fill('AP01')
     await page.getByRole('button',{name:'Edit SoD activity AP01',exact:true}).click()
     const activity=page.getByRole('dialog',{name:'SoD activity AP01',exact:true})
     await expect(activity.getByRole('textbox',{name:'Display name',exact:true})).toHaveValue('Synthetic reference activity')
