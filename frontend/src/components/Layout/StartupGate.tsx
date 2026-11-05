@@ -12,6 +12,7 @@ export function StartupGate({ children }: { children: ReactNode }) {
     queryFn: fetchConfiguration,
     retry: false
   })
+  const stale = configuration.error instanceof ApiError && configuration.error.kind === 'session'
   if (configuration.data) return children
   return (
     <div className="startup-screen">
@@ -21,7 +22,7 @@ export function StartupGate({ children }: { children: ReactNode }) {
           alt="SAP Lens"
           className="w-24 h-24 object-contain mx-auto"
         />
-        <h1 className="text-3xl font-semibold mt-5">SAP Lens</h1>
+        <h1 className="text-3xl font-semibold mt-3">SAP Lens</h1>
         <p className="text-sm text-[var(--muted)] mt-2">
           Your local SAP role workspace
         </p>
@@ -29,22 +30,21 @@ export function StartupGate({ children }: { children: ReactNode }) {
           <>
             <AlertTriangle
               size={25}
-              className="mx-auto mt-8 text-[var(--error)]"
+              className="mx-auto mt-5 text-[var(--error)]"
             />
-            <h2 className="font-semibold mt-4">
+            <h2 className="font-semibold mt-2">
               Unable to load application configuration
             </h2>
-            <p role="alert" className="text-sm mt-3">
+            <p role="alert" className="text-sm mt-2">
               {configuration.error instanceof Error?configuration.error.message:'Retry configuration loading or open Backup & Restore for recovery. Your saved data is retained.'}
             </p>
-            {configuration.error instanceof ApiError&&configuration.error.kind==='session'&&<Button onClick={recoverTrustedSession}>Reload trusted session</Button>}
-            <button
-              className="mt-5 rounded-lg px-4 py-2 bg-[var(--accent)] text-[var(--on-accent)]"
-              onClick={() => void configuration.refetch()}
-            >
-              Retry connection
-            </button>
-            <Button variant="secondary" onClick={()=>setRecovery(value=>!value)}>Open Backup &amp; Restore</Button>
+            <div className="startup-actions" role="group" aria-label="Recovery actions">
+              {stale && <Button variant="primary" onClick={recoverTrustedSession}>Reload trusted session</Button>}
+              <Button variant={stale ? 'secondary' : 'primary'} onClick={() => void configuration.refetch()}>Retry connection</Button>
+            </div>
+            <div className="startup-actions startup-actions-tertiary">
+              <Button variant="ghost" aria-expanded={recovery} onClick={()=>setRecovery(value=>!value)}>Open Backup &amp; Restore</Button>
+            </div>
             {recovery&&<div className="mt-4 text-left"><BackupRestore/></div>}
           </>
         ) : (

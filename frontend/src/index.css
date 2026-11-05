@@ -81,7 +81,12 @@
 
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible,textarea:focus-visible { outline:var(--focus-width) solid var(--focus); outline-offset:var(--focus-offset); }
 .startup-screen { min-height:100dvh; display:grid; place-items:center; padding:28px; background:var(--bg); color:var(--text); }
-.startup-card { max-width:460px; width:100%; text-align:center; padding:36px; border-radius:20px; background:var(--surface); }
+.startup-card { max-width:460px; width:100%; text-align:center; padding:28px; border-radius:20px; background:var(--surface); }
+.startup-actions { display:flex; flex-wrap:wrap; justify-content:center; align-items:stretch; gap:var(--space-2,8px); margin-top:16px; }
+.startup-actions > .ui-button { flex:1 1 180px; min-height:40px; justify-content:center; }
+.startup-actions-tertiary { margin-top:12px; padding-top:12px; border-top:1px solid var(--border); }
+.startup-actions-tertiary > .ui-button { flex:0 1 auto; }
+@media (max-width:480px) { .startup-screen { padding:12px; } .startup-card { padding:20px 16px; } .startup-actions { flex-direction:column; } .startup-actions > .ui-button { flex:0 0 auto; width:100%; } }
 
 /* Shared Settings controls: native select semantics with one aligned Lucide chevron. */
 .settings-select { display:block; position:relative; min-width:0; width:100%; }
