@@ -398,7 +398,7 @@ QUEUE_COLUMNS = ['CONTEXT', 'REVIEW_TYPE', 'USERNAME', 'USER_GROUPS', 'REFERENCE
 def native_csv_header(filename):
     """Exact header contract for a native Save dialog, or None when the filename is not a SoD 2.0 export."""
     import re
-    match = re.fullmatch(r'sap-lens-sod-(explorer-(user-risk|user-activity|access-list|lookup)|group-(risk|activity)-heatmap|review-queue|access-remediation)-\d{4}-\d{2}-\d{2}\.csv', filename)
+    match = re.fullmatch(r'sap-lens-sod-(explorer-(user-risk|user-activity|access-list|lookup)|group-(risk|activity)-heatmap|review-queue|access-remediation|role-assignments)-\d{4}-\d{2}-\d{2}\.csv', filename)
     if not match:
         return None
     name = match.group(1)
@@ -406,6 +406,8 @@ def native_csv_header(filename):
         return csv_header(QUEUE_COLUMNS)
     if name == 'access-remediation':
         return csv_header(REMEDIATION_COLUMNS)
+    if name == 'role-assignments':
+        return csv_header(ROLE_ASSIGNMENT_COLUMNS)
     if name.startswith('group-'):
         return csv_header(HEATMAP_COLUMNS[match.group(3)])
     return csv_header(EXPLORER_COLUMNS[match.group(2).replace('-', '_')][0])
@@ -758,12 +760,37 @@ def remediation_csv_rows(rows):
                row['reason'] or row['controls'], row['owner'], row['due_date'] or '', row['action_status'] + (' (overdue)' if row['overdue'] else ''), row['verification']]
 
 
+ROLE_ASSIGNMENT_COLUMNS = ['USERNAME', 'ROLE', 'SAP User Group', 'Decision Status']
+
+
+def role_assignment_rows(rows):
+    """One row per exact (SAP username, assigned role), built from the filtered assignment-level rows before anything is serialized.
+
+    Several activity or risk rows and several validity intervals of the same pair collapse into one row. Resolution when the pair carries
+    more than one value (deterministic, sorted, never the first one seen): the SAP User Group is the distinct non-empty values joined
+    with ', ' (empty when none exists, never invented); the Decision Status is the single authoritative ``assignment_decision`` when all
+    intervals agree, otherwise ``Mixed (A / B)`` listing the distinct statuses, so a disagreement is shown instead of hidden.
+    """
+    pairs = {}
+    for row in rows:
+        entry = pairs.setdefault((row['user'], row['role']), dict(groups=set(), decisions=set()))
+        if row.get('user_group'):
+            entry['groups'].add(row['user_group'])
+        entry['decisions'].add(row.get('assignment_decision') or 'Pending')
+    for (user, role), entry in sorted(pairs.items()):
+        decisions = sorted(entry['decisions'])
+        status = decisions[0] if len(decisions) == 1 else 'Mixed (' + ' / '.join(decisions) + ')'
+        yield [user, role, ', '.join(sorted(entry['groups'])), status]
+
+
 @router.get('/remediation/export')
-def remediation_export(q: dict = Depends(scope_query), recommended: REMEDIATION_FILTER = '', tracking: TRACKING_FILTER = ''):
+def remediation_export(q: dict = Depends(scope_query), recommended: REMEDIATION_FILTER = '', tracking: TRACKING_FILTER = '', format: Literal['detailed', 'role-assignments'] = 'detailed'):
     _, rows, _, _ = remediation_data(q)
     if recommended:
         rows = [row for row in rows if row['recommended'] == recommended]
     rows = tracked_rows(rows, tracking)
+    if format == 'role-assignments':
+        return csv_response(ROLE_ASSIGNMENT_COLUMNS, role_assignment_rows(rows), 'role-assignments')
     return csv_response(REMEDIATION_COLUMNS, remediation_csv_rows(rows), 'access-remediation')
 
 

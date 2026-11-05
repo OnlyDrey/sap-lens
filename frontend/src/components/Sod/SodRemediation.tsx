@@ -11,7 +11,7 @@ import { Dialog } from '@/components/Shared/Dialog'
 import { ErrorState, DataTable, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
 import { FormField, Input } from '@/components/Shared/Controls'
 import { Select } from '@/components/Shared/Select'
-import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
+import { ExportMenu, ROLE_ASSIGNMENTS_ICON } from '@/components/Shared/ExportMenu'
 import { NorwegianDateInput, parseNorwegianDate } from '@/components/Shared/NorwegianDateInput'
 import { PAGE_SIZES, Pagination } from '@/components/Access/Shared'
 import { ChevronDown, ChevronRight, ChevronsDown, ChevronsUp, ClipboardCheck, Search } from 'lucide-react'
@@ -123,10 +123,12 @@ export function RemediationView() {
     for(const row of data?.items||[]){const key=JSON.stringify([row.user,row.assignment_id]);const parent=groups.get(key);if(parent)parent.rows.push(row);else groups.set(key,{key,user:row.user,rows:[row]})}
     return [...groups.values()]
   },[data?.items])
-  const exportCsv = async () => {
+  const exportCsv = async (format: 'detailed' | 'role-assignments') => {
     setBusy(true)
     try {
-      const name = await downloadFile('/api/sod/remediation/export', { params: scopeParams(context, filters, { recommended }), namePattern: EXPORT_NAME, kind: 'csv' })
+      const exportParams = scopeParams(context, filters, { recommended })
+      if (format === 'role-assignments') exportParams.set('format', format) // detailed keeps the original request unchanged
+      const name = await downloadFile('/api/sod/remediation/export', { params: exportParams, namePattern: EXPORT_NAME, kind: 'csv' })
       announceExport(name ? { kind: 'success', message: `Exported ${name}.` } : { kind: 'info', message: 'Export cancelled.' })
     } catch (cause) {
       announceExport({ kind: 'error', message: cause instanceof Error ? cause.message : 'Export failed.' })
@@ -139,7 +141,9 @@ export function RemediationView() {
       <CoverageNotice info={data} />
       <SodFilters view="sod_queue" filters={filters} setFilters={(value) => { setOffset(0); setFiltersState(value) }}
         fields={['group', 'username', 'risk', 'activity', 'role', 'role_suffix', 'tcode', 'category', 'validity']}
-        actions={<ExportCSVButton loading={busy} disabled={!data?.total || verifiedOnly} onClick={() => void exportCsv()} title={verifiedOnly ? 'Verified removals are tracked actions; export the remediation report instead.' : 'Exports the filtered remediation rows.'} />}>
+        actions={<ExportMenu busy={busy} disabled={!data?.total || verifiedOnly} title={verifiedOnly ? 'Verified removals are tracked actions; export the remediation report instead.' : undefined}
+          options={[{ id: 'role-assignments', label: 'Role Assignments', description: 'One row per unique SAP user and assigned role.', icon: ROLE_ASSIGNMENTS_ICON }, { id: 'detailed', label: 'Detailed Remediation', description: 'Full remediation details, including existing risk, activity and tracking information.' }]}
+          onSelect={(id) => void exportCsv(id === 'role-assignments' ? 'role-assignments' : 'detailed')} />}>
       {result.isError ? <ErrorState error={result.error} onRetry={() => void result.refetch()} /> : !data ? <LoadingState /> : <>
         <section className="sod-tiles" aria-label="Recommended handling">
           <Kpi label="All handling" value={GROUPS.reduce((sum, group) => sum + (data.summary[group] ?? 0), 0).toLocaleString()} active={!recommended} onClick={() => { setRecommended(''); setOffset(0) }} />

@@ -243,6 +243,7 @@ test('remediation separates proposals from verification and keeps tracked action
   expect(actions[0].status).toBe('Open')
   const download = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Export CSV', exact: true }).click()
+  await page.getByRole('button', { name: /^Detailed Remediation/ }).click() // the original detailed export, now one of two formats
   expect((await download).suggestedFilename()).toMatch(/^sap-lens-sod-access-remediation-\d{4}-\d{2}-\d{2}\.csv$/)
 })
 

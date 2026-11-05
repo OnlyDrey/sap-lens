@@ -510,3 +510,12 @@ rationale, filters, period and source/review revisions. **Mark N role assignment
 for removal** records a recommendation, never a SAP change. Reconsidering prior
 decisions requires the additional replacement checkbox. Atomic validation, source
 checks, period gates and per-assignment immutable history are unchanged.
+
+## Remediation CSV exports
+
+**Export CSV** on Remediation is a menu with two formats, both honoring every active Remediation filter (SAP User Group, username, risk, activity, assigned role, role suffix, transaction code, business area, assignment validity, recommended handling and tracking) across all pages, independent of expanded rows:
+
+- **Role Assignments** (`sap-lens-sod-role-assignments-YYYY-MM-DD.csv`): columns `USERNAME;ROLE;SAP User Group;Decision Status`, one row per exact SAP username and assigned role, sorted by username then role. Several activities, risks or validity intervals of the same pair never add rows; display names and descriptions are not used to merge anything. Where one pair has several values the result is deterministic and visible: the SAP User Group is the distinct non-empty groups joined with `, ` (empty when none exists, never invented), and the Decision Status is the authoritative assignment decision when all intervals agree, otherwise `Mixed (A / B)` listing the distinct decisions. It reports the review decision only; remediation actions and verification stay in the detailed export.
+- **Detailed Remediation** (`sap-lens-sod-access-remediation-YYYY-MM-DD.csv`): unchanged columns and activity-level rows for evidence and investigation.
+
+Both use the established CSV conventions (semicolon delimiter, all fields quoted, UTF-8 with BOM, spreadsheet-formula protection).

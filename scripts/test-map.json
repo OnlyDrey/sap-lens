@@ -183,7 +183,8 @@
     "sod-work-queue-visual",
     "sod-review-performance",
     "sod-configuration-recovery",
-    "sod-complete-bulk"
+    "sod-complete-bulk",
+    "remediation-export"
    ]
   },
   "shared-ui": {
@@ -348,6 +349,7 @@
   "refinement-round2": 91,
   "refinement-search-layout": 25,
   "release-roles": 31,
+  "remediation-export": 12,
   "role-codeblocks": 16,
   "role-visuals": 19,
   "saved-filter-migration": 0,

@@ -1466,3 +1466,10 @@ summary:focus-visible,div[tabindex="0"]:focus-visible,a.role-identifier-link:foc
 @media(max-width:600px){ .session-notice { flex-wrap:wrap; margin-inline:var(--space-2); } .session-notice-actions { width:100%; } }
 .session-empty { display:grid; gap:2px; padding:var(--space-3); border:1px dashed var(--border); border-radius:var(--radius-control); color:var(--muted); }
 .session-empty strong { color:var(--text); }
+.export-menu-list { display:grid; gap:2px; padding:var(--space-1); }
+.export-menu-item { display:flex; align-items:flex-start; gap:var(--space-2); width:100%; padding:var(--space-2); border:1px solid transparent; border-radius:var(--radius-control); background:transparent; color:var(--text); text-align:left; cursor:pointer; }
+.export-menu-item:hover:not(:disabled) { background:var(--hover); }
+.export-menu-item:disabled { color:var(--muted); cursor:not-allowed; }
+.export-menu-item svg { flex:none; margin-top:2px; }
+.export-menu-item > span { display:grid; min-width:0; }
+.export-menu-item > span > span { color:var(--muted); font-size:var(--font-meta); }
