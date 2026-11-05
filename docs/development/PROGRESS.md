@@ -50,7 +50,7 @@ CI policy: GitHub Actions runs only on push to `main` after an explicitly approv
 | Start, unchanged files (warm) | 8.0 s, peak 703 MB | 1.7 s, peak 460 MB |
 | Static start (warm) | 8.3 s | 1.7 s |
 | Refresh, only users changed | 8.9 s | 3.7 s |
-| Refresh, only the directory changed | 6.6 s | 7.1 s (full path, as intended; within noise) |
+| Refresh, only the directory changed | 6.6 s | 7.1 s single run (see Phase F repeat below: median 5.1 s, no regression) |
 | Import | 12.3 s | 9.6 s (not attributed: the first import does the same work) |
 | Identity mapping of every SAP user, first call / repeat | 0.5 s each call | about 0.6 s first (about 10 to 15 % overhead), 0.04 s repeat |
 
@@ -87,3 +87,17 @@ None open.
 ## Next actions
 
 Phase D: frontend and API cache consistency (revision-aware), then E (parallel browser tests), F (final validation; includes the backup count-versus-90-day requirement and the repeat of the changed-directory refresh benchmark).
+
+
+## Phase F: changed-directory refresh repeat (5 alternating runs each, identical data)
+
+Dataset: 100 000 employees, 20 000 SAP users, 400 roles, 10 assignments per user; fresh process per scenario; before = backend of `2ab0b0d`, after = current backend; machine otherwise idle.
+
+| Scenario | Before median [range] | After median [range] | Change |
+| --- | --- | --- | --- |
+| Refresh, only the directory changed | 6.61 s [5.95 to 6.95] | 5.08 s [4.29 to 5.49] | -23 % |
+| Refresh, only users changed | 21.5 s [21.3 to 22.1] | 12.9 s [12.1 to 13.4] | -40 % |
+| Start, unchanged files (warm) | 8.13 s [7.69 to 8.78] | 3.23 s [3.03 to 3.36] | -60 % |
+| Import | 20.7 s [19.6 to 21.3] | 19.4 s [18.6 to 19.6] | -6 % |
+
+The ranges for the changed-directory refresh do not overlap and the "before" median reproduces the earlier 6.6 s, so the earlier 7.1 s was a single noisy run, not a regression. A second dataset (16 000 users, 16 000 employees) shows the same direction (1.19 s to 0.54 s). Peak memory for that scenario: 1045 MB before, 1015 MB after.
