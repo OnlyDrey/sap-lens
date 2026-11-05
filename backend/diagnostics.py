@@ -23,6 +23,11 @@ def diagnostics_snapshot(loader=None, private=False):
         'last_successful_load': state.last_loaded.isoformat() if state.last_loaded else None,
         'last_successful_refresh': settings.data_lifecycle.last_successful_refresh,
     }
+    try:
+        import assignment_lifecycle
+        result['review_continuity'] = assignment_lifecycle.load()[1]
+    except Exception:  # noqa: BLE001 - diagnostics must never fail
+        result['review_continuity'] = 'unknown'
     from deployment import server_mode
     result['deployment_mode'] = 'server' if server_mode() else 'desktop'
     result['last_failed_load'] = result['last_failed_load'] or settings.data_lifecycle.last_failed_refresh

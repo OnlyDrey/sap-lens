@@ -2,6 +2,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import Field
 
+import assignment_lifecycle
 import storage_migration
 from config_models import StrictModel
 from routers.backups import admin
@@ -18,7 +19,8 @@ class Confirmation(StrictModel):
 @router.get('/status')
 def status(request: Request):
     admin(request)
-    return storage_migration.status()
+    _, state, detail = assignment_lifecycle.load()
+    return dict(storage_migration.status(), review_continuity=dict(state=state, detail=detail))
 
 
 @router.post('/migration/confirm')
@@ -31,3 +33,20 @@ def confirm(request: Request, body: Confirmation):
         return storage_migration.confirm(body.migration_id, actor('administrator'))
     except storage_migration.NotReady as error:
         raise HTTPException(409, str(error)) from None
+
+
+class Rebaseline(StrictModel):
+    confirm: bool
+
+
+@router.post('/lifecycle/rebaseline')
+def rebaseline(request: Request, body: Rebaseline):
+    """Administrator acknowledges the current imported data as the continuity baseline after the lifecycle memory was damaged, lost or rolled back.
+
+    Earlier assignment decisions then apply again; their history is untouched. Anyone relying on the decisions should first check the data."""
+    admin(request)
+    if not body.confirm:
+        raise HTTPException(422, 'Confirm that the current imported data may serve as the continuity baseline.')
+    assignment_lifecycle.rebaseline(actor('administrator'))
+    _, state, detail = assignment_lifecycle.load()
+    return dict(review_continuity=dict(state=state, detail=detail))

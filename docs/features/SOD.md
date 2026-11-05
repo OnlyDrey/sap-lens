@@ -380,6 +380,22 @@ A user that disappears and later returns does not inherit decisions (the usernam
 frozen review periods are never rewritten, and frozen assessments ignore later reappearance. Installations upgraded from an earlier version start with no lifecycle memory, so nothing changes
 until a verified absence is observed. If the file is unreadable it is ignored with a warning (behaviour as before) until restored from a backup.
 
+#### Identity continuity and fail-safe applicability
+
+* **Identity evidence.** The imports provide nothing more reliable than the username except the SAP e-mail address and name in the User–Role Mapping file (the Employee Directory is matched through that
+  same address, so it adds no independent evidence). Hashed tokens of them are kept per tracked assignment; addresses used by several SAP users are ignored, as in the directory matching. If both the recorded
+  and the current user carry evidence and share none of it, the username probably belongs to someone else and the earlier decision reads **Outdated** (*SAP user identity evidence … changed*). A changed mailbox
+  with the same name, or a changed surname with the same mailbox, is continuity. Missing evidence on either side proves nothing and changes nothing.
+* **Fail safe.** If the lifecycle memory is damaged or fails its checksum, is missing although it was established before (for example a backup from before this feature restored over an established installation),
+  or is older than the newest state this installation wrote (an old backup restored), no assignment decision can be confirmed for the same identity: all assignment decisions read Outdated with the reason
+  *Review continuity data is unavailable or cannot be trusted …*. Imports, source availability, activity/risk reviews, events, evidence and frozen periods are unaffected. A fresh or upgraded installation with no
+  memory at all starts a baseline silently, as before.
+* **Visibility.** Data Health lists *Review decision continuity cannot be confirmed* (warning, with the affected assignments) and *Assignments needing a new review after reappearing* (information); the storage status
+  and diagnostics export carry `review_continuity` (`ok`, `corrupt`, `missing`, `stale`).
+* **Recovery.** An administrator confirms *Re-baseline* (`POST /api/storage/lifecycle/rebaseline`): the current imported data becomes the continuity baseline, the damaged file is kept as
+  `assignment-lifecycle.json.before-rebaseline-<time>`, the baseline is attributed to the administrator and decisions apply again. Nothing is repaired automatically.
+* **Exports.** CSV and report schemas are unchanged: the status value stays `Outdated`; the reason is in the decision explanation shown by the API and the status popover.
+
 ### SAP import verification and history
 
 Removal checks use every actual imported assignment, including expired and non-conflicting

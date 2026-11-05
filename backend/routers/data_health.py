@@ -47,7 +47,21 @@ LABELS={
  'missing_description':('Catalogue roles without descriptions','information','Optional description missing.'),
  'unknown_module':('Unclassified catalogue roles','information','No reliable SAP module from the imported catalogue.'),
  'unknown_type':('Unknown or missing SAP user type','warning','Technical values are retained; classification cannot be assumed.'),
+ 'lifecycle_integrity':('Review decision continuity cannot be confirmed','warning','The memory that links assignment decisions to the same identity is damaged, missing or outdated, so earlier assignment decisions read Outdated until an administrator re-baselines. Imports are unaffected.'),
+ 'reappeared_assignments':('Assignments needing a new review after reappearing','information','Assignments removed from the SAP import and later returned, or whose SAP user identity evidence changed. The earlier decision stays in history and reads Outdated until a new decision is recorded.'),
  'conflicting_identity':('Users with multiple identity/account observations','information','Different names, emails or account intervals may be legitimate source evidence; inspect before interpreting as a conflict.')}
+
+
+def _continuity():
+    """Lifecycle integrity for the review decisions, computed per request (cheap) and never cached with the import calculations."""
+    try:
+        import assignment_lifecycle
+        found=assignment_lifecycle.problems()
+    except Exception:
+        return {'lifecycle_integrity':[dict(identifier='Review continuity',source='review decisions',destination='user')],'reappeared_assignments':[],'detail':'The decision store could not be read.'}
+    item=lambda x,why:dict(identifier=x['role'],username=x['user'],source='review decisions',destination='user',reason=why)
+    return {'lifecycle_integrity':[item(x,found['state']) for x in found['affected']] or ([dict(identifier='Review continuity',source='review decisions',destination='user',reason=found['state'])] if found['state']!='ok' else []),
+            'reappeared_assignments':[item(x,x['reason']) for x in found['pending']],'detail':found['detail']}
 
 
 @router.get('')
@@ -62,8 +76,12 @@ def overview(finding:str=Query('',max_length=64),offset:int=Query(0,ge=0),limit:
     directory=directory_status(snapshot=state)
     catalogue=bool(state.import_report);users=mapping and bool(state.users.report)
     findings=[]
+    continuity=_continuity()
     for code,(title,severity,explanation) in LABELS.items():
         usable=catalogue if code in {'no_transactions','missing_description','unknown_module'} else users and (catalogue if code in {'unmapped','ambiguous'} else True)
+        if code in continuity:
+            findings.append(dict(id=code,title=title,severity=severity,count=len(continuity[code]),explanation=explanation if code!='lifecycle_integrity' or not continuity[code] else explanation+' '+continuity['detail']))
+            continue
         findings.append(dict(id=code,title=title,severity=severity,count=len(data[code]) if usable else None,explanation=explanation))
     eligible=[a for a in state.users.assignments if a['scope']!='other'] if users else []
     matched=sum(a['match_status'] in {'exact','wildcard'} for a in eligible)
@@ -72,7 +90,7 @@ def overview(finding:str=Query('',max_length=64),offset:int=Query(0,ge=0),limit:
               ratio('Catalogue roles with transaction mappings',sum(bool(r.tcode_count) for r in state.roles.values()),len(state.roles),catalogue),
               ratio('SAP identities matched to Employee Directory',directory['coverage'].get('matched',0),directory['coverage_total'],bool(directory['coverage_total']))]
     selected=next((f for f in findings if f['id']==finding),None)
-    rows=data.get(finding,[]) if selected and selected['count'] is not None else []
+    rows=continuity.get(finding,data.get(finding,[])) if selected and selected['count'] is not None else []
     return dict(sources=[dict(id='roles',name='Role Catalogue',enabled=True,configured=bool(settings.data_csv_path),available=catalogue,records=len(state.roles) if catalogue else None,snapshot='Durable local snapshot' if 'roles' in settings.data_lifecycle.sources else 'Memory; no durable snapshot yet',last_successful=state.last_loaded.isoformat() if catalogue and state.last_loaded else None),
                          dict(id='users',name='User–Role Mapping',enabled=mapping,configured=bool(settings.user_csv_path),available=bool(state.users.report),records=len(state.users.users) if state.users.report else None,snapshot='Durable local snapshot' if 'users' in settings.data_lifecycle.sources else 'Memory; no durable snapshot yet',last_successful=state.last_loaded.isoformat() if state.users.report and state.last_loaded else None),
                          dict(id='employees',name='Employee Directory',enabled=directory['enabled'],configured=directory['configured'],available=directory['loaded'],records=directory['report'].get('records'),snapshot='Durable local snapshot' if directory['persisted'] else 'No durable snapshot',last_successful=directory['report'].get('imported_at')),

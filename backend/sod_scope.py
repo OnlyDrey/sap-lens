@@ -163,8 +163,9 @@ def states_for(bundle, model):
     """Frozen assessments retain their approval-date lifecycle; live contexts use today."""
     approved = (bundle.get('period') or {}).get('approval_date') if bundle.get('frozen') else None
     # Frozen assessments keep their captured evidence: later imports (and reappearance) never rewrite them.
+    applies = None if bundle.get('frozen') else assignment_lifecycle.applicability()
     return governance.states(model, latest_for(bundle), today=date.fromisoformat(approved) if approved else None,
-                             reappeared=None if bundle.get('frozen') else assignment_lifecycle.reappeared())
+                             reappeared=applies.map if applies else None, reasons=applies.reasons if applies else None)
 
 
 def actions_for(bundle):
