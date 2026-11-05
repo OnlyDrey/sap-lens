@@ -78,6 +78,7 @@
    ],
    "browser": [
     "account-review-refinement",
+    "functional-groups",
     "position-changes"
    ]
   },

@@ -309,3 +309,64 @@ def user_history(username, offset=0, limit=25):
     key = user_key(username)
     events = [dict(e) for e in reversed(read()['history']) if e['user_key'] == key]
     return dict(items=events[offset:offset + limit], total=len(events), offset=offset, limit=limit)
+
+
+# --- advisory suggestion rules -----------------------------------------------------------------------------------------
+# A rule matches when every condition it states holds: Directory Department equals (normalized) and/or Job Title contains
+# (normalized). Rules are advisory; nothing is ever assigned from them. All matching rules are shown. A single suggestion is made
+# only when every matching rule on an active group names the same group; otherwise the ambiguity is reported.
+
+def list_rules():
+    data = read()
+    return [dict(r, group_name=data['groups'][r['group_id']]['name'], group_status=data['groups'][r['group_id']]['status']) for r in data['rules']]
+
+
+def add_rule(group_id, department='', title_contains=''):
+    department, title_contains = re.sub(r'\s+', ' ', department.strip()), re.sub(r'\s+', ' ', title_contains.strip())
+    if not department and not title_contains:
+        raise HTTPException(422, 'A rule needs a Directory Department, a Job Title text, or both.')
+    with lock:
+        data = read()
+        if group_id not in data['groups']:
+            raise HTTPException(404, 'Functional Group not found.')
+        if any(r['group_id'] == group_id and normalize_text(r.get('department', '')) == normalize_text(department)
+               and normalize_text(r.get('title_contains', '')) == normalize_text(title_contains) for r in data['rules']):
+            raise HTTPException(409, 'This rule already exists.')
+        if len(data['rules']) >= 500:
+            raise HTTPException(409, 'The maximum number of suggestion rules is reached.')
+        rule = dict(id='fr_' + uuid.uuid4().hex[:12], group_id=group_id, department=department, title_contains=title_contains, created=now())
+        data['rules'].append(rule)
+        write(data)
+        return rule
+
+
+def delete_rule(rule_id):
+    with lock:
+        data = read()
+        remaining = [r for r in data['rules'] if r['id'] != rule_id]
+        if len(remaining) == len(data['rules']):
+            raise HTTPException(404, 'Rule not found.')
+        data['rules'] = remaining
+        write(data)
+
+
+def suggest(department, title, data=None):
+    data = data or read()
+    matches = []
+    for rule in data['rules']:
+        group = data['groups'][rule['group_id']]
+        if group['status'] != 'active':
+            continue
+        reasons = []
+        if rule.get('department'):
+            if normalize_text(rule['department']) != normalize_text(department):
+                continue
+            reasons.append(f'Directory Department = {rule["department"]}')
+        if rule.get('title_contains'):
+            if normalize_text(rule['title_contains']) not in normalize_text(title):
+                continue
+            reasons.append(f'Job Title contains {rule["title_contains"]}')
+        matches.append(dict(rule_id=rule['id'], group_id=group['id'], group_name=group['name'], reasons=reasons))
+    groups = {m['group_id'] for m in matches}
+    status = 'none' if not matches else 'suggested' if len(groups) == 1 else 'ambiguous'
+    return dict(status=status, matches=sorted(matches, key=lambda m: (name_key(m['group_name']), m['rule_id'])))

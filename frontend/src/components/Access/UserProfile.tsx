@@ -7,6 +7,7 @@ import { UserRound, ShieldCheck, Building2 } from 'lucide-react'
 import type { UserDetail } from '@/api/access'
 import { SAPUserLink } from '@/components/Shared/SAPUserLink'
 import { formatDate } from '@/lib/dateFormat'
+import { FunctionalGroupPanel } from './FunctionalGroupPanel'
 import { useEmployeeMatch, ManagerSummary, DirectoryMatchDetails, ReturnToPreviousUser } from './EmployeeEnrichment'
 export function UserProfile({ user }: { user: UserDetail }) {
   const match = useEmployeeMatch(user.username),
@@ -52,6 +53,7 @@ export function UserProfile({ user }: { user: UserDetail }) {
         </dl>
         <div className="profile-matching-evidence"><DirectoryMatchDetails match={match.data}/></div>
       </section>
+      <FunctionalGroupPanel username={user.username} />
       <section aria-label="Account Status" className="profile-group">
         <h2>
           <ShieldCheck size={18} aria-hidden="true" />

@@ -11,6 +11,7 @@ import { About } from './About'
 import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
 import { DirectoryDiagnostics, DirectorySnapshotRecovery, EmployeeBrowser, FeatureSettings } from './EmployeeDirectory'
 import {SodRiskSettings} from './SodRiskSettings'
+import {FunctionalGroupSettings} from './FunctionalGroupSettings'
 import {SourceManager} from './SourceManager'
 import {SodImportEditor} from './SodImportEditor'
 import {rebaseSourceDraft,type CSVSource,type SourceActivation} from '@/api/sources'
@@ -62,7 +63,7 @@ import {
 import { ReportBranding } from './ReportBranding'
 import { DISCARD_PROMPT, setSettingsDirty } from '@/lib/settingsGuard'
 const ComponentLibrary=lazy(()=>import('./ComponentLibrary').then(module=>({default:module.ComponentLibrary})))
-const sectionIcons = [Building2, Database, Layers, Palette, Activity, BookUser, Info, Layers, ShieldCheck, Clock, Archive]
+const sectionIcons = [Building2, Database, Layers, Palette, Activity, BookUser, Info, Layers, ShieldCheck, Clock, Archive, UsersRound]
 const sections = [
   'Organization & SAP System',
   'Data Sources',
@@ -74,9 +75,10 @@ const sections = [
   'Component Library',
   'SoD Risk Configuration',
   'Runtime & Scheduling',
-  'Backup & Restore'
+  'Backup & Restore',
+  'Functional Groups'
 ]
-const navigationOrder=[0,3,1,2,8,5,9,10,4,7,6]
+const navigationOrder=[0,3,1,2,8,11,5,9,10,4,7,6]
 const fieldLabels: Record<string, string> = {
   FUNCTION_KEY: 'SAP module or area',
   AGR_NAME: 'Role name (required)',
@@ -995,6 +997,7 @@ export function SettingsView({
                   {section === 6 && <About/>}
                   {section === 9 && <><ScheduledRefresh draft={draft} onChange={setDraft}/><DesktopOptions draft={draft} onChange={setDraft}/></>}
                   {section === 8 && <SodRiskSettings/>}
+                  {section === 11 && <FunctionalGroupSettings/>}
                   {section === 7 && <Suspense fallback={<p role="status">Loading component previews…</p>}><ComponentLibrary/></Suspense>}
                   {section === 5 && <><FeatureSettings draft={draft} onChange={setDraft} onConfigure={source => { setSection(1); setImportSource(source) }}/></>}
                   {section === 4 && (
@@ -1098,7 +1101,7 @@ export function SettingsView({
             </div>
           </div>
         </div>
-        <div className={section===7||section===8||section===10?'hidden':'settings-actions'}>
+        <div className={section===7||section===8||section===10||section===11?'hidden':'settings-actions'}>
           <p role="status" className="text-xs text-[var(--muted)] mr-auto">
             {draft &&
             (['dark', 'light'] as const).some(

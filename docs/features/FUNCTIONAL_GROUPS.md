@@ -32,3 +32,19 @@ signed-in actor.
 
 The store is validated before a restore is activated (format, uniqueness, broken group references, contradictory states). Older backups without
 the file restore to an empty catalogue.
+
+## Settings and User Details
+
+- **Settings > Functional Groups:** searchable table (name, description, assigned users, Active or Archived), create, edit and archive or restore.
+  Duplicate names (case, spacing and Unicode-normalized) are refused. Archived groups stay on existing users and in history but cannot be newly assigned.
+- **User Details > Functional Group:** shows the group and classification separately from the imported Directory fields. A reviewer can assign,
+  change, confirm or clear. Nothing is preselected, the action button names the outcome ("Assign Purchasing", "Change to Logistics", "Confirm
+  Purchasing"), the reviewer name is required (the signed-in actor in server mode) and clearing requires a rationale.
+
+## Suggestion rules
+
+Advisory only. A rule has an optional Directory Department (equals, ignoring case, spacing and Unicode form) and an optional Job Title text
+(contains); at least one is required, and when both are present both must match. There is no precedence: every matching rule on an active group is
+listed with its reason (for example "Directory Department = Supply Chain and Job Title contains Purchaser"). A single suggestion is offered only
+when all matching rules name the same group; otherwise the dialog says the match is ambiguous and the reviewer chooses. Suggestions never assign
+a group and are only computed from an unambiguous Directory match.

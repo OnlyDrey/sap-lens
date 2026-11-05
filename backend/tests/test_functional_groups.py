@@ -171,5 +171,75 @@ class Persistence(Store):
             backups.validate_store(root)
 
 
+class Suggestions(Store):
+    def test_rules_match_explain_and_report_ambiguity(self):
+        buy, plan = self.group('Purchasing'), self.group('Planning')
+        fg.add_rule(buy, department='Supply Chain', title_contains='Purchaser')
+        fg.add_rule(plan, title_contains='planner')
+        result = fg.suggest('supply  chain', 'Senior PURCHASER')
+        self.assertEqual((result['status'], result['matches'][0]['group_name']), ('suggested', 'Purchasing'))
+        self.assertEqual(result['matches'][0]['reasons'], ['Directory Department = Supply Chain', 'Job Title contains Purchaser'])
+        self.assertEqual(fg.suggest('Supply Chain', 'Buyer')['status'], 'none')  # department alone does not satisfy a combined rule
+        both = fg.suggest('Supply Chain', 'Purchaser and Planner')
+        self.assertEqual((both['status'], len(both['matches'])), ('ambiguous', 2))
+
+    def test_archived_groups_and_empty_conditions_are_not_suggested(self):
+        gid = self.group()
+        with self.assertRaises(HTTPException):
+            fg.add_rule(gid)
+        fg.add_rule(gid, department='Buying')
+        with self.assertRaises(HTTPException):
+            fg.add_rule(gid, department=' buying ')
+        self.assertEqual(fg.suggest('Buying', '')['status'], 'suggested')
+        fg.set_group_status(gid, 'archived')
+        self.assertEqual(fg.suggest('Buying', '')['status'], 'none')
+
+    def test_delete_rule(self):
+        gid = self.group()
+        rule = fg.add_rule(gid, department='X')
+        fg.delete_rule(rule['id'])
+        self.assertEqual(fg.list_rules(), [])
+        with self.assertRaises(HTTPException):
+            fg.delete_rule(rule['id'])
+
+
+class Api(unittest.TestCase):
+    """Router behaviour on a synthetic dataset (reuses the Account Review fixture)."""
+    def setUp(self):
+        import test_account_review as base
+        self.write_users = lambda: base.AccountReviewTests.write_users(self)
+        base.AccountReviewTests.setUp(self)
+        self.base = base
+
+    def tearDown(self):
+        self.base.AccountReviewTests.tearDown(self)
+
+    def call(self, method, path, **kwargs):
+        return self.client.request(method, '/api/functional-groups' + path, headers=self.base.H, **kwargs)
+
+    def test_group_lifecycle_and_classification_over_http(self):
+        created = self.call('POST', '', json=dict(name='Purchasing', description='Buying')).json()
+        self.assertEqual(self.call('POST', '', json=dict(name=' purchasing ')).status_code, 409)
+        user = '/users/DEMO_NORMAL'
+        self.assertEqual(self.call('GET', user).json()['classification']['status'], 'Unassigned')
+        self.assertEqual(self.call('PUT', '/users/NOPE', json=dict(group_id=created['id'], reviewer='R', expected_revision=0)).status_code, 404)
+        self.assertEqual(self.call('PUT', user, json=dict(group_id=created['id'], expected_revision=0)).status_code, 422)  # reviewer required
+        saved = self.call('PUT', user, json=dict(group_id=created['id'], reviewer='Rev', rationale='Buys', expected_revision=0))
+        self.assertEqual(saved.json()['status'], 'Confirmed')
+        self.assertEqual(self.call('PUT', user, json=dict(group_id=None, reviewer='Rev', expected_revision=1)).status_code, 422)  # rationale to clear
+        self.assertEqual(self.call('PUT', user, json=dict(group_id=created['id'], reviewer='Rev', expected_revision=0)).status_code, 409)
+        detail = self.call('GET', user).json()
+        self.assertEqual(detail['directory']['match_status'], 'matched')
+        self.assertEqual(self.call('GET', '/history/demo_normal').json()['total'], 1)
+        self.assertEqual(self.call('POST', f'/{created["id"]}/archive').json()['status'], 'archived')
+        self.assertEqual(self.call('GET', '').json()['items'][0]['user_count'], 1)
+
+    def test_rules_over_http(self):
+        gid = self.call('POST', '', json=dict(name='Finance')).json()['id']
+        rule = self.call('POST', '/rules', json=dict(group_id=gid, department='Finance')).json()
+        self.assertEqual(self.call('GET', '/rules').json()['items'][0]['group_name'], 'Finance')
+        self.assertEqual(self.call('DELETE', f'/rules/{rule["id"]}').status_code, 200)
+
+
 if __name__ == '__main__':
     unittest.main()

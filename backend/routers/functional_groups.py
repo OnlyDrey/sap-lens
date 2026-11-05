@@ -29,6 +29,29 @@ class Classification(StrictModel):
     change_id: str = Field(default='', max_length=64)
 
 
+class RuleBody(StrictModel):
+    group_id: str = Field(pattern=r'^fg_[a-f0-9]{12}$')
+    department: str = Field(default='', max_length=200)
+    title_contains: str = Field(default='', max_length=200)
+
+
+def directory_context(username):
+    """Imported Directory Department, Job Title and Manager for the SAP user, only when the match is unambiguous."""
+    from employee_directory import match_sap_identity, sap_email_owners
+    from .employees import available
+    state = cache.get_snapshot()
+    directory = available(state)
+    user = next((u for u in state.users.users.values() if u['username'].strip().upper() == username.strip().upper()), None)
+    if not directory or user is None:
+        return None
+    match = match_sap_identity(directory, user, sap_email_owners(state.users.users.values()))
+    employee = match['employee']
+    if match['status'] != 'matched' or not employee:
+        return dict(match_status=match['status'])
+    return dict(match_status='matched', department=employee['department'], title=employee['title'], site=employee['site'],
+                manager=employee['manager']['name'], manager_email=employee['manager']['email'])
+
+
 def known_user(username):
     users = cache.get_snapshot().users.users
     for user in users.values():
@@ -62,10 +85,29 @@ def restore(gid: str):
     return fg.set_group_status(gid, 'active')
 
 
+@router.get('/rules')
+def rules():
+    return dict(items=fg.list_rules())
+
+
+@router.post('/rules')
+def add_rule(body: RuleBody):
+    return fg.add_rule(body.group_id, body.department, body.title_contains)
+
+
+@router.delete('/rules/{rule_id}')
+def delete_rule(rule_id: str):
+    fg.delete_rule(rule_id)
+    return {'status': 'deleted'}
+
+
 @router.get('/users/{username:path}', dependencies=[Depends(require_mapping)])
 def classification(username: str):
     username = known_user(username)
-    return dict(classification=fg.public_user(fg.read(), username), history=fg.user_history(username, 0, 10))
+    data = fg.read()
+    context = directory_context(username)
+    suggestion = fg.suggest(context.get('department', ''), context.get('title', ''), data) if context and context.get('match_status') == 'matched' else None
+    return dict(classification=fg.public_user(data, username), history=fg.user_history(username, 0, 10), directory=context, suggestion=suggestion)
 
 
 @router.put('/users/{username:path}', dependencies=[Depends(require_mapping)])
