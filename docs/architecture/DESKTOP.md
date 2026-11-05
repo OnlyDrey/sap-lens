@@ -57,7 +57,7 @@ Linux tests mock the native GUI, registry and mutex APIs; they do not establish 
 - Missing-runtime message on a PC without WebView2; organizational signing, SmartScreen, endpoint and filesystem policies.
 - Visual layout, comparison interactions, theme toggle and keyboard behavior in WebView2.
 
-See [validation record](../archive/validation/VALIDATION.md) for measured local results versus pending Windows results.
+See [validation tracker](../validation/README.md) for measured local results versus pending Windows results.
 
 The settings UI also supports native logo selection, portable configuration Save dialogs and opening the per-user configuration folder. Saved organization/theme/profile/logo settings survive upgrades; user assets are never bundled into later builds. Test these dialogs and persistence on actual Windows alongside the CSV picker. Unexpected owned-server death is reported and closes the window; a failed service is not left behind a seemingly working interface.
 
@@ -70,7 +70,7 @@ Version 1.2 introduces a responsive branded startup document, full-window settin
 The canonical build also creates the SHA-256 manifest and runs `scripts/verify-windows-package.py` before delivery. The verifier checks the PE GUI subsystem, checksum, required bundled assets and absence of known private configuration/CSV/log entries. The GitHub workflow uploads the same verified output; it does not maintain a second checksum implementation.
 
 
-Role Lookup, User Access, Release Roles and legacy configuration compatibility are documented in [User Access](../features/USER_ACCESS.md). See [UI refinement](../archive/validation/UI_REFINEMENT.md) for data-source navigation, filter availability and area-color behavior.
+Role Lookup, User Access, Release Roles and legacy configuration compatibility are documented in [User Access](../features/USER_ACCESS.md). See [Filters](../features/FILTERS.md) for filter availability and [Navigation patterns](NAVIGATION.md) for data-source navigation.
 
 ## Download integrity and execution failures
 

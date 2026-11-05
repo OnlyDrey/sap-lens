@@ -13,5 +13,4 @@ preserved. Old classification configuration is archived locally and never execut
 reading older settings does not rewrite the original. See [Configuration](../getting-started/CONFIGURATION.md)
 for schema-3 compatibility, source setup, matching and release-role behavior.
 
-The [earlier assessment](../archive/implementation/CLASSIFICATION_ARCHITECTURE.md) is a historical record of
-the former behavior, not current configuration instructions.
+Earlier behavior is available in Git history only.

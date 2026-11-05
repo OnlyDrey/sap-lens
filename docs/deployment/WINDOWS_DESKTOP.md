@@ -96,7 +96,7 @@ Keep backups until the new version starts, reads its sources and preserves saved
 state. Binary replacement alone does not reverse a future storage migration.
 For recovery, use the verified portable executable's local maintenance command to
 restore a compatible archive into **empty** destinations; see
-[backup/recovery semantics](../archive/validation/INSTALLATION_LIFECYCLE_VALIDATION.md). Review paths and
+[deployment validation status](README.md#validation-status). Review paths and
 permissions before selecting restored data. Do not extract a backup over a live
 store or delete the prior valid data as a shortcut.
 

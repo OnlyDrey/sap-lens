@@ -15,7 +15,7 @@ User/role navigation uses existing history; Back returns to the preserved compar
 
 **Export comparison CSV** exports the current section and filters. Rows identify A/B, category, compared usernames and interval evidence (or transaction-to-role evidence). All pages must share a source generation/date; changes or leaving the comparison cancel export before saving. Spreadsheet formulas are neutralized, export size is bounded, and desktop export uses the existing authenticated local save bridge. No SAP data uploads occur.
 
-See [Saved Filters](SAVED_FILTERS.md), [Data Health](../data/DATA_HEALTH.md) and [Access Insights assessment](../proposals/ACCESS_INSIGHTS.md).
+See [Saved Filters](SAVED_FILTERS.md) and [Data Health](../data/DATA_HEALTH.md).
 
 The table has four columns: Role / Transaction, Difference, User A Evidence and User B Evidence. Exact assigned roles and copy actions occupy one horizontally scrollable line. A keyboard-accessible assignment-status button opens exact Norwegian-formatted start/end dates and the evaluated status; Escape closes it and restores focus. The third line identifies the SAP User Group. Missing bounds are shown as Unknown, distinct from 31.12.9999. Wildcard text is omitted from the compact cell; the source matching model, unambiguous catalogue navigation and export provenance remain unchanged. Transaction rows retain the explanatory roles and their assignment intervals; they remain role-derived mappings. Each evidence page is bounded to 25 records, with explicit pagination for further intervals or explanatory roles. No evidence is discarded; additional pages retain generation/date checks. Sort order is preserved in history, saved filters and the selected CSV export.
 

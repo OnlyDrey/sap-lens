@@ -227,4 +227,4 @@ Timeouts during reservation can likewise leave a tag without confirmed outputs.
 Signing remains disabled. Checksums are not Authenticode signatures, and publishing
 an unsigned release does not guarantee corporate policies, SmartScreen or Defender
 will allow downloading or executing it. See [signing](CODE_SIGNING.md),
-[packaging](../archive/validation/WINDOWS_PACKAGING.md) and [CI architecture](../development/CI.md).
+[deployment validation status](README.md#validation-status) and [CI architecture](../development/CI.md).

@@ -89,7 +89,7 @@ Native confirmation dialogs remain the existing deletion safeguard. There is no 
 
 Search Shared, Access/Shared and Settings/Controls first. Add a variant when behavior is the same. Keep domain calculations outside presentation. Choose tokens instead of copying color/radius strings; preserve native form semantics and accessible names. Add a library example only after the actual shared component exists. Test keyboard/focus, loading/disabled/invalid states and both themes. Validate real callers as well as the showcase. Do not connect previews to production data APIs or settings mutations.
 
-See [Design system](DESIGN_SYSTEM.md), [Navigation patterns](NAVIGATION.md) and [validation report](../archive/validation/UI_CONSOLIDATION_VALIDATION.md).
+See [Design system](DESIGN_SYSTEM.md), [Navigation patterns](NAVIGATION.md) and [validation tracker](../validation/README.md).
 
 ## CSV lifecycle additions
 
@@ -108,7 +108,7 @@ Assignment dates use the shared Popover. Combobox/calendar portals register thei
 popover ownership so an inner selection does not dismiss its parent. Escape closes
 the inner popup first; the next Escape restores focus to the outer trigger. The
 Component Library uses these actual components with isolated synthetic state.
-See [the current refinement report](../archive/validation/UI_REFINEMENT_PHASE1.md) for scope and validation.
+See [validation tracker](../validation/README.md) for scope and validation.
 
 
 Navigation containers share the internal `NavigationStrip` in

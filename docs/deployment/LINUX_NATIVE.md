@@ -114,10 +114,10 @@ not to downloaded native packages.
 
 CI's non-root install/start/import/synthetic-upgrade/persistence/uninstall smoke
 test does not certify systemd boot, journald, OS hardening or production permissions.
-Those require a real target host. See [actual validation](../archive/validation/PACKAGING_VALIDATION.md).
+Those require a real target host. See [deployment validation status](README.md#validation-status).
 
 Local lifecycle commands also support `start`, `stop`, `restart` and `status`
 with `--user` and the same explicit paths. `backup` stops the runtime and leaves
 it stopped until an explicit `start`. See
-[backup and recovery details](../archive/validation/INSTALLATION_LIFECYCLE_VALIDATION.md); native systemd
+[deployment validation status](README.md#validation-status); native systemd
 acceptance remains pending.

@@ -81,7 +81,7 @@ Desktop navbar utilities are compact icons on one row where space permits. At na
 
 Prefer shared responsive classes before adding another page-specific breakpoint. Validate labels, chevrons, focus rings, floating panels and table scrolling at 375, 800, 1280 and 1600 px in both themes.
 
-See [Component Library](COMPONENTS.md), [Navigation patterns](NAVIGATION.md) and [validation report](../archive/validation/UI_CONSOLIDATION_VALIDATION.md).
+See [Component Library](COMPONENTS.md), [Navigation patterns](NAVIGATION.md) and [validation tracker](../validation/README.md).
 
 ## Refresh evidence surfaces
 

@@ -37,9 +37,7 @@ readiness guide, not an enabled build feature.
 | Docker | Offline image packaging, container health/authentication/persistence and lifecycle checks | Local Linux container integration recorded; no new CI build or current-source production image is certified by this documentation migration |
 | Linux Native | Offline wheelhouse, extraction/install/start/persistence/upgrade/uninstall checks | Linux user-mode integration recorded; real systemd boot/recovery and target OS acceptance pending |
 
-See [lifecycle evidence](../archive/validation/INSTALLATION_LIFECYCLE_VALIDATION.md),
-[packaging evidence](../archive/validation/PACKAGING_VALIDATION.md) and
-[local build evidence](../archive/validation/LOCAL_BUILD_VALIDATION.md). Packaging
+Packaging
 implemented, package built, CI passed, runtime smoke-tested, native acceptance and
 production readiness are separate claims. Check the actual source SHA/run before
 distributing a package; successful historical tests do not certify a newer commit.

@@ -62,7 +62,6 @@ class DocumentationTests(unittest.TestCase):
                 packages.copy_source(target)
             self.assertEqual({p.name for p in target.glob('*.md')},{
                 'LICENSE.md','README.md','SECURITY.md','DEPLOYMENT_LINUX_NATIVE.md',
-                'DEPLOYMENT_SECURITY.md','DEPLOYMENT_PACKAGES.md','PACKAGING_VALIDATION.md',
-                'LOCAL_BUILD_VALIDATION.md','INSTALLATION_LIFECYCLE_VALIDATION.md'})
+                'DEPLOYMENT_SECURITY.md','DEPLOYMENT_PACKAGES.md'})
             self.assertEqual(rules.check(list(target.glob('*.md')),target),[])
             self.assertIn('# Linux native/systemd',(target/'README.md').read_text())

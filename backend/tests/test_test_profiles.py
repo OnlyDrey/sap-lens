@@ -184,7 +184,7 @@ class ChangeSelectionTests(unittest.TestCase):
             self.assertEqual(runner.classify(path), category, path)
 
     def test_documentation_only_changes_run_the_repository_checks_and_nothing_else(self):
-        plan = self.plan('docs/deployment/BUILD.md', 'docs/validation/validation-items.csv', 'README.md')
+        plan = self.plan('docs/deployment/RELEASES.md', 'docs/validation/validation-items.csv', 'README.md')
         self.assertEqual((plan['backend'], plan['frontend'], plan['browser']), ('repository', False, False))
         self.assertIn('test_repository_integrity', plan['modules']); self.assertNotIn('test_sod_reports', plan['modules'])
 

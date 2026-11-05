@@ -67,8 +67,7 @@ configuration directory, so the shared-state limits of one server never apply ac
 processes. Within a process there is one worker and no retries, and
 `reuseExistingServer: false` prevents testing stale assets. Chromium saturates CPUs, so
 `auto` runs backend modules in `min(3, CPUs)` processes and the browser suite in one;
-opt in with `--jobs 3` on a host with spare cores. Measurements (the browser gain was
-modest and uneven on 4 vCPUs) are in the [optimization record](../archive/validation/TEST_SUITE_OPTIMIZATION.md).
+opt in with `--jobs 3` on a host with spare cores. The browser gain was modest and uneven on 4 vCPUs.
 Do not raise workers inside one server without proving the fixtures cannot race.
 Browser processes: `--browser-jobs N` (or `SAP_LENS_BROWSER_JOBS`) runs the browser tests in up to three isolated processes; `auto` uses one per spare CPU (CPUs minus one, between 1 and 3), so a
 1 or 2 CPU host runs one process and a 4 CPU host three. The default stays one process. Spec files are assigned deterministically, longest first, from the measured seconds in
@@ -82,7 +81,7 @@ measured on the runner you use (hosted runners have 4 CPUs, but Chromium saturat
 processes) is safe everywhere: each test builds its own storage. Reproduce any failure of a parallel run with `--browser-jobs 1 --grep TITLE` before classifying it.
 
 R8 measurements on 4 vCPUs (716 browser tests, 34.5 min serial): 2 processes 1.33x, 3 processes 1.50x, 4 processes 1.38x on a six-spec subset, with no failures; test-level
-sharding was no faster than file-level sharding. See [test execution performance](TEST_PERFORMANCE_R8.md).
+sharding was no faster than file-level sharding.
 
 ## CI
 
@@ -113,8 +112,7 @@ Keep screenshots/traces outside tracked files because real investigations may co
 personal data. Review light and dark themes at 375, 800, 1280 and 1600 px for visual
 changes. Linux unit/browser tests and mocked native bridges do not prove
 Windows/WebView2, SCM, installer, real systemd boot/recovery or UNC behavior. Never
-dispatch expensive builds or publish artifacts without approval; [dated
-evidence](../archive/README.md) is historical.
+dispatch expensive builds or publish artifacts without approval.
 
 ## Fast Validation per phase
 

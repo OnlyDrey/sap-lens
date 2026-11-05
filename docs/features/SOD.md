@@ -75,8 +75,8 @@ lines are not verified digital signatures.
 
 Source import: [Data & CSV](../data/IMPORT_AND_REFRESH.md), synthetic example
 [sod-matrix.example.csv](../../examples/sod-matrix.example.csv). API: [SoD API](../architecture/API.md#sod-api).
-Validation and open native acceptance items: [SoD validation](../archive/validation/SOD_VALIDATION.md)
-and [SoD 2.0 validation](../archive/validation/SOD2_VALIDATION.md).
+Validation and open native acceptance items: [validation tracker](../validation/README.md)
+and [validation tracker](../validation/README.md).
 
 ## SoD Risk Configuration (Settings)
 

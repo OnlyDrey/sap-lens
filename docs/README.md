@@ -11,8 +11,6 @@
 | [Architecture](architecture/README.md) | Runtime boundaries, APIs, security and shared UI |
 | [Development & Testing](development/README.md) | Source setup, checks and CI |
 | [Validation tracker](validation/README.md) | Checklist per functional area: validation status, manual approval, findings and improvements (CSV and Excel workbook) |
-| [Future Proposals](proposals/README.md) | Evidence-based assessments; not promised features |
-| [Historical Evidence](archive/README.md) | Dated validation and implementation decisions |
 
 Current guides describe implemented behavior, not blanket production certification.
 Native platform limitations are listed in the [deployment matrix](deployment/README.md#validation-status).

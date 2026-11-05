@@ -74,8 +74,3 @@ pushed alone.
 
 Add a row or change a status only after a completed run (record its URL) or a new offline test. Never mark a runtime scenario
 verified from a local run.
-
-## Historical local validation
-
-Dated local validation records (repairs, stabilization checkpoints, build-engine evidence, 1 to 4 November 2026) are kept verbatim in the
-[local validation log](../archive/validation/LOCAL_VALIDATION_LOG_2026-11.md). They are not GitHub runtime acceptance.

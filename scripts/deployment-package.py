@@ -300,9 +300,6 @@ def copy_source(target):
         'DEPLOYMENT_LINUX_NATIVE.md': 'deployment/LINUX_NATIVE.md',
         'DEPLOYMENT_SECURITY.md': 'deployment/SECURITY.md',
         'DEPLOYMENT_PACKAGES.md': 'BUILD.md',
-        'PACKAGING_VALIDATION.md': 'archive/validation/PACKAGING_VALIDATION.md',
-        'LOCAL_BUILD_VALIDATION.md': 'archive/validation/LOCAL_BUILD_VALIDATION.md',
-        'INSTALLATION_LIFECYCLE_VALIDATION.md': 'archive/validation/INSTALLATION_LIFECYCLE_VALIDATION.md',
     }
     for name, source in documents.items():
         package_document(ROOT/'docs'/source, target/name)

@@ -124,7 +124,7 @@ Copy to `C:\Program Files\SAP Lens Server` and use the management commands below
 Do not launch the desktop EXE as a service. The workflow verifies PE/resources and
 runs SCM install/start/health/version/stop/uninstall, when actually dispatched on a
 Windows runner; reboot/recovery/UNC acceptance remains manual. See the
-[execution report](../archive/validation/PACKAGING_VALIDATION.md) before interpreting implemented checks
+[deployment validation status](README.md#validation-status) before interpreting implemented checks
 as executed results.
 
 ## Build on x64 Windows

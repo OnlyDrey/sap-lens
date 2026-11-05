@@ -54,7 +54,7 @@ The navbar no longer displays the full updated timestamp. Dashboard and Data Sou
 
 Keep exact identifier copy, manager-to-SAP-user navigation, record Previous/Next and browser Back behavior. Popovers close on outside click, Escape and history traversal, restoring trigger focus for keyboard dismissal. Tables may scroll within their named focusable region; controls and page-level navigation must remain within the viewport.
 
-See [Component Library](COMPONENTS.md) for APIs and [UI validation](../archive/validation/UI_CONSOLIDATION_VALIDATION.md) for actual checks and platform limits.
+See [Component Library](COMPONENTS.md) for APIs and [validation tracker](../validation/README.md) for actual checks and platform limits.
 
 The shared SAP username codeblock can open the application-level SoD Review panel
 without changing the parent page. Exact user selection is stored in existing view

@@ -57,8 +57,7 @@ required merely to skip one explicitly authorized push.
 | Build Windows Application / `.github/workflows/build-windows.yml` | workflow_dispatch only; caller selects branch/ref | Optional Reserve Release Version job before Windows Build & Verification (no regression stages); optional dependent Publish Verified Windows Release job for explicit beta/stable mode |
 
 The three-level model (Fast Validation, Build & Release, Full Regression), the change-selection table, target
-selection and the no-prerequisite policy are described in [CI/CD architecture](../deployment/CI_CD.md). The sections below describe current behavior verified against the workflow files; superseded explanations from before the
-three-level model are kept in the [CI history archive](../archive/validation/CI_HISTORY_PRE_THREE_LEVEL.md).
+selection and the no-prerequisite policy are described in [CI/CD architecture](../deployment/CI_CD.md). The sections below describe current behavior verified against the workflow files; superseded explanations are in Git history.
 
 ## Caching, parallelism and concurrency
 
@@ -124,7 +123,7 @@ comparison to the original pre-upload EXE hash. Raw ZIP digest, manifest/EXE
 digest and embedded package contents are distinct checks. Do not distribute an
 artifact from an otherwise failed run. Signing remains disabled. Build mode does
 not publish; explicit beta/stable modes use the isolated publication path described
-in [manual releases](../deployment/RELEASES.md). See [packaging](../archive/validation/WINDOWS_PACKAGING.md) and [desktop](../architecture/DESKTOP.md).
+in [manual releases](../deployment/RELEASES.md). See [Windows Desktop](../deployment/WINDOWS_DESKTOP.md) and [desktop architecture](../architecture/DESKTOP.md).
 
 All action uses remain official, immutable SHA pins; checkout credentials are
 not persisted. Token permissions are contents:read only in Fast/Full; Windows
@@ -166,4 +165,4 @@ The manual **Build Deployment Packages** workflow takes one `build_target` (`all
 `windows-service`, `linux-all`, `linux-docker`, `linux-native`). Lightweight shared validation runs once for the exact commit and
 run, then only the selected package jobs run with their package audits, native checks and distribution round trips. Publication is
 a separate guarded job that is off unless requested. The legacy Windows release workflow is retained separately. Details:
-[CI/CD architecture](../deployment/CI_CD.md), [build guide](../BUILD.md), [artifacts and attestation](../deployment/BUILD.md).
+[CI/CD architecture](../deployment/CI_CD.md), [build guide](../BUILD.md), [artifacts and attestation](../BUILD.md#output-layout).

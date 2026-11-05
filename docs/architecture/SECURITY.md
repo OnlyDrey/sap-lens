@@ -44,6 +44,29 @@ licensing](../../LICENSE.md). Run current [dependency checks](../development/TES
 not historical advisory counts, when assessing a new source revision.
 
 [Privacy](PRIVACY.md) records accepted unresolved historical branding P-01; current
-cleanup does not erase Git history or establish legal ownership. The latest [security review (R8)](../development/SECURITY_REVIEW_R8.md) lists findings, verified controls and untested areas; the [dated source
-review](../archive/implementation/SECURITY_REVIEW.md) is historical evidence, not a
-formal penetration test or certification of the current deployment.
+cleanup does not erase Git history or establish legal ownership.
+
+## Findings register and verified controls
+
+An internal, evidence-based review (not a penetration test or certification). Regression coverage:
+`backend/tests/test_security_surface.py` calls every API operation without the launch capability, with a foreign `Origin`, a wrong capability and a
+foreign `Host`, and in server mode without or with wrong credentials. The [validation tracker](../validation/README.md) (`SEC-001` to `SEC-008`,
+`R81-01` to `R81-03`) holds the checks to repeat on each release.
+
+| ID | Severity | Finding | Status |
+| --- | --- | --- | --- |
+| SEC-01 | Low | CSV formula neutralisation missed some leading characters | Fixed: every CSV writer uses `spreadsheet_cell` |
+| SEC-02 | Low | No throttling of failed Basic sign-ins | Fixed: per-client lockout with 429 and `Retry-After` |
+| SEC-03 | Low | Secret file accepted when group-readable | Fixed: created `0600`; readable-by-others files are rejected |
+| SEC-04 | Informational | CSP allows inline styles (measured coordinates); no HSTS or `Permissions-Policy` | Accepted; set transport headers at the TLS proxy |
+| SEC-05 | Informational | Upload response returns the staging path to the authenticated client | Accepted; the client needs it to select the source |
+| SEC-06 | Informational | One shared access boundary; reviewer names are self-reported | Documented limitation |
+| SEC-07 | Informational | Further systemd sandboxing possible | Open hardening opportunity |
+
+Verified in practice: capability, origin and host checks on every `/api/` operation (only `/health*` is outside); custom `X-SAP-Lens` header and no
+cookie authentication; no unsafe sinks (`eval`, `exec`, `pickle`, unsafe YAML, shell, HTML injection); path confinement for server reads and uploads;
+bounded JSON, CSV and upload sizes; one generic 500 message; loopback binding by default; secrets from files only; no SAP data in browser storage
+or a service worker; non-root, read-only containers with dropped capabilities. Run current `npm audit` and `pip-audit` for each source revision.
+
+Not tested here: native Windows (WebView2 isolation, service account and ACLs, UNC, installer), real systemd and Docker runtime acceptance, active
+penetration testing, parser fuzzing and TLS termination at a real proxy.

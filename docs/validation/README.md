@@ -31,7 +31,7 @@ is one record under Risk Matrix, so no record is duplicated.
 | Last validated date | `YYYY-MM-DD`, set when a person validates. Required for `Passed`; empty while not tested. |
 | Build/commit | The build or commit that was validated. |
 | Notes | What was seen, how, in which theme and viewport, with screenshots or test names. Required for every result status. |
-| Linked issue or finding | A finding or issue identifier, for example `SEC-02` from the [security review](../development/SECURITY_REVIEW_R8.md). |
+| Linked issue or finding | A finding or issue identifier, for example `SEC-02` from the [findings register](../architecture/SECURITY.md#findings-register-and-verified-controls). |
 | Potential future improvement | A possible improvement that is not a defect. Collected in the workbook's Future Improvements sheet. |
 | Manual validation steps | What a person must look at or try before approving (visual and subjective checks are never approved by a test run). |
 | Known limitations | Known gaps, limits and anything not covered by the automated validation. |

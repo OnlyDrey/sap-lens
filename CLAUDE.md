@@ -5,7 +5,7 @@
 ## Project documentation
 
 - Build system: `docs/BUILD.md`
-- Current build implementation status and acceptance checklist: `docs/BUILD-HANDOVER.md`
+- Platform acceptance status and open native checks: `docs/deployment/README.md#validation-status`
 
 ## Working rules
 

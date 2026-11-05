@@ -105,7 +105,7 @@ are `group`, `document_type`, `release_group`, repeatable `release_areas` and `r
 
 Returns `items`, `total`, `has_more` and `selected_available`. The availability
 check is independent of the option search window. Facets use the hierarchy
-[documented with the investigation UI](../archive/implementation/ACCESS_INVESTIGATION.md#data-aware-release-filters-and-navigation).
+described in [Filters](../features/FILTERS.md).
 No role, user or transaction relationships are modified.
 
 Diagnostics now include a `sources` array for Role Catalogue and User Access:
@@ -135,7 +135,7 @@ selected user/view/status scope before the transaction filter), and `data_revisi
 CSV export uses these existing authenticated pages, checks generation/count/date
 consistency and runs locally. There is no new HTTP export/upload endpoint. Native
 CSV saving uses a separate capability-guarded Save dialog and does not enable
-unrestricted WebView2 downloads. See [User access](../archive/implementation/ACCESS_INVESTIGATION.md#user-role-views-transaction-search-and-csv-export).
+unrestricted WebView2 downloads. See [User Access](../features/USER_ACCESS.md).
 
 ### Multiple exact transaction filters
 

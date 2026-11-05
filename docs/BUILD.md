@@ -318,9 +318,8 @@ with isolated synthetic fixtures and mocked system installers. Python Quick is
 executed locally. Real Windows bootstrap, winget, PowerShell 5.1/7 execution,
 PyInstaller/Inno/.NET compilation, WebView2/SCM and current-source platform packages
 remain unexecuted on this Linux host. No full application regression is claimed.
-See the [workflow validation matrix](validation/WORKFLOW_MATRIX.md), the dated
-[local validation log](archive/validation/LOCAL_VALIDATION_LOG_2026-11.md) and the [platform acceptance
-matrix](deployment/README.md#validation-status).
+See the [workflow validation matrix](validation/WORKFLOW_MATRIX.md) and the
+[platform acceptance matrix](deployment/README.md#validation-status).
 
 ## Script inventory (audit of 2026-11-04)
 

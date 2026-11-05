@@ -5,7 +5,7 @@
 SAP Lens produces an **unsigned** executable. Signing is not configured or activated
 by this work. Historical Windows Actions builds verified unsigned packages; that
 evidence does not validate later packaging changes. See
-[packaging readiness](../archive/validation/WINDOWS_PACKAGING.md) for the exact validation boundary.
+[deployment validation status](README.md#validation-status) for the exact validation boundary.
 Signing, a successful browser download and SmartScreen reputation are different
 properties. A signature neither guarantees successful downloads nor guarantees the
 absence of SmartScreen or endpoint-security warnings.
