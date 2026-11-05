@@ -1,21 +1,12 @@
 import { test, expect, type APIRequestContext } from '@playwright/test'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { headers, sessionUrl } from './support'
+import { readFileSync } from 'node:fs'
+import { headers, seedSources, sessionUrl, type SeededSources } from './support'
 
-let directory = ''
-test.beforeEach(async ({ request }) => {
-  await request.post('/api/configuration/reset', { headers })
-  directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-completed-'))
-  const users = path.join(directory, 'users.csv')
-  writeFileSync(users, 'USERNAME,ROLE_NAME,EMAIL,USER_GROUP,USER_VALID_FROM,USER_VALID_TO,ROLE_VALID_FROM,ROLE_VALID_TO\n' +
-    'DEMO_DONE,ZC:FI:VIEW,done@example.test,DEMO,20000101,20010101,20000101,20010101\nDEMO_OPEN2,ZC:FI:VIEW,open2@example.test,DEMO,20000101,20010101,20000101,20010101\n')
-  const current = (await (await request.get('/api/configuration', { headers })).json()).settings
-  current.data_csv_path = path.resolve('tests/fixtures/role-catalogue-minimal.csv'); current.user_csv_path = users
-  expect((await request.post('/api/configuration', { headers, data: current })).ok()).toBeTruthy()
-})
-test.afterEach(async ({ request }) => { await request.post('/api/configuration/reset', { headers }); rmSync(directory, { recursive: true, force: true }) })
+const USERS = 'USERNAME,ROLE_NAME,EMAIL,USER_GROUP,USER_VALID_FROM,USER_VALID_TO,ROLE_VALID_FROM,ROLE_VALID_TO\n' +
+  'DEMO_DONE,ZC:FI:VIEW,done@example.test,DEMO,20000101,20010101,20000101,20010101\nDEMO_OPEN2,ZC:FI:VIEW,open2@example.test,DEMO,20000101,20010101,20000101,20010101\n'
+let seeded: SeededSources
+test.beforeEach(async ({ request }) => { seeded = await seedSources(request, { roles: readFileSync('tests/fixtures/role-catalogue-minimal.csv', 'utf8'), users: USERS }) })
+test.afterEach(async () => { await seeded.cleanup() })
 
 async function decide(request: APIRequestContext, user: string, state: string) {
   const list = await (await request.get('/api/account-review?include_completed=true&limit=100', { headers })).json()

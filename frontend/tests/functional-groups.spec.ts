@@ -1,12 +1,13 @@
 import { test, expect, type APIRequestContext } from '@playwright/test'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { headers, openSettings, sessionUrl } from './support'
+import { headers, openSettings, seedSources, sessionUrl, type SeededSources } from './support'
 const columns = 'Site;Name;SamAccountName;UserPrincipalName;Mail;Department;Title;Enabled;DistinguishedName;ManagerDN;ManagerName;ManagerSamAccountName;ManagerMail;ManagerDepartment;ManagerTitle;ManagerLookupStatus\n'
 const employee = (department: string, manager: string) => '\ufeff' + columns + `North;Demo Fg;demo_fg;;fg@example.test;${department};Buyer;true;;;${manager};;${manager.toLowerCase()}@example.test;;;Resolved\n`
 
 let directory: string
+let seeded: SeededSources
+const USERS = 'USERNAME,ROLE_NAME,EMAIL,USER_GROUP,USER_VALID_FROM,USER_VALID_TO,ROLE_VALID_FROM,ROLE_VALID_TO\nDEMO_FG,ZC:FI:VIEW,fg@example.test,DEMO,20200101,99991231,20200101,99991231\n'
 const unique = Date.now().toString(36)
 // Storage persists across tests of one run, so always send the revision the server currently holds.
 async function classify(request: APIRequestContext, group: string | null) {
@@ -14,20 +15,13 @@ async function classify(request: APIRequestContext, group: string | null) {
   return request.put('/api/functional-groups/users/DEMO_FG', { headers, data: { group_id: group, reviewer: 'R', rationale: 'test', expected_revision: revision } })
 }
 test.beforeEach(async ({ request }) => {
-  await request.post('/api/configuration/reset', { headers })
-  directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-fg-'))
-  const users = path.join(directory, 'users.csv')
-  writeFileSync(users, 'USERNAME,ROLE_NAME,EMAIL,USER_GROUP,USER_VALID_FROM,USER_VALID_TO,ROLE_VALID_FROM,ROLE_VALID_TO\n' +
-    'DEMO_FG,ZC:FI:VIEW,fg@example.test,DEMO,20200101,99991231,20200101,99991231\n')
-  const current = (await (await request.get('/api/configuration', { headers })).json()).settings
-  current.data_csv_path = path.resolve('tests/fixtures/role-catalogue-minimal.csv'); current.user_csv_path = users
-  current.features.employee_directory = true
-  expect((await request.post('/api/configuration', { headers, data: current })).ok()).toBeTruthy()
+  seeded = await seedSources(request, { roles: readFileSync('tests/fixtures/role-catalogue-minimal.csv', 'utf8'), users: USERS })
+  const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
+  settings.features.employee_directory = true
+  expect((await request.post('/api/configuration', { headers, data: settings })).ok()).toBeTruthy()
+  directory = seeded.directory
 })
-test.afterEach(async ({ request }) => {
-  await request.post('/api/configuration/reset', { headers })
-  rmSync(directory, { recursive: true, force: true })
-})
+test.afterEach(async () => { await seeded.cleanup() })
 
 test('Settings administers groups and advisory rules', async ({ page }) => {
   const name = `Purchasing ${unique}`
