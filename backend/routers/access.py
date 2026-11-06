@@ -123,6 +123,7 @@ def directory_filters(
     roles: list[str] = Query(default=[], max_length=50, description="Assigned roles; OR within the list, combined with every other filter by AND"),
     functional_groups: list[str] = Query(default=[], max_length=50, description="Functional Group ids or 'unassigned'; OR within the list"),
     managers: list[str] = Query(default=[], max_length=50, description="Imported manager mails or 'none'; OR within the list"),
+    usernames: str = Query("", max_length=16000, description="Exact SAP usernames separated by newline, comma, semicolon, tab or space (at most 500); case-insensitive, OR between names, AND with every other filter"),
     tcode: str = Query("", max_length=128),
     tcodes: list[str] = Query(default=[], max_length=21),
     transaction_mode: Literal["and", "or"] = "and",
@@ -145,7 +146,7 @@ def directory_filters(
     ] = "username",
     descending: bool = False,
 ):
-    return dict(assignment_band=assignment_band,search=search,group=group,role=role,groups=tuple(groups),roles=tuple(roles),tcode=tcode,tcodes=tcodes,transaction_mode=transaction_mode,status=status,show_expired=show_expired,exclude_transactions=exclude_transactions,exclude_tcodes=exclude_tcodes,exclude_mode=exclude_mode,missing_roles=missing_roles,missing_mode=missing_mode,functional_groups=tuple(functional_groups),managers=tuple(managers),sort=sort,descending=descending)
+    return dict(usernames=usernames,assignment_band=assignment_band,search=search,group=group,role=role,groups=tuple(groups),roles=tuple(roles),tcode=tcode,tcodes=tcodes,transaction_mode=transaction_mode,status=status,show_expired=show_expired,exclude_transactions=exclude_transactions,exclude_tcodes=exclude_tcodes,exclude_mode=exclude_mode,missing_roles=missing_roles,missing_mode=missing_mode,functional_groups=tuple(functional_groups),managers=tuple(managers),sort=sort,descending=descending)
 
 
 def missing_users(snapshot, roles, mode, group, status, show_expired, today):
@@ -172,7 +173,7 @@ def missing_users(snapshot, roles, mode, group, status, show_expired, today):
     return found
 
 
-def directory_selection(snapshot, *, search,group,role,tcode,groups=(),roles=(),tcodes,transaction_mode,status,show_expired,sort,descending,today=None,assignment_band="",exclude_transactions=False,exclude_tcodes=(),exclude_mode="any",missing_roles=(),missing_mode="any",functional_groups=(),managers=()):
+def directory_selection(snapshot, *, usernames='',search,group,role,tcode,groups=(),roles=(),tcodes,transaction_mode,status,show_expired,sort,descending,today=None,assignment_band="",exclude_transactions=False,exclude_tcodes=(),exclude_mode="any",missing_roles=(),missing_mode="any",functional_groups=(),managers=()):
     state = snapshot.users
     wanted_codes = normalized_tcodes([tcode] + tcodes if tcode else tcodes)
     include, include_mode, excluded, excluded_mode = legacy_groups(wanted_codes, transaction_mode, exclude_transactions)
@@ -216,7 +217,16 @@ def directory_selection(snapshot, *, search,group,role,tcode,groups=(),roles=(),
     term = search.strip()
     from .employees import available
     organization_keep = organization.selection(snapshot, available(snapshot), functional_groups, managers)
+    listed = None
+    if usernames.strip():
+        from username_filter import parse_usernames, apply, MAX_USERNAMES
+        parsed = parse_usernames(usernames)
+        if len(parsed['requested']) > MAX_USERNAMES:
+            raise HTTPException(422, f'At most {MAX_USERNAMES} different usernames can be filtered at once.')
+        listed = set(apply(parsed, state.users)[0])
     for key, user in state.users.items():
+        if listed is not None and key not in listed:
+            continue
         if organization_keep and not organization_keep(user):
             continue
         if missing is not None:
@@ -257,12 +267,25 @@ def audit_assignment_count(snapshot, key, filters, today):
     return total - expired_assignment_count(snapshot.users, key, today)
 
 
+def username_feedback(snapshot, text, result):
+    """What the exact username list did: requested, matched by the list alone, matched after every other filter, unmatched in the dataset, invalid entries."""
+    if not text.strip():
+        return None
+    from username_filter import parse_usernames, apply, MAX_USERNAMES
+    parsed = parse_usernames(text)
+    keys, unmatched = apply(parsed, snapshot.users.users)
+    shown = {u['user_key'] for u in result}
+    return dict(requested=len(parsed['requested']), duplicates=parsed['duplicates'], invalid=parsed['invalid'], found=len(keys), matched=len(shown & set(keys)),
+                filtered_out=[snapshot.users.users[key]['username'] for key in keys if key not in shown][:100], unmatched=unmatched, limit=MAX_USERNAMES,
+                exceeds_limit=len(parsed['requested']) > MAX_USERNAMES)
+
+
 @router.get('/users')
 def users(filters:dict=Depends(directory_filters),anchor:str=Query('',max_length=512),offset:int=Query(0,ge=0),limit:int=Query(50,ge=1,le=100)):
     snapshot=cache.get_snapshot();today=date.today()
     result,evidence=directory_selection(snapshot,**filters,today=today)
     if anchor:return dict(**page(result,offset,limit),navigation=record_navigation(result,anchor,'username',normalize_username))
-    return dict(**organization.annotate(page(result,offset,limit)),**source_info(snapshot,today),groups=snapshot.users.groups,groups_total=snapshot.users.group_count,
+    return dict(**organization.annotate(page(result,offset,limit)),username_filter=username_feedback(snapshot,filters['usernames'],result),**source_info(snapshot,today),groups=snapshot.users.groups,groups_total=snapshot.users.group_count,
                 export_assignments=sum(audit_assignment_count(snapshot,u['user_key'],filters,today) for u in result))
 
 

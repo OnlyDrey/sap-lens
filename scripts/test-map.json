@@ -63,7 +63,8 @@
    "description": "Role cart, access package naming and users lacking roles",
    "backend": [
     "test_access_package",
-    "test_missing_roles"
+    "test_missing_roles",
+    "test_username_filter"
    ],
    "browser": [
     "access-package",
