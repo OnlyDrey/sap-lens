@@ -160,3 +160,5 @@ Phase 7: backend regression 1522 passed (0 failed, 6 skipped), browser smoke 12/
 | 3 to 5 | Python orchestration, directory organization, consumer updates | Waiting for approval of the proposed architecture | |
 | 6 | Validation | Linux-side validation done for the completed part | |
 | 7 | Final report | After approval and the staged migration | |
+
+Scripts consolidation, approved plan: stage 1 done (`build-windows.ps1` to `build_system/windows/stages.py`, opt-in, 20 contract tests). Windows validation checklist in BUILD.md. Original kept as default.

@@ -380,6 +380,54 @@ else is an internal helper and is not a supported entrypoint.
 Remaining debt: `test-service-management.ps1` is not executed by any build step; the legacy `build-windows.ps1` stage engine and the deployment
 builder still own sequencing that could later move into Python, which needs real Windows parity testing first.
 
+## Python ports of the Windows build scripts and their validation checklist
+
+The six PowerShell build scripts are being moved into `scripts/build_system/windows/`. Each port keeps the PowerShell original as the default until the checklist below
+has been run on a Windows host; a port is selected only by an explicit opt-in. **None of the ports has been executed on Windows.** Linux tests (`backend/tests/test_windows_stages.py`)
+check the generated commands, their order, option names, log markers, timing records and exit codes against the PowerShell source; they cannot show that PyInstaller, npm or the Windows tools accept them.
+
+| PowerShell original | Python port | Opt-in |
+| --- | --- | --- |
+| `build-windows.ps1` | `scripts/build_system/windows/stages.py` | `SAP_LENS_WINDOWS_STAGES=python` (the `windows-stage` adapter) or run the file directly with the same `-Stage`, `-ArtifactDirectory`, ... options |
+| `build-local.ps1`, `package-windows-deployment.ps1`, `build-server-windows.ps1`, `build-service-manager.ps1`, `build-desktop-installer.ps1` | not yet ported | |
+
+### Windows validation checklist: `build-windows.ps1` against `stages.py`
+
+Requirements: Windows x64, 64-bit Python 3.12 (`python --version`), Node 24 or 25, Git. Run in a clean checkout of `work` from the repository root, in PowerShell. The first block records the PowerShell
+reference, the second the port; compare the listed evidence.
+
+```powershell
+# 0. Reference run with the PowerShell stages (expected to pass)
+$py = (Get-Command python).Source
+foreach ($s in 'Environment','Frontend','Python') { pwsh -NoProfile -File scripts\build-windows.ps1 -Stage $s -PythonExecutable $py; if ($LASTEXITCODE) { throw "PS $s" } }
+pwsh -NoProfile -File scripts\build-windows.ps1 -Stage Backend -TargetedValidation -PythonExecutable $py
+pwsh -NoProfile -File scripts\build-windows.ps1 -Stage Package -PythonExecutable $py
+pwsh -NoProfile -File scripts\build-windows.ps1 -Stage Verify -PythonExecutable $py
+Copy-Item backend\build\timings.jsonl "$env:TEMP\ps-timings.jsonl"; Copy-Item backend\dist\SAP-Lens.exe.sha256 "$env:TEMP\ps.sha256"
+Copy-Item backend\build\package-verification.json "$env:TEMP\ps-verification.json"
+
+# 1. The same stages with the Python port (clean the outputs first: python scripts\build.py clean --confirm-clean)
+foreach ($s in 'Environment','Frontend','Python') { python scripts\build_system\windows\stages.py -Stage $s -PythonExecutable $py; if ($LASTEXITCODE) { throw "PY $s" } }
+python scripts\build_system\windows\stages.py -Stage Backend -TargetedValidation -PythonExecutable $py
+python scripts\build_system\windows\stages.py -Stage Package -PythonExecutable $py
+python scripts\build_system\windows\stages.py -Stage Verify -PythonExecutable $py
+python scripts\build_system\windows\stages.py -Stage Smoke        # starts the packaged EXE through scripts\test-windows-exe.ps1
+
+# 2. Failure propagation: a missing stage input must fail with exit code 1
+python scripts\build_system\windows\stages.py -Stage Artifact; "exit code: $LASTEXITCODE"      # expected: 1 and the message "needs a downloaded artifact directory"
+```
+
+Evidence to compare:
+
+1. Every command above exits 0; step 2 exits 1.
+2. `backend\build\timings.jsonl`: same `stage` names in the same order for both runs (seconds differ).
+3. `backend\build\package-verification.json`: same fields; `exe_sha256` need not be equal (PyInstaller output is not reproducible byte for byte) but `verify-windows-package.py` must pass in both runs.
+4. `backend\dist\SAP-Lens.exe.sha256`: same format, `<64 hex>  SAP-Lens.exe` followed by CRLF (compare with `Format-Hex`).
+5. The EXE built by the port starts: `Smoke` passes.
+6. Remaining stages (`Audit`, `JavaScriptAudit`, `Browser`, `Artifact` with a downloaded workflow artifact) are checked the same way before the original is removed.
+
+Report any difference; the original `build-windows.ps1` is removed only after every item matches.
+
 ## Manual build
 
 Open Actions → **Build Deployment Packages** → Run workflow, select the intended

@@ -23,7 +23,7 @@ development environment; they are parse-checked and covered by static tests only
 
 | Group | Files | Platform |
 | --- | --- | --- |
-| Build engine | `build_system/*` | both |
+| Build engine | `build_system/*`; `build_system/windows/stages.py` is the opt-in Python port of `build-windows.ps1` (not yet validated on Windows, see [BUILD.md](../docs/BUILD.md#python-ports-of-the-windows-build-scripts-and-their-validation-checklist)) | both |
 | Deployment builders | `build-deployments.py`, `deployment-package.py`, `package-docker.py`, `deployment-release.py`, `check-deployment-download.py` | both |
 | Linux bundle runtime (shipped inside the native archive) | `install-linux-server.py`, `run-installed-server.py` | Linux |
 | Windows desktop and service packaging | `build-windows.ps1`, `build-local.ps1`, `local-build.py`, `package-windows-deployment.ps1`, `build-desktop-installer.ps1`, `build-server-windows.ps1`, `build-service-manager.ps1`, `release-windows.py`, `write-build-report.py`, `write-windows-metadata.py` | Windows |

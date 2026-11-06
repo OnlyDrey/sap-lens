@@ -43,6 +43,9 @@ def plan(args,python=None):
         if args.mode!=expected:raise BuildError(f'{args.ci_tool} requires mode {expected}.')
         kind,script=CI_TOOLS[args.ci_tool]
         extra=['-BenchmarkPackaging'] if args.ci_tool=='windows-stage' and args.benchmark_packaging=='true' else []
+        if args.ci_tool=='windows-stage' and os.environ.get('SAP_LENS_WINDOWS_STAGES')=='python':
+            # Opt-in Python port of build-windows.ps1 (same options, stages and commands); unverified on Windows, so PowerShell stays the default.
+            return [('CI '+args.ci_tool+' (Python stages)',[python,str(ROOT/'scripts/build_system/windows/stages.py'),*args.tool_args,*extra])]
         return [('CI '+args.ci_tool,([powershell(),'-NoProfile','-File'] if kind=='ps' else [python])+[str(ROOT/'scripts'/script),*args.tool_args,*extra])]
     if args.setup_only:return []
     match args.mode:

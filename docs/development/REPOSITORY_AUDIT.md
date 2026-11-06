@@ -242,3 +242,16 @@ Staged migration, each stage gated on evidence from a Windows host (a local Wind
 3. Fold `check-powershell.ps1` and `test-service-management.ps1` into `build.ps1`.
 4. Move the Python adapters into packages and remove the importlib loaders, updating workflows, tests and bundles in the same change.
 5. Port the three native tests only if a Windows-validated Python equivalent exists; otherwise keep them.
+
+### Migration stage 1: `build-windows.ps1` to `build_system/windows/stages.py`
+
+* Implemented a standard-library Python port with the same `-Stage` names and options, stage order, commands, PyInstaller arguments (including the `;` data separator), timing log
+  (`backend/build/timings.jsonl`), `::group::`/`TIMING` markers, `::error` annotation in Actions, checksum file, and exit code 1 on failure.
+* The PowerShell original is unchanged and remains the default. The Python port is selected only by `SAP_LENS_WINDOWS_STAGES=python` (the `windows-stage` CI adapter, off by default, no workflow
+  or trigger change) or by running `stages.py` directly. The native smoke test `test-windows-exe.ps1` is still PowerShell and is invoked by the port.
+* `backend/tests/test_windows_stages.py` (20 tests): golden command lists for every stage, stage order for `All`, option names and `ValidateSet` equal to the PowerShell parameters, every PyInstaller flag
+  and every `scripts/*` file named in the original appears in the port's commands, timing records, failure and exit-code behavior, build interpreter first on `PATH` without touching the process environment,
+  and adapter selection (PowerShell by default, Python on opt-in).
+* **Unverified on Windows.** Checklist with exact commands: [BUILD.md](../BUILD.md#python-ports-of-the-windows-build-scripts-and-their-validation-checklist).
+* Remaining ports (`build-local`, `package-windows-deployment`, `build-server-windows`, `build-service-manager`, `build-desktop-installer`) are blocked on the same gate: each calls the stage runner or Windows tools whose
+  behavior only a Windows host can confirm. Porting them before stage 1 is confirmed would stack unverified code on unverified code.
