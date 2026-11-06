@@ -10,7 +10,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
-from build_system.windows import installer, packaging, server, service_manager, stages  # noqa: E402
+from build_system.windows import installer, local, packaging, server, service_manager, stages  # noqa: E402
 
 
 class Recorder:
@@ -49,7 +49,7 @@ class Case(unittest.TestCase):
         return [c.replace(python, '<buildpy>').replace(str(self.root), '<root>').replace('\\', '/') for c in commands]
 
     def identity(self):
-        self.write('backend/build/build-version.json', json.dumps({'version': '1.2.3-beta.4', 'file_version': [1, 2, 3, 4]}))
+        self.write('backend/build/build-version.json', json.dumps({'version': '1.2.3-beta.4', 'file_version': [1, 2, 3, 4], 'source_sha': 'abc'}))
 
 
 class ServiceManager(Case):
@@ -283,6 +283,134 @@ class DeploymentPackaging(Case):
             packaging.build('Service', '', self.root, recorder, {}, lambda o: None, lambda out: None, lambda **kw: self.fail('must not build after failing tests'))
 
 
+class LocalBuild(Case):
+    VALUES = {'process.versions.node': '24.1.0', 'npm --version': '10.9.0', 'py -3.12': 'PYHOST', 'local-build.py version': '1.2.3', 'local-build.py quick': '{"version": "1.2.3-dev", "source_sha": "abc"}'}
+
+    def recorder(self, **kwargs):
+        recorder = Recorder(**kwargs)
+        def capture(command, cwd, env):
+            text = ' '.join(str(c) for c in command)
+            recorder.commands.append(text)
+            for marker, value in self.VALUES.items():
+                if marker in text:
+                    return 0, value
+            return 0, ''
+        recorder.capture = capture
+        return recorder
+
+    def run_mode(self, mode, recorder=None, **kwargs):
+        self.identity()
+        (self.root / 'scripts').mkdir(exist_ok=True)
+        recorder = recorder or self.recorder()
+        stage_calls, printed, locks = [], [], []
+        ok = local.build(mode, kwargs.pop('Version', ''), kwargs.pop('IncludeService', False), kwargs.pop('OutputDirectory', ''), self.root, recorder,
+                         kwargs.pop('environ', {'PATH': 'P', 'WINDIR': str(self.root / 'win')}), True, lambda o: stage_calls.append((o.Stage, o.TargetedValidation, o.PythonExecutable, o.AuditPython)),
+                         kwargs.pop('server_build', None), kwargs.pop('lock', lambda path: (locks.append(path), lambda: locks.append('released'))[1]), token=__import__('uuid').uuid4().hex, printer=printed.append, **kwargs)
+        return ok, recorder, stage_calls, printed, locks
+
+    def test_build_runs_the_powershell_stage_sequence(self):
+        ok, recorder, stage_calls, printed, locks = self.run_mode('Build', Version='1.2.3')
+        self.assertTrue(ok)
+        names = [line.strip('= \n') for line in printed if line.startswith('\n=== ')]
+        self.assertEqual(names, ['Version resolution', 'Clean source check', 'Local identity', 'Invalidate previous validation', 'Environment', 'Python', 'Frontend', 'Packaging tool versions', 'Audit',
+                                 'PackagingBackend', 'PackagingBrowser', 'Repository', 'Validation receipt', 'Validated input freshness', 'Package', 'Verify', 'Smoke', 'Distribution roundtrip'])
+        self.assertEqual([(s, t) for s, t, _, _ in stage_calls], [('Environment', False), ('Python', False), ('Frontend', False), ('Audit', False), ('Backend', True), ('Browser', True),
+                                                                 ('Package', False), ('Verify', False), ('Smoke', False)])
+        self.assertTrue(all(host == 'PYHOST' for _, _, host, _ in stage_calls))
+        text = self.norm(recorder.commands)
+        helper = '<root>/scripts/local-build.py'
+        self.assertIn(f'PYHOST {helper} clean', text)
+        self.assertIn(f'PYHOST {helper} identity --version 1.2.3', text)
+        self.assertIn('npm --prefix frontend run check:types', text)
+        self.assertIn('node scripts/sync-lucide-catalog.mjs --check', text)
+        self.assertIn(f'<buildpy> {helper} record --version 1.2.3 --stages Frontend Python Audit PackagingBackend PackagingBrowser Repository', text)
+        export = next(t for t in text if ' export ' in t)
+        self.assertIn('--output <root>/dist/local/packages/1.2.3-beta.4/', export)
+        summary = json.loads(next((self.root / 'dist/local/runs').iterdir()).joinpath('summary.json').read_text())
+        self.assertEqual((summary['status'], summary['mode'], summary['requested_version'], summary['node'], summary['npm']), ('passed', 'Build', '1.2.3', '24.1.0', '10.9.0'))
+        self.assertEqual([row['stage'] for row in summary['stages']], names)
+        self.assertEqual(locks[0].name, 'local-build.lock')
+        self.assertEqual(locks[-1], 'released')
+
+    def test_quick_validate_and_package_modes(self):
+        ok, recorder, stage_calls, printed, _ = self.run_mode('Quick')
+        self.assertTrue(ok)
+        text = self.norm(recorder.commands)
+        self.assertTrue(any(t.endswith('scripts/check-powershell.ps1') for t in text))
+        self.assertIn('git diff --check', text)
+        self.assertEqual(stage_calls, [])
+        self.assertTrue(any('Version: 1.2.3-dev | Source: abc' in line for line in printed))
+        ok, _, stage_calls, printed, _ = self.run_mode('Validate', Version='1.2.3')
+        self.assertTrue(ok)
+        self.assertNotIn('Package', [s for s, *_ in stage_calls])
+        self.assertFalse(any('Clean source check' in line for line in printed))
+        ok, recorder, stage_calls, printed, _ = self.run_mode('Package', Version='1.2.3')
+        self.assertTrue(ok)
+        self.assertEqual([s for s, *_ in stage_calls], ['Audit', 'Package', 'Verify', 'Smoke'])
+        self.assertIn('npm --prefix frontend audit --omit=dev', recorder.commands)
+
+    def test_service_bundle_after_the_desktop_build(self):
+        self.write('win/Microsoft.NET/Framework64/v4.0.30319/csc.exe')
+        calls = []
+        ok, recorder, _, _, _ = self.run_mode('Build', Version='1.2.3', IncludeService=True, OutputDirectory=str(self.root / 'out'), server_build=lambda **kw: calls.append(kw))
+        self.assertTrue(ok)
+        self.assertEqual(calls, [{'Version': '1.2.3', 'OutputDirectory': str(self.root / 'out/service')}])
+        self.assertTrue(self.norm(recorder.commands)[-1].endswith('scripts/deployment-package.py finish --directory <root>/out/service --platform Windows-Service-x64 --output <root>/out/service-archives'))
+
+    def test_guards_fail_before_any_build_work(self):
+        self.identity()
+        base = {'PATH': 'P', 'WINDIR': str(self.root / 'win')}
+        for message, kwargs in (('.NET Framework 4.8', {'IncludeService': True}), ('Build or Package mode', {'IncludeService': True, 'Mode': 'Quick'}),
+                                ('local-only', {'environ': {**base, 'GITHUB_ACTIONS': 'true'}}), ('Windows builds require x64', {'windows': False})):
+            printed = []
+            self.write('win/Microsoft.NET/Framework64/v4.0.30319/csc.exe') if 'Quick' in str(kwargs.get('Mode')) else None
+            call = {'Mode': 'Build', 'Version': '1', 'IncludeService': False, 'OutputDirectory': '', 'root': self.root, 'process': self.recorder(), 'environ': base, 'windows': True,
+                    'stage_runner': lambda o: self.fail('no stage may run'), 'lock': lambda p: (lambda: None), 'printer': printed.append}
+            call.update(kwargs)
+            self.assertFalse(local.build(**call), message)
+            self.assertTrue(any(message in line for line in printed), (message, printed))
+
+    def test_node_and_npm_versions_are_enforced(self):
+        self.identity()
+        for marker, value, message in (('process.versions.node', '22.0.0', 'Node.js 24 LTS'), ('npm --version', '9.0.0', 'npm 10 or 11')):
+            printed = []
+            recorder = self.recorder()
+            original = recorder.capture
+            recorder.capture = lambda c, cwd, env, original=original, marker=marker, value=value: (0, value) if marker in ' '.join(c) else original(c, cwd, env)
+            local.build('Quick', '1', False, '', self.root, recorder, {'PATH': 'P', 'WINDIR': ''}, True, printer=printed.append, lock=lambda p: (lambda: None))
+            self.assertTrue(any(message in line for line in printed), printed)
+
+    def test_a_held_lock_and_a_cleanup_guard_stop_the_build(self):
+        self.identity()
+        printed = []
+        def busy(path):
+            raise OSError('held')
+        self.assertFalse(local.build('Quick', '1', False, '', self.root, self.recorder(), {'PATH': 'P', 'WINDIR': ''}, True, lock=busy, printer=printed.append))
+        self.assertTrue(any('Another local build is running' in line for line in printed))
+        self.write('dist/.sap-lens-clean.lock')
+        printed.clear()
+        self.assertFalse(local.build('Quick', '1', False, '', self.root, self.recorder(), {'PATH': 'P', 'WINDIR': ''}, True, lock=lambda p: (lambda: None), printer=printed.append))
+        self.assertTrue(any('Cleanup owns build paths' in line for line in printed))
+
+    def test_a_failing_stage_is_recorded_reported_and_releases_the_lock(self):
+        ok, _, _, printed, locks = self.run_mode('Build', self.recorder(fail_on='local-build.py identity'), Version='1.2.3')
+        self.assertFalse(ok)
+        self.assertTrue(any("failed in stage 'Local identity'" in line for line in printed))
+        summary = json.loads(next((self.root / 'dist/local/runs').iterdir()).joinpath('summary.json').read_text())
+        self.assertEqual((summary['status'], summary['last_stage'], summary['stages'][-1]['status']), ('failed', 'Local identity', 'failed'))
+        self.assertEqual(locks[-1], 'released')
+
+    def test_real_lock_is_exclusive_on_this_platform(self):
+        if sys.platform == 'win32':
+            self.skipTest('POSIX flock path only; the Windows CreateFileW path is part of the Windows checklist')
+        path = self.root / 'lock'
+        release = local.acquire_lock(path)
+        with self.assertRaises(OSError):
+            local.acquire_lock(path)
+        release()
+        local.acquire_lock(path)()
+
+
 class Wiring(unittest.TestCase):
     def plan(self, tool, environment):
         from types import SimpleNamespace
@@ -294,6 +422,23 @@ class Wiring(unittest.TestCase):
             os.environ.pop('SAP_LENS_WINDOWS_PACKAGING', None)
             os.environ.update(environment)
             return targets.plan(args, 'PY')[0][1]
+
+    def test_local_desktop_build_is_opt_in(self):
+        from unittest.mock import patch
+        import os
+        from build_system import cli, targets
+        value = cli.parser().parse_args(['build', '--platform', 'windows', '--target', 'desktop', '--version', '1.2.3', '--non-interactive'])
+        value.tool_args = []
+        value = cli.configure(value, False)
+        with patch.object(targets.platform, 'system', return_value='Windows'), patch.dict(os.environ, {}, clear=False):
+            os.environ.pop('SAP_LENS_WINDOWS_PACKAGING', None)
+            default = targets.plan(value, 'PY')[0][1]
+            self.assertTrue(default[3].replace('\\', '/').endswith('scripts/build-local.ps1'))
+            os.environ['SAP_LENS_WINDOWS_PACKAGING'] = 'python'
+            ported = targets.plan(value, 'PY')[0][1]
+        self.assertEqual(ported[0], 'PY')
+        self.assertTrue(ported[1].replace('\\', '/').endswith('scripts/build_system/windows/local.py'))
+        self.assertEqual(ported[2:], ['-Mode', 'Build', '-Version', '1.2.3'])
 
     def test_ports_are_opt_in_for_the_packaging_adapters(self):
         for tool, script in (('windows-package', 'package-windows-deployment.ps1'), ('installer-check', 'build-desktop-installer.ps1')):

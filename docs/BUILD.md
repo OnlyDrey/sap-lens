@@ -393,7 +393,7 @@ check the generated commands, their order, option names, log markers, timing rec
 | `build-server-windows.ps1` | `scripts/build_system/windows/server.py` | direct: `-WinSW`, `-Version`, `-ValidatedDeployment`, `-OutputDirectory` |
 | `build-desktop-installer.ps1` | `scripts/build_system/windows/installer.py` | `SAP_LENS_WINDOWS_PACKAGING=python` (the `installer-check` adapter) or direct: `-OutputDirectory`, `-CompileCheck` |
 | `package-windows-deployment.ps1` | `scripts/build_system/windows/packaging.py` | `SAP_LENS_WINDOWS_PACKAGING=python` (the `windows-package` adapter) or direct: `-Target Desktop\|Service`, `-OutputDirectory` |
-| `build-local.ps1` | not yet ported | |
+| `build-local.ps1` | `scripts/build_system/windows/local.py` | `SAP_LENS_WINDOWS_PACKAGING=python` (the local `build --platform windows --target desktop` route) or direct: `-Mode Build\|Quick\|Validate\|Package`, `-Version`, `-IncludeService`, `-OutputDirectory` |
 
 The packaging ports call the Python stage port and the same native PowerShell tests (`test-desktop-installer.ps1`, `test-server-service.ps1`, `test-windows-exe.ps1`), which stay PowerShell.
 
@@ -452,6 +452,11 @@ python scripts\build_system\windows\packaging.py -Target Service -OutputDirector
 pwsh -NoProfile -File scripts\package-windows-deployment.ps1 -Target Desktop -OutputDirectory $env:TEMP\ps-dist-desktop
 python scripts\build_system\windows\packaging.py -Target Desktop -OutputDirectory $env:TEMP\py-dist-desktop
 ```
+
+Local pipeline port (`local.py`): run `pwsh -NoProfile -File scripts\\build-local.ps1 -Mode Quick` and `python scripts\\build_system\\windows\\local.py -Mode Quick`, then `-Mode Build -Version <x>` for both
+(on separate clean checkouts). Compare: exit codes, `dist\\local\\runs\\<run>\\summary.json` (same stage names and order, same fields), `build.log` contents, the verified artifact directory, and that
+a second concurrent run of the port fails with "Another local build is running" while the first holds `backend\\build\\local-build.lock` and that `python scripts\\build.py clean --confirm-clean` refuses during a
+build (the port holds the lock through `CreateFileW` with share mode 0, the original used `FileShare.None`: confirm the clean probe sees it).
 
 Compare per target: exit code 0; the same file names, sizes (except compiled binaries) and `manifest` entries in the two `dist` folders; `README.md` byte-for-byte (the port writes UTF-8 without BOM and no trailing newline);
 the Desktop installer's `SAP-Lens-Windows-Desktop-x64-<version>-Setup.exe.sha256` removal (compiler checksums are internal); `verification-report.json` of the service bundle with `native_service_smoke` set; and

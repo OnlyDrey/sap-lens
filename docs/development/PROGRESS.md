@@ -164,3 +164,5 @@ Phase 7: backend regression 1522 passed (0 failed, 6 skipped), browser smoke 12/
 Scripts consolidation, approved plan: stage 1 done (`build-windows.ps1` to `build_system/windows/stages.py`, opt-in, 20 contract tests). Windows validation checklist in BUILD.md. Original kept as default.
 
 Stage 2 done: service manager, server bundle, desktop installer and deployment packaging ported (opt-in, 17 contract tests). Next: `build-local.ps1`.
+
+Stage 3 done: `build-local.ps1` ported (`local.py`, opt-in). All six build scripts have Python ports; Windows validation checklist covers all. Next: directory organization (approved decision 2, now unblocked because PowerShell consolidation is blocked on Windows validation).

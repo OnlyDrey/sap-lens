@@ -66,7 +66,11 @@ def plan(args,python=None):
             system=platform.system().lower()
             if args.platform=='windows' and args.target=='desktop':
                 if system!='windows':raise BuildError('Portable Desktop requires Windows; remote Windows builders use --target installer.')
-                command=[powershell(),'-NoProfile','-File',str(ROOT/'scripts/build-local.ps1'),'-Mode','Package' if args.skip_setup else 'Build','-Version',args.version]
+                if os.environ.get('SAP_LENS_WINDOWS_PACKAGING')=='python':
+                    # Opt-in Python port of build-local.ps1; unverified on Windows, PowerShell stays the default.
+                    command=[python,str(ROOT/'scripts/build_system/windows/local.py'),'-Mode','Package' if args.skip_setup else 'Build','-Version',args.version]
+                else:
+                    command=[powershell(),'-NoProfile','-File',str(ROOT/'scripts/build-local.ps1'),'-Mode','Package' if args.skip_setup else 'Build','-Version',args.version]
                 if args.output:command+=['-OutputDirectory',str(args.output)]
             else:
                 targets={'windows':(['desktop','service'] if args.target=='all' else ['desktop'] if args.target=='installer' else ['service']),

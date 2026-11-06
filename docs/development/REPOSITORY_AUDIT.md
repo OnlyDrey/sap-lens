@@ -264,3 +264,12 @@ Staged migration, each stage gated on evidence from a Windows host (a local Wind
 * `backend/tests/test_windows_ports.py` (17 tests): golden command lists and effects for every port (file moves, the `app/SAP-Lens` flattening, generated assembly attributes, checksum files, cleanup of disposable
   folders), pinned hash rejection, tampered compiler or executable, Windows and output guards, failure propagation, adapter opt-in.
 * Not ported: `build-local.ps1` (next stage), and the three native tests, which stay PowerShell by decision. **All ports are unverified on Windows.**
+
+### Migration stage 3: `build-local.ps1` to `build_system/windows/local.py`
+
+* Ported with the same modes (`Build`, `Quick`, `Validate`, `Package`), stage names and order, receipts, summary JSON, output layout and exit code; opt-in with `SAP_LENS_WINDOWS_PACKAGING=python` through the
+  local desktop route of `build.py`, default unchanged.
+* Two behaviors cannot be copied literally and are marked for the Windows checklist: the exclusive build lock (a `CreateFileW` handle with share mode 0 replaces `FileShare.None`) and the run log (child output is teed
+  into `build.log` instead of `Start-Transcript`). The environment is private to the children instead of modified and restored.
+* Tests: 8 more cases in `test_windows_ports.py` (full stage sequence of every mode, stage runner arguments, receipts, service bundle step, guards, Node/npm versions, held lock, cleanup guard, failure summary and lock release).
+* **Result of the staged migration: six build scripts have verified-by-contract Python ports; none is verified on Windows, so all six PowerShell originals remain.** The PowerShell file count stays at 13 until the checklist is run.
