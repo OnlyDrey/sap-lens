@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { bootstrapDocument } from './bootstrap-fixture'
-import { headers } from './support'
+import { headers, backendFixture } from './support'
 let directory = '', userSource = ''
 const navigate = (page: Page, name: string) => page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name, exact:true }).click()
 test.beforeEach(async ({ request }) => {
@@ -13,7 +13,7 @@ test.beforeEach(async ({ request }) => {
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
   settings.data_csv_path = path.join(directory, 'catalogue.csv')
   writeFileSync(settings.data_csv_path, 'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,TCODE\nMM,ZC:MM:BUY:EN*,Purchasing,ZS:BUY,ME23N\n')
-  userSource = path.resolve('../backend/tests/fixtures/user-access.csv')
+  userSource = backendFixture('user-access.csv')
   settings.user_csv_path = userSource
   expect((await request.post('/api/configuration', { headers, data:settings })).ok()).toBeTruthy()
 })

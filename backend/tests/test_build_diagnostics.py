@@ -70,7 +70,7 @@ class IsolatedWorkspace(unittest.TestCase):
         for name, text in {'frontend/package.json': '{"name":"x"}', 'frontend/package-lock.json': '{"lockfileVersion":3}', 'frontend/src/main.tsx': 'x',
                            'frontend/node_modules/dev-only/index.js': 'dev', 'frontend/dist/old.js': 'old', 'frontend/test-results/r.txt': 'r',
                            'scripts/tool.mjs': 'tool', 'scripts/__pycache__/c.pyc': 'c', 'backend/main.py': 'm', 'backend/resources/product-version.json': '{}',
-                           'backend/build/build-version.json': '{"v":1}', 'backend/build/python-env/x': 'env', 'backend/tests/test_x.py': 't'}.items():
+                           'backend/build/build-version.json': '{"v":1}', 'backend/build/python-env/x': 'env', 'backend/tests/test_x.py': 't', 'backend/tests/fixtures/user-access.csv': 'USERNAME\nA\n'}.items():
             path = self.root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text(text)
         self.work = self.root / 'backend/build/frontend-workspace'
 
@@ -78,9 +78,23 @@ class IsolatedWorkspace(unittest.TestCase):
         workspace.mirror(self.root, self.work)
         self.assertTrue((self.work / 'frontend/src/main.tsx').is_file())
         self.assertEqual((self.work / 'backend/build/build-version.json').read_text(), '{"v":1}')
-        for name in ('frontend/node_modules', 'frontend/dist', 'frontend/test-results', 'backend/build/python-env', 'backend/tests', 'scripts/__pycache__'):
+        for name in ('frontend/node_modules', 'frontend/dist', 'frontend/test-results', 'backend/build/python-env', 'backend/tests/test_x.py', 'scripts/__pycache__'):
             self.assertFalse((self.work / name).exists(), name)
         self.assertTrue((self.root / 'frontend/node_modules/dev-only/index.js').is_file())  # the developer's installation is untouched
+
+    def test_browser_fixtures_resolve_identically_in_the_checkout_and_in_the_workspace(self):
+        import re, subprocess
+        workspace.mirror(self.root, self.work)
+        # The same relative layout the specs use: <root>/frontend/tests -> ../../backend/tests/fixtures
+        for base in (self.root, self.work):
+            self.assertEqual((base / 'backend/tests/fixtures/user-access.csv').read_text(), 'USERNAME\nA\n')
+        self.assertFalse((self.work / 'backend/tests/test_x.py').exists())  # data fixtures only, never the Python tests
+        # The specs name fixtures through backendFixture(); no spec resolves backend files from the working directory any more.
+        frontend = Path(__file__).resolve().parents[2] / 'frontend/tests'
+        for spec in frontend.glob('*.spec.ts'):
+            self.assertNotIn("../backend/tests/fixtures", re.sub(r"backendFixture", '', spec.read_text(encoding='utf-8')), spec.name)
+        support = (frontend / 'support.ts').read_text(encoding='utf-8')
+        self.assertIn('not found at', support); self.assertIn('HTTP ${response.status()}', support)
 
     def test_remirror_keeps_the_workspace_installation_but_drops_removed_sources_and_stale_dist(self):
         workspace.mirror(self.root, self.work)

@@ -206,3 +206,12 @@ until `replace_existing` is confirmed; partial outcomes are returned as `status:
 | B03/B07/B10 | Prerequisite clarity | Documented in BUILD.md (existing checks kept) | Documented |
 | B06 | Terse blocked message | Blocked rows carry error, log, hint; `prerequisite` class | Fixed |
 | Skips | Two tests required `pwsh` only | Windows PowerShell 5.1 accepted | Fixed |
+
+## B11: Browser smoke in the generated build workspace
+
+| Item | Detail |
+|---|---|
+| Root cause | The workspace mirror excluded all of `backend/tests`, so specs reading `../backend/tests/fixtures/user-access.csv` pointed at a missing file and `POST /api/configuration` was refused (the path is validated) in `beforeEach`. |
+| Fix | `frontend_workspace.mirror` copies only `backend/tests/fixtures` (data, links refused); specs use `backendFixture()` in `frontend/tests/support.ts`, resolved from the spec file location, with an error naming the searched path. `saveConfiguration()` reports HTTP status, a redacted body and the path existence. |
+| Other affected specs | `investigation-ux`, `data-aware-ux`. `sod-metadata` and `application-backups` import Python test helpers from the repository root; they are not `@smoke` and run from the checkout only. |
+| Validation | `test_build_diagnostics` (fixture resolution in checkout and workspace layout); 34 of 37 specs in the three affected files pass on Linux. Three `data-aware-ux` session-recovery tests (HTTP 401/403 messages, stale session) fail identically on the commit before this change and are tracked separately. Native Windows not validated. |

@@ -2,8 +2,8 @@ import { test, expect } from "@playwright/test";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { tmpdir } from "node:os";
-import { headers } from './support'
-const fixture = path.resolve("../backend/tests/fixtures/user-access.csv");
+import { headers, backendFixture, saveConfiguration } from './support'
+const fixture = backendFixture("user-access.csv");
 const catalogue =
   "FUNCTION_KEY,AGR_NAME,CHILD_AGR,TCODE,CHILD_AGR_TEXT,TTEXT\nMM,ZC:MM:BUY:EN*,ZS:BUY,ME23N,Synthetic purchasing display role,Display purchase order\nFI,ZC:FI:VIEW:*,ZS:VIEW,ME23N,Synthetic accounting display role with a longer description that remains readable when the window is narrow,Display purchase order\nFI,ZC:FI:VIEW:*,ZS:VIEW,FB03,Synthetic accounting display role with a longer description that remains readable when the window is narrow,Display accounting document\n";
 let directory = "";
@@ -19,11 +19,7 @@ test.beforeEach(async ({ request }) => {
   ).settings;
   settings.data_csv_path = file;
   settings.user_csv_path = fixture;
-  expect(
-    (
-      await request.post("/api/configuration", { headers, data: settings })
-    ).ok(),
-  ).toBeTruthy();
+  await saveConfiguration(request, settings);
 });
 test.afterEach(async ({ request }) => {
   try {

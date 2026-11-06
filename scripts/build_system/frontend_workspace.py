@@ -54,6 +54,12 @@ def mirror(root, workspace):
     _replace(root / 'frontend', workspace / 'frontend', skip=NOT_COPIED)
     _replace(root / 'scripts', workspace / 'scripts', skip={'__pycache__'})
     _replace(root / 'backend', workspace / 'backend', skip=BACKEND_NOT_COPIED)
+    # Browser tests read synthetic CSV fixtures from backend/tests/fixtures; only that data directory is mirrored, never the Python tests.
+    fixtures = root / 'backend/tests/fixtures'
+    if fixtures.is_dir():
+        _refuse_links(fixtures, set())
+        shutil.rmtree(workspace / 'backend/tests', ignore_errors=True)
+        shutil.copytree(fixtures, workspace / 'backend/tests/fixtures', symlinks=False)
     identity = root / 'backend/build/build-version.json'
     if identity.is_file():
         (workspace / 'backend/build').mkdir(parents=True, exist_ok=True)

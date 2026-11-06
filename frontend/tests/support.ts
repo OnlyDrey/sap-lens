@@ -1,9 +1,29 @@
 import type { APIRequestContext, Locator, Page } from '@playwright/test'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { existsSync } from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 /** Shared browser-test helpers. Specs import these instead of redefining them. */
+/** Backend test fixture, resolved from this file (not the working directory): <root>/frontend/tests -> <root>/backend/tests/fixtures. The same layout
+ *  exists in the isolated build workspace, which mirrors backend/tests/fixtures. A missing file fails with the path that was searched. */
+export function backendFixture(name: string): string {
+  const resolved = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'backend', 'tests', 'fixtures', name)
+  if (!existsSync(resolved)) throw new Error(`Backend test fixture "${name}" not found at ${resolved}. The build workspace must mirror backend/tests/fixtures (scripts/build_system/frontend_workspace.py).`)
+  return resolved
+}
+
+/** Saves a configuration and, when the server refuses it, fails with the status, a sanitized body and the fixture paths involved. */
+export async function saveConfiguration(request: APIRequestContext, settings: Record<string, unknown>): Promise<void> {
+  const response = await request.post('/api/configuration', { headers, data: settings })
+  if (response.ok()) return
+  const body = (await response.text()).replace(/(token|secret|password|authorization)("?\s*[:=]\s*"?)[^",\s}]+/gi, '$1$2<redacted>').slice(0, 600)
+  const paths = Object.entries(settings).filter(([key, value]) => /_path$/.test(key) && typeof value === 'string' && value)
+    .map(([key, value]) => `${key}=${value} (exists: ${existsSync(value as string)})`).join('; ')
+  throw new Error(`POST /api/configuration failed with HTTP ${response.status()}: ${body}. Paths: ${paths || 'none'}`)
+}
+
 export const headers = { 'X-SAP-Lens': 'browser-test-session' }
 export const sessionUrl = '/#session=browser-test-session'
 

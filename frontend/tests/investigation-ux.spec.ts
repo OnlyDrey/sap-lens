@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
-import { headers, openFilters, closeFilters } from './support'
+import { headers, openFilters, closeFilters, backendFixture } from './support'
 let directory = ''
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
@@ -11,7 +11,7 @@ test.beforeEach(async ({ request }) => {
   writeFileSync(source, 'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,TCODE\nMM,ZC:MM:BUY:EN*,Purchasing,ZS:BUY,ME23N\nFI,ZC:FI:VIEW:*,Accounting,ZS:VIEW,FB03\n')
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
   settings.data_csv_path = source
-  settings.user_csv_path = path.resolve('../backend/tests/fixtures/user-access.csv')
+  settings.user_csv_path = backendFixture('user-access.csv')
   expect((await request.post('/api/configuration', { headers, data: settings })).ok()).toBeTruthy()
 })
 test.afterEach(async ({ request }) => { await request.post('/api/configuration/reset', { headers }); rmSync(directory, { recursive: true, force: true }) })
