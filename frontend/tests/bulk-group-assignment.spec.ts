@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { goTo, headers, seedSources, type SeededSources } from './support'
 
@@ -14,11 +14,11 @@ test.beforeEach(async ({ request }) => {
 })
 test.afterEach(async () => { await seeded.cleanup() })
 
-async function group(request: any, name: string) {
+async function group(request: APIRequestContext, name: string) {
   const response = await request.post('/api/functional-groups', { headers, data: { name, description: '' } })
   expect(response.ok()).toBeTruthy(); return (await response.json()).id as string
 }
-const row = (page: any, user: string) => page.getByRole('row').filter({ has: page.getByRole('link', { name: user, exact: true }) })
+const row = (page: Page, user: string) => page.getByRole('row').filter({ has: page.getByRole('link', { name: user, exact: true }) })
 
 test('bulk assignment: toolbar order, replacement confirmation, results, profile and filter sync', async ({ page, request }) => {
   const target = `Bulk Target ${unique}`, other = `Bulk Other ${unique}`
