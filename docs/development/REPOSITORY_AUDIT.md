@@ -107,3 +107,29 @@ A `reference/` directory is not created: configuration lives in `getting-started
 * **Consolidated.** Backup count/age explanation lives in `DATA_RETENTION.md`; `BACKUP_RESTORE.md` links to it. Version stamps removed from four headings. The dated "Package stabilization"
   log was removed from `CI_CD.md` (it is in Git history). `DEVELOPMENT.md` and `BUILD.md` were found complementary (installation walkthrough versus prerequisite matrix) and are cross-linked, not merged.
 * **README.** Gained "How it works" and "Security and operations"; the logo block and navigation links are unchanged.
+
+### Phase 6: dependencies, configuration and security hygiene
+
+No change was needed beyond the lint ceiling. Backend requirements: every runtime package has an importer or a packaging role; development and build requirements are used by tests, lint and
+PyInstaller. Frontend: all runtime dependencies are imported; `postcss`, `autoprefixer`, `@types/react-dom` and `@types/node` are kept (configuration and type resolution). Lockfile is consistent
+with `package.json` (`npm audit --omit=dev`: 0 vulnerabilities; `pip check`: no broken requirements). No credentials, keys or databases are tracked; test fixtures use synthetic tokens;
+`backend/.env.example` and `deploy/server.env.example` hold placeholders. Documented configuration matches the code paths that were changed in this work (retention, revision header,
+storage). No broad upgrade was attempted.
+
+## Final summary
+
+| Item | Result |
+| --- | --- |
+| Structure before / after | 655 tracked files at the start. Root build entrypoint moved to `scripts/`; four tools moved into `scripts/maintenance/` and `scripts/benchmarks/`; `docs/operations/` added; no file deleted from code or assets |
+| Findings | 1 medium (lint gate red since the original baseline, fixed), 7 low (documentation duplication and stale stamps: fixed except L6, which is cross-linked, and L7/L8, which are policy and Windows-host debt) |
+| Files removed | None of code, assets or scripts. A dated incident log section was removed from `docs/deployment/CI_CD.md`; about 150 lines of storage and retention text were moved, not deleted |
+| Files moved | `build.ps1` to `scripts/build.ps1`; `generate-examples.py`, `reference-template.py`, `validation_tracker.py` to `scripts/maintenance/`; `profile-sod.py` to `scripts/benchmarks/` |
+| New documents | `scripts/README.md`, `architecture/STORAGE_AND_REVISIONS.md`, `operations/README.md`, `operations/DATA_RETENTION.md`, `development/PERFORMANCE.md`, this report |
+| Scripts consolidated | None were redundant. Not moved on purpose: deployment builders, Linux bundle scripts and Windows packaging scripts (path contracts in workflows, release tooling and shipped bundles; PowerShell cannot be executed here) |
+| Dependencies changed | None |
+| Security findings | None requiring remediation |
+| Broken links fixed | The retention anchors (`IMPORT_AND_REFRESH.md#data-retention`, `#review-retention`) were repointed to `operations/DATA_RETENTION.md`; `check-docs.py` reports 0 failures |
+| Validation | Backend regression 1522 tests, 0 failed, 6 skipped (PyInstaller, PowerShell); browser smoke 12 of 12 (the full 872-test browser run of the previous phase is unaffected because no frontend or backend runtime code changed); ruff, tsc, ESLint (exit 0), 16 unit tests, docs, workflow contracts, test-map, Lucide catalogue, `git diff --check`, `pip check`, `npm audit` pass |
+| Remaining technical debt | 115 ESLint warnings (ceiling may only go down); `test-service-management.ps1` not executed by any build step; deployment and Windows packaging sequencing still lives partly in PowerShell; Dependabot for the SHA-pinned actions is a recommendation only |
+| Platform validation gaps | Native Windows execution of `scripts/build.ps1` and all PowerShell scripts, WebView2, SCM, UNC, real systemd boot and recovery are unverified |
+| Release readiness | Local validation is green. Not release-ready until a Windows host has run the packaging and service lifecycle checks and the workflows have been run on an approved branch; merging and releasing need explicit authorization |
