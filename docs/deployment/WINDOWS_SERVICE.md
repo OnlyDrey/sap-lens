@@ -184,6 +184,15 @@ Create its parent directory first. The installer preserves an existing administr
 configuration and refuses to overwrite it during reinstall; review it explicitly. Supply `-SecretFile` when installing basic/proxy
 mode; installer restricts its ACL. Do not put domain passwords in this file.
 Service failure recovery restarts after 10/30 seconds with a one-hour reset window.
+
+### Access-secret permissions: fresh install, upgrade and repair
+
+- **Fresh install:** `--init-secret` creates the file and immediately restricts it to the creating account and SYSTEM (if that fails the new file is deleted). `-Action Install` then replaces the ACL with SYSTEM (full), Administrators (full) and the dedicated service SID `NT SERVICE\SAPLens` (read), inheritance removed. Links and directories are refused as secret paths.
+- **Startup policy:** the service refuses a secret that Everyone, Users, Authenticated Users, Interactive, Network, Anonymous or Guests can read or change, or whose ACL cannot be read (fail closed). The message names the principals, never the content.
+- **Upgrade from an older installation:** `-Action Upgrade` first runs the application's own configuration check against the installed service configuration. If the secret still carries a permissive inherited ACL (for example a copy restored under `C:\ProgramData`), the upgrade stops before any file is changed and points to the repair.
+- **Repair (explicit):** `-Action RepairSecret` reports the policy result for the secret path **from the installed service configuration** (never from a parameter); `-Action RepairSecret -ConfirmSecretRepair` then applies the same ACL as install and re-checks. It never reads or prints the content, ignores other files, and needs an elevated shell. Named user groups added by hand are not removed silently: if the policy still rejects the file afterwards, review them with `icacls`.
+- **Backup and restore:** archives do not contain the secret file; after restoring one from another source, run `RepairSecret` before starting.
+- **Status:** the DACL parser and the lifecycle are unit-tested with simulated DACLs; `GetNamedSecurityInfoW`, `icacls` and the service SID on a real Windows host are pending native acceptance.
 The backend refuses a duplicate data store or occupied port rather than silently
 moving. Stop timeout is 25 seconds; review wrapper/SCM logs for forced termination.
 After a successful WinSW command, management waits up to 40 seconds for SCM to

@@ -34,7 +34,8 @@ must either run `chmod 600` (when the service user owns the file) or add the var
 Windows has no POSIX modes: provisioning (`manage-server-service.ps1`) replaces the ACL with SYSTEM, Administrators and read for the service SID; the
 runtime then reads the DACL at start and refuses the secret when Everyone, Users, Authenticated Users, Interactive, Network, Anonymous or Guests can read or change it
 (deny entries never count; an unreadable ACL also refuses, fail closed). Fix with `icacls <file> /inheritance:r /grant:r "%USERNAME%:F" "SYSTEM:F"`. The parser is unit-tested
-with simulated DACLs on every OS; the native API call is not yet verified on Windows.
+with simulated DACLs on every OS; the native API call is not yet verified on Windows. Install, upgrade and `-Action RepairSecret` are described in
+[Windows service](WINDOWS_SERVICE.md#access-secret-permissions-fresh-install-upgrade-and-repair).
 
 For network browser access set `SAP_LENS_PUBLIC_ORIGIN=https://lens.example.test`,
 `SAP_LENS_ALLOWED_HOSTS=lens.example.test` and terminate TLS at a reverse proxy.

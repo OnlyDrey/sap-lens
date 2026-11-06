@@ -218,3 +218,91 @@ class NoProcessesAreStarted(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class SecretFileLifecycle(unittest.TestCase):
+    """Windows secret-file ACL policy across install, upgrade and repair, with simulated DACLs (no Windows API is called). The native behaviour of
+    GetNamedSecurityInfoW / icacls on a real Windows host is pending native acceptance."""
+    SERVICE_SID_80 = 'S-1-5-80-2812327291-1052903561-3395339527-3014219726-4226432618'
+    # What manage-server-service.ps1 Install / RepairSecret produce: icacls /inheritance:r /grant:r SYSTEM:F Administrators:F NT SERVICE\SAPLens:R
+    INSTALLED = f'D:PAI(A;;FA;;;SY)(A;;FA;;;BA)(A;;FR;;;{SERVICE_SID_80})'
+    # make_private: protected DACL for the creating account and SYSTEM
+    CREATED = f'D:P(A;;FA;;;{USER_SID})(A;;FA;;;SY)'
+    # An older installation or a restored copy under C:\ProgramData: ACEs inherited from the parent (Users read, Authenticated Users modify)
+    LEGACY_INHERITED = 'D:AI(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;0x1200a9;;;BU)(A;ID;0x1301bf;;;AU)'
+
+    def check(self, sddl):
+        import deployment
+        with patch.object(wi, 'file_sddl', return_value=sddl):
+            deployment.check_windows_secret_acl('C:/ProgramData/SAP Lens Server/access.secret')
+
+    def test_fresh_install_and_fresh_secret_acls_are_accepted(self):
+        for sddl in (self.INSTALLED, self.CREATED, 'D:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FR;;;S-1-5-19)'):
+            self.check(sddl)                                                    # service SID, LocalService and creator keep access
+
+    def test_inherited_permissive_acl_of_an_older_installation_is_refused_with_the_repair_command(self):
+        with self.assertRaises(ValueError) as caught:
+            self.check(self.LEGACY_INHERITED)
+        message = str(caught.exception)
+        self.assertIn('Users', message); self.assertIn('Authenticated Users', message); self.assertIn('icacls', message)
+        self.assertNotIn('synthetic-secret', message)
+
+    def test_each_broad_principal_is_refused_and_narrow_named_accounts_are_not(self):
+        for principal, name in (('WD', 'Everyone'), ('BU', 'Users'), ('AU', 'Authenticated Users'), ('IU', 'Interactive'), ('NU', 'Network'), ('AN', 'Anonymous'), ('BG', 'Guests')):
+            with self.assertRaises(ValueError, msg=name) as caught:
+                self.check(f'D:P(A;;FA;;;SY)(A;;FR;;;{principal})')
+            self.assertIn(name, str(caught.exception))
+        self.check(f'D:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FRFW;;;{USER_SID})(A;;FR;;;{self.SERVICE_SID_80})')
+
+    def test_read_only_metadata_rights_do_not_count_as_secret_access(self):
+        self.check('D:P(A;;FA;;;SY)(A;;0x120000;;;BU)')                         # READ_CONTROL | SYNCHRONIZE only: cannot read the content
+
+    def test_unreadable_acl_fails_closed_and_never_leaks_content(self):
+        import deployment
+        with patch.object(wi, 'file_sddl', side_effect=WindowsIdentityError('GetNamedSecurityInfoW failed (Windows error 5).')):
+            with self.assertRaises(ValueError) as caught:
+                deployment.check_windows_secret_acl('C:/x/access.secret')
+        self.assertIn('could not be checked', str(caught.exception))
+
+    def test_repair_hint_matches_the_grants_applied_at_install(self):
+        script = (BACKEND.parent / 'scripts/manage-server-service.ps1').read_text(encoding='utf-8')
+        hint = wi.repair_hint('C:/s')
+        for grant in ('/inheritance:r', '/grant:r'):
+            self.assertIn(grant, hint); self.assertIn(grant, script)
+        self.assertEqual(script.count("'*S-1-5-18:F' '*S-1-5-32-544:F' 'NT SERVICE\\SAPLens:R'"), 2)     # Install and RepairSecret grant the same set
+
+    def test_repair_is_explicit_and_scoped_to_the_configured_secret(self):
+        script = (BACKEND.parent / 'scripts/manage-server-service.ps1').read_text(encoding='utf-8')
+        self.assertIn("'RepairSecret'", script); self.assertIn('-ConfirmSecretRepair', script)
+        block = script[script.index("if ($Action -eq 'RepairSecret')"):script.index("if ($Action -in @('Upgrade','Backup','Restore'))")]
+        self.assertIn('$values.SAP_LENS_AUTH_SECRET_FILE', block); self.assertNotIn('$SecretFile', block)      # the path is never a parameter
+        self.assertNotIn('ReadAllText', block); self.assertNotIn('Get-Content', block)                           # content is never read
+        self.assertLess(block.index('if (-not $ConfirmSecretRepair)'), block.index('icacls.exe'))               # review before any change
+        self.assertIn('Assert-RepairableSecretFile', block)
+
+    def test_upgrade_checks_the_policy_before_changing_anything(self):
+        script = (BACKEND.parent / 'scripts/manage-server-service.ps1').read_text(encoding='utf-8')
+        block = script[script.index("if ($Action -in @('Upgrade','Backup','Restore'))"):]
+        self.assertLess(block.index('Test-InstalledConfiguration'), block.index("Invoke-ServiceCommand 'stop'"))
+
+    def test_init_secret_makes_the_new_file_private_on_windows_and_removes_it_on_failure(self):
+        import server
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / 'access.secret'
+            with patch.object(server.sys, 'argv', ['server.py', '--init-secret', str(target)]), patch.object(server.sys, 'platform', 'win32'), \
+                 patch.object(wi, 'make_private') as private:
+                self.assertEqual(server.run(), 0)
+            self.assertEqual(private.call_count, 1); self.assertEqual(str(private.call_args.args[0]).replace('\\', '/').rsplit('/', 1)[-1], 'access.secret'); self.assertTrue(target.is_file())
+            target.unlink()
+            with patch.object(server.sys, 'argv', ['server.py', '--init-secret', str(target)]), patch.object(server.sys, 'platform', 'win32'), \
+                 patch.object(wi, 'make_private', side_effect=WindowsIdentityError('SetNamedSecurityInfoW failed (Windows error 5).')), patch('builtins.print'):
+                self.assertEqual(server.run(), 1)
+            self.assertFalse(target.exists())                                   # fail closed: an unprotected secret is not left behind
+
+    def test_posix_policy_is_unchanged(self):
+        import deployment
+        if deployment.os.name == 'nt':
+            self.skipTest('POSIX modes do not exist on Windows')
+        class Status: st_mode = 0o100604; st_gid = 0
+        with self.assertRaises(ValueError):
+            deployment.check_secret_permissions('/x', Status())

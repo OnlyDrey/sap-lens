@@ -42,6 +42,15 @@ def run():
         # Created owner-only from the start (never briefly readable under a permissive umask) and never over an existing file.
         with os.fdopen(os.open(args.init_secret,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w',encoding='ascii') as stream:
             stream.write(secrets.token_urlsafe(48)+'\n')
+        if sys.platform=='win32':
+            # os.open modes do nothing on Windows: the file would keep the folder's inherited ACL (often readable by Users). Make it private to the
+            # creating account and SYSTEM at once; if that fails the new secret is removed rather than left exposed (fail closed).
+            import windows_identity
+            try: windows_identity.make_private(args.init_secret)
+            except windows_identity.WindowsIdentityError as error:
+                args.init_secret.unlink(missing_ok=True)
+                print(f'The new secret was removed because its permissions could not be restricted: {error}',file=sys.stderr)
+                return 1
         return 0
     stage='configuration'
     try:

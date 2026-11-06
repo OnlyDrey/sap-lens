@@ -133,7 +133,8 @@ BROAD_PRINCIPALS = {'WD': 'Everyone', 'BU': 'Users', 'AU': 'Authenticated Users'
 
 def _grants_content_access(rights):
     if rights.lower().startswith('0x'):
-        return bool(int(rights, 16) & (0x1 | 0x2 | 0x4 | 0x10000000 | 0x80000000 | 0x40000000 | 0x1F01FF | 0x120089))
+        # FILE_READ_DATA, FILE_WRITE_DATA, FILE_APPEND_DATA, DELETE, WRITE_DAC, WRITE_OWNER and the generic read/write/all bits; READ_CONTROL and SYNCHRONIZE alone do not expose content.
+        return bool(int(rights, 16) & (0x1 | 0x2 | 0x4 | 0x10000 | 0x40000 | 0x80000 | 0x10000000 | 0x40000000 | 0x80000000))
     return any(code in ('GR', 'GW', 'GA', 'FR', 'FW', 'FA') for code in re.findall(r'[A-Z]{2}', rights))
 
 
