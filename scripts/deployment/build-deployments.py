@@ -287,7 +287,7 @@ class Builder:
             print('Using the explicitly configured Playwright browser executable.')
         else:
             self.run('Install the pinned Playwright Chromium headless shell', [tool('node'), frontend / 'node_modules/playwright/cli.js', 'install', 'chromium', '--only-shell'], cwd=workspace)
-        self.run('Browser regression tests', [tool('npm'), '--prefix', frontend, 'run', 'test:browser', '--', '--workers=1', *([] if self.args.scope=='full' else ['--grep','@smoke'])], timed='browser', cwd=workspace)
+        self.run('Browser regression tests', [tool('npm'), '--prefix', frontend, 'run', 'test:browser', '--', '--workers=1', *(['--grep-invert','@repository-only'] if self.args.scope=='full' else ['--grep','@smoke'])], timed='browser', cwd=workspace)
         self.stage = 'Publish verified frontend assets'
         print(f'{self.stage}: {frontend_workspace.publish_dist(workspace, ROOT)} files', flush=True)
         self.run('Seal successful local validation', [self.python, 'scripts/deployment-package.py', 'record-local'])

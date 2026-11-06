@@ -117,3 +117,7 @@ and never grants, removes or approves access, creates accepted risks or changes 
 - No migration is needed: databases without the file start with no groups and every user `Unassigned`. SAP, Directory and review data are never
   rewritten. The format is versioned (`format: 1`).
 - Employee Directory imports never write classifications. Repeating an import is idempotent (change events are keyed by identity and import digest).
+
+## Bulk assignment
+
+`POST /api/functional-groups/bulk/preview` and `POST /api/functional-groups/bulk` (administrators, same mapping requirement as single classification) take stable usernames, never display names. The bulk write is one store write with history events and a repeated operation id is refused (409). Users already in the target group are `unchanged`; users in another group are only replaced with explicit confirmation (`replace_existing`); a classification that changed since the preview is a conflict; usernames outside the active dataset are rejected. Any skipped user makes the status `partial`, and the User Directory dialog retries only those. Imported SAP and AD data are never modified. The profile's *Assign group* uses the same classification model.

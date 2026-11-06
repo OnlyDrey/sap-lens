@@ -112,19 +112,23 @@ export function UserAccess({
   const clearEvidence = () => {setRoles([]); directoryTransaction.clear(); setTransactionMode('and'); excludeTransaction.clear(); setExcludeMode('any'); setMissingRoles([]); setMissingMode('any')}
   const [term, setTerm] = useState("");
   const [assignOpen, setAssignOpen] = useState(false);
+  const [usernames, setUsernames] = useState(''), [usernameDraft, setUsernameDraft] = useState('');
+  const [selectionBusy, setSelectionBusy] = useState(false), [selectionNote, setSelectionNote] = useState('');
   const [picked, setPicked] = useState<Set<string>>(new Set());
   useEffect(() => {
     const t = setTimeout(() => setTerm(search), 250);
     return () => clearTimeout(t);
   }, [search]);
+  const scopeKey = JSON.stringify([term, groups, roles, directoryTransaction.deferredKey, transactionMode, excludeTransaction.deferredKey, excludeMode, missingRoles, missingMode, expired, assignmentBand, functionalGroups, managers, usernames]);
+  useEffect(() => { setPicked(new Set()); setSelectionNote('') }, [scopeKey]);
   useEffect(() => {
     setOffset(0);
-  }, [term, groups, sort, descending, roles, directoryTransaction.deferredKey, transactionMode, excludeTransaction.deferredKey, excludeMode, missingRoles, missingMode, expired, assignmentBand, functionalGroups, managers]);
-  const filters = { assignment_band:assignmentBand, search: term, groups, functional_groups: functionalGroups, managers, sort, descending, roles, tcodes: directoryTransaction.deferredCodes, transaction_mode: transactionMode, exclude_tcodes: excludeTransaction.deferredCodes, exclude_mode: excludeMode, missing_roles: missingRoles, missing_mode: missingMode, show_expired: expired };
+  }, [term, groups, sort, descending, roles, directoryTransaction.deferredKey, transactionMode, excludeTransaction.deferredKey, excludeMode, missingRoles, missingMode, expired, assignmentBand, functionalGroups, managers, usernames]);
+  const filters = { usernames, assignment_band:assignmentBand, search: term, groups, functional_groups: functionalGroups, managers, sort, descending, roles, tcodes: directoryTransaction.deferredCodes, transaction_mode: transactionMode, exclude_tcodes: excludeTransaction.deferredCodes, exclude_mode: excludeMode, missing_roles: missingRoles, missing_mode: missingMode, show_expired: expired };
   const navigation = useRecordNavigation('users', filters, selected, setSelected);
   const result = useQuery({
     queryKey: [
-      "access-users", assignmentBand,
+      "access-users", assignmentBand, usernames,
       term,
       groups,
       functionalGroups,
@@ -181,7 +185,7 @@ export function UserAccess({
         navigation={navigation}
       />
     );
-  const clearAll=()=>{setAssignmentBand('');setSearch('');setGroups([]);setFunctionalGroups([]);setManagers([]);setSort('username');setDescending(false);setRoles([]);directoryTransaction.clear();setTransactionMode('and');excludeTransaction.clear();setExcludeMode('any');setExpired(false);setTerm('');setMissingRoles([]);setMissingMode('any');clearEvidence()}
+  const clearAll=()=>{setUsernames('');setUsernameDraft('');setAssignmentBand('');setSearch('');setGroups([]);setFunctionalGroups([]);setManagers([]);setSort('username');setDescending(false);setRoles([]);directoryTransaction.clear();setTransactionMode('and');excludeTransaction.clear();setExcludeMode('any');setExpired(false);setTerm('');setMissingRoles([]);setMissingMode('any');clearEvidence()}
   const clearDisabled=!activeFilterCount&&!search&&!roles.length&&!groups.length&&!functionalGroups.length&&!managers.length&&!expired&&!missingRoles.length&&sort==='username'&&!descending
   return (
     <section aria-label="User Access" className="space-y-4">
@@ -194,7 +198,7 @@ export function UserAccess({
         </PageToolbar>}
         sidebar={<div className="grid min-w-0 gap-3" role="search" aria-label="User filters">
           <FilterSection title="Saved Filters">
-            <SavedFilters showClear={false} view="users" state={{assignmentBand,search,groups,sort,descending,roles,tcodes:directoryTransaction.codes,transactionMode,excludeTcodes:excludeTransaction.codes,excludeMode,missingRoles,missingMode,expired}} apply={s=>{setMissingRoles(Array.isArray(s.missingRoles)?s.missingRoles.filter((name:unknown):name is string=>typeof name==='string').slice(0,20):[]);setMissingMode(s.missingMode==='all'?'all':'any');setAssignmentBand(typeof s.assignmentBand==='string'?s.assignmentBand:'');if(typeof s.search==='string')setSearch(s.search);if(Array.isArray(s.groups))setGroups(s.groups.filter((v:unknown):v is string=>typeof v==='string').slice(0,50));else if(typeof s.group==='string'&&s.group)setGroups([s.group]);if(typeof s.sort==='string'&&['username','group','first_name','last_name','email','account_status','relevant_roles'].includes(s.sort))setSort(s.sort);if(typeof s.descending==='boolean')setDescending(s.descending);if(Array.isArray(s.roles))setRoles(s.roles.filter((v:unknown):v is string=>typeof v==='string').slice(0,50));else if(typeof s.role==='string'&&s.role)setRoles([s.role]);if(Array.isArray(s.tcodes)){directoryTransaction.setInput('');directoryTransaction.setChips(s.tcodes)};if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(Array.isArray(s.excludeTcodes)){excludeTransaction.setInput('');excludeTransaction.setChips(s.excludeTcodes)}else excludeTransaction.clear();setExcludeMode(s.excludeMode==='all'?'all':'any');if(typeof s.expired==='boolean')setExpired(s.expired)}} clear={clearAll}/>
+            <SavedFilters showClear={false} view="users" state={{usernames,assignmentBand,search,groups,sort,descending,roles,tcodes:directoryTransaction.codes,transactionMode,excludeTcodes:excludeTransaction.codes,excludeMode,missingRoles,missingMode,expired}} apply={s=>{if(typeof s.usernames==='string'){setUsernames(s.usernames.slice(0,16000));setUsernameDraft(s.usernames.slice(0,16000))};setMissingRoles(Array.isArray(s.missingRoles)?s.missingRoles.filter((name:unknown):name is string=>typeof name==='string').slice(0,20):[]);setMissingMode(s.missingMode==='all'?'all':'any');setAssignmentBand(typeof s.assignmentBand==='string'?s.assignmentBand:'');if(typeof s.search==='string')setSearch(s.search);if(Array.isArray(s.groups))setGroups(s.groups.filter((v:unknown):v is string=>typeof v==='string').slice(0,50));else if(typeof s.group==='string'&&s.group)setGroups([s.group]);if(typeof s.sort==='string'&&['username','group','first_name','last_name','email','account_status','relevant_roles'].includes(s.sort))setSort(s.sort);if(typeof s.descending==='boolean')setDescending(s.descending);if(Array.isArray(s.roles))setRoles(s.roles.filter((v:unknown):v is string=>typeof v==='string').slice(0,50));else if(typeof s.role==='string'&&s.role)setRoles([s.role]);if(Array.isArray(s.tcodes)){directoryTransaction.setInput('');directoryTransaction.setChips(s.tcodes)};if(s.transactionMode==='and'||s.transactionMode==='or')setTransactionMode(s.transactionMode);if(Array.isArray(s.excludeTcodes)){excludeTransaction.setInput('');excludeTransaction.setChips(s.excludeTcodes)}else excludeTransaction.clear();setExcludeMode(s.excludeMode==='all'?'all':'any');if(typeof s.expired==='boolean')setExpired(s.expired)}} clear={clearAll}/>
           </FilterSection>
           <FilterSection title="Users">
         <Filter label="SAP User Group">
@@ -240,16 +244,31 @@ export function UserAccess({
             value={search}
             maxLength={256}
             onChange={(e) => setSearch(e.target.value)}
+            onPaste={(e) => {
+              // Only a deliberate paste of a list converts: typing never does, and one ordinary term (name, e-mail, "two words") stays a text search.
+              const text = e.clipboardData.getData('text')
+              if (looksLikeUsernameList(text)) { e.preventDefault(); setUsernameDraft(text); setUsernames(text); setPicked(new Set()) }
+            }}
             placeholder="Username, name, email or group"
           />
         </Filter>
-      {(assignmentBand || roles.length > 0 || groups.length > 0 || functionalGroups.length > 0 || managers.length > 0 || search || expired) && <div className="active-filter-row" aria-label="Active user filters">
+        <Filter label="Exact usernames">
+          <textarea className={inputClass} rows={3} value={usernameDraft} maxLength={16000} aria-label="Exact usernames" aria-describedby="exact-usernames-help"
+            onChange={(e) => setUsernameDraft(e.target.value)} placeholder="Paste usernames from Excel or a list" />
+          <p id="exact-usernames-help" className="ui-description">One per line, or separated by commas, semicolons or tabs. Exact, case-insensitive match; up to 500 names.</p>
+          <div className="ui-toolbar">
+            <Button variant="primary" disabled={usernameDraft === usernames} onClick={() => setUsernames(usernameDraft)}>{usernames ? 'Replace list' : 'Apply list'}</Button>
+            {(usernames || usernameDraft) && <Button variant="outline" onClick={() => { setUsernames(''); setUsernameDraft('') }}>Clear list</Button>}
+          </div>
+        </Filter>
+      {(assignmentBand || roles.length > 0 || groups.length > 0 || functionalGroups.length > 0 || managers.length > 0 || search || usernames || expired) && <div className="active-filter-row" aria-label="Active user filters">
         {assignmentBand&&<FilterChip removeLabel="Remove assignment count filter" onRemove={()=>setAssignmentBand('')}>{assignmentBand} currently valid roles</FilterChip>}
         {expired && <FilterChip removeLabel="Remove expired assignment filter" onRemove={()=>setExpired(false)}>Include Expired Assignments</FilterChip>}
         {roles.map(name => <FilterChip key={`role-${name}`} removeLabel={`Remove role filter ${name}`} onRemove={()=>setRoles(roles.filter(value=>value!==name))}>Role: {name}</FilterChip>)}
         {functionalGroups.map(value => <FilterChip key={`fg-${value}`} removeLabel={`Remove Functional Group filter ${organizationLabel('functional_group', value)}`} onRemove={()=>setFunctionalGroups(functionalGroups.filter(item=>item!==value))}>Functional Group: {organizationLabel('functional_group', value)}</FilterChip>)}
         {managers.map(value => <FilterChip key={`mgr-${value}`} removeLabel={`Remove Manager filter ${organizationLabel('manager', value)}`} onRemove={()=>setManagers(managers.filter(item=>item!==value))}>Manager: {organizationLabel('manager', value)}</FilterChip>)}
         {groups.map(name => <FilterChip key={`group-${name}`} removeLabel={`Remove user group filter ${name}`} onRemove={()=>setGroups(groups.filter(value=>value!==name))}>User group: {name}</FilterChip>)}
+        {usernames && <FilterChip removeLabel="Remove exact username filter" onRemove={()=>{setUsernames('');setUsernameDraft('')}}>Exact usernames: {(result.data?.username_filter?.requested ?? parseUsernameList(usernames).length).toLocaleString()}</FilterChip>}
         {search && <FilterChip removeLabel="Remove user search filter" onRemove={()=>{setSearch('');setTerm('')}}>Search: {search}</FilterChip>}
       </div>}
       <QueryState loading={result.isLoading || (dataLoading && !result.data?.loaded)} error={result.error} />
@@ -270,13 +289,20 @@ export function UserAccess({
           <div className="results-toolbar">
             <h2 className="text-base font-semibold">User directory <span className="text-sm font-normal text-[var(--muted)]">{result.data.total.toLocaleString()} matching{picked.size>0?` · ${picked.size.toLocaleString()} selected`:''}</span></h2>
             <div className="results-toolbar-actions">
+              {result.data.total>0&&picked.size<result.data.total&&<Button variant="outline" disabled={selectionBusy} onClick={async()=>{
+                setSelectionBusy(true);setSelectionNote('')
+                try{const all=await accessQuery<{usernames:string[];total:number;truncated:boolean;limit:number}>('users-selection',{...filters});setPicked(new Set(all.usernames));if(all.truncated)setSelectionNote(`Only the first ${all.limit.toLocaleString()} of ${all.total.toLocaleString()} matching users were selected.`)}
+                catch(error){setSelectionNote(error instanceof Error?error.message:'The matching users could not be selected.')}
+                finally{setSelectionBusy(false)}}}>Select all {result.data.total.toLocaleString()} matching</Button>}
               {picked.size>0&&<Button variant="primary" onClick={()=>setAssignOpen(true)}><UsersRound size={16} aria-hidden="true"/>Assign group</Button>}
               {picked.size>0&&<Button variant="outline" onClick={()=>setPicked(new Set())}><X size={16} aria-hidden="true"/>Clear selection</Button>}
               <ExportCSVButton loading={assignmentExport.busy} disabled={dataLoading||result.isFetching||search!==term||directoryTransaction.settling||!result.data.export_assignments} title="Exports every imported assignment for all matching users, across pages. MATCHED_FILTER marks assignments contributing to the active filters; expired and other assignments remain included." onClick={()=>void assignmentExport.download()}/>
             </div>
           </div>
+          <UsernameFeedback feedback={result.data.username_filter}/>
           {assignOpen&&<BulkAssignDialog usernames={[...picked].sort()} onClose={()=>setAssignOpen(false)} onChanged={()=>undefined}/>}
-          <details className="ui-evidence-disclosure"><summary>Export scope</summary><div><p className="ui-description">Exports all {result.data.export_assignments?.toLocaleString()??'available'} imported assignments for matching users, including other roles{expired?' and expired assignments':'; expired assignments are excluded while Show expired assignments is off'}. MATCHED_FILTER identifies assignment-level matches. Role-derived transactions are evidence, not proof of effective SAP authorization.</p></div></details>
+          {selectionNote&&<p role="status" className="ui-description">{selectionNote}</p>}
+          <details className="ui-evidence-disclosure"><summary>Export scope</summary><div><p className="ui-description">Exports all {result.data.export_assignments?.toLocaleString()??'available'} imported assignments for matching users, including other roles{expired?' and expired assignments':'; expired assignments are excluded while Show expired assignments is off'}. MATCHED_FILTER identifies assignment-level matches. Export covers all matching users and does not depend on the selection. Role-derived transactions are evidence, not proof of effective SAP authorization.</p></div></details>
           <div className="access-table user-directory-table" tabIndex={0} role="region" aria-label="User directory table">
             <table>
               <thead>
@@ -559,4 +585,30 @@ function AssignmentRow({
       </td>
     </tr>
   );
+}
+
+
+const USERNAME_TOKEN = /^[^\s@,;<>"]{1,40}$/
+export const parseUsernameList = (text: string) => [...new Set(text.split(/[\s,;]+/).map(item => item.trim()).filter(Boolean).map(item => item.toLocaleUpperCase()))]
+/** A pasted block is an exact-username list only when it has at least two entries separated by a line break, tab, comma or semicolon and every entry is a single token without spaces or an at-sign. "Jane Doe, John Smith" and one ordinary term stay a text search. */
+export function looksLikeUsernameList(text: string): boolean {
+  const entries = text.split(/[\n\r\t,;]+/).map(item => item.trim()).filter(Boolean)
+  return entries.length >= 2 && entries.every(entry => USERNAME_TOKEN.test(entry))
+}
+
+type UsernameFeedbackData = { requested: number; duplicates: number; invalid: string[]; found: number; matched: number; filtered_out: string[]; unmatched: string[]; limit: number; exceeds_limit: boolean } | null | undefined
+function UsernameFeedback({ feedback }: { feedback: UsernameFeedbackData }) {
+  if (!feedback) return null
+  return (
+    <div role="status" aria-label="Exact username filter result" className="ui-description">
+      <p>Requested {feedback.requested.toLocaleString()} · matched {feedback.matched.toLocaleString()} · not found {feedback.unmatched.length.toLocaleString()}{feedback.invalid.length > 0 ? ` · invalid ${feedback.invalid.length.toLocaleString()}` : ''}{feedback.duplicates > 0 ? ` · duplicates removed ${feedback.duplicates.toLocaleString()}` : ''}{feedback.filtered_out.length > 0 ? ` · hidden by other filters ${feedback.filtered_out.length.toLocaleString()}` : ''}</p>
+      {(feedback.unmatched.length > 0 || feedback.invalid.length > 0 || feedback.filtered_out.length > 0) && (
+        <details><summary>Show details</summary>
+          {feedback.unmatched.length > 0 && <p>Not found: {feedback.unmatched.join(', ')}</p>}
+          {feedback.invalid.length > 0 && <p>Invalid entries (not usernames): {feedback.invalid.join(', ')}</p>}
+          {feedback.filtered_out.length > 0 && <p>Found but excluded by other filters: {feedback.filtered_out.join(', ')}</p>}
+        </details>
+      )}
+    </div>
+  )
 }

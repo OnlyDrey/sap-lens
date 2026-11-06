@@ -220,6 +220,7 @@
     "user-directory-table",
     "user-profile-layout",
     "bulk-group-assignment",
+    "username-filter",
     "session-recovery",
     "tooltip-visibility",
     "startup-recovery",

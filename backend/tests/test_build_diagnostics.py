@@ -96,6 +96,19 @@ class IsolatedWorkspace(unittest.TestCase):
         support = (frontend / 'support.ts').read_text(encoding='utf-8')
         self.assertIn('not found at', support); self.assertIn('HTTP ${response.status()}', support)
 
+    def test_specs_using_backend_python_helpers_are_tagged_repository_only(self):
+        # The workspace mirrors fixtures, not the Python test modules; specs importing them run from the checkout (regression profile) only.
+        import re
+        frontend = Path(__file__).resolve().parents[2] / 'frontend/tests'
+        for spec in frontend.glob('*.spec.ts'):
+            text = spec.read_text(encoding='utf-8')
+            if "backend/tests'" in text.replace('"', "'") and 'test_sod' in text:
+                titles = re.findall(r"^\s*test\(\s*'([^']*)'", text, re.M)
+                tagged = [title for title in titles if '@repository-only' in title]
+                self.assertTrue(tagged, spec.name)
+        deploy = (Path(__file__).resolve().parents[2] / 'scripts/deployment/build-deployments.py').read_text(encoding='utf-8')
+        self.assertIn("'--grep-invert','@repository-only'", deploy)
+
     def test_remirror_keeps_the_workspace_installation_but_drops_removed_sources_and_stale_dist(self):
         workspace.mirror(self.root, self.work)
         (self.work / 'frontend/node_modules/pkg').mkdir(parents=True); (self.work / 'frontend/node_modules/pkg/i.js').write_text('x')
