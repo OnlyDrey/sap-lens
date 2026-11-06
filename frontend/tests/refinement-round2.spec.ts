@@ -37,7 +37,7 @@ test('tasks 15–16: assignment AND/OR and export use the same scope without rep
 test('tasks 17–18: directory evidence opens in a labeled modal and restores focus',async({page})=>{
  await page.goto('/#session=browser-test-session');const detail=await openUser(page),trigger=detail.getByRole('button',{name:'Directory matching details · Matched',exact:true});await trigger.click()
  const dialog=page.getByRole('dialog',{name:'Directory matching details',exact:true});await expect(dialog).toContainText('alpha@example.test');await expect(dialog.getByRole('table',{name:'Directory matching source records',exact:true})).toBeVisible()
- await page.keyboard.press('Escape');await expect(dialog).toBeHidden();await expect(trigger).toBeFocused();await expect(detail.locator('.profile-group')).toHaveCount(4)
+ await page.keyboard.press('Escape');await expect(dialog).toBeHidden();await expect(trigger).toBeFocused();await expect(detail.locator('.profile-group, .profile-functional-group')).toHaveCount(4)
 })
 test('tasks 19–21: shared source evidence, interactive feature pill and technical modal',async({page,request})=>{
  await page.goto('/#session=browser-test-session');await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:'Features',exact:true}).click()

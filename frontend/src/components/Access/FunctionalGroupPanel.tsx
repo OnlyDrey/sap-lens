@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Tags } from 'lucide-react'
+import { UsersRound } from 'lucide-react'
 import { fetchGroups, fetchUserClassification, groupsKey, saveClassification, type ClassificationStatus, type UserClassification } from '@/api/functionalGroups'
 import { Button } from '@/components/Shared/Button'
 import { Combobox } from '@/components/Shared/Combobox'
 import { Dialog } from '@/components/Shared/Dialog'
 import { FormField, controlClass } from '@/components/Shared/Controls'
-import { LoadingState, StatusBadge } from '@/components/Shared/Presentation'
+import { EvidenceDisclosure, LoadingState, StatusBadge } from '@/components/Shared/Presentation'
 import { formatDate } from '@/lib/dateFormat'
 
 export const classificationKey = (username: string) => ['functional-group-user', username] as const
@@ -67,19 +67,21 @@ export function FunctionalGroupPanel({ username }: { username: string }) {
   const [editing, setEditing] = useState(false)
   const data = query.data, current = data?.classification
   return (
-    <section aria-label="Functional Group" className="profile-group">
-      <h2><Tags size={18} aria-hidden="true" />Functional Group</h2>
+    <section aria-label="Functional Group" className="profile-functional-group">
+      <div className="profile-group-header">
+        <h2><UsersRound size={18} aria-hidden="true" />Functional Group</h2>
+        {current && <Button onClick={() => setEditing(true)}><UsersRound size={16} aria-hidden="true" />{current.group_id ? 'Change or confirm' : 'Assign group'}</Button>}
+      </div>
       {query.isError ? <p role="alert">{query.error instanceof Error ? query.error.message : 'Functional Group data is unavailable.'}</p> : !current ? <LoadingState /> : (
         <>
-          <dl className="profile-fields">
+          <dl className="profile-fields profile-fields-wide">
             <div><dt>Functional Group</dt><dd>{current.group?.name ?? 'Unassigned'}{current.group?.status === 'archived' && ' (archived)'}</dd></div>
             <div><dt>Classification</dt><dd><ClassificationPill status={current.status} /></dd></div>
             {current.confirmed_at && <div><dt>Last confirmed</dt><dd>{formatDate(current.confirmed_at)} by {current.confirmed_by}</dd></div>}
             {current.review && <div><dt>Review required</dt><dd>{current.review.reason}</dd></div>}
           </dl>
-          <p className="ui-description">Maintained in SAP Lens. Directory Department, Job Title and SAP User Group are imported and shown separately.</p>
           {data?.suggestion?.status === 'suggested' && !current.group_id && <p className="ui-description">Suggested: {data.suggestion.matches[0].group_name} ({data.suggestion.matches[0].reasons.join(' and ')})</p>}
-          <Button onClick={() => setEditing(true)}>{current.group_id ? 'Change or confirm' : 'Assign group'}</Button>
+          <EvidenceDisclosure title="About Functional Groups"><p className="ui-description">Functional Groups are maintained in SAP Lens. Directory Department, Job Title and SAP User Group are imported and displayed separately.</p></EvidenceDisclosure>
           {editing && data && <ClassificationDialog username={username} data={data} onClose={() => setEditing(false)} />}
         </>
       )}

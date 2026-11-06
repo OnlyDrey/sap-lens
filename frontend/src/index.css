@@ -413,9 +413,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,su
 .directory-transaction > .lucide-filter { display:inline; margin-right:6px; }
 .directory-transaction > .transaction-filter { margin-top:4px; }
 .directory-clear { justify-self:end; grid-column:4; }
-.user-profile { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border:1px solid var(--border); border-radius:14px; background:var(--surface); overflow:hidden; }
+.user-profile { border:1px solid var(--border); border-radius:14px; background:var(--surface); overflow:hidden; }
 .profile-group { min-width:0; padding:16px; }
-.profile-group + .profile-group { border-left:1px solid var(--border); }
 .profile-group > h2 { display:flex; align-items:center; gap:var(--space-2); font-size:var(--font-body); font-weight:600; margin-bottom:12px; }
 .profile-group > h2 svg { color:var(--muted); }
 .profile-fields { display:flex; flex-direction:column; gap:10px; font-size:var(--font-label); }
@@ -434,13 +433,10 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,su
  .directory-filter-grid,.dashboard-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
  .directory-clear { grid-column:2; }
  .dashboard-sources { grid-template-columns:1fr; }
- .user-profile { grid-template-columns:repeat(2,minmax(0,1fr)); }
- .profile-group:last-child { grid-column:1/-1; border-top:1px solid var(--border); border-left:0; }
 }
 @media(max-width:639px) {
- .directory-filter-grid,.dashboard-metrics,.dashboard-section[aria-label="Overview"] .dashboard-metrics,.user-profile { grid-template-columns:minmax(0,1fr); }
+ .directory-filter-grid,.dashboard-metrics,.dashboard-section[aria-label="Overview"] .dashboard-metrics{ grid-template-columns:minmax(0,1fr); }
  .directory-clear { grid-column:1; }
- .profile-group + .profile-group { border-left:0; border-top:1px solid var(--border); }
  .results-sort { margin-left:0; width:100%; }
 }
 .directory-transaction > .transaction-filter { margin-top:0; }
@@ -453,7 +449,6 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,su
 .profile-identity-header h2 { font-size:17px; font-weight:600; }
 .profile-identity-header p { font-size:var(--font-label); color:var(--muted); overflow-wrap:anywhere; }
 .user-profile .profile-group { border-left:0; }
-.user-profile .profile-group ~ .profile-group { border-left:1px solid var(--border); }
 .profile-account-warning { grid-column:1/-1; padding:12px 16px; color:var(--warning); background:color-mix(in srgb,var(--warning) 10%,var(--surface)); font-size:var(--font-label); border-top:1px solid var(--border); }
 .manager-identity { display:flex; align-items:start; flex-direction:column; gap:5px; padding:10px; border:1px solid var(--border); border-radius:var(--radius-control); width:100%; text-align:left; font-weight:400; background:var(--surface2); }
 button.manager-identity:hover { background:var(--hover); }
@@ -478,12 +473,10 @@ button.manager-identity:focus-visible { outline:var(--focus-width) solid var(--f
 .settings-review-groups { background:var(--surface); color:var(--text); border:1px solid var(--border); padding:10px; border-radius:8px; }
 @media(max-width:1099px) {
  .review-filters,.review-metrics,.dashboard-section[aria-label="Overview"] .dashboard-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
- .user-profile .profile-group:last-of-type { grid-column:1/-1; border-left:0; border-top:1px solid var(--border); }
 }
 @media(max-width:639px) {
  .review-filters,.review-metrics,.dashboard-section[aria-label="Overview"] .dashboard-metrics,.assignment-date-groups { grid-template-columns:minmax(0,1fr); }
  .assignment-date-groups .date-input-grid { grid-template-columns:minmax(0,1fr); }
- .user-profile .profile-group ~ .profile-group { border-left:0; border-top:1px solid var(--border); }
  .user-role-toolbar > .assignment-date-filters > button { margin-top:0; }
 }
 .dashboard-section[aria-label="User Access"] .dashboard-metrics { grid-template-columns:repeat(3,minmax(0,1fr)); }
@@ -516,3 +509,21 @@ button.manager-identity:focus-visible { outline:var(--focus-width) solid var(--f
 
 /* Active-filter chips take their content width inside grid and flex-column parents and wrap long text instead of stretching. */
 .transaction-chip { justify-self:start; align-self:flex-start; width:fit-content; max-width:100%; }
+
+/* User profile: one container, three equal columns, full-width Functional Group. */
+.user-profile { display:block; }
+.profile-identity-header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-3); }
+.profile-identity-text { min-width:0; flex:1 1 16rem; }
+.profile-identity-match { flex:0 0 auto; margin-left:auto; }
+.profile-columns { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); }
+.profile-columns > .profile-group + .profile-group { border-left:1px solid var(--border); }
+.profile-functional-group { padding:16px; border-top:1px solid var(--border); min-width:0; }
+.profile-group-header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-2); margin-bottom:12px; min-height:var(--control-height); }
+.profile-group-header h2 { display:flex; align-items:center; gap:var(--space-2); font-size:var(--font-body); font-weight:600; }
+.profile-group-header h2 svg { color:var(--muted); }
+.profile-fields-wide { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px var(--space-4); }
+.profile-fields-wide > div { grid-template-columns:1fr; gap:2px; }
+.profile-functional-group .ui-evidence-disclosure { margin-top:12px; }
+.profile-columns .profile-manager { border-top:0; margin-top:0; padding-top:0; }
+@media(max-width:1099px) { .profile-columns { grid-template-columns:repeat(2,minmax(0,1fr)); } .profile-columns > .profile-group:nth-child(3) { grid-column:1/-1; border-left:0; border-top:1px solid var(--border); } }
+@media(max-width:639px) { .profile-columns { grid-template-columns:minmax(0,1fr); } .profile-columns > .profile-group + .profile-group { border-left:0; border-top:1px solid var(--border); } .profile-fields-wide { grid-template-columns:minmax(0,1fr); } .profile-identity-match { margin-left:0; } }

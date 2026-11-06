@@ -218,6 +218,7 @@
     "multiselect-dropdown",
     "dropdown-layout",
     "user-directory-table",
+    "user-profile-layout",
     "session-recovery",
     "tooltip-visibility",
     "startup-recovery",
