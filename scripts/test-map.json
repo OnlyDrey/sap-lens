@@ -250,6 +250,7 @@
    "backend": [
     "test_desktop",
     "test_desktop_browser",
+    "test_startup_session",
     "test_desktop_installer",
     "test_linux_lifecycle",
     "test_security_surface",

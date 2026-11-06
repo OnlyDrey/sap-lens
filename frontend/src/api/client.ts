@@ -39,12 +39,14 @@ function problemDetail(data: unknown, status: number): string {
   return `Request failed (${status})`
 }
 
-/** Explicit top-level navigation obtains a fresh capability through the guarded root document.
+/** Top-level navigation obtains a fresh capability through the guarded root document (the backend verifies the navigation, the exact loopback host and the client address).
  * History carries only existing safe view/filter state; failed writes are never replayed. */
 export function recoverTrustedSession(){
  recordSession('reconnect')
  const hash=location.hash.startsWith('#/')?location.hash:''
  history.replaceState(history.state,'','/'+location.search+hash)
+ // A reload requests the guarded root document again; the backend answers a verified navigation with the current capability. (A replace() to the same
+ // address would be a fragment navigation and send nothing.)
  location.reload()
 }
 

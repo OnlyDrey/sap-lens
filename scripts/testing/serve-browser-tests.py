@@ -84,7 +84,8 @@ def main() -> None:
         os.environ['SAP_LENS_CONFIG_DIR'] = directory
         os.environ['DATA_CSV_PATH'] = ''
         from main import create_app
-        uvicorn.run(create_app(origin=f'http://127.0.0.1:{port}', session_token='browser-test-session'),
+        # browser_access: the same guarded loopback document and stale-session answers as the desktop application, so the start-up recovery is tested end to end.
+        uvicorn.run(create_app(origin=f'http://127.0.0.1:{port}', session_token='browser-test-session', instance_id='browser-test', browser_access=True),
                     host='127.0.0.1', port=port, access_log=False, log_level='warning')
 
 

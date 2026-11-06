@@ -1,8 +1,9 @@
 import { AlertTriangle, RefreshCw, WifiOff } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { recoverTrustedSession } from '@/api/client'
 import { useSession } from '@/api/session'
 import { Button } from '@/components/Shared/Button'
+import { mayRestoreAutomatically, recordRestoreAttempt } from '@/lib/startupRecovery'
 
 /** Typed or edited text in an open dialog or form that a reload would discard. Read-only fields and untouched defaults do not count. */
 export function hasUnsavedInput(root: ParentNode = document): boolean {
@@ -21,6 +22,16 @@ const COPY = {
 export function SessionNotice({ onRetry, retrying }: { onRetry?: () => void; retrying?: boolean }) {
   const session = useSession()
   const [confirming, setConfirming] = useState(false)
+  // The service restarted while this window stayed open. When nothing typed would be lost and no restore ran lately, re-establish the session through the guarded document at once.
+  useEffect(() => {
+    if (session.phase !== 'manual') return
+    let store: Storage | null = null
+    try { store = window.sessionStorage } catch { /* unusable storage: stay manual */ }
+    const now = Date.now()
+    if (hasUnsavedInput() || !mayRestoreAutomatically(store, now)) return
+    recordRestoreAttempt(store, now)
+    recoverTrustedSession()
+  }, [session.phase])
   if (session.phase === 'connecting' || session.phase === 'connected') return null
   const copy = COPY[session.phase]
   const needsReconnect = session.phase === 'manual' || session.phase === 'failed'

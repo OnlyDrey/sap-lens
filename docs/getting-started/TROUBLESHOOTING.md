@@ -47,3 +47,9 @@ Backups and restores are documented per deployment: [Windows desktop](../deploym
 [Linux Docker](../deployment/LINUX_DOCKER.md). Restore never overwrites an existing data store; restore into an empty directory, review permissions and
 only then start the application. Settings, review decisions, snapshots and history are private local data and belong in a protected backup, never in Git.
 For settings, logs and storage locations see [configuration and recovery](CONFIGURATION.md).
+
+## SAP Lens shows "Restoring workspace…" or a recovery screen at start
+
+After a restart SAP Lens re-establishes its local session by itself; you should only see "Starting SAP Lens…", "Connecting to local service…" or "Restoring workspace…" for a moment. A recovery screen appears only when that failed: *Retry connection* repeats the attempt.
+If it keeps appearing, close all SAP Lens windows and browser tabs that point at it, then start SAP Lens again. Details of the cause classes are in [Local session lifecycle](../architecture/SECURITY.md#local-session-lifecycle-and-start-up-recovery). Backup & Restore is offered only when the configuration itself could not be loaded.
+

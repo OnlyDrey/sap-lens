@@ -166,3 +166,10 @@ Scripts consolidation, approved plan: stage 1 done (`build-windows.ps1` to `buil
 Stage 2 done: service manager, server bundle, desktop installer and deployment packaging ported (opt-in, 17 contract tests). Next: `build-local.ps1`.
 
 Stage 3 done: `build-local.ps1` ported (`local.py`, opt-in). All six build scripts have Python ports; Windows validation checklist covers all. Next: directory organization (approved decision 2, now unblocked because PowerShell consolidation is blocked on Windows validation).
+
+
+## Start-up session recovery
+
+Verified cause and fix are documented in [Local session lifecycle and start-up recovery](../architecture/SECURITY.md#local-session-lifecycle-and-start-up-recovery). Implemented: `startupRecovery.ts` (classification, bounded back-off, once-per-minute automatic restore), new `StartupGate`
+(Starting / Connecting / Restoring labels, one-action recovery screen, no "Reload trusted session"), automatic restore in `SessionNotice` when nothing would be lost, browser test server in desktop mode (`browser_access`), 21 unit tests, 13 new Playwright cases,
+9 backend boundary tests. Windows validation steps are in the security document; native Windows behavior is unverified.

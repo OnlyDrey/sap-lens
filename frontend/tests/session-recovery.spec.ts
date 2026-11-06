@@ -8,6 +8,9 @@ test.afterEach(async ({ request }) => { await cleanup(request, directory) })
 const STALE = { detail: 'Application request is not authorized.', code: 'stale_session' }
 const notice = (page: Page) => page.locator('.session-notice')
 
+/** An automatic restore ran moments ago (this is what the guard looks like after one), so the notification and its explicit Reconnect action stay visible. */
+const restoredRecently = (page: Page) => page.addInitScript(() => { try { sessionStorage.setItem('sap-lens-session-recovery', JSON.stringify({ at: Date.now() })) } catch { /* storage unavailable */ } })
+
 async function openUser(page: Page) {
   await page.goto('/#session=browser-test-session')
   await page.goto(`/#/user-access/user/${names.a}`)
@@ -27,6 +30,7 @@ test('a clean start shows no session notification', async ({ page }) => {
 })
 
 test('a restarted backend shows exactly one notification, one compact empty state and blocks further requests', async ({ page }) => {
+  await restoredRecently(page)
   await openUser(page)
   const backend = await restartBackend(page)
   await page.getByRole('button', { name: 'Refresh role data from CSV' }).click().catch(() => undefined)
@@ -49,6 +53,7 @@ test('a restarted backend shows exactly one notification, one compact empty stat
 })
 
 test('Reconnect re-establishes the session through the guarded document and reloads the affected data', async ({ page }) => {
+  await restoredRecently(page)
   await openUser(page)
   await page.route('**/api/**', (route) => route.fulfill({ status: 403, json: STALE }))
   await page.goto(`/#/user-access/user/${names.b}`)
@@ -62,6 +67,7 @@ test('Reconnect re-establishes the session through the guarded document and relo
 })
 
 test('unsaved input is protected before a reconnect and nothing is replayed', async ({ page }) => {
+  await restoredRecently(page)
   await openUser(page)
   const writes: string[] = []
   await page.route('**/api/**', (route) => { if (route.request().method() === 'POST') writes.push(route.request().url()); return route.fulfill({ status: 403, json: STALE }) })
@@ -74,6 +80,17 @@ test('unsaved input is protected before a reconnect and nothing is replayed', as
   await page.getByRole('button', { name: 'Cancel' }).click()
   await expect(notice(page)).toContainText('no longer valid')
   expect(writes).toHaveLength(0)                                                                        // no write was sent or queued
+})
+
+test('a restarted backend is restored automatically when nothing typed would be lost', async ({ page }) => {
+  await openUser(page)
+  let restarted = false
+  page.on('request', (request) => { if (request.isNavigationRequest()) restarted = true })        // the guarded document is requested: from then on the "new backend" answers
+  await page.route('**/api/**', (route) => (restarted ? route.fallback() : route.fulfill({ status: 403, json: STALE })))
+  await page.goto(`/#/user-access/user/${names.b}`)
+  await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toBeVisible()
+  await expect(notice(page)).toHaveCount(0)
+  await expect(page).toHaveURL(new RegExp(`#/user-access/user/${names.b}`))                       // the view is kept
 })
 
 test('a temporary connection loss is explained once and recovers with Retry', async ({ page }) => {
@@ -89,6 +106,7 @@ test('a temporary connection loss is explained once and recovers with Retry', as
 })
 
 test('the notification is compact, keyboard operable, readable in dark mode and does not overflow at 375px', async ({ page, request }) => {
+  await restoredRecently(page)
   await openUser(page)
   await page.route('**/api/**', (route) => route.fulfill({ status: 403, json: STALE }))
   for (const [width, theme] of [[1280, 'light'], [375, 'dark']] as const) {

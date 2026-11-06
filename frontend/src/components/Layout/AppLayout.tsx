@@ -8,7 +8,7 @@ import { useHistoryValue } from '@/hooks/useViewHistory'
 import { type ReactNode, lazy, Suspense, useEffect, useState, useRef } from 'react'
 import { RefreshCw, Sun, Moon, Settings, Loader2, Database } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { apiRequest, ApiError, recoverTrustedSession } from '@/api/client'
+import { apiRequest, ApiError } from '@/api/client'
 import { useSession } from '@/api/session'
 import { SessionNotice } from './SessionNotice'
 import { fetchConfiguration } from '@/api/configuration'
@@ -176,7 +176,6 @@ export function AppLayout({
       {!settingsOpen && <SessionNotice onRetry={() => void configurationQuery.refetch()} retrying={configurationQuery.isFetching} />}
       {configurationQuery.isError && !settingsOpen && !sessionIssue && <div role="alert" className="service-notice">
         <strong>{configurationQuery.error instanceof ApiError&&configurationQuery.error.kind==='session'?'Local session changed.':configurationQuery.error instanceof ApiError&&['authentication','permission'].includes(configurationQuery.error.kind)?'Access needs attention.':'Local service unavailable.'}</strong><span>{configurationQuery.error instanceof Error?configurationQuery.error.message:'The current view is retained. Retry the connection.'}</span>
-        {configurationQuery.error instanceof ApiError&&configurationQuery.error.kind==='session'&&<button className="settings-secondary-button" onClick={recoverTrustedSession}>Reload trusted session</button>}
         <button className="settings-secondary-button" onClick={() => void configurationQuery.refetch()} disabled={configurationQuery.isFetching}>Retry connection</button>
       </div>}
       {dataState.loading && !configurationQuery.isError && !settingsOpen && <div role="status" className="service-notice">
