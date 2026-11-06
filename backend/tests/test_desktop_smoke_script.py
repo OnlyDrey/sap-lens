@@ -42,6 +42,53 @@ class SmokeScriptContracts(unittest.TestCase):
             self.assertIsNone(re.search(token, SCRIPT), token)
 
 
+class DiagnosticsAreSafeWithPartialState(unittest.TestCase):
+    """Regression for the hotfix after 8b23e2e: the failure reporter called `Join-Path $state.Directory ...` while the state was still empty (the
+    existing-instance preflight runs before any scenario directory exists) and Windows PowerShell 5.1 raised a binding error that masked the real failure.
+    The script cannot run on Linux, so these are structural contracts; native execution stays unverified until run on Windows."""
+
+    def test_no_state_value_reaches_join_path_directly(self):
+        for number, line in enumerate(SCRIPT.splitlines(), 1):
+            self.assertNotRegex(line, r'Join-Path\s+\$(script:)?state\.', f'line {number}: {line.strip()}')
+        self.assertNotRegex(SCRIPT, r'Join-Path\s+\$state\.Directory')
+
+    def test_a_safe_join_returns_null_for_missing_or_blank_directories(self):
+        helper = SCRIPT[SCRIPT.index('function Join-SafePath'):SCRIPT.index('function Get-SafeLogTail')]
+        self.assertIn('[string]::IsNullOrWhiteSpace([string]$directory)', helper)
+        self.assertIn('return $null', helper)
+        self.assertLess(helper.index('IsNullOrWhiteSpace'), helper.index('return (Join-Path'))
+
+    def test_every_diagnostic_path_goes_through_the_safe_helpers(self):
+        core = SCRIPT[SCRIPT.index('function Format-DiagnosticsCore'):SCRIPT.index('function Format-Diagnostics(')]
+        self.assertIn("Join-SafePath $state.Directory 'runtime.json'", core)
+        self.assertIn('Get-SafeLogTail $state.Directory', core)
+        self.assertIn('n/a (no scenario directory)', core)
+        tail = SCRIPT[SCRIPT.index('function Get-SafeLogTail'):SCRIPT.index('function Format-DiagnosticsCore')]
+        self.assertIn('Join-SafePath $directory', tail)
+        self.assertIn('no scenario directory yet', tail)
+
+    def test_the_reporter_can_never_replace_the_original_failure(self):
+        wrapper = SCRIPT[SCRIPT.index('function Format-Diagnostics('):SCRIPT.index('function New-SmokeException')]
+        self.assertIn('try { return (Format-DiagnosticsCore', wrapper)
+        self.assertIn('catch {', wrapper)
+        self.assertIn('SMOKE FAILURE [$class] $detail', wrapper, 'the class and detail survive a reporter failure')
+        self.assertIn('Format-Diagnostics $class $detail $application', SCRIPT[SCRIPT.index('function New-SmokeException'):])
+
+    def test_state_is_initialised_before_any_operation_that_can_fail(self):
+        self.assertLess(SCRIPT.index('$script:State = @{'), SCRIPT.index('function Test-InstanceHeld'))
+        initial = SCRIPT[SCRIPT.index('$script:State = @{'):SCRIPT.index('\n', SCRIPT.index('$script:State = @{'))]
+        for key in ('Scenario', 'Directory', 'Launcher', 'Runtime', 'Condition', 'Health', 'HttpError', 'RecordSeen', 'OwnedSeen'):
+            self.assertIn(key + ' =', initial, key)
+        self.assertLess(SCRIPT.index("'prerequisite_existing_instance'"), SCRIPT.index("foreach ($scenario in"), 'preflight runs with the initial, empty state')
+
+    def test_process_exit_and_timeout_paths_use_the_scenario_directory_parameter(self):
+        wait = SCRIPT[SCRIPT.index('function Wait-Ready'):SCRIPT.index('try {\n    $version')]
+        self.assertIn("Join-Path $directory 'runtime.json'", wait)
+        for name in ("'process_exited_before_readiness'", "'readiness_timeout'", "'runtime_record_missing'", "'http_unavailable'"):
+            self.assertIn(name, wait)
+        self.assertIn('$application = $null', SCRIPT, 'a failed launch cannot reuse the previous scenario process')
+
+
 class PackagedPathContract(unittest.TestCase):
     def test_the_smoke_test_launches_with_a_minimal_path_so_the_application_must_not_rely_on_path(self):
         self.assertIn('$env:PATH = "$env:SystemRoot\\System32;$env:SystemRoot"', SCRIPT)

@@ -24,8 +24,15 @@ function Get-RunningSapLens {
     return @(Get-Process -Name 'SAP-Lens' -ErrorAction SilentlyContinue | ForEach-Object { "PID $($_.Id) started $($_.StartTime.ToString('s'))" })
 }
 
-function Get-SafeLogTail([string]$directory, [int]$lines = 25) {
-    $log = Join-Path $directory 'sap-lens.log'
+function Join-SafePath($directory, [string]$leaf) {
+    # Diagnostics can run before any scenario directory exists (preflight) or with a partly initialised state: never pass an empty path to Join-Path.
+    if ([string]::IsNullOrWhiteSpace([string]$directory)) { return $null }
+    return (Join-Path ([string]$directory) $leaf)
+}
+
+function Get-SafeLogTail($directory, [int]$lines = 25) {
+    $log = Join-SafePath $directory 'sap-lens.log'
+    if (-not $log) { return '(no scenario directory yet, so there is no application log)' }
     if (-not (Test-Path $log)) { return '(sap-lens.log does not exist)' }
     try {
         $tail = @(Get-Content -LiteralPath $log -Tail $lines -ErrorAction Stop)
@@ -33,7 +40,7 @@ function Get-SafeLogTail([string]$directory, [int]$lines = 25) {
     } catch { return "(sap-lens.log unreadable: $($_.Exception.GetType().Name))" }
 }
 
-function Format-Diagnostics([string]$class, [string]$detail, $application) {
+function Format-DiagnosticsCore([string]$class, [string]$detail, $application) {
     $state = $script:State
     $lines = [System.Collections.Generic.List[string]]::new()
     $lines.Add("SMOKE FAILURE [$class] $detail")
@@ -50,7 +57,10 @@ function Format-Diagnostics([string]$class, [string]$detail, $application) {
         }
         $lines.Add('Owned processes (parent/child):'); foreach ($row in $rows) { $lines.Add($row) }
     } catch { $lines.Add('Owned processes: unavailable') }
-    $lines.Add("runtime.json present: $(Test-Path (Join-Path $state.Directory 'runtime.json'))    seen during scenario: $($state.RecordSeen)    owned by launched tree: $($state.OwnedSeen)")
+    $runtimeFile = Join-SafePath $state.Directory 'runtime.json'
+    $present = 'n/a (no scenario directory)'
+    if ($runtimeFile) { $present = [string](Test-Path -LiteralPath $runtimeFile) }
+    $lines.Add("runtime.json present: $present    seen during scenario: $($state.RecordSeen)    owned by launched tree: $($state.OwnedSeen)")
     $health = $state.Health
     if ($health) {
         $lines.Add("Last health: status=$($health.status) (expected ok), cached_roles=$($health.cached_roles) (expected 2), version=$($health.version), instance_id=$($health.instance_id)")
@@ -62,6 +72,12 @@ function Format-Diagnostics([string]$class, [string]$detail, $application) {
     $lines.Add('Application log (last lines, secrets redacted):')
     $lines.Add((Get-SafeLogTail $state.Directory))
     return ($lines -join "`n")
+}
+
+function Format-Diagnostics([string]$class, [string]$detail, $application) {
+    # The report must never replace the real failure with a secondary exception: any problem while gathering details degrades to the plain message.
+    try { return (Format-DiagnosticsCore $class $detail $application) }
+    catch { return "SMOKE FAILURE [$class] $detail`n(additional diagnostics unavailable: $($_.Exception.GetType().Name))" }
 }
 
 function New-SmokeException([string]$class, [string]$detail, $application, $inner = $null) {
