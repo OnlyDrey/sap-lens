@@ -110,6 +110,7 @@ export function UserAccess({
   useEffect(()=>{ if (!directoryTransaction.codes.length) setTransactionMode('and') },[directoryTransaction.key])
   const clearEvidence = () => {setRoles([]); directoryTransaction.clear(); setTransactionMode('and'); excludeTransaction.clear(); setExcludeMode('any'); setMissingRoles([]); setMissingMode('any')}
   const [term, setTerm] = useState("");
+  const [picked, setPicked] = useState<Set<string>>(new Set());
   useEffect(() => {
     const t = setTimeout(() => setTerm(search), 250);
     return () => clearTimeout(t);
@@ -141,6 +142,9 @@ export function UserAccess({
     queryFn: () =>
       accessQuery<Page<UserRow>>("users", { ...filters, offset }),
   });
+  const pageNames = (result.data?.items ?? []).map((u) => u.username);
+  const pageAll = pageNames.length > 0 && pageNames.every((u) => picked.has(u));
+  const pageSome = pageNames.some((u) => picked.has(u));
   useEffect(() => {
     if (!result.data || result.isFetching) return;
     const limit = result.data.limit;
@@ -261,49 +265,50 @@ export function UserAccess({
       )}
       {result.data && (
         <>
-          <div className="results-toolbar"><h2 className="text-base font-semibold">User directory <span className="text-sm font-normal text-[var(--muted)]">{result.data.total.toLocaleString()} {result.data.total === 1 ? 'user' : 'users'}</span></h2><ExportCSVButton loading={assignmentExport.busy} disabled={dataLoading||result.isFetching||search!==term||directoryTransaction.settling||!result.data.export_assignments} title="Exports every imported assignment for all matching users, across pages. MATCHED_FILTER marks assignments contributing to the active filters; expired and other assignments remain included." onClick={()=>void assignmentExport.download()}/></div>
-          <p className="ui-description">Export scope: all {result.data.export_assignments?.toLocaleString()??'available'} imported assignments for matching users, including other roles{expired?' and expired assignments':'; expired assignments are excluded while Show expired assignments is off'}. MATCHED_FILTER identifies assignment-level matches.</p>
-          <div className="access-table user-directory-table">
+          <div className="results-toolbar">
+            <h2 className="text-base font-semibold">User directory <span className="text-sm font-normal text-[var(--muted)]">{result.data.total.toLocaleString()} matching{picked.size>0?` · ${picked.size.toLocaleString()} selected`:''}</span></h2>
+            <div className="results-toolbar-actions">
+              {picked.size>0&&<Button variant="outline" size="compact" onClick={()=>setPicked(new Set())}>Clear selection</Button>}
+              <ExportCSVButton loading={assignmentExport.busy} disabled={dataLoading||result.isFetching||search!==term||directoryTransaction.settling||!result.data.export_assignments} title="Exports every imported assignment for all matching users, across pages. MATCHED_FILTER marks assignments contributing to the active filters; expired and other assignments remain included." onClick={()=>void assignmentExport.download()}/>
+            </div>
+          </div>
+          <details className="ui-evidence-disclosure"><summary>Export scope</summary><div><p className="ui-description">Exports all {result.data.export_assignments?.toLocaleString()??'available'} imported assignments for matching users, including other roles{expired?' and expired assignments':'; expired assignments are excluded while Show expired assignments is off'}. MATCHED_FILTER identifies assignment-level matches. Role-derived transactions are evidence, not proof of effective SAP authorization.</p></div></details>
+          <div className="access-table user-directory-table" tabIndex={0} role="region" aria-label="User directory table">
             <table>
               <thead>
                 <tr>
-                  {[
-                    "User group",
-                    "Functional Group",
-                    "Username",
-                    "First name",
-                    "Last name",
-                    "Email",
-                    "User status",
-                    "Lock status",
-                    "Relevant roles",
-                  ].map((h) => (
-                    <th key={h}>{h}</th>
-                  ))}
+                  <th className="col-select ud-sticky-1"><input type="checkbox" aria-label="Select all users on this page" checked={pageAll} ref={el=>{if(el)el.indeterminate=pageSome&&!pageAll}} onChange={()=>setPicked(prev=>{const n=new Set(prev);if(pageAll)pageNames.forEach(u=>n.delete(u));else pageNames.forEach(u=>n.add(u));return n})}/></th>
+                  <th className="ud-sticky-2">Username</th>
+                  <th>Full name</th>
+                  <th>Functional Group</th>
+                  <th>SAP user group</th>
+                  <th>Email</th>
+                  <th>SAP account status</th>
+                  <th>Lock status</th>
+                  <th>Relevant roles</th>
                 </tr>
               </thead>
               <tbody>
-                {result.data.items.map((user) => (
-                  <tr key={user.user_key}>
-                    <td>
-                      {user.groups
-                        .map((group) => group || "Unknown group")
-                        .join(", ") || "Unknown"}
-                    </td>
-                    <td>{user.functional_group?.name ?? <span className="text-muted">Unassigned</span>}{user.classification_status === "Needs review" && <> <ClassificationPill status="Needs review"/></>}</td>
-                    <td>
+                {result.data.items.map((user) => {
+                  const full=[user.first_name,user.last_name].filter(Boolean).join(' ')
+                  const group=user.groups.map((g) => g || "Unknown group").join(", ") || "Unknown"
+                  return (
+                  <tr key={user.user_key} data-selected={picked.has(user.username)?'':undefined}>
+                    <td className="col-select ud-sticky-1"><input type="checkbox" aria-label={`Select ${user.username}`} checked={picked.has(user.username)} onChange={()=>setPicked(prev=>{const n=new Set(prev);if(n.has(user.username))n.delete(user.username);else n.add(user.username);return n})}/></td>
+                    <td className="ud-sticky-2">
                       <SAPUserLink username={user.username} copyLabel="username" onOpen={()=>openUser(user.username)} openLabel={user.username}/>
                     </td>
-                    <td>{user.first_name || "—"}</td>
-                    <td>{user.last_name || "—"}</td>
-                    <td>{user.email || "—"}</td>
+                    <td className="ud-cell" data-col="name"><span className="ud-ellipsis" title={full||undefined}>{full||"—"}</span></td>
+                    <td className="ud-cell" data-col="fg">{user.functional_group?.name ? <span className="ud-ellipsis" title={user.functional_group.name}>{user.functional_group.name}</span> : <span className="text-muted">Unassigned</span>}{user.classification_status === "Needs review" && <> <ClassificationPill status="Needs review"/></>}</td>
+                    <td className="ud-cell" data-col="group"><span className="ud-ellipsis" title={group}>{group}</span></td>
+                    <td className="ud-cell" data-col="email"><span className="ud-ellipsis" title={user.email||undefined}>{user.email || "—"}</span></td>
                     <td aria-label="Account validity">
                       <AccountStatus value={user.account_status}/>
                     </td><td aria-label="Account lock"><LockStatus value={user.lock_status}/>
                     </td>
                     <td><button className="role-count-button" aria-label={`View ${user.relevant_roles} relevant roles for ${user.username}`} onClick={() => openUser(user.username)}>{user.relevant_roles.toLocaleString()} <span>{user.relevant_roles === 1 ? "role" : "roles"}</span></button></td>
-                  </tr>
-                ))}
+                  </tr>)
+                })}
               </tbody>
             </table>
           </div>

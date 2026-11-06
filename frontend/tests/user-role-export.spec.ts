@@ -98,7 +98,7 @@ for (const theme of ['light', 'dark']) for (const width of [800, 1280]) test(`se
   await page.setViewportSize({ width, height: 900 })
   await page.goto('/#session=browser-test-session')
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'User Access', exact: true }).click()
-  await expect(page.getByRole('columnheader', { name: 'User status', exact: true })).toBeVisible()
+  await expect(page.getByRole('columnheader', { name: 'SAP account status', exact: true })).toBeVisible()
   await expect(page.getByRole('columnheader', { name: 'Lock status', exact: true })).toBeVisible()
   const locked = page.getByRole('row').filter({ has: page.getByRole('link', { name: 'DEMO_LOCKED', exact: true }) })
   await expect(locked.locator('.lock-status')).toHaveText('Locked')
