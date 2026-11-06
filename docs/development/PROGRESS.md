@@ -298,3 +298,10 @@ The daily backup time is a fixed-format `HH:mm` text field (`TimeInput24`) inste
 - **Verification:** the tie regression tests fail against the old code on Linux; the Windows ACL policy is verified with simulated DACLs. Native Windows re-run pending.
 - **PowerShell 7.6.9** installed on Ubuntu 24.04 from Microsoft's apt repository; `test_powershell.py` (13 tests) and `check-powershell.ps1` pass; a real `prerequisites --repair` through pwsh preserved the broken environment and recreated it. PSScriptAnalyzer unavailable (gallery 403).
 - **Playwright:** the 18 Windows failures did not reproduce on Linux: the 15 related specs (107 tests) pass with one worker and no retries. The Windows cause is unknown without the failing test names.
+
+## Final cross-platform stabilization
+
+- PowerShell 5.1: AST-based `check-powershell-compat.ps1` (no new dependency; wired into `check-powershell.ps1` and `test_powershell.py` with negative fixtures). Repository result: 0 errors, 9 warnings; static only.
+- Windows secret ACLs: `--init-secret` now restricts the new file on Windows (deleted if that fails); `manage-server-service.ps1` refuses link/directory secret paths, `Upgrade` checks the installed configuration before changing files, and `-Action RepairSecret [-ConfirmSecretRepair]` repairs only the configured secret. A mask bug (READ_CONTROL/SYNCHRONIZE counted as access) was found and fixed by the new lifecycle tests.
+- Backend regression on Python 3.12: 1,760 tests OK, 2 skipped. One intermediate failure (script inventory table missing the new script) was fixed and the whole suite rerun.
+- Playwright: Windows failure details were not recoverable from the repository or logs; nothing was changed speculatively.

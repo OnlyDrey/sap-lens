@@ -39,6 +39,18 @@ readiness guide, not an enabled build feature.
 
 Windows regression follow-up (backend run 1,724 tests, 5 failures, 3 errors, 46 skipped on native Windows, Python 3.12.10): path-separator assumptions in two backup tests, symlink creation without privilege (now an explicit skip, coverage gap on unprivileged Windows), a Linux-shell interpreter stub in a probe test, tie-sensitive timestamp comparisons (Functional Group reconfirmation, SoD reopened classification) and the Windows secret-file ACL check are fixed and covered by tests that run on Linux; the native Windows re-run is pending.
 
+### Validation matrix (cross-platform stabilization)
+
+| Environment | Verified | Not verified |
+| --- | --- | --- |
+| Linux native (Python 3.12.3, Node 22 in the sandbox) | Backend 1,760 tests OK, 2 skipped (build-only PyInstaller / PE-resource tests); ruff, docs, test-map, workflow contracts, tsc, ESLint (0 errors, 115 warnings), production build; 107 targeted Playwright tests, one worker | Node 24 LTS; full 909-test Playwright suite not rerun |
+| PowerShell 7.6.9 on Linux | Parse of every `.ps1`, parameter binding, argument forwarding, paths with spaces, exit codes, bounded hung child, read-only `prerequisites --check-only`, real `--repair` | PSScriptAnalyzer (PowerShell Gallery blocked) |
+| PowerShell 5.1, static | `check-powershell-compat.ps1`: 0 errors, 9 warnings (encoding defaults/BOM, redirection, `Start-Process` quoting) | Any 5.1 execution; static analysis cannot prove runtime behavior |
+| Simulated Windows | DACL policy, secret lifecycle, tie-sensitive clocks, symlink skip, `.cmd` probe stub, `nt` branches with mocked APIs | The real APIs these mock |
+| Native Windows | Last known: backend 1,724 tests, 5 failures, 3 errors, 46 skipped (all eight analysed and fixed) | **Pending:** backend re-run, Playwright (887 passed, 18 failed, 4 skipped; failing names not recovered), ACL via `GetNamedSecurityInfoW`/`icacls`/service SID, `RepairSecret`, `py -3.12` with a newer default Python, `npm.cmd`, PowerShell 5.1 execution, installer/SCM acceptance |
+
+Supported PowerShell: Windows PowerShell 5.1 (production) and PowerShell 7 (development and Linux validation). Playwright investigation: the repository and local logs contain only the counts of the Windows run, not test names or errors, so no fixes were made on speculation; send the report or failing names for a targeted investigation.
+
 Not executable in the Linux container used for the last validation, and therefore unverified for this version: native Windows process handling (the browser-test parent watch in `scripts/testing/serve-browser-tests.py` is skipped on Windows because `getppid` does not change there, and `cleanup_on_signals` only maps the signals Windows has), WebView2, the Windows service control manager and UNC paths, and a real systemd boot, restart-on-failure and reboot recovery. The SQLite store, retention, fast paths and revision tokens are platform independent Python and are covered by the Linux unit and browser suites; the Windows packaging and desktop lifecycle checks run in `.github/workflows/build-windows.yml` only on an authorized run.
 
 Packaging
