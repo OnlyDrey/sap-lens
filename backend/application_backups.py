@@ -42,9 +42,8 @@ def area(data=None, *, create=True):
     if os.name != 'nt': root.chmod(0o700)
     elif (str(root),root.stat().st_ino) not in _secured:
         import subprocess
-        sid=subprocess.check_output(['powershell','-NoProfile','-Command','[Security.Principal.WindowsIdentity]::GetCurrent().User.Value'],text=True).strip()
-        if not re.fullmatch(r'S-1-[0-9-]+',sid): raise engine.MaintenanceError('Cannot resolve private backup ownership.')
-        subprocess.run(['icacls.exe',str(root),'/inheritance:r','/grant:r','*'+sid+':(OI)(CI)F','*S-1-5-18:(OI)(CI)F'],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        sid=engine.current_sid()
+        subprocess.run([engine.windows_tool('icacls.exe'),str(root),'/inheritance:r','/grant:r','*'+sid+':(OI)(CI)F','*S-1-5-18:(OI)(CI)F'],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         if len(_secured)>128: _secured.clear()
         _secured.add((str(root),root.stat().st_ino))
     return root

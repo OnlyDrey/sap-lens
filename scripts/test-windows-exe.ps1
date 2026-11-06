@@ -6,6 +6,70 @@ $tempRoot = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [System.IO.Path]::
 $testRoot = Join-Path $tempRoot ('sap-lens-smoke/' + [guid]::NewGuid())
 New-Item -ItemType Directory -Force $testRoot | Out-Null
 $owned = @{}
+$script:SmokeStart = Get-Date
+$script:ScenarioStart = $script:SmokeStart
+$script:State = @{ Scenario = ''; Directory = ''; Launcher = 0; Runtime = 0; Condition = 'not started'; Health = $null; HttpError = ''; RecordSeen = $false; OwnedSeen = $false }
+# The single-instance guard of the packaged application (backend/instance.py). It is per Windows session and independent of SAP_LENS_CONFIG_DIR, so ANY
+# running SAP Lens makes a new launch exit with code 0 without starting a runtime.
+$script:InstanceMutexName = 'Local\SAPLensDesktop'
+
+function Test-InstanceHeld {
+    $mutex = $null
+    if ([System.Threading.Mutex]::TryOpenExisting($script:InstanceMutexName, [ref]$mutex)) { $mutex.Dispose(); return $true }
+    return $false
+}
+
+function Get-RunningSapLens {
+    # Informational only: these processes are never terminated by the smoke test.
+    return @(Get-Process -Name 'SAP-Lens' -ErrorAction SilentlyContinue | ForEach-Object { "PID $($_.Id) started $($_.StartTime.ToString('s'))" })
+}
+
+function Get-SafeLogTail([string]$directory, [int]$lines = 25) {
+    $log = Join-Path $directory 'sap-lens.log'
+    if (-not (Test-Path $log)) { return '(sap-lens.log does not exist)' }
+    try {
+        $tail = @(Get-Content -LiteralPath $log -Tail $lines -ErrorAction Stop)
+        return ($tail | ForEach-Object { $_ -replace '(?i)(token|secret|passw\w*|authorization|api[-_ ]?key|credential)(\W{0,3})\S+', '$1$2<redacted>' }) -join "`n"
+    } catch { return "(sap-lens.log unreadable: $($_.Exception.GetType().Name))" }
+}
+
+function Format-Diagnostics([string]$class, [string]$detail, $application) {
+    $state = $script:State
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $lines.Add("SMOKE FAILURE [$class] $detail")
+    $lines.Add("Scenario: $($state.Scenario)    Elapsed: $([int]((Get-Date) - $script:ScenarioStart).TotalSeconds) s in scenario, $([int]((Get-Date) - $script:SmokeStart).TotalSeconds) s in total")
+    $lines.Add("Executable: $executable")
+    $exit = 'running'
+    if ($application) { try { if ($application.HasExited) { $exit = [string]$application.ExitCode } } catch { $exit = 'unavailable' } }
+    $lines.Add("Launcher PID: $($state.Launcher)    Runtime PID (runtime.json): $($state.Runtime)    Launcher exit code: $exit")
+    try {
+        $snapshot = @(Get-CimInstance Win32_Process)
+        $rows = foreach ($id in @($owned.Keys)) {
+            $entry = $snapshot | Where-Object { [int]$_.ProcessId -eq [int]$id } | Select-Object -First 1
+            if ($entry) { "  PID $id (parent $($entry.ParentProcessId)) $($entry.Name)" } else { "  PID $id (exited)" }
+        }
+        $lines.Add('Owned processes (parent/child):'); foreach ($row in $rows) { $lines.Add($row) }
+    } catch { $lines.Add('Owned processes: unavailable') }
+    $lines.Add("runtime.json present: $(Test-Path (Join-Path $state.Directory 'runtime.json'))    seen during scenario: $($state.RecordSeen)    owned by launched tree: $($state.OwnedSeen)")
+    $health = $state.Health
+    if ($health) {
+        $lines.Add("Last health: status=$($health.status) (expected ok), cached_roles=$($health.cached_roles) (expected 2), version=$($health.version), instance_id=$($health.instance_id)")
+    } else {
+        $lines.Add("Last health: none received. Last HTTP error: $($state.HttpError)")
+    }
+    $lines.Add("Last readiness condition: $($state.Condition)")
+    $lines.Add("Single-instance guard $($script:InstanceMutexName) currently held: $(Test-InstanceHeld). SAP-Lens processes: $((Get-RunningSapLens) -join '; ')")
+    $lines.Add('Application log (last lines, secrets redacted):')
+    $lines.Add((Get-SafeLogTail $state.Directory))
+    return ($lines -join "`n")
+}
+
+function New-SmokeException([string]$class, [string]$detail, $application, $inner = $null) {
+    $message = Format-Diagnostics $class $detail $application
+    if ($inner) { $exception = New-Object System.Exception($message, $inner) } else { $exception = New-Object System.Exception($message) }
+    $exception.Data['SmokeClass'] = $class
+    return $exception
+}
 
 function Assert-DesktopSessionDenied([string]$Origin) {
     $status = $null
@@ -60,28 +124,56 @@ function Start-Application([string]$directory) {
 
 function Wait-Ready($application, [string]$directory) {
     $deadline = (Get-Date).AddSeconds(60)
+    $state = $script:State
     do {
-        if ($application.HasExited) { throw 'Packaged application exited before readiness.' }
+        if ($application.HasExited) {
+            $why = 'The launcher exited before the runtime reported ready.'
+            if (-not (Test-Path (Join-Path $directory 'runtime.json')) -and $application.ExitCode -eq 0 -and (Test-InstanceHeld)) {
+                $why = 'The launcher exited with code 0 without starting a runtime because another SAP Lens instance in this Windows session holds the single-instance guard. Close it (the smoke test never terminates processes it did not start).'
+            }
+            throw (New-SmokeException 'process_exited_before_readiness' $why $application)
+        }
         $record = $null
         $path = Join-Path $directory 'runtime.json'
         if (Test-Path $path) {
             try { $record = Get-Content -Raw $path | ConvertFrom-Json } catch { $record = $null }
         }
+        if (-not $record) { $state.Condition = 'runtime.json missing or unreadable' }
         if ($record) {
+            $state.RecordSeen = $true
+            $state.Runtime = [int]$record.pid
             $ids = Track-Owned $application.Id
-            if (-not $ids.Contains([int]$record.pid)) { throw 'Runtime record is not owned by the launched process tree.' }
+            if (-not $ids.Contains([int]$record.pid)) { throw (New-SmokeException 'runtime_not_owned' 'Runtime record is not owned by the launched process tree.' $application) }
+            $state.OwnedSeen = $true
             # The origin is discovered only from this owned instance, never assumed from a busy port.
             $address = [uri]$record.origin
-            if ($address.Host -ne '127.0.0.1' -or $address.Scheme -ne 'http') { throw 'Runtime escaped loopback.' }
-            try { $health = Invoke-RestMethod "$($record.origin)/health" -TimeoutSec 2 } catch { $health = $null }
-            if ($health -and $health.instance_id -eq $record.instance_id -and $health.status -eq 'ok') {
-                if ($health.cached_roles -ne 2) { throw 'Configured synthetic data was not loaded.' }
-                return $record
+            if ($address.Host -ne '127.0.0.1' -or $address.Scheme -ne 'http') { throw (New-SmokeException 'runtime_escaped_loopback' "Runtime origin $($record.origin) is not http://127.0.0.1." $application) }
+            $health = $null
+            try { $health = Invoke-RestMethod "$($record.origin)/health" -TimeoutSec 2; $state.HttpError = '' } catch { $state.HttpError = $_.Exception.GetType().Name + ': ' + $_.Exception.Message }
+            if (-not $health) {
+                $state.Health = $null
+                $state.Condition = "HTTP endpoint unavailable ($($state.HttpError))"
+            } else {
+                $state.Health = $health
+                if ($health.instance_id -ne $record.instance_id) {
+                    $state.Condition = "instance_id mismatch (health $($health.instance_id), runtime.json $($record.instance_id))"
+                } elseif ($health.status -ne 'ok') {
+                    $state.Condition = "health status is '$($health.status)', expected 'ok'"
+                } else {
+                    if ($health.cached_roles -ne 2) { throw (New-SmokeException 'cached_roles_incorrect' "Configured synthetic data was not loaded: cached_roles is $($health.cached_roles), expected 2." $application) }
+                    $state.Condition = 'ready'
+                    return $record
+                }
             }
         }
         Start-Sleep -Milliseconds 250
     } until ((Get-Date) -gt $deadline)
-    throw 'Packaged application failed readiness.'
+    $class = 'readiness_timeout'
+    if (-not $state.RecordSeen) { $class = 'runtime_record_missing' }
+    elseif (-not $state.Health) { $class = 'http_unavailable' }
+    elseif ($state.Health.instance_id -ne $record.instance_id -and $state.Condition -like 'instance_id mismatch*') { $class = 'instance_id_mismatch' }
+    elseif ($state.Condition -like "health status*") { $class = 'health_status_incorrect' }
+    throw (New-SmokeException $class "Not ready within 60 s: $($state.Condition)" $application)
 }
 
 try {
@@ -95,11 +187,21 @@ try {
     if ([BitConverter]::ToUInt16($bytes, $peOffset + 24 + 68) -ne 2) { throw 'EXE is not a console-free Windows GUI application.' }
     $bytes = $null
 
+    # Prerequisite: the packaged application allows one instance per Windows session. A running SAP Lens (for example the installed application or a
+    # window left open by an earlier manual run) makes every launch below exit with code 0 and no runtime. Report it instead of a misleading timeout.
+    if (Test-InstanceHeld) {
+        throw (New-SmokeException 'prerequisite_existing_instance' 'Another SAP Lens instance already runs in this Windows session. Close it and run the smoke test again. Nothing was started or terminated.' $null)
+    }
     foreach ($scenario in @('first-launch', 'relaunch', 'port-conflict')) {
+        $script:ScenarioStart = Get-Date
+        $script:State = @{ Scenario = $scenario; Directory = ''; Launcher = 0; Runtime = 0; Condition = 'not started'; Health = $null; HttpError = ''; RecordSeen = $false; OwnedSeen = $false }
+        if (Test-InstanceHeld) { throw (New-SmokeException 'instance_not_released' 'The previous scenario left the single-instance guard held; a launch would exit immediately.' $null) }
         $directory = Join-Path $testRoot $scenario
         New-Item -ItemType Directory -Force $directory | Out-Null
         # Reuse the first launch's saved configuration to check persistence.
         if ($scenario -eq 'relaunch') { $directory = Join-Path $testRoot 'first-launch' }
+        $script:State.Directory = $directory
+        $application = $null
         $csvPath = Join-Path $directory 'role-catalogue.csv'
 @'
 FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT
@@ -119,6 +221,7 @@ MM,DEMO:B,Synthetic B,SHARED,Shared,DEMO,Demo
         try {
             $application = Start-Application $directory
             $owned[$application.Id] = $application
+            $script:State.Launcher = $application.Id
             $record = Wait-Ready $application $directory
             $health = Invoke-RestMethod "$($record.origin)/health"
             if ($health.version -ne $expectedVersion) { throw 'Runtime version differs from packaged build identity.' }
@@ -138,7 +241,10 @@ MM,DEMO:B,Synthetic B,SHARED,Shared,DEMO,Demo
                 $window = Get-Process -Id $record.pid -ErrorAction Stop
                 if ($window.MainWindowHandle -eq 0) { Start-Sleep -Milliseconds 250 }
             } until ($window.MainWindowHandle -ne 0 -or (Get-Date) -gt $windowDeadline)
-            if ($window.MainWindowHandle -eq 0 -or $window.MainWindowTitle -ne 'SAP Lens') { throw 'Branded desktop window did not open.' }
+            if ($window.MainWindowHandle -eq 0 -or $window.MainWindowTitle -ne 'SAP Lens') {
+                $windows = @($owned.Values | ForEach-Object { try { $_.Refresh(); "PID $($_.Id) handle=$($_.MainWindowHandle) title='$($_.MainWindowTitle)'" } catch { "PID $($_.Id) unavailable" } })
+                throw (New-SmokeException 'window_initialization_failed' "Branded desktop window did not open within 20 s (runtime PID $($record.pid); expected title 'SAP Lens'). Owned windows: $($windows -join '; ')" $application)
+            }
             if ($scenario -eq 'first-launch') {
                 $duplicate = Start-Application $directory
                 $owned[$duplicate.Id] = $duplicate
@@ -159,6 +265,10 @@ MM,DEMO:B,Synthetic B,SHARED,Shared,DEMO,Demo
                 if ($connected) { throw 'Backend remains after the application closed.' }
             } finally { $probe.Dispose() }
             Write-Host "PASS $scenario : owned API, bundled frontend, branding, CORS, GUI window, no dev tools, clean shutdown"
+        } catch {
+            # Keep the original exception (as the inner exception) and add the scenario diagnostics once.
+            if ($_.Exception.Data['SmokeClass']) { throw }
+            throw (New-SmokeException 'assertion_failed' $_.Exception.Message $application $_.Exception)
         } finally {
             if ($busy) { $busy.Stop() }
         }

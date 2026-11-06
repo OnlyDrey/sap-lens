@@ -269,6 +269,7 @@
     "test_windows_stages",
     "test_windows_ports",
     "test_windows_acceptance_split",
+    "test_desktop_smoke_script",
     "test_scripts_layout",
     "test_windows_tray",
     "test_docker_management",

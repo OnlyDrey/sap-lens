@@ -137,7 +137,9 @@ def _migrate(lease, server, data, record):
             archive.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
             result = engine.backup(data, archive, lease.mode, VERSION, _lease=lease, _exclude=exclusions)
         except Exception as error:  # noqa: BLE001
-            logger.warning('The pre-migration backup could not be created or verified (%s); the SQLite store is not created yet.', type(error).__name__)
+            # Application-authored messages (MaintenanceError/ValueError) are static and safe; anything else is reported by type and OS error code only.
+            reason = str(error) if isinstance(error, ValueError) else f'{type(error).__name__} errno={getattr(error, "errno", None)} winerror={getattr(error, "winerror", None)}'
+            logger.warning('The pre-migration backup could not be created or verified (%s); the SQLite store is not created yet.', reason)
             shutil.rmtree(_root(data) / record['id'], ignore_errors=True)
             return dict(state='backup_failed')
         record.update(status='backup_verified', backup=dict(file=ARCHIVE, sha256=result['sha256'], files=result['files'], size=archive.stat().st_size, verified=True))
