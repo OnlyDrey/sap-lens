@@ -101,6 +101,10 @@ def plan(args,python=None):
 
 from .layout import GENERATED as CLEAN_PATHS  # one authoritative list of generated output
 def clean(args,runner):
+    # Deterministic validation order, each condition independent: 1 confirmation, 2 allowlisted target, 3 no linked directory,
+    # 4 never delete the running interpreter's environment. Confirmation is first so a missing flag is always reported as such,
+    # whatever environment the interpreter happens to run from (a venv inside backend/build on Windows made 4 mask 1).
+    if not args.confirm_clean:raise BuildError('Clean needs explicit --confirm-clean (or use --dry-run to inspect paths).')
     paths=[ROOT/name for name in CLEAN_PATHS]
     if args.output:
         chosen=args.output.resolve()
@@ -109,7 +113,6 @@ def clean(args,runner):
     for path in paths:
         if any(parent.is_symlink() or parent.is_junction() for parent in (path,*path.parents)):raise BuildError('Refusing to clean a linked build directory (symbolic link or Windows junction).')
         if Path(sys.executable).resolve().is_relative_to(path.resolve()):raise BuildError('Run clean from a Python interpreter outside the directory being cleaned.')
-    if not args.confirm_clean:raise BuildError('Clean needs explicit --confirm-clean (or use --dry-run to inspect paths).')
     guard=ROOT/'dist/.sap-lens-clean.lock'
     guard.parent.mkdir(parents=True,exist_ok=True)
     try:

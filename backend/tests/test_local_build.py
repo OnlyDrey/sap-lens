@@ -146,6 +146,59 @@ class LocalReceiptTests(unittest.TestCase):
 
 
 
+class ActionlintAcquisitionTests(unittest.TestCase):
+    def setUp(self):
+        spec = importlib.util.spec_from_file_location('local_ci_acq', ROOT / 'scripts/testing/ci.py')
+        self.ci = importlib.util.module_from_spec(spec); spec.loader.exec_module(self.ci)
+        self.payload = b'synthetic archive'
+        self.digest = hashlib.sha256(self.payload).hexdigest()
+        self.name = 'actionlint-' + self.ci.ACTIONLINT_VERSION + '-pkg.zip'
+
+    def acquire(self, directory, **env):
+        with patch.dict(os.environ, env, clear=False):
+            return self.ci.acquire_actionlint('pkg.zip', self.digest, 'https://example.invalid/a.zip', Path(directory))
+
+    def test_cache_hit_needs_no_network(self):
+        with tempfile.TemporaryDirectory() as d, patch.object(self.ci.urllib.request, 'urlopen') as net:
+            (Path(d) / self.name).write_bytes(self.payload)
+            self.assertEqual(self.acquire(d), self.payload); net.assert_not_called()
+
+    def test_persistent_cache_is_preferred_and_receives_downloads(self):
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as cache:
+            with patch.object(self.ci.urllib.request, 'urlopen', return_value=io.BytesIO(self.payload)):
+                self.acquire(d, SAP_LENS_TOOL_CACHE=cache)
+            self.assertEqual((Path(cache) / self.name).read_bytes(), self.payload)
+            self.assertFalse((Path(d) / self.name).exists())
+
+    def test_corrupted_cache_is_ignored_and_redownloaded(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / self.name).write_bytes(b'corrupt')
+            with patch.object(self.ci.urllib.request, 'urlopen', return_value=io.BytesIO(self.payload)) as net:
+                self.assertEqual(self.acquire(d), self.payload); net.assert_called_once()
+
+    def test_failed_download_reports_url_status_cache_and_recovery_and_blocks(self):
+        import urllib.error
+        error = urllib.error.HTTPError('https://example.invalid/a.zip', 403, 'Forbidden', {}, None)
+        with tempfile.TemporaryDirectory() as d, patch.object(self.ci.urllib.request, 'urlopen', side_effect=error):
+            with self.assertRaises(self.ci.ActionlintUnavailable) as raised: self.acquire(d)
+            message = str(raised.exception)
+            for token in ('403', 'https://example.invalid/a.zip', d, 'SAP_LENS_ACTIONLINT_ARCHIVE', 'never disabled'): self.assertIn(token, message)
+            with patch.object(self.ci, 'lint', side_effect=self.ci.ActionlintUnavailable('x')), patch.object(sys, 'argv', ['ci.py', 'lint']):
+                self.assertEqual(self.ci.main(), 2)
+
+    def test_checksum_mismatch_is_discarded(self):
+        with tempfile.TemporaryDirectory() as d, patch.object(self.ci.urllib.request, 'urlopen', return_value=io.BytesIO(b'other')):
+            with self.assertRaisesRegex(self.ci.ActionlintUnavailable, 'checksum mismatch'): self.acquire(d)
+            self.assertFalse((Path(d) / self.name).exists())
+
+    def test_offline_local_archive_never_touches_the_network(self):
+        with tempfile.TemporaryDirectory() as d, patch.object(self.ci.urllib.request, 'urlopen') as net:
+            archive = Path(d) / 'mine.zip'; archive.write_bytes(self.payload)
+            self.assertEqual(self.acquire(d, SAP_LENS_ACTIONLINT_ARCHIVE=str(archive)), self.payload); net.assert_not_called()
+            archive.write_bytes(b'tampered')
+            with self.assertRaisesRegex(self.ci.ActionlintUnavailable, 'SHA-256 does not match'): self.acquire(d, SAP_LENS_ACTIONLINT_ARCHIVE=str(archive))
+
+
 class LocalToolingTests(unittest.TestCase):
     def test_actionlint_windows_download_checksum_cache_and_extraction(self):
         spec = importlib.util.spec_from_file_location('local_ci', ROOT / 'scripts/testing/ci.py')
@@ -158,7 +211,7 @@ class LocalToolingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.object(ci.platform, 'system', return_value='Windows'), patch.object(ci.platform, 'machine', return_value='AMD64'), patch.object(ci, 'ACTIONLINT_WINDOWS_SHA256', hashlib.sha256(payload).hexdigest()), patch.dict(os.environ, {'RUNNER_TEMP':directory}), patch.object(ci.subprocess, 'call', return_value=0) as execute:
             with patch.object(ci.urllib.request, 'urlopen', return_value=io.BytesIO(payload)) as download:
                 self.assertEqual(ci.lint(), 0)
-                self.assertIn('windows_amd64.zip', download.call_args.args[0])
+                self.assertIn('windows_amd64.zip', download.call_args.args[0].full_url)
             tool = Path(directory) / ('actionlint-' + ci.ACTIONLINT_VERSION + '.exe')
             self.assertEqual(tool.read_bytes(), b'synthetic executable, never executed')
             tool.write_bytes(b'tampered extracted tool')

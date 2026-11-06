@@ -217,6 +217,8 @@ $ast = [System.Management.Automation.Language.Parser]::ParseFile($source, [ref]$
 foreach ($definition in $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $false)) { . ([scriptblock]::Create($definition.Extent.Text)) }
 $script:PythonProbe = [regex]::Match((Get-Content -LiteralPath $source -Raw), "PythonProbe = '([^']*)'").Groups[1].Value
 if (-not $script:PythonProbe) { throw 'The interpreter probe was not found in scripts/build.ps1.' }
+if ((Get-RepositoryRoot -ScriptDirectory $env:SAP_LENS_TEST_SCRIPTS) -ne $env:SAP_LENS_TEST_REPO) { throw 'Explicit script directory was not resolved to the repository root.' }
+if (Get-RepositoryRoot -ScriptDirectory $env:SAP_LENS_TEST_FOLDER) { throw 'A directory without build.py must not be accepted as the scripts directory.' }
 $folder = $env:SAP_LENS_TEST_FOLDER
 $env:PATH = $folder + [IO.Path]::PathSeparator + $env:PATH
 $found = @(Get-PythonCandidates | Where-Object { $_.Path -and ((Split-Path -Parent $_.Path) -ieq $folder) })
@@ -237,7 +239,7 @@ $probe = Test-PythonCandidate -Source 'PATH' -Path $found[0].Path -Prefix $found
                     target=folder/'python.cmd';target.write_text('\r\n'.join(['@echo off',f'echo {target}',f'echo {version}',f'echo {bits}',f'exit /b {code}'])+'\r\n')
                 else:
                     target=folder/'python';target.write_text(f'#!/bin/sh\necho "{target}"\necho {version}\necho {bits}\nexit {code}\n');target.chmod(target.stat().st_mode|stat.S_IEXEC)
-                environment={**os.environ,'SAP_LENS_TEST_BOOTSTRAPPER':str(ROOT/'scripts'/'build.ps1'),'SAP_LENS_TEST_FOLDER':str(folder)}
+                environment={**os.environ,'SAP_LENS_TEST_BOOTSTRAPPER':str(ROOT/'scripts'/'build.ps1'),'SAP_LENS_TEST_FOLDER':str(folder),'SAP_LENS_TEST_SCRIPTS':str(ROOT/'scripts'),'SAP_LENS_TEST_REPO':str(ROOT)}
                 done=subprocess.run([shell,'-NoProfile','-ExecutionPolicy','Bypass','-File',str(script)] if os.name=='nt' else [shell,'-NoProfile','-File',str(script)],capture_output=True,text=True,env=environment)
                 with self.subTest(case=directory):
                     self.assertEqual(done.returncode,0,done.stderr+done.stdout)
@@ -338,6 +340,17 @@ class SafetyTests(unittest.TestCase):
         with self.assertRaisesRegex(BuildError,'confirm-clean'):targets.clean(value,Mock())
         value.output=ROOT/'backend/resources';value.confirm_clean=True
         with self.assertRaises(BuildError):targets.clean(value,Mock())
+
+    def test_clean_conditions_are_validated_independently_in_a_fixed_order(self):
+        # 1 confirmation wins even when the interpreter lives inside a generated directory.
+        value=args('clean');value.version='1.0.0-beta.2'
+        with patch.object(targets.sys,'executable',str(ROOT/'backend/build/venv/python')),self.assertRaisesRegex(BuildError,'confirm-clean'):targets.clean(value,Mock())
+        # 2 an arbitrary target is refused even when confirmed.
+        value.confirm_clean=True;value.output=ROOT/'backend/resources'
+        with self.assertRaisesRegex(BuildError,'documented generated'):targets.clean(value,Mock())
+        # 4 the running interpreter's environment is never deleted (confirmed, allowlisted target).
+        value.output=ROOT/'backend/build'
+        with patch.object(targets.sys,'executable',str(ROOT/'backend/build/venv/python')),self.assertRaisesRegex(BuildError,'interpreter outside'):targets.clean(value,Mock())
 
     def test_bootstrap_is_not_dependent_on_python_and_never_bypasses_policy(self):
         source=(ROOT/'scripts'/'build.ps1').read_text()

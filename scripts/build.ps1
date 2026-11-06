@@ -13,6 +13,7 @@ param(
 $ErrorActionPreference = 'Stop'
 # The probe must not contain double quotes: Windows PowerShell 5.1 strips embedded double quotes from native-command arguments, which
 # turns a literal such as "P" into a bare name and makes every interpreter fail with a NameError (the reported "Python is missing" bug).
+$script:ScriptDirectory = $PSScriptRoot
 $script:PythonProbe = 'import sys; print(sys.executable); print(sys.version.split()[0]); print(64 if sys.maxsize>2**32 else 32)'
 
 function Test-PythonCandidate {
@@ -36,13 +37,29 @@ function Test-PythonCandidate {
     return $result
 }
 
+function Get-RepositoryRoot {
+    # Explicit and validated: $PSScriptRoot is empty when a function runs outside a script file (dot-sourced scriptblock, -Command), so an
+    # override or the script's own location is used and the result must contain scripts\build.py. Never the working directory.
+    param([string]$ScriptDirectory = '')
+    $directory = $ScriptDirectory
+    if (-not $directory) { $directory = $env:SAP_LENS_SCRIPT_DIR }
+    if (-not $directory -and $script:ScriptDirectory) { $directory = $script:ScriptDirectory }
+    if (-not $directory -and $PSScriptRoot) { $directory = $PSScriptRoot }
+    if (-not $directory) { return '' }
+    $root = Split-Path -Parent $directory
+    if ($root -and (Test-Path -LiteralPath (Join-Path $directory 'build.py'))) { return $root }
+    return ''
+}
+
 function Get-PythonCandidates {
+    param([string]$RepositoryRoot = '')
     # Deterministic order: project .venv, Python launcher, PATH, other registered installations. No hardcoded install locations.
     $seen = @{}
     $list = @()
     # This file lives in scripts/: the repository root is its parent and the engine is its sibling build.py; neither depends on the working directory.
-    $venv = Join-Path (Split-Path -Parent $PSScriptRoot) '.venv\Scripts\python.exe'
-    if (Test-Path -LiteralPath $venv) { $list += @{ Source = 'project .venv'; Path = $venv; Prefix = @() } }
+    if (-not $RepositoryRoot) { $RepositoryRoot = Get-RepositoryRoot }
+    $venv = if ($RepositoryRoot) { Join-Path $RepositoryRoot '.venv\Scripts\python.exe' } else { '' }
+    if ($venv -and (Test-Path -LiteralPath $venv)) { $list += @{ Source = 'project .venv'; Path = $venv; Prefix = @() } }
     $launcher = Get-Command py -ErrorAction SilentlyContinue
     if ($launcher) { $list += @{ Source = 'Python launcher (py -3.12)'; Path = $launcher.Source; Prefix = @('-3.12') } }
     foreach ($name in @('python3.12', 'python')) {

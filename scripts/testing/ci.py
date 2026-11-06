@@ -120,6 +120,57 @@ def summary():
         print(text)
 
 
+class ActionlintUnavailable(RuntimeError):
+    """The pinned actionlint archive could not be obtained and verified. Never a lint pass."""
+
+
+def _verified(path, expected):
+    if path.is_symlink():
+        raise RuntimeError(f'actionlint archive must not be linked: {path}')
+    if not path.is_file():
+        return None
+    data = path.read_bytes()
+    return data if hashlib.sha256(data).hexdigest() == expected else None
+
+
+def acquire_actionlint(package, expected, url, directory):
+    """Return the checksum-verified archive. Order: explicit local archive, persistent tool cache, build cache, download.
+
+    SAP_LENS_ACTIONLINT_ARCHIVE names a local archive (offline use); SAP_LENS_TOOL_CACHE names a persistent cache directory outside the
+    disposable build output. Downloads honour HTTPS_PROXY/NO_PROXY, verify TLS normally, and are stored only after the SHA-256 matches.
+    """
+    explicit = os.environ.get('SAP_LENS_ACTIONLINT_ARCHIVE')
+    if explicit:
+        data = _verified(Path(explicit), expected)
+        if data is None:
+            raise ActionlintUnavailable(f'SAP_LENS_ACTIONLINT_ARCHIVE={explicit} is missing or its SHA-256 does not match {expected}. '
+                                        f'Download {url} and verify the checksum, or unset the variable.')
+        return data
+    name = f'actionlint-{ACTIONLINT_VERSION}-{package}'
+    persistent = os.environ.get('SAP_LENS_TOOL_CACHE')
+    caches = ([Path(persistent)] if persistent else []) + [directory]
+    for cache in caches:
+        data = _verified(cache / name, expected)
+        if data is not None:
+            return data
+    target = caches[0]
+    request = urllib.request.Request(url, headers={'User-Agent': 'sap-lens-build/1 (+actionlint-fetch)', 'Accept': '*/*'})
+    try:
+        data = urllib.request.urlopen(request, timeout=60).read()
+    except Exception as error:
+        status = getattr(error, 'code', 'n/a')
+        raise ActionlintUnavailable(
+            f'Could not download actionlint {ACTIONLINT_VERSION}: {error} (HTTP status {status}). URL: {url}. Cache searched: '
+            f'{", ".join(str(c) for c in caches)}. Recovery: download the archive in a browser or with PowerShell Invoke-WebRequest, '
+            f'verify SHA-256 {expected}, then place it at {target / name} or set SAP_LENS_ACTIONLINT_ARCHIVE to its path. '
+            'Proxies: set HTTPS_PROXY; certificate problems: install the corporate root in the OS trust store (verification is never disabled).') from error
+    if hashlib.sha256(data).hexdigest() != expected:
+        raise ActionlintUnavailable(f'actionlint checksum mismatch for {url}; the download was discarded and nothing was executed.')
+    target.mkdir(parents=True, exist_ok=True)
+    (target / name).write_bytes(data)
+    return data
+
+
 def lint():
     documentation = subprocess.call([sys.executable, str(ROOT / 'scripts/check-docs.py')], cwd=ROOT)
     if documentation:
@@ -131,18 +182,9 @@ def lint():
     package = 'windows_amd64.zip' if windows else 'linux_amd64.tar.gz'
     expected = ACTIONLINT_WINDOWS_SHA256 if windows else ACTIONLINT_SHA256
     url = f'https://github.com/rhysd/actionlint/releases/download/v{ACTIONLINT_VERSION}/actionlint_{ACTIONLINT_VERSION}_{package}'
-    # Cache only the checksum-verified download, never trust a mutable executable.
     directory = Path(os.environ.get('RUNNER_TEMP', ROOT / 'backend/build'))
     directory.mkdir(parents=True, exist_ok=True)
-    cached = directory / f'actionlint-{ACTIONLINT_VERSION}-{package}'
-    if cached.is_symlink():
-        raise RuntimeError('actionlint cache must not be linked')
-    data = cached.read_bytes() if cached.is_file() else b''
-    if hashlib.sha256(data).hexdigest() != expected:
-        data = urllib.request.urlopen(url, timeout=60).read()
-        if hashlib.sha256(data).hexdigest() != expected:
-            raise RuntimeError('actionlint checksum mismatch')
-        cached.write_bytes(data)
+    data = acquire_actionlint(package, expected, url, directory)
     tool = directory / (f'actionlint-{ACTIONLINT_VERSION}' + ('.exe' if windows else ''))
     if tool.is_symlink():
         raise RuntimeError('actionlint destination must not be linked')
@@ -168,7 +210,11 @@ def main():
             command = command[1:]
         return run(stage, command)
     if args.operation == 'lint':
-        return lint()
+        try:
+            return lint()
+        except ActionlintUnavailable as error:
+            print(f'workflow_lint BLOCKED (prerequisite, not a validation result): {error}', file=sys.stderr)
+            return 2
     summary()
     return 0
 
