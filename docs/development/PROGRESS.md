@@ -264,3 +264,7 @@ Native Windows has not yet confirmed the final cause. What the code proves:
 ## Functional Group section on User Details (compact, single membership)
 
 Compact summary line: assigned group name in emphasis, classification badge, confirmation text, review and suggestion notes, a visible "business classification, does not change SAP access" line and the About disclosure. Confirmation text separates a missing date from a missing reviewer and never invents values (`lib/functionalGroupText.ts`, unit tests). Action labels: Assign group, Change group (confirmed), Assign / Confirm (assigned but not confirmed). This is the single-membership version; the multiple-membership extension is pending design decisions (see below).
+
+## 24-hour time in Backup & Restore (and elsewhere)
+
+The daily backup time is a fixed-format `HH:mm` text field (`TimeInput24`) instead of `<input type="time">`, which follows the browser locale and shows AM/PM. Backup & Restore timestamps (last recorded operation, archive preview, schedule, history), the Data Retention dates and the session notice use the shared `formatTimestamp`/`formatTime` (`dd.MM.yyyy HH:mm`, 24-hour, local zone); no `toLocaleString`/`toLocaleDateString` is left in rendered text except counts. Backend schedules and stored timestamps are unchanged. Tests: `tests/unit/time-format.test.ts` (00:00, 12:00, 14:30, 06:00, zone conversion and date change in Europe/Oslo, validation), `backup-time-format.spec.ts` (en-US locale, 24-hour control, invalid entry).

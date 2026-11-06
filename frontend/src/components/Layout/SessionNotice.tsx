@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { recoverTrustedSession } from '@/api/client'
 import { useSession } from '@/api/session'
 import { Button } from '@/components/Shared/Button'
+import { formatTime } from '@/lib/dateFormat'
 import { mayRestoreAutomatically, recordRestoreAttempt } from '@/lib/startupRecovery'
 
 /** Typed or edited text in an open dialog or form that a reload would discard. Read-only fields and untouched defaults do not count. */
@@ -56,7 +57,7 @@ export function SessionNotice({ onRetry, retrying }: { onRetry?: () => void; ret
             <div><dt>State</dt><dd>{session.phase}</dd></div>
             <div><dt>Category</dt><dd>{session.category || 'none'}</dd></div>
             <div><dt>Failed requests</dt><dd>{session.failures}</dd></div>
-            <div><dt>Since</dt><dd>{new Date(session.since).toLocaleTimeString()}</dd></div>
+            <div><dt>Since</dt><dd>{formatTime(session.since, 'unknown', true)}</dd></div>
           </dl>
           <p>Reconnecting reloads the trusted session through the guarded application document. If this repeats, restart SAP Lens from the tray or Start menu and close other SAP Lens windows. No credentials are shown here.</p>
         </details>

@@ -7,6 +7,7 @@ import {Checkbox,FormField,Input} from '@/components/Shared/Controls'
 import {SettingsSelect} from './Controls'
 import {Card,ErrorState,LoadingState,StatusBadge} from '@/components/Shared/Presentation'
 import {formatTimestamp} from '@/lib/dateFormat'
+import {TimeInput24} from '@/components/Shared/TimeInput24'
 
 type Schedule={enabled:boolean;mode:'daily'|'cron';time:string;cron:string;timezone:string;keep:number}
 type Status={revision:number;schedule:Schedule;next_runs:string[];description:string;last_success:string|null;last_failure:string|null;last_outcome?:string;attempts?:{at:string;status:string}[]}
@@ -23,7 +24,7 @@ export function BackupScheduling(){
    <Checkbox checked={draft.enabled} onChange={event=>patch({enabled:event.target.checked})}>Enable scheduled backup requests (restart required)</Checkbox>
    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
     <FormField label="Backup schedule type"><SettingsSelect value={draft.mode} onChange={event=>patch({mode:event.target.value as Schedule['mode']})}><option value="daily">Daily</option><option value="cron">Advanced cron</option></SettingsSelect></FormField>
-    {draft.mode==='daily'?<FormField label="Backup daily time"><Input type="time" value={draft.time} onChange={event=>patch({time:event.target.value})}/></FormField>:<FormField label="Backup cron expression"><Input value={draft.cron} onChange={event=>patch({cron:event.target.value})}/></FormField>}
+    {draft.mode==='daily'?<FormField label="Backup daily time" description="24-hour time, HH:mm."><TimeInput24 label="Backup daily time" value={draft.time} onChange={time=>patch({time})}/></FormField>:<FormField label="Backup cron expression"><Input value={draft.cron} onChange={event=>patch({cron:event.target.value})}/></FormField>}
     <FormField label="Backup time zone" description="Local time, UTC or an installed IANA zone, for example Europe/Oslo."><Input value={draft.timezone} onChange={event=>patch({timezone:event.target.value})}/></FormField>
     <FormField label="Successful automatic backups to keep"><Input type="number" min={1} max={100} value={draft.keep} onChange={event=>patch({keep:Number(event.target.value)})}/></FormField>
    </div>

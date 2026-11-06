@@ -1,3 +1,4 @@
+import { formatTimestamp } from '@/lib/dateFormat'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiRequest } from '@/api/client'
@@ -69,7 +70,7 @@ export function DataRetention() {
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="m-0 text-sm font-semibold">Data retention</h3>
         {current.last_check && <span className="text-xs text-muted">Last check {new Date(current.last_check).toLocaleString()}</span>}
-        {current.quiet_until && new Date(current.quiet_until) > new Date() && <StatusBadge>No cleanup until {new Date(current.quiet_until).toLocaleDateString()} (after a restore)</StatusBadge>}
+        {current.quiet_until && new Date(current.quiet_until) > new Date() && <StatusBadge>No cleanup until {formatTimestamp(current.quiet_until)} (after a restore)</StatusBadge>}
       </div>
       <p className="ui-description">Checked daily. Source, review and backup data are separate categories with their own period and their own approval. {current.protected_note}</p>
       <Checkbox checked={shownEnabled} onChange={event => setEnabled(event.target.checked)}>Check and clean up automatically</Checkbox>
@@ -103,14 +104,14 @@ export function DataRetention() {
               {found && name === 'review' && (() => { const value = found as ReviewPreview; return (
                 <div className="grid gap-1 text-xs" aria-label="Review cleanup preview">
                   <p className="ui-description">{value.count === 0 ? `No completed review period older than ${value.months} months can be removed.` : `${value.count} completed review period(s) eligible, ${value.protected} protected.`}</p>
-                  {value.sample.map(item => <div key={item.name}>Eligible: {item.name} ({item.state}, completed {new Date(item.completed).toLocaleDateString()}) · {item.decisions} decision events · {item.actions} actions</div>)}
+                  {value.sample.map(item => <div key={item.name}>Eligible: {item.name} ({item.state}, completed {formatTimestamp(item.completed)}) · {item.decisions} decision events · {item.actions} actions</div>)}
                   {Object.entries(value.reasons).map(([reason, count]) => <div key={reason}>Protected: {count} · {reason}</div>)}
                   <p className="ui-description">Removed periods keep a deletion record and the report log. A copy is kept for 30 days and the cleanup can be undone meanwhile.</p>
                 </div>) })()}
               {found && name === 'backup' && (() => { const value = found as BackupPreview; return (
                 <div className="grid gap-1 text-xs" aria-label="Backup cleanup preview">
                   <p className="ui-description">{value.count === 0 ? `No automatic backup older than ${value.days} days can be removed.` : `${value.count} automatic backup(s), ${megabytes(value.bytes ?? 0)}, older than ${value.days} days would be removed.`} {value.counts.automatic} automatic, {value.counts.manual} manual, {value.counts.migration} migration, {value.counts.unclassified} unclassified.</p>
-                  {value.sample.map(item => <div key={item.id}>Eligible: created {new Date(item.created).toLocaleDateString()} · {item.age_days} days · {megabytes(item.bytes)} · rule: {item.rule}{item.note ? ` · ${item.note}` : ''}</div>)}
+                  {value.sample.map(item => <div key={item.id}>Eligible: created {formatTimestamp(item.created)} · {item.age_days} days · {megabytes(item.bytes)} · rule: {item.rule}{item.note ? ` · ${item.note}` : ''}</div>)}
                   {value.count_limit.length > 0 && <p className="ui-description">{value.count_limit.length} more automatic backup(s) are younger than {value.days} days but beyond the newest {value.keep}; the count limit removes them at the next scheduled backup without approval.</p>}
                   {value.count_limit.map(item => <div key={item.id}>Count limit: {item.rule}</div>)}
                   {Object.entries(value.reasons).map(([reason, count]) => <div key={reason}>Protected: {count} · {reason}</div>)}
