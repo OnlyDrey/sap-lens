@@ -4,6 +4,10 @@ Prepare the environment from [Development](DEVELOPMENT.md) and run commands from
 repository root. Never report a check as passed unless it executed; a smoke or
 targeted run is not a regression result.
 
+
+## PowerShell 7 on Linux
+
+`backend/tests/test_powershell.py` runs when `pwsh` is installed (Microsoft's `packages-microsoft-prod` apt repository for Ubuntu/Debian, `apt-get install powershell`) and is skipped otherwise. It checks that every `.ps1` parses, `build.ps1` parameter binding (including `-CheckOnly`, `-Repair`, `-Json`), interpreter probing with paths containing spaces, exit-code propagation, a bounded hung child, and that `prerequisites --check-only` through PowerShell is read-only. It does not cover Windows PowerShell 5.1, Windows APIs or native paths; those stay in the native Windows acceptance list. Hosted Linux runners ship `pwsh`, so the file adds about ten seconds to the existing backend job and needs no extra workflow. PSScriptAnalyzer was not available in the sandbox (PowerShell Gallery blocked) and has not been run.
 ## Profiles
 
 One entry point, `scripts/run-tests.py` (standard library only; Windows and Linux),

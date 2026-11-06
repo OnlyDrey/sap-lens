@@ -253,9 +253,9 @@ def check_windows_secret_acl(path, api=None):
     import windows_identity
     try: exposed = windows_identity.exposed_to_other_users(path, api)
     except windows_identity.WindowsIdentityError as error:
-        raise ValueError(f'Authentication secret {path} could not be checked ({error}). Run: icacls "{path}" /inheritance:r /grant:r "%USERNAME%:F" "SYSTEM:F"') from None
+        raise ValueError(f'Authentication secret {path} could not be checked ({error}). {windows_identity.repair_hint(path)}') from None
     if exposed:
-        raise ValueError(f"Authentication secret {path} is accessible to {', '.join(exposed)}. Run: icacls \"{path}\" /inheritance:r /grant:r \"%USERNAME%:F\" \"SYSTEM:F\"")
+        raise ValueError(f"Authentication secret {path} is accessible to {', '.join(exposed)}. {windows_identity.repair_hint(path)}")
 
 
 def bounded_int(name, default, low, high):

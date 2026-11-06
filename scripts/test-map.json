@@ -301,6 +301,7 @@
     "test_unified_build",
     "test_python_env",
     "test_prerequisites",
+    "test_powershell",
     "test_installer_preflight",
     "test_artifact_layout"
    ],

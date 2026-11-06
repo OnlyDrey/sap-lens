@@ -173,3 +173,8 @@ def file_sddl(path, api=None):
 def exposed_to_other_users(path, api=None):
     """Broad principals with access to `path` (empty list = not exposed through well-known broad groups). Raises WindowsIdentityError when the ACL cannot be read."""
     return broad_access(file_sddl(path, api))
+
+
+def repair_hint(path):
+    """The operator command that restores a private ACL; shown in error messages only, never executed by the application."""
+    return f'Run: icacls "{path}" /inheritance:r /grant:r "%USERNAME%:F" "SYSTEM:F"'

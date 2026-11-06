@@ -32,7 +32,9 @@ group) **and** the file's group is one the service account belongs to. Any acces
 and the file is never changed by SAP Lens. A refusal names the file, its mode and the fix (`chmod 600`). Existing installations with a 0640 secret
 must either run `chmod 600` (when the service user owns the file) or add the variable; the Docker installer and `compose.yml` already do.
 Windows has no POSIX modes: provisioning (`manage-server-service.ps1`) replaces the ACL with SYSTEM, Administrators and read for the service SID; the
-runtime does not verify an ACL, so confirm it with `icacls` after manual changes.
+runtime then reads the DACL at start and refuses the secret when Everyone, Users, Authenticated Users, Interactive, Network, Anonymous or Guests can read or change it
+(deny entries never count; an unreadable ACL also refuses, fail closed). Fix with `icacls <file> /inheritance:r /grant:r "%USERNAME%:F" "SYSTEM:F"`. The parser is unit-tested
+with simulated DACLs on every OS; the native API call is not yet verified on Windows.
 
 For network browser access set `SAP_LENS_PUBLIC_ORIGIN=https://lens.example.test`,
 `SAP_LENS_ALLOWED_HOSTS=lens.example.test` and terminate TLS at a reverse proxy.
