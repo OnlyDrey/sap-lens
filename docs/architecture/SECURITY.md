@@ -100,4 +100,3 @@ produces the same automatic restore when nothing typed into an open form would b
 **Windows validation (not run here).** Reproduce on a Windows desktop: (1) start SAP Lens, open Settings, note the window; (2) close it completely (tray *Exit*) and start it again: it must open without a recovery screen; (3) to force the stale case start SAP Lens,
 open `http://127.0.0.1:18743/` in a browser tab, exit SAP Lens, start it again, and reload the old tab: it must show "Restoring workspace…" briefly and then the application; (4) block the new process (rename the exe for 20 s) and start the tab's reload: "Connecting to local service…", then the unreachable screen after about 15 s;
 (5) confirm `%LOCALAPPDATA%\SAP Lens` logs contain no capability.
-

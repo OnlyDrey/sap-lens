@@ -52,4 +52,3 @@ For settings, logs and storage locations see [configuration and recovery](CONFIG
 
 After a restart SAP Lens re-establishes its local session by itself; you should only see "Starting SAP Lens…", "Connecting to local service…" or "Restoring workspace…" for a moment. A recovery screen appears only when that failed: *Retry connection* repeats the attempt.
 If it keeps appearing, close all SAP Lens windows and browser tabs that point at it, then start SAP Lens again. Details of the cause classes are in [Local session lifecycle](../architecture/SECURITY.md#local-session-lifecycle-and-start-up-recovery). Backup & Restore is offered only when the configuration itself could not be loaded.
-
