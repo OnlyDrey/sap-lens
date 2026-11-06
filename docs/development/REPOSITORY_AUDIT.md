@@ -255,3 +255,12 @@ Staged migration, each stage gated on evidence from a Windows host (a local Wind
 * **Unverified on Windows.** Checklist with exact commands: [BUILD.md](../BUILD.md#python-ports-of-the-windows-build-scripts-and-their-validation-checklist).
 * Remaining ports (`build-local`, `package-windows-deployment`, `build-server-windows`, `build-service-manager`, `build-desktop-installer`) are blocked on the same gate: each calls the stage runner or Windows tools whose
   behavior only a Windows host can confirm. Porting them before stage 1 is confirmed would stack unverified code on unverified code.
+
+### Migration stage 2: packaging scripts
+
+* Ported with the same options, commands and failure messages: `build-service-manager.ps1` (`service_manager.py`), `build-server-windows.ps1` (`server.py`), `build-desktop-installer.ps1` (`installer.py`,
+  including the pinned Inno Setup download, silent per-user install as one verbatim command line, receipt check and the four-channel compile check) and `package-windows-deployment.ps1` (`packaging.py`, including the README text and bundle layout).
+* The `windows-package` and `installer-check` CI adapters can select the ports with `SAP_LENS_WINDOWS_PACKAGING=python`; the default is unchanged (PowerShell).
+* `backend/tests/test_windows_ports.py` (17 tests): golden command lists and effects for every port (file moves, the `app/SAP-Lens` flattening, generated assembly attributes, checksum files, cleanup of disposable
+  folders), pinned hash rejection, tampered compiler or executable, Windows and output guards, failure propagation, adapter opt-in.
+* Not ported: `build-local.ps1` (next stage), and the three native tests, which stay PowerShell by decision. **All ports are unverified on Windows.**

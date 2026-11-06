@@ -389,7 +389,13 @@ check the generated commands, their order, option names, log markers, timing rec
 | PowerShell original | Python port | Opt-in |
 | --- | --- | --- |
 | `build-windows.ps1` | `scripts/build_system/windows/stages.py` | `SAP_LENS_WINDOWS_STAGES=python` (the `windows-stage` adapter) or run the file directly with the same `-Stage`, `-ArtifactDirectory`, ... options |
-| `build-local.ps1`, `package-windows-deployment.ps1`, `build-server-windows.ps1`, `build-service-manager.ps1`, `build-desktop-installer.ps1` | not yet ported | |
+| `build-service-manager.ps1` | `scripts/build_system/windows/service_manager.py` | called by `server.py`; direct: `python scripts/build_system/windows/service_manager.py -OutputDirectory DIR` |
+| `build-server-windows.ps1` | `scripts/build_system/windows/server.py` | direct: `-WinSW`, `-Version`, `-ValidatedDeployment`, `-OutputDirectory` |
+| `build-desktop-installer.ps1` | `scripts/build_system/windows/installer.py` | `SAP_LENS_WINDOWS_PACKAGING=python` (the `installer-check` adapter) or direct: `-OutputDirectory`, `-CompileCheck` |
+| `package-windows-deployment.ps1` | `scripts/build_system/windows/packaging.py` | `SAP_LENS_WINDOWS_PACKAGING=python` (the `windows-package` adapter) or direct: `-Target Desktop\|Service`, `-OutputDirectory` |
+| `build-local.ps1` | not yet ported | |
+
+The packaging ports call the Python stage port and the same native PowerShell tests (`test-desktop-installer.ps1`, `test-server-service.ps1`, `test-windows-exe.ps1`), which stay PowerShell.
 
 ### Windows validation checklist: `build-windows.ps1` against `stages.py`
 
@@ -427,6 +433,30 @@ Evidence to compare:
 6. Remaining stages (`Audit`, `JavaScriptAudit`, `Browser`, `Artifact` with a downloaded workflow artifact) are checked the same way before the original is removed.
 
 Report any difference; the original `build-windows.ps1` is removed only after every item matches.
+
+### Windows validation checklist: packaging ports
+
+Run after the stage checklist passes, on the same host (needs .NET Framework 4.8 for the service manager, network access to download the pinned Inno Setup and WinSW, and an
+unregistered machine for the native installer and service tests: they refuse to touch an existing SAP Lens installation or `SAPLens` service).
+
+```powershell
+# Reference (PowerShell) first, then the port; compare the bundle contents and exit codes.
+pwsh -NoProfile -File scripts\build-desktop-installer.ps1 -CompileCheck -OutputDirectory $env:TEMP\ps-iscc
+python scripts\build_system\windows\installer.py -CompileCheck -OutputDirectory $env:TEMP\py-iscc        # both: four channels compile and verify
+
+pwsh -NoProfile -File scripts\build-service-manager.ps1 -OutputDirectory $env:TEMP\ps-mgr                   # needs backend\build\build-version.json (after a Package stage)
+python scripts\build_system\windows\service_manager.py -OutputDirectory $env:TEMP\py-mgr                  # both: exe produced, self-test passes
+
+pwsh -NoProfile -File scripts\package-windows-deployment.ps1 -Target Service -OutputDirectory $env:TEMP\ps-dist
+python scripts\build_system\windows\packaging.py -Target Service -OutputDirectory $env:TEMP\py-dist
+pwsh -NoProfile -File scripts\package-windows-deployment.ps1 -Target Desktop -OutputDirectory $env:TEMP\ps-dist-desktop
+python scripts\build_system\windows\packaging.py -Target Desktop -OutputDirectory $env:TEMP\py-dist-desktop
+```
+
+Compare per target: exit code 0; the same file names, sizes (except compiled binaries) and `manifest` entries in the two `dist` folders; `README.md` byte-for-byte (the port writes UTF-8 without BOM and no trailing newline);
+the Desktop installer's `SAP-Lens-Windows-Desktop-x64-<version>-Setup.exe.sha256` removal (compiler checksums are internal); `verification-report.json` of the service bundle with `native_service_smoke` set; and
+that the native tests (`test-desktop-installer.ps1`, `test-server-service.ps1`) pass against the port's output. Clean up with `python scripts\build.py clean --confirm-clean` between runs. Note
+`build-server-windows.ps1` and its port create `dist\server\<version>` and refuse an existing directory, so pass `-OutputDirectory`.
 
 ## Manual build
 

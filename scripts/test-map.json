@@ -258,6 +258,7 @@
     "test_server",
     "test_windows_package",
     "test_windows_stages",
+    "test_windows_ports",
     "test_windows_tray",
     "test_docker_management",
     "test_server_setup"

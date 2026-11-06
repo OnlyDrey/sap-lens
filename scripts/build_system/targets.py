@@ -43,6 +43,10 @@ def plan(args,python=None):
         if args.mode!=expected:raise BuildError(f'{args.ci_tool} requires mode {expected}.')
         kind,script=CI_TOOLS[args.ci_tool]
         extra=['-BenchmarkPackaging'] if args.ci_tool=='windows-stage' and args.benchmark_packaging=='true' else []
+        ported={'windows-package':'packaging','installer-check':'installer'}
+        if args.ci_tool in ported and os.environ.get('SAP_LENS_WINDOWS_PACKAGING')=='python':
+            # Opt-in Python ports of package-windows-deployment.ps1 / build-desktop-installer.ps1; unverified on Windows, PowerShell stays the default.
+            return [('CI '+args.ci_tool+' (Python port)',[python,str(ROOT/'scripts/build_system/windows'/(ported[args.ci_tool]+'.py')),*args.tool_args])]
         if args.ci_tool=='windows-stage' and os.environ.get('SAP_LENS_WINDOWS_STAGES')=='python':
             # Opt-in Python port of build-windows.ps1 (same options, stages and commands); unverified on Windows, so PowerShell stays the default.
             return [('CI '+args.ci_tool+' (Python stages)',[python,str(ROOT/'scripts/build_system/windows/stages.py'),*args.tool_args,*extra])]
