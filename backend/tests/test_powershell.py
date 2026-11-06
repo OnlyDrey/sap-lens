@@ -46,6 +46,41 @@ class ScriptsParse(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
 
 
+BAD = {
+    'PS7-Ternary': '$a = $true ? 1 : 2', 'PS7-PipelineChain': 'Get-Item . && Get-Item .', 'PS7-NullCoalescing': '$a = $null ?? 1',
+    'PS7-NullCoalescingAssign': '$a ??= 1', 'PS7-NullConditional': '(Get-Item .)?.Name', 'PS7-Variable': 'if ($IsWindows) { 1 }',
+    'NetCore-Api': '[System.IO.Path]::GetRelativePath("a","b")', 'PS7-Parameter': '"{}" | ConvertFrom-Json -AsHashtable',
+    'PS7-Encoding': '"x" | Set-Content t -Encoding utf8NoBOM', 'PS7-Cmdlet': 'Get-Error', 'PS7-Requires': '#requires -Version 7.0\nGet-Item .',
+    'PS7-Parameter ': '1..3 | ForEach-Object -Parallel { $_ }'}
+
+
+@unittest.skipUnless(PWSH, 'PowerShell 7 (pwsh) is not installed')
+class Windows51StaticCompatibility(unittest.TestCase):
+    """AST-based, runs on PowerShell 7. Proves the absence of known 7-only constructs; it does not prove Windows PowerShell 5.1 runs the scripts."""
+    def check(self, text):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'sample.ps1'; path.write_text(text)
+            done = subprocess.run([PWSH, '-NoProfile', '-NonInteractive', '-File', str(ROOT / 'scripts/check-powershell-compat.ps1'), str(path)], capture_output=True, text=True, timeout=60, stdin=subprocess.DEVNULL)
+        return done.returncode, done.stdout
+
+    def test_repository_scripts_have_no_powershell_7_only_constructs(self):
+        done = subprocess.run([PWSH, '-NoProfile', '-NonInteractive', '-File', str(ROOT / 'scripts/check-powershell-compat.ps1')], capture_output=True, text=True, timeout=120, stdin=subprocess.DEVNULL)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr); self.assertIn('0 errors', done.stdout); self.assertIn('static analysis only', done.stdout)
+
+    def test_each_seven_only_construct_is_detected(self):
+        for rule, code in BAD.items():
+            returncode, output = self.check(code + '\n')
+            self.assertEqual(returncode, 1, (rule, output)); self.assertIn(rule.strip(), output, output)
+
+    def test_portable_code_passes_and_warnings_do_not_fail(self):
+        good = "$ErrorActionPreference = 'Stop'\nif ($env:OS -eq 'Windows_NT') { $x = 1 } else { $x = 2 }\n'a' | Set-Content t.txt\n$y = [System.IO.Path]::Combine('a','b')\n& cmd.exe /c exit 0 2>$null\n"
+        returncode, output = self.check(good)
+        self.assertEqual(returncode, 0, output); self.assertIn('Encoding-Default', output); self.assertNotIn('Redirect-Encoding', output)
+
+    def test_syntax_errors_fail(self):
+        self.assertEqual(self.check('if ($x {\n')[0], 1)
+
+
 @unittest.skipUnless(PWSH, 'PowerShell 7 (pwsh) is not installed')
 class BuildBootstrapper(unittest.TestCase):
     def test_parameter_binding_exposes_the_documented_and_new_switches(self):

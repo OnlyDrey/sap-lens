@@ -17,4 +17,6 @@ foreach ($relative in @('scripts/build.ps1', 'scripts/build-local.ps1', 'scripts
     if ($dynamicExecution.Count) { throw "Unexpected dynamic expression execution: $relative" }
     Write-Output "$relative syntax and static guards passed"
 }
+& (Join-Path $PSScriptRoot 'check-powershell-compat.ps1')
+if ($LASTEXITCODE -ne 0) { throw 'Windows PowerShell 5.1 static compatibility check failed.' }
 & (Join-Path $root 'scripts/test-service-management.ps1')
