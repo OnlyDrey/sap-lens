@@ -3,7 +3,7 @@
 Resume guide for a new session: read [AGENTS.md](../../AGENTS.md), this file, `git status` and `git log --oneline -15`; the repository state is authoritative, correct this file where it differs.
 CI policy: GitHub Actions runs only on push to `main` after an explicitly approved merge; all validation is local; `work` pushes never trigger it.
 
-**Last update:** 2026-11-05 (end of Phase E)
+**Last update:** 2026-11-05 (end of Phase F)
 
 ## Plan and status
 
@@ -24,7 +24,7 @@ CI policy: GitHub Actions runs only on push to `main` after an explicitly approv
 | C | Backend/API performance (`/api/access/users`, dashboard, memory) | Completed | `21cc4f3` |
 | D | Frontend/API cache consistency (`X-Data-Revision`, stale-response repeat, atomic review saves) | Completed | see Git log |
 | E | Parallel browser test stabilization | Completed (findings in TESTING.md) | see Git log |
-| F | Final validation: full backend, browser, benchmarks, report | In Progress | |
+| F | Final validation: full backend, browser, benchmarks, report | Completed | see Git log |
 
 ## Local validation (latest)
 
@@ -32,7 +32,9 @@ CI policy: GitHub Actions runs only on push to `main` after an explicitly approv
 * Phase D: backend test_data_revision (15), account_review, application, server, workflows pass; unit tests 14; browser revision-consistency (3), dashboard-user-transactions, account-review-refinement, csv-lifecycle (41 total) pass; tsc and ruff clean. ESLint reports one pre-existing error (irregular whitespace in `tests/remediation-export.spec.ts`), unrelated.
 * Phase E hygiene: runner handles SIGTERM/SIGHUP, test server exits when its parent is killed (verified with a real SIGKILL of Playwright: server and Chromium gone), regression tests in test_test_profiles (25 pass); recovery, catalogue and metadata specs pass together (40/40).
 * Phase E: SoD browser feature passes with 2 and 3 processes (222/222); several workers on one server are not safe (shared global state).
-* Browser: targeted specs per phase pass; full browser suite not yet run (final phase).
+* Phase F full backend regression: 1522 tests, 0 failed, 6 skipped (PyInstaller and PowerShell only), 79 s on 3 processes.
+* Phase F full browser regression (2 isolated processes, 1 worker each): 872 of 872 passed in 1229 s, largest process 724 MB. The first run found two spec defects (global-navigation vs the import gate, sod-metadata position-based lookups), both fixed in tests, none in product code.
+* Static: ruff, docs links, workflow contracts, Lucide catalogue, `git diff --check`, `pip check`, `npm audit --omit=dev` (0 vulnerabilities), tsc, unit tests (16) pass; ESLint 0 errors (115 existing warnings).
 
 ## Measured performance (192 000 assignment rows, synthetic, this container)
 
@@ -101,3 +103,28 @@ Dataset: 100 000 employees, 20 000 SAP users, 400 roles, 10 assignments per user
 | Import | 20.7 s [19.6 to 21.3] | 19.4 s [18.6 to 19.6] | -6 % |
 
 The ranges for the changed-directory refresh do not overlap and the "before" median reproduces the earlier 6.6 s, so the earlier 7.1 s was a single noisy run, not a regression. A second dataset (16 000 users, 16 000 employees) shows the same direction (1.19 s to 0.54 s). Peak memory for that scenario: 1045 MB before, 1015 MB after.
+
+
+## Phase F: final measurements (192 000 assignment rows, 16 000 users, 16 000 employees, one run, this container)
+
+| Scenario | Original baseline | Final |
+| --- | --- | --- |
+| Import | 20.2 s, peak 1017 MB | 14.8 s, peak 802 MB |
+| Dynamic start, unchanged (cold / warm) | 27.8 s, peak 1164 MB | 5.5 s / 2.6 s, peak 607 / 524 MB |
+| Static start (cold / warm) | 9.8 s, peak 730 MB | 2.7 s / 2.5 s, peak 542 / 524 MB |
+| Refresh, one source changed (users) | 24.6 s, peak 1251 MB | 12.1 s, peak 1017 MB |
+| Refresh, only the directory changed | see repeat above | 0.74 s, peak 607 MB |
+| `/api/access/users` page / sorted / filtered | 631 ms | 162 / 165 / 39 ms |
+| `/api/dashboard` | 734 ms | 128 ms |
+| Resident memory after start | about 1.1 GB | 520 to 540 MB |
+| Data directory after the run | not measured | 332 MB (snapshots 181 MB, SQLite store 135 MB) |
+
+Review save and SoD evaluation timings are covered by the backend suite, not by this tool. Single-run figures; the repeat above shows the run-to-run spread is about 5 to 10 %.
+
+## Platform limitations
+
+Native Windows (process handling, WebView2, service control manager, UNC paths) and a real systemd boot/recovery are not testable in this Linux container; see [deployment validation status](../deployment/README.md#validation-status). Six backend tests skip here for that reason (PyInstaller, PowerShell).
+
+## Final phase list and commits
+
+A `2ab0b0d`, B `eccc0b4`, C `21cc4f3`, D `451874c` (+ `d8ca720`), E `f30bac4`, `f949d3c`, `3f4d931`, `ba1d4ca`, F `55376c6`, `563194a`, `9d82eaf` and the closing documentation commit. Earlier work: `5a943c3` to `70ae519`.
