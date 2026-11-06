@@ -11,6 +11,13 @@ import sys
 import tempfile
 
 ROOT=Path(__file__).resolve().parents[1]
+
+def python_exe():
+    """Python 3.12 x64 for every child command: this interpreter when it is 3.12, else the ready project .venv, never a silent fallback."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from build_system import python_env
+    return python_env.test_interpreter(ROOT)
+
 ALIASES={'reviews':['sod','account-review'],'imports':['data-sources'],'users':['user-access'],'shared-frontend':['shared-ui'], 'storage':['platform','sod','account-review'],'packaging':['deployment'],'SoD':['sod']}
 
 
@@ -106,13 +113,13 @@ def main(argv=None):
         if args.reports:env['SAP_LENS_TEST_REPORTERS']='html,junit'
         commands=[]
         if selection:
-            command=[sys.executable,str(ROOT/'scripts/run-tests.py'),*selection,'--jobs',str(args.jobs),'--browser-jobs',str(args.browser_jobs),'--report',str(output/'summary.json')]
+            command=[python_exe(),str(ROOT/'scripts/run-tests.py'),*selection,'--jobs',str(args.jobs),'--browser-jobs',str(args.browser_jobs),'--report',str(output/'summary.json')]
             if args.grep:command+=['--grep',args.grep]
             if args.no_build:command+=['--no-build']
             commands.append(command)
-        else:commands.append([sys.executable,'scripts/check-docs.py'])
+        else:commands.append([python_exe(),'scripts/check-docs.py'])
         if args.level=='fast':
-            commands.append([sys.executable,'-m','ruff','check','backend','scripts'])
+            commands.append([python_exe(),'-m','ruff','check','backend','scripts'])
             if any(path.startswith('frontend/src/') for path in paths) or args.area:
                 import shutil
                 commands.append([shutil.which('npm') or 'npm','--prefix','frontend','run','check:types'])

@@ -124,13 +124,17 @@ def frontend_current(root):
         return hidden.is_file() and all(hidden.stat().st_mtime>=(base/name).stat().st_mtime for name in ('package.json','package-lock.json'))
     except OSError:return False
 
-def prepare_environment(root,runner,*,packaging=False,frontend=True):
-    if sys.version_info[:2]!=(3,12):raise BuildError('Project setup requires Python 3.12 to match the locked toolchain.',3)
+def prepare_environment(root,runner,*,packaging=False,frontend=True,creator=None):
+    """`creator` is the Python 3.12 x64 used to create a missing environment; the engine itself may run under another version."""
+    if creator is None:
+        found,_=python_env.find_python()
+        if not found:raise BuildError('Python 3.12 x64 was not found (the default python is not used). Install it; other versions may stay installed.',3)
+        creator=found['path']
     directory=root/('backend/build/python-env' if packaging else '.venv')
     if directory.is_symlink():raise BuildError('The project Python environment must not be a link.',3)
     python=directory/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
     if directory.exists() and not python.is_file():raise BuildError('Project environment is incomplete. Review/remove only that generated environment, then retry setup.',3)
-    if not python.exists():runner.run('Create project-local Python environment',[sys.executable,'-m','venv',directory])
+    if not python.exists():runner.run('Create project-local Python environment',[creator,'-m','venv',directory])
     try:
         info=json.loads(subprocess.check_output([str(python),'-c','import sys,json; print(json.dumps(list(sys.version_info[:2])+[64 if sys.maxsize>2**32 else 32]))'],text=True,timeout=15))
     except (OSError,ValueError,subprocess.SubprocessError) as error:raise BuildError(f'Cannot inspect the project Python environment {directory}: it is broken or incomplete. It was left untouched; remove or repair only that environment yourself, then retry.',3) from error

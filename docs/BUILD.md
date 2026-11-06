@@ -38,6 +38,8 @@ copies of the public interface.
 
 ## Prerequisites
 
+One command prepares and verifies everything below: `.\scripts\build.ps1 -Mode prerequisites` (`-CheckOnly`, `-Repair`, `-Json`; Linux: `python3.12 scripts/build.py prerequisites ...`). Details: [Development setup](development/DEVELOPMENT.md#1-one-time-setup). If the engine is started by another Python (for example 3.15) it re-runs itself under the resolved 3.12 x64.
+
 - CLI: Python 3.12+ and standard library only for initial parsing/detection.
 - Actual project setup/build/test environments: **Python 3.12 x64**, matching the
   locked and validated toolchain. Newer Python can show help/plan/Quick but is not

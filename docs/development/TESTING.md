@@ -191,7 +191,7 @@ python scripts/validate.py --level full --reports
 
 The same commands run in Windows PowerShell (`python scripts\validate.py --level fast --area sod`).
 
-Activate the Python 3.12 development venv first,
+Run `.\scripts\build.ps1 -Mode prerequisites` once (no activation needed; the runners resolve Python 3.12 themselves),
 install the pinned frontend/dev requirements and Playwright Chromium as described
 above. No Codex session is needed. FULL uses the existing `release` validation profile; it does not create tags, publish releases or dispatch workflows. With no area, Git diff against `HEAD` includes
 working-tree/untracked changes. `--base origin/work` compares against that ref;

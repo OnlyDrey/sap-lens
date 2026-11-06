@@ -34,7 +34,11 @@ if ($CompileCheck) {
     # same pinned tool in a separate disposable check environment, never in the
     # application environment. Compilation alone cannot test the PE reader.
     $checkEnvironment = Join-Path $root 'backend/build/installer-check-env'
-    & python -m venv $checkEnvironment
+    $checkHost = 'python'
+    $launcher = Get-Command py -ErrorAction SilentlyContinue
+    $isBaseline = (& python -c 'import sys; print(sys.version_info[:2]==(3,12))' 2>$null) -eq 'True'
+    if ($launcher -and -not $isBaseline) { $checkHost = (& py -3.12 -c 'import sys; print(sys.executable)') }
+    & $checkHost -m venv $checkEnvironment
     if ($LASTEXITCODE -ne 0) { throw 'Installer check environment creation failed.' }
     $checkPython = Join-Path $checkEnvironment 'Scripts/python.exe'
     $pefilePin = @(Get-Content (Join-Path $root 'backend/requirements-build.txt') | Where-Object { $_ -match '^pefile==[0-9.]+$' })

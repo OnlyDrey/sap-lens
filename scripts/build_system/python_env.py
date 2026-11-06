@@ -5,8 +5,12 @@ Python 3.12). That pip validates TLS only against its bundled certifi list, so o
 the system store it fails with CERTIFICATE_VERIFY_FAILED, while a newer pip (24.2 and later) uses the operating system trust store by
 default. The fix is to move pip to the project's pinned version once, over a verified connection, never to disable verification.
 """
+import json
+import os
 import re
+import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 #: First pip release that verifies TLS against the system trust store by default (Python 3.10 and later).
@@ -124,3 +128,104 @@ def ensure_pip(python, root, run, say=print):
     if upgraded is None or upgraded < MINIMUM_PIP:
         raise RuntimeError(f'pip is still older than {MINIMUM_PIP[0]}.{MINIMUM_PIP[1]} after the upgrade. Repair the project environment and retry.')
     return 'upgraded'
+
+
+# --- Interpreter discovery and project environment inspection (shared by the build engine, doctor and the test runners) -------------------
+REQUIRED = (3, 12)
+# No double quotes: Windows PowerShell 5.1 strips them from native arguments. `venv`/`ensurepip` are probed because Debian ships them separately.
+PROBE = ('import sys,json\n'
+         'try:\n import venv,ensurepip;v=1\nexcept Exception:\n v=0\n'
+         'print(json.dumps([sys.executable,list(sys.version_info[:3]),64 if sys.maxsize>2**32 else 32,v]))')
+
+
+def probe_python(path, prefix=(), timeout=20):
+    """Ask an interpreter who it is. Returns dict(path, version, bits, venv_module) or None when it cannot run; never raises."""
+    try:
+        done = subprocess.run([str(path), *prefix, '-c', PROBE], capture_output=True, text=True, timeout=timeout, stdin=subprocess.DEVNULL)
+        if done.returncode:
+            return None
+        exe, version, bits, venv_module = json.loads(done.stdout.strip().splitlines()[-1])
+    except (OSError, subprocess.SubprocessError, ValueError, IndexError):
+        return None
+    return dict(path=exe, version='.'.join(map(str, version)), major_minor=tuple(version[:2]), bits=bits, venv_module=bool(venv_module))
+
+
+def acceptable(info):
+    return bool(info) and info['major_minor'] == REQUIRED and info['bits'] == 64
+
+
+def candidates(environ=None):
+    """(source, command, prefix) in a fixed order. The bare `python` on PATH is deliberately last and only ever accepted if it probes as 3.12 x64."""
+    environ = os.environ if environ is None else environ
+    found = []
+    if environ.get('SAP_LENS_PYTHON'):
+        found.append(('SAP_LENS_PYTHON', environ['SAP_LENS_PYTHON'], ()))
+    found.append(('current interpreter', sys.executable, ()))
+    launcher = shutil.which('py')
+    if launcher:
+        found.append(('Python launcher (py -3.12)', launcher, ('-3.12',)))
+        try:
+            rows = subprocess.run([launcher, '-0p'], capture_output=True, text=True, timeout=20, stdin=subprocess.DEVNULL).stdout.splitlines()
+        except (OSError, subprocess.SubprocessError):
+            rows = []
+        for row in rows:
+            match = re.search(r'([A-Za-z]:\\.*python[w]?\.exe)\s*$', row)
+            if match and '3.12' in row:
+                found.append(('registered installation', match[1], ()))
+    for name in ('python3.12', 'python3', 'python'):
+        path = shutil.which(name)
+        if path:
+            found.append((f'PATH ({name})', path, ()))
+    return found
+
+
+def find_python(environ=None):
+    """First interpreter that is exactly Python 3.12 x64 with venv support, plus every rejected candidate for the report."""
+    rejected, seen = [], set()
+    for source, command, prefix in candidates(environ):
+        key = (os.path.normcase(os.path.abspath(command)) if os.path.exists(command) else command, prefix)
+        if key in seen:
+            continue
+        seen.add(key)
+        info = probe_python(command, prefix)
+        if acceptable(info) and info['venv_module']:
+            return dict(info, source=source), rejected
+        reason = 'could not be started' if not info else f"Python {info['version']} {info['bits']}-bit" + ('' if info['venv_module'] or not acceptable(info) else ' without venv/ensurepip')
+        rejected.append(dict(source=source, path=str(command), reason=reason))
+    return None, rejected
+
+
+def venv_python(directory):
+    return Path(directory) / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
+
+
+def inspect_venv(directory):
+    """(state, detail, info). state: missing | ready | incompatible | broken. Read-only: the directory is never touched."""
+    directory = Path(directory)
+    if not directory.exists() and not directory.is_symlink():
+        return 'missing', 'not created yet', None
+    if directory.is_symlink():
+        return 'incompatible', 'is a link; the project environment must be a real directory', None
+    python = venv_python(directory)
+    if not (directory / 'pyvenv.cfg').is_file() or not python.is_file():
+        return 'broken', 'is incomplete (pyvenv.cfg or the interpreter is missing)', None
+    info = probe_python(python)
+    if not info:
+        return 'broken', 'its interpreter does not start (the base Python was probably removed or moved)', None
+    if info['major_minor'] != REQUIRED:
+        return 'incompatible', f"uses Python {info['version']}, not 3.12", info
+    if info['bits'] != 64:
+        return 'incompatible', 'uses 32-bit Python; 64-bit is required', info
+    return 'ready', f"Python {info['version']}", info
+
+
+def test_interpreter(root):
+    """The interpreter for tests and validation: the current one when it already is 3.12 x64, otherwise the ready project .venv.
+    Never silently falls back to another version; raises SystemExit(3) with the command that fixes it."""
+    if sys.version_info[:2] == REQUIRED and sys.maxsize > 2**32:
+        return sys.executable
+    state, detail, info = inspect_venv(Path(root) / '.venv')
+    if state == 'ready':
+        return str(venv_python(Path(root) / '.venv'))
+    raise SystemExit(f"Python 3.12 x64 is required but this command runs under Python {sys.version.split()[0]} and the project .venv is {state} ({detail}).\n"
+                     "Prepare it once with:  .\\build.ps1 -Mode prerequisites   (Linux: python3.12 scripts/build.py prerequisites)")

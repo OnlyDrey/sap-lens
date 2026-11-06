@@ -24,6 +24,13 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+
+def python_exe():
+    """Python 3.12 x64 for every child command: this interpreter when it is 3.12, else the ready project .venv, never a silent fallback."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from build_system import python_env
+    return python_env.test_interpreter(ROOT)
+
 FRONTEND = ROOT / 'frontend'
 BACKEND_TESTS = ROOT / 'backend' / 'tests'
 BROWSER_TESTS = FRONTEND / 'tests'
@@ -178,7 +185,7 @@ def run_backend(names: list[str], jobs: int, label: str, split: bool) -> dict:
         def launch(index_group: tuple[int, list[str]]) -> tuple[int, Path]:
             index, group = index_group
             out = Path(scratch) / f'{index}.json'
-            command = [sys.executable, '-W', 'error::DeprecationWarning', str(Path(__file__).resolve()), '_backend', str(out), *group]
+            command = [python_exe(), '-W', 'error::DeprecationWarning', str(Path(__file__).resolve()), '_backend', str(out), *group]
             code = subprocess.run(command, cwd=ROOT).returncode
             return code, out
         with ThreadPoolExecutor(len(groups)) as pool:
@@ -385,7 +392,7 @@ def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str
 
 def fast_static_checks() -> list[dict]:
     """The cheap checks of every phase: whitespace, documentation links, workflow contracts, both linters and the TypeScript check."""
-    py = sys.executable
+    py = python_exe()
     return [step(name, command) for name, command in (
         ('whitespace (git diff --check)', ['git', 'diff', '--check']),
         ('documentation links', [py, 'scripts/check-docs.py']),
@@ -396,7 +403,7 @@ def fast_static_checks() -> list[dict]:
 
 
 def static_checks() -> list[dict]:
-    py = sys.executable
+    py = python_exe()
     checks = [
         ('documentation links', [py, 'scripts/check-docs.py']),
         ('workflow contracts', [py, 'scripts/check-workflows.py']),
@@ -410,7 +417,7 @@ def static_checks() -> list[dict]:
 
 
 def release_checks() -> tuple[list[dict], list[str]]:
-    py = sys.executable
+    py = python_exe()
     results, unavailable = [], []
     results.append(step('npm audit (production)', [npm(), '--prefix', str(FRONTEND), 'audit', '--omit=dev']))
     if subprocess.run([py, '-m', 'pip_audit', '--version'], capture_output=True).returncode == 0:

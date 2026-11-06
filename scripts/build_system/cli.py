@@ -6,10 +6,10 @@ from pathlib import Path
 import platform
 import subprocess
 import sys
-from . import prerequisites as deps, targets
+from . import doctor, prerequisites as deps, python_env, targets
 from .runner import ROOT, BuildError, Runner
 
-MODES=('quick','test','build','package','release','clean')
+MODES=('quick','test','build','package','release','clean','prerequisites')
 def parser():
     result=argparse.ArgumentParser(description='SAP Lens shared build engine. System installs require explicit consent; release prepares only.')
     result.add_argument('mode',nargs='?',type=str.lower,choices=MODES)
@@ -21,6 +21,9 @@ def parser():
     result.add_argument('--output',type=Path)
     group=result.add_mutually_exclusive_group();group.add_argument('--setup',action='store_true');group.add_argument('--skip-setup',action='store_true')
     result.add_argument('--setup-only',action='store_true')
+    result.add_argument('--check-only',action='store_true',help='prerequisites mode: report only, change nothing')
+    result.add_argument('--repair',action='store_true',help='prerequisites mode: rename a broken or incompatible environment aside and recreate it')
+    result.add_argument('--json',action='store_true',help='prerequisites mode: machine-readable report')
     result.add_argument('--install-system',action='store_true',help='Explicit opt-in to supported per-user winget installs; never assumed in CI')
     result.add_argument('--non-interactive',action='store_true')
     result.add_argument('--dry-run',action='store_true')
@@ -40,6 +43,9 @@ def choose(prompt,options,default,read=input):
 
 def configure(args,interactive,read=input):
     if args.setup_only and args.skip_setup:raise BuildError('--setup-only and --skip-setup are incompatible.')
+    if args.check_only and args.repair:raise BuildError('--check-only and --repair are incompatible.')
+    if (args.check_only or args.repair or args.json) and args.mode!='prerequisites':raise BuildError('--check-only, --repair and --json belong to the prerequisites mode.')
+    args.target_given=args.target is not None
     if args.tool_args and not args.ci_tool:raise BuildError('Arguments after -- are accepted only by a named CI adapter.')
     if args.skip_setup and args.install_system:raise BuildError('--skip-setup cannot authorize system installation.')
     if args.setup_only and args.mode is None:args.mode='quick'
@@ -74,8 +80,22 @@ def test_python(args,runner):
     if args.skip_setup:raise BuildError('Project .venv is missing; omit --skip-setup or run --setup-only first.',3)
     return deps.prepare_environment(ROOT,runner,frontend=args.mode!='release')
 
+def reexec(argv):
+    """The engine is standard-library only, but its child commands use sys.executable: when it was started by another Python (for example a
+    3.15 default), run it again under the resolved 3.12 x64 interpreter instead of failing or silently using the wrong one. None = stay."""
+    if (sys.version_info[:2]==python_env.REQUIRED and sys.maxsize>2**32) or os.environ.get('SAP_LENS_REEXEC')=='1':return None
+    found,_=python_env.find_python()
+    if not found:
+        if '--check-only' in argv:return None
+        print('Python 3.12 x64 was not found; the default python is never used for SAP Lens builds. Install Python 3.12 (other versions may stay installed), then rerun.',file=sys.stderr)
+        return 3
+    print(f"Using Python {found['version']} ({found['path']}) instead of {sys.version.split()[0]}.")
+    return subprocess.call([found['path'],str(Path(__file__).resolve().parents[1]/'build.py'),*argv],env=dict(os.environ,SAP_LENS_REEXEC='1'),stdin=subprocess.DEVNULL if not sys.stdin or not sys.stdin.isatty() else None)
+
 def main(argv=None):
     argv=list(sys.argv[1:] if argv is None else argv)
+    redirected=reexec(argv)
+    if redirected is not None:return redirected
     split=argv.index('--') if '--' in argv else len(argv)
     args=parser().parse_args(argv[:split]);args.tool_args=argv[split+1:]
     interactive=not args.non_interactive and os.environ.get('GITHUB_ACTIONS')!='true' and sys.stdin.isatty()
@@ -85,7 +105,10 @@ def main(argv=None):
         # CI adapters use setup-actions and the existing attestation boundary, never local bootstrap/setup.
         if args.ci_tool:
             if args.setup or args.setup_only or args.install_system:raise BuildError('CI adapters cannot run system/bootstrap setup.')
-        elif not args.dry_run:deps.check_tools(args,runner,interactive)
+        elif args.mode=='prerequisites':return doctor.run_prerequisites(args,runner)
+        elif not args.dry_run:
+            deps.check_tools(args,runner,interactive)
+            if args.mode in ('build','package'):doctor.preflight(args)
         args.version=targets.validate_version(args.version or targets.product_version())
         commands=targets.plan(args)
         if args.dry_run:

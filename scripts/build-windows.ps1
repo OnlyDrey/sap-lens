@@ -21,7 +21,17 @@ function Assert-Success([string]$Stage) {
 }
 $buildPython = Join-Path $root 'backend/build/python-env/Scripts/python.exe'
 # Keep audit tooling outside the package environment; local callers supply a dedicated audit interpreter.
-$hostPython = if ($PythonExecutable) { $PythonExecutable } else { (Get-Command python).Source }
+# Never the bare default `python` unless it is 3.12 x64: a newer default (for example 3.15) would build the wrong environment.
+function Resolve-HostPython {
+    foreach ($candidate in @(@{ Path = 'python'; Prefix = @() }, @{ Path = 'py'; Prefix = @('-3.12') })) {
+        $command = Get-Command $candidate.Path -ErrorAction SilentlyContinue
+        if (-not $command) { continue }
+        $line = & $command.Source @($candidate.Prefix) -c 'import sys; print(sys.executable); print(sys.version_info[:2]==(3,12) and sys.maxsize>2**32)' 2>$null
+        if ($LASTEXITCODE -eq 0 -and @($line).Count -ge 2 -and @($line)[1] -eq 'True') { return @($line)[0] }
+    }
+    throw 'Python 3.12 x64 was not found (the default python is not used). Run .\build.ps1 -Mode prerequisites.'
+}
+$hostPython = if ($PythonExecutable) { $PythonExecutable } else { Resolve-HostPython }
 if (-not $AuditPython) { $AuditPython = $hostPython }
 function Invoke-Stage([string]$Name, [scriptblock]$Action) {
     if ($Stage -eq 'All' -or $Stage -eq $Name -or ($Name -in @('FrontendInstall', 'FrontendBuild') -and $Stage -eq 'Frontend')) { & $Action }

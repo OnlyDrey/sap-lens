@@ -29,38 +29,46 @@ or the Windows packaging dependencies.
 
 ## 1. One-time setup
 
-Open PowerShell in the repository root, where `backend`, `frontend` and `scripts`
-are located. Quote paths containing spaces. These commands use a development venv,
-separate from the packaging toolchain's `backend/build/python-env`.
+Open PowerShell in the repository root. Nothing needs activating, no `PATH` change and no
+execution-policy change; other Python versions (3.13, 3.14, 3.15 as the default) may stay installed.
 
 ```powershell
-Set-Location 'C:\Projects\sap-lens'
-py -3.12 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r backend/requirements-dev.txt
-npm --prefix frontend ci
+.\scripts\build.ps1 -Mode prerequisites            # setup: create .venv, install pinned dependencies, npm ci
+.\scripts\build.ps1 -Mode prerequisites -CheckOnly # report only, changes nothing (add -Json for machine output)
+.\scripts\build.ps1 -Mode prerequisites -Repair    # rename a broken or wrong-version .venv aside and recreate it
 ```
 
-The example directory must be replaced with your actual checkout location.
-Activation makes `python` in npm's backend subprocess refer to this venv. Verify:
+Linux/macOS: `python3.12 scripts/build.py prerequisites [--check-only|--repair] [--json]`.
 
-```powershell
-python -c "import sys; print(sys.executable)"
-node --version
-npm --version
-```
+- **Interpreter:** exactly Python 3.12 x64 with `venv`, found in this order: `SAP_LENS_PYTHON`, the
+  running interpreter, `py -3.12`, registered installations, `python3.12`, then a bare `python` only if it
+  really is 3.12. Every candidate is probed; the default `python` is never trusted by name.
+- **`.venv`:** created automatically with that interpreter. An existing environment is reused only if its
+  interpreter starts, is 3.12 x64 and `pyvenv.cfg` exists. A broken or wrong-version one is reported and
+  left untouched; `-Repair` renames it to `.venv.broken-<timestamp>` (never deletes) and recreates it.
+- **Dependencies:** `backend/requirements-dev.txt` (runtime, tests, ruff) and, for packaging targets,
+  `backend/requirements-build.txt`; installed only when a pin is missing or differs, so a second run
+  changes nothing. Frontend: `npm ci` only when `node_modules` is missing or older than `package-lock.json`.
+- **Statuses and exit codes:** Ready, Warning, Missing, Incompatible, Repair required; exit `0` usable,
+  `3` a required component needs action. Warnings (for example Node 25, a non-LTS release) never fail.
+- **Offline or restricted network:** check mode needs no network. Setup fails clearly if the package index
+  is unreachable (certificate problems: trust the corporate CA in the OS store; checks are never disabled)
+  and leaves the environment reported as not ready, never as ready. Prepared environments keep working offline.
+- **Target-aware:** `-Target service` also needs .NET Framework `csc.exe`, `-Platform docker` needs Docker;
+  backend tests, frontend builds and Linux builds need no Windows tooling. `build`/`package` run the same
+  check first and stop before any build step if a required tool is missing.
+- **CI:** non-interactive and deterministic; CI keeps using `actions/setup-python` and Node 24, and the
+  commands never prompt when stdin is redirected or `GITHUB_ACTIONS=true`.
+- **Dependency audit:** `npm audit` (network) is separate from prerequisites. Currently production reports
+  0 findings; the 10 moderate findings are the dev-only ESLint/`minimatch` chain, and the only offered
+  fix is a breaking ESLint 9 downgrade, so it is intentionally not applied (`npm audit fix --force` is never run).
 
-The Python path should end in this checkout's `.venv\Scripts\python.exe`. If script
-activation is blocked, review the trusted-source execution-policy instructions in
-the prerequisite guide; company Group Policy may require IT approval.
-
-On Linux/macOS, the equivalent activation is `source .venv/bin/activate` after
-`python3.12 -m venv .venv`. Browser development is available there; the documented
-Windows/WebView2 desktop path is not a cross-platform native validation claim.
+`validate.py` and `run-tests.py` run their children with the same resolved interpreter: the current one when
+it is 3.12 x64, otherwise the ready `.venv`, otherwise they stop and name the command above.
 
 ## 2. Browser development
 
-In the same terminal with `.venv` activated, from the repository root:
+From the repository root:
 
 ```powershell
 npm --prefix frontend run dev
@@ -82,7 +90,7 @@ Keep the terminal open. **Ctrl+C** stops both services. Closing it interrupts th
 development app; this mode is not an independent desktop installation. A frontend
 production build is not required for `npm run dev`.
 
-On subsequent sessions, activate `.venv` again and run the same dev command.
+On later sessions run the same dev command.
 Reinstall Python requirements or run `npm ci` when the respective dependency
 files change. `npm ci` replaces `node_modules`; do not run it while Vite is active.
 
@@ -163,7 +171,7 @@ There is no separate frontend lint task; type/build/browser checks are the exist
 | Symptom | Action |
 |---|---|
 | `npm` not recognized | Install Node 24 x64 with npm and PATH enabled, then reopen PowerShell; see prerequisite diagnostics |
-| `No module named uvicorn` | Activate the correct `.venv` and install `backend/requirements-dev.txt` |
+| `No module named uvicorn` or tests run under the wrong Python | `.\scripts\build.ps1 -Mode prerequisites -CheckOnly`, then run setup (or `-Repair`) |
 | `ModuleNotFoundError` when starting backend | Use `npm --prefix frontend run dev` from the root, or the existing npm backend script; it supplies the correct working directory |
 | Port 18743 busy | Stop your other development/native SAP Lens instance; Vite uses a strict port and will not silently change it |
 | Local service unavailable in browser | Check both terminal processes are running and visit `/health` through the Vite origin |

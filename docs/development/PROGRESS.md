@@ -285,3 +285,9 @@ The daily backup time is a fixed-format `HH:mm` text field (`TimeInput24`) inste
 
 - Many-to-many users and groups (storage format 2, lossless migration, `.format1.bak`), membership endpoints, add-only bulk assignment, Department contains rules with compatibility mode, rule matches and assignment, member management, Access Analysis KPI tiles and drilldown, `Dialog` `footer={null}` to drop redundant Close.
 - Validation (Linux, targeted): backend functional_groups 48, bulk 18, backups 37, account review 30; Playwright 22 across functional-groups, members, bulk, profile layout and username filter; tsc, ESLint (115 warnings, unchanged), ruff, docs check. Full regression pending; native Windows unverified.
+
+## Prerequisites setup, check and repair
+
+- **Root cause:** `.venv` creation and test runners used whichever interpreter started them (`sys.executable`, bare `python`), so a 3.15 default ran the backend regression with no `.venv`; there was no read-only check, no repair path and no target-aware preflight.
+- **Change:** `build.ps1 -Mode prerequisites [-CheckOnly|-Repair|-Json]` (`build.py prerequisites`), `build_system/doctor.py` (report, repair by rename, preflight), 3.12 x64 discovery and venv inspection in `python_env.py`, engine re-exec under 3.12, `validate.py`/`run-tests.py` and `build-windows.ps1`/`build-desktop-installer.ps1` resolve 3.12 explicitly.
+- **Validation (Linux):** `test_prerequisites.py` (isolated temp roots, mocked Windows paths), real temp-root setup twice (second run installs nothing). Native Windows (`py -3.12` with a 3.15 default, `.cmd` npm) remains unverified.
