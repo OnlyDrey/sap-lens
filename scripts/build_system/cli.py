@@ -27,6 +27,7 @@ def parser():
     result.add_argument('--verbose',action='store_true')
     result.add_argument('--confirm-clean',action='store_true')
     result.add_argument('--no-cache',action='store_true')
+    result.add_argument('--native-acceptance',action='store_true',help='also run the privileged native Windows service (SCM) acceptance test; needs an elevated shell')
     for name in ('windows-host','windows-repository','linux-host','linux-repository'):result.add_argument('--'+name)
     result.add_argument('--benchmark-packaging', choices=('true','false'), default='false', help=argparse.SUPPRESS)
     result.add_argument('--ci-tool',choices=tuple(targets.CI_TOOLS),help='Internal adapter used only by existing Actions jobs; arguments follow --')

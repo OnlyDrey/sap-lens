@@ -86,7 +86,14 @@ def remote_command(system, repository, source, version, targets, flags):
             + shlex.join(['python3.12', 'scripts/deployment/build-deployments.py', *arguments]))
 
 
-def verify_outputs(directory, version, source, targets, remote=False):
+def smoke_evidence(target, row, release):
+    """Runtime evidence of a passed row. A Windows service built without the privileged SCM acceptance is a valid package (`scm_acceptance.status`
+    `not_run`), but a release verification requires the acceptance to have passed."""
+    if row.get('runtime_smoke_tested') is True: return True
+    return not release and target == 'service' and (row.get('native_acceptance') or {}).get('status') == 'not_run'
+
+
+def verify_outputs(directory, version, source, targets, remote=False, release=False):
     if (directory / 'build-manifest.json').stat().st_size > 1024*1024: raise ValueError('Build manifest is too large.')
     manifest = json.loads((directory / 'build-manifest.json').read_text(encoding='utf-8'))
     if not isinstance(manifest,dict) or not isinstance(manifest.get('targets'),dict): raise ValueError('Malformed build manifest.')
@@ -102,7 +109,7 @@ def verify_outputs(directory, version, source, targets, remote=False):
         if (row.get('artifact') != name or not path.is_file() or path.is_symlink()
                 or module('deployment-package').sha(path) != row.get('sha256')
                 or path.with_name(name + '.sha256').read_text(encoding='utf-8').strip() != row['sha256'] + '  ' + name
-                or row.get('package_verified') is not True or row.get('runtime_smoke_tested') is not True):
+                or row.get('package_verified') is not True or not smoke_evidence(target, row, release)):
             raise ValueError('Builder artifact or verification evidence differs.')
     return manifest
 
@@ -301,10 +308,12 @@ class Builder:
         self.validate()
         stem, ext = STEMS[target]; name = f'sap-lens-{stem}-v{self.args.version}{ext}'
         if (self.output / name).exists(): raise ValueError('Artifact already exists. Choose a new --output-dir; existing packages are preserved.')
+        accept = False
         with tempfile.TemporaryDirectory(prefix='deployment-', dir=self.build) as temporary:
             destination = Path(temporary)
             if target in ('desktop', 'service'):
-                self.run('Canonical Windows package and native smoke tests', [self.powershell, '-NoProfile', '-File', 'scripts/package-windows-deployment.ps1', '-Target', 'Desktop' if target == 'desktop' else 'Service', '-OutputDirectory', destination])
+                accept = target == 'service' and (getattr(self.args, 'native_acceptance', False) or os.environ.get('GITHUB_ACTIONS') == 'true')
+                self.run('Canonical Windows package and native smoke tests', [self.powershell, '-NoProfile', '-File', 'scripts/package-windows-deployment.ps1', '-Target', 'Desktop' if target == 'desktop' else 'Service', '-OutputDirectory', destination, *(['-NativeAcceptance'] if accept else [])])
             elif target == 'linux-native':
                 self.run('Canonical Linux native package', [self.python, 'scripts/deployment-package.py', 'native', '--output', destination])
                 self.run('Offline installation and runtime/persistence smoke tests', [self.python, 'scripts/testing/test-native-deployment.py', '--artifacts', destination])
@@ -317,7 +326,10 @@ class Builder:
             sidecar = archive.with_name(name + '.sha256')
             if sidecar.read_text(encoding='utf-8').strip() != digest + '  ' + name: raise ValueError('Canonical checksum differs.')
             shutil.copyfile(archive, self.output / name); shutil.copyfile(sidecar, self.output / sidecar.name)
-        return dict(status='passed', built=True, package_verified=True, runtime_smoke_tested=True,
+        # Three separate facts: the artifact was built, its package was verified, and (for the Windows service) the privileged native SCM acceptance ran.
+        acceptance = dict(kind='windows-scm', status='passed' if accept else 'not_run', requires='administrator',
+                          command='powershell -NoProfile -File scripts\\test-server-service.ps1 -Bundle <service bundle>  (elevated)') if target == 'service' else dict(kind='none', status='not_applicable')
+        return dict(status='passed', built=True, package_verified=True, runtime_smoke_tested=(accept if target == 'service' else True), native_acceptance=acceptance,
                     artifact=name, sha256=digest, host_os=self.system, build_environment=self.system + ' native' if target != 'docker' else 'Linux Docker engine',
                     tested_at=datetime.now(timezone.utc).isoformat())
 
@@ -327,7 +339,7 @@ class Builder:
         if not host or not repository:
             raise ValueError(f'Configure --{system.lower()}-host and --{system.lower()}-repository for a trusted {system} builder synchronized to this commit. No cross-compilation or silent skip.')
         if not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.@-]*', host): raise ValueError('Use a safe SSH host alias; configure ports/keys in SSH config.')
-        flags = ['--scope', self.args.scope] + (['--clean'] if self.args.clean else []) + (['--no-cache'] if self.args.no_cache else []) + (['--reuse-validation'] if self.args.reuse_validation else [])
+        flags = ['--scope', self.args.scope] + (['--clean'] if self.args.clean else []) + (['--no-cache'] if self.args.no_cache else []) + (['--native-acceptance'] if getattr(self.args, 'native_acceptance', False) else []) + (['--reuse-validation'] if self.args.reuse_validation else [])
         nonce = uuid.uuid4().hex
         command = remote_command(system, repository, self.source, self.args.version, targets, [*flags,'--invocation',nonce])
         ssh = [tool('ssh'), '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', host, command]
@@ -373,6 +385,9 @@ class Builder:
             return dict(status='blocked', blocked_by='shared_validation', error=f'Not attempted (blocked, not a packaging failure): shared {record["failure_class"]} failure at "{record["failed_stage"]}": {record.get("error")}. Log: {record.get("log") or self.log}. Recovery: {record.get("hint") or "fix the cause in the log and run the same command again"}', **base)
         record = self.record_of(error)
         if isinstance(error, failures.StageFailure): print(error.summary(), file=sys.stderr, flush=True)
+        if record.get('failure_class') == 'acceptance_prerequisite':
+            # A missing prerequisite of the privileged acceptance is neither a packaging nor a validation failure: nothing was attempted past the check.
+            return dict(status='blocked', blocked_by='acceptance_prerequisite', native_acceptance=dict(kind='windows-scm', status='blocked', reason='administrator rights required'), **base, **record)
         return dict(status='failed', **base, **record)
 
     def execute(self):
@@ -407,6 +422,7 @@ def main():
     parser.add_argument('--version', default=product_version())
     parser.add_argument('--clean', action='store_true')
     parser.add_argument('--no-cache', action='store_true')
+    parser.add_argument('--native-acceptance', action='store_true', help='run the privileged native Windows service (SCM) acceptance; requires an elevated shell')
     parser.add_argument('--reuse-validation', action='store_true')
     parser.add_argument('--verify-output', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('--scope', choices=('targeted','full'), default='targeted')
@@ -420,7 +436,7 @@ def main():
     if os.environ.get('GITHUB_ACTIONS') == 'true': parser.error('Local orchestration cannot impersonate CI. Use the approved deployment workflow.')
     if args.verify_output:
         if not args.output_dir:parser.error('--verify-output requires --output-dir')
-        verify_outputs(args.output_dir,args.version,checkout(),requested(args.platform))
+        verify_outputs(args.output_dir,args.version,checkout(),requested(args.platform),release=True)
         print('Release preparation: source, target artifacts, exact contents and checksums verified. No publication.')
         return 0
     if args.clean and args.reuse_validation: parser.error('--clean and --reuse-validation are mutually exclusive.')

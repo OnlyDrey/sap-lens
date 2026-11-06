@@ -6,7 +6,7 @@ param(
     [string]$Mode='', [string]$Platform='', [string]$Target='', [string]$Version='',
     [string]$Scope='targeted', [Alias('OutputDir')][string]$Output='', [string]$Area='',
     [switch]$Setup, [switch]$SetupOnly, [switch]$SkipSetup, [switch]$InstallSystem,
-    [switch]$NonInteractive, [switch]$DryRun, [switch]$ConfirmClean, [switch]$NoCache,
+    [switch]$NonInteractive, [switch]$DryRun, [switch]$ConfirmClean, [switch]$NoCache, [switch]$NativeAcceptance,
     [string]$WindowsHost='', [string]$WindowsRepository='', [string]$LinuxHost='', [string]$LinuxRepository='',
     [switch]$Help
 )
@@ -147,7 +147,7 @@ try {
     foreach ($pair in @(@('--platform',$Platform),@('--target',$Target),@('--version',$Version),@('--scope',$Scope),@('--output',$Output),@('--area',$Area),@('--windows-host',$WindowsHost),@('--windows-repository',$WindowsRepository),@('--linux-host',$LinuxHost),@('--linux-repository',$LinuxRepository))) {
         if ($pair[1]) { $arguments+=$pair }
     }
-    foreach ($pair in @(@('--setup',$Setup),@('--setup-only',$SetupOnly),@('--skip-setup',$SkipSetup),@('--install-system',$InstallSystem),@('--non-interactive',$nonInteractiveRun),@('--dry-run',$DryRun),@('--confirm-clean',$ConfirmClean),@('--no-cache',$NoCache),@('--verbose',[bool]$PSBoundParameters['Verbose']),@('--help',$Help))) {
+    foreach ($pair in @(@('--setup',$Setup),@('--setup-only',$SetupOnly),@('--skip-setup',$SkipSetup),@('--install-system',$InstallSystem),@('--non-interactive',$nonInteractiveRun),@('--dry-run',$DryRun),@('--confirm-clean',$ConfirmClean),@('--no-cache',$NoCache),@('--native-acceptance',$NativeAcceptance),@('--verbose',[bool]$PSBoundParameters['Verbose']),@('--help',$Help))) {
         if ($pair[1]) { $arguments+=$pair[0] }
     }
     & $python @arguments

@@ -24,7 +24,7 @@ Instructions: https://github.com/OnlyDrey/sap-lens/blob/work/docs/deployment/WIN
 """
 
 
-def build(Target, OutputDirectory='', root=ROOT, process=None, environ=None, stage_runner=None, installer_build=None, server_build=None, guid=None):
+def build(Target, OutputDirectory='', root=ROOT, process=None, environ=None, stage_runner=None, installer_build=None, server_build=None, guid=None, NativeAcceptance=False):
     process = process or Process()
     env = dict(os.environ if environ is None else environ)
     guid = guid or (lambda: uuid.uuid4().hex)
@@ -71,7 +71,10 @@ def build(Target, OutputDirectory='', root=ROOT, process=None, environ=None, sta
         checked([python, 'scripts/packaging/local-build.py', 'winsw', '--output', wrapper])
         bundle = root / ('backend/build/deployment-service-' + guid())
         (server_build or server.build)(WinSW=str(wrapper), ValidatedDeployment=True, OutputDirectory=str(bundle))
-        checked([powershell(), '-NoProfile', '-File', root / 'scripts/test-server-service.ps1', '-Bundle', bundle])
+        if NativeAcceptance or (environ if environ is not None else os.environ).get('GITHUB_ACTIONS') == 'true':
+            checked([powershell(), '-NoProfile', '-File', root / 'scripts/test-server-service.ps1', '-Bundle', bundle])
+        else:
+            print('Native SCM acceptance NOT RUN (packaging only). Run it elevated: scripts\\test-server-service.ps1 -Bundle ' + str(bundle))
         checked([python, 'scripts/deployment-package.py', 'finish', '--directory', bundle, '--platform', 'Windows-Service-x64', '--output', output])
     return bundle
 
@@ -80,9 +83,10 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description='Python port of package-windows-deployment.ps1 (unverified on Windows).')
     parser.add_argument('-Target', required=True, choices=('Desktop', 'Service'))
     parser.add_argument('-OutputDirectory', default='')
+    parser.add_argument('-NativeAcceptance', action='store_true')
     options = parser.parse_args(argv)
     try:
-        build(options.Target, options.OutputDirectory)
+        build(options.Target, options.OutputDirectory, NativeAcceptance=options.NativeAcceptance)
     except (StageError, OSError) as error:
         print(error, file=sys.stderr)
         return 1

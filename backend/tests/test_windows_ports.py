@@ -240,7 +240,7 @@ class DeploymentPackaging(Case):
         stages_seen = []
         bundle = packaging.build(target, '', self.root, recorder, {'GITHUB_ACTIONS': extra.get('actions', '')}, lambda options: stages_seen.append((options.Stage, options.ValidatedDeployment)),
                                  lambda out: (calls.append(('installer', out)), (out / 'SAP-Lens-Windows-Desktop-x64-1.2.3-beta.4-Setup.exe').write_bytes(b's'), (out / 'SAP-Lens-Windows-Desktop-x64-1.2.3-beta.4-Setup.exe.sha256').write_bytes(b'h')),
-                                 lambda **kw: calls.append(('server', kw)), guid=lambda: 'g')
+                                 lambda **kw: calls.append(('server', kw)), guid=lambda: 'g', NativeAcceptance=extra.get('accept', False))
         return recorder, stages_seen, calls, bundle
 
     def test_desktop_sequence(self):
@@ -262,14 +262,20 @@ class DeploymentPackaging(Case):
         self.assertFalse((bundle / 'SAP-Lens-Windows-Desktop-x64-1.2.3-beta.4-Setup.exe.sha256').exists(), 'compiler checksums stay internal')
         self.assertEqual(calls[0], ('installer', bundle))
 
-    def test_service_sequence(self):
+    def test_service_sequence_packages_without_the_privileged_scm_acceptance(self):
         recorder, seen, calls, bundle = self.run_target('Service')
         text = self.norm(recorder.commands)
         self.assertEqual(seen, [])
         self.assertEqual(text[4], '<buildpy> scripts/packaging/local-build.py winsw --output <root>/backend/build/WinSW-x64.exe')
-        self.assertTrue(text[5].endswith('scripts/test-server-service.ps1 -Bundle <root>/backend/build/deployment-service-g'))
-        self.assertEqual(text[6], '<buildpy> scripts/deployment-package.py finish --directory <root>/backend/build/deployment-service-g --platform Windows-Service-x64 --output <root>/dist/deployment')
+        self.assertFalse(any('test-server-service.ps1' in line for line in text), 'ordinary packaging must not install or change a Windows service')
+        self.assertEqual(text[5], '<buildpy> scripts/deployment-package.py finish --directory <root>/backend/build/deployment-service-g --platform Windows-Service-x64 --output <root>/dist/deployment')
         self.assertEqual(calls, [('server', {'WinSW': str(self.root / 'backend/build/WinSW-x64.exe'), 'ValidatedDeployment': True, 'OutputDirectory': str(bundle)})])
+
+    def test_service_sequence_with_native_acceptance_runs_the_scm_test_before_finishing(self):
+        recorder, seen, calls, bundle = self.run_target('Service', accept=True)
+        text = self.norm(recorder.commands)
+        self.assertTrue(text[5].endswith('scripts/test-server-service.ps1 -Bundle <root>/backend/build/deployment-service-g'))
+        self.assertTrue(text[6].startswith('<buildpy> scripts/deployment-package.py finish'))
 
     def test_actions_prepares_the_environment_first(self):
         self.identity()

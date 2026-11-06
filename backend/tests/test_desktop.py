@@ -33,6 +33,17 @@ class WindowEvent:
         for handler in self.handlers: handler()
 
 
+def wait_until(condition, describe, limit=20.0):
+    """Condition wait for asynchronous shutdown. It returns as soon as the condition holds (a passing run is not slower) and only the
+    failure path waits up to `limit`; the old fixed 2 s / 5 s windows raced uvicorn shutdown on a loaded Windows host. Failure names the state."""
+    deadline = time.monotonic() + limit
+    while time.monotonic() < deadline:
+        if condition():
+            return True
+        time.sleep(.01)
+    raise AssertionError('Timed out waiting for ' + describe())
+
+
 class DesktopTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -262,9 +273,8 @@ class DesktopTests(unittest.TestCase):
             instance=original(*args);managed.append(instance);return instance
         def gui_session(**kwargs):
             managed[0].server.should_exit=True
-            managed[0].worker.join(2)
-            deadline=time.monotonic()+2
-            while not self.window.destroy.called and time.monotonic()<deadline: time.sleep(.01)
+            wait_until(lambda:not managed[0].worker.is_alive(),lambda:'the backend worker to stop after should_exit')
+            wait_until(lambda:self.window.destroy.called,lambda:'the owned window to be destroyed after the backend stopped unexpectedly')
         self.gui_session=gui_session
         with patch.object(desktop,'ManagedBackend',side_effect=factory):
             self.assertEqual(desktop.run(),1)
@@ -583,14 +593,14 @@ class DesktopTests(unittest.TestCase):
             bridge=self.gui.create_window.call_args.kwargs['js_api']
             self.assertTrue(bridge.retry_startup(bridge._token))
             self.assertFalse(bridge.retry_startup(bridge._token))
-            deadline=time.monotonic()+5
-            while not self.navigate.called and time.monotonic()<deadline:time.sleep(.01)
+            wait_until(lambda:self.navigate.called,lambda:'navigation to the fresh backend after retry')
             self.verify_session()
             self.assertEqual(len(attempts),2)
-            self.assertFalse(attempts[0].worker.is_alive())
+            wait_until(lambda:not attempts[0].worker.is_alive(),lambda:'the failed first backend worker to stop')
         self.gui_session=session
         with patch.object(desktop.ManagedBackend,'start',start):self.assertEqual(desktop.run(),0)
-        self.assertTrue(all(not backend.worker.is_alive() and backend.listener.fileno()==-1 for backend in attempts))
+        wait_until(lambda:all(not backend.worker.is_alive() and backend.listener.fileno()==-1 for backend in attempts),
+                   lambda:'every owned backend to stop and release its listener: '+repr([(backend.worker.is_alive(),backend.listener.fileno()) for backend in attempts]))
 
     def test_initialization_failures_are_logged_without_sensitive_values(self):
         import main

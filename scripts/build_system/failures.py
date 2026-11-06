@@ -55,6 +55,9 @@ def classify_lock(text):
 
 
 def hint(stage, lock, output=''):
+    if 'ACCEPTANCE PREREQUISITE' in str(output):
+        return ('The native Windows service (SCM) acceptance installs, starts and removes a real Windows service and needs an elevated shell. Packaging itself does not: '
+                'run the normal command without -NativeAcceptance, then run scripts\\test-server-service.ps1 -Bundle <bundle> from an elevated PowerShell.')
     if 'BLOCKED (prerequisite' in str(output):
         return ('A required tool could not be obtained. This is a prerequisite problem, not a validation result: place the verified actionlint '
                 'archive in the tool cache or set SAP_LENS_ACTIONLINT_ARCHIVE (see the message above), then run the same command again.')
@@ -74,6 +77,7 @@ class StageFailure(ValueError):
     def __init__(self, stage, command, cwd, exit_code, output='', log=None, failure_class='stage', note=None):
         self.stage, self.command, self.cwd, self.exit_code = stage, display(command), str(cwd), exit_code
         self.output_tail, self.log, self.failure_class = tail(output), str(log) if log else None, failure_class
+        if 'ACCEPTANCE PREREQUISITE' in str(output): failure_class = 'acceptance_prerequisite'
         self.lock = classify_lock(output)
         self.hint = hint(stage, self.lock, output) or note
         if 'BLOCKED (prerequisite' in str(output): failure_class = 'prerequisite'

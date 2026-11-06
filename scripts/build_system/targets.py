@@ -81,6 +81,7 @@ def plan(args,python=None):
                 for target in targets:command+=['--platform',target]
                 if args.skip_setup:command+=['--reuse-validation']
                 if args.no_cache:command+=['--no-cache']
+                if args.native_acceptance:command+=['--native-acceptance']
                 if args.output:command+=['--output-dir',str(args.output)]
                 for name in ('windows_host','windows_repository','linux_host','linux_repository'):
                     if getattr(args,name):command+=['--'+name.replace('_','-'),getattr(args,name)]

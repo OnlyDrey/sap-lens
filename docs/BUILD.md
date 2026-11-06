@@ -342,6 +342,18 @@ not a competing set of instructions.
   never disable verification or ignore audits to finish packaging.
 - Corporate policy blocks a script: obtain signing/IT approval, not a policy bypass.
 
+## Packaging versus native service (SCM) acceptance
+
+`-Mode package` builds and verifies the Desktop and Service artifacts **without installing or changing any Windows service** and needs no administrator rights. The privileged acceptance, `scripts\test-server-service.ps1`, installs, starts, stops, backs up, restores and uninstalls a real `SAPLens` service and is a separate step:
+
+| Step | Command (Windows PowerShell 5.1) | Rights |
+|---|---|---|
+| Package and verify | `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Mode package -Platform windows -Target all -Output ".\backend\build\windows-$(Get-Date -Format 'yyyyMMdd-HHmmss')" -NonInteractive` | normal user |
+| Package with acceptance in one run | the same command plus `-NativeAcceptance` | elevated (checked before the build starts, exit 3) |
+| Acceptance only, on a built bundle | `powershell -NoProfile -File .\scripts\test-server-service.ps1 -Bundle .\backend\build\deployment-service-<id>` | elevated |
+
+The build manifest keeps three facts apart per target: `built`, `package_verified` and `native_acceptance` (`kind: windows-scm`, `status: passed | not_run | blocked | not_applicable`). A service package without acceptance is a valid package with `native_acceptance.status = not_run` and `runtime_smoke_tested = false`; release verification (`--verify-output`) requires the acceptance to have passed. Missing elevation is reported as `ACCEPTANCE PREREQUISITE` (failure class `acceptance_prerequisite`, target status `blocked`), never as a packaging failure. The CI runner (`GITHUB_ACTIONS=true`, elevated) still runs the acceptance. The existing safeguards (an existing `SAPLens` service is never touched, uninstall in `finally`) are unchanged.
+
 ## Windows build stabilization notes
 
 - **Public parameter mapping:** `-Output <dir>` (alias `-OutputDir`) maps to `--output` of `build.py` and `--output-dir` of the deployment builder. An explicit directory is used exactly as given. If it holds a build of another version or commit, the build stops and prints the path, the existing manifest version/commit, the requested ones and a suggested new directory; nothing is overwritten or deleted. Use a timestamped directory for routine runs: `-Output ".\backend\build\windows-$(Get-Date -Format 'yyyyMMdd-HHmmss')"`.
