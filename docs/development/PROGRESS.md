@@ -135,7 +135,7 @@ A `2ab0b0d`, B `eccc0b4`, C `21cc4f3`, D `451874c` (+ `d8ca720`), E `f30bac4`, `
 | Phase | Scope | Status | Commit |
 | --- | --- | --- | --- |
 | 1 | Repository inventory and audit ([report](REPOSITORY_AUDIT.md)) | Completed | see Git log |
-| 2 | Structure and cleanup | Pending | |
+| 2 | Structure and cleanup, scripts consolidation (`scripts/build.ps1`, `maintenance/`, `benchmarks/`, `scripts/README.md`, lint ceiling) | Completed | see Git log |
 | 3 | Build, test and workflow audit | Pending | |
 | 4 | Documentation architecture | Pending | |
 | 5 | Documentation rewrite and consolidation | Pending | |
@@ -143,3 +143,5 @@ A `2ab0b0d`, B `eccc0b4`, C `21cc4f3`, D `451874c` (+ `d8ca720`), E `f30bac4`, `
 | 7 | Final validation and audit report | Pending | |
 
 Phase 1 result: no tracked generated files, secrets or removable scripts; one gate failure found (`npm run lint` exceeds its warning ceiling, red since the original baseline). Details and decisions in the audit report.
+
+Phase 2 result: `build.ps1` moved to `scripts/build.ps1` (root no longer has a build entrypoint; the venv and `build.py` are resolved relative to the script, so any working directory works). `generate-examples.py`, `reference-template.py` and `validation_tracker.py` moved to `scripts/maintenance/`, `profile-sod.py` to `scripts/benchmarks/`; every reference (tests, docs, `test-map.json`, `check-powershell.ps1`) updated. All 54 scripts are classified in `scripts/README.md` and `docs/BUILD.md`; none is redundant or obsolete. The deployment and Windows packaging scripts stay where workflows, release tooling and bundles address them: they cannot be re-verified without a PowerShell host, and moving them would add nesting without removing duplication. The lint warning ceiling is now the measured 115 (the gate was red). Native Windows execution of `scripts/build.ps1` remains unverified.

@@ -11,7 +11,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-spec = importlib.util.spec_from_file_location('validation_tracker', ROOT / 'scripts' / 'validation_tracker.py')
+spec = importlib.util.spec_from_file_location('validation_tracker', ROOT / 'scripts' / 'maintenance' / 'validation_tracker.py')
 tracker = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(tracker)
 
@@ -129,7 +129,7 @@ class TrackerTests(unittest.TestCase):
 
     def test_the_committed_workbook_matches_the_csv(self):
         committed = ROOT / 'docs' / 'validation' / 'validation-tracker.xlsx'
-        self.assertTrue(committed.exists(), 'run: python scripts/validation_tracker.py export --output docs/validation/validation-tracker.xlsx')
+        self.assertTrue(committed.exists(), 'run: python scripts/maintenance/validation_tracker.py export --output docs/validation/validation-tracker.xlsx')
         fresh = zipfile.ZipFile(io.BytesIO(tracker.workbook(self.rows)))
         with zipfile.ZipFile(committed) as archive:
             self.assertEqual(sorted(archive.namelist()), sorted(fresh.namelist()))

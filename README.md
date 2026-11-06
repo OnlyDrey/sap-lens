@@ -67,8 +67,8 @@ and have finite retention. Local builds never publish releases, tags or commits.
 Local Windows build entry point (from the repository root):
 
 ```powershell
-.\build.ps1 -Mode quick
-.\build.ps1 -Mode build -Platform windows -Target desktop
+.\scripts\build.ps1 -Mode quick
+.\scripts\build.ps1 -Mode build -Platform windows -Target desktop
 ```
 
 Version resolution, prerequisites, optional service packaging and output paths are

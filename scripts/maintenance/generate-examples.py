@@ -2,7 +2,7 @@
 import csv
 from pathlib import Path
 
-ROOT=Path(__file__).resolve().parents[1]
+ROOT=Path(__file__).resolve().parents[2]
 ROLE_FIELDS='FUNCTION_KEY AGR_NAME TEXT CHILD_AGR CHILD_AGR_TEXT PARENT_AGR Effective_Role TCODE TTEXT'.split()
 USER_FIELDS='USERNAME ROLE_NAME USER_GROUP FIRST_NAME LAST_NAME EMAIL USER_VALID_FROM USER_VALID_TO ROLE_VALID_FROM ROLE_VALID_TO USER_LOCKED USER_TYPE'.split()
 EMPLOYEE_FIELDS='Site Name SamAccountName UserPrincipalName Mail Department Title Enabled DistinguishedName ManagerDN ManagerName ManagerSamAccountName ManagerMail ManagerDepartment ManagerTitle ManagerLookupStatus'.split()

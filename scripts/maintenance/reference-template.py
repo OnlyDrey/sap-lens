@@ -4,7 +4,7 @@ import sys
 from xml.etree.ElementTree import Element, SubElement, tostring
 from zipfile import ZipFile, ZipInfo, ZIP_DEFLATED
 
-ROOT=Path(__file__).resolve().parents[1]
+ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'backend'))
 from sod_reference import RISK,ACTIVITY
 

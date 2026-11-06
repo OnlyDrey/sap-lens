@@ -86,4 +86,11 @@ A `reference/` directory is not created: configuration lives in `getting-started
 
 ## Outcome
 
-Filled in as each phase completes; see the final section.
+### Phase 2: scripts and entrypoints
+
+* `build.ps1` moved from the repository root to `scripts/build.ps1`. Repository root and `build.py` are resolved from `$PSScriptRoot`, the `.venv` lookup is inside the discovery function so the test harness that loads the function definitions still works, help text and the install hint use the new path. No duplicate at the root.
+* Moved with all references updated: `generate-examples.py`, `reference-template.py`, `validation_tracker.py` to `scripts/maintenance/`; `profile-sod.py` to `scripts/benchmarks/`.
+* Added `scripts/README.md` (what to run, internal helpers, platforms); `docs/BUILD.md` inventory updated.
+* M1 resolved: the lint warning ceiling is 115 (measured), a ratchet that may only go down.
+* Not moved, deliberately: the deployment builders, Linux bundle runtime scripts and Windows packaging scripts. They are addressed by path from workflows, release tooling and shipped bundles; the PowerShell ones cannot be executed or re-verified here.
+* Validation: unified-build, local-build, workflow, repository, test-profile, validation-tracker and SoD-reference tests pass; `build.py` runs from another working directory (dry run exit 0, invalid arguments exit 2). PowerShell execution of `scripts/build.ps1` is not verified (no PowerShell host).

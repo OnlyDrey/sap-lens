@@ -6,7 +6,7 @@ if ($env:OS -ne 'Windows_NT' -or $env:PROCESSOR_ARCHITECTURE -ne 'AMD64') { thro
 $root=Split-Path $PSScriptRoot -Parent
 
 $python=Join-Path $root 'backend/build/python-env/Scripts/python.exe'
-if (-not (Test-Path $python)) { throw 'Run build.ps1 -Mode build -Platform windows -Target service first.' }
+if (-not (Test-Path $python)) { throw 'Run scripts\build.ps1 -Mode build -Platform windows -Target service first.' }
 function Invoke-Checked([scriptblock]$Command) { & $Command; if ($LASTEXITCODE -ne 0) { throw 'Server build failed. No verified bundle was produced.' } }
 Push-Location $root
 try {

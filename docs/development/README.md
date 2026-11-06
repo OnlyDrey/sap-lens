@@ -9,4 +9,5 @@
 Build distributable packages using [Build](../BUILD.md); do not copy its
 packaging pipeline into development instructions. Follow [AGENTS.md](../../AGENTS.md).
 - [Development progress](PROGRESS.md): phase status, commits, measurements and next actions for resuming work.
+- [Scripts](../../scripts/README.md): which scripts to run directly, which are internal helpers, and supported platforms.
 - [Repository audit](REPOSITORY_AUDIT.md): findings, decisions and outcome of the November 2026 repository cleanup.

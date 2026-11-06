@@ -1,10 +1,10 @@
 """Validation tracker tooling. The CSV under docs/validation is the source of truth; nothing here needs a service or a dependency.
 
-    python scripts/validation_tracker.py check                  validate the CSV (exit 1 on problems)
-    python scripts/validation_tracker.py summary                counts per status and per area
-    python scripts/validation_tracker.py export [--output FILE] write an Excel workbook generated from the CSV
-    python scripts/validation_tracker.py merge FILE             copy reviewer decisions edited in a workbook back into the CSV
-    python scripts/validation_tracker.py migrate                convert a tracker in the earlier 15-column layout to the current one
+    python scripts/maintenance/validation_tracker.py check                  validate the CSV (exit 1 on problems)
+    python scripts/maintenance/validation_tracker.py summary                counts per status and per area
+    python scripts/maintenance/validation_tracker.py export [--output FILE] write an Excel workbook generated from the CSV
+    python scripts/maintenance/validation_tracker.py merge FILE             copy reviewer decisions edited in a workbook back into the CSV
+    python scripts/maintenance/validation_tracker.py migrate                convert a tracker in the earlier 15-column layout to the current one
 
 ``export`` is reproducible and ``merge`` only touches the reviewer-owned columns of items that already exist, so a workbook round trip never loses
 a decision. Item definitions (ID, area, page, criterion) are edited in the CSV. Nothing here ever marks an item as manually approved.
@@ -20,7 +20,7 @@ from pathlib import Path
 from xml.etree import ElementTree
 from xml.sax.saxutils import escape
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 CSV_PATH = ROOT / 'docs' / 'validation' / 'validation-items.csv'
 DEFAULT_OUTPUT = ROOT / 'build' / 'validation-tracker.xlsx'
 

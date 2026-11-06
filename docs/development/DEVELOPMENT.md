@@ -259,7 +259,7 @@ administrator rights. Review installer prompts rather than disabling controls.
    ```
 
    `powershell.exe` starts Windows PowerShell; `pwsh` starts PowerShell 7. Either
-   supported x64 shell can run `build.ps1`.
+   supported x64 shell can run `scripts/build.ps1`.
 
 5. **Microsoft Edge WebView2 Evergreen Runtime:** install the x64 Evergreen
    Runtime from [Microsoft](https://developer.microsoft.com/microsoft-edge/webview2/),

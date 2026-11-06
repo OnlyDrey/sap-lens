@@ -1,6 +1,6 @@
 # SAP Lens build system
 
-The public interfaces are `build.ps1` (Windows bootstrap) and `scripts/build.py`
+The public interfaces are `scripts/build.ps1` (Windows bootstrap) and `scripts/build.py`
 (Python CLI on Windows/Linux). Both use the same Python engine. No command publishes
 an image, changes `main`, bumps the product version, creates a tag or publishes a
 release by default. **Release mode prepares and verifies artifacts only.** Actual
@@ -10,7 +10,7 @@ publication stays in the existing explicitly dispatched, branch-guarded workflow
 
 ```mermaid
 flowchart TD
-  PS[build.ps1: Python detection and consent] --> CLI[scripts/build.py]
+  PS[scripts/build.ps1: Python detection and consent] --> CLI[scripts/build.py]
   CLI --> Engine[build_system: CLI, prerequisites, runner, targets]
   CI[GitHub Actions: explicit non-interactive commands] --> Engine
   Engine --> Win[Internal Windows desktop stages and local receipt]
@@ -65,7 +65,7 @@ unchanged; see the [deployment guides](deployment/README.md).
 
 | Prerequisite | Needed for | What the build entry points do | Manual or administrator action |
 | --- | --- | --- | --- |
-| Python 3.12 x64 | build, test, package | Checked (version and 64-bit); `build.ps1` offers a per-user winget install only with consent | Install it yourself on other platforms |
+| Python 3.12 x64 | build, test, package | Checked (version and 64-bit); `scripts/build.ps1` offers a per-user winget install only with consent | Install it yourself on other platforms |
 | Project `.venv` / packaging env | test, build, package | Created if missing; reused if valid; a wrong-version, 32-bit or broken one is reported and **never deleted** | Remove or repair it yourself when told |
 | pip | all Python setup | Seeded if missing; upgraded to the pinned release when older than 24.2 (see below) | None normally |
 | Locked Python dependencies | test, build, package | Installed from the pinned requirement files only when something is missing or different; otherwise skipped | None |
@@ -108,7 +108,7 @@ Quick checks (`quick`) install nothing. `test` prepares only the project `.venv`
   allows, then run the same command again; the build is safe to repeat.
 - **Retry and targeted validation:** rerun the same command (`--skip-setup` reuses a still-valid validation receipt). Run only the build contract checks with
   `python -m unittest discover -s backend/tests -p test_build_diagnostics.py` and `-p test_local_deployments.py`. Build Desktop and Service together with
-  `.\build.ps1 -Mode build -Platform windows -Target all`.
+  `.\scripts\build.ps1 -Mode build -Platform windows -Target all`.
 - **Windows paths:** the repository path may contain spaces. Very long checkout paths are rejected early with advice to use a shorter path or enable Windows long paths.
 
 ## First-time Windows setup
@@ -116,9 +116,9 @@ Quick checks (`quick`) install nothing. `test` prepares only the project `.venv`
 From an approved checkout, in x64 PowerShell:
 
 ```powershell
-.\build.ps1
-.\build.ps1 -Mode quick
-.\build.ps1 -Mode package -Platform windows -Target installer
+.\scripts\build.ps1
+.\scripts\build.ps1 -Mode quick
+.\scripts\build.ps1 -Mode package -Platform windows -Target installer
 ```
 
 The bootstrapper can start **without Python installed**. It runs every candidate and
@@ -152,12 +152,12 @@ No system software is installed by the automated tests.
 Windows:
 
 ```powershell
-.\build.ps1 -Mode quick
-.\build.ps1 -Mode build -Platform windows -Target desktop
-.\build.ps1 -Mode package -Platform windows -Target installer
-.\build.ps1 -Mode package -Platform windows -Target service
-.\build.ps1 -Mode test -Scope targeted -Area deployment
-.\build.ps1 -Mode test -Scope full -NonInteractive
+.\scripts\build.ps1 -Mode quick
+.\scripts\build.ps1 -Mode build -Platform windows -Target desktop
+.\scripts\build.ps1 -Mode package -Platform windows -Target installer
+.\scripts\build.ps1 -Mode package -Platform windows -Target service
+.\scripts\build.ps1 -Mode test -Scope targeted -Area deployment
+.\scripts\build.ps1 -Mode test -Scope full -NonInteractive
 ```
 
 Linux / direct Python:
@@ -352,16 +352,16 @@ remain unexecuted on this Linux host. No full application regression is claimed.
 See the [workflow validation matrix](validation/WORKFLOW_MATRIX.md) and the
 [platform acceptance matrix](deployment/README.md#validation-status).
 
-## Script inventory (audit of 2026-11-04)
+## Script inventory
 
-All 54 tracked files under `scripts/` were audited for purpose, callers (workflows, tests, documentation) and overlap with the Python engine.
-Result: **no script was removed and none migrated**. Every file has a live caller or a documented role, and the apparent overlaps are layered
-(a public wrapper over an internal worker) rather than duplicated. Public entrypoints are `build.ps1` and `scripts/build.py`; everything
+Every tracked file under `scripts/` is classified here and in [scripts/README.md](../scripts/README.md) by purpose, callers (workflows, tests, documentation) and overlap with the Python engine.
+Result of the audit: no script is redundant. Every file has a live caller or a documented role, and the apparent overlaps are layered
+(a public wrapper over an internal worker) rather than duplicated. Public entrypoints are `scripts/build.ps1` and `scripts/build.py`; everything
 else is an internal helper and is not a supported entrypoint.
 
 | Group | Files | Disposition | Purpose |
 | --- | --- | --- | --- |
-| Public entrypoints | build.ps1 (root), build.py, build_system/* | KEEP | Windows bootstrapper and the shared Python engine (CLI, prerequisites, runner, targets) |
+| Public entrypoints | build.ps1, build.py, build_system/* | KEEP | Windows bootstrapper and the shared Python engine (CLI, prerequisites, runner, targets) |
 | Orchestrators | build-deployments.py | KEEP | Deployment builder: shared validation, Windows/Linux/Docker packages, remote builders; called by the engine and workflows |
 | Orchestrators | local-build.py, build-local.ps1 | KEEP | Portable Windows desktop local build (receipt, ZIP verification); called by the engine |
 | Orchestrators | build-windows.ps1, release-windows.py, write-build-report.py | KEEP | Legacy Windows desktop workflow stages, version reservation/release gate and run report (build-windows.yml) |
@@ -375,7 +375,7 @@ else is an internal helper and is not a supported entrypoint.
 | Verification | verify-windows-package.py, verify-server-bundle.py, verify-desktop-installer.py, verify-desktop-distribution.py, verify-artifact-zip.py, write-windows-metadata.py | KEEP | Package, bundle, installer and ZIP verifiers; version/PE metadata generation |
 | Validation | validate.py (+ validate.sh, validate.ps1), run-tests.py, test-map.json, ci.py, check-workflows.py, check-docs.py, check-powershell.ps1 | KEEP | Validation levels and their thin wrappers (documented in AGENTS.md), test profiles and ownership, CI step runner/summary, workflow contracts, documentation links, PowerShell parse check |
 | Validation | serve-browser-tests.py, sync-lucide-catalog.mjs, frontend-licenses.mjs, product-version.mjs, requirements-audit.txt | KEEP | Browser test server, icon catalogue check, license and version generators, audit tooling pins |
-| Development | validation_tracker.py, generate-examples.py, profile-sod.py, benchmarks/data_benchmark.py, reference-template.py | KEEP | Tracker tooling, deterministic example generator, SoD profiling and reference template; separate from the build engine by design |
+| Development | maintenance/validation_tracker.py, maintenance/generate-examples.py, maintenance/reference-template.py, benchmarks/profile-sod.py, benchmarks/data_benchmark.py | KEEP | Tracker tooling, deterministic example generator, SoD profiling and reference template; separate from the build engine by design |
 
 Remaining debt: `test-service-management.ps1` is not executed by any build step; the legacy `build-windows.ps1` stage engine and the deployment
 builder still own sequencing that could later move into Python, which needs real Windows parity testing first.

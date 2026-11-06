@@ -34,7 +34,7 @@ If a problem persists, export the sanitized report from **Settings → Health & 
 
 ## Build setup: pip certificate errors
 
-`CERTIFICATE_VERIFY_FAILED` while installing Python packages almost always means the project environment was seeded with pip 24.0, which does not use the Windows certificate store. Run the official entry point again (`.\build.ps1 -Mode test`): it upgrades pip to the pinned release, retrying once with the system trust store, and then installs the locked dependencies. If it still fails, your proxy's CA is not trusted by Windows: ask IT to install it in the certificate store. SAP Lens never disables verification or uses `--trusted-host`. Other build prerequisites are listed in the [prerequisite matrix](../BUILD.md#prerequisite-matrix).
+`CERTIFICATE_VERIFY_FAILED` while installing Python packages almost always means the project environment was seeded with pip 24.0, which does not use the Windows certificate store. Run the official entry point again (`.\scripts\build.ps1 -Mode test`): it upgrades pip to the pinned release, retrying once with the system trust store, and then installs the locked dependencies. If it still fails, your proxy's CA is not trusted by Windows: ask IT to install it in the certificate store. SAP Lens never disables verification or uses `--trusted-host`. Other build prerequisites are listed in the [prerequisite matrix](../BUILD.md#prerequisite-matrix).
 
 ## Session disconnected
 

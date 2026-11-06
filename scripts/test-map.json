@@ -592,7 +592,6 @@
    "patterns": [
     "scripts/**",
     ".github/workflows/*",
-    "build.ps1",
     "Dockerfile",
     "compose*",
     ".gitignore",

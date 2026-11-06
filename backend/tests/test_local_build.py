@@ -301,7 +301,7 @@ class BuildEntryRepairTests(unittest.TestCase):
             info = local.identity(requested)
             self.assertEqual(info['version'].split('+')[0], requested)
             self.assertEqual(local.version.parse_build_info(info), info)
-        wrapper = (ROOT/'build.ps1').read_text()
+        wrapper = (ROOT/'scripts'/'build.ps1').read_text()
         self.assertNotIn('[Parameter(Mandatory=$true)][string]$Version', wrapper)
         self.assertIn("@('--version',$Version)", wrapper)
 

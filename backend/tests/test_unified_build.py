@@ -143,7 +143,7 @@ class ScriptInventoryTests(unittest.TestCase):
 
 
 def _bootstrapper():
-    return (ROOT/'build.ps1').read_text(encoding='utf-8')
+    return (ROOT/'scripts'/'build.ps1').read_text(encoding='utf-8')
 
 
 class PythonDiscoveryContractTests(unittest.TestCase):
@@ -216,7 +216,7 @@ $source = $env:SAP_LENS_TEST_BOOTSTRAPPER
 $ast = [System.Management.Automation.Language.Parser]::ParseFile($source, [ref]$null, [ref]$null)
 foreach ($definition in $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $false)) { . ([scriptblock]::Create($definition.Extent.Text)) }
 $script:PythonProbe = [regex]::Match((Get-Content -LiteralPath $source -Raw), "PythonProbe = '([^']*)'").Groups[1].Value
-if (-not $script:PythonProbe) { throw 'The interpreter probe was not found in build.ps1.' }
+if (-not $script:PythonProbe) { throw 'The interpreter probe was not found in scripts/build.ps1.' }
 $folder = $env:SAP_LENS_TEST_FOLDER
 $env:PATH = $folder + [IO.Path]::PathSeparator + $env:PATH
 $found = @(Get-PythonCandidates | Where-Object { $_.Path -and ((Split-Path -Parent $_.Path) -ieq $folder) })
@@ -237,7 +237,7 @@ $probe = Test-PythonCandidate -Source 'PATH' -Path $found[0].Path -Prefix $found
                     target=folder/'python.cmd';target.write_text('\r\n'.join(['@echo off',f'echo {target}',f'echo {version}',f'echo {bits}',f'exit /b {code}'])+'\r\n')
                 else:
                     target=folder/'python';target.write_text(f'#!/bin/sh\necho "{target}"\necho {version}\necho {bits}\nexit {code}\n');target.chmod(target.stat().st_mode|stat.S_IEXEC)
-                environment={**os.environ,'SAP_LENS_TEST_BOOTSTRAPPER':str(ROOT/'build.ps1'),'SAP_LENS_TEST_FOLDER':str(folder)}
+                environment={**os.environ,'SAP_LENS_TEST_BOOTSTRAPPER':str(ROOT/'scripts'/'build.ps1'),'SAP_LENS_TEST_FOLDER':str(folder)}
                 done=subprocess.run([shell,'-NoProfile','-ExecutionPolicy','Bypass','-File',str(script)] if os.name=='nt' else [shell,'-NoProfile','-File',str(script)],capture_output=True,text=True,env=environment)
                 with self.subTest(case=directory):
                     self.assertEqual(done.returncode,0,done.stderr+done.stdout)
@@ -248,7 +248,7 @@ class BootstrapperStaticTests(unittest.TestCase):
     """No PowerShell is available on Linux CI: these are static guards for the Windows PowerShell 5.1 baseline, not execution evidence."""
     def test_root_bootstrapper_keeps_the_51_baseline_and_forwards_help(self):
         import re
-        text=(ROOT/'build.ps1').read_text(encoding='utf-8')
+        text=(ROOT/'scripts'/'build.ps1').read_text(encoding='utf-8')
         self.assertTrue(text.startswith('#requires -Version 5.1'))
         for token in (r'\?\?',r'\?\.',r'-AsHashtable',r'-Parallel',r'\$IsWindows',r'\$IsLinux',r'utf8NoBOM',r'\s&&\s'):
             self.assertIsNone(re.search(token,text),token)
@@ -340,8 +340,8 @@ class SafetyTests(unittest.TestCase):
         with self.assertRaises(BuildError):targets.clean(value,Mock())
 
     def test_bootstrap_is_not_dependent_on_python_and_never_bypasses_policy(self):
-        source=(ROOT/'build.ps1').read_text()
-        for item in ('Find-BuildPython','Python.Python.3.12','--scope user','--non-interactive','scripts/build.py','-NonInteractive','nonInteractiveRun'):
+        source=(ROOT/'scripts'/'build.ps1').read_text()
+        for item in ('Find-BuildPython','Python.Python.3.12','--scope user','--non-interactive',"Join-Path $PSScriptRoot 'build.py'",'-NonInteractive','nonInteractiveRun'):
             self.assertIn(item.lstrip('-') if item=='-NonInteractive' else item,source)
         self.assertNotIn('ExecutionPolicy Bypass',source);self.assertNotIn('Invoke-Expression',source);self.assertNotIn('Invoke-WebRequest',source)
         self.assertIn('Read-Host',source);self.assertIn('$LASTEXITCODE',source)

@@ -329,7 +329,7 @@ The original workbooks and matrix remain outside Git.
 |---|---|
 | [backend/resources/reference-defaults.json](../../backend/resources/reference-defaults.json) | Canonical business library 1.0.1: 14 risks, 14 activities, six terms. Contains P001, P002, P008 and PR01. Validated by the Library model; risk/activity records also round-trip through the real XLSX importer in tests. |
 | [backend/resources/sod-reference-template.xlsx](../../backend/resources/sod-reference-template.xlsx) | Schema example, not a populated copy of library 1.0.1. Contains synthetic R_EXAMPLE/ACT_EXAMPLE and one example term. Parsed by the real importer; its XML members are checked against the canonical generator. |
-| [scripts/reference-template.py](../../scripts/reference-template.py) | Generates that synthetic template from the importer's actual header mappings. It does not duplicate curated business definitions. |
+| [scripts/maintenance/reference-template.py](../../scripts/maintenance/reference-template.py) | Generates that synthetic template from the importer's actual header mappings. It does not duplicate curated business definitions. |
 | [examples/sod-matrix.example.csv](../../examples/sod-matrix.example.csv) | Separate active-matrix example: two synthetic risks/four mapping rows. Validated by `parse_sod`, including links to example catalogue transactions. It intentionally does not substitute production-like P001/PR01 relationships into the synthetic scenario. |
 | [backend/tests/test_sod_reference.py](../../backend/tests/test_sod_reference.py) | Synthetic schema/negative fixtures; populated round-trip fixtures derive directly from the JSON library. No second maintained business library. |
 

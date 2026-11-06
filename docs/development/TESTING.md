@@ -244,7 +244,7 @@ Full regression remains a release/explicit-request check, not this workflow's pr
 With the Python 3.12 development environment installed, run from the repository root:
 
 ```sh
-python scripts/profile-sod.py --users 200 --samples 9 --output /tmp/sod-profile.json
+python scripts/benchmarks/profile-sod.py --users 200 --samples 9 --output /tmp/sod-profile.json
 ```
 
 On Windows use a writable output such as `$env:TEMP/sod-profile.json`. The tool generates

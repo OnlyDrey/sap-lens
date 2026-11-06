@@ -40,7 +40,8 @@ function Get-PythonCandidates {
     # Deterministic order: project .venv, Python launcher, PATH, other registered installations. No hardcoded install locations.
     $seen = @{}
     $list = @()
-    $venv = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
+    # This file lives in scripts/: the repository root is its parent and the engine is its sibling build.py; neither depends on the working directory.
+    $venv = Join-Path (Split-Path -Parent $PSScriptRoot) '.venv\Scripts\python.exe'
     if (Test-Path -LiteralPath $venv) { $list += @{ Source = 'project .venv'; Path = $venv; Prefix = @() } }
     $launcher = Get-Command py -ErrorAction SilentlyContinue
     if ($launcher) { $list += @{ Source = 'Python launcher (py -3.12)'; Path = $launcher.Source; Prefix = @('-3.12') } }
@@ -113,7 +114,7 @@ try {
     $python=Find-BuildPython
     if (-not $python) {
         Write-PythonDiscovery
-        if ($Help) { Write-Host 'SAP Lens: .\build.ps1 -Mode quick|test|build|package|release|clean [-Platform windows|linux|docker] [-Target desktop|installer|service|server|all]. Install Python 3.12 x64 or opt in with -InstallSystem.'; exit 0 }
+        if ($Help) { Write-Host 'SAP Lens: .\scripts\build.ps1 -Mode quick|test|build|package|release|clean [-Platform windows|linux|docker] [-Target desktop|installer|service|server|all]. Install Python 3.12 x64 or opt in with -InstallSystem.'; exit 0 }
         if ($SkipSetup -or $DryRun) { Write-Host 'Python 3.12 x64 is missing. Install it through approved tools; skip-setup/dry-run will not install it.'; exit 3 }
         $consent=[bool]$InstallSystem
         if (-not $consent -and -not $nonInteractiveRun) { $consent=(Read-Host 'Python 3.12 x64 is required. Install for this user using winget? [y/N]') -match '^(?i:y|yes)$' }
@@ -124,7 +125,7 @@ try {
         $python=Find-BuildPython
         if (-not $python) { Write-Host 'Installation returned success, but compatible Python was not found. Reopen PowerShell or repair Python 3.12 x64.'; exit 3 }
     }
-    $arguments=@((Join-Path $PSScriptRoot 'scripts/build.py'))
+    $arguments=@((Join-Path $PSScriptRoot 'build.py'))
     if ($Mode) { $arguments+=$Mode.ToLowerInvariant() }
     foreach ($pair in @(@('--platform',$Platform),@('--target',$Target),@('--version',$Version),@('--scope',$Scope),@('--output',$Output),@('--area',$Area),@('--windows-host',$WindowsHost),@('--windows-repository',$WindowsRepository),@('--linux-host',$LinuxHost),@('--linux-repository',$LinuxRepository))) {
         if ($pair[1]) { $arguments+=$pair }

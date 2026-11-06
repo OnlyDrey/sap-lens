@@ -226,7 +226,7 @@ class ReferenceTests(Case):
     def test_shipped_template_matches_its_canonical_generator(self):
         from pathlib import Path
         import runpy
-        script=Path(__file__).resolve().parents[2]/'scripts/reference-template.py'
+        script=Path(__file__).resolve().parents[2]/'scripts/maintenance/reference-template.py'
         target=self.root/'generated-template.xlsx'
         runpy.run_path(str(script))['generate'](target)
         with zipfile.ZipFile(target) as generated,zipfile.ZipFile(reference.default_path().with_name('sod-reference-template.xlsx')) as shipped:

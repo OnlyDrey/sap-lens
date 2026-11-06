@@ -231,7 +231,7 @@ snapshots are not rewritten.
 
 ### Confirmed assignment feedback and write profiling
 
-`profile-sod.py` now measures single and atomic bulk writes separately, including
+`scripts/benchmarks/profile-sod.py` now measures single and atomic bulk writes separately, including
 JSON-store reads, serialization/atomic-write time and derived-state time. This
 runtime uses private JSON stores, so SQL query count is zero. No global decision
 cache or weaker persistence path was introduced.

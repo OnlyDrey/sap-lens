@@ -148,7 +148,7 @@ From the repository root (full list and risk-based selection:
 - Server mode must use separate mutable storage, enforce its authentication and
   host/origin boundary, and keep browser uploads local to the configured server.
   Optional disabled/missing sources are not permission to erase valid snapshots.
-- `build.ps1`/`scripts/build.py` are the public build interfaces; canonical packaging remains
+- `scripts/build.ps1`/`scripts/build.py` are the public build interfaces; canonical packaging remains
   in specialized internal `scripts/` helpers. Keep legacy desktop release behavior separate from deployment
   publication. No automatic tags/releases/registry pushes from local builds.
 - Reuse frontend Shared components, semantic tokens and isolated Component Library

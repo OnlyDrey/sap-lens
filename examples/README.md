@@ -46,7 +46,7 @@ and case-normalized equal-specificity ambiguity are intentional.
 Headers follow the current built-in schemas exactly; optional fields may be blank.
 See [access schema](../docs/data/CSV_SCHEMAS.md) and
 [directory schema](../docs/data/EMPLOYEE_DIRECTORY.md). Regenerate deterministically
-from the repository root with `python scripts/generate-examples.py`. The generator
+from the repository root with `python scripts/maintenance/generate-examples.py`. The generator
 never reads local configuration or source exports. Automated regression tests
 import the role, user and directory examples through the real APIs and verify snapshot
 restoration in a fresh process after removing the source files. A separate test

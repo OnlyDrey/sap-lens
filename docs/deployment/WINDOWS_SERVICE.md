@@ -130,7 +130,7 @@ as executed results.
 ## Build on x64 Windows
 
 Use the [central build guide](../BUILD.md#commands):
-`build.ps1 -Mode package -Platform windows -Target service` (or target `all` for
+`scripts/build.ps1 -Mode package -Platform windows -Target service` (or target `all` for
 installer/desktop plus service). Version resolution is automatic; deployment
 archives default to `dist/<version>/`. WinSW is acquired and SHA-256 checked;
 internal offline `-WinSW` overrides are still checked. Packaging does not install
