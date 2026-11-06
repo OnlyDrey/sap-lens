@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import cache
 import config
 import csv_lifecycle
+from links import symlink
 import data_retention as retention
 import persistent_cache
 import source_store
@@ -271,7 +272,7 @@ class Consistency(Case):
         victim = Path(self.temp.name) / 'outside.json'; victim.write_text('precious')
         target = self.snapshot('users', 'link', 980)
         path = csv_lifecycle.private_path('snapshots', target)
-        path.unlink(); os.symlink(victim, path)
+        path.unlink(); symlink(victim, path)
         retention.execute('automatic', now=self.now)
         self.assertEqual(victim.read_text(), 'precious')
         self.assertTrue(ids)

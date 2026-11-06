@@ -233,9 +233,10 @@ def check_secret_permissions(path, status, allow_group_read=False):
     with SAP_LENS_AUTH_SECRET_GROUP_READ=1 because a different account must read the file (a container user reading a host file,
     a service group) and the file's group is one the running account itself belongs to, so the group is the intended one. Anything
     that gives other users any access, or lets the group write or execute, is refused. The file is never changed here.
-    Windows has no POSIX modes: its ACL is applied when the service is provisioned (docs/deployment/WINDOWS_SERVICE.md).
+    Windows has no POSIX modes: the DACL is read and the file is refused when Everyone, Users, Authenticated Users or another broad group can read
+    or change it. The check fails closed: an unreadable ACL is an error. Provisioning applies the private ACL (docs/deployment/WINDOWS_SERVICE.md).
     """
-    if os.name == 'nt': return
+    if os.name == 'nt': return check_windows_secret_acl(path)
     mode, fix = status.st_mode & 0o777, f"Run: chmod 600 '{path}'"
     if mode & 0o007: raise ValueError(f'Authentication secret {path} (mode {mode:04o}) is accessible to other users. {fix}')
     if mode & 0o030: raise ValueError(f'Authentication secret {path} (mode {mode:04o}) is writable or executable by its group. {fix}')
@@ -246,6 +247,15 @@ def check_secret_permissions(path, status, allow_group_read=False):
         if status.st_gid not in {os.getegid(), *os.getgroups()}:
             raise ValueError(f'Authentication secret {path} is group-readable by group {status.st_gid}, which the service account does not belong to. '
                              'Use a group of the service account (chgrp) or chmod 600.')
+
+
+def check_windows_secret_acl(path, api=None):
+    import windows_identity
+    try: exposed = windows_identity.exposed_to_other_users(path, api)
+    except windows_identity.WindowsIdentityError as error:
+        raise ValueError(f'Authentication secret {path} could not be checked ({error}). Run: icacls "{path}" /inheritance:r /grant:r "%USERNAME%:F" "SYSTEM:F"') from None
+    if exposed:
+        raise ValueError(f"Authentication secret {path} is accessible to {', '.join(exposed)}. Run: icacls \"{path}\" /inheritance:r /grant:r \"%USERNAME%:F\" \"SYSTEM:F\"")
 
 
 def bounded_int(name, default, low, high):

@@ -133,9 +133,9 @@ def ensure_pip(python, root, run, say=print):
 # --- Interpreter discovery and project environment inspection (shared by the build engine, doctor and the test runners) -------------------
 REQUIRED = (3, 12)
 # No double quotes: Windows PowerShell 5.1 strips them from native arguments. `venv`/`ensurepip` are probed because Debian ships them separately.
-PROBE = ('import sys,json\n'
-         'try:\n import venv,ensurepip;v=1\nexcept Exception:\n v=0\n'
-         'print(json.dumps([sys.executable,list(sys.version_info[:3]),64 if sys.maxsize>2**32 else 32,v]))')
+# One line: a newline inside a .cmd/.bat argument would end the command line under cmd.exe.
+PROBE = ('import sys,json,importlib.util as u;'
+         'print(json.dumps([sys.executable,list(sys.version_info[:3]),64 if sys.maxsize>2**32 else 32,int(bool(u.find_spec(\'venv\') and u.find_spec(\'ensurepip\')))]))')
 
 
 def probe_python(path, prefix=(), timeout=20):

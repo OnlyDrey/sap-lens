@@ -580,7 +580,7 @@ def apply_organizational_changes(email_by_username, position_events, manager_eve
                 continue
             since = _last_confirmation(user)
             for event in sorted(by_email.get(email, []), key=lambda e: (e['detected_at'], e['id'])):
-                if event['detected_at'] <= since:
+                if event['detected_at'] < since:      # `<`: a change in the same clock tick as a confirmation (coarse Windows clock) is never dropped
                     continue
                 parts = []
                 if 'department' in event['fields']:
@@ -589,7 +589,7 @@ def apply_organizational_changes(email_by_username, position_events, manager_eve
                     parts.append(_change_text('Job Title', event['previous_title'], event['current_title']))
                 changed += _flag(data, user, event['id'], '; '.join(parts), 'system')
             for event in sorted(managers.get(email, []), key=lambda e: (e['detected_at'], e['id'])):
-                if event['detected_at'] > since:
+                if event['detected_at'] >= since:
                     changed += _note_manager(data, user, event['id'], _change_text('Manager', event['previous_manager'], event['current_manager']), 'system', seen)
         if changed:
             write(data)

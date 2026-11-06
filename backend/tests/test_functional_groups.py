@@ -168,6 +168,37 @@ class Classification(Store):
         self.assertEqual(fg.public_user(fg.read(), 'U9')['status'], 'Unassigned')
 
 
+class CoarseClock(Store):
+    """Windows' wall clock can return the same value for events a few milliseconds apart. A genuine organizational change detected in the same
+    tick as a confirmation must still require review (the safe direction), and a change must never be lost to a tie."""
+    def test_change_in_the_same_clock_tick_as_the_confirmation_still_flags_review(self):
+        stamp = '2026-05-01T10:00:00.015000+00:00'
+        gid = self.group()
+        with patch.object(fg, 'now', return_value=stamp):
+            fg.classify('U1', gid, 'r', 0, 'rev')
+        event = dict(id='e1', key='u1@example.test', detected_at=stamp, fields=['department'], previous_department='Finance', current_department='Procurement',
+                     previous_title='', current_title='')
+        self.assertEqual(fg.apply_organizational_changes({'U1': 'u1@example.test'}, [event], []), 1)
+        self.assertEqual(fg.public_user(fg.read(), 'U1')['status'], 'Needs review')
+
+    def test_manager_change_in_the_same_tick_is_recorded_once(self):
+        stamp = '2026-05-01T10:00:00.015000+00:00'
+        gid = self.group()
+        with patch.object(fg, 'now', return_value=stamp):
+            fg.classify('U1', gid, 'r', 0, 'rev')
+        event = dict(id='m1', key='u1@example.test', detected_at=stamp, previous_manager='One', current_manager='Two')
+        self.assertEqual(fg.apply_organizational_changes({'U1': 'u1@example.test'}, [], [event]), 1)
+        self.assertEqual(fg.apply_organizational_changes({'U1': 'u1@example.test'}, [], [event]), 0)
+
+    def test_an_older_change_is_still_ignored(self):
+        gid = self.group()
+        with patch.object(fg, 'now', return_value='2026-05-01T10:00:00.500000+00:00'):
+            fg.classify('U1', gid, 'r', 0, 'rev')
+        event = dict(id='e0', key='u1@example.test', detected_at='2026-05-01T09:59:59.000000+00:00', fields=['title'], previous_department='', current_department='',
+                     previous_title='A', current_title='B')
+        self.assertEqual(fg.apply_organizational_changes({'U1': 'u1@example.test'}, [event], []), 0)
+
+
 class Migration(Store):
     """Format 1 (one group per user) is migrated without losing assignments, confirmation metadata, review state or history."""
 

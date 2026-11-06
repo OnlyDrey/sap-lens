@@ -67,8 +67,11 @@ class Discovery(unittest.TestCase):
     def test_probe_handles_paths_with_spaces(self):
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp) / 'Program Files' / 'Python 312'; folder.mkdir(parents=True)
-            script = folder / 'python.sh'
-            script.write_text('#!/bin/sh\necho \'["/x y/python", [3,12,10], 64, 1]\'\n'); script.chmod(script.stat().st_mode | stat.S_IEXEC)
+            if os.name == 'nt':          # a batch file stands in for the interpreter; the probe must be a single line for cmd.exe
+                script = folder / 'python.cmd'; script.write_text('@echo ["/x y/python", [3,12,10], 64, 1]\r\n')
+            else:
+                script = folder / 'python.sh'
+                script.write_text('#!/bin/sh\necho \'["/x y/python", [3,12,10], 64, 1]\'\n'); script.chmod(script.stat().st_mode | stat.S_IEXEC)
             result = env.probe_python(script)
         self.assertEqual((result['path'], result['version'], result['bits']), ('/x y/python', '3.12.10', 64))
 
@@ -138,6 +141,14 @@ class Dependencies(unittest.TestCase):
             (Path(tmp) / 'frontend/node_modules').mkdir(); (Path(tmp) / 'frontend/node_modules/.package-lock.json').write_text('{}')
             os.utime(Path(tmp) / 'frontend/node_modules/.package-lock.json', (9e9, 9e9))
             self.assertTrue(deps.frontend_current(Path(tmp)))
+
+
+    def test_probe_is_one_line_so_cmd_exe_cannot_truncate_it(self):
+        self.assertNotIn('\n', env.PROBE); self.assertNotIn('"', env.PROBE)
+
+    def test_probe_reports_this_interpreter(self):
+        result = env.probe_python(sys.executable)
+        self.assertEqual(result['version'].split('.')[:2], [str(sys.version_info[0]), str(sys.version_info[1])]); self.assertTrue(result['venv_module'])
 
 
 class Tools(unittest.TestCase):

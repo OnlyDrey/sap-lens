@@ -53,6 +53,10 @@ def _load():
     advapi32.GetSecurityDescriptorDacl.restype = wintypes.BOOL
     advapi32.SetNamedSecurityInfoW.argtypes = [wintypes.LPWSTR, ctypes.c_int, wintypes.DWORD, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
     advapi32.SetNamedSecurityInfoW.restype = wintypes.DWORD
+    advapi32.GetNamedSecurityInfoW.argtypes = [wintypes.LPCWSTR, ctypes.c_int, wintypes.DWORD, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)]
+    advapi32.GetNamedSecurityInfoW.restype = wintypes.DWORD
+    advapi32.ConvertSecurityDescriptorToStringSecurityDescriptorW.argtypes = [ctypes.c_void_p, wintypes.DWORD, wintypes.DWORD, ctypes.POINTER(wintypes.LPWSTR), ctypes.c_void_p]
+    advapi32.ConvertSecurityDescriptorToStringSecurityDescriptorW.restype = wintypes.BOOL
     return SimpleNamespace(advapi32=advapi32, kernel32=kernel32, last_error=ctypes.get_last_error)
 
 
@@ -102,9 +106,14 @@ def private_sddl(sid, inherit_children=False):
 def make_private(path, inherit_children=False, api=None):
     """Make a file or directory private to the effective user and SYSTEM (inheritance removed). In-process; raises WindowsIdentityError on failure."""
     api = api or _load()
-    sid = current_user_sid(api)
+    apply_sddl(path, private_sddl(current_user_sid(api), inherit_children), api)
+
+
+def apply_sddl(path, sddl, api=None):
+    """Replace the DACL of `path` with the one described by `sddl` (inheritance removed when the SDDL is protected)."""
+    api = api or _load()
     descriptor = ctypes.c_void_p()
-    if not api.advapi32.ConvertStringSecurityDescriptorToSecurityDescriptorW(private_sddl(sid, inherit_children), SDDL_REVISION_1, ctypes.byref(descriptor), None):
+    if not api.advapi32.ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl, SDDL_REVISION_1, ctypes.byref(descriptor), None):
         raise _fail(api, 'ConvertStringSecurityDescriptorToSecurityDescriptorW')
     try:
         present, defaulted, dacl = wintypes.BOOL(), wintypes.BOOL(), ctypes.c_void_p()
@@ -115,3 +124,52 @@ def make_private(path, inherit_children=False, api=None):
             raise WindowsIdentityError(f'SetNamedSecurityInfoW failed (Windows error {result}).')
     finally:
         api.kernel32.LocalFree(descriptor)
+
+
+#: Principals that stand for "other users" in SDDL: Everyone, Users, Authenticated Users, Interactive, Network, Anonymous, Guests.
+BROAD_PRINCIPALS = {'WD': 'Everyone', 'BU': 'Users', 'AU': 'Authenticated Users', 'IU': 'Interactive', 'NU': 'Network', 'AN': 'Anonymous', 'BG': 'Guests',
+                    'S-1-1-0': 'Everyone', 'S-1-5-32-545': 'Users', 'S-1-5-11': 'Authenticated Users', 'S-1-5-4': 'Interactive', 'S-1-5-2': 'Network',
+                    'S-1-5-7': 'Anonymous', 'S-1-5-32-546': 'Guests'}
+
+def _grants_content_access(rights):
+    if rights.lower().startswith('0x'):
+        return bool(int(rights, 16) & (0x1 | 0x2 | 0x4 | 0x10000000 | 0x80000000 | 0x40000000 | 0x1F01FF | 0x120089))
+    return any(code in ('GR', 'GW', 'GA', 'FR', 'FW', 'FA') for code in re.findall(r'[A-Z]{2}', rights))
+
+
+def broad_access(sddl):
+    """Names of broad principals (Everyone, Users, Authenticated Users, ...) that an SDDL DACL allows to read or change the file. Pure and testable."""
+    dacl = sddl.split('D:', 1)[1] if 'D:' in sddl else ''
+    dacl = dacl.split('S:', 1)[0]
+    found = []
+    for ace in re.findall(r'\(([^)]*)\)', dacl):
+        parts = ace.split(';')
+        if len(parts) < 6 or parts[0] != 'A':
+            continue                                                   # only ACCESS_ALLOWED entries grant; deny entries never widen access
+        name = BROAD_PRINCIPALS.get(parts[5].upper())
+        if name and _grants_content_access(parts[2]) and name not in found:
+            found.append(name)
+    return found
+
+
+def file_sddl(path, api=None):
+    api = api or _load()
+    descriptor = ctypes.c_void_p()
+    result = api.advapi32.GetNamedSecurityInfoW(str(path), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, None, None, None, None, ctypes.byref(descriptor))
+    if result:
+        raise WindowsIdentityError(f'GetNamedSecurityInfoW failed (Windows error {result}).')
+    try:
+        text = wintypes.LPWSTR()
+        if not api.advapi32.ConvertSecurityDescriptorToStringSecurityDescriptorW(descriptor, SDDL_REVISION_1, DACL_SECURITY_INFORMATION, ctypes.byref(text), None):
+            raise _fail(api, 'ConvertSecurityDescriptorToStringSecurityDescriptorW')
+        try:
+            return text.value
+        finally:
+            api.kernel32.LocalFree(text)
+    finally:
+        api.kernel32.LocalFree(descriptor)
+
+
+def exposed_to_other_users(path, api=None):
+    """Broad principals with access to `path` (empty list = not exposed through well-known broad groups). Raises WindowsIdentityError when the ACL cannot be read."""
+    return broad_access(file_sddl(path, api))

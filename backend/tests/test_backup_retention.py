@@ -14,6 +14,7 @@ import application_backups as backups
 import backup_retention as retention
 import backup_schedule
 import cache
+from links import symlink
 import config
 import data_retention
 import storage_migration
@@ -106,9 +107,9 @@ class Classification(Case):
     def test_links_are_never_followed(self):
         link_archive = self.backup(age=500, write_archive=False)
         target = Path(self.temp.name) / 'outside.bin'; target.write_bytes(b'precious')
-        os.symlink(target, self.area / link_archive / 'backup.tar.gz')
+        symlink(target, self.area / link_archive / 'backup.tar.gz')
         link_folder = Path(self.temp.name) / 'elsewhere'; (link_folder).mkdir()
-        os.symlink(link_folder, self.area / ('e' * 32))
+        symlink(link_folder, self.area / ('e' * 32), directory=True)
         self.assertEqual(self.eligible(), set())
         self.assertEqual(self.reasons()[link_archive], 'Archive is not a regular file')
         self.approve()

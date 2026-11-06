@@ -78,7 +78,7 @@ class BackupTests(unittest.TestCase):
     def test_failed_activation_rolls_back_and_retains_automatic_backup(self):
         result=self.confirm();original=os.replace
         def fail(source,target):
-            if Path(source).name=='saved-filters.json' and '/stage/data/' in str(source): raise OSError('synthetic failure')
+            if Path(source).name=='saved-filters.json' and '/stage/data/' in Path(source).as_posix(): raise OSError('synthetic failure')
             return original(source,target)
         with patch.object(backups.os,'replace',side_effect=fail): self.activate()
         self.assertEqual(backups.read(self.data)['status'],'failed')
@@ -346,7 +346,7 @@ class BackupTests(unittest.TestCase):
     def test_failed_rollback_blocks_startup_and_can_recover_on_next_start(self):
         result=self.confirm();original=os.replace
         def fail(source,target):
-            if Path(source).name=='saved-filters.json' and '/stage/data/' in str(source) or '/old/' in str(source): raise OSError('synthetic failure')
+            if Path(source).name=='saved-filters.json' and '/stage/data/' in Path(source).as_posix() or '/old/' in Path(source).as_posix(): raise OSError('synthetic failure')
             return original(source,target)
         with patch.object(backups.os,'replace',side_effect=fail),self.assertRaises(RuntimeError): self.activate()
         self.assertTrue((backups.path_for(result['id'],self.data)/'journal.json').exists())
