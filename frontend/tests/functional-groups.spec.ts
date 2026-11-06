@@ -39,10 +39,25 @@ test('Settings administers groups and advisory rules', async ({ page }) => {
   await expect(page.getByRole('alert')).toContainText('already exists')
   await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click()
 
-  await section.getByLabel('Rule Directory Department').fill('Supply Chain')
-  await section.getByLabel('Rule target Functional Group').selectOption({ label: name })
-  await section.getByRole('button', { name: 'Add rule' }).click()
-  await expect(section.getByRole('row').filter({ hasText: 'Supply Chain' })).toContainText(name)
+  // Suggestion rules are a compact table with a New rule action, not a permanent form.
+  await expect(section.getByLabel('Rule Directory Department')).toHaveCount(0)
+  await section.getByRole('button', { name: 'New rule' }).click()
+  const ruleDialog = page.getByRole('dialog', { name: 'New suggestion rule' })
+  await expect(ruleDialog.getByRole('button', { name: 'Create rule' })).toBeDisabled()        // a condition and a group are required
+  await ruleDialog.getByLabel('Directory Department contains').fill('Supply Chain')
+  await ruleDialog.getByLabel('Suggested Functional Group').selectOption({ label: name })
+  await ruleDialog.getByRole('button', { name: 'Create rule' }).click()
+  const rules = section.getByRole('table', { name: 'Functional Group suggestion rules' })
+  await expect(rules.getByRole('row').filter({ hasText: name })).toContainText(name)
+  await expect(rules.getByRole('columnheader', { name: 'Directory Department contains' })).toBeVisible()
+  await expect(rules.getByRole('columnheader', { name: 'Matching users' })).toBeVisible()
+  await rules.getByRole('button', { name: `Edit rule suggesting ${name}` }).click()
+  await page.getByRole('dialog', { name: 'Edit suggestion rule' }).getByLabel('Job Title contains').fill('Buyer')
+  await page.getByRole('dialog', { name: 'Edit suggestion rule' }).getByRole('button', { name: 'Save rule' }).click()
+  await expect(rules.getByRole('row').filter({ hasText: name })).toContainText('Buyer')
+  await rules.getByRole('button', { name: `Delete rule suggesting ${name}` }).click()
+  await page.getByRole('dialog', { name: 'Delete suggestion rule' }).getByRole('button', { name: 'Delete rule' }).click()
+  await expect(rules.getByRole('row').filter({ hasText: name })).toHaveCount(0)
 
   await row.getByRole('button', { name: `Archive ${name}` }).click()
   await expect(row).toContainText('Archived')
@@ -60,12 +75,12 @@ test('User Details classifies a user explicitly and keeps it separate from impor
   const panel = page.getByRole('region', { name: 'Functional Group', exact: true })
   await expect(panel).toContainText('Unassigned')
   await panel.getByRole('button', { name: 'Assign group' }).click()
-  const dialog = page.getByRole('dialog', { name: 'Functional Group for DEMO_FG' })
-  await expect(dialog.getByRole('button', { name: 'Select a group' })).toBeDisabled() // nothing is preselected
-  await dialog.getByRole('combobox', { name: 'Functional Group' }).fill(name)
-  await page.getByRole('option', { name }).click()
+  const dialog = page.getByRole('dialog', { name: 'Functional Groups for DEMO_FG' })
+  await expect(dialog.getByRole('button', { name: 'Add groups' })).toBeDisabled() // nothing is preselected
+  await dialog.getByRole('combobox', { name: 'Search or create a Functional Group' }).fill(name)
+  await dialog.getByRole('option', { name }).click()
   await dialog.getByLabel('Reviewer').fill('Reviewer One')
-  await dialog.getByRole('button', { name: 'Assign group' }).click()
+  await dialog.getByRole('button', { name: 'Add 1 group' }).click()
   await expect(panel).toContainText(name)
   await expect(panel).toContainText('Confirmed')
   await expect(panel).toContainText('Reviewer One')
@@ -78,7 +93,7 @@ test('Functional Groups settings fit 375 px without horizontal scroll', async ({
   await page.setViewportSize({ width: 375, height: 800 })
   await openSettings(page, 'Functional Groups')
   await expect(page.getByRole('region', { name: 'Functional Groups', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Add rule' })).toBeVisible() // data has loaded
+  await expect(page.getByRole('button', { name: 'New rule' })).toBeVisible() // data has loaded
   const wide = await page.evaluate(() => [...document.querySelectorAll('body *')].filter(e => !e.closest('.access-table table') && e.getBoundingClientRect().right > window.innerWidth + 1).slice(0, 6).map(e => e.tagName + '.' + String(e.className).slice(0, 80) + ':' + Math.round(e.getBoundingClientRect().right)))
   expect(wide).toEqual([])
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
@@ -108,14 +123,16 @@ test('a Department change requires explicit Functional Group reconfirmation in A
   const dialog = page.getByRole('dialog', { name: 'Review account · DEMO_FG' })
   const section = dialog.getByRole('region', { name: 'Functional Group review' })
   await expect(section).toContainText('Procurement')
-  await section.getByRole('button', { name: 'Review Functional Group' }).click()
-  await expect(section.getByRole('button', { name: 'Confirm current group' })).toBeEnabled({ enabled: false }).catch(() => undefined)
-  await section.getByLabel('Reviewer', { exact: true }).fill('Reviewer Two')
-  await section.getByRole('button', { name: 'Confirm current group' }).click()
+  await section.getByRole('button', { name: 'Review Functional Groups' }).click()
+  const manage = page.getByRole('dialog', { name: 'Functional Groups for DEMO_FG' })
+  await expect(manage.getByRole('button', { name: `Confirm ${name}` })).toBeDisabled()              // a reviewer is required first
+  await manage.getByLabel('Reviewer', { exact: true }).fill('Reviewer Two')
+  await manage.getByRole('button', { name: `Confirm ${name}` }).click()
   await expect(section).toContainText('Confirmed')
   const detail = await (await request.get('/api/functional-groups/users/DEMO_FG', { headers })).json()
   expect(detail.classification.status).toBe('Confirmed')
   expect(detail.classification.group_id).toBe(group)
+  expect(detail.classification.memberships[0].confirmed_by).toBe('Reviewer Two')
 })
 
 test('Account Review filters by Functional Group and Manager', async ({ page, request }) => {
@@ -154,6 +171,7 @@ test('Access analysis is advisory, shows limitations for a small group and links
   await section.getByLabel('Search Functional Groups').fill(name)
   await section.getByRole('button', { name: `Analyze access of ${name}` }).click()
   const dialog = page.getByRole('dialog', { name: `Access analysis · ${name}` })
+  await dialog.getByText('About this analysis').click()
   await expect(dialog).toContainText('Advisory only')
   await expect(dialog).toContainText('at least 3')                       // too small to compare: a limitation, not a conclusion
   await expect(dialog.getByRole('link', { name: 'Open SAP user DEMO_FG' })).toBeVisible()
@@ -172,8 +190,8 @@ for (const scheme of ['light', 'dark'] as const) {
     await page.goto('/#/user-access/user/DEMO_FG')
     const panel = page.getByRole('region', { name: 'Functional Group', exact: true })
     await expect(panel).toBeVisible()
-    await panel.getByRole('button', { name: /Assign group|Change group|Assign \/ Confirm/ }).click()
-    const dialog = page.getByRole('dialog', { name: 'Functional Group for DEMO_FG' })
+    await panel.getByRole('button', { name: /Assign group|Add group/ }).click()
+    const dialog = page.getByRole('dialog', { name: 'Functional Groups for DEMO_FG' })
     await expect(dialog).toBeVisible()
     const box = (await dialog.boundingBox())!
     expect(box.x).toBeGreaterThanOrEqual(0); expect(box.x + box.width).toBeLessThanOrEqual(375)

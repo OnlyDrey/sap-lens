@@ -1,4 +1,5 @@
 import { BulkAssignDialog } from './BulkAssignDialog'
+import { membershipNames } from '@/lib/functionalGroupText'
 import {SAPUserLink} from '@/components/Shared/SAPUserLink'
 import {ExportCSVButton} from '@/components/Shared/ExportCSVButton'
 import { ASSIGNMENT_BANDS, LEGACY_ASSIGNMENT_BANDS } from '@/lib/assignmentBands'
@@ -329,7 +330,7 @@ export function UserAccess({
                       <SAPUserLink username={user.username} copyLabel="username" onOpen={()=>openUser(user.username)} openLabel={user.username}/>
                     </td>
                     <td className="ud-cell" data-col="name"><span className="ud-ellipsis" title={full||undefined}>{full||"—"}</span></td>
-                    <td className="ud-cell" data-col="fg">{user.functional_group?.name ? <span className="ud-ellipsis" title={user.functional_group.name}>{user.functional_group.name}</span> : <span className="text-muted">Unassigned</span>}{user.classification_status === "Needs review" && <> <ClassificationPill status="Needs review"/></>}</td>
+                    <td className="ud-cell" data-col="fg">{user.functional_groups?.length ? <span className="ud-ellipsis" title={membershipNames(user.functional_groups)}>{membershipNames(user.functional_groups)}</span> : <span className="text-muted">Unassigned</span>}{user.classification_status === "Needs review" && <> <ClassificationPill status="Needs review"/></>}</td>
                     <td className="ud-cell" data-col="group"><span className="ud-ellipsis" title={group}>{group}</span></td>
                     <td className="ud-cell" data-col="email"><span className="ud-ellipsis" title={user.email||undefined}>{user.email || "—"}</span></td>
                     <td aria-label="Account validity">

@@ -124,6 +124,7 @@ def rows(state, directory, saved, groups, today=None, position=None, managers=No
                                                previous_manager_email=mgr_event['previous_manager_email'], current_manager_email=mgr_event['current_manager_email'],
                                                detected_at=mgr_event['detected_at']) if mgr_event else None,
                            functional_group=classified['group'] if classified else None,
+                           functional_groups=[m['group'] for m in classified['memberships']] if classified else [],
                            classification=dict(status=classified['status'], revision=classified['revision'], review=classified['review'], confirmed_at=classified['confirmed_at']) if classified else dict(status='Unassigned', revision=0, review=None, confirmed_at=None),
                            classification_review=classification_review,
                            priority='High' if open_change else 'Normal' if needs else 'None', priority_order=0 if open_change else 1 if needs else 2))

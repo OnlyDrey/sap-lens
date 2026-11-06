@@ -59,58 +59,105 @@ class Catalogue(Store):
 
 
 class Classification(Store):
-    def test_assign_change_confirm_remove_write_append_only_history(self):
+    def test_assign_confirm_remove_write_append_only_history_per_membership(self):
         a, b = self.group('A'), self.group('B')
-        self.assertEqual(fg.classify('U1', a, 'start', 0, 'rev')['revision'], 1)
-        fg.classify('U1', b, 'moved', 1, 'rev2')
-        fg.classify('U1', b, 'checked', 2, 'rev')
-        fg.classify('U1', None, 'left the function', 3, 'rev')
-        events = [e['event'] for e in reversed(fg.user_history('u1')['items'])]
-        self.assertEqual(events, ['assigned', 'changed', 'confirmed', 'removed'])
-        changed = fg.user_history('U1')['items'][2]
-        self.assertEqual((changed['previous_group'], changed['new_group'], changed['actor'], changed['reason']), (a, b, 'rev2', 'moved'))
-        self.assertEqual(fg.public_user(fg.read(), 'U1')['status'], 'Unassigned')
+        user, outcome = fg.add_membership('U1', a, 'start', 0, 'rev')
+        self.assertEqual((user['revision'], outcome), (1, 'added'))
+        fg.add_membership('U1', b, 'second function', 1, 'rev2')
+        fg.remove_membership('U1', a, 'left the function', 2, 'rev')
+        events = [(e['event'], e['previous_group'], e['new_group']) for e in reversed(fg.user_history('u1')['items'])]
+        self.assertEqual(events, [('assigned', None, a), ('assigned', None, b), ('removed', a, None)])
+        state = fg.public_user(fg.read(), 'U1')
+        self.assertEqual([m['group_id'] for m in state['memberships']], [b])
+        self.assertEqual(fg.user_history('U1')['items'][1]['actor'], 'rev2')
 
-    def test_identity_is_case_insensitive_and_one_group_per_user(self):
+    def test_a_user_holds_several_groups_and_a_group_holds_several_users(self):
+        a, b, c = self.group('A'), self.group('B'), self.group('C')
+        fg.add_membership('U1', a, '', 0, 'r')
+        fg.add_membership('U1', b, '', 1, 'r')
+        fg.add_membership('U2', b, '', 0, 'r')
+        data = fg.read()
+        self.assertEqual(sorted(fg.public_user(data, 'U1')['group_ids']), sorted([a, b]))
+        self.assertEqual(fg.counts(data), {a: 1, b: 2})
+        self.assertEqual({g['id']: g['user_count'] for g in fg.list_groups()}[c], 0)
+        unique_users = len({k for k, u in data['users'].items() if u['memberships']})
+        self.assertEqual(unique_users, 2)  # two users, three memberships: aggregates must count users once
+        single = fg.public_user(data, 'U2')
+        self.assertEqual((single['group_id'], len(fg.public_user(data, 'U1')['memberships'])), (b, 2))
+        self.assertIsNone(fg.public_user(data, 'U1')['group_id'])  # legacy singular field only when exactly one membership
+
+    def test_adding_an_existing_membership_is_an_idempotent_noop_and_never_duplicates(self):
+        a = self.group('A')
+        fg.add_membership('U1', a, 'x', 0, 'r')
+        before = json.dumps(fg.read(), sort_keys=True)
+        user, outcome = fg.add_membership('U1', a, 'again', 1, 'r')
+        self.assertEqual((outcome, user['revision'], len(user['memberships'])), ('unchanged', 1, 1))
+        self.assertEqual(json.dumps(fg.read(), sort_keys=True), before)
+
+    def test_removing_one_membership_keeps_the_others_and_their_confirmation(self):
         a, b = self.group('A'), self.group('B')
-        fg.classify('abc', a, '', 0, 'rev')
-        fg.classify('ABC', b, '', 1, 'rev')
+        fg.add_membership('U1', a, '', 0, 'first')
+        fg.add_membership('U1', b, '', 1, 'second')
+        kept = next(m for m in fg.public_user(fg.read(), 'U1')['memberships'] if m['group_id'] == b)
+        fg.remove_membership('U1', a, 'no longer', 2, 'third')
+        after = fg.public_user(fg.read(), 'U1')
+        self.assertEqual([m['group_id'] for m in after['memberships']], [b])
+        self.assertEqual((after['memberships'][0]['confirmed_by'], after['memberships'][0]['confirmed_at']), (kept['confirmed_by'], kept['confirmed_at']))
+        with self.assertRaises(HTTPException):
+            fg.remove_membership('U1', a, 'twice', 3, 'third')  # no longer a member
+
+    def test_identity_is_case_insensitive_and_memberships_accumulate(self):
+        a, b = self.group('A'), self.group('B')
+        fg.add_membership('abc', a, '', 0, 'rev')
+        fg.add_membership('ABC', b, '', 1, 'rev')
         data = fg.read()
         self.assertEqual(len(data['users']), 1)
-        self.assertEqual(fg.public_user(data, 'Abc')['group_id'], b)
+        self.assertEqual(len(fg.public_user(data, 'Abc')['memberships']), 2)
 
     def test_stale_revision_never_overwrites(self):
         a, b = self.group('A'), self.group('B')
-        fg.classify('U1', a, '', 0, 'rev')
+        fg.add_membership('U1', a, '', 0, 'rev')
         with self.assertRaises(HTTPException) as caught:
-            fg.classify('U1', b, '', 0, 'other')
+            fg.add_membership('U1', b, '', 0, 'other')
         self.assertEqual(caught.exception.status_code, 409)
         self.assertEqual(fg.public_user(fg.read(), 'U1')['group_id'], a)
 
     def test_unknown_group_and_clearing_nothing_are_refused(self):
         with self.assertRaises(HTTPException):
-            fg.classify('U1', 'fg_000000000000', '', 0, 'rev')
+            fg.add_membership('U1', 'fg_000000000000', '', 0, 'rev')
         with self.assertRaises(HTTPException):
             fg.classify('U1', None, 'x', 0, 'rev')
 
-    def test_review_flag_keeps_group_and_is_idempotent_per_change(self):
-        gid = self.group()
-        self.assertFalse(fg.flag_for_review('U1', 'c1', 'Department changed'))  # no classification: nothing to reconfirm
-        fg.classify('U1', gid, '', 0, 'rev')
+    def test_legacy_single_group_operation_replaces_with_history_for_each_step(self):
+        a, b = self.group('A'), self.group('B')
+        fg.classify('U1', a, '', 0, 'r')
+        fg.classify('U1', b, 'moved', 1, 'r')
+        self.assertEqual(fg.public_user(fg.read(), 'U1')['group_ids'], [b])
+        self.assertEqual([e['event'] for e in reversed(fg.user_history('U1')['items'])], ['assigned', 'removed', 'assigned'])
+        fg.classify('U1', None, 'left', 2, 'r')
+        self.assertEqual(fg.public_user(fg.read(), 'U1')['status'], 'Unassigned')
+
+    def test_review_flag_marks_every_membership_and_each_is_reconfirmed_on_its_own(self):
+        a, b = self.group('A'), self.group('B')
+        self.assertFalse(fg.flag_for_review('U1', 'c1', 'Department changed'))  # nothing to reconfirm
+        fg.add_membership('U1', a, '', 0, 'rev')
+        fg.add_membership('U1', b, '', 1, 'rev')
         self.assertTrue(fg.flag_for_review('U1', 'c1', 'Department changed'))
         self.assertFalse(fg.flag_for_review('U1', 'c1', 'Department changed'))
         state = fg.public_user(fg.read(), 'U1')
-        self.assertEqual((state['status'], state['group_id'], state['review']['change_id']), ('Needs review', gid, 'c1'))
-        done = fg.classify('U1', gid, 'still purchasing', state['revision'], 'rev', 'c1')
-        self.assertEqual((done['status'], done['review']), ('Confirmed', None))
-        self.assertFalse(fg.flag_for_review('U1', 'c1', 'Department changed'))  # same import again does not reset
-        self.assertTrue(fg.flag_for_review('U1', 'c2', 'Title changed'))
+        self.assertEqual((state['status'], sorted(m['status'] for m in state['memberships'])), ('Needs review', ['Needs review', 'Needs review']))
+        done, outcome = fg.add_membership('U1', a, 'still purchasing', state['revision'], 'rev', 'c1')
+        self.assertEqual(outcome, 'reconfirmed')
+        self.assertEqual({m['group_id']: m['status'] for m in done['memberships']}, {a: 'Confirmed', b: 'Needs review'})
+        self.assertEqual(done['status'], 'Needs review')  # one membership still needs its review
+        self.assertFalse(fg.flag_for_review('U1', 'c1', 'Department changed'))
+        self.assertTrue(fg.flag_for_review('U1', 'c2', 'Title changed'))  # only the Confirmed membership is flagged again
         events = [e['event'] for e in reversed(fg.user_history('U1')['items'])]
-        self.assertEqual(events, ['assigned', 'review_required', 'reconfirmed', 'review_required'])
+        self.assertEqual(events, ['assigned', 'assigned', 'review_required', 'review_required', 'reconfirmed', 'review_required'])
 
     def test_manager_change_is_signal_only(self):
         gid = self.group()
-        fg.classify('U1', gid, '', 0, 'rev')
+        fg.add_membership('U1', gid, '', 0, 'rev')
         self.assertTrue(fg.note_manager_change('U1', 'm1', 'Manager changed'))
         self.assertFalse(fg.note_manager_change('U1', 'm1', 'Manager changed'))
         state = fg.public_user(fg.read(), 'U1')
@@ -121,28 +168,81 @@ class Classification(Store):
         self.assertEqual(fg.public_user(fg.read(), 'U9')['status'], 'Unassigned')
 
 
+class Migration(Store):
+    """Format 1 (one group per user) is migrated without losing assignments, confirmation metadata, review state or history."""
+
+    def legacy(self):
+        gid = self.group('Legacy')
+        stamp = fg.now()
+        data = fg.read()
+        data.update(format=1)
+        data['users'] = {
+            fg.user_key('U1'): dict(username='U1', group_id=gid, status='Confirmed', revision=3, confirmed_at=stamp, confirmed_by='Old Reviewer', rationale='r', updated_at=stamp, review=None, handled=['c0']),
+            fg.user_key('U2'): dict(username='U2', group_id=gid, status='Needs review', revision=2, confirmed_at=stamp, confirmed_by='Rev', rationale='', updated_at=stamp,
+                                   review=dict(change_id='c1', reason='Department changed', required_since=stamp), handled=[]),
+            fg.user_key('U3'): dict(username='U3', group_id=None, status='Unassigned', revision=1, confirmed_at=None, confirmed_by='', rationale='none applies', updated_at=stamp, review=None, handled=['c9']),
+        }
+        data['history'] = [dict(id='a' * 32, event='assigned', user_key=fg.user_key('U1'), username='U1', previous_group=None, new_group=gid, previous_status='Unassigned',
+                                new_status='Confirmed', actor='Old Reviewer', timestamp=stamp, reason='r', change_id='')]
+        data['rules'] = [dict(id='fr_' + 'a' * 12, group_id=gid, department='Supply Chain', title_contains='', created=stamp)]
+        return gid, data
+
+    def test_every_assignment_becomes_one_membership_with_its_metadata(self):
+        gid, data = self.legacy()
+        migrated = fg.validate_storage(data)
+        self.assertEqual(migrated['format'], fg.FORMAT)
+        u1 = migrated['users'][fg.user_key('U1')]
+        self.assertEqual((u1['revision'], u1['handled'], u1['memberships'][gid]['confirmed_by'], u1['memberships'][gid]['status']), (3, ['c0'], 'Old Reviewer', 'Confirmed'))
+        self.assertEqual(migrated['users'][fg.user_key('U2')]['memberships'][gid]['review']['change_id'], 'c1')
+        u3 = migrated['users'][fg.user_key('U3')]
+        self.assertEqual((u3['memberships'], u3['revision'], u3['handled']), ({}, 1, ['c9']))
+        self.assertEqual(migrated['history'], data['history'])
+
+    def test_a_legacy_file_is_read_migrated_and_preserved_once_before_it_is_replaced(self):
+        gid, data = self.legacy()
+        path = Path(self.directory.name) / fg.FILE
+        path.write_text(json.dumps(data))
+        state = fg.public_user(fg.read(), 'U1')
+        self.assertEqual((state['group_id'], state['revision']), (gid, 3))
+        copy = path.with_name(path.name + '.format1.bak')
+        self.assertEqual(json.loads(copy.read_text())['format'], 1)
+        fg.add_membership('U3', gid, '', 1, 'r')  # first write persists format 2
+        self.assertEqual(json.loads(path.read_text())['format'], fg.FORMAT)
+        self.assertEqual(json.loads(copy.read_text())['format'], 1)
+        self.assertEqual(len({k for k, u in fg.read()['users'].items() if gid in u['memberships']}), 3)
+
+    def test_legacy_rules_keep_exact_department_matching(self):
+        gid, data = self.legacy()
+        rule = fg.validate_storage(data)['rules'][0]
+        self.assertEqual(rule['department_mode'], 'equals')
+        self.assertIsNotNone(fg.rule_matches(rule, 'supply chain', ''))
+        self.assertIsNone(fg.rule_matches(rule, 'Supply Chain Planning', ''))  # not silently broadened
+
+
 class Persistence(Store):
     def test_round_trip_and_validation(self):
         gid = self.group()
-        fg.classify('U1', gid, 'r', 0, 'rev')
+        fg.add_membership('U1', gid, 'r', 0, 'rev')
         reread = json.loads((Path(self.directory.name) / fg.FILE).read_text())
-        self.assertEqual(fg.validate_storage(reread)['users'][fg.user_key('U1')]['group_id'], gid)
+        self.assertIn(gid, fg.validate_storage(reread)['users'][fg.user_key('U1')]['memberships'])
 
     def test_validation_rejects_contradictions_and_broken_references(self):
         gid = self.group()
-        fg.classify('U1', gid, '', 0, 'rev')
+        fg.add_membership('U1', gid, '', 0, 'rev')
         base = json.loads((Path(self.directory.name) / fg.FILE).read_text())
         key = fg.user_key('U1')
         def broken(change):
             data = json.loads(json.dumps(base)); change(data)
             with self.assertRaises(ValueError):
                 fg.validate_storage(data)
-        broken(lambda d: d['users'][key].update(group_id='fg_ffffffffffff'))
-        broken(lambda d: d['users'][key].update(status='Unassigned'))
-        broken(lambda d: d['users'][key].update(status='Needs review'))
+        broken(lambda d: d['users'][key]['memberships'].update({'fg_ffffffffffff': d['users'][key]['memberships'][gid]}))
+        broken(lambda d: d['users'][key]['memberships'][gid].update(status='Unassigned'))
+        broken(lambda d: d['users'][key]['memberships'][gid].update(status='Needs review'))  # needs a review record
+        broken(lambda d: d['users'][key]['memberships'][gid].update(review=dict(change_id='c')))  # a review record needs the status
         broken(lambda d: d['users'][key].update(revision=0))
         broken(lambda d: d['history'][0].update(new_group='fg_ffffffffffff'))
-        broken(lambda d: d.update(format=2))
+        broken(lambda d: d.update(format=3))
+        broken(lambda d: d['rules'].append(dict(id='fr_aaaaaaaaaaaa', group_id=gid, department='', title_contains='')))
         broken(lambda d: d['groups'].update({'fg_aaaaaaaaaaaa': dict(d['groups'][gid], id='fg_aaaaaaaaaaaa', name=' PURCHASING ')}))
 
     def test_corrupt_file_is_retained_and_reported(self):
@@ -157,15 +257,18 @@ class Persistence(Store):
         self.assertEqual(fg.read(), fg.empty())
         self.assertFalse((Path(self.directory.name) / fg.FILE).exists())
 
-    def test_backup_validation_hook(self):
+    def test_backup_validation_hook_and_restore_of_multiple_memberships(self):
         import application_backups as backups
         import maintenance as engine
-        gid = self.group()
-        fg.classify('U1', gid, '', 0, 'rev')
+        a, b = self.group('A'), self.group('B')
+        fg.add_membership('U1', a, '', 0, 'rev')
+        fg.add_membership('U1', b, '', 1, 'rev')
         root = Path(self.directory.name)
         backups.validate_store(root)  # valid store passes
+        restored = fg.validate_storage(json.loads((root / fg.FILE).read_text()))
+        self.assertEqual(sorted(restored['users'][fg.user_key('U1')]['memberships']), sorted([a, b]))
         data = json.loads((root / fg.FILE).read_text())
-        data['users'][fg.user_key('U1')]['group_id'] = 'fg_ffffffffffff'
+        data['users'][fg.user_key('U1')]['memberships']['fg_ffffffffffff'] = data['users'][fg.user_key('U1')]['memberships'][a]
         (root / fg.FILE).write_text(json.dumps(data))
         with self.assertRaises(engine.MaintenanceError):
             backups.validate_store(root)
@@ -199,6 +302,20 @@ class AccessAnalysis(unittest.TestCase):
         self.assertEqual(roles['Z_PO']['users'], 6)
         self.assertEqual([(u['username'], u['additional_roles']) for u in result['users'] if u['additional_roles']], [('U5', ['Z_PAY'])])
         self.assertEqual((result['deviations'], result['eligible'], result['distinct_roles']), (1, 6, 3))
+
+    def test_drilldown_lists_exactly_the_compared_holders_under_the_same_rules(self):
+        base = [('Z_BUY', '20000101', '99991231')]
+        spec = {f'U{i}': list(base) for i in range(5)}
+        spec['U5'] = base + [('Z_PAY', '20000101', '99991231'), ('Z_OLD', '20000101', '20010101')]
+        result = self.run_analysis(spec, members=[*spec, 'GHOST'])
+        roles = {r['role']: r for r in result['roles']}
+        self.assertEqual(roles['Z_PAY']['holders'], ['U5'])                                  # the expired role has no holder row at all
+        self.assertEqual(roles['Z_BUY']['holders'], [f'U{i}' for i in range(6)])
+        self.assertEqual([c['username'] for c in result['compared']], [f'U{i}' for i in range(6)])   # the same 6 users used for every frequency
+        self.assertEqual(result['eligible'], len(result['compared']))
+        self.assertNotIn('GHOST', [c['username'] for c in result['compared']])             # a member without a SAP record is never invented into the population
+        self.assertEqual(result['not_in_import'], ['GHOST'])
+        self.assertTrue(all(len(r['holders']) == r['users'] for r in result['roles']))
 
     def test_missing_common_roles_and_deterministic_order(self):
         full = [('A', '20000101', '99991231'), ('B', '20000101', '99991231')]
@@ -234,16 +351,36 @@ class AccessAnalysis(unittest.TestCase):
 
 
 class Suggestions(Store):
-    def test_rules_match_explain_and_report_ambiguity(self):
+    def test_rules_match_by_contains_explain_and_consolidate_per_group(self):
         buy, plan = self.group('Purchasing'), self.group('Planning')
         fg.add_rule(buy, department='Supply Chain', title_contains='Purchaser')
+        fg.add_rule(buy, title_contains='buyer')
         fg.add_rule(plan, title_contains='planner')
-        result = fg.suggest('supply  chain', 'Senior PURCHASER')
-        self.assertEqual((result['status'], result['matches'][0]['group_name']), ('suggested', 'Purchasing'))
-        self.assertEqual(result['matches'][0]['reasons'], ['Directory Department = Supply Chain', 'Job Title contains Purchaser'])
-        self.assertEqual(fg.suggest('Supply Chain', 'Buyer')['status'], 'none')  # department alone does not satisfy a combined rule
-        both = fg.suggest('Supply Chain', 'Purchaser and Planner')
-        self.assertEqual((both['status'], len(both['matches'])), ('ambiguous', 2))
+        result = fg.suggest('Global supply  chain operations', 'Senior PURCHASER and Buyer')
+        self.assertEqual(result['status'], 'suggested')
+        self.assertEqual([g['group_name'] for g in result['groups']], ['Purchasing'])  # two rules, one consolidated group
+        self.assertEqual(result['groups'][0]['reasons'], ['Directory Department contains Supply Chain', 'Job Title contains Purchaser', 'Job Title contains buyer'])
+        self.assertEqual(len(result['matches']), 2)
+        self.assertEqual(fg.suggest('Supply Chain', 'Buyer')['groups'][0]['group_name'], 'Purchasing')  # the title-only rule applies
+
+    def test_and_semantics_and_missing_directory_attributes(self):
+        gid = self.group()
+        rule = fg.add_rule(gid, department='Supply', title_contains='Purchaser')
+        self.assertIsNone(fg.rule_matches(rule, 'Supply Chain', 'Buyer'))  # both conditions are required
+        self.assertIsNone(fg.rule_matches(rule, 'Finance', 'Purchaser'))
+        self.assertIsNone(fg.rule_matches(rule, '', 'Purchaser'))  # an empty attribute never satisfies a stated condition
+        self.assertIsNone(fg.rule_matches(rule, None, None))
+        self.assertIsNotNone(fg.rule_matches(rule, 'SUPPLY chain', 'purchaser'))
+        title_only = fg.add_rule(gid, title_contains='x')
+        self.assertIsNotNone(fg.rule_matches(title_only, '', 'xy'))  # unstated conditions are not required
+
+    def test_multiple_groups_are_all_suggested_and_held_groups_are_marked(self):
+        buy, plan = self.group('Purchasing'), self.group('Planning')
+        fg.add_rule(buy, department='Supply')
+        fg.add_rule(plan, title_contains='planner')
+        result = fg.suggest('Supply Chain', 'Planner', None, held=[buy])
+        self.assertEqual({g['group_name']: g['already_member'] for g in result['groups']}, {'Purchasing': True, 'Planning': False})
+        self.assertEqual(result['status'], 'suggested')
 
     def test_archived_groups_and_empty_conditions_are_not_suggested(self):
         gid = self.group()
@@ -255,6 +392,17 @@ class Suggestions(Store):
         self.assertEqual(fg.suggest('Buying', '')['status'], 'suggested')
         fg.set_group_status(gid, 'archived')
         self.assertEqual(fg.suggest('Buying', '')['status'], 'none')
+
+    def test_update_rule_changes_conditions_and_converts_a_legacy_rule(self):
+        gid = self.group()
+        rule = fg.add_rule(gid, department='Buying', department_mode='equals')
+        self.assertIsNone(fg.rule_matches(rule, 'Global Buying', ''))
+        updated = fg.update_rule(rule['id'], gid, 'Buying', '', 'contains')
+        self.assertIsNotNone(fg.rule_matches(updated, 'Global Buying', ''))
+        with self.assertRaises(HTTPException):
+            fg.update_rule(rule['id'], gid, '', '', 'contains')
+        with self.assertRaises(HTTPException):
+            fg.update_rule('fr_000000000000', gid, 'x', '', 'contains')
 
     def test_delete_rule(self):
         gid = self.group()
@@ -433,8 +581,107 @@ class Api(unittest.TestCase):
     def test_rules_over_http(self):
         gid = self.call('POST', '', json=dict(name='Finance')).json()['id']
         rule = self.call('POST', '/rules', json=dict(group_id=gid, department='Finance')).json()
+        self.assertEqual(rule['department_mode'], 'contains')
         self.assertEqual(self.call('GET', '/rules').json()['items'][0]['group_name'], 'Finance')
+        self.assertEqual(self.call('POST', '/rules', json=dict(group_id=gid, department='')).status_code, 422)   # a condition is required
+        updated = self.call('PUT', f'/rules/{rule["id"]}', json=dict(group_id=gid, department='Fin', title_contains='Acc', department_mode='equals'))
+        self.assertEqual((updated.status_code, updated.json()['department_mode']), (200, 'equals'))
         self.assertEqual(self.call('DELETE', f'/rules/{rule["id"]}').status_code, 200)
+
+    def directory_with_departments(self):
+        import csv as csvlib
+        import cache as cachelib
+        import employee_directory as store
+        rows = {'NORMAL': ('Global Supply Chain Operations', 'Senior Purchaser'), 'LOCKED': ('Supply Chain Planning', 'Planner'), 'OPEN': ('Finance', 'Accountant')}
+        with self.directory.open('w', encoding='utf-8', newline='') as handle:
+            writer = csvlib.DictWriter(handle, fieldnames=self.base.HEADERS, delimiter=';'); writer.writeheader()
+            for name, (department, title) in rows.items():
+                writer.writerow(dict(Name='Demo ' + name, Mail=name.lower() + '@example.test', Enabled='true', Department=department, Title=title))
+            writer.writerow(dict(Name='Stranger', Mail='stranger@example.test', Enabled='true', Department='Supply Chain', Title='Buyer'))  # Directory only: no SAP user
+        store.clear() if hasattr(store, 'clear') else None
+        self.base.store.clear(); cachelib.load_cache()
+
+    def test_rule_match_counts_preview_and_selection_distinguish_sap_linked_users(self):
+        self.directory_with_departments()
+        gid = self.call('POST', '', json=dict(name='Supply')).json()['id']
+        other = self.call('POST', '', json=dict(name='Planning')).json()['id']
+        rule = self.call('POST', '/rules', json=dict(group_id=gid, department='supply chain')).json()
+        legacy = self.call('POST', '/rules', json=dict(group_id=gid, department='Supply Chain Planning', department_mode='equals')).json()
+        listed = {r['id']: r for r in self.call('GET', '/rules?counts=true').json()['items']}
+        self.assertEqual((listed[rule['id']]['match_count'], listed[rule['id']]['not_linked_count']), (2, 1))   # NORMAL + LOCKED are linked; the stranger is not
+        self.assertEqual(listed[legacy['id']]['match_count'], 1)                                                  # exact: only LOCKED
+        self.call('POST', '/memberships', json=dict(username='DEMO_LOCKED', group_id=other, reviewer='Rev', rationale='plans', expected_revision=0))
+        self.call('POST', '/memberships', json=dict(username='DEMO_NORMAL', group_id=gid, reviewer='Rev', rationale='buys', expected_revision=0))
+        page = self.call('GET', f'/rules/{rule["id"]}/matches').json()
+        rows = {r['username']: r for r in page['items']}
+        self.assertEqual(sorted(rows), ['DEMO_LOCKED', 'DEMO_NORMAL'])
+        self.assertTrue(rows['DEMO_NORMAL']['already_member'])
+        self.assertFalse(rows['DEMO_LOCKED']['already_member'])
+        self.assertEqual([g['name'] for g in rows['DEMO_LOCKED']['groups']], ['Planning'])           # other memberships are shown, not replaced
+        self.assertEqual((page['not_linked_total'], page['not_linked'][0]['full_name']), (1, 'Stranger'))
+        self.assertEqual(self.call('GET', f'/rules/{rule["id"]}/matches?only_new=true').json()['total'], 1)
+        self.assertEqual(self.call('GET', f'/rules/{rule["id"]}/matches?search=planning').json()['total'], 1)
+        self.assertEqual(self.call('GET', f'/rules/{rule["id"]}/matches?limit=1&offset=1').json()['items'][0]['username'], 'DEMO_NORMAL')
+        selection = self.call('GET', f'/rules/{rule["id"]}/matches/selection?only_new=true').json()
+        self.assertEqual(selection['usernames'], ['DEMO_LOCKED'])
+        self.assertEqual(self.call('GET', '/rules/fr_000000000000/matches').status_code, 404)
+
+    def test_suggestions_in_user_details_consolidate_and_mark_held_groups(self):
+        self.directory_with_departments()
+        supply = self.call('POST', '', json=dict(name='Supply')).json()['id']
+        buyers = self.call('POST', '', json=dict(name='Buyers')).json()['id']
+        self.call('POST', '/rules', json=dict(group_id=supply, department='Supply'))
+        self.call('POST', '/rules', json=dict(group_id=supply, title_contains='Purchaser'))
+        self.call('POST', '/rules', json=dict(group_id=buyers, title_contains='purchaser'))
+        self.call('POST', '/memberships', json=dict(username='DEMO_NORMAL', group_id=supply, reviewer='Rev', expected_revision=0))
+        detail = self.call('GET', '/users/DEMO_NORMAL').json()
+        groups = {g['group_name']: g for g in detail['suggestion']['groups']}
+        self.assertEqual(sorted(groups), ['Buyers', 'Supply'])
+        self.assertTrue(groups['Supply']['already_member'])
+        self.assertFalse(groups['Buyers']['already_member'])
+        self.assertEqual(len(groups['Supply']['rule_ids']), 2)                                          # two rules, one entry
+        self.assertEqual(fg.public_user(fg.read(), 'DEMO_NORMAL')['group_ids'], [supply])               # nothing was assigned by suggesting
+
+    def test_members_endpoint_lists_status_directory_context_and_other_groups(self):
+        self.directory_with_departments()
+        a = self.call('POST', '', json=dict(name='A')).json()['id']
+        b = self.call('POST', '', json=dict(name='B')).json()['id']
+        self.call('POST', '/memberships', json=dict(username='DEMO_NORMAL', group_id=a, reviewer='Rev', rationale='x', expected_revision=0))
+        self.call('POST', '/memberships', json=dict(username='DEMO_NORMAL', group_id=b, reviewer='Rev2', rationale='y', expected_revision=1))
+        self.call('POST', '/memberships', json=dict(username='DEMO_LOCKED', group_id=a, reviewer='Rev', expected_revision=0))
+        fg.flag_for_review('DEMO_LOCKED', 'c1', 'Department changed')
+        page = self.call('GET', f'/{a}/members').json()
+        rows = {r['username']: r for r in page['items']}
+        self.assertEqual((page['total'], sorted(rows)), (2, ['DEMO_LOCKED', 'DEMO_NORMAL']))
+        normal = rows['DEMO_NORMAL']
+        self.assertEqual((normal['department'], normal['title'], normal['identity'], normal['status'], normal['confirmed_by'], normal['other_groups']),
+                         ('Global Supply Chain Operations', 'Senior Purchaser', 'matched', 'Confirmed', 'Rev', ['B']))
+        self.assertTrue(normal['confirmed_at'])
+        self.assertEqual(rows['DEMO_LOCKED']['status'], 'Needs review')
+        self.assertEqual(self.call('GET', f'/{a}/members?status=Needs review').json()['total'], 1)
+        self.assertEqual(self.call('GET', f'/{a}/members?search=senior').json()['total'], 1)
+        self.assertEqual(self.call('GET', f'/{b}/members').json()['total'], 1)                           # B holds only the shared member
+        self.assertEqual(self.call('GET', '/fg_000000000000/members').status_code, 404)
+        empty = self.call('POST', '', json=dict(name='Empty')).json()['id']
+        self.assertEqual(self.call('GET', f'/{empty}/members').json()['items'], [])
+
+    def test_membership_endpoints_add_remove_and_are_idempotent(self):
+        a = self.call('POST', '', json=dict(name='A')).json()['id']
+        b = self.call('POST', '', json=dict(name='B')).json()['id']
+        body = dict(username='DEMO_NORMAL', group_id=a, reviewer='Rev', rationale='x', expected_revision=0)
+        self.assertEqual(self.call('POST', '/memberships', json=dict(body, reviewer='')).status_code, 422)
+        self.assertEqual(self.call('POST', '/memberships', json=dict(body, username='NOPE')).status_code, 404)
+        first = self.call('POST', '/memberships', json=body).json()
+        self.assertEqual((first['outcome'], first['classification']['revision']), ('added', 1))
+        again = self.call('POST', '/memberships', json=dict(body, expected_revision=1)).json()
+        self.assertEqual((again['outcome'], again['classification']['revision']), ('unchanged', 1))
+        self.call('POST', '/memberships', json=dict(body, group_id=b, expected_revision=1))
+        self.assertEqual(self.call('POST', '/memberships/remove', json=dict(body, rationale='', expected_revision=2)).status_code, 422)
+        removed = self.call('POST', '/memberships/remove', json=dict(body, expected_revision=2, rationale='left')).json()['classification']
+        self.assertEqual(removed['group_ids'], [b])
+        groups = {g['id']: g['user_count'] for g in self.call('GET', '').json()['items']}
+        self.assertEqual((groups[a], groups[b]), (0, 1))
+        self.assertEqual(self.call('GET', '/history/DEMO_NORMAL').json()['total'], 3)
 
 
 if __name__ == '__main__':

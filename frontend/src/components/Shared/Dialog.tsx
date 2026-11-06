@@ -94,9 +94,10 @@ export function Dialog({
           </IconButton>
         </header>
         <div className="ui-dialog-content">{children}</div>
-        <footer>
+        {/* `footer={null}` omits the footer: a dialog whose header already has Close and whose body carries its own actions needs no second Close. */}
+        {footer !== null && <footer>
           {footer ?? <Button onClick={onClose}><X size={16} aria-hidden="true"/>Close</Button>}
-        </footer>
+        </footer>}
       </div>
     </div>,
     document.body,

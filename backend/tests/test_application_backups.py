@@ -359,7 +359,9 @@ class BackupTests(unittest.TestCase):
         (self.source / 'functional-groups.json').unlink(missing_ok=True)
         with patch.object(fg, 'config_dir', return_value=self.source):
             gid = fg.create_group('Purchasing', 'Buys')['id']
-            fg.classify('SYN_U1', gid, 'start', 0, 'Reviewer')
+            second = fg.create_group('Operations')['id']
+            fg.add_membership('SYN_U1', gid, 'start', 0, 'Reviewer')
+            fg.add_membership('SYN_U1', second, 'second function', 1, 'Reviewer')   # several memberships in one backup
             fg.flag_for_review('SYN_U1', 'chg1', 'Directory Department changed from A to B')
             fg.set_group_status(fg.create_group('Archived group')['id'], 'archived')
         if mutate: mutate(self.source / 'functional-groups.json')
@@ -374,10 +376,20 @@ class BackupTests(unittest.TestCase):
         import functional_groups as fg
         data = json.loads(original)
         user = next(iter(data['users'].values()))
-        self.assertEqual((user['status'], user['revision'], user['review']['change_id']), ('Needs review', 2, 'chg1'))  # status, revision and open review survive
-        self.assertEqual([e['event'] for e in data['history']], ['assigned', 'review_required'])
+        self.assertEqual((len(user['memberships']), user['revision'], {m['status'] for m in user['memberships'].values()}), (2, 3, {'Needs review'}))  # memberships, revision and open reviews survive
+        self.assertEqual({m['review']['change_id'] for m in user['memberships'].values()}, {'chg1'})
+        self.assertEqual([e['event'] for e in data['history']], ['assigned', 'assigned', 'review_required', 'review_required'])
         self.assertEqual({g['status'] for g in data['groups'].values()}, {'active', 'archived'})
         fg.validate_storage(data)
+
+    def test_a_format_1_backup_is_validated_and_read_as_migrated_memberships(self):
+        import functional_groups as fg
+        stamp = fg.now()
+        gid = 'fg_' + 'a' * 12
+        legacy = dict(format=1, groups={gid: dict(id=gid, name='Old', description='', status='active', created=stamp, modified=stamp)}, rules=[], history=[],
+                      users={fg.user_key('SYN_U1'): dict(username='SYN_U1', group_id=gid, status='Confirmed', revision=2, confirmed_at=stamp, confirmed_by='Rev', rationale='', updated_at=stamp, review=None, handled=[])})
+        migrated = fg.validate_storage(legacy)
+        self.assertEqual(list(migrated['users'][fg.user_key('SYN_U1')]['memberships']), [gid])
 
     def test_older_backup_without_functional_groups_restores_to_an_empty_catalogue(self):
         (self.data / 'functional-groups.json').write_text('{"format":1,"groups":{},"users":{},"history":[],"rules":[]}')
@@ -389,7 +401,7 @@ class BackupTests(unittest.TestCase):
 
     def test_corrupt_or_broken_functional_group_data_is_rejected_before_activation(self):
         def break_reference(path):
-            data = json.loads(path.read_text()); next(iter(data['users'].values()))['group_id'] = 'fg_ffffffffffff'; path.write_text(json.dumps(data))
+            data = json.loads(path.read_text()); next(iter(data['users'].values()))['memberships']['fg_ffffffffffff'] = dict(status='Confirmed', confirmed_at=None, confirmed_by='', rationale='', review=None, updated_at=None); path.write_text(json.dumps(data))
         for index, mutate in enumerate((break_reference, lambda path: path.write_text('{not json'))):
             self.functional_group_archive(f'broken{index}.tar.gz', mutate)
             with self.assertRaises((maintenance.MaintenanceError, ValueError)):  # structural errors and unparsable JSON are both refused

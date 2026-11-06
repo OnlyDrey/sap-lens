@@ -31,8 +31,9 @@ def manager_map(state, directory):
     return result
 
 
-def group_key(classifications, username):
-    return (classifications.get(username.strip().upper()) or {}).get('group_id') or 'unassigned'
+def group_keys(classifications, username):
+    """Filter keys of one user: the id of every Functional Group they belong to, or 'unassigned' when they belong to none."""
+    return (classifications.get(username.strip().upper()) or {}).get('group_ids') or ['unassigned']
 
 
 def selection(state, directory, functional_groups=(), managers=()):
@@ -44,7 +45,7 @@ def selection(state, directory, functional_groups=(), managers=()):
     matcher = identity_matcher(state.users, directory) if wanted_managers and directory else None
 
     def keep(user):
-        if wanted_groups and group_key(classes, user['username']) not in wanted_groups:
+        if wanted_groups and not wanted_groups.intersection(group_keys(classes, user['username'])):
             return False
         if wanted_managers:
             key = 'none'
@@ -81,8 +82,8 @@ def options(state, directory):
     groups = {g['id']: g for g in fg.list_groups()}
     counts, managers = {}, {}
     for user in users_of(state):
-        key = group_key(classes, user['username'])
-        counts[key] = counts.get(key, 0) + 1
+        for key in group_keys(classes, user['username']):
+            counts[key] = counts.get(key, 0) + 1
     labels = {}
     if directory:
         matcher = identity_matcher(state.users, directory)
@@ -106,6 +107,7 @@ def annotate(page):
     classes = fg.classification_map()
     for item in page.get('items', []):
         record = classes.get(item['username'].strip().upper())
-        item['functional_group'] = record['group'] if record else None
+        item['functional_group'] = record['group'] if record else None  # only when the user has exactly one membership (compatibility)
+        item['functional_groups'] = [m['group'] for m in record['memberships']] if record else []
         item['classification_status'] = record['status'] if record else 'Unassigned'
     return page

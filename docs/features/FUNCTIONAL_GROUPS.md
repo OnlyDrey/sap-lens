@@ -5,7 +5,7 @@ independent of Directory Department, Job Title, Manager, Site and SAP User Group
 
 ## Data model
 
-One store, `functional-groups.json` (format 1) in the application data folder, included in application backups:
+One store, `functional-groups.json` (format 2) in the application data folder, included in application backups:
 
 | Part | Content |
 | --- | --- |
@@ -14,8 +14,7 @@ One store, `functional-groups.json` (format 1) in the application data folder, i
 | `history` | Append-only events: assigned, changed, confirmed, removed, review_required, reconfirmed, manager_changed. Each keeps user, previous and new group and status, actor, time, reason and the related organizational change id. |
 | `rules` | Advisory suggestion rules (see below). |
 
-Classification states: `Unassigned` (no group), `Confirmed`, `Needs review` (a group is kept but needs reconfirmation). One group per user is
-structural: a user record has a single `group_id`. Every write is validated (names unique after Unicode, case and spacing normalization,
+Classification states: `Unassigned` (no group), `Confirmed`, `Needs review` (a group is kept but needs reconfirmation). A user can belong to several groups: a user record holds `memberships`, one entry per group with its own status, confirmation time and reviewer, rationale and open review. Every write is validated (names unique after Unicode, case and spacing normalization,
 references resolve, status agrees with group) and replaced atomically. Changes carry the revision the reviewer saw; a stale revision is rejected
 with HTTP 409 and never overwrites newer data.
 
@@ -121,3 +120,14 @@ and never grants, removes or approves access, creates accepted risks or changes 
 ## Bulk assignment
 
 `POST /api/functional-groups/bulk/preview` and `POST /api/functional-groups/bulk` (administrators, same mapping requirement as single classification) take stable usernames, never display names. The bulk write is one store write with history events and a repeated operation id is refused (409). Users already in the target group are `unchanged`; users in another group are only replaced with explicit confirmation (`replace_existing`); a classification that changed since the preview is a conflict; usernames outside the active dataset are rejected. Any skipped user makes the status `partial`, and the User Directory dialog retries only those. Imported SAP and AD data are never modified. The profile's *Assign group* uses the same classification model.
+
+
+## Multiple memberships, suggestion rules and member management
+
+- **Format 2 migration:** format 1 data (one `group_id` per user) is migrated losslessly on first read: each assignment becomes one membership with its status, confirmation metadata and history preserved, and existing rules become `department_mode: equals`. A one-time `functional-groups.json.format1.bak` is kept. Format 2 is not downgraded; older backups (format 1) are accepted on restore and migrated.
+- **Writes:** `POST /memberships` adds one, `POST /memberships/remove` removes one (both idempotent, revision-checked), bulk assignment takes `group_ids` and only adds (`replace_existing=true` is rejected). The legacy `PUT users/{username}` still replaces all memberships. An organizational change (manager or department) marks every Confirmed membership `Needs review`.
+- **Exports and filters:** existing columns are kept and join values with `; `; a `memberships` list is added. Singular `group`/`group_id` are present only when exactly one membership exists. Filters match any membership and counts are unique users.
+- **Suggestion rules:** advisory only. Directory Department is matched case-insensitively by "contains" (legacy rules keep exact matching and show "Exact match (existing rule)", convertible in Edit), Job Title by contains; both stated conditions must hold (AND), at least one is required, and a missing Directory attribute never satisfies a condition. Matching users are SAP users uniquely linked to a Directory employee; ambiguous or unmatched users are never assigned.
+- **Rules UI:** table with matching-user counts, View Matches (search, select all for the filtered set, pagination, already-assigned flag) and assignment through the bulk add flow with explicit confirmation and audit.
+- **Members and analysis:** Settings "View Members" lists status, last confirmation and supports add and bulk removal; Access Analysis shows KPI tiles (Members, Compared, Distinct roles, Common roles, Potential deviations) and a Has role / Missing role drilldown over exactly the compared users. Patterns are labelled Common, Shared and Uncommon.
+- **Validation:** Linux only (backend unit and Playwright); native Windows behaviour is unverified.

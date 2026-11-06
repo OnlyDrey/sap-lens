@@ -45,8 +45,15 @@ def analyse(state, members, group, today=None):
     for role in sorted(holders, key=lambda r: (-len(holders[r]), labels[r].casefold())):
         frequency = len(holders[role]) / total
         kind = 'not compared' if not comparable else 'common' if frequency >= COMMON_AT else 'uncommon' if frequency <= UNCOMMON_AT else 'shared'
-        rows.append(dict(role=labels[role], users=len(holders[role]), eligible=total, frequency=round(frequency, 4), kind=kind))
+        rows.append(dict(role=labels[role], users=len(holders[role]), eligible=total, frequency=round(frequency, 4), kind=kind,
+                         holders=sorted(holders[role], key=str.casefold)))  # drilldown: exactly the compared members who hold it (same active rule and population)
     kinds = {normalize_role(r['role']): r['kind'] for r in rows}
+    compared = []
+    for username in sorted(eligible, key=str.casefold):
+        record = by_name[username.strip().upper()]
+        names = next((n for n in record.get('names', []) if any(n)), ('', ''))
+        statuses = sorted({interval_status(sap_date(a['valid_from']), sap_date(a['valid_to']), today) for a in record.get('accounts', [])})
+        compared.append(dict(username=username, full_name=' '.join(part for part in names if part).strip(), account_status='/'.join(statuses), roles=len(eligible[username])))
     users = []
     for username, roles in eligible.items():
         extra = sorted((labels[r] for r in roles if comparable and kinds[r] == 'uncommon'), key=str.casefold)
@@ -55,6 +62,6 @@ def analyse(state, members, group, today=None):
     users.sort(key=lambda u: (-(len(u['additional_roles']) + len(u['missing_common_roles'])), u['username'].casefold()))
     return dict(group=dict(id=group['id'], name=group['name'], status=group['status']), members=len(members), eligible=total, not_in_import=missing,
                 distinct_roles=len(rows), common_roles=sum(r['kind'] == 'common' for r in rows), deviations=sum(bool(u['additional_roles'] or u['missing_common_roles']) for u in users),
-                roles=rows, users=users, limitations=limitations, comparable=comparable,
+                roles=rows, users=users, compared=compared, limitations=limitations, comparable=comparable,
                 method=dict(common_at=COMMON_AT, uncommon_at=UNCOMMON_AT, min_members=MIN_MEMBERS,
                             note='Advisory only. Roles are unique active user and role pairs; a deviation is a prompt to investigate, not a finding.'))

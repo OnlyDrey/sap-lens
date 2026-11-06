@@ -534,3 +534,30 @@ button.manager-identity:focus-visible { outline:var(--focus-width) solid var(--f
 .fg-meta { font-size:var(--font-label); color:var(--muted); overflow-wrap:anywhere; margin:var(--space-1) 0 0; }
 .fg-summary .fg-meta { margin:0; }
 .profile-functional-group .ui-evidence-disclosure { margin-top:var(--space-2); }
+
+/* Functional Group picker: chips, an inline (non-floating) result list that stays inside scrolling dialogs. */
+.group-picker { display:grid; gap:var(--space-2); min-width:0; }
+.group-picker-chips { display:flex; flex-wrap:wrap; gap:var(--space-1); margin:0; padding:0; list-style:none; }
+.group-picker-chip { display:inline-flex; align-items:center; gap:var(--space-1); max-width:100%; padding:2px var(--space-2); border:1px solid var(--border); border-radius:var(--radius-control); background:var(--surface2); font-size:var(--font-label); }
+.group-picker-chip span { overflow-wrap:anywhere; }
+.group-picker-chip button { display:inline-flex; align-items:center; min-width:20px; min-height:20px; justify-content:center; border-radius:4px; color:var(--muted); }
+.group-picker-chip button:hover { background:var(--hover); color:var(--text); }
+.group-picker-chip button:focus-visible { outline:var(--focus-width) solid var(--focus); outline-offset:var(--focus-offset); }
+.group-picker-list { margin:0; padding:var(--space-1); list-style:none; max-height:11rem; overflow:auto; border:1px solid var(--border); border-radius:var(--radius-control); background:var(--surface); }
+.group-picker-list li[role="option"] { display:flex; align-items:center; gap:var(--space-2); padding:var(--space-1) var(--space-2); border-radius:4px; cursor:pointer; }
+.group-picker-list li[role="option"][data-active], .group-picker-list li[role="option"]:hover { background:var(--hover); }
+.group-picker-list li[aria-disabled="true"] { opacity:.6; }
+
+/* Functional Group memberships: one compact row per membership. */
+.fg-memberships { display:grid; gap:var(--space-1); margin:0; padding:0; list-style:none; min-width:0; }
+.fg-membership { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-1) var(--space-3); padding:var(--space-1) 0; border-bottom:1px solid var(--border); min-width:0; }
+.fg-membership:last-child { border-bottom:0; }
+.fg-membership-main { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-1) var(--space-3); min-width:0; flex:1 1 18rem; }
+.fg-membership-actions { display:flex; flex-wrap:wrap; gap:var(--space-1); }
+.fg-suggestions { margin:0; padding:0; list-style:none; display:grid; gap:var(--space-2); }
+.fg-suggestion-head { display:flex; align-items:center; justify-content:space-between; gap:var(--space-2); }
+.fg-remove { display:grid; gap:var(--space-2); padding:var(--space-2); border:1px solid var(--border); border-radius:var(--radius-control); background:var(--surface2); }
+
+/* Access Analysis: five KPI tiles that wrap; role drilldown inside the table. */
+.analysis-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(9.5rem,1fr)); gap:var(--space-2); }
+.analysis-drilldown { padding:var(--space-2); border:1px solid var(--border); border-radius:var(--radius-control); background:var(--surface2); }

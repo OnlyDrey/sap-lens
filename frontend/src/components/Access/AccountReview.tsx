@@ -50,6 +50,7 @@ interface PositionChange {
 interface ManagerChange { id: string; open: boolean; previous_manager: string; current_manager: string; previous_manager_email: string; current_manager_email: string; detected_at: string }
 interface Row {
   functional_group: { id: string; name: string; status: string } | null
+  functional_groups?: { id: string; name: string; status: string }[]
   classification: { status: ClassificationStatus; revision: number; review: { change_id: string; reason: string; required_since: string } | null; confirmed_at: string | null }
   classification_review: boolean
   manager: { name: string; email: string; status: string } | null
@@ -533,7 +534,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
                     <td>{row.name || 'Unknown'}</td>
                     <td>{row.groups.join(', ') || 'Unknown'}</td>
                     <td>
-                      {row.functional_group ? row.functional_group.name : <span className="text-muted">Unassigned</span>}
+                      {row.functional_groups?.length ? row.functional_groups.map(group => group.name).join('; ') : row.functional_group ? row.functional_group.name : <span className="text-muted">Unassigned</span>}
                       {row.classification.status === 'Needs review' && <> <ClassificationPill status="Needs review" /></>}
                       {row.manager?.name && <small className="block">Manager: {row.manager.name}</small>}
                     </td>
