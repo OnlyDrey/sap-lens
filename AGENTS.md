@@ -45,7 +45,7 @@ From the repository root (full list and risk-based selection:
   with `backend/requirements-dev.txt`; one module with `-p test_<name>.py`.
 - Frontend, in `frontend`: `npm ci`, `npm run check:types`, `npm run lint`, `npm run build`,
   `npm run test:browser`. Build first: Playwright serves `dist` through
-  `scripts/serve-browser-tests.py` on 127.0.0.1:18745, and a stale server on that
+  `scripts/testing/serve-browser-tests.py` on 127.0.0.1:18745, and a stale server on that
   port blocks the run. A prepared Chromium may need `PLAYWRIGHT_EXECUTABLE_PATH`;
   report the override. Target with `npm run test:browser -- tests/<file>.spec.ts --grep <name>`.
 - Static: `python -m ruff check backend scripts`, `python scripts/check-docs.py`, `python scripts/check-workflows.py`,

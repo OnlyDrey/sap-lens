@@ -115,7 +115,7 @@ the full backend gate. Deployment package workflows stay manual.
 
 ## Troubleshooting
 
-- *Port in use / stale server*: stop leftover `serve-browser-tests.py` processes; browser
+- *Port in use / stale server*: stop leftover `testing/serve-browser-tests.py` processes; browser
   processes use ports 18745 upward.
 - *Stale assets*: the runner rebuilds when sources changed; rebuild manually before
   running Playwright directly.
@@ -295,7 +295,7 @@ Findings
 ### Interrupted runs and resource cleanup
 
 * `scripts/run-tests.py` stops the process groups it started (servers, Chromium) on normal exit, Ctrl+C, SIGTERM and SIGHUP (`cleanup_on_signals`). It never signals a process it did not start; a busy test port is reported, not freed.
-* A killed runner or Playwright (SIGKILL) cannot clean up itself, so the test server watches its parent (`exit_with_parent` in `scripts/serve-browser-tests.py`): when the parent is gone it exits through its SIGTERM handler, which removes its storage directory and releases the port. `playwright.config.ts` starts the server with `exec` on POSIX so the parent is Playwright itself.
+* A killed runner or Playwright (SIGKILL) cannot clean up itself, so the test server watches its parent (`exit_with_parent` in `scripts/testing/serve-browser-tests.py`): when the parent is gone it exits through its SIGTERM handler, which removes its storage directory and releases the port. `playwright.config.ts` starts the server with `exec` on POSIX so the parent is Playwright itself.
 * Every job has its own port (`18745 + index`), its own server and its own temporary configuration directory, which holds that job's SQLite store, snapshots and settings. Nothing is shared between jobs.
 * Regression tests: `backend/tests/test_test_profiles.py` (SIGTERM of the runner, SIGKILL of the parent, SIGTERM of the server, busy ports, distinct ports and storage).
-* A stray server on a test port is identified before it is stopped: `ps -o pid,ppid,etimes,user,args -p PID`, its working directory (`readlink /proc/PID/cwd`) and its parent. Only a `serve-browser-tests.py` process with a dead parent (PPID 1) that you started is an orphan.
+* A stray server on a test port is identified before it is stopped: `ps -o pid,ppid,etimes,user,args -p PID`, its working directory (`readlink /proc/PID/cwd`) and its parent. Only a `testing/serve-browser-tests.py` process with a dead parent (PPID 1) that you started is an orphan.

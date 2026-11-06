@@ -99,11 +99,11 @@ class GoldenCommands(Case):
 
     def test_package_validated_deployment_and_local(self):
         local = self.rel(self.run_stage(Stage='Package'))
-        self.assertEqual(local[0], ('<root>', '<buildpy> scripts/release-windows.py ensure-local-build'))
+        self.assertEqual(local[0], ('<root>', '<buildpy> scripts/packaging/release-windows.py ensure-local-build'))
         deployment = self.rel(self.run_stage(Stage='Package', ValidatedDeployment=True))
         self.assertEqual(deployment[0], ('<root>', '<buildpy> scripts/deployment-package.py require-inputs'))
         for commands in (local, deployment):
-            self.assertEqual(commands[1], ('<root>', '<buildpy> scripts/write-windows-metadata.py'))
+            self.assertEqual(commands[1], ('<root>', '<buildpy> scripts/packaging/write-windows-metadata.py'))
             self.assertEqual(len(commands), 3)
             text = commands[2][1]
             self.assertTrue(text.startswith('<buildpy> -m PyInstaller --clean --noconfirm --onefile --windowed --noupx --name SAP-Lens --icon <root>/assets/sap-lens.ico --version-file <root>/backend/build/version-info.txt '))
@@ -119,7 +119,7 @@ class GoldenCommands(Case):
         (self.root / 'backend/dist').mkdir(parents=True)
         (self.root / 'backend/dist/SAP-Lens.exe').write_bytes(b'synthetic executable')
         commands = self.rel(self.run_stage(Stage='Verify'))
-        self.assertEqual(commands, [('<root>', '<buildpy> scripts/verify-windows-package.py')])
+        self.assertEqual(commands, [('<root>', '<buildpy> scripts/packaging/verify-windows-package.py')])
         digest = __import__('hashlib').sha256(b'synthetic executable').hexdigest()
         self.assertEqual((self.root / 'backend/dist/SAP-Lens.exe.sha256').read_bytes().decode().strip(), f'{digest}  SAP-Lens.exe')
 
@@ -131,8 +131,8 @@ class GoldenCommands(Case):
     def test_artifact_stage(self):
         (self.root / 'backend/build/package-verification.json').write_text('{"exe_sha256": "abc"}', encoding='utf-8')
         commands = self.rel(self.run_stage(Stage='Artifact', ArtifactDirectory='D', ArtifactDownloadDirectory='Z', ArtifactDigest='H'))
-        self.assertEqual(commands, [('<root>', '<buildpy> scripts/verify-artifact-zip.py --download Z --destination D --expected-digest H'),
-                                    ('<root>', '<buildpy> scripts/verify-windows-package.py --distribution D --expected-sha256 abc --report backend/build/artifact-verification.json')])
+        self.assertEqual(commands, [('<root>', '<buildpy> scripts/packaging/verify-artifact-zip.py --download Z --destination D --expected-digest H'),
+                                    ('<root>', '<buildpy> scripts/packaging/verify-windows-package.py --distribution D --expected-sha256 abc --report backend/build/artifact-verification.json')])
         without_download = self.rel(self.run_stage(Stage='Artifact', ArtifactDirectory='D'))
         self.assertEqual(len(without_download), 1)
         with self.assertRaisesRegex(stages.StageError, 'needs a downloaded artifact directory'):

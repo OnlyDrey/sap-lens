@@ -78,7 +78,7 @@ class PackagingTests(unittest.TestCase):
     def tearDown(self):self.temp.cleanup()
     def test_all_platform_names_agree_with_publisher_and_local_builder(self):
         def load(name):
-            spec=importlib.util.spec_from_file_location(name,ROOT/'scripts'/f'{name}.py')
+            spec=importlib.util.spec_from_file_location(name,next((ROOT/'scripts').rglob(name+'.py')))
             value=importlib.util.module_from_spec(spec);spec.loader.exec_module(value);return value
         release=load('deployment-release');builder=load('build-deployments')
         cases=[('Windows-Desktop-x64','windows-desktop','desktop','sap-lens-win-desktop-x64-v'),
@@ -96,7 +96,7 @@ class PackagingTests(unittest.TestCase):
                 self.assertEqual(archive.name,f'sap-lens-{builder.STEMS[target][0]}-v{self.info["version"]}{extension}')
 
     def test_renamed_desktop_archive_still_runs_desktop_distribution_verifier(self):
-        spec=importlib.util.spec_from_file_location('download',ROOT/'scripts/check-deployment-download.py')
+        spec=importlib.util.spec_from_file_location('download',ROOT/'scripts/deployment/check-deployment-download.py')
         download=importlib.util.module_from_spec(spec);spec.loader.exec_module(download)
         source=self.root/'source';source.mkdir();(source/'README.md').write_text('synthetic')
         with patch.object(pkg,'identity',return_value=self.info):
@@ -203,7 +203,7 @@ class PackagingTests(unittest.TestCase):
         self.assertIn('COPY backend/resources/',(ROOT/'Dockerfile').read_text())
         self.assertIn("shutil.copytree(ROOT/'backend/resources',target/'backend/resources')",(ROOT/'scripts/deployment-package.py').read_text())
         for script in ('build-windows.ps1','build-server-windows.ps1'):
-            self.assertIn("Join-Path $root 'backend/resources'",(ROOT/'scripts'/script).read_text())
+            self.assertIn("Join-Path $root 'backend/resources'",next((ROOT/'scripts').rglob(script)).read_text())
 
 
 class OrchestrationTests(unittest.TestCase):

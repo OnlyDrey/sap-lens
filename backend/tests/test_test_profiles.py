@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location('run_tests_script', ROOT / 'scripts' / 'run-tests.py')
 runner = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(runner)
-server_spec = importlib.util.spec_from_file_location('serve_browser_tests', ROOT / 'scripts' / 'serve-browser-tests.py')
+server_spec = importlib.util.spec_from_file_location('serve_browser_tests', ROOT / 'scripts' / 'testing' / 'serve-browser-tests.py')
 server = importlib.util.module_from_spec(server_spec)
 server_spec.loader.exec_module(server)
 
@@ -99,7 +99,7 @@ class BrowserProcessHygieneTests(unittest.TestCase):
             probe.bind(('127.0.0.1', 0)); port = probe.getsockname()[1]
         with tempfile.TemporaryDirectory() as root:
             env = {**os.environ, 'TMPDIR': root, 'SAP_LENS_BROWSER_TEST_PORT': str(port)}
-            process = subprocess.Popen([sys.executable, str(ROOT / 'scripts' / 'serve-browser-tests.py')], env=env,
+            process = subprocess.Popen([sys.executable, str(ROOT / 'scripts' / 'testing' / 'serve-browser-tests.py')], env=env,
                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             try:
                 deadline = time.time() + 20
@@ -123,7 +123,7 @@ class BrowserProcessHygieneTests(unittest.TestCase):
             probe.bind(('127.0.0.1', 0)); port = probe.getsockname()[1]
         with tempfile.TemporaryDirectory() as root:
             env = {**os.environ, 'TMPDIR': root, 'SAP_LENS_BROWSER_TEST_PORT': str(port)}
-            parent = subprocess.Popen(['sh', '-c', f'exec {sys.executable} -c "import subprocess,sys,time; subprocess.Popen([\'sh\',\'-c\',\'exec {sys.executable} {ROOT / "scripts" / "serve-browser-tests.py"}\']); print(1, flush=True); time.sleep(120)"'],
+            parent = subprocess.Popen(['sh', '-c', f'exec {sys.executable} -c "import subprocess,sys,time; subprocess.Popen([\'sh\',\'-c\',\'exec {sys.executable} {ROOT / "scripts" / "testing" / "serve-browser-tests.py"}\']); print(1, flush=True); time.sleep(120)"'],
                                       env=env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
             try:
                 parent.stdout.readline()
@@ -187,7 +187,7 @@ class BrowserProcessHygieneTests(unittest.TestCase):
         ports = [runner.BASE_PORT + index for index in range(runner.BROWSER_JOBS_MAX)]
         self.assertEqual(len(set(ports)), runner.BROWSER_JOBS_MAX)
         self.assertEqual(len({f'{server.PREFIX}{name}' for name in ('a', 'b')}), 2)
-        text = (ROOT / 'scripts' / 'serve-browser-tests.py').read_text()
+        text = (ROOT / 'scripts' / 'testing' / 'serve-browser-tests.py').read_text()
         self.assertIn('tempfile.TemporaryDirectory(prefix=PREFIX)', text, 'every server creates its own storage directory')
         self.assertIn("os.environ['SAP_LENS_CONFIG_DIR'] = directory", text)
 
@@ -264,7 +264,7 @@ class ChangeSelectionTests(unittest.TestCase):
         self.assertIn('test_repository_integrity', plan['modules']); self.assertNotIn('test_sod_reports', plan['modules'])
 
     def test_backend_sources_scripts_workflows_and_dependencies_run_the_whole_backend(self):
-        for path in ('backend/main.py', 'backend/routers/sod.py', 'backend/sod_reports.py', 'scripts/deployment-release.py', '.github/workflows/build-deployments.yml',
+        for path in ('backend/main.py', 'backend/routers/sod.py', 'backend/sod_reports.py', 'scripts/deployment/deployment-release.py', '.github/workflows/build-deployments.yml',
                      'backend/requirements-dev.txt', 'scripts/test-map.json', 'backend/tests/__init__.py', 'backend/tests/helpers.py', 'unknown.cfg'):
             with self.subTest(path=path):
                 plan = self.plan(path)

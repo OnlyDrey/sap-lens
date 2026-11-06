@@ -16,7 +16,7 @@ import sys
 import zipfile
 import xml.etree.ElementTree as ET
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 # Direct CLI execution must not depend on pytest/unittest or PYTHONPATH setup.
 sys.path.insert(0, str(ROOT / 'backend'))
 REQUIRED = {'frontend/dist/index.html', 'frontend/dist/sap-lens.png',
@@ -29,7 +29,7 @@ class PackageValidationError(ValueError):
 
 
 def metadata_module():
-    spec = importlib.util.spec_from_file_location('windows_metadata', ROOT / 'scripts/write-windows-metadata.py')
+    spec = importlib.util.spec_from_file_location('windows_metadata', ROOT / 'scripts/packaging/write-windows-metadata.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

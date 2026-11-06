@@ -20,7 +20,7 @@ import tempfile
 import urllib.request
 import zipfile
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'backend'))
 import version
 
@@ -146,7 +146,7 @@ def check(requested, root=ROOT, now=None):
 
 
 def load_script(name):
-    spec = importlib.util.spec_from_file_location(name, ROOT / f'scripts/{name}.py')
+    spec = importlib.util.spec_from_file_location(name, next((ROOT / 'scripts').rglob(name + '.py')))
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -180,7 +180,7 @@ def export(requested, output, root=ROOT):
     extracted = output / 'application'
     load_script('verify-artifact-zip').verify(archive_dir, extracted, zip_sha)
     report = output / 'verification-report.json'
-    subprocess.run([sys.executable, str(root / 'scripts/verify-windows-package.py'),
+    subprocess.run([sys.executable, str(root / 'scripts/packaging/verify-windows-package.py'),
                     '--distribution', str(extracted), '--expected-sha256', approved['exe_sha256'],
                     '--report', str(report)], cwd=root, check=True)
     archive.with_suffix('.zip.sha256').write_text(f'{zip_sha}  {archive.name}\n', encoding='ascii')
@@ -199,7 +199,7 @@ QUICK_INPUTS = ('backend/resources/product-version.json', 'frontend/package.json
                 'backend/requirements-build.txt', 'backend/requirements-dev.txt', 'backend/desktop.py', 'frontend/index.html',
                 'assets/sap-lens.ico', 'assets/sap-lens.png', 'scripts/build-windows.ps1',
                 'scripts/build-server-windows.ps1', 'scripts/package-windows-deployment.ps1',
-                'scripts/verify-windows-package.py', 'scripts/verify-server-bundle.py',
+                'scripts/packaging/verify-windows-package.py', 'scripts/packaging/verify-server-bundle.py',
                 'scripts/test-windows-exe.ps1', 'deploy/windows/LICENSE-WinSW.txt')
 
 
@@ -215,7 +215,7 @@ def quick(requested, root=ROOT):
         manifest = json.loads((root / name).read_text(encoding='utf-8'))
         if manifest.get('version') != product or manifest.get('packages', {}).get('', {}).get('version', product) != product:
             raise ValueError('Product/package versions differ. Run node scripts/product-version.mjs --write, review and commit before Build.')
-    for name in ('backend/version.py', 'scripts/local-build.py', 'scripts/verify-windows-package.py', 'scripts/verify-server-bundle.py'):
+    for name in ('backend/version.py', 'scripts/packaging/local-build.py', 'scripts/packaging/verify-windows-package.py', 'scripts/packaging/verify-server-bundle.py'):
         ast.parse((root / name).read_text(encoding='utf-8'), filename=name)
     return info
 

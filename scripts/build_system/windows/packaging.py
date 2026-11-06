@@ -65,10 +65,10 @@ def build(Target, OutputDirectory='', root=ROOT, process=None, environ=None, sta
         # Compiler checksums remain internal; the bundle manifest binds shipped bytes.
         setup.with_name(setup.name + '.sha256').unlink()
         checked([python, 'scripts/deployment-package.py', 'finish', '--directory', bundle, '--platform', 'Windows-Desktop-x64', '--output', output])
-        checked([python, 'scripts/verify-desktop-distribution.py', '--directory', bundle, '--payload-directory', 'backend/dist'])
+        checked([python, 'scripts/packaging/verify-desktop-distribution.py', '--directory', bundle, '--payload-directory', 'backend/dist'])
     else:
         wrapper = root / 'backend/build/WinSW-x64.exe'
-        checked([python, 'scripts/local-build.py', 'winsw', '--output', wrapper])
+        checked([python, 'scripts/packaging/local-build.py', 'winsw', '--output', wrapper])
         bundle = root / ('backend/build/deployment-service-' + guid())
         (server_build or server.build)(WinSW=str(wrapper), ValidatedDeployment=True, OutputDirectory=str(bundle))
         checked([powershell(), '-NoProfile', '-File', root / 'scripts/test-server-service.ps1', '-Bundle', bundle])

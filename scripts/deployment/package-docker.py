@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import tempfile
 
-ROOT=Path(__file__).resolve().parents[1]
+ROOT=Path(__file__).resolve().parents[2]
 spec=importlib.util.spec_from_file_location('packages',ROOT/'scripts/deployment-package.py')
 pkg=importlib.util.module_from_spec(spec);spec.loader.exec_module(pkg)
 
@@ -25,8 +25,8 @@ def main(output=None, no_cache=False):
     host=os.environ.get('SAP_LENS_BUILD_PROXY_HOST')
     if host:command[2:2]=['--add-host',host]
     subprocess.run(command,cwd=ROOT,check=True)
-    subprocess.run([os.sys.executable,str(ROOT/'scripts/test-docker-deployment.py'),'--image',tag],check=True)
-    subprocess.run([os.sys.executable,str(ROOT/'scripts/test-docker-lifecycle.py'),'--image',tag],check=True)
+    subprocess.run([os.sys.executable,str(ROOT/'scripts/testing/test-docker-deployment.py'),'--image',tag],check=True)
+    subprocess.run([os.sys.executable,str(ROOT/'scripts/testing/test-docker-lifecycle.py'),'--image',tag],check=True)
     with tempfile.TemporaryDirectory() as temporary:
         target=Path(temporary)
         frozen=subprocess.check_output(['docker','run','--rm','--network','none','--entrypoint','python',tag,'-c','import importlib.metadata as m; print("\\n".join(sorted(d.metadata["Name"]+"=="+d.version for d in m.distributions())))'],text=True)

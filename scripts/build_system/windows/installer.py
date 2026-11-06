@@ -83,7 +83,7 @@ def build(OutputDirectory, CompileCheck=False, root=ROOT, process=None, environ=
                 produced = destination / 'SAP-Lens-Setup.exe'
                 if not produced.is_file():
                     raise StageError('Inno Setup did not produce the compiler-check fixture.')
-                if process.run([str(check_python), str(root / 'scripts/verify-desktop-installer.py'), '--installer', str(produced), '--compiler-fixture-channel', channel], root, env) != 0:
+                if process.run([str(check_python), str(root / 'scripts/packaging/verify-desktop-installer.py'), '--installer', str(produced), '--compiler-fixture-channel', channel], root, env) != 0:
                     raise StageError('Compiled installer fixture resource verification failed.')
                 print(f'Installer recipe compiled and PE resources verified: {channel}. Application installation was not tested.')
         finally:
@@ -101,7 +101,7 @@ def build(OutputDirectory, CompileCheck=False, root=ROOT, process=None, environ=
     shutil.move(str(output_directory / 'SAP-Lens-Setup.exe'), str(named))
     named.with_name(named.name + '.sha256').write_bytes(f'{sha256(named)}  {named.name}\n'.encode('ascii'))
     shutil.copy2(tool_root / 'license.txt', output_directory / 'LICENSE-Inno-Setup.txt')
-    if process.run([str(python), str(root / 'scripts/verify-desktop-installer.py'), '--installer', str(named)], root, env) != 0:
+    if process.run([str(python), str(root / 'scripts/packaging/verify-desktop-installer.py'), '--installer', str(named)], root, env) != 0:
         raise StageError('Installer verification failed.')
     print('Unsigned per-user installer compiled and metadata verified. Native installation/lifecycle acceptance is separate.')
     return named

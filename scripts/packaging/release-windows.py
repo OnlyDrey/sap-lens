@@ -19,7 +19,7 @@ import sys
 from urllib.parse import quote
 import zipfile
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 import version as build_version
 
@@ -173,7 +173,7 @@ def verify_build(jobs, artifact, run, sha):
 
 def load_script(name):
     spec = importlib.util.spec_from_file_location(
-        name.replace("-", "_"), ROOT / "scripts" / (name + ".py")
+        name.replace("-", "_"), next((ROOT / "scripts").rglob(name + ".py"))
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

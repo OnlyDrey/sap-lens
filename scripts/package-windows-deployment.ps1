@@ -45,11 +45,11 @@ Instructions: https://github.com/OnlyDrey/sap-lens/blob/work/docs/deployment/WIN
     # Compiler checksums remain internal; the bundle manifest binds shipped bytes.
     Remove-Item ($installer+'.sha256')
     Checked { & $python scripts/deployment-package.py finish --directory $bundle --platform Windows-Desktop-x64 --output $OutputDirectory }
-    Checked { & $python scripts/verify-desktop-distribution.py --directory $bundle --payload-directory backend/dist }
+    Checked { & $python scripts/packaging/verify-desktop-distribution.py --directory $bundle --payload-directory backend/dist }
 
 } else {
     $wrapper=Join-Path $root 'backend/build/WinSW-x64.exe'
-    Checked { & $python scripts/local-build.py winsw --output $wrapper }
+    Checked { & $python scripts/packaging/local-build.py winsw --output $wrapper }
     $bundle=Join-Path $root ('backend/build/deployment-service-'+[guid]::NewGuid().ToString('N'))
     & ./scripts/build-server-windows.ps1 -WinSW $wrapper -ValidatedDeployment -OutputDirectory $bundle
     & ./scripts/test-server-service.ps1 -Bundle $bundle

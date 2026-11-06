@@ -12,7 +12,7 @@ from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'backend'))
 from version import BUILD_INFO, make_deployment_info
-spec=importlib.util.spec_from_file_location('installer_resources',ROOT/'scripts/verify-desktop-installer.py')
+spec=importlib.util.spec_from_file_location('installer_resources',ROOT/'scripts/packaging/verify-desktop-installer.py')
 rules=importlib.util.module_from_spec(spec);spec.loader.exec_module(rules)
 
 
@@ -60,7 +60,7 @@ class RealInstallerResourceTests(unittest.TestCase):
                 path.write_bytes(installer_resource_fixture(info))
                 with self.subTest(channel=channel):
                     rules.verify(path,info)
-                    result=subprocess.run([sys.executable,str(ROOT/'scripts/verify-desktop-installer.py'),
+                    result=subprocess.run([sys.executable,str(ROOT/'scripts/packaging/verify-desktop-installer.py'),
                         '--installer',str(path),'--compiler-fixture-channel',channel],capture_output=True,text=True)
                     self.assertEqual(result.returncode,0,result.stderr)
                     self.assertIn('no application payload',result.stdout)
@@ -154,7 +154,7 @@ class InstallerResourceTests(unittest.TestCase):
 class DesktopDistributionTests(unittest.TestCase):
     def test_installer_only_bundle_still_requires_internal_portable_and_installer_verifiers(self):
         import hashlib,json,tempfile
-        distribution_spec=importlib.util.spec_from_file_location('desktop_distribution',ROOT/'scripts/verify-desktop-distribution.py')
+        distribution_spec=importlib.util.spec_from_file_location('desktop_distribution',ROOT/'scripts/packaging/verify-desktop-distribution.py')
         distribution=importlib.util.module_from_spec(distribution_spec);distribution_spec.loader.exec_module(distribution)
         with tempfile.TemporaryDirectory() as temporary:
             directory=Path(temporary)/'bundle';directory.mkdir();payload=Path(temporary)/'internal';payload.mkdir();(directory/'metadata').mkdir();installer=f'SAP-Lens-Windows-Desktop-x64-{BUILD_INFO["version"]}-Setup.exe'
@@ -173,7 +173,7 @@ class DesktopDistributionTests(unittest.TestCase):
             with patch.object(distribution,'load',side_effect=load),patch.object(distribution.subprocess,'run') as portable:
                 distribution.verify(directory,payload)
                 native.assert_called_once_with(directory/installer)
-                self.assertIn(str(ROOT/'scripts/verify-windows-package.py'),portable.call_args.args[0])
+                self.assertIn(str(ROOT/'scripts/packaging/verify-windows-package.py'),portable.call_args.args[0])
             self.assertEqual({p.name for p in directory.iterdir()},{installer,'LICENSE.md','LICENSE-Inno-Setup.txt','README.md','metadata'})
             self.assertFalse((directory/'SAP-Lens.exe').exists())
             (directory/'unexpected.csv').write_text('synthetic')

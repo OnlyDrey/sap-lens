@@ -134,7 +134,7 @@ jobs:
       run: python scripts/build.py test --ci-tool validation --non-interactive -- run workflow_contracts -- python scripts/check-workflows.py
       id: workflow_contracts
     - name: Validate workflows
-      run: python scripts/build.py test --ci-tool validation --non-interactive -- run workflow_lint -- python scripts/ci.py lint
+      run: python scripts/build.py test --ci-tool validation --non-interactive -- run workflow_lint -- python scripts/testing/ci.py lint
       id: workflow_lint
     - name: Validate PowerShell scripts
       run: python scripts/build.py test --ci-tool validation --non-interactive -- run powershell -- pwsh -NoProfile -File scripts/check-powershell.ps1
@@ -243,9 +243,9 @@ jobs:
         digest-mismatch: error
     - name: Verify uploaded archives and exact contents
       id: integrity
-      run: python scripts/check-deployment-download.py --directory "${{ runner.temp }}/deployment-roundtrip"
+      run: python scripts/deployment/check-deployment-download.py --directory "${{ runner.temp }}/deployment-roundtrip"
     - name: Write platform outcome
-      run: python scripts/check-deployment-download.py --summary
+      run: python scripts/deployment/check-deployment-download.py --summary
       if: always()
       env:
         PLATFORM_LABEL: Windows Desktop
@@ -306,9 +306,9 @@ jobs:
         digest-mismatch: error
     - name: Verify uploaded archives and exact contents
       id: integrity
-      run: python scripts/check-deployment-download.py --directory "${{ runner.temp }}/deployment-roundtrip"
+      run: python scripts/deployment/check-deployment-download.py --directory "${{ runner.temp }}/deployment-roundtrip"
     - name: Write platform outcome
-      run: python scripts/check-deployment-download.py --summary
+      run: python scripts/deployment/check-deployment-download.py --summary
       if: always()
       env:
         PLATFORM_LABEL: Windows Server Service
@@ -370,9 +370,9 @@ jobs:
         digest-mismatch: error
     - name: Verify uploaded archives and exact contents
       id: integrity
-      run: python scripts/check-deployment-download.py --directory "${{ runner.temp }}/deployment-roundtrip"
+      run: python scripts/deployment/check-deployment-download.py --directory "${{ runner.temp }}/deployment-roundtrip"
     - name: Write platform outcome
-      run: python scripts/check-deployment-download.py --summary
+      run: python scripts/deployment/check-deployment-download.py --summary
       if: always()
       env:
         PLATFORM_LABEL: Linux Docker
@@ -418,7 +418,7 @@ jobs:
     - name: Build and smoke-test platform package
       run: 'python scripts/build.py package --ci-tool native-package --non-interactive -- native
 
-        python scripts/test-native-deployment.py --artifacts dist/deployment'
+        python scripts/testing/test-native-deployment.py --artifacts dist/deployment'
     - name: Upload verified platform distribution
       id: distribution
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -436,9 +436,9 @@ jobs:
         digest-mismatch: error
     - name: Verify uploaded archives and exact contents
       id: integrity
-      run: python scripts/check-deployment-download.py --directory "${{ runner.temp }}/deployment-roundtrip"
+      run: python scripts/deployment/check-deployment-download.py --directory "${{ runner.temp }}/deployment-roundtrip"
     - name: Write platform outcome
-      run: python scripts/check-deployment-download.py --summary
+      run: python scripts/deployment/check-deployment-download.py --summary
       if: always()
       env:
         PLATFORM_LABEL: Linux Native/systemd

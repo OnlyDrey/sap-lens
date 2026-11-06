@@ -19,7 +19,7 @@ import test_local_build as legacy
 
 
 def load(name):
-    spec=importlib.util.spec_from_file_location(name.replace('-','_'),ROOT/'scripts'/f'{name}.py')
+    spec=importlib.util.spec_from_file_location(name.replace('-','_'),next((ROOT/'scripts').rglob(name+'.py')))
     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
 
 
@@ -72,7 +72,7 @@ class LocalDeploymentTests(unittest.TestCase):
 
     def test_cli_rejects_bad_arguments_and_never_makes_remote_calls(self):
         for args in (['--platform','invalid','--version','0.1.0'],['--version','0.1.0','--clean','--reuse-validation']):
-            result=subprocess.run([sys.executable,str(ROOT/'scripts/build-deployments.py'),*args],capture_output=True,text=True)
+            result=subprocess.run([sys.executable,str(ROOT/'scripts/deployment/build-deployments.py'),*args],capture_output=True,text=True)
             self.assertNotEqual(result.returncode,0);self.assertIn('error:',result.stderr)
         result=subprocess.run([sys.executable,str(ROOT/'scripts/build.py'),'--help'],capture_output=True,text=True)
         self.assertEqual(result.returncode,0);self.assertIn('--windows-host',result.stdout)
@@ -88,7 +88,7 @@ class LocalDeploymentTests(unittest.TestCase):
             run.log=Path(temporary)/'build.log'
             run.env={'SAP_LENS_CONFIG_DIR':'isolated-validation','PATH':'kept'}
             with patch.object(builder.subprocess,'run') as command:
-                run.run('Native installation',['python','scripts/test-native-deployment.py','--artifacts','synthetic'])
+                run.run('Native installation',['python','scripts/testing/test-native-deployment.py','--artifacts','synthetic'])
                 self.assertEqual(command.call_args.kwargs['env'],{'PATH':'kept'})
                 run.run('Backend validation',['python','test.py'])
                 self.assertEqual(command.call_args.kwargs['env']['SAP_LENS_CONFIG_DIR'],'isolated-validation')

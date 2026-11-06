@@ -7,7 +7,7 @@ import math
 import os
 import subprocess
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 OPTIONAL = {'Backend tests', 'Browser tests'}
 STAGES = {
     'Environment': ['Python environment creation'],

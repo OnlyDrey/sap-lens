@@ -122,7 +122,7 @@ first launch, restart, port conflict and clean owned-process shutdown.
 Upload contains exactly SAP-Lens.exe and SAP-Lens.exe.sha256, with the same
 SAP-Lens-Windows-x64 name, compression level zero and 14-day retention. The
 SHA-pinned official download action downloads that exact upload ID as a raw ZIP,
-with digest-mismatch explicitly set to error. `scripts/verify-artifact-zip.py`
+with digest-mismatch explicitly set to error. `scripts/packaging/verify-artifact-zip.py`
 independently compares the ZIP digest to the upload output and rejects missing,
 extra, duplicate, directory, symlink, encrypted, unsafe or unsupported members.
 It requires exactly two regular files, a nonempty EXE no larger than 512 MiB and
@@ -151,7 +151,7 @@ contract parsing. Runtime dependencies and lockfiles are unchanged.
 
 ## Reports and required checks
 
-`scripts/ci.py` measures commands and preserves their exit codes. Each validation
+`scripts/testing/ci.py` measures commands and preserves their exit codes. Each validation
 job writes one concise summary even after earlier failure, using actual step
 outcomes (not inferred successful telemetry) and available test counts/timings.
 Missing/skipped mandatory steps are incomplete. Command phase elapsed time

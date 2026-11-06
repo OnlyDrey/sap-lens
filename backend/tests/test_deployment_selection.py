@@ -22,7 +22,7 @@ def load(name, path):
     return module
 
 
-release = load('deployment_selection_release', 'scripts/deployment-release.py')
+release = load('deployment_selection_release', 'scripts/deployment/deployment-release.py')
 packages = load('deployment_selection_package', 'scripts/deployment-package.py')
 contracts = load('deployment_selection_contracts', 'scripts/check-workflows.py')
 WD, WS, LD, LN = 'windows-desktop', 'windows-service', 'linux-docker', 'linux-native'
@@ -37,7 +37,7 @@ def run_plan(build_target, **extra):
         output, summary = Path(directory, 'output'), Path(directory, 'summary.md')
         env = dict(GITHUB_ACTIONS='false', GITHUB_REF='refs/heads/work', BASE_VERSION='0.1.0', DEPLOYMENT_CHANNEL='Beta', DEPLOYMENT_SEQUENCE='1', PUBLISH_RELEASE='false')
         env.update(DEPLOYMENT_TARGET=build_target, GITHUB_OUTPUT=str(output), GITHUB_STEP_SUMMARY=str(summary), **extra)
-        done = subprocess.run([sys.executable, str(ROOT / 'scripts/deployment-release.py'), 'plan'], env={**os.environ, **env}, capture_output=True, text=True)
+        done = subprocess.run([sys.executable, str(ROOT / 'scripts/deployment/deployment-release.py'), 'plan'], env={**os.environ, **env}, capture_output=True, text=True)
         values = dict(line.split('=', 1) for line in output.read_text().splitlines()) if output.exists() else {}
         return done, values, summary.read_text() if summary.exists() else ''
 

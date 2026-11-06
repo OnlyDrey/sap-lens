@@ -48,9 +48,9 @@ class LayoutContractTests(unittest.TestCase):
 
     def test_producers_and_workflows_use_the_documented_locations(self):
         expected = {
-            'scripts/build-local.ps1': ('dist/local',), 'scripts/local-build.py': ('dist/local',), 'scripts/build-server-windows.ps1': ('dist/server',),
-            'scripts/package-windows-deployment.ps1': ('dist/deployment',), 'scripts/package-docker.py': ('dist/deployment',),
-            'scripts/build-deployments.py': ("'dist' / args.version",), '.github/workflows/build-deployments.yml': ('dist/deployment/*', 'dist/publication'),
+            'scripts/build-local.ps1': ('dist/local',), 'scripts/packaging/local-build.py': ('dist/local',), 'scripts/build-server-windows.ps1': ('dist/server',),
+            'scripts/package-windows-deployment.ps1': ('dist/deployment',), 'scripts/deployment/package-docker.py': ('dist/deployment',),
+            'scripts/deployment/build-deployments.py': ("'dist' / args.version",), '.github/workflows/build-deployments.yml': ('dist/deployment/*', 'dist/publication'),
         }
         for relative, needles in expected.items():
             for needle in needles:

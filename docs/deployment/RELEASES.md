@@ -169,7 +169,7 @@ tag or release writes. No repository settings are changed by this implementation
 
 ## PE resources and consistency checks
 
-`write-windows-metadata.py` uses the generated identity for ProductVersion and
+`packaging/write-windows-metadata.py` uses the generated identity for ProductVersion and
 numeric resources; ProductName/FileDescription are SAP Lens. For 0.1.0-beta-1,
 ProductVersion is 0.1.0-beta-1 and FileVersion is 0.1.0.1; stable is 0.1.0 / 0.1.0.0.
 Fixed numeric product/file versions both use the same four-number tuple.

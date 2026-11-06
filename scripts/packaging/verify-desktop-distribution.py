@@ -8,12 +8,12 @@ import sys
 import tempfile
 import zipfile
 
-ROOT=Path(__file__).resolve().parents[1]
+ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'backend'))
 
 
 def load(name):
-    spec=importlib.util.spec_from_file_location(name.replace('-','_'),ROOT/'scripts'/f'{name}.py')
+    spec=importlib.util.spec_from_file_location(name.replace('-','_'),next((ROOT/'scripts').rglob(name+'.py')))
     value=importlib.util.module_from_spec(spec);spec.loader.exec_module(value);return value
 
 
@@ -39,7 +39,7 @@ def verify(directory, payload_directory):
         application=Path(temp)/'application'
         # Keep the canonical exactly-two-file ZIP guard; do not widen its allowlist.
         load('verify-artifact-zip').verify(incoming,application,packages.sha(archive))
-        subprocess.run([sys.executable,str(ROOT/'scripts/verify-windows-package.py'),'--distribution',str(application)],check=True)
+        subprocess.run([sys.executable,str(ROOT/'scripts/packaging/verify-windows-package.py'),'--distribution',str(application)],check=True)
     load('verify-desktop-installer').verify(directory/installer)
     print('Desktop distribution exact contents, native receipt, portable integrity and installer metadata verified.')
 

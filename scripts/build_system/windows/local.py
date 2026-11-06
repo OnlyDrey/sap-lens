@@ -141,7 +141,7 @@ def build(Mode='Build', Version='', IncludeService=False, OutputDirectory='', ro
         env['SAP_LENS_CONFIG_DIR'] = str(build_directory / 'local-test-settings' / run)
         env['DATA_CSV_PATH'] = ''
         env['USER_CSV_PATH'] = ''
-        helper = root / 'scripts/local-build.py'
+        helper = root / 'scripts/packaging/local-build.py'
         build_python = venv_python(root)
         audit_python = build_directory / 'audit-env' / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
         env['PATH'] = str(build_python.parent) + os.pathsep + env.get('PATH', '')
@@ -225,7 +225,7 @@ def build(Mode='Build', Version='', IncludeService=False, OutputDirectory='', ro
 
                 def repository():
                     native([build_python, 'scripts/check-workflows.py'])
-                    native([build_python, 'scripts/ci.py', 'lint'])
+                    native([build_python, 'scripts/testing/ci.py', 'lint'])
                     native([powershell(), '-NoProfile', '-File', root / 'scripts/check-powershell.ps1'])
                     native(['git', 'diff', '--check'])
                 run_stage('Repository', repository)

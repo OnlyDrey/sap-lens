@@ -5,7 +5,7 @@ What each workflow is expected to do, how it was validated offline, and what a c
 
 Status classes: Verified on GitHub, Verified offline only, Partially verified, Failed, Pending.
 
-Offline validation means `python scripts/check-workflows.py` (contracts), `python scripts/ci.py lint` (actionlint) and the tests in
+Offline validation means `python scripts/check-workflows.py` (contracts), `python scripts/testing/ci.py lint` (actionlint) and the tests in
 `backend/tests/test_workflows.py`, `test_deployment_selection.py`, `test_deployment_release.py`, `test_deployment_packaging.py`,
 `test_release_automation.py` and `test_test_profiles.py`.
 

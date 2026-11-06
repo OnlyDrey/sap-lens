@@ -9,13 +9,13 @@ import sys
 from .runner import ROOT, BuildError
 
 TARGETS={'windows':('desktop','installer','server','service','all'),'linux':('server','service','all'),'docker':('server','all'),'all':('all',)}
-CI_TOOLS={'validation':('py','ci.py'),'windows-stage':('ps','build-windows.ps1'),'windows-package':('ps','package-windows-deployment.ps1'),
+CI_TOOLS={'validation':('py','testing/ci.py'),'windows-stage':('ps','build-windows.ps1'),'windows-package':('ps','package-windows-deployment.ps1'),
           'installer-check':('ps','build-desktop-installer.ps1'),'native-package':('py','deployment-package.py'),
-          'docker-package':('py','package-docker.py'),'deployment-release':('py','deployment-release.py'),
-          'legacy-release':('py','release-windows.py')}
+          'docker-package':('py','deployment/package-docker.py'),'deployment-release':('py','deployment/deployment-release.py'),
+          'legacy-release':('py','packaging/release-windows.py')}
 
 def module(name):
-    path=ROOT/'scripts'/f'{name}.py'
+    path=next((ROOT/'scripts').rglob(name+'.py'))
     spec=importlib.util.spec_from_file_location('build_internal_'+name.replace('-','_'),path)
     value=importlib.util.module_from_spec(spec);spec.loader.exec_module(value)
     return value
@@ -54,7 +54,7 @@ def plan(args,python=None):
     if args.setup_only:return []
     match args.mode:
         case 'quick':
-            commands=[('Build configuration',[python,'scripts/local-build.py','quick','--version',args.version]),
+            commands=[('Build configuration',[python,'scripts/packaging/local-build.py','quick','--version',args.version]),
                       ('Product manifests',['node','scripts/product-version.mjs']),
                       ('Documentation links',[python,'scripts/check-docs.py']),
                       ('Test ownership',[python,'scripts/run-tests.py','check']),('Whitespace',['git','diff','--check'])]
@@ -77,7 +77,7 @@ def plan(args,python=None):
                          'linux':['linux-native'],'docker':['docker'],'all':['all']}[args.platform]
                 if args.platform=='windows' and system!='windows' and not args.windows_host:raise BuildError('Windows packaging requires a Windows runner or explicit --windows-host/--windows-repository.')
                 if args.platform=='linux' and system!='linux' and not args.linux_host:raise BuildError('Linux native packaging requires Linux or an explicit trusted Linux builder.')
-                command=[python,'scripts/build-deployments.py','--version',args.version,'--scope',args.scope]
+                command=[python,'scripts/deployment/build-deployments.py','--version',args.version,'--scope',args.scope]
                 for target in targets:command+=['--platform',target]
                 if args.skip_setup:command+=['--reuse-validation']
                 if args.no_cache:command+=['--no-cache']
@@ -92,9 +92,9 @@ def plan(args,python=None):
             try:policy.require_release_ref('stable' if '-' not in args.version else 'beta','refs/heads/'+branch)
             except policy.DeliveryError as error:raise BuildError(str(error)) from None
             selected={'windows':(['desktop','service'] if args.target=='all' else ['desktop'] if args.target in ('desktop','installer') else ['service']),'linux':['linux-native'],'docker':['docker'],'all':['all']}[args.platform]
-            verify=[python,'scripts/build-deployments.py','--verify-output','--version',args.version,'--output-dir',str(args.output)]
+            verify=[python,'scripts/deployment/build-deployments.py','--verify-output','--version',args.version,'--output-dir',str(args.output)]
             for target in selected:verify+=['--platform',target]
-            commands=[('Verify release artifacts',verify),('Validate source identity',[python,'scripts/local-build.py','quick','--version',args.version]),
+            commands=[('Verify release artifacts',verify),('Validate source identity',[python,'scripts/packaging/local-build.py','quick','--version',args.version]),
                       ('Release workflow contracts',[python,'scripts/check-workflows.py'])]
         case 'clean':pass
     return commands

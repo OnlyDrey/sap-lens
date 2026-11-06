@@ -191,7 +191,7 @@ def run_backend(names: list[str], jobs: int, label: str, split: bool) -> dict:
                 merged[key] += data[key]
             merged['skipped'] += data['skipped']
     merged.update(name=label, seconds=time.perf_counter() - started, ok=not merged['failures'] and not merged['errors'] and all(c == 0 for c, _ in outcomes))
-    # Aggregate lines in unittest's own format keep scripts/ci.py counts correct after parallel workers.
+    # Aggregate lines in unittest's own format keep scripts/testing/ci.py counts correct after parallel workers.
     print(f"\nRan {merged['tests']} tests in {merged['seconds']:.3f}s")
     print(('OK' if merged['ok'] else 'FAILED') + (f" (skipped={len(merged['skipped'])})" if merged['skipped'] else ''), flush=True)
     return merged
@@ -422,7 +422,7 @@ def release_checks() -> tuple[list[dict], list[str]]:
     else:
         unavailable.append('pwsh is not installed; PowerShell script checks were NOT run')
     if shutil.which('actionlint'):
-        results.append(step('workflow lint', [py, 'scripts/ci.py', 'lint']))
+        results.append(step('workflow lint', [py, 'scripts/testing/ci.py', 'lint']))
     else:
         unavailable.append('actionlint is not installed; workflow schema/expression lint was NOT run (contracts ran in regression)')
     unavailable.append('Docker image build/run, Windows installer/service/WebView2, native Linux package and systemd acceptance need their own environments or the manual build workflows; they were NOT run here (see docs/deployment/README.md)')

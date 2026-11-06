@@ -15,7 +15,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
-spec = importlib.util.spec_from_file_location('local_builder', ROOT / 'scripts/local-build.py')
+spec = importlib.util.spec_from_file_location('local_builder', ROOT / 'scripts/packaging/local-build.py')
 local = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(local)
 
@@ -42,7 +42,7 @@ class LocalVersionTests(unittest.TestCase):
             local.version.make_local_package_info('0.1.0', 'not-a-sha')
 
     def test_local_identity_generates_matching_windows_resources(self):
-        spec = importlib.util.spec_from_file_location('local_metadata', ROOT / 'scripts/write-windows-metadata.py')
+        spec = importlib.util.spec_from_file_location('local_metadata', ROOT / 'scripts/packaging/write-windows-metadata.py')
         metadata = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(metadata)
         info = local.version.make_local_package_info('0.1.0-beta-4', 'a' * 40)
@@ -148,7 +148,7 @@ class LocalReceiptTests(unittest.TestCase):
 
 class LocalToolingTests(unittest.TestCase):
     def test_actionlint_windows_download_checksum_cache_and_extraction(self):
-        spec = importlib.util.spec_from_file_location('local_ci', ROOT / 'scripts/ci.py')
+        spec = importlib.util.spec_from_file_location('local_ci', ROOT / 'scripts/testing/ci.py')
         ci = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(ci)
         data = io.BytesIO()
@@ -295,7 +295,7 @@ class LocalExportTests(unittest.TestCase):
 class BuildEntryRepairTests(unittest.TestCase):
     def test_authoritative_default_and_prerelease_identity_are_preserved(self):
         product = local.version.product_version()
-        result = subprocess.run([sys.executable, str(ROOT/'scripts/local-build.py'), 'version'], cwd=ROOT, capture_output=True, text=True, check=True)
+        result = subprocess.run([sys.executable, str(ROOT/'scripts/packaging/local-build.py'), 'version'], cwd=ROOT, capture_output=True, text=True, check=True)
         self.assertEqual(result.stdout.strip(), product)
         for requested in ('1.0.0', '1.0.0-alpha.2', '1.0.0-beta.2', '1.0.0-rc.3', '1.0.0-beta-4'):
             info = local.identity(requested)
@@ -327,7 +327,7 @@ class BuildEntryRepairTests(unittest.TestCase):
     def test_quick_checks_required_inputs_and_manifest_consistency(self):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary)
-            names=set(local.QUICK_INPUTS)|{'backend/version.py','scripts/local-build.py'}
+            names=set(local.QUICK_INPUTS)|{'backend/version.py','scripts/packaging/local-build.py'}
             for name in names:
                 destination=root/name; destination.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/name,destination)
             with patch.object(local, 'identity', return_value=local.version.local_build_info()):

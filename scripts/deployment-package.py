@@ -65,13 +65,13 @@ def privacy(names):
 
 def prepare(version):
     if os.environ.get('DEPLOYMENT_TARGET'):
-        release_spec=importlib.util.spec_from_file_location('deployment_release',ROOT/'scripts/deployment-release.py')
+        release_spec=importlib.util.spec_from_file_location('deployment_release',ROOT/'scripts/deployment/deployment-release.py')
         release=importlib.util.module_from_spec(release_spec);release_spec.loader.exec_module(release)
         try:release.resolve(os.environ['DEPLOYMENT_TARGET'])
         except release.DeliveryError as error:raise ValueError(str(error)) from None
     if os.environ.get('GITHUB_ACTIONS')=='true':
         if os.environ.get('DEPLOYMENT_CHANNEL'):
-            release_spec=importlib.util.spec_from_file_location('deployment_release',ROOT/'scripts/deployment-release.py')
+            release_spec=importlib.util.spec_from_file_location('deployment_release',ROOT/'scripts/deployment/deployment-release.py')
             release=importlib.util.module_from_spec(release_spec);release_spec.loader.exec_module(release)
             value=make_deployment_info(version,release.channel(os.environ['DEPLOYMENT_CHANNEL']),
                 os.environ.get('DEPLOYMENT_SEQUENCE',''),git_sha(),os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_NUMBER'],int(os.environ['GITHUB_RUN_ATTEMPT']))
@@ -152,7 +152,7 @@ def require_ci():
 
 
 def local_tools():
-    spec=importlib.util.spec_from_file_location('local_deployment_inputs',ROOT/'scripts/local-build.py')
+    spec=importlib.util.spec_from_file_location('local_deployment_inputs',ROOT/'scripts/packaging/local-build.py')
     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
     return module
 

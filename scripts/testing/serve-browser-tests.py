@@ -67,7 +67,7 @@ def exit_with_parent(poll: float = 0.5) -> None:
 
 
 def main() -> None:
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend'))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'backend'))
     import uvicorn
 
     # Parallel test processes each own one server (port and configuration directory); the default is the CI port.

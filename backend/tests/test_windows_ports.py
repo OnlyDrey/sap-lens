@@ -113,12 +113,12 @@ class ServerBundle(Case):
         recorder = Recorder(self.hooks(output))
         server.build(str(wrapper), '', True, str(output), self.root, recorder, {}, True, lambda o: built.append(o))
         text = self.norm(recorder.commands)
-        self.assertEqual(text[:3], ['<buildpy> scripts/local-build.py version', '<buildpy> scripts/local-build.py tools', '<buildpy> scripts/deployment-package.py require-inputs'])
-        self.assertEqual(text[3], '<buildpy> scripts/write-windows-metadata.py')
+        self.assertEqual(text[:3], ['<buildpy> scripts/packaging/local-build.py version', '<buildpy> scripts/packaging/local-build.py tools', '<buildpy> scripts/deployment-package.py require-inputs'])
+        self.assertEqual(text[3], '<buildpy> scripts/packaging/write-windows-metadata.py')
         pyinstaller = text[4]
         self.assertTrue(pyinstaller.startswith('<buildpy> -m PyInstaller --noconfirm --clean --onedir --console --noupx --name SAP-Lens --distpath <root>/bundle/app --workpath backend/build/server --specpath backend/build/server --paths <root>/backend --icon <root>/assets/sap-lens.ico'))
         self.assertTrue(pyinstaller.endswith('--exclude-module webview --exclude-module pythonnet --exclude-module clr backend/server.py'))
-        self.assertEqual(text[5:], ['<buildpy> scripts/deployment-package.py readme --document docs/deployment/WINDOWS_SERVICE.md --directory <root>/bundle', '<buildpy> scripts/verify-server-bundle.py <root>/bundle'])
+        self.assertEqual(text[5:], ['<buildpy> scripts/deployment-package.py readme --document docs/deployment/WINDOWS_SERVICE.md --directory <root>/bundle', '<buildpy> scripts/packaging/verify-server-bundle.py <root>/bundle'])
         for name in ('app/SAP-Lens.exe', 'app/_internal/data.bin', 'SAPLensService.exe', 'manage-server-service.ps1', 'LICENSE-WinSW.txt', 'LICENSE.md', 'README.md'):
             self.assertTrue((output / name).exists(), name)
         self.assertFalse((output / 'app/SAP-Lens').exists())
@@ -135,8 +135,8 @@ class ServerBundle(Case):
         recorder = Recorder(hooks)
         server.build('', '', False, str(output), self.root, recorder, {}, True, lambda o: None)
         text = self.norm(recorder.commands)
-        self.assertEqual(text[:4], ['<buildpy> scripts/local-build.py version', '<buildpy> scripts/local-build.py tools', '<buildpy> scripts/local-build.py check --version 1.2.3',
-                                    '<buildpy> scripts/local-build.py winsw --output <root>/backend/build/WinSW-x64.exe'])
+        self.assertEqual(text[:4], ['<buildpy> scripts/packaging/local-build.py version', '<buildpy> scripts/packaging/local-build.py tools', '<buildpy> scripts/packaging/local-build.py check --version 1.2.3',
+                                    '<buildpy> scripts/packaging/local-build.py winsw --output <root>/backend/build/WinSW-x64.exe'])
 
     def test_guards(self):
         wrapper = self.prepare()
@@ -174,7 +174,7 @@ class Installer(Case):
         text = self.norm(recorder.commands)
         self.assertEqual(text[0], '<buildpy> <root>/scripts/deployment-package.py require-inputs')
         self.assertEqual(text[1], '<root>/backend/build/inno-setup-7.1.0/ISCC.exe /Qp /O<root>/out /DSourceExe=<root>/backend/dist/SAP-Lens.exe /DProductLicense=<root>/LICENSE.md /DProductIcon=<root>/assets/sap-lens.ico /DFullVersion=1.2.3-beta.4 /DNumericVersion=1.2.3.4 <root>/deploy/windows/desktop-installer.iss')
-        self.assertEqual(text[2], '<buildpy> <root>/scripts/verify-desktop-installer.py --installer <root>/out/SAP-Lens-Windows-Desktop-x64-1.2.3-beta.4-Setup.exe')
+        self.assertEqual(text[2], '<buildpy> <root>/scripts/packaging/verify-desktop-installer.py --installer <root>/out/SAP-Lens-Windows-Desktop-x64-1.2.3-beta.4-Setup.exe')
         self.assertEqual(named.name, 'SAP-Lens-Windows-Desktop-x64-1.2.3-beta.4-Setup.exe')
         self.assertEqual(named.with_name(named.name + '.sha256').read_text(), f'{hashlib.sha256(b"setup").hexdigest()}  {named.name}\n')
         self.assertTrue((out / 'LICENSE-Inno-Setup.txt').exists())
@@ -254,7 +254,7 @@ class DeploymentPackaging(Case):
         self.assertEqual(seen, [('Package', True), ('Verify', False), ('Smoke', False)])
         self.assertTrue(text[4].endswith('scripts/test-desktop-installer.ps1 -Installer <root>/backend/build/deployment-desktop-g/SAP-Lens-Windows-Desktop-x64-1.2.3-beta.4-Setup.exe -Report <root>/backend/build/deployment-desktop-g/metadata/installer-verification.json'))
         self.assertEqual(text[5:], ['<buildpy> scripts/deployment-package.py finish --directory <root>/backend/build/deployment-desktop-g --platform Windows-Desktop-x64 --output <root>/dist/deployment',
-                                    '<buildpy> scripts/verify-desktop-distribution.py --directory <root>/backend/build/deployment-desktop-g --payload-directory backend/dist'])
+                                    '<buildpy> scripts/packaging/verify-desktop-distribution.py --directory <root>/backend/build/deployment-desktop-g --payload-directory backend/dist'])
         readme = (bundle / 'README.md').read_text()
         self.assertIn('Run SAP-Lens-Windows-Desktop-x64-1.2.3-beta.4-Setup.exe', readme)
         self.assertFalse(readme.endswith('\n'))
@@ -266,7 +266,7 @@ class DeploymentPackaging(Case):
         recorder, seen, calls, bundle = self.run_target('Service')
         text = self.norm(recorder.commands)
         self.assertEqual(seen, [])
-        self.assertEqual(text[4], '<buildpy> scripts/local-build.py winsw --output <root>/backend/build/WinSW-x64.exe')
+        self.assertEqual(text[4], '<buildpy> scripts/packaging/local-build.py winsw --output <root>/backend/build/WinSW-x64.exe')
         self.assertTrue(text[5].endswith('scripts/test-server-service.ps1 -Bundle <root>/backend/build/deployment-service-g'))
         self.assertEqual(text[6], '<buildpy> scripts/deployment-package.py finish --directory <root>/backend/build/deployment-service-g --platform Windows-Service-x64 --output <root>/dist/deployment')
         self.assertEqual(calls, [('server', {'WinSW': str(self.root / 'backend/build/WinSW-x64.exe'), 'ValidatedDeployment': True, 'OutputDirectory': str(bundle)})])
@@ -318,7 +318,7 @@ class LocalBuild(Case):
                                                                  ('Package', False), ('Verify', False), ('Smoke', False)])
         self.assertTrue(all(host == 'PYHOST' for _, _, host, _ in stage_calls))
         text = self.norm(recorder.commands)
-        helper = '<root>/scripts/local-build.py'
+        helper = '<root>/scripts/packaging/local-build.py'
         self.assertIn(f'PYHOST {helper} clean', text)
         self.assertIn(f'PYHOST {helper} identity --version 1.2.3', text)
         self.assertIn('npm --prefix frontend run check:types', text)

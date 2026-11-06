@@ -149,10 +149,10 @@ try {
             # same-run shared validation, rather than legacy desktop reservation.
             & $buildPython scripts/deployment-package.py require-inputs
         } else {
-            & $buildPython scripts/release-windows.py ensure-local-build
+            & $buildPython scripts/packaging/release-windows.py ensure-local-build
         }
         Assert-Success 'Require resolved build identity'
-        & $buildPython scripts/write-windows-metadata.py
+        & $buildPython scripts/packaging/write-windows-metadata.py
         Assert-Success 'Generate Windows metadata'
         $icon = Join-Path $root 'assets/sap-lens.ico'
         $metadata = Join-Path $root 'backend/build/version-info.txt'
@@ -187,7 +187,7 @@ try {
         Measure-Task 'Package verification and checksum' {
             $hash = (Get-FileHash backend/dist/SAP-Lens.exe -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  SAP-Lens.exe" | Set-Content backend/dist/SAP-Lens.exe.sha256 -Encoding ascii
-            & $buildPython scripts/verify-windows-package.py
+            & $buildPython scripts/packaging/verify-windows-package.py
             Assert-Success 'Verify Windows package assets and privacy'
         }
     }
@@ -198,11 +198,11 @@ try {
         if (-not $ArtifactDirectory) { throw 'Artifact verification needs a downloaded artifact directory.' }
         Measure-Task 'Downloaded artifact verification' {
             if ($ArtifactDownloadDirectory) {
-                & $buildPython scripts/verify-artifact-zip.py --download $ArtifactDownloadDirectory --destination $ArtifactDirectory --expected-digest $ArtifactDigest
+                & $buildPython scripts/packaging/verify-artifact-zip.py --download $ArtifactDownloadDirectory --destination $ArtifactDirectory --expected-digest $ArtifactDigest
                 Assert-Success 'Verify ZIP digest and exact distribution members'
             }
             $verified = Get-Content -Raw backend/build/package-verification.json | ConvertFrom-Json
-            & $buildPython scripts/verify-windows-package.py --distribution $ArtifactDirectory --expected-sha256 $verified.exe_sha256 --report backend/build/artifact-verification.json
+            & $buildPython scripts/packaging/verify-windows-package.py --distribution $ArtifactDirectory --expected-sha256 $verified.exe_sha256 --report backend/build/artifact-verification.json
             Assert-Success 'Verify downloaded artifact matches the approved executable'
         }
     }

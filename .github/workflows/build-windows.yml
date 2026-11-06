@@ -185,8 +185,8 @@ jobs:
           ARTIFACT_DIGEST: ${{ steps.executable.outputs.artifact-digest }}
           ARTIFACT_NAME: SAP-Lens-Windows-x64
         run: |
-          if (Test-Path scripts/write-build-report.py) {
-            python scripts/write-build-report.py
+          if (Test-Path scripts/packaging/write-build-report.py) {
+            python scripts/packaging/write-build-report.py
             if ($LASTEXITCODE -ne 0) { Write-Host '::warning::Build report unavailable; inspect stage logs.' }
           } else {
             Write-Host '::warning::Build report unavailable because checkout did not complete.'

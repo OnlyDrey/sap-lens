@@ -7,7 +7,7 @@ from pathlib import Path
 import struct
 import zipfile
 
-ROOT=Path(__file__).resolve().parents[1]
+ROOT=Path(__file__).resolve().parents[2]
 WINSW_SHA='05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da'
 
 
@@ -16,7 +16,7 @@ def digest(path):
 
 
 def verify(directory):
-    spec=importlib.util.spec_from_file_location('desktop_verifier',ROOT/'scripts/verify-windows-package.py')
+    spec=importlib.util.spec_from_file_location('desktop_verifier',ROOT/'scripts/packaging/verify-windows-package.py')
     rules=importlib.util.module_from_spec(spec);spec.loader.exec_module(rules)
     if directory.is_symlink() or any(p.is_symlink() for p in directory.rglob('*')): raise ValueError('Links are forbidden.')
     if digest(directory/'SAPLensService.exe')!=WINSW_SHA: raise ValueError('Service wrapper integrity mismatch.')

@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 sys.path.insert(0, str(ROOT / 'backend'))
 from build_system import failures, frontend_workspace as workspace  # noqa: E402
 
-spec = importlib.util.spec_from_file_location('build_deployments_diag', ROOT / 'scripts/build-deployments.py')
+spec = importlib.util.spec_from_file_location('build_deployments_diag', ROOT / 'scripts/deployment/build-deployments.py')
 builder = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(builder)
 

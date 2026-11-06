@@ -6,7 +6,7 @@ from pathlib import Path
 import re
 import tempfile
 
-ROOT=Path(__file__).resolve().parents[1]
+ROOT=Path(__file__).resolve().parents[2]
 
 
 def check(directory):
@@ -25,7 +25,7 @@ def check(directory):
         if manifest['identity']!=info:raise ValueError('Downloaded artifact identity mismatch.')
         if manifest['platform'] == 'Windows-Desktop-x64':
             import subprocess
-            subprocess.run([str(ROOT/'backend/build/python-env/Scripts/python.exe'),str(ROOT/'scripts/verify-desktop-distribution.py'),
+            subprocess.run([str(ROOT/'backend/build/python-env/Scripts/python.exe'),str(ROOT/'scripts/packaging/verify-desktop-distribution.py'),
                             '--directory',str(Path(temp)/'application'),'--payload-directory',str(ROOT/'backend/dist')],check=True)
     print('Distributed package checksum and exact contents verified: '+archive.name)
     if os.environ.get('GITHUB_OUTPUT'):

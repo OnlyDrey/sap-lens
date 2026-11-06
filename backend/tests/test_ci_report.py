@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-spec = importlib.util.spec_from_file_location('ci_report', Path(__file__).resolve().parents[2] / 'scripts/ci.py')
+spec = importlib.util.spec_from_file_location('ci_report', Path(__file__).resolve().parents[2] / 'scripts/testing/ci.py')
 ci = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ci)
 

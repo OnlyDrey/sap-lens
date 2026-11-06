@@ -11,7 +11,7 @@ SAP Lens separates validation from packaging. Three levels exist, and only the f
 ## Policy
 
 Full Regression is **never** a prerequisite for building or publishing. It has no push, pull request or schedule trigger,
-no workflow calls it, and neither the sealed validation receipt, the publish job, `release-windows.py` nor the build report
+no workflow calls it, and neither the sealed validation receipt, the publish job, `packaging/release-windows.py` nor the build report
 require its result. A passing run is evidence for milestones and troubleshooting, not a gate. Contract tests
 (`scripts/check-workflows.py`, `backend/tests/test_workflows.py`) reject any change that reintroduces such a dependency.
 
@@ -171,7 +171,7 @@ Stable from any other ref, and a build-only run is unaffected.
 | Command | Use |
 | --- | --- |
 | `python scripts/check-workflows.py` | Workflow contracts |
-| `python scripts/ci.py lint` | actionlint |
+| `python scripts/testing/ci.py lint` | actionlint |
 | `python scripts/run-tests.py changed --plan` | Fast Validation selection |
 | `python scripts/run-tests.py targeted <feature>...` | Feature tests |
 | `python scripts/run-tests.py regression` | Full Regression |

@@ -43,7 +43,7 @@ jobs:
         run: python scripts/build.py test --ci-tool validation --non-interactive --scope full -- run workflow_contracts -- python scripts/check-workflows.py
       - name: Validate workflow schemas, expressions and shell commands
         id: workflow_lint
-        run: python scripts/build.py test --ci-tool validation --non-interactive --scope full -- run workflow_lint -- python scripts/ci.py lint
+        run: python scripts/build.py test --ci-tool validation --non-interactive --scope full -- run workflow_lint -- python scripts/testing/ci.py lint
       - name: Parse PowerShell and check static safety guards
         id: powershell
         run: python scripts/build.py test --ci-tool validation --non-interactive --scope full -- run powershell -- pwsh -NoProfile -File scripts/check-powershell.ps1
@@ -68,7 +68,7 @@ jobs:
           CI_REQUIRED: checkout setup_python dependencies pip_check ruff workflow_contracts workflow_lint powershell backend python_audit
           CI_JOB_NAME: ${{ github.job }}
         run: |
-          if [ -f scripts/ci.py ]; then
+          if [ -f scripts/testing/ci.py ]; then
             python scripts/build.py test --ci-tool validation --non-interactive --scope full -- summary
           else
             echo 'Validation incomplete: source checkout failed.' >> "$GITHUB_STEP_SUMMARY"
@@ -156,7 +156,7 @@ jobs:
           CI_REQUIRED: checkout setup_node setup_python dependencies npm_install types eslint unit catalog build javascript_audit browser_path browser_cache browser_setup browser
           CI_JOB_NAME: ${{ github.job }}
         run: |
-          if [ -f scripts/ci.py ]; then
+          if [ -f scripts/testing/ci.py ]; then
             python scripts/build.py test --ci-tool validation --non-interactive --scope full -- summary
           else
             echo 'Validation incomplete: source checkout failed.' >> "$GITHUB_STEP_SUMMARY"

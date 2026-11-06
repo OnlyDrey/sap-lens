@@ -127,7 +127,7 @@ class BuildVersionTests(unittest.TestCase):
         for mode in ["beta", "stable", "build"]:
             info = self.make(mode)
             spec = importlib.util.spec_from_file_location(
-                "generated_windows_metadata", ROOT / "scripts/write-windows-metadata.py"
+                "generated_windows_metadata", ROOT / "scripts/packaging/write-windows-metadata.py"
             )
             writer = importlib.util.module_from_spec(spec)
             with patch.object(version, "VERSION", info["version"]), patch.object(

@@ -161,8 +161,8 @@ class WindowsStages:
             # Deployment dispatches carry an explicit channel identity sealed by same-run shared validation.
             self.run('Require resolved build identity', [python, 'scripts/deployment-package.py', 'require-inputs'])
         else:
-            self.run('Require resolved build identity', [python, 'scripts/release-windows.py', 'ensure-local-build'])
-        self.run('Generate Windows metadata', [python, 'scripts/write-windows-metadata.py'])
+            self.run('Require resolved build identity', [python, 'scripts/packaging/release-windows.py', 'ensure-local-build'])
+        self.run('Generate Windows metadata', [python, 'scripts/packaging/write-windows-metadata.py'])
         icon = self.root / 'assets/sap-lens.ico'
         metadata = self.root / 'backend/build/version-info.txt'
         frontend_dist = self.root / 'frontend/dist'
@@ -190,7 +190,7 @@ class WindowsStages:
             digest = hashlib.sha256(executable.read_bytes()).hexdigest()
             newline = '\r\n' if os.name == 'nt' else '\n'   # Set-Content ends the line with the platform newline
             (self.root / 'backend/dist/SAP-Lens.exe.sha256').write_bytes(f'{digest}  SAP-Lens.exe{newline}'.encode('ascii'))
-            self.run('Verify Windows package assets and privacy', [self.build_python, 'scripts/verify-windows-package.py'])
+            self.run('Verify Windows package assets and privacy', [self.build_python, 'scripts/packaging/verify-windows-package.py'])
         self.measure('Package verification and checksum', action)
 
     def smoke(self):
@@ -203,10 +203,10 @@ class WindowsStages:
 
         def action():
             if self.o.ArtifactDownloadDirectory:
-                self.run('Verify ZIP digest and exact distribution members', [self.build_python, 'scripts/verify-artifact-zip.py', '--download', self.o.ArtifactDownloadDirectory,
+                self.run('Verify ZIP digest and exact distribution members', [self.build_python, 'scripts/packaging/verify-artifact-zip.py', '--download', self.o.ArtifactDownloadDirectory,
                                                                              '--destination', self.o.ArtifactDirectory, '--expected-digest', self.o.ArtifactDigest or ''])
             verified = json.loads((self.root / 'backend/build/package-verification.json').read_text(encoding='utf-8-sig'))
-            self.run('Verify downloaded artifact matches the approved executable', [self.build_python, 'scripts/verify-windows-package.py', '--distribution', self.o.ArtifactDirectory,
+            self.run('Verify downloaded artifact matches the approved executable', [self.build_python, 'scripts/packaging/verify-windows-package.py', '--distribution', self.o.ArtifactDirectory,
                                                                                    '--expected-sha256', verified['exe_sha256'], '--report', 'backend/build/artifact-verification.json'])
         self.measure('Downloaded artifact verification', action)
 

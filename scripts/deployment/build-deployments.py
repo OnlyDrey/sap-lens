@@ -20,7 +20,7 @@ import tempfile
 import time
 import uuid
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'backend'))
 sys.path.insert(0, str(ROOT / 'scripts'))
 from build_system import failures, frontend_workspace, python_env
@@ -32,7 +32,7 @@ STEMS = {'desktop': ('win-desktop-x64', '.zip'), 'service': ('win-service-x64', 
 
 
 def module(name):
-    spec = importlib.util.spec_from_file_location(name.replace('-', '_'), ROOT / 'scripts' / (name + '.py'))
+    spec = importlib.util.spec_from_file_location(name.replace('-', '_'), next((ROOT / 'scripts').rglob(name + '.py')))
     value = importlib.util.module_from_spec(spec); spec.loader.exec_module(value)
     return value
 
@@ -79,11 +79,11 @@ def remote_command(system, repository, source, version, targets, flags):
         # Encoded PowerShell preserves spaces and non-ASCII paths; no Invoke-Expression.
         script = (f"$ErrorActionPreference='Stop';Set-Location '{repository}';"
                   f"if ((git rev-parse HEAD) -ne '{source}') {{throw 'Builder source commit differs'}};"
-                  "py -3.12 scripts/build-deployments.py " + ' '.join("'" + arg + "'" for arg in arguments) + ';exit $LASTEXITCODE')
+                  "py -3.12 scripts/deployment/build-deployments.py " + ' '.join("'" + arg + "'" for arg in arguments) + ';exit $LASTEXITCODE')
         return 'powershell -NoProfile -EncodedCommand ' + base64.b64encode(script.encode('utf-16le')).decode('ascii')
     if not repository.startswith('/'): raise ValueError('Linux builder repository must be absolute.')
     return (f'cd {shlex.quote(repository)} && test "$(git rev-parse HEAD)" = {shlex.quote(source)} && '
-            + shlex.join(['python3.12', 'scripts/build-deployments.py', *arguments]))
+            + shlex.join(['python3.12', 'scripts/deployment/build-deployments.py', *arguments]))
 
 
 def verify_outputs(directory, version, source, targets, remote=False):
@@ -172,7 +172,7 @@ class Builder:
         self.stage = label
         print(label, flush=True)
         if timed:
-            command = [str(self.python), str(ROOT / 'scripts' / 'ci.py'), 'run', timed, '--', *map(str, command)]
+            command = [str(self.python), str(ROOT / 'scripts/testing/ci.py'), 'run', timed, '--', *map(str, command)]
         child_env = self.env.copy()
         if any(Path(str(value)).name == 'test-native-deployment.py' for value in command):
             for key in ('SAP_LENS_CONFIG_DIR','SAP_LENS_DATA_DIR','SAP_LENS_SOURCE_DIR','SAP_LENS_DEPLOYMENT_MODE'):
@@ -269,7 +269,7 @@ class Builder:
         if timing.exists(): timing.unlink()
         commands = [
             ('pip_check', [self.python, '-m', 'pip', 'check']),
-            ('workflow_lint', [self.python, 'scripts/ci.py', 'lint']),
+            ('workflow_lint', [self.python, 'scripts/testing/ci.py', 'lint']),
             ('backend', [self.python, 'scripts/run-tests.py', *(['regression'] if self.args.scope=='full' else ['targeted','deployment']), '--backend']),
             ('types', [tool('npm'), '--prefix', frontend, 'run', 'check:types']),
             ('catalog', [tool('node'), 'scripts/sync-lucide-catalog.mjs', '--check']),
@@ -307,9 +307,9 @@ class Builder:
                 self.run('Canonical Windows package and native smoke tests', [self.powershell, '-NoProfile', '-File', 'scripts/package-windows-deployment.ps1', '-Target', 'Desktop' if target == 'desktop' else 'Service', '-OutputDirectory', destination])
             elif target == 'linux-native':
                 self.run('Canonical Linux native package', [self.python, 'scripts/deployment-package.py', 'native', '--output', destination])
-                self.run('Offline installation and runtime/persistence smoke tests', [self.python, 'scripts/test-native-deployment.py', '--artifacts', destination])
+                self.run('Offline installation and runtime/persistence smoke tests', [self.python, 'scripts/testing/test-native-deployment.py', '--artifacts', destination])
             else:
-                self.run('Canonical Docker package and runtime/persistence smoke tests', [self.python, 'scripts/package-docker.py', '--output', destination, *(['--no-cache'] if self.args.no_cache else [])])
+                self.run('Canonical Docker package and runtime/persistence smoke tests', [self.python, 'scripts/deployment/package-docker.py', '--output', destination, *(['--no-cache'] if self.args.no_cache else [])])
             self.stage = 'Final artifact collection and checksum'
             archive = destination / name
             if not archive.is_file(): raise ValueError('Canonical packager did not produce the expected versioned artifact.')

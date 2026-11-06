@@ -11,7 +11,7 @@ $ErrorActionPreference = 'Stop'
 $watch = [System.Diagnostics.Stopwatch]::StartNew()
 $stage = 'Prerequisites'
 $root = Split-Path $PSScriptRoot -Parent
-$helper = Join-Path $PSScriptRoot 'local-build.py'
+$helper = Join-Path $PSScriptRoot 'packaging/local-build.py'
 $originalLocation = Get-Location
 $originalConsoleEncoding = [Console]::OutputEncoding
 $originalOutputEncoding = $OutputEncoding
@@ -140,7 +140,7 @@ try {
             Run-Stage 'PackagingBrowser' { & $canonical -Stage Browser -PythonExecutable $hostPython -TargetedValidation }
             Run-Stage 'Repository' {
                 Invoke-Native $buildPython @('scripts/check-workflows.py')
-                Invoke-Native $buildPython @('scripts/ci.py', 'lint')
+                Invoke-Native $buildPython @('scripts/testing/ci.py', 'lint')
                 & (Join-Path $PSScriptRoot 'check-powershell.ps1')
                 Invoke-Native 'git' @('diff', '--check')
             }

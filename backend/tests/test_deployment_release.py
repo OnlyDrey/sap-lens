@@ -25,7 +25,7 @@ def load(name, path):
     return module
 
 
-release = load('deployment_release_tests', 'scripts/deployment-release.py')
+release = load('deployment_release_tests', 'scripts/deployment/deployment-release.py')
 packages = load('deployment_package_tests', 'scripts/deployment-package.py')
 contracts = load('deployment_workflow_tests', 'scripts/check-workflows.py')
 SHA = 'a' * 40
@@ -171,11 +171,11 @@ class DeploymentVersionTests(unittest.TestCase):
         self.assertIn('-Stage Package -ValidatedDeployment', orchestration)
         self.assertIn('if ($ValidatedDeployment)', canonical)
         self.assertIn('scripts/deployment-package.py require-inputs', canonical)
-        self.assertIn('scripts/release-windows.py ensure-local-build', canonical)
+        self.assertIn('scripts/packaging/release-windows.py ensure-local-build', canonical)
         self.assertNotIn('ValidatedDeployment', (ROOT / '.github/workflows/build-windows.yml').read_text())
 
     def test_channels_generate_exact_pe_strings_and_manifest_identity(self):
-        metadata = load('deployment_resource_tests', 'scripts/write-windows-metadata.py')
+        metadata = load('deployment_resource_tests', 'scripts/packaging/write-windows-metadata.py')
         for channel in ('alpha', 'beta', 'rc', 'stable'):
             info = identity(channel)
             with self.subTest(channel=channel), tempfile.TemporaryDirectory() as temporary:

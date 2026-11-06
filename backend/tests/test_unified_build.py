@@ -378,7 +378,7 @@ class OwnershipAndScopeTests(unittest.TestCase):
             source=(ROOT/'.github/workflows'/name).read_text()
             self.assertIn('python scripts/build.py',source)
             self.assertIn('--non-interactive',source)
-        source=(ROOT/'scripts/build-deployments.py').read_text()
+        source=(ROOT/'scripts/deployment/build-deployments.py').read_text()
         self.assertIn("['targeted','deployment']",source)
         self.assertIn("['--grep','@smoke']",source)
         self.assertIn("'--scope', self.args.scope",source)

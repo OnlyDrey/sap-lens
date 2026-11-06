@@ -10,7 +10,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 import sys
 sys.path.insert(0, str(ROOT / 'backend'))
-spec = importlib.util.spec_from_file_location('verify_windows_package', ROOT / 'scripts/verify-windows-package.py')
+spec = importlib.util.spec_from_file_location('verify_windows_package', ROOT / 'scripts/packaging/verify-windows-package.py')
 package = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(package)
 
@@ -242,14 +242,14 @@ class WindowsPackageTests(unittest.TestCase):
         identity = make_deployment_info('1.0.0', 'beta', '1', 'a'*40, '41340859408', '23', 1)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root/'scripts').mkdir()
+            (root/'scripts/packaging').mkdir(parents=True)
             (root/'backend/build').mkdir(parents=True)
-            for relative in ('scripts/verify-windows-package.py', 'scripts/write-windows-metadata.py', 'backend/version.py'):
+            for relative in ('scripts/packaging/verify-windows-package.py', 'scripts/packaging/write-windows-metadata.py', 'backend/version.py'):
                 shutil.copyfile(ROOT/relative, root/relative)
             (root/'backend/build/build-version.json').write_text(json.dumps(identity))
             env = dict(os.environ, GITHUB_ACTIONS='true', SAP_LENS_EXPECTED_BUILD_JSON=json.dumps(identity))
             env.pop('PYTHONPATH', None)
-            result = subprocess.run([sys.executable, str(root/'scripts/verify-windows-package.py')],
+            result = subprocess.run([sys.executable, str(root/'scripts/packaging/verify-windows-package.py')],
                                     cwd=directory, env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, 1)
             # The intentionally absent distribution is reached only after identity validation.

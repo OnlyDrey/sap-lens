@@ -67,7 +67,7 @@ Version 1.2 introduces a responsive branded startup document, full-window settin
 
 `backend/requirements.txt` contains application/API dependencies. `requirements-desktop.txt` adds the native WebView runtime, `requirements-dev.txt` adds backend tests, and `requirements-build.txt` adds PyInstaller and pinned build pip to desktop runtime dependencies. `scripts/requirements-audit.txt` pins audit tooling for the separate host interpreter. The canonical build script installs build and test requirements into its isolated environment; normal source-mode desktop execution needs only desktop requirements. Node 24 LTS is recommended; the build toolchain accepts Node 24 or 25. User configuration is not a developer/build input.
 
-The canonical build also creates the SHA-256 manifest and runs `scripts/verify-windows-package.py` before delivery. The verifier checks the PE GUI subsystem, checksum, required bundled assets and absence of known private configuration/CSV/log entries. The GitHub workflow uploads the same verified output; it does not maintain a second checksum implementation.
+The canonical build also creates the SHA-256 manifest and runs `scripts/packaging/verify-windows-package.py` before delivery. The verifier checks the PE GUI subsystem, checksum, required bundled assets and absence of known private configuration/CSV/log entries. The GitHub workflow uploads the same verified output; it does not maintain a second checksum implementation.
 
 
 Role Lookup, User Access, Release Roles and legacy configuration compatibility are documented in [User Access](../features/USER_ACCESS.md). See [Filters](../features/FILTERS.md) for filter availability and [Navigation patterns](NAVIGATION.md) for data-source navigation.

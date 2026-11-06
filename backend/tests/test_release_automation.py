@@ -18,7 +18,7 @@ from test_windows_package import synthetic_pe
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location(
-    "release_windows", ROOT / "scripts/release-windows.py"
+    "release_windows", ROOT / "scripts/packaging/release-windows.py"
 )
 release = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(release)

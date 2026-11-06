@@ -28,10 +28,10 @@ It does not duplicate PyInstaller or implement a second installer/release system
 | Internal consumer | Existing implementation reused |
 | --- | --- |
 | Windows portable adapter | `build-local.ps1` → `build-windows.ps1` → PyInstaller, PE verifier, EXE smoke and local ZIP verifier |
-| Deployment adapter | `build-deployments.py` → shared receipts → Windows package, native and Docker utilities |
+| Deployment adapter | `deployment/build-deployments.py` → shared receipts → Windows package, native and Docker utilities |
 | Windows installer/service | `package-windows-deployment.ps1`, `build-desktop-installer.ps1`, `build-server-windows.ps1`, `build-service-manager.ps1` |
-| Tests and CI timing | `validate.py`, `run-tests.py`, `ci.py`, workflow contracts |
-| Release preparation/publication guards | `deployment-release.py`, `release-windows.py` and artifact verifiers |
+| Tests and CI timing | `validate.py`, `run-tests.py`, `testing/ci.py`, workflow contracts |
+| Release preparation/publication guards | `deployment/deployment-release.py`, `packaging/release-windows.py` and artifact verifiers |
 
 These have actual engine/CI consumers and remain internal; they are not obsolete
 copies of the public interface.
@@ -362,19 +362,19 @@ else is an internal helper and is not a supported entrypoint.
 | Group | Files | Disposition | Purpose |
 | --- | --- | --- | --- |
 | Public entrypoints | build.ps1, build.py, build_system/* | KEEP | Windows bootstrapper and the shared Python engine (CLI, prerequisites, runner, targets) |
-| Orchestrators | build-deployments.py | KEEP | Deployment builder: shared validation, Windows/Linux/Docker packages, remote builders; called by the engine and workflows |
-| Orchestrators | local-build.py, build-local.ps1 | KEEP | Portable Windows desktop local build (receipt, ZIP verification); called by the engine |
-| Orchestrators | build-windows.ps1, release-windows.py, write-build-report.py | KEEP | Legacy Windows desktop workflow stages, version reservation/release gate and run report (build-windows.yml) |
+| Orchestrators | deployment/build-deployments.py | KEEP | Deployment builder: shared validation, Windows/Linux/Docker packages, remote builders; called by the engine and workflows |
+| Orchestrators | packaging/local-build.py, build-local.ps1 | KEEP | Portable Windows desktop local build (receipt, ZIP verification); called by the engine |
+| Orchestrators | build-windows.ps1, packaging/release-windows.py, packaging/write-build-report.py | KEEP | Legacy Windows desktop workflow stages, version reservation/release gate and run report (build-windows.yml) |
 | Orchestrators | package-windows-deployment.ps1 | KEEP | Windows desktop/service packaging steps shared by local and CI builds |
 | Windows helpers | build-desktop-installer.ps1, build-server-windows.ps1, build-service-manager.ps1, manage-server-service.ps1 | KEEP | Inno installer, service bundle, service-manager compile and the shipped service management script (need Windows/.NET) |
 | Windows tests | test-windows-exe.ps1, test-desktop-installer.ps1, test-server-service.ps1 | KEEP | Native EXE, installer and service smoke tests run by the packaging scripts |
 | Windows tests | test-service-management.ps1 | KEEP (debt) | Portable service-helper regression test; only parse-checked by check-powershell.ps1 and not executed by any build step. Wire it into the service stage on a Windows host before relying on it |
-| Linux/Docker | deployment-package.py, install-linux-server.py, run-installed-server.py, test-native-deployment.py | KEEP | Native Linux archive, installer, runtime launcher and offline install smoke test (Python only) |
-| Linux/Docker | package-docker.py, test-docker-deployment.py, test-docker-lifecycle.py | KEEP | Docker image archive and its runtime/persistence smoke tests |
-| Release | deployment-release.py, check-deployment-download.py | KEEP | Plan/preflight/publish gates and downloaded-artifact check for the deployment workflow |
-| Verification | verify-windows-package.py, verify-server-bundle.py, verify-desktop-installer.py, verify-desktop-distribution.py, verify-artifact-zip.py, write-windows-metadata.py | KEEP | Package, bundle, installer and ZIP verifiers; version/PE metadata generation |
-| Validation | validate.py, run-tests.py, test-map.json, ci.py, check-workflows.py, check-docs.py, check-powershell.ps1 | KEEP | Validation levels (documented in AGENTS.md), test profiles and ownership, CI step runner/summary, workflow contracts, documentation links, PowerShell parse check |
-| Validation | serve-browser-tests.py, sync-lucide-catalog.mjs, frontend-licenses.mjs, product-version.mjs, requirements-audit.txt | KEEP | Browser test server, icon catalogue check, license and version generators, audit tooling pins |
+| Linux/Docker | deployment-package.py, install-linux-server.py, run-installed-server.py, testing/test-native-deployment.py | KEEP | Native Linux archive, installer, runtime launcher and offline install smoke test (Python only) |
+| Linux/Docker | deployment/package-docker.py, testing/test-docker-deployment.py, testing/test-docker-lifecycle.py | KEEP | Docker image archive and its runtime/persistence smoke tests |
+| Release | deployment/deployment-release.py, deployment/check-deployment-download.py | KEEP | Plan/preflight/publish gates and downloaded-artifact check for the deployment workflow |
+| Verification | packaging/verify-windows-package.py, packaging/verify-server-bundle.py, packaging/verify-desktop-installer.py, packaging/verify-desktop-distribution.py, packaging/verify-artifact-zip.py, packaging/write-windows-metadata.py | KEEP | Package, bundle, installer and ZIP verifiers; version/PE metadata generation |
+| Validation | validate.py, run-tests.py, test-map.json, testing/ci.py, check-workflows.py, check-docs.py, check-powershell.ps1 | KEEP | Validation levels (documented in AGENTS.md), test profiles and ownership, CI step runner/summary, workflow contracts, documentation links, PowerShell parse check |
+| Validation | testing/serve-browser-tests.py, sync-lucide-catalog.mjs, frontend-licenses.mjs, product-version.mjs, requirements-audit.txt | KEEP | Browser test server, icon catalogue check, license and version generators, audit tooling pins |
 | Development | maintenance/validation_tracker.py, maintenance/generate-examples.py, maintenance/reference-template.py, benchmarks/profile-sod.py, benchmarks/data_benchmark.py | KEEP | Tracker tooling, deterministic example generator, SoD profiling and reference template; separate from the build engine by design |
 
 Remaining debt: `test-service-management.ps1` is not executed by any build step; the legacy `build-windows.ps1` stage engine and the deployment

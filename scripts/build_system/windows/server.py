@@ -34,24 +34,24 @@ def build(WinSW='', Version='', ValidatedDeployment=False, OutputDirectory='', r
             raise StageError('Server build failed. No verified bundle was produced.')
 
     if not Version:
-        code, Version = process.capture([str(python), 'scripts/local-build.py', 'version'], root, env)
+        code, Version = process.capture([str(python), 'scripts/packaging/local-build.py', 'version'], root, env)
         if code != 0:
             raise StageError('Unable to resolve the authoritative product version.')
-    checked([python, 'scripts/local-build.py', 'tools'])
+    checked([python, 'scripts/packaging/local-build.py', 'tools'])
     if ValidatedDeployment:
         checked([python, 'scripts/deployment-package.py', 'require-inputs'])
         Version = json.loads((root / 'backend/build/build-version.json').read_text(encoding='utf-8-sig'))['version']
     else:
-        checked([python, 'scripts/local-build.py', 'check', '--version', Version])
+        checked([python, 'scripts/packaging/local-build.py', 'check', '--version', Version])
     if not WinSW:
         WinSW = str(root / 'backend/build/WinSW-x64.exe')
-        checked([python, 'scripts/local-build.py', 'winsw', '--output', WinSW])
+        checked([python, 'scripts/packaging/local-build.py', 'winsw', '--output', WinSW])
     if sha256(WinSW) != WINSW_SHA256:
         raise StageError('WinSW SHA-256 does not match the official pinned v2.12.0 x64 release.')
     output = Path(OutputDirectory) if OutputDirectory else root / 'dist/server' / Version
     if output.exists():
         raise StageError('Output already exists. Use a new empty output directory/version after reviewing the previous build.')
-    checked([python, 'scripts/write-windows-metadata.py'])
+    checked([python, 'scripts/packaging/write-windows-metadata.py'])
     frontend_dist, icon, image = root / 'frontend/dist', root / 'assets/sap-lens.ico', root / 'assets/sap-lens.png'
     identity, resources, metadata = root / 'backend/build/build-version.json', root / 'backend/resources', root / 'backend/build/version-info.txt'
     for required in (frontend_dist, icon, image, identity, metadata):
@@ -74,7 +74,7 @@ def build(WinSW='', Version='', ValidatedDeployment=False, OutputDirectory='', r
     shutil.copy2(root / 'LICENSE.md', output)
     shutil.copy2(root / 'docs/deployment/WINDOWS_SERVICE.md', output / 'README.md')
     checked([python, 'scripts/deployment-package.py', 'readme', '--document', 'docs/deployment/WINDOWS_SERVICE.md', '--directory', output])
-    checked([python, 'scripts/verify-server-bundle.py', output])
+    checked([python, 'scripts/packaging/verify-server-bundle.py', output])
     print(f'Verified headless server bundle: {output}. Signing is disabled. Install/start and stop tests on the target Windows Server are still required.')
     return output
 
