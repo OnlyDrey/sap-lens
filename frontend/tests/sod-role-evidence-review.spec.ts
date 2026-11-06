@@ -11,7 +11,6 @@ async function open(page: Page, width = 1440) {
   await page.getByRole('button', { name: `Show evidence for ${names.a} R1` }).click()
   return page.getByRole('dialog', { name: new RegExp(`Role evidence · ${names.a} · R1`) })
 }
-const row = (dialog: ReturnType<Page['getByRole']>, role: string) => dialog.getByRole('row').filter({ hasText: role })
 
 test('each contributing role has a status and Investigate, Keep and Remove in order on one row', async ({ page }) => {
   const dialog = await open(page)
