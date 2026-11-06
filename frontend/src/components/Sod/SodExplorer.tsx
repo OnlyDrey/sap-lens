@@ -5,7 +5,7 @@ import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { downloadFile, scopeParams, sod, EXPORT_NAME, type DecisionSummary,type AssignmentPick, type AssignmentSelection, type BulkAction, type ContextInfo, type Filters, type Lifecycle } from '@/api/sod'
 import { useHistoryValue, useViewHistory, type SodExplorerTable } from '@/hooks/useViewHistory'
-import { ArrowUpRight, Layers, ListChecks, ListTree, ScanSearch, ShieldAlert, Users, UsersRound } from 'lucide-react'
+import { ArrowUpRight, FileDown, Layers, ListChecks, ListTree, ScanSearch, ShieldAlert, Users, UsersRound } from 'lucide-react'
 import { Button } from '@/components/Shared/Button'
 import { Dialog } from '@/components/Shared/Dialog'
 import { ErrorState, DataTable, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
@@ -208,7 +208,7 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
           {(table === 'user_risk' || table === 'user_activity') && <Select aria-label="Group users by" value={table} onChange={(event) => onTable(event.target.value as SodExplorerTable)}><option value="user_risk">Grouped by risk</option><option value="user_activity">Grouped by activity</option></Select>}
           {table==='lookup'&&<Button disabled={result.isFetching||!data?.reviewable} title="Reviews all active assignments matching these filters, including non-conflict roles and all pages." onClick={openBulk}>Review matching assignments</Button>}
           <ExportCSVButton loading={busy} disabled={!data?.total} onClick={() => void download(`/api/sod/explorer/${table}/export`, EXPORT_NAME)} title="Exports every filtered row across pages." />
-          {table === 'user_risk' && context === 'current' && <Button disabled={busy || !data?.total} variant="outline" onClick={() => void download('/api/sod/analysis/export', /^sap-lens-sod-users-findings-\d{4}-\d{2}-\d{2}\.csv$/, { kind: 'users' })}>Export evidence CSV</Button>}
+          {table === 'user_risk' && context === 'current' && <Button disabled={busy || !data?.total} variant="outline" onClick={() => void download('/api/sod/analysis/export', /^sap-lens-sod-users-findings-\d{4}-\d{2}-\d{2}\.csv$/, { kind: 'users' })}><FileDown size={16} aria-hidden="true" />Export evidence CSV</Button>}
         </>}>
       {result.isError ? <ErrorState error={result.error} onRetry={() => void result.refetch()} /> : !data ? <LoadingState /> : <>
         <Toolbar>

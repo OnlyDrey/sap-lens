@@ -76,3 +76,14 @@ test('the table stays usable on a narrow screen', async ({ page }) => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   await expect(dialog.locator('tbody tr').first().getByRole('button', { name: /^Keep / })).toBeAttached()
 })
+
+test('Export evidence CSV carries a leading file-down icon and matches the neighbouring export button', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await openSod(page, 'Access Explorer')
+  const evidence = page.getByRole('button', { name: 'Export evidence CSV', exact: true })
+  await expect(evidence.locator('svg.lucide-file-down')).toHaveCount(1)
+  expect(await evidence.evaluate(el => el.firstElementChild?.tagName.toLowerCase())).toBe('svg') // icon before the label
+  const neighbour = page.getByRole('button', { name: 'Export CSV', exact: true })
+  const [a, b] = [await evidence.boundingBox(), await neighbour.boundingBox()]
+  expect(Math.round(a!.height)).toBe(Math.round(b!.height))
+})
