@@ -83,7 +83,7 @@ class IsolatedWorkspace(unittest.TestCase):
         self.assertTrue((self.root / 'frontend/node_modules/dev-only/index.js').is_file())  # the developer's installation is untouched
 
     def test_browser_fixtures_resolve_identically_in_the_checkout_and_in_the_workspace(self):
-        import re, subprocess
+        import re
         workspace.mirror(self.root, self.work)
         # The same relative layout the specs use: <root>/frontend/tests -> ../../backend/tests/fixtures
         for base in (self.root, self.work):
