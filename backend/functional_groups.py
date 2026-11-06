@@ -241,45 +241,109 @@ def _event(data, user, event, previous, new, actor, reason, change_id=''):
         raise HTTPException(409, 'Functional Group history is full. Existing data is retained.')
 
 
-def classify(username, group_id, rationale, expected_revision, actor, change_id=''):
-    """Set, change, clear or reconfirm a user's group. `expected_revision` is the revision the reviewer saw (0 = no record):
-    a stale review can never overwrite a newer classification. Group present -> Confirmed; none -> an explicit Unassigned outcome."""
+def _set_group(data, username, group_id, rationale, expected_revision, actor, change_id=''):
+    """Set, change, clear or reconfirm one user's group inside an already loaded store (the caller holds the lock and writes). `expected_revision` is the
+    revision the reviewer saw (0 = no record): a stale review can never overwrite a newer classification. Group present -> Confirmed; none -> an explicit Unassigned outcome."""
     username = username.strip()
     if not username:
         raise HTTPException(422, 'A SAP user is required.')
+    key = user_key(username)
+    before = data['users'].get(key) or dict(username=username, group_id=None, status='Unassigned', revision=0, handled=[])
+    if before['revision'] != expected_revision:
+        raise HTTPException(409, 'The classification changed since it was loaded. Reload before saving.')
+    if group_id is not None:
+        group = data['groups'].get(group_id)
+        if group is None:
+            raise HTTPException(404, 'Functional Group not found.')
+        if group['status'] == 'archived' and group_id != before['group_id']:
+            raise HTTPException(409, 'Archived Functional Groups cannot be newly assigned. Restore the group first.')
+    if before['status'] == 'Unassigned' and group_id is None and before['revision'] == 0 and not change_id:
+        raise HTTPException(409, 'The user has no Functional Group to clear.')
+    stamp = now()
+    was = dict(group_id=before['group_id'], status=before['status'])
+    after = dict(before, username=before['username'], group_id=group_id, status='Confirmed' if group_id else 'Unassigned', revision=before['revision'] + 1,
+                 confirmed_at=stamp if group_id else None, confirmed_by=actor if group_id else '', rationale=rationale.strip(), updated_at=stamp, review=None)
+    if before['group_id'] is None and group_id:
+        event = 'assigned'
+    elif group_id is None:
+        event = 'removed'
+    elif group_id != before['group_id']:
+        event = 'changed'
+    else:
+        event = 'reconfirmed' if before['status'] == 'Needs review' else 'confirmed'
+    after['handled'] = before.get('handled', [])
+    if change_id and change_id not in after['handled']:
+        after['handled'] = [*after['handled'], change_id][-MAX_HANDLED:]
+    data['users'][key] = after
+    _event(data, after, event, was, after, actor, rationale.strip(), change_id)
+
+
+def classify(username, group_id, rationale, expected_revision, actor, change_id=''):
     with lock:
         data = read()
-        key = user_key(username)
-        before = data['users'].get(key) or dict(username=username, group_id=None, status='Unassigned', revision=0, handled=[])
-        if before['revision'] != expected_revision:
-            raise HTTPException(409, 'The classification changed since it was loaded. Reload before saving.')
-        if group_id is not None:
-            group = data['groups'].get(group_id)
-            if group is None:
-                raise HTTPException(404, 'Functional Group not found.')
-            if group['status'] == 'archived' and group_id != before['group_id']:
-                raise HTTPException(409, 'Archived Functional Groups cannot be newly assigned. Restore the group first.')
-        if before['status'] == 'Unassigned' and group_id is None and before['revision'] == 0 and not change_id:
-            raise HTTPException(409, 'The user has no Functional Group to clear.')
-        stamp = now()
-        was = dict(group_id=before['group_id'], status=before['status'])
-        after = dict(before, username=before['username'], group_id=group_id, status='Confirmed' if group_id else 'Unassigned', revision=before['revision'] + 1,
-                     confirmed_at=stamp if group_id else None, confirmed_by=actor if group_id else '', rationale=rationale.strip(), updated_at=stamp, review=None)
-        if before['group_id'] is None and group_id:
-            event = 'assigned'
-        elif group_id is None:
-            event = 'removed'
-        elif group_id != before['group_id']:
-            event = 'changed'
-        else:
-            event = 'reconfirmed' if before['status'] == 'Needs review' else 'confirmed'
-        after['handled'] = before.get('handled', [])
-        if change_id and change_id not in after['handled']:
-            after['handled'] = [*after['handled'], change_id][-MAX_HANDLED:]
-        data['users'][key] = after
-        _event(data, after, event, was, after, actor, rationale.strip(), change_id)
+        _set_group(data, username, group_id, rationale, expected_revision, actor, change_id)
         write(data)
-        return public_user(data, username)
+        return public_user(data, username.strip())
+
+
+def bulk_preview(group_id, usernames):
+    """Current state of each named user relative to a target group, without changing anything.
+    state: unassigned (no group), same (already in the target group), other (a different group: replacing needs confirmation)."""
+    data = read()
+    group = data['groups'].get(group_id)
+    if group is None:
+        raise HTTPException(404, 'Functional Group not found.')
+    rows = []
+    for name in usernames:
+        current = public_user(data, name)
+        state = 'same' if current['group_id'] == group_id else 'other' if current['group_id'] else 'unassigned'
+        rows.append(dict(username=current['username'] if current['revision'] else name, state=state, revision=current['revision'], group_id=current['group_id'],
+                         group_name=current['group']['name'] if current['group'] else None))
+    return dict(group=dict(id=group['id'], name=group['name'], status=group['status']), items=rows,
+                counts={state: sum(1 for row in rows if row['state'] == state) for state in ('unassigned', 'same', 'other')})
+
+
+def bulk_assign(group_id, usernames, expected, replace_existing, rationale, actor, operation_id):
+    """Assign one Functional Group to many users in ONE store write.
+
+    Request-level problems (unknown or archived group, an operation id that was already applied) change nothing. Per-user outcomes are explicit:
+    applied, unchanged (already in the group), conflicts (the record changed since `expected`, or a different group would be replaced without `replace_existing`).
+    The applied set is committed together; skipped users are returned so only they can be retried."""
+    if not operation_id:
+        raise HTTPException(422, 'An operation identifier is required.')
+    with lock:
+        data = read()
+        if any(item.get('change_id') == operation_id for item in data['history']):
+            raise HTTPException(409, 'This operation was already applied.')
+        group = data['groups'].get(group_id)
+        if group is None:
+            raise HTTPException(404, 'Functional Group not found.')
+        if group['status'] == 'archived':
+            raise HTTPException(409, 'Archived Functional Groups cannot be newly assigned. Restore the group first.')
+        applied, unchanged, conflicts, seen = [], [], [], set()
+        for name in usernames:
+            key = user_key(name)
+            if key in seen:
+                continue
+            seen.add(key)
+            current = public_user(data, name)
+            if current['revision'] != expected.get(key, current['revision']) or (key not in expected and current['revision']):
+                conflicts.append(dict(username=name, reason='changed', detail='The classification changed since it was loaded.'))
+                continue
+            if current['group_id'] == group_id and current['status'] == 'Confirmed':
+                unchanged.append(dict(username=name, group_id=group_id))
+                continue
+            if current['group_id'] and current['group_id'] != group_id and not replace_existing:
+                conflicts.append(dict(username=name, reason='replace_not_confirmed', detail=f"Already in {current['group']['name']}; replacing needs confirmation.",
+                                      group_id=current['group_id']))
+                continue
+            previous = current['group_id']
+            _set_group(data, current['username'] if current['revision'] else name, group_id, rationale, current['revision'], actor, operation_id)
+            applied.append(dict(username=name, previous_group=previous, group_id=group_id))
+        if applied:
+            write(data)
+        return dict(operation_id=operation_id, group_id=group_id, group_name=group['name'], applied=applied, unchanged=unchanged, conflicts=conflicts,
+                    status='applied' if not conflicts else 'partial' if applied or unchanged else 'rejected')
 
 
 def _flag(data, user, change_id, reason, actor):

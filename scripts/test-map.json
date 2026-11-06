@@ -64,7 +64,8 @@
    "backend": [
     "test_access_package",
     "test_missing_roles",
-    "test_username_filter"
+    "test_username_filter",
+    "test_bulk_group_assignment"
    ],
    "browser": [
     "access-package",

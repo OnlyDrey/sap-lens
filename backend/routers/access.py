@@ -289,6 +289,15 @@ def users(filters:dict=Depends(directory_filters),anchor:str=Query('',max_length
                 export_assignments=sum(audit_assignment_count(snapshot,u['user_key'],filters,today) for u in result))
 
 
+@router.get('/users-selection')
+def users_selection(filters:dict=Depends(directory_filters)):
+    """Every username of the current filter result, in listing order, so a selection across pages is an explicit list that later changes cannot widen."""
+    snapshot=cache.get_snapshot();today=date.today()
+    result,_=directory_selection(snapshot,**filters,today=today)
+    cap=5000
+    return dict(total=len(result),usernames=[u['username'] for u in result[:cap]],truncated=len(result)>cap,limit=cap,data_revision=cache.revision_token())
+
+
 @router.get('/exports/users')
 def export_users(filters:dict=Depends(directory_filters)):
     snapshot=cache.get_snapshot();today=date.today()

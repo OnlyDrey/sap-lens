@@ -173,3 +173,24 @@ Stage 3 done: `build-local.ps1` ported (`local.py`, opt-in). All six build scrip
 Verified cause and fix are documented in [Local session lifecycle and start-up recovery](../architecture/SECURITY.md#local-session-lifecycle-and-start-up-recovery). Implemented: `startupRecovery.ts` (classification, bounded back-off, once-per-minute automatic restore), new `StartupGate`
 (Starting / Connecting / Restoring labels, one-action recovery screen, no "Reload trusted session"), automatic restore in `SessionNotice` when nothing would be lost, browser test server in desktop mode (`browser_access`), 21 unit tests, 13 new Playwright cases,
 9 backend boundary tests. Windows validation steps are in the security document; native Windows behavior is unverified.
+
+
+## User Directory and User Profile modernization (plan and status)
+
+Audit result. Reused, not duplicated: `directory_filters`/`directory_selection` (`backend/routers/access.py`) drive the listing, counts, paging, sorting and the CSV export, so the exact username list is one more parameter of that function;
+Functional Group storage, revisions, history and `classify` (`backend/functional_groups.py`); `MultiSelectFilter` (shared) for list filters; Saved Filters store the filter object; `InfoDisclosure` for secondary text.
+Missing before this round: an exact-username filter, a whole-filter selection endpoint, a bulk assignment path (only one-user `PUT /api/functional-groups/users/{u}` existed), table layout with sticky columns, selection UI, profile layout.
+
+| Step | Scope | Status |
+| --- | --- | --- |
+| A | Backend: `usernames` filter (`backend/username_filter.py`), feedback in `GET /api/access/users`, `GET /api/access/users-selection` | Done and tested (`test_username_filter`, 13 tests) |
+| B | Backend: `POST /api/functional-groups/bulk/preview` and `/bulk` (one store write, per-user applied/unchanged/conflict/rejected, replacement confirmation, revision and dataset-staleness checks, operation id, history events, administrators only) | Done and tested (`test_bulk_group_assignment`, 16 tests) |
+| C | Shared dropdown/multiselect: two-line role options, content-aware width, viewport-aware placement | Pending |
+| D | User Directory table: scroll container, sticky selection and username columns, Full Name, column order, toolbar | Pending |
+| E | Paste box for username lists, feedback, chips, Saved Filters, export | Pending |
+| F | Selection model, bulk assignment dialog, results and retry of failures | Pending |
+| G | User Profile redesign (2x2 sections, Directory Match under Account Status) | Pending |
+| H | Browser tests, documentation, full regression | Pending |
+
+Design decisions already taken: selection across pages is an explicit username list fetched from `users-selection` (it cannot widen when data or filters change; the data revision is sent with the assignment and a different publication is refused); a replacement of an existing group is a per-user conflict
+until `replace_existing` is confirmed; partial outcomes are returned as `status: partial` with the failed users so only they are retried; Functional Groups remain local classifications and never touch SAP roles, authorizations, AD groups or imports.

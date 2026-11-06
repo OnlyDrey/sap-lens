@@ -134,6 +134,61 @@ def analysis(gid: str):
     return analyse(cache.get_snapshot(), members, group)
 
 
+class BulkBody(StrictModel):
+    group_id: str = Field(min_length=1, max_length=64)
+    usernames: list[str] = Field(min_length=1, max_length=5000)
+    data_revision: str = Field(default='', max_length=64, description='data_generation seen when the selection was made; a different publication is refused')
+
+
+class BulkAssign(BulkBody):
+    operation_id: str = Field(min_length=8, max_length=64)
+    expected: dict[str, int] = Field(default_factory=dict, description='classification revision seen per username (0 = no record)')
+    replace_existing: bool = False
+    rationale: str = Field(default='', max_length=1000)
+    reviewer: str = Field(default='', max_length=200)
+
+
+def resolve_bulk(body):
+    """Validate the dataset and resolve names against it. Returns (known canonical names, missing names)."""
+    if body.data_revision:
+        current = cache.revision_token().split('.')
+        seen = body.data_revision.split('.')
+        if seen[:2] != current[:2]:
+            raise HTTPException(409, detail=dict(code='stale_dataset', message='The user data changed after this selection was made. Select the users again.'))
+    users = cache.get_snapshot().users.users
+    known, missing, seen_keys = [], [], set()
+    for name in body.usernames:
+        from user_access import normalize_username
+        key = normalize_username(name)
+        if key in seen_keys or not key:
+            continue
+        seen_keys.add(key)
+        (known if key in users else missing).append(users[key]['username'] if key in users else name.strip())
+    return known, missing
+
+
+@router.post('/bulk/preview', dependencies=[Depends(require_mapping)])
+def bulk_preview(body: BulkBody):
+    known, missing = resolve_bulk(body)
+    preview = fg.bulk_preview(body.group_id, known)
+    return dict(**preview, missing=missing, requested=len(known) + len(missing), data_revision=cache.revision_token())
+
+
+@router.post('/bulk', dependencies=[Depends(require_mapping)])
+def bulk_assign(body: BulkAssign):
+    who = actor(body.reviewer).strip()
+    if not who:
+        raise HTTPException(422, 'A reviewer is required.')
+    known, missing = resolve_bulk(body)
+    expected = {fg.user_key(name): revision for name, revision in body.expected.items()}
+    result = fg.bulk_assign(body.group_id, known, expected, body.replace_existing, body.rationale, who, body.operation_id)
+    result['rejected'] = [dict(username=name, reason='not_in_dataset', detail='Not in the active SAP user dataset.') for name in missing]
+    if missing and result['status'] == 'applied':
+        result['status'] = 'partial'
+    result['data_revision'] = cache.revision_token()
+    return result
+
+
 @router.get('/rules')
 def rules():
     return dict(items=fg.list_rules())
