@@ -43,7 +43,9 @@ export function StartupGate({ children }: { children: ReactNode }) {
   if (configuration.data) return children
   const label = restoring ? STARTUP_LABELS.restoring : configuration.failureCount > 0 ? STARTUP_LABELS.connecting : STARTUP_LABELS.starting
   const showRecovery = configuration.isError && !restoring
-  const copy = failure ? FAILURES[failure] : null
+  // A refusal states the service's own reason (not authorized / no permission), so a failed sign-in is never mistaken for an unreachable service.
+  const base = failure ? FAILURES[failure] : null
+  const copy = base && failure === 'rejected' && error?.message ? { ...base, text: `${error.message} ${base.text}` } : base
   const retry = () => {
     if (failure === 'session') { recordRestoreAttempt(storage(), Date.now()); recoverTrustedSession(); return }
     void configuration.refetch()

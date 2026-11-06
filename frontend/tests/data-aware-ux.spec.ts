@@ -238,11 +238,10 @@ test('stale desktop session recovers through a trusted document without replayin
   await route.fulfill({response,headers,body})
  })
  await page.getByRole('button',{name:'Refresh role data from CSV',exact:true}).click()
- await expect(page.getByRole('button',{name:'Reconnect session',exact:true})).toBeVisible()
- expect(posts).toBe(1)
- await page.getByRole('button',{name:'Reconnect session',exact:true}).click()
+ // Nothing typed would be lost and no restore ran lately, so the session is re-established automatically through the guarded document; the manual
+ // button (covered by session-recovery.spec.ts) is only offered when that is not safe. The failed write is never replayed.
  await expect(page.getByRole('heading',{name:'Role Lookup',exact:true})).toBeVisible()
- await expect(page.getByRole('button',{name:'Reconnect session',exact:true})).toHaveCount(0)
+  await expect(page.getByRole('button',{name:'Reconnect session',exact:true})).toHaveCount(0)
  expect(await page.evaluate(()=>history.state.sapLensView.sodFilters.shared.groups)).toEqual(['SYN_GROUP'])
  expect(newReads).toBeGreaterThan(0)
  expect(posts).toBe(1)
