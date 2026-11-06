@@ -842,7 +842,11 @@ progress::-moz-progress-bar { background:var(--progress-fill); }
 .multi-popup-scope { margin:0; font-size:var(--font-meta); color:var(--muted); overflow-wrap:anywhere; }
 .multi-popup-actions { display:flex; flex-wrap:wrap; gap:var(--space-1); }
 .multi-popup-actions > .ui-button { flex:1 1 auto; justify-content:center; white-space:nowrap; }
-.multi-option { justify-content:flex-start; }
+.multi-option { justify-content:flex-start; align-items:flex-start; }
+.multi-option > .multi-check { margin-top:.2rem; }
+.multi-option-text { display:grid; gap:1px; min-width:0; flex:1 1 auto; }
+.multi-option-name { font-weight:600; overflow-wrap:anywhere; }
+.multi-option-desc { color:var(--muted); font-size:var(--font-meta); overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2; overflow:hidden; }
 .multi-check { display:inline-flex; flex:none; align-items:center; justify-content:center; width:1rem; height:1rem; border:1.5px solid var(--border-strong,var(--muted)); border-radius:4px; background:var(--surface); color:var(--on-accent); }
 .multi-check[data-checked] { border-color:var(--accent); background:var(--accent); color:var(--on-accent); }
 

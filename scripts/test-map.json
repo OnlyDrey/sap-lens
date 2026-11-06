@@ -216,6 +216,7 @@
     "decision-controls",
     "multi-select-clear-all",
     "multiselect-dropdown",
+    "dropdown-layout",
     "session-recovery",
     "tooltip-visibility",
     "startup-recovery",

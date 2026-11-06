@@ -197,13 +197,13 @@ export function UserAccess({
         <Filter label="Functional Group"><OrganizationFilter kind="functional_group" values={functionalGroups} onChange={setFunctionalGroups}/></Filter>
         <Filter label="Manager"><OrganizationFilter kind="manager" values={managers} onChange={setManagers}/></Filter>
         <Filter label="Filter users by role">
-          <MultiSelectFilter label="Filter users by role" values={roles} options={(roleOptions.data || []).slice(0,100).map(item=>item.agr_name)} onChange={setRoles} onSearch={setRoleSearch} loading={roleOptions.isFetching} hasMore={(roleOptions.data?.length||0)>100} optionLabel={value=>{const item=roleOptions.data?.find(item=>item.agr_name===value);return item?.text ? `${value} · ${item.text}` : value}} placeholder="Role name or description" scope="in the role catalogue"/>
+          <MultiSelectFilter label="Filter users by role" values={roles} options={(roleOptions.data || []).slice(0,100).map(item=>item.agr_name)} onChange={setRoles} onSearch={setRoleSearch} loading={roleOptions.isFetching} hasMore={(roleOptions.data?.length||0)>100} optionDescription={value=>roleOptions.data?.find(item=>item.agr_name===value)?.text ?? ''} placeholder="Role name or description" scope="in the role catalogue"/>
         </Filter>
           </FilterSection>
           <FilterSection title="Missing roles">
       <section className="directory-missing grid min-w-0 gap-2" aria-label="Users lacking roles">
         <Filter label="Roles the user must lack">
-          <MultiSelectFilter label="Roles the user must lack" values={missingRoles} options={(missingOptions.data || []).slice(0,100).map(item=>item.agr_name)} onChange={values=>setMissingRoles(values.slice(0,20))} onSearch={setMissingSearch} loading={missingOptions.isFetching} hasMore={(missingOptions.data?.length||0)>100} maxSelected={20} placeholder="Add catalogue roles to find users lacking them" scope="in the role catalogue"/>
+          <MultiSelectFilter label="Roles the user must lack" values={missingRoles} options={(missingOptions.data || []).slice(0,100).map(item=>item.agr_name)} optionDescription={value=>missingOptions.data?.find(item=>item.agr_name===value)?.text ?? ''} onChange={values=>setMissingRoles(values.slice(0,20))} onSearch={setMissingSearch} loading={missingOptions.isFetching} hasMore={(missingOptions.data?.length||0)>100} maxSelected={20} placeholder="Add catalogue roles to find users lacking them" scope="in the role catalogue"/>
         </Filter>
         {missingRoles.length>0&&<>
           <div className="flex flex-wrap items-center gap-2">

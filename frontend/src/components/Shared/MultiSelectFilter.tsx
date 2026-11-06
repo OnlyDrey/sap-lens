@@ -10,9 +10,11 @@ import { Check, ChevronDown, ChevronUp, FilterX, ListChecks, Search, X, XCircle 
 
 /** Searchable multi-select. The list stays open while options are toggled and closes on outside click, Escape, Tab or Close. Values combine with OR; the caller owns the AND between filters.
  * Selections are independent of the search text: narrowing the list never drops a selected value. Select all applies to the options currently shown. */
-export function MultiSelectFilter({ label, values, options, onChange, onSearch, loading, hasMore, optionLabel = (value: string) => value, placeholder = 'All · type to search', maxSelected = 100, scope }: {
+export function MultiSelectFilter({ label, values, options, onChange, onSearch, loading, hasMore, optionLabel = (value: string) => value, optionDescription, placeholder = 'All · type to search', maxSelected = 100, scope }: {
   label: string; values: string[]; options: string[]; onChange: (values: string[]) => void; onSearch?: (query: string) => void
   loading?: boolean; hasMore?: boolean; optionLabel?: (value: string) => string; placeholder?: string; maxSelected?: number
+  /** Secondary line of an option (for example a role description): searched with the name, wrapped to two lines, complete in the tooltip. Chips show the name only. */
+  optionDescription?: (value: string) => string
   /** Describes what the option list is limited to (for example the active filters); shown beside Select all. */
   scope?: string
 }) {
@@ -21,7 +23,8 @@ export function MultiSelectFilter({ label, values, options, onChange, onSearch, 
   const anchor = useRef<HTMLDivElement>(null), popup = useRef<HTMLDivElement>(null), input = useRef<HTMLInputElement>(null)
   const [open, setOpen] = useState(false), [query, setQuery] = useState(''), [index, setIndex] = useState(0), [positioned, setPositioned] = useState(false)
   const [position, setPosition] = useState({ left: 0, top: 0, width: 0, maxHeight: 320 })
-  const shown = [...new Set(options.filter(Boolean))].filter(option => !query || onSearch || textMatches(option, query) || textMatches(optionLabel(option), query))
+  const shown = [...new Set(options.filter(Boolean))].filter(option => !query || onSearch || textMatches(option, query) || textMatches(optionLabel(option), query) || textMatches(optionDescription?.(option) ?? '', query))
+  const wide = Boolean(optionDescription) || shown.some(option => optionLabel(option).length > 36)
   const unselected = shown.filter(option => !values.includes(option))
   const close = () => { setOpen(false); setQuery(''); onSearch?.('') }
   const toggle = (option: string) => onChange(values.includes(option) ? values.filter(item => item !== option) : values.length < maxSelected ? [...values, option] : values)
@@ -38,11 +41,13 @@ export function MultiSelectFilter({ label, values, options, onChange, onSearch, 
       const natural = Math.min(360, content), down = below >= natural || below >= above
       const height = Math.min(natural, Math.max(0, down ? below : above), Math.max(0, innerHeight - 16))
       setPositioned(true)
-      setPosition({ left: Math.max(8, Math.min(box.left, window.innerWidth - Math.min(Math.max(box.width, 300), innerWidth - 16) - 8)), width: Math.min(Math.max(box.width, 300), window.innerWidth - 16),
+      // Content-aware width: at least the trigger, about 540 px for descriptions or long values when there is room, never wider than the viewport.
+      const width = Math.min(Math.max(box.width, wide ? 540 : 300), window.innerWidth - 16)
+      setPosition({ left: Math.max(8, Math.min(box.left, window.innerWidth - width - 8)), width,
         top: Math.max(8, Math.min(down ? box.bottom + 4 : box.top - height - 4, innerHeight - height - 8)), maxHeight: height })
     }
     place(); return anchor.current ? observeAnchorLayout(anchor.current, popup.current, place) : undefined
-  }, [open, shown.length, query, loading, hasMore, values.length])
+  }, [open, shown.length, query, loading, hasMore, values.length, wide])
   useEffect(() => {
     if (!open) return
     const outside = (event: PointerEvent) => { if (!anchor.current?.contains(event.target as Node) && !popup.current?.contains(event.target as Node)) close() }
@@ -92,10 +97,13 @@ export function MultiSelectFilter({ label, values, options, onChange, onSearch, 
             <div id={listId} role="listbox" aria-multiselectable="true" aria-label={`${label} options`}>
               {shown.map((option, i) => {
                 const selected = values.includes(option)
-                return <div key={option} id={`${uid}-option-${i}`} role="option" aria-selected={selected} className={`combobox-option multi-option ${i === index ? 'highlighted' : ''}`}
+                return <div key={option} id={`${uid}-option-${i}`} role="option" aria-selected={selected} aria-labelledby={`${uid}-option-${i}-name`} aria-describedby={optionDescription?.(option) ? `${uid}-option-${i}-desc` : undefined} className={`combobox-option multi-option ${i === index ? 'highlighted' : ''}`}
                   onMouseMove={() => setIndex(i)} onClick={() => toggle(option)}>
                   <span className="multi-check" data-checked={selected || undefined} aria-hidden="true">{selected && <Check size={12} strokeWidth={3} />}</span>
-                  <span>{optionLabel(option)}</span>
+                  <span className="multi-option-text" title={optionDescription ? `${optionLabel(option)} — ${optionDescription(option)}` : optionLabel(option)}>
+                    <span id={`${uid}-option-${i}-name`} className="multi-option-name">{optionLabel(option)}</span>
+                    {optionDescription?.(option) ? <span id={`${uid}-option-${i}-desc`} className="multi-option-desc">{optionDescription(option)}</span> : null}
+                  </span>
                 </div>
               })}
               {loading && <p role="status" className="p-3 text-sm text-[var(--muted)]">Searching available values…</p>}

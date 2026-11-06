@@ -185,7 +185,7 @@ Missing before this round: an exact-username filter, a whole-filter selection en
 | --- | --- | --- |
 | A | Backend: `usernames` filter (`backend/username_filter.py`), feedback in `GET /api/access/users`, `GET /api/access/users-selection` | Done and tested (`test_username_filter`, 13 tests) |
 | B | Backend: `POST /api/functional-groups/bulk/preview` and `/bulk` (one store write, per-user applied/unchanged/conflict/rejected, replacement confirmation, revision and dataset-staleness checks, operation id, history events, administrators only) | Done and tested (`test_bulk_group_assignment`, 16 tests) |
-| C | Shared dropdown/multiselect: two-line role options, content-aware width, viewport-aware placement | Pending |
+| C | Shared dropdown/multiselect: two-line role options (`optionDescription`), content-aware width (about 540 px, never wider than the viewport), accessible name and description | Done: `dropdown-layout.spec.ts` (6) and the 10 existing multiselect specs pass |
 | D | User Directory table: scroll container, sticky selection and username columns, Full Name, column order, toolbar | Pending |
 | E | Paste box for username lists, feedback, chips, Saved Filters, export | Pending |
 | F | Selection model, bulk assignment dialog, results and retry of failures | Pending |
