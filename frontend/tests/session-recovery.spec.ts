@@ -115,7 +115,12 @@ test('the notification is compact, keyboard operable, readable in dark mode and 
     await page.goto(`/#/user-access/user/${names.b}?w=${width}`)
     await expect(notice(page)).toHaveCount(1)
     const box = await notice(page).boundingBox()
-    expect(box!.height).toBeLessThan(width === 375 ? 220 : 110)                                          // compact
+    expect(box!.height).toBeLessThan(width === 375 ? 220 : 120)                                          // compact
+    if (width >= 1280) expect(box!.width).toBeLessThanOrEqual(681)                                      // capped, not viewport wide
+    else expect(box!.width).toBeGreaterThan(width * 0.9)                                                 // fills a narrow container
+    const head = await notice(page).locator('.session-notice-head').boundingBox()
+    const action = await page.getByRole('button', { name: 'Reconnect session' }).boundingBox()
+    expect(action!.y).toBeGreaterThanOrEqual(head!.y - 1); expect(action!.y + action!.height).toBeLessThanOrEqual(head!.y + head!.height + 1) // action lives in the header
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
     const reconnect = page.getByRole('button', { name: 'Reconnect session' })
     await reconnect.focus(); await expect(reconnect).toBeFocused()

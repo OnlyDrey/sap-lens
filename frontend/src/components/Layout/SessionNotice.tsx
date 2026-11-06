@@ -41,7 +41,14 @@ export function SessionNotice({ onRetry, retrying }: { onRetry?: () => void; ret
     <div role="alert" className="session-notice" data-phase={session.phase}>
       <Icon size={18} aria-hidden="true" className="session-notice-icon" />
       <div className="session-notice-body">
-        <strong>{copy.title}</strong>
+        <div className="session-notice-head">
+          <strong>{copy.title}</strong>
+          <div className="session-notice-actions">
+            {needsReconnect && <Button variant="primary" size="compact" onClick={reconnect}><RefreshCw size={14} aria-hidden="true" />{confirming ? 'Reconnect anyway' : session.phase === 'failed' ? 'Retry reconnect' : 'Reconnect session'}</Button>}
+            {confirming && <Button size="compact" onClick={() => setConfirming(false)}>Cancel</Button>}
+            {session.phase === 'disconnected' && onRetry && <Button size="compact" onClick={onRetry} disabled={retrying}><RefreshCw size={14} aria-hidden="true" />Retry connection</Button>}
+          </div>
+        </div>
         <span>{confirming ? 'Reconnecting reloads SAP Lens: text typed into open forms will be lost. Nothing is saved or resubmitted automatically.' : copy.text}</span>
         <details className="session-notice-details">
           <summary>Technical details</summary>
@@ -53,11 +60,6 @@ export function SessionNotice({ onRetry, retrying }: { onRetry?: () => void; ret
           </dl>
           <p>Reconnecting reloads the trusted session through the guarded application document. If this repeats, restart SAP Lens from the tray or Start menu and close other SAP Lens windows. No credentials are shown here.</p>
         </details>
-      </div>
-      <div className="session-notice-actions">
-        {needsReconnect && <Button variant="primary" size="compact" onClick={reconnect}><RefreshCw size={14} aria-hidden="true" />{confirming ? 'Reconnect anyway' : session.phase === 'failed' ? 'Retry reconnect' : 'Reconnect session'}</Button>}
-        {confirming && <Button size="compact" onClick={() => setConfirming(false)}>Cancel</Button>}
-        {session.phase === 'disconnected' && onRetry && <Button size="compact" onClick={onRetry} disabled={retrying}><RefreshCw size={14} aria-hidden="true" />Retry connection</Button>}
       </div>
     </div>
   )
