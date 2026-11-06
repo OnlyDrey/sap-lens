@@ -10,7 +10,7 @@ Build, validation, packaging and maintenance tooling. Run everything from the re
 | `.\scripts\build.ps1 -Mode build -Platform windows -Target all` | Windows x64, PowerShell 5.1 or 7 | Windows bootstrapper: finds Python 3.12 x64 (installs it only with consent) and forwards to `build.py`. Modes `quick`, `test`, `build`, `package`, `release`, `clean`. Works from any working directory. |
 | `python3.12 scripts/build.py <mode> [--platform windows\|linux\|docker] [--target ...]` | Windows and Linux | The build engine (CLI, prerequisites, targets). Linux packages and Docker images are built here. |
 | `python scripts/run-tests.py smoke\|targeted <feature>\|regression\|release\|list\|check` | Windows and Linux | Test profiles; feature ownership is in `test-map.json`. |
-| `python scripts/validate.py --level fast\|feature\|full` (`validate.sh`, `validate.ps1` are thin wrappers) | Windows and Linux | Local validation by risk level. |
+| `python scripts/validate.py --level fast\|feature\|full` | Windows and Linux | Local validation by risk level. |
 | `python scripts/check-docs.py`, `check-workflows.py`, `sync-lucide-catalog.mjs --check` | Windows and Linux | Static repository checks. |
 | `python scripts/benchmarks/data_benchmark.py`, `benchmarks/profile-sod.py` | Windows and Linux | Import, refresh, startup and API timings; SoD write profiling. |
 | `python scripts/maintenance/validation_tracker.py`, `generate-examples.py`, `reference-template.py` | Windows and Linux | Validation tracker CSV and workbook, synthetic examples, SoD reference template. |

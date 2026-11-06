@@ -183,19 +183,15 @@ not replace CI or create a second suite.
 | FULL | Existing release-validation profile: regression plus security/platform checks | Only when explicitly selected |
 
 ```sh
-./scripts/validate.sh --level fast --area sod
-./scripts/validate.sh --level feature --area sod --grep 'activity matrix'
-./scripts/validate.sh --level fast --base origin/work --plan
-./scripts/validate.sh --level full --reports
+python scripts/validate.py --level fast --area sod
+python scripts/validate.py --level feature --area sod --grep 'activity matrix'
+python scripts/validate.py --level fast --base origin/work --plan
+python scripts/validate.py --level full --reports
 ```
 
-```powershell
-.\scripts\validate.ps1 -Level Fast -Area SoD
-.\scripts\validate.ps1 -Level Feature -Area SoD -Grep 'activity matrix'
-.\scripts\validate.ps1 -Level Full -Reports
-```
+The same commands run in Windows PowerShell (`python scripts\validate.py --level fast --area sod`).
 
-Activate the Python 3.12 development venv first (or set `PYTHON` to its executable),
+Activate the Python 3.12 development venv first,
 install the pinned frontend/dev requirements and Playwright Chromium as described
 above. No Codex session is needed. FULL uses the existing `release` validation profile; it does not create tags, publish releases or dispatch workflows. With no area, Git diff against `HEAD` includes
 working-tree/untracked changes. `--base origin/work` compares against that ref;

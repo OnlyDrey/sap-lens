@@ -149,3 +149,14 @@ Phase 2 result: `build.ps1` moved to `scripts/build.ps1` (root no longer has a b
 Phases 3 to 5 result: workflows, Docker files and scripts reference only existing files; native calls in the PowerShell scripts are guarded (`$ErrorActionPreference = 'Stop'` plus `Assert-Success`/`Checked`/`$LASTEXITCODE`); CI triggers unchanged. Documentation: new [storage and revisions](../architecture/STORAGE_AND_REVISIONS.md), [data retention](../operations/DATA_RETENTION.md) and [performance](PERFORMANCE.md) documents (content moved out of `SYSTEM.md` and `IMPORT_AND_REFRESH.md`, which now point to them), operations index, version stamps removed from four headings, a dated incident log removed from `CI_CD.md`, README gained architecture and security/operations sections, documentation indexes updated.
 
 Phase 7: backend regression 1522 passed (0 failed, 6 skipped), browser smoke 12/12, static checks green; see the final summary in the audit report.
+
+
+## Scripts architecture, second pass
+
+| Phase | Scope | Status | Commit |
+| --- | --- | --- | --- |
+| 1 | Call graph, disposition matrix, proposed architecture ([audit report](REPOSITORY_AUDIT.md#scripts-architecture-second-pass)) | Completed | see Git log |
+| 2 | PowerShell consolidation | Partly done: `validate.ps1`/`validate.sh` removed. The rest needs approval and a Windows host | |
+| 3 to 5 | Python orchestration, directory organization, consumer updates | Waiting for approval of the proposed architecture | |
+| 6 | Validation | Linux-side validation done for the completed part | |
+| 7 | Final report | After approval and the staged migration | |

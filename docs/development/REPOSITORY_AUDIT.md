@@ -133,3 +133,112 @@ storage). No broad upgrade was attempted.
 | Remaining technical debt | 115 ESLint warnings (ceiling may only go down); `test-service-management.ps1` not executed by any build step; deployment and Windows packaging sequencing still lives partly in PowerShell; Dependabot for the SHA-pinned actions is a recommendation only |
 | Platform validation gaps | Native Windows execution of `scripts/build.ps1` and all PowerShell scripts, WebView2, SCM, UNC, real systemd boot and recovery are unverified |
 | Release readiness | Local validation is green. Not release-ready until a Windows host has run the packaging and service lifecycle checks and the workflows have been run on an approved branch; merging and releasing need explicit authorization |
+
+## Scripts architecture, second pass
+
+The first pass kept every script because each had a reference. This pass reads the implementations and asks whether each file is architecturally necessary.
+
+### Counts
+
+| Language | Before (baseline `b723e75`) | After this pass |
+| --- | --- | --- |
+| PowerShell | 14 files, about 1 490 lines | 13 files (`validate.ps1` removed) |
+| Shell | 2 (`scripts/validate.sh`, `deploy/docker/manage.sh`) | 1 (`manage.sh` ships inside the Docker bundle) |
+| Python (scripts, build engine, tools) | 40 files, about 6 840 lines | 40 (no change; see below) |
+| JavaScript (`.mjs`) | 3 | 3 (called by `npm`, the Dockerfile and packaging) |
+| Public entrypoints | `build.ps1`, `build.py`, `run-tests.py`, `validate.py`, `validate.sh`, `validate.ps1`, `check-*.py`, `serve-browser-tests.py` | same minus the two validate wrappers |
+
+### Call graph
+
+```mermaid
+flowchart TD
+    W[GitHub Actions] -->|python scripts/build.py --ci-tool| BP[build.py / build_system]
+    DEV[Developer] --> BPS[build.ps1]
+    BPS -->|finds Python 3.12, consent| BP
+    BP -->|quick/test/build/package/release/clean| LB[local-build.py]
+    BP -->|test| VAL[validate.py] --> RT[run-tests.py]
+    BP -->|windows desktop, local| BL[build-local.ps1]
+    BP -->|windows packages| BD[build-deployments.py]
+    BP -->|ci-tool windows-stage| BW[build-windows.ps1]
+    BP -->|ci-tool windows-package| PWD[package-windows-deployment.ps1]
+    BP -->|ci-tool installer-check| BDI[build-desktop-installer.ps1]
+    BP -->|ci-tool linux/docker/release| DP[deployment-package.py / package-docker.py / deployment-release.py / release-windows.py]
+    BL --> BW
+    BL --> LB
+    BL --> BSW[build-server-windows.ps1]
+    PWD --> BW
+    PWD --> BDI
+    PWD --> TDI[test-desktop-installer.ps1] --> TWE[test-windows-exe.ps1]
+    PWD --> BSW --> BSM[build-service-manager.ps1]
+    PWD --> TSS[test-server-service.ps1] --> MSS[manage-server-service.ps1]
+    BW --> RW[release-windows.py]
+    BW --> TWE
+    BW --> VWP[verify-windows-package.py]
+    BD -->|remote Windows builder| PWD
+    BD --> DP
+    DP --> IL[install-linux-server.py / run-installed-server.py shipped in the bundle]
+    CPS[check-powershell.ps1] --> TSM[test-service-management.ps1] --> MSS
+```
+
+Layering, not duplication: `build.py` is the only public engine; the Python scripts are adapters with different lifecycles (legacy desktop release, deployment
+packages, Linux bundle runtime, verifiers), and the PowerShell scripts are the Windows-native stages those adapters call.
+
+### Disposition matrix: PowerShell
+
+| File | Lines | What it does | Called by | Verdict | Reason |
+| --- | --- | --- | --- | --- | --- |
+| `build.ps1` | 143 | Locates Python 3.12 x64, offers a per-user winget install, forwards to `build.py` | developers; docs | **Keep, sole public PS entrypoint** | Must exist before Python is known to exist |
+| `manage-server-service.ps1` | 275 | Install/start/stop/backup/restore/upgrade of the Windows service through WinSW and SCM | shipped inside the service bundle; operators; `test-server-service.ps1` | **Keep** | Delivered to customers as the administrator tool; native SCM and ACL behavior; changing it changes a production artifact |
+| `check-powershell.ps1` | 20 | Parses every PS file with the PowerShell AST and enforces fail-fast and no dynamic execution | workflows (`powershell` step), `run-tests.py`, `build-local.ps1` | **Keep; may fold into `build.ps1`** | Needs the PowerShell parser; only PowerShell can run it |
+| `test-service-management.ps1` | 102 | Runs the real helper functions of `manage-server-service.ps1` against scripted SCM states | `check-powershell.ps1` | **Keep; may fold into `check-powershell.ps1`** | Dot-sources PS function definitions; cannot be Python |
+| `build-windows.ps1` | 212 | Stage runner (environment, frontend, Python, audit, backend, browser, PyInstaller package, verify, smoke, artifact) with timing log | workflow `windows-stage` adapter, `build-local.ps1`, `package-windows-deployment.ps1` | **Migrate to Python (gated)** | Pure orchestration of `python`, `npm`, `pip`, PyInstaller |
+| `build-local.ps1` | 197 | Local Windows desktop pipeline with lock, transcript, version and receipts | `build.py` desktop target | **Migrate to Python (gated)** | Orchestration; the Windows-specific parts are a share-denying lock file, `Start-Transcript` and environment restore |
+| `package-windows-deployment.ps1` | 57 | Desktop installer and service bundle packaging sequence | `build-deployments.py`, workflow `windows-package` adapter | **Migrate to Python (gated)** | Orchestration |
+| `build-desktop-installer.ps1` | 78 | Pinned per-user Inno Setup provisioning, installer compilation, compile-check of the recipe | `package-windows-deployment.ps1`, workflow `installer-check` | **Migrate to Python (gated)** | Download, SHA-256 pin, silent install, `ISCC.exe` |
+| `build-server-windows.ps1` | 53 | PyInstaller one-dir service build, WinSW and manager copy, bundle verification | `package-windows-deployment.ps1`, `build-local.ps1` | **Migrate to Python (gated)** | Orchestration |
+| `build-service-manager.ps1` | 45 | Compiles `ServiceManager.cs` with the .NET Framework 4.8 `csc.exe` and runs a disposable self-test harness | `build-server-windows.ps1` | **Migrate to Python (gated)** | Subprocess calls with generated assembly attributes |
+| `test-windows-exe.ps1` | 171 | Starts the packaged EXE, tracks its process tree through CIM, checks session denial, shutdown and cleanup | `build-windows.ps1`, `test-desktop-installer.ps1` | **Keep as Windows-native test** | Process-tree ownership uses `Win32_Process`; Python equivalents need new dependencies or ctypes and cannot be proven here |
+| `test-desktop-installer.ps1` | 58 | Silent install, reinstall, registry and uninstall acceptance of the per-user installer | `package-windows-deployment.ps1` | **Keep as Windows-native test** | Registry and installer lifecycle |
+| `test-server-service.ps1` | 63 | SCM acceptance subset of the service bundle | `package-windows-deployment.ps1` | **Keep as Windows-native test** | SCM |
+
+Removed in this pass: `validate.ps1` (21 lines) and `validate.sh` (4 lines). Both only forwarded their arguments to `python scripts/validate.py`; the same command works on both platforms.
+
+### Why one `.ps1` file is not achievable now
+
+The floor is **two** files if the static checks are folded into `build.ps1`: `build.ps1` (it must run before Python exists) and `manage-server-service.ps1` (a shipped
+customer artifact). Reaching one would require either removing the service administration tool or rewriting the SCM and elevation logic in a different language and shipping that.
+Getting from 13 to that floor requires porting about 650 lines of Windows build orchestration and three native tests whose behavior can only be proven on Windows (PyInstaller flags and
+the `;` data separator, Inno Setup provisioning, `csc.exe`, share-denying lock, process-tree tracking, registry and SCM). None of that can be executed in the Linux container.
+The static tests available here (command sequences and argument contracts) show the port issues the same commands; they do not show that the Windows tools accept them.
+
+### Python orchestration: findings
+
+* `build.py` / `build_system` is already the single orchestration engine. `local-build.py`, `build-deployments.py`, `deployment-package.py`, `deployment-release.py` and
+  `release-windows.py` have different lifecycles (local receipts, remote builders, bundle assembly and shipping, release gates, the legacy desktop release); `validate.py` is a 127-line policy layer over
+  `run-tests.py`; `ci.py` is the CI timing and actionlint adapter. A scan of top-level functions found no duplicated logic worth a shared module except `sha()` (two identical copies) and three differing
+  importlib loaders, which exist because the file names contain hyphens.
+* The loaders cannot be shared without moving files: `install-linux-server.py` and `deployment-package.py` ship inside the Linux bundle and load each other from the bundle's `scripts/`
+  directory, so they cannot import from `build_system`.
+* The structural cost is the hyphenated file names. Turning them into importable modules (`scripts/packaging/`, `scripts/deployment/`, `scripts/testing/`) would remove the loaders, but it changes the
+  paths addressed by 4 workflows through the CI adapter table, 49 `spec_from_file_location` calls in tests, the PowerShell scripts, the Docker and native bundles, and 14 documents.
+  That is a file move with a large blast radius and no behavioral gain until the PowerShell stages have moved.
+
+### Proposed target architecture (requires approval)
+
+```
+scripts/
+  build.ps1            bootstrap, sole public PS entrypoint (+ -Mode CheckPowerShell, absorbing check-powershell and test-service-management)
+  manage-server-service.ps1   shipped service administration tool (stays PowerShell)
+  build.py, build_system/     engine; gains windows/ modules: stages, local, installer, service_manager (ports of the six build scripts)
+  run-tests.py, validate.py, ci.py
+  testing/             native Windows tests (kept PowerShell until a Python port is validated on Windows)
+  packaging/, deployment/, benchmarks/, maintenance/, README.md
+```
+
+Staged migration, each stage gated on evidence from a Windows host (a local Windows build, or an explicitly authorized manual dispatch of `build-windows.yml` and `build-deployments.yml`):
+
+1. Port `build-windows.ps1` stages to `build_system/windows/stages.py` with a golden-command unit test; keep the PowerShell file until a Windows run of every stage matches.
+2. Port `build-local.ps1`, then `package-windows-deployment.ps1`, `build-server-windows.ps1`, `build-service-manager.ps1`, `build-desktop-installer.ps1`.
+3. Fold `check-powershell.ps1` and `test-service-management.ps1` into `build.ps1`.
+4. Move the Python adapters into packages and remove the importlib loaders, updating workflows, tests and bundles in the same change.
+5. Port the three native tests only if a Windows-validated Python equivalent exists; otherwise keep them.

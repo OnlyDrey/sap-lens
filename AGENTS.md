@@ -118,8 +118,8 @@ From the repository root (full list and risk-based selection:
   and browser suites, production build, security/static and available platform checks.
   Never run FULL automatically during ordinary development. A failure normally requires
   only its root-cause fix and affected recheck; broader reruns need a concrete impact reason.
-- Local entry point: `python scripts/validate.py --level fast|feature|full --area sod`;
-  wrappers `scripts/validate.sh` and `scripts/validate.ps1`. Mapping and dependencies live
+- Local entry point: `python scripts/validate.py --level fast|feature|full --area sod`
+  (the same command on Windows and Linux). Mapping and dependencies live
   in `scripts/test-map.json`; unknown changes fail closed rather than silently omitting tests
   or escalating to FULL. See [Testing](docs/development/TESTING.md).
 - Commit and push validated, independently functional phases to `origin/work`; do not wait
