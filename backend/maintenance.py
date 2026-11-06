@@ -13,7 +13,6 @@ from pathlib import Path, PurePosixPath
 import re
 import shutil
 import stat
-import subprocess
 import sys
 import tarfile
 import tempfile
@@ -69,27 +68,16 @@ def digest(path):
     with Path(path).open('rb') as stream: return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
-def windows_tool(name):
-    """Absolute path of a Windows system tool. The packaged Desktop (and its smoke test) runs with a minimal PATH of System32 and the Windows
-    folder, which does not contain `powershell.exe` (it lives in System32\\WindowsPowerShell\\v1.0); a bare name made the mandatory pre-migration
-    backup fail with FileNotFoundError. Falls back to the bare name when the system folder is not found."""
-    root = Path(os.environ.get('SystemRoot') or os.environ.get('WINDIR') or 'C:/Windows') / 'System32'
-    candidate = root / 'WindowsPowerShell' / 'v1.0' / 'powershell.exe' if name == 'powershell' else root / name
-    return str(candidate) if candidate.is_file() else name
-
-
-def current_sid():
-    sid = subprocess.check_output([windows_tool('powershell'), '-NoProfile', '-Command', '[Security.Principal.WindowsIdentity]::GetCurrent().User.Value'], text=True).strip()
-    if not re.fullmatch(r'S-1-[0-9-]+', sid): raise MaintenanceError('Cannot resolve the current backup owner.')
-    return sid
-
-
 def private_file(path):
+    """Owner-only access. POSIX modes on Linux; on Windows a protected DACL for the effective user and SYSTEM, set in-process through the Windows security API (no external process)."""
     if os.name != 'nt':
         path.chmod(0o600)
         return
-    sid = current_sid()
-    subprocess.run([windows_tool('icacls.exe'), str(path), '/inheritance:r', '/grant:r', '*' + sid + ':F', '*S-1-5-18:F'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    import windows_identity
+    try:
+        windows_identity.make_private(path)
+    except windows_identity.WindowsIdentityError as error:
+        raise MaintenanceError(f'Cannot make the backup file private: {error}') from error
 
 
 def owned(data, mode, allow_legacy=False):

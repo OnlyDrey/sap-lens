@@ -41,9 +41,9 @@ def area(data=None, *, create=True):
     root.mkdir(mode=0o700,parents=True,exist_ok=True)
     if os.name != 'nt': root.chmod(0o700)
     elif (str(root),root.stat().st_ino) not in _secured:
-        import subprocess
-        sid=engine.current_sid()
-        subprocess.run([engine.windows_tool('icacls.exe'),str(root),'/inheritance:r','/grant:r','*'+sid+':(OI)(CI)F','*S-1-5-18:(OI)(CI)F'],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        import windows_identity
+        try: windows_identity.make_private(root,inherit_children=True)
+        except windows_identity.WindowsIdentityError as error: raise engine.MaintenanceError(f'Cannot make the backup area private: {error}') from error
         if len(_secured)>128: _secured.clear()
         _secured.add((str(root),root.stat().st_ino))
     return root

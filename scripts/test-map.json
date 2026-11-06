@@ -271,6 +271,7 @@
     "test_windows_ports",
     "test_windows_acceptance_split",
     "test_server_connection_modes",
+    "test_windows_identity",
     "test_desktop_smoke_script",
     "test_scripts_layout",
     "test_windows_tray",
