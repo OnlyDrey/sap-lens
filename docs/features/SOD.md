@@ -553,3 +553,7 @@ checks, period gates and per-assignment immutable history are unchanged.
 - **Detailed Remediation** (`sap-lens-sod-access-remediation-YYYY-MM-DD.csv`): unchanged columns and activity-level rows for evidence and investigation.
 
 Both use the established CSV conventions (semicolon delimiter, all fields quoted, UTF-8 with BOM, spreadsheet-formula protection).
+
+## Role Evidence: inline Role Assignment Review
+
+The Role Evidence modal of Access Explorer lists every role supplying a risk's activities with its **Status** and **Review actions** (Investigate, Keep, Remove, in that order). The actions use the same service as the Role Assignment Review in the investigation panel (`POST /api/sod/decisions/assignment`), keyed by the assignment id of that SAP user, so a decision never reaches other users with the same role. A role with several assignment intervals shows one row per interval. The reviewer is the authenticated user or a self-reported name entered above the table; an optional rationale is stored with the decision. A row changes only after the server confirmed the save, loading and errors belong to the row, and decisions are not offered where the context is not reviewable (for example frozen periods). Remove records a removal recommendation only: SAP assignments, mappings and evidence snapshots are not modified, and the risk still needs its own approval and formal acceptance. After a save the shared SoD queries (explorer tables, matrices, overview) are refreshed.

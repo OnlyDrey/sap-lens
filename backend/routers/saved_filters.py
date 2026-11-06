@@ -28,7 +28,7 @@ class Saved(StrictModel):
         if len(json.dumps(value))>16000: raise ValueError('Filter definition is too large.')
         for k,v in value.items():
             if len(k)>64 or not (isinstance(v,(str,bool,int)) or isinstance(v,list) and all(isinstance(x,str) and len(x)<=512 for x in v) and len(v)<=100): raise ValueError('Only bounded scalar filters or string lists are supported.')
-            if isinstance(v,str) and len(v)>512: raise ValueError('Filter text is too long.')
+            if isinstance(v,str) and len(v)>(12000 if k=='usernames' else 512): raise ValueError('Filter text is too long.')
         return value
 
 
@@ -40,7 +40,7 @@ def listing():
 @router.post('')
 def save(request:Saved):
     allowed={
-      'users':{'search','group','groups','roles','sort','descending','role','tcodes','transactionMode','transactionExclude','excludeTcodes','excludeMode','missingRoles','missingMode','expired','assignmentBand'},
+      'users':{'search','group','groups','roles','sort','descending','role','tcodes','transactionMode','transactionExclude','excludeTcodes','excludeMode','missingRoles','missingMode','expired','assignmentBand','usernames'},
       'roles':{'search','activeModules','transactionMode','transactionExclude','transactionOperator','tcodes','notTcodes','excludeTcodes','excludeMode','sortBy'},
       'release':{'group','userGroups','kind','releaseGroup','releaseAreas','releaseGroups','strategy','strategies','username','role','status','sort','descending','valid_from_min','valid_from_max','valid_to_min','valid_to_max','include_missing_end'},
       'review':{'search','finding','license','state','findings','licenses','states','sort','descending'},

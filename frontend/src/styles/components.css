@@ -195,7 +195,6 @@ main h1,.settings-content h1 { font-size:var(--font-title); font-weight:600; }
 
 .diagnostic-health-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:var(--space-3); }
 .diagnostic-health-grid .compact-health strong { font-size:var(--font-section); }
-.profile-matching-evidence { grid-column:1/-1; min-width:0; margin-top:var(--space-4); }
 .matching-details>summary { cursor:pointer; font-size:var(--font-label); color:var(--text2); padding:var(--space-2) 0; }
 .matching-details>div { padding:var(--space-3); border-top:1px solid var(--border); }
 .dashboard-section[aria-label="Access & risk review"] .dashboard-metrics { grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr)); }
@@ -1498,3 +1497,5 @@ summary:focus-visible,div[tabindex="0"]:focus-visible,a.role-identifier-link:foc
 .user-directory-table tbody tr:hover td.ud-sticky-1,.user-directory-table tbody tr:hover td.ud-sticky-2 { background:var(--hover); }
 .user-directory-table tbody tr[data-selected] td.ud-sticky-1,.user-directory-table tbody tr[data-selected] td.ud-sticky-2 { background:color-mix(in srgb,var(--accent) 12%,var(--surface)); }
 .results-toolbar-actions { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2); }
+/* A tooltip, menu or focus ring opened inside a pinned cell must rise above the neighbouring pinned cells of the rows below. */
+.user-directory-table td.ud-sticky-1:has([data-open="true"]),.user-directory-table td.ud-sticky-2:has([data-open="true"]),.user-directory-table td.ud-sticky-1:focus-within,.user-directory-table td.ud-sticky-2:focus-within { z-index:5; }

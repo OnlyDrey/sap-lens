@@ -2,7 +2,6 @@ import { decisionVariant } from '@/components/Shared/DecisionChoice'
 import {useSodReviewSwitchGuard} from '@/hooks/useSodReviewNavigation'
 import {SodDecisionStatus} from './SodDecisionStatus'
 import {ContentTabList} from '@/components/Shared/Navigation'
-import {apiRequest} from '@/api/client'
 import { sentenceCase } from '@/lib/labels'
 import { useRoleDescriptions } from '@/hooks/useRoleModules'
 import { useModuleDefinitions } from '@/components/Modules/ModuleRegistry'
@@ -36,7 +35,7 @@ const OPTIONS: Record<Kind, { value: string; label: string }[]> = {
   risk:[{value:'Approved',label:'Approved: the risk is acceptable for this review'},{value:'Remove',label:'Remove: remediation is required'},{value:'Investigate',label:'Investigate: further assessment is required'},{value:'Pending',label:'Reset to pending'}],
   acceptance: [{ value: 'Accepted', label: 'Accept the risk' }, { value: 'Rejected', label: 'Reject the risk' }, { value: 'Pending', label: 'Reset to pending' }],
 }
-const QUICK_RATIONALE = 'Reviewed in Role Assignment Review'
+import { useAssignmentQuickReview, QUICK_RATIONALE } from './useAssignmentQuickReview'
 const reviewerKey = 'sap-lens-sod-reviewer'
 const rememberedReviewer = () => { try { return sessionStorage.getItem(reviewerKey) || '' } catch { return '' } }
 
@@ -64,17 +63,10 @@ function InvestigationContent({context,user,risk,activity,onScope,reviewTab,setR
     [simulation, setSimulation] = useState<null | { before: string[]; after: string[]; resolved: string[]; lost_activities: string[]; warnings: string[]; eliminates_all: boolean }>(null),
     [error, setError] = useState(''),
     [action, setAction] = useState<null | { assignment: AssignmentRow }>(null),
-    [quickReviewer, setQuickReviewer] = useState(rememberedReviewer),
-    [quickRationale, setQuickRationale] = useState(''),
-    [quickBusy, setQuickBusy] = useState<Map<string,string>>(new Map()),
-    [quickError, setQuickError] = useState(''),
     formRef = useRef<HTMLDivElement>(null)
   useSodReviewSwitchGuard(!!form)
   const params = scopeParams(context, emptyFilters, { user, ...(risk ? { risk } : {}), ...(activity ? { activity } : {}) })
   const query = useQuery({ queryKey: ['sod-subject', params.toString()], queryFn: () => sod<Subject>('/api/sod/subject', params) })
-  const runtime=useQuery({queryKey:['review-runtime-identity'],queryFn:()=>apiRequest<{username:string;role:string}>('/api/runtime'),retry:false})
-  const authenticated=!!runtime.data?.username
-  const reviewer=runtime.data?.username||quickReviewer
   const tabId=useId()
   const data = query.data
   const ok = !!data?.reviewable
@@ -83,53 +75,7 @@ function InvestigationContent({context,user,risk,activity,onScope,reviewTab,setR
     setError('')
     try { setSimulation(await sodPost('/api/sod/simulate', { context, user, removed })) } catch (cause) { setError(cause instanceof Error ? cause.message : 'Simulation failed.') }
   }
-  /** One-click review. Each assignment is decided on its own: requests run one after another, so each reads the revision the previous
-   * save produced, and the row changes only after the server confirmed it. A busy marker belongs to one row, never to the panel. */
-  const queue = useRef<Promise<void>>(Promise.resolve())
-  const pendingRows=useRef(new Set<string>())
-  const quickDecide = (row: OverviewAssignment, decision: 'Keep' | 'Remove' | 'Investigate') => {
-    if(pendingRows.current.has(row.id))return
-    setQuickError('')
-    if (!reviewer.trim()) { setQuickError('Enter a reviewer name above before recording a decision. It is self-reported and stored with each decision.'); return }
-    pendingRows.current.add(row.id)
-    setQuickBusy(previous=>new Map(previous).set(row.id,decision))
-    const savedReviewer = reviewer.trim(), justification = quickRationale.trim() || QUICK_RATIONALE
-    const save = async () => {
-      let confirmed=false
-      try {
-        for (let attempt = 0; attempt < 2; attempt++) {
-          const current = qc.getQueryData<Subject>(['sod-subject', params.toString()]) ?? data
-          if (!current) return
-          try {
-            const recorded=await sodPost<{revision:number;confirmed_assignments?:Record<string,Pick<OverviewAssignment,'decision'|'event'|'decision_summary'|'review_coverage'>>}>('/api/sod/decisions/assignment', { context: current.context, expected_revision: current.revision, expected_generation: current.generation, items: [item(row.id, row.role, row.evidence_version)],
-              decision, reviewer:savedReviewer, approver: '', justification, controls: '', expires: null })
-            const patch=recorded.confirmed_assignments?.[row.id]
-            confirmed=!!patch
-            qc.setQueryData<Subject>(['sod-subject',params.toString()],previous=>previous&&previous.generation===current.generation&&previous.revision<=recorded.revision?{...previous,revision:recorded.revision,overview:{...previous.overview,assignments:previous.overview.assignments.map(item=>item.id===row.id&&patch?{...item,...patch}:item)}}:previous)
-            break
-          } catch (cause) {
-            // Another save moved the shared revision: reload it once and retry this one assignment.
-            if (attempt === 0 && cause instanceof Error && /decisions changed/i.test(cause.message)) {
-              await invalidateSod(qc,['sod-subject',params.toString()])
-              const fresh=qc.getQueryData<Subject>(['sod-subject',params.toString()])?.overview.assignments.find(item=>item.id===row.id)
-              if(!fresh||fresh.evidence_version!==row.evidence_version||fresh.event?.event_id!==row.event?.event_id){cause.message='This assignment changed in another session. Review its current evidence and decision before choosing again.';throw cause}
-              continue
-            }
-            throw cause
-          }
-        }
-        try { sessionStorage.setItem(reviewerKey, savedReviewer) } catch { /* optional convenience */ }
-        if(confirmed)void invalidateSod(qc,['sod-subject',params.toString()]).catch(()=>{})
-        else await invalidateSod(qc,['sod-subject',params.toString()])
-      } catch (cause) {
-        setQuickError(`${decision === 'Keep' ? 'Keep' : decision === 'Investigate' ? 'Investigate' : 'Removal recommendation'} for ${row.role} was not saved. ${cause instanceof Error ? cause.message : 'Try again.'}`)
-      } finally {
-        pendingRows.current.delete(row.id)
-        setQuickBusy(previous=>{const next=new Map(previous);next.delete(row.id);return next})
-      }
-    }
-    queue.current = queue.current.then(save)
-  }
+  const { reviewer, authenticated, setQuickReviewer, quickRationale, setQuickRationale, quickBusy, quickError, quickDecide } = useAssignmentQuickReview(user, params, data)
   const toggle = (id: string) => { setSimulation(null); setSelection((previous) => (previous.includes(id) ? previous.filter((value) => value !== id) : [...previous, id])) }
   const pick = (kind: Kind, key: string) => setPicked((previous) => ({ ...previous, [kind]: previous[kind].includes(key) ? previous[kind].filter((value) => value !== key) : [...previous[kind], key] }))
   const item = (key: string, ref: string, version: string): Item => ({ key, user, ref, evidence_version: version })

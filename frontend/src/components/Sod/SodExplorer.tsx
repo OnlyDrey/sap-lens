@@ -66,6 +66,7 @@ function EvidenceButton({ label, summary, onOpen }: { label: string; summary: Re
   return <Button size="compact" aria-haspopup="dialog" aria-label={`Show evidence for ${label}`} onClick={onOpen}><ListTree size={14} aria-hidden="true" />{summary}</Button>
 }
 
+import { RoleEvidenceReview } from './RoleEvidenceReview'
 type Evidence =
   | { kind: 'roles'; user: string; risk: string; activities: string[]; roles: string[]; category?: string }
   | { kind: 'transactions'; user: string; activity: string; risks: string[]; tcodes: string[]; roles: number }
@@ -89,9 +90,7 @@ function ExplorerEvidence({ evidence, context, filters, onClose, onInvestigate, 
           <div><dt>Roles</dt><dd>{evidence.roles.length}</dd></div>
         </dl>
         <p className="ui-description">Roles whose mapped transactions supply the activities of this risk. This is potential, transaction-derived evidence, not effective SAP authorization.</p>
-        <div className="evidence-scroll" tabIndex={0} role="region" aria-label="Roles supplying this evidence">
-          <DataTable caption="Roles supplying this evidence" density="compact"><thead><tr><th>Role</th></tr></thead><tbody>{evidence.roles.map((role) => <tr key={role}><td className="col-role"><RoleIdentifier value={role} label="assigned role" /></td></tr>)}</tbody></DataTable>
-        </div>
+        <RoleEvidenceReview context={context} user={evidence.user} risk={evidence.risk} roles={evidence.roles} />
       </>}
       {evidence.kind === 'transactions' && <>
         <dl className="evidence-summary">

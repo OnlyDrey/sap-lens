@@ -234,3 +234,8 @@ One bordered container; header with name, email and the Directory match status a
 - **Stale desktop session:** the test expected a manual *Reconnect session* click, but recovery is now automatic when nothing typed would be lost; the test asserts the automatic path (no replayed write, route and filters kept). The manual path stays covered by `session-recovery.spec.ts`.
 - **Phase E:** exact username paste with feedback, Saved Filters integration, select all matching, selection cleared when the result set changes (`username-filter.spec.ts`, 24-name fixture including `KJØRGENSEN`).
 - **Workspace audit:** `application-backups` needs only mirrored `backend/` code and works in the workspace. The two `sod-metadata` tests that import Python test modules are tagged `@repository-only`; the workspace full run uses `--grep-invert @repository-only`, and the regression profile runs them from the checkout. A unit test enforces the tag.
+
+## Full regression round and Role Evidence review
+
+- Browser regression (2 processes, 899 tests): 14 failures, all project-owned and fixed: Saved Filters rejected the new `usernames` field (allow-listed, 12,000 characters); pinned username cells hid row tooltips (raised while a tooltip or focus is inside); the 503 startup rule treated an application error (503 with a detail) as a starting service, which blocked Backup & Restore (now a real failure); one spec asserted the old profile Directory match location. The backend suite is run separately.
+- Role Evidence: inline Investigate/Keep/Remove per assignment (`RoleEvidenceReview`, shared hook `useAssignmentQuickReview` extracted from the investigation panel). Tests: `sod-role-evidence-review.spec.ts`.

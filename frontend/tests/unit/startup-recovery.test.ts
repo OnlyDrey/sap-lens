@@ -12,6 +12,7 @@ test('only a missing answer or a gateway answer is transient', () => {
 test('failures are classified so a session message is never shown for a readiness or configuration problem', () => {
   assert.equal(classifyFailure({ kind: 'network', status: 0 }), 'unavailable')
   assert.equal(classifyFailure({ kind: 'server', status: 503 }), 'unavailable')
+  assert.equal(classifyFailure({ kind: 'server', status: 503, detail: 'Synthetic configuration unavailable' }), 'failed')
   assert.equal(classifyFailure({ kind: 'session', status: 403 }), 'session')
   assert.equal(classifyFailure({ kind: 'authentication', status: 401 }), 'rejected')
   assert.equal(classifyFailure({ kind: 'permission', status: 403 }), 'rejected')

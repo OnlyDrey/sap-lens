@@ -9,11 +9,13 @@ export const RECOVERY_WINDOW_MS = 60_000
 /** Transient start-up conditions (the service is still starting or briefly unreachable) are retried this many times, about 15 seconds in total. */
 export const MAX_TRANSIENT_RETRIES = 6
 
-export interface ErrorShape { kind: string; status: number }
+export interface ErrorShape { kind: string; status: number; detail?: unknown }
 export interface Store { getItem(key: string): string | null; setItem(key: string, value: string): void }
 
 /** No answer at all, or a gateway answer while the service starts. A 500 is a real failure (for example configuration or storage) and is not retried automatically. */
-export const isTransient = ({ kind, status }: ErrorShape) => kind === 'network' || status === 502 || status === 503 || status === 504
+const answeredByApplication = (detail: unknown) => (typeof detail === 'string' && detail.trim() !== '') || (Array.isArray(detail) && detail.length > 0)
+/** A 502/503/504 that carries the application's own problem detail was produced by SAP Lens (a real failure), not by a gateway while the service starts. */
+export const isTransient = ({ kind, status, detail }: ErrorShape) => kind === 'network' || ((status === 502 || status === 503 || status === 504) && !answeredByApplication(detail))
 
 export function classifyFailure(error: ErrorShape): StartupFailure {
   if (isTransient(error)) return 'unavailable'

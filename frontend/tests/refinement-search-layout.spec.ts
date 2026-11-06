@@ -27,7 +27,7 @@ for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(
  await expect(page.getByRole('navigation',{name:'User Access view',exact:true}).getByRole('link',{name:'User directory',exact:true})).toHaveCSS('border-bottom-width','2px')
  await page.getByRole('link', { name: 'SYN_BUY',exact:true}).click();await expect(page.getByRole('columnheader',{name:'Role description',exact:true})).toHaveCount(0);await expect(page.getByRole('region',{name:'User role assignments',exact:true})).toContainText('Purchasing')
  const back=page.getByRole('button',{name:'Back to users',exact:true});await expect(back).toHaveCSS('border-top-width','1px')
- await expect(page.locator('.profile-matching-evidence')).toHaveCSS('margin-top','16px')
+ await expect(page.locator('.profile-identity-header .profile-identity-match').getByRole('button',{name:/Directory matching details/})).toBeVisible()
  await page.getByRole('button',{name:'View role details: ZC:SYN:BUY',exact:true}).click()
  const close=page.getByRole('button',{name:'Close role details',exact:true});await expect(close).toBeVisible()
  await expect(page.locator('.role-detail-header .detail-back-action')).toHaveCSS('color',await page.locator('.role-detail-header').evaluate(element=>getComputedStyle(element).color))
