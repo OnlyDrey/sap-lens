@@ -1,4 +1,4 @@
-# Desktop workspace and themes (1.2)
+# Desktop workspace and themes
 
 ## Startup and recovery
 

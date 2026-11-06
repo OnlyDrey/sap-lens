@@ -169,16 +169,9 @@ protects an archive that a staged restore uses, never follows links, and only ac
 
 #### Count limit and age limit together
 
-Two independent rules can remove an automatic backup:
-
-| Rule | Setting | Removes | Approval |
-| --- | --- | --- | --- |
-| Count limit | Backup schedule, *keep* (default 7) | Completed, verified automatic backups beyond the newest *keep*, as soon as a scheduled backup completes | None |
-| Age limit | Data Retention, backup period (default 90 days) | Automatic backups older than the period | One-time administrator approval bound to the previewed set |
-
-The period is a **maximum**, not a guaranteed minimum. With the defaults and one backup per day, only about the newest 7 backups exist, so a backup is normally gone after a week, long before 90 days. The age limit only matters when backups are less frequent than the count limit allows (for example weekly backups with *keep* 20) or when *keep* is large. Manual and migration backups are never removed by either rule.
-
-Settings shows both rules above the cleanup preview. The preview names the rule behind every candidate (*Older than 90 days*, optionally *and beyond the newest 7 automatic backups*) and lists separately the younger backups that the count limit will remove at the next scheduled backup. The approval digest binds only the age-limit set and the period, so the informational count-limit list does not change an existing approval.
+The scheduled-backup count limit (*keep*, default 7, no approval) and the age limit (default 90 days, one-time approval) both remove automatic backups. The period is a maximum,
+not a guaranteed minimum: the count limit can remove a backup long before it is 90 days old. Settings shows both rules and the preview names the rule behind each candidate. The full
+explanation is in [Data retention](../operations/DATA_RETENTION.md#count-limit-and-age-limit).
 
 The policy and approval live in `.application-backups/retention.json`, next to the backups and outside the data a restore replaces, so a restore neither voids the backup approval nor brings an older copy back. Source and review retention work differently after a restore (their approvals are voided and cleanup pauses for 7 days; see
-[Data retention](../data/IMPORT_AND_REFRESH.md#data-retention)). **Archives can contain historical records that source or review retention has already removed from the live installation**; restoring such an archive brings those records back.
+[Data retention](../operations/DATA_RETENTION.md)). **Archives can contain historical records that source or review retention has already removed from the live installation**; restoring such an archive brings those records back.

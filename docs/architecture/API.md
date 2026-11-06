@@ -67,7 +67,7 @@ All routes below use the same capability/origin protection and no-store policy. 
 
 Default POST limit is 16,384 bytes; full configuration allows 1,000,000, portable import 4,000,000 and classification preview 128,000. Limits apply to streamed bodies too. Role details/comparisons include analysis metadata; role details also expose original relationships and alternate descriptions. Native bridge additions `choose_logo`, `export_configuration` and `open_configuration_folder` require the same capability and fixed validated operations; they provide no arbitrary command execution.
 
-## UX and appearance additions (1.2)
+## UX and appearance additions
 
 GET `/api/diagnostics` exposes guarded local UI details, including source/application directory. GET `/api/diagnostics/export` exposes an allowlisted path-free, identity-free report with versions, platform, status and counts. Both use the existing API capability boundary and no-store responses.
 

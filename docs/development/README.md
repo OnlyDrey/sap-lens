@@ -1,6 +1,7 @@
 # Development & Testing
 
 - [Development setup](DEVELOPMENT.md): prerequisites, virtualenv, browser dev and source-mode desktop.
+- [Performance](PERFORMANCE.md): dated data-path measurements and how to reproduce them.
 - [Testing](TESTING.md): focused and full local checks, evidence and native limitations.
 - [CI](CI.md): workflow ownership, validation, artifacts and explicit temporary skipping; [CI/CD architecture](../deployment/CI_CD.md): the three validation levels and the no-prerequisite policy.
 - [Validation tracker](../validation/README.md): the repository CSV checklist (22 functional areas) with validation status, separate manual approval, findings and a future-improvements backlog, and the Excel workbook generator.

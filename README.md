@@ -49,6 +49,20 @@ loopback and require an explicit [security boundary](docs/deployment/SECURITY.md
 for remote access. Packaging support does not establish native production acceptance;
 see the [validation matrix](docs/deployment/README.md#validation-status).
 
+## How it works
+
+A FastAPI backend and a React frontend run on one machine. Role, user, Employee Directory and SoD CSV files are imported as immutable, content-addressed
+snapshots (Static sources once, Dynamic sources on every refresh); an optional, rebuildable SQLite store and fingerprints keep restarts and refreshes fast. Review
+decisions are bound to the evidence they were made on and are rejected, never overwritten, when that evidence or the dataset changed. See
+[Storage, revisions and consistency](docs/architecture/STORAGE_AND_REVISIONS.md).
+
+## Security and operations
+
+* The desktop application listens on `127.0.0.1` only; server mode defaults to loopback and needs an explicit [security boundary](docs/deployment/SECURITY.md) for remote access.
+* Private CSVs, exports, logs and configuration never belong in Git or in build artifacts; the repository ships synthetic [examples](examples/README.md) only.
+* Old data is cleaned up by approval-gated [retention](docs/operations/DATA_RETENTION.md); [backups](docs/deployment/BACKUP_RESTORE.md) are verified before use.
+* Native Windows (SCM, WebView2, UNC) and real systemd acceptance are not established by the Linux validation; see the [validation matrix](docs/deployment/README.md#validation-status).
+
 ## Find your guide
 
 - [Build packages](docs/BUILD.md): Actions selections, versions, local commands, prerequisites and outputs.
@@ -56,7 +70,9 @@ see the [validation matrix](docs/deployment/README.md#validation-status).
 - [Data & CSV](docs/data/README.md): four independent sources, formats, replacement and persistence.
 - [Configuration](docs/getting-started/CONFIGURATION.md): settings, storage and recovery.
 - [Development & Testing](docs/development/README.md): source-mode execution without an EXE and validation.
-- [Architecture](docs/architecture/README.md): runtime, API, security and shared components.
+- [Architecture](docs/architecture/README.md): runtime, storage and revisions, API, security and shared components.
+- [Operations](docs/operations/README.md): data retention, backup and restore, recovery.
+- [Scripts](scripts/README.md): which build, validation and maintenance scripts to run.
 - [Synthetic examples](examples/README.md): safe linked test datasets, never automatically imported.
 - [Privacy](docs/architecture/PRIVACY.md): unresolved accepted historical branding and repository boundaries.
 

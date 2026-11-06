@@ -8,7 +8,9 @@
 | [Build & Deployment](deployment/README.md) | Build, obtain and operate any of the four deployment targets |
 | [Features](features/README.md) | Investigate users, roles, transactions and account evidence |
 | [Data & CSV](data/README.md) | Schemas, imports, refresh, enrichment and coverage |
-| [Architecture](architecture/README.md) | Runtime boundaries, APIs, security and shared UI |
+| [Architecture](architecture/README.md) | Runtime boundaries, storage and revisions, APIs, security and shared UI |
+| [Operations](operations/README.md) | Data retention, backup and restore, recovery |
+| [Scripts](../scripts/README.md) | Build, validation and maintenance scripts, and which to run |
 | [Development & Testing](development/README.md) | Source setup, checks and CI |
 | [Validation tracker](validation/README.md) | Checklist per functional area: validation status, manual approval, findings and improvements (CSV and Excel workbook) |
 

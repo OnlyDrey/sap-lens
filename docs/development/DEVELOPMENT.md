@@ -179,6 +179,8 @@ verified on Linux; native Windows execution must be tested on Windows.
 
 ## Windows build toolchain
 
+The prerequisite matrix, diagnostics and build commands are in the [build guide](../BUILD.md#prerequisites); this section is the step-by-step installation walkthrough.
+
 ### Supported build machine
 
 Use Windows x64 and a **64-bit** PowerShell session. ARM and 32-bit shells are

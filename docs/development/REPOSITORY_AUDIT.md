@@ -94,3 +94,16 @@ A `reference/` directory is not created: configuration lives in `getting-started
 * M1 resolved: the lint warning ceiling is 115 (measured), a ratchet that may only go down.
 * Not moved, deliberately: the deployment builders, Linux bundle runtime scripts and Windows packaging scripts. They are addressed by path from workflows, release tooling and shipped bundles; the PowerShell ones cannot be executed or re-verified here.
 * Validation: unified-build, local-build, workflow, repository, test-profile, validation-tracker and SoD-reference tests pass; `build.py` runs from another working directory (dry run exit 0, invalid arguments exit 2). PowerShell execution of `scripts/build.ps1` is not verified (no PowerShell host).
+
+### Phases 3 to 5: build audit and documentation
+
+* **Build and workflow audit (no change needed).** Workflows and Docker files reference only existing paths; the PowerShell scripts fail fast and check native exit codes through
+  helpers (`Assert-Success`, `Checked`, `$LASTEXITCODE`); triggers are unchanged (`push` to `main` only for validation); `build.py` returns 0 for a dry run and 2 for invalid arguments
+  from any working directory. Documented build commands match the script parameters. PowerShell could not be executed here.
+* **Moved.** `IMPORT_AND_REFRESH.md#data-retention` content to `operations/DATA_RETENTION.md`; the SQLite, upgrade and consistency sections and the measurements of `architecture/SYSTEM.md` to
+  `architecture/STORAGE_AND_REVISIONS.md` and `development/PERFORMANCE.md`.
+* **New.** `architecture/STORAGE_AND_REVISIONS.md` (adds Static and Dynamic mode, fingerprints, staged activation, lifecycle memory, revision token, review integrity),
+  `operations/README.md`, `operations/DATA_RETENTION.md` (adds backup classes and count limit versus age limit), `development/PERFORMANCE.md`, `scripts/README.md`.
+* **Consolidated.** Backup count/age explanation lives in `DATA_RETENTION.md`; `BACKUP_RESTORE.md` links to it. Version stamps removed from four headings. The dated "Package stabilization"
+  log was removed from `CI_CD.md` (it is in Git history). `DEVELOPMENT.md` and `BUILD.md` were found complementary (installation walkthrough versus prerequisite matrix) and are cross-linked, not merged.
+* **README.** Gained "How it works" and "Security and operations"; the logo block and navigation links are unchanged.

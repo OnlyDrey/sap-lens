@@ -1,4 +1,4 @@
-# Windows Desktop 1.2
+# Windows Desktop
 
 ## Runtime scope
 

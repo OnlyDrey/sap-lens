@@ -138,7 +138,7 @@ preserved outside this configuration page. Original reference workbooks are not 
 
 ## Deleting review periods
 
-Manual deletion archives a completed period and keeps everything. Separately, [review retention](../data/IMPORT_AND_REFRESH.md#review-retention) can permanently remove a completed period older than the retention period (default 24 months) and the records only it owns, after a preview and a one-time administrator approval; it never touches active or incomplete periods, the newest completed period or evidence another period shares.
+Manual deletion archives a completed period and keeps everything. Separately, [review retention](../operations/DATA_RETENTION.md#review-retention) can permanently remove a completed period older than the retention period (default 24 months) and the records only it owns, after a preview and a one-time administrator approval; it never touches active or incomplete periods, the newest completed period or evidence another period shares.
 
 Every period status can be deleted from the row action menu or the period dialog. The delete dialog previews what is affected
 (decisions, actions, reports, comparison baselines, snapshots) and always needs the exact period name and who is deleting.
