@@ -260,3 +260,7 @@ Native Windows has not yet confirmed the final cause. What the code proves:
 ### Smoke diagnostics hotfix
 
 `Format-Diagnostics` called `Join-Path $state.Directory 'runtime.json'`; the existing-instance preflight (and `instance_not_released`) throw before a scenario directory is assigned, so the state held an empty `Directory` and Windows PowerShell 5.1 raised a binding error that masked the real failure. Fixed with `Join-SafePath` (null for blank input, never an empty `Join-Path`), a guarded `Format-Diagnostics` wrapper (any reporter problem degrades to the plain `SMOKE FAILURE [class] detail`), and structural regression tests. Native Windows execution remains unverified.
+
+## Functional Group section on User Details (compact, single membership)
+
+Compact summary line: assigned group name in emphasis, classification badge, confirmation text, review and suggestion notes, a visible "business classification, does not change SAP access" line and the About disclosure. Confirmation text separates a missing date from a missing reviewer and never invents values (`lib/functionalGroupText.ts`, unit tests). Action labels: Assign group, Change group (confirmed), Assign / Confirm (assigned but not confirmed). This is the single-membership version; the multiple-membership extension is pending design decisions (see below).

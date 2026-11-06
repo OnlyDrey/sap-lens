@@ -172,7 +172,7 @@ for (const scheme of ['light', 'dark'] as const) {
     await page.goto('/#/user-access/user/DEMO_FG')
     const panel = page.getByRole('region', { name: 'Functional Group', exact: true })
     await expect(panel).toBeVisible()
-    await panel.getByRole('button', { name: /Assign group|Change or confirm/ }).click()
+    await panel.getByRole('button', { name: /Assign group|Change group|Assign \/ Confirm/ }).click()
     const dialog = page.getByRole('dialog', { name: 'Functional Group for DEMO_FG' })
     await expect(dialog).toBeVisible()
     const box = (await dialog.boundingBox())!

@@ -8,6 +8,7 @@ import { Dialog } from '@/components/Shared/Dialog'
 import { FormField, controlClass } from '@/components/Shared/Controls'
 import { EvidenceDisclosure, LoadingState, StatusBadge } from '@/components/Shared/Presentation'
 import { formatDate } from '@/lib/dateFormat'
+import { actionLabel, confirmationText } from '@/lib/functionalGroupText'
 
 export const classificationKey = (username: string) => ['functional-group-user', username] as const
 const tone: Record<ClassificationStatus, 'success' | 'warning' | 'neutral'> = { Confirmed: 'success', 'Needs review': 'warning', Unassigned: 'neutral' }
@@ -61,26 +62,28 @@ export function ClassificationDialog({ username, data, changeId = '', onClose }:
   return <Dialog title={`Functional Group for ${username}`} onClose={onClose}><ClassificationForm username={username} data={data} changeId={changeId} onDone={onClose} onCancel={onClose} /></Dialog>
 }
 
-/** User Details: SAP Lens-maintained classification, separate from the imported Directory fields. */
+/** User Details: SAP Lens-maintained classification, separate from the imported Directory fields. A business classification only: SAP access is never changed. */
 export function FunctionalGroupPanel({ username }: { username: string }) {
   const query = useQuery({ queryKey: classificationKey(username), queryFn: () => fetchUserClassification(username) })
   const [editing, setEditing] = useState(false)
   const data = query.data, current = data?.classification
+  const confirmation = current ? confirmationText(current.confirmed_at, current.confirmed_by, current.status === 'Confirmed') : null
   return (
     <section aria-label="Functional Group" className="profile-functional-group">
       <div className="profile-group-header">
         <h2><UsersRound size={18} aria-hidden="true" />Functional Group</h2>
-        {current && <Button onClick={() => setEditing(true)}><UsersRound size={16} aria-hidden="true" />{current.group_id ? 'Change or confirm' : 'Assign group'}</Button>}
+        {current && <Button onClick={() => setEditing(true)}><UsersRound size={16} aria-hidden="true" />{actionLabel(Boolean(current.group_id), current.status)}</Button>}
       </div>
       {query.isError ? <p role="alert">{query.error instanceof Error ? query.error.message : 'Functional Group data is unavailable.'}</p> : !current ? <LoadingState /> : (
         <>
-          <dl className="profile-fields profile-fields-wide">
-            <div><dt>Functional Group</dt><dd>{current.group?.name ?? 'Unassigned'}{current.group?.status === 'archived' && ' (archived)'}</dd></div>
-            <div><dt>Classification</dt><dd><ClassificationPill status={current.status} /></dd></div>
-            {current.confirmed_at && <div><dt>Last confirmed</dt><dd>{formatDate(current.confirmed_at)} by {current.confirmed_by}</dd></div>}
-            {current.review && <div><dt>Review required</dt><dd>{current.review.reason}</dd></div>}
-          </dl>
-          {data?.suggestion?.status === 'suggested' && !current.group_id && <p className="ui-description">Suggested: {data.suggestion.matches[0].group_name} ({data.suggestion.matches[0].reasons.join(' and ')})</p>}
+          <div className="fg-summary">
+            <strong className="fg-name" data-assigned={current.group ? '' : undefined}>{current.group?.name ?? 'Unassigned'}{current.group?.status === 'archived' && ' (archived)'}</strong>
+            <ClassificationPill status={current.status} />
+            {confirmation && <span className="fg-meta">{confirmation}</span>}
+          </div>
+          {current.review && <p className="fg-meta">Review required: {current.review.reason}</p>}
+          {data?.suggestion?.status === 'suggested' && !current.group_id && <p className="fg-meta">Suggested: {data.suggestion.matches[0].group_name} ({data.suggestion.matches[0].reasons.join(' and ')})</p>}
+          <p className="fg-meta">Business classification maintained in SAP Lens. It does not change SAP access.</p>
           <EvidenceDisclosure title="About Functional Groups"><p className="ui-description">Functional Groups are maintained in SAP Lens. Directory Department, Job Title and SAP User Group are imported and displayed separately.</p></EvidenceDisclosure>
           {editing && data && <ClassificationDialog username={username} data={data} onClose={() => setEditing(false)} />}
         </>

@@ -521,9 +521,16 @@ button.manager-identity:focus-visible { outline:var(--focus-width) solid var(--f
 .profile-group-header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-2); margin-bottom:12px; min-height:var(--control-height); }
 .profile-group-header h2 { display:flex; align-items:center; gap:var(--space-2); font-size:var(--font-body); font-weight:600; }
 .profile-group-header h2 svg { color:var(--muted); }
-.profile-fields-wide { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px var(--space-4); }
-.profile-fields-wide > div { grid-template-columns:1fr; gap:2px; }
 .profile-functional-group .ui-evidence-disclosure { margin-top:12px; }
 .profile-columns .profile-manager { border-top:0; margin-top:0; padding-top:0; }
 @media(max-width:1099px) { .profile-columns { grid-template-columns:repeat(2,minmax(0,1fr)); } .profile-columns > .profile-group:nth-child(3) { grid-column:1/-1; border-left:0; border-top:1px solid var(--border); } }
-@media(max-width:639px) { .profile-columns { grid-template-columns:minmax(0,1fr); } .profile-columns > .profile-group + .profile-group { border-left:0; border-top:1px solid var(--border); } .profile-fields-wide { grid-template-columns:minmax(0,1fr); } .profile-identity-match { margin-left:0; } }
+@media(max-width:639px) { .profile-columns { grid-template-columns:minmax(0,1fr); } .profile-columns > .profile-group + .profile-group { border-left:0; border-top:1px solid var(--border); } .profile-identity-match { margin-left:0; } }
+
+/* Functional Group on User Details: one compact summary line, wrapping with the available width. */
+.profile-functional-group .profile-group-header { margin-bottom:var(--space-2); }
+.fg-summary { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-1) var(--space-3); min-width:0; }
+.fg-name { font-size:var(--font-body); font-weight:600; overflow-wrap:anywhere; }
+.fg-name:not([data-assigned]) { color:var(--muted); font-weight:500; }
+.fg-meta { font-size:var(--font-label); color:var(--muted); overflow-wrap:anywhere; margin:var(--space-1) 0 0; }
+.fg-summary .fg-meta { margin:0; }
+.profile-functional-group .ui-evidence-disclosure { margin-top:var(--space-2); }
