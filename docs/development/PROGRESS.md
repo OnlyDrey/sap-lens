@@ -128,3 +128,18 @@ Native Windows (process handling, WebView2, service control manager, UNC paths) 
 ## Final phase list and commits
 
 A `2ab0b0d`, B `eccc0b4`, C `21cc4f3`, D `451874c` (+ `d8ca720`), E `f30bac4`, `f949d3c`, `3f4d931`, `ba1d4ca`, F `55376c6`, `563194a`, `9d82eaf` and the closing documentation commit. Earlier work: `5a943c3` to `70ae519`.
+
+
+## Repository audit and cleanup (started)
+
+| Phase | Scope | Status | Commit |
+| --- | --- | --- | --- |
+| 1 | Repository inventory and audit ([report](REPOSITORY_AUDIT.md)) | Completed | see Git log |
+| 2 | Structure and cleanup | Pending | |
+| 3 | Build, test and workflow audit | Pending | |
+| 4 | Documentation architecture | Pending | |
+| 5 | Documentation rewrite and consolidation | Pending | |
+| 6 | Dependencies, configuration, security hygiene | Pending | |
+| 7 | Final validation and audit report | Pending | |
+
+Phase 1 result: no tracked generated files, secrets or removable scripts; one gate failure found (`npm run lint` exceeds its warning ceiling, red since the original baseline). Details and decisions in the audit report.
