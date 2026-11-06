@@ -194,3 +194,15 @@ Missing before this round: an exact-username filter, a whole-filter selection en
 
 Design decisions already taken: selection across pages is an explicit username list fetched from `users-selection` (it cannot widen when data or filters change; the data revision is sent with the assignment and a different publication is refused); a replacement of an existing group is a per-user conflict
 until `replace_existing` is confirmed; partial outcomes are returned as `status: partial` with the failed users so only they are retried; Functional Groups remain local classifications and never touch SAP roles, authorizations, AD groups or imports.
+
+## Windows build stabilization (B01-B10)
+
+| Item | Cause | Fix | Status |
+|---|---|---|---|
+| B08 | `$PSScriptRoot` is empty in functions extracted into scriptblocks | `Get-RepositoryRoot` with explicit/validated script directory; tests for root resolution | Fixed, Linux-tested; native 5.1 pending |
+| B09 | Interpreter-protection check ran before the confirmation check; on Windows the test interpreter lives under a generated dir | Fixed validation order, each condition tested | Fixed |
+| B04-B05 | Python urllib got HTTP 403 | Local archive, persistent cache, headers, proxy, actionable BLOCKED failure (exit 2) | Fixed |
+| B01-B02 | Output ownership message lacked detail | Path, manifest metadata, suggested command; docs | Fixed |
+| B03/B07/B10 | Prerequisite clarity | Documented in BUILD.md (existing checks kept) | Documented |
+| B06 | Terse blocked message | Blocked rows carry error, log, hint; `prerequisite` class | Fixed |
+| Skips | Two tests required `pwsh` only | Windows PowerShell 5.1 accepted | Fixed |

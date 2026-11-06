@@ -130,7 +130,7 @@ class Builder:
         if old.exists():
             value = json.loads(old.read_text(encoding='utf-8'))
             if not isinstance(value,dict) or value.get('version') != args.version or value.get('source_commit') != self.source:
-                raise ValueError('Existing output belongs to another source/version. Choose a new --output-dir; nothing was overwritten.')
+                raise ValueError(f'Existing output {self.output} belongs to another source/version (manifest: version={value.get("version") if isinstance(value,dict) else "?"}, source_commit={str(value.get("source_commit") if isinstance(value,dict) else "?")[:12]}; requested: version={args.version}, source_commit={self.source[:12]}). Nothing was overwritten. Use a new directory, for example: -Output "{self.output}-{self.source[:8]}" (PowerShell) or --output-dir "{self.output}-{self.source[:8]}" (Python).')
             if not isinstance(value.get('targets'),dict) or not set(value['targets'])<=set(TARGETS): raise ValueError('Invalid existing target manifest.')
             verify_outputs(self.output,args.version,self.source,list(value['targets']))
             self.manifest['targets'] = value['targets']
@@ -370,7 +370,7 @@ class Builder:
             if 'shared_validation' not in self.manifest:
                 self.manifest['shared_validation'] = dict(status='failed', **record)
                 print(shared.summary() if isinstance(shared, failures.StageFailure) else 'Shared validation failed: ' + str(shared), file=sys.stderr, flush=True)
-            return dict(status='blocked', blocked_by='shared_validation', error=f'Not attempted: shared validation failed at "{record["failed_stage"]}" ({record["failure_class"]}).', **base)
+            return dict(status='blocked', blocked_by='shared_validation', error=f'Not attempted (blocked, not a packaging failure): shared {record["failure_class"]} failure at "{record["failed_stage"]}": {record.get("error")}. Log: {record.get("log") or self.log}. Recovery: {record.get("hint") or "fix the cause in the log and run the same command again"}', **base)
         record = self.record_of(error)
         if isinstance(error, failures.StageFailure): print(error.summary(), file=sys.stderr, flush=True)
         return dict(status='failed', **base, **record)

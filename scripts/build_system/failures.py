@@ -54,7 +54,10 @@ def classify_lock(text):
     return dict(kind=kind, code=code, path=redact(path) if path else None, operation=operation)
 
 
-def hint(stage, lock):
+def hint(stage, lock, output=''):
+    if 'BLOCKED (prerequisite' in str(output):
+        return ('A required tool could not be obtained. This is a prerequisite problem, not a validation result: place the verified actionlint '
+                'archive in the tool cache or set SAP_LENS_ACTIONLINT_ARCHIVE (see the message above), then run the same command again.')
     if lock and lock['kind'] == 'locked':
         return ('A file or folder was locked by another process (a running dev server, editor, antivirus scan or search indexer). SAP Lens never stops '
                 'other processes. Close programs using the repository or exclude the path from real-time scanning where your policy allows, then '
@@ -72,7 +75,9 @@ class StageFailure(ValueError):
         self.stage, self.command, self.cwd, self.exit_code = stage, display(command), str(cwd), exit_code
         self.output_tail, self.log, self.failure_class = tail(output), str(log) if log else None, failure_class
         self.lock = classify_lock(output)
-        self.hint = hint(stage, self.lock) or note
+        self.hint = hint(stage, self.lock, output) or note
+        if 'BLOCKED (prerequisite' in str(output): failure_class = 'prerequisite'
+        self.failure_class = failure_class
         self.cause = self._cause()
         super().__init__(self.summary())
 

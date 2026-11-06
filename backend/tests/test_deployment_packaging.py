@@ -21,7 +21,7 @@ spec=importlib.util.spec_from_file_location('deploy_packages',ROOT/'scripts/depl
 pkg=importlib.util.module_from_spec(spec);spec.loader.exec_module(pkg)
 
 
-@unittest.skipUnless(shutil.which('pwsh'), 'PowerShell 7 is required for HTTP exception regressions')
+@unittest.skipUnless(shutil.which('powershell' if os.name == 'nt' else 'pwsh') or shutil.which('pwsh'), 'Windows PowerShell 5.1 (Windows) or PowerShell 7 is required for HTTP exception regressions')
 class DesktopHttpTests(unittest.TestCase):
     def test_only_a_real_forbidden_response_passes_the_session_check(self):
         class Handler(http.server.BaseHTTPRequestHandler):
@@ -59,14 +59,14 @@ Assert-DesktopSessionDenied $env:SMOKE_TEST_ORIGIN
                 for code in (403, 200, 401, 500):
                     Handler.code = code
                     with self.subTest(status=code):
-                        result = subprocess.run(['pwsh', '-NoProfile', '-Command', script],
+                        result = subprocess.run([(shutil.which('powershell') if os.name == 'nt' else None) or shutil.which('pwsh'), '-NoProfile', '-Command', script],
                                                 env=env, capture_output=True, timeout=20)
                         self.assertEqual(result.returncode == 0, code == 403, result.stderr.decode(errors='replace'))
             finally:
                 server.shutdown()
                 thread.join(timeout=5)
         # A connection failure must never count as evidence of denied access.
-        result = subprocess.run(['pwsh', '-NoProfile', '-Command', script],
+        result = subprocess.run([(shutil.which('powershell') if os.name == 'nt' else None) or shutil.which('pwsh'), '-NoProfile', '-Command', script],
                                 env=env, capture_output=True, timeout=20)
         self.assertNotEqual(result.returncode, 0)
 

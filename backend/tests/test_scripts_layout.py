@@ -28,6 +28,8 @@ class ScriptLayout(unittest.TestCase):
                     missing.append(f'{name}: {relative}')
         # fixtures that build throw-away repositories name scripts that exist only inside the fixture
         allowed = {'backend/tests/test_build_diagnostics.py: scripts/tool.mjs', 'backend/tests/test_build_diagnostics.py: scripts/__pycache__/c.py'}
+        # this file names the same fixture paths in the allowlist above
+        allowed |= {'backend/tests/test_scripts_layout.py: scripts/tool.mjs', 'backend/tests/test_scripts_layout.py: scripts/__pycache__/c.py'}
         self.assertEqual([item for item in missing if item not in allowed], [])
 
     def test_shipped_scripts_keep_their_bundle_relative_paths(self):

@@ -342,6 +342,16 @@ not a competing set of instructions.
   never disable verification or ignore audits to finish packaging.
 - Corporate policy blocks a script: obtain signing/IT approval, not a policy bypass.
 
+## Windows build stabilization notes
+
+- **Public parameter mapping:** `-Output <dir>` (alias `-OutputDir`) maps to `--output` of `build.py` and `--output-dir` of the deployment builder. An explicit directory is used exactly as given. If it holds a build of another version or commit, the build stops and prints the path, the existing manifest version/commit, the requested ones and a suggested new directory; nothing is overwritten or deleted. Use a timestamped directory for routine runs: `-Output ".\backend\build\windows-$(Get-Date -Format 'yyyyMMdd-HHmmss')"`.
+- **Python discovery:** `build.ps1` resolves the repository root from its own location (`Get-RepositoryRoot`, validated by the presence of `scripts\build.py`); functions never depend on an implicit `$PSScriptRoot`. Python 3.12 x64 is required; others are listed with the reason for rejection.
+- **Clean order:** confirmation, allowlisted target, no linked directory, then protection of the running interpreter. Each is tested separately.
+- **actionlint (pinned 1.7.12, SHA-256 checked):** order is `SAP_LENS_ACTIONLINT_ARCHIVE` (local archive, offline), `SAP_LENS_TOOL_CACHE` (persistent cache outside `backend/build`), the build cache, then a download that honours `HTTPS_PROXY` and never disables TLS verification. If it cannot be obtained, the `workflow_lint` stage ends as a **prerequisite** failure (exit 2, "BLOCKED") with URL, HTTP status, cache paths and recovery steps; it is never reported as a passed lint. Recovery on a network that returns 403 to Python: download the archive with PowerShell `Invoke-WebRequest`, verify the SHA-256, and put it in the cache path shown or set the variable.
+- **Prerequisites:** Windows PowerShell 5.1 (PowerShell 7 optional), Python 3.12 x64, Node.js 24 LTS recommended (25 accepted with a note), npm 10/11. Python and frontend dependencies are installed into isolated project environments automatically; Git, Node.js and Python are never installed without consent. Certificate problems must be fixed in the operating system trust store.
+- **Failure classes:** `prerequisite` (tool missing/unobtainable), `validation`, `dependency_install`, `*_packaging`. A target not attempted because shared validation failed is `blocked`, with the underlying error, log path and recovery hint, and is not a packaging failure.
+- **Test skips:** PowerShell-dependent tests run on Windows PowerShell 5.1 or PowerShell 7; they skip only when no PowerShell exists. Other skips are POSIX-only behavior (permission bits, signals, process groups, `/proc`) or optional build dependencies (PyInstaller, pefile, openssl).
+
 ## Validation status
 
 CLI/routing/consent/error/cleanup behavior and package/workflow contracts are tested

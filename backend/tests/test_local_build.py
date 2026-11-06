@@ -257,7 +257,7 @@ class LocalToolingTests(unittest.TestCase):
                 local.check_packaging_tools()
 
 
-    @unittest.skipUnless(shutil.which('pwsh'), 'Requires PowerShell')
+    @unittest.skipUnless(shutil.which('powershell' if os.name == 'nt' else 'pwsh') or shutil.which('pwsh'), 'Requires Windows PowerShell 5.1 or PowerShell 7')
     def test_node_gate_accepts_24_and_25_and_rejects_unvalidated_majors(self):
         # Execute the actual preflight expression without invoking Windows setup.
         script = r'''$tokens = $null; $errors = $null
@@ -277,7 +277,7 @@ foreach ($version in @('22.12.0', '23.0.0', '24.0.0', '24.19.0', '25.0.0', '25.9
 $nodeVersion = '24.0.0'; $LASTEXITCODE = 1
 Write-Output "command-failed=$(& $condition)"
 '''
-        result = subprocess.run(['pwsh', '-NoProfile', '-Command', script],
+        result = subprocess.run([(shutil.which('powershell') if os.name == 'nt' else None) or shutil.which('pwsh'), '-NoProfile', '-Command', script],
                                 env={**os.environ, 'SAP_LENS_TEST_ROOT':str(ROOT)},
                                 capture_output=True, text=True, check=True)
         self.assertEqual(result.stdout.splitlines(), [

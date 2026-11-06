@@ -352,6 +352,11 @@ class SafetyTests(unittest.TestCase):
         value.output=ROOT/'backend/build'
         with patch.object(targets.sys,'executable',str(ROOT/'backend/build/venv/python')),self.assertRaisesRegex(BuildError,'interpreter outside'):targets.clean(value,Mock())
 
+    def test_output_collision_message_names_the_path_metadata_and_a_safe_command(self):
+        text=(ROOT/'scripts/deployment/build-deployments.py').read_text(encoding='utf-8')
+        for token in ('Existing output {self.output} belongs to another source/version','source_commit=','Nothing was overwritten','-Output','--output-dir'):
+            self.assertIn(token,text)
+
     def test_bootstrap_is_not_dependent_on_python_and_never_bypasses_policy(self):
         source=(ROOT/'scripts'/'build.ps1').read_text()
         for item in ('Find-BuildPython','Python.Python.3.12','--scope user','--non-interactive',"Join-Path $PSScriptRoot 'build.py'",'-NonInteractive','nonInteractiveRun'):
