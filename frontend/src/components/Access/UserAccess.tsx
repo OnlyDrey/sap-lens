@@ -1,3 +1,4 @@
+import { BulkAssignDialog } from './BulkAssignDialog'
 import {SAPUserLink} from '@/components/Shared/SAPUserLink'
 import {ExportCSVButton} from '@/components/Shared/ExportCSVButton'
 import { ASSIGNMENT_BANDS, LEGACY_ASSIGNMENT_BANDS } from '@/lib/assignmentBands'
@@ -23,7 +24,7 @@ import { Select } from '@/components/Shared/Select';
 import { formatDate } from '@/lib/dateFormat';
 import { exportAssignments } from '@/lib/accessExport';
 import { announceExport } from '@/lib/exportNotice'
-import { ArrowLeftRight, ArrowRight, Briefcase, Download, FileCheck2, Layers } from 'lucide-react';
+import { ArrowLeftRight, ArrowRight, Briefcase, Download, FileCheck2, Layers, UsersRound, X } from 'lucide-react';
 import { useHistoryValue, useViewHistory, userAccessHref } from '@/hooks/useViewHistory';
 import { useRecordNavigation, type RecordNavigationState } from "@/hooks/useRecordNavigation";
 import { DetailNavigation, LockStatus, AssignmentStatus } from "@/components/Shared/InvestigationNavigation";
@@ -110,6 +111,7 @@ export function UserAccess({
   useEffect(()=>{ if (!directoryTransaction.codes.length) setTransactionMode('and') },[directoryTransaction.key])
   const clearEvidence = () => {setRoles([]); directoryTransaction.clear(); setTransactionMode('and'); excludeTransaction.clear(); setExcludeMode('any'); setMissingRoles([]); setMissingMode('any')}
   const [term, setTerm] = useState("");
+  const [assignOpen, setAssignOpen] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   useEffect(() => {
     const t = setTimeout(() => setTerm(search), 250);
@@ -268,10 +270,12 @@ export function UserAccess({
           <div className="results-toolbar">
             <h2 className="text-base font-semibold">User directory <span className="text-sm font-normal text-[var(--muted)]">{result.data.total.toLocaleString()} matching{picked.size>0?` · ${picked.size.toLocaleString()} selected`:''}</span></h2>
             <div className="results-toolbar-actions">
-              {picked.size>0&&<Button variant="outline" size="compact" onClick={()=>setPicked(new Set())}>Clear selection</Button>}
+              {picked.size>0&&<Button variant="primary" onClick={()=>setAssignOpen(true)}><UsersRound size={16} aria-hidden="true"/>Assign group</Button>}
+              {picked.size>0&&<Button variant="outline" onClick={()=>setPicked(new Set())}><X size={16} aria-hidden="true"/>Clear selection</Button>}
               <ExportCSVButton loading={assignmentExport.busy} disabled={dataLoading||result.isFetching||search!==term||directoryTransaction.settling||!result.data.export_assignments} title="Exports every imported assignment for all matching users, across pages. MATCHED_FILTER marks assignments contributing to the active filters; expired and other assignments remain included." onClick={()=>void assignmentExport.download()}/>
             </div>
           </div>
+          {assignOpen&&<BulkAssignDialog usernames={[...picked].sort()} onClose={()=>setAssignOpen(false)} onChanged={()=>undefined}/>}
           <details className="ui-evidence-disclosure"><summary>Export scope</summary><div><p className="ui-description">Exports all {result.data.export_assignments?.toLocaleString()??'available'} imported assignments for matching users, including other roles{expired?' and expired assignments':'; expired assignments are excluded while Show expired assignments is off'}. MATCHED_FILTER identifies assignment-level matches. Role-derived transactions are evidence, not proof of effective SAP authorization.</p></div></details>
           <div className="access-table user-directory-table" tabIndex={0} role="region" aria-label="User directory table">
             <table>

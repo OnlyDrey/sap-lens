@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { ArrowDownAZ, ArrowUpAZ, FilterX, PanelLeftClose, PanelLeftOpen, SlidersHorizontal, X } from 'lucide-react'
+import { ArrowDownAZ, ArrowUpAZ, Eraser, PanelLeftClose, PanelLeftOpen, SlidersHorizontal, X } from 'lucide-react'
 import { Button, IconButton } from './Button'
 import { Select } from './Select'
 
@@ -53,7 +53,7 @@ export function FilterLayout({ activeCount, toolbar, sidebar, children, label = 
           <header>
             <h2>{label}</h2>
             <div className="filter-sidebar-actions">
-              {onClear && <Button size="compact" className="filter-clear-all" aria-label={clearLabel} title={clearLabel === 'Clear filters' ? 'Clear all filters in this view' : clearLabel} disabled={clearDisabled} onClick={onClear}><FilterX size={14} aria-hidden="true" />Clear</Button>}
+              {onClear && <Button size="compact" className="filter-clear-all" aria-label={clearLabel} title={clearLabel === 'Clear filters' ? 'Clear all filters in this view' : clearLabel} disabled={clearDisabled} onClick={onClear}><Eraser size={16} aria-hidden="true" />Clear</Button>}
               <IconButton label={`Close ${label.toLowerCase()}`} onClick={close}><X size={16} /></IconButton>
             </div>
           </header>

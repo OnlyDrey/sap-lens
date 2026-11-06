@@ -41,3 +41,14 @@ export type Analysis = {
   method: { common_at: number; uncommon_at: number; min_members: number; note: string }
 }
 export const fetchAnalysis = (id: string) => apiRequest<Analysis>(`${base}/analysis/${id}`)
+
+export type BulkItem = { username: string; state: 'unassigned' | 'same' | 'other'; revision: number; group_id: string | null; group_name: string | null }
+export type BulkPreview = { group: { id: string; name: string; status: string }; items: BulkItem[]; counts: Record<'unassigned' | 'same' | 'other', number>; missing: string[]; requested: number; data_revision: string }
+export type BulkResult = {
+  status: 'applied' | 'partial' | 'rejected'; group_name: string; data_revision: string
+  applied: { username: string; previous_group: string | null }[]; unchanged: { username: string }[]
+  conflicts: { username: string; reason: string; detail: string }[]; rejected: { username: string; reason: string; detail: string }[]
+}
+export const bulkPreview = (group_id: string, usernames: string[]) => apiRequest<BulkPreview>(`${base}/bulk/preview`, 'POST', { group_id, usernames })
+export const bulkAssign = (body: { group_id: string; usernames: string[]; expected: Record<string, number>; replace_existing: boolean; rationale: string; reviewer: string; operation_id: string; data_revision: string }) =>
+  apiRequest<BulkResult>(`${base}/bulk`, 'POST', body)
