@@ -15,8 +15,10 @@ def run():
         try:
             ServerSettings.from_env()
             return 0
-        except (ValueError, OSError, RuntimeError):
-            print('Invalid server configuration or TLS certificate/key.', file=sys.stderr)
+        except (ValueError, OSError, RuntimeError) as error:
+            # Names the failing validation step and the underlying error; configuration values and secrets are never printed.
+            step = getattr(error, 'step', 'configuration')
+            print(f'Invalid server configuration at step "{step}": {getattr(error, "detail", f"{type(error).__name__}: {error}")}', file=sys.stderr)
             return 1
     if sys.argv[1:2] == ['--manage-user']:
         from server_access import manage_user

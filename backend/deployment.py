@@ -37,6 +37,14 @@ def certificate_has_name(certificate, name):
     return False
 
 
+class ConfigError(ValueError):
+    """A server configuration failure that names the validation step, so a Service Manager registration reports exactly what failed."""
+
+    def __init__(self, step, detail):
+        self.step, self.detail = step, detail
+        super().__init__(f'{step}: {detail}')
+
+
 @dataclass(frozen=True)
 class ServerSettings:
     host: str
@@ -64,10 +72,25 @@ class ServerSettings:
 
     @classmethod
     def from_env(cls):
+        """Parse and validate the server environment. A failure names the validation step and the underlying error (never a secret value)."""
+        import ssl
+        stage = ['configuration']
+        try:
+            return cls._parse_env(lambda name: stage.__setitem__(0, name))
+        except ConfigError:
+            raise
+        except (ValueError, OSError, RuntimeError, ssl.SSLError) as error:
+            raise ConfigError(stage[0], f'{type(error).__name__}: {error}') from error
+
+    @classmethod
+    def _parse_env(cls, mark):
+        mark('listen address')
         host = os.environ.get('SAP_LENS_HOST', '127.0.0.1')
         address = ipaddress.ip_address(host)  # Numeric bindings prevent DNS-dependent exposure.
+        mark('port')
         port = int(os.environ.get('SAP_LENS_PORT', '18743'))
         if not 1 <= port <= 65535: raise ValueError('SAP_LENS_PORT must be between 1 and 65535.')
+        mark('data and source directories')
         data = Path(os.environ.get('SAP_LENS_DATA_DIR', str(default_server_data()))).expanduser()
         sources = Path(os.environ.get('SAP_LENS_SOURCE_DIR', str(data/'sources'))).expanduser()
         if not data.is_absolute() or not sources.is_absolute(): raise ValueError('Server directories must be absolute.')
@@ -75,12 +98,14 @@ class ServerSettings:
         if data.resolve().is_relative_to(app_root): raise ValueError('Server data must be outside immutable application files.')
         if os.environ.get('SAP_LENS_CONFIG_DIR') and Path(os.environ['SAP_LENS_CONFIG_DIR']).resolve() != data.resolve():
             raise ValueError('Server storage overrides disagree; use SAP_LENS_DATA_DIR.')
+        mark('public origin')
         origin = os.environ.get('SAP_LENS_PUBLIC_ORIGIN', f'http://127.0.0.1:{port}')
         url = urlsplit(origin)
         if url.scheme not in {'http','https'} or not url.hostname or url.path or url.query or url.fragment or url.username or url.password:
             raise ValueError('Public origin must be an explicit HTTP(S) origin without a path or credentials.')
         try: _ = url.port  # raises ValueError for an invalid port
         except ValueError: raise ValueError('Invalid public origin port.') from None
+        mark('allowed hosts')
         hosts = tuple(x.strip().lower() for x in os.environ.get('SAP_LENS_ALLOWED_HOSTS', url.hostname).split(',') if x.strip())
         import re
         def valid_host(value):
@@ -89,12 +114,15 @@ class ServerSettings:
                 return len(value) <= 253 and all(re.fullmatch(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?', label) for label in value.split('.'))
         if not hosts or len(hosts)>32 or url.hostname.lower() not in hosts or any(not valid_host(h) for h in hosts):
             raise ValueError('Allowed hosts must explicitly include the public hostname; wildcards are forbidden.')
+        mark('authentication boundary')
         auth = os.environ.get('SAP_LENS_AUTH', 'local')
         if auth not in {'local','basic','proxy','users'}: raise ValueError('Choose local, basic, users or proxy authentication boundary.')
         if auth == 'local' and (not address.is_loopback or url.hostname not in {'localhost','127.0.0.1','::1'}):
             raise ValueError('Local access requires both a loopback binding and a loopback public origin.')
-        if url.scheme != 'https' and url.hostname not in {'localhost','127.0.0.1','::1'}:
-            raise ValueError('Network browser origins require HTTPS termination.')
+        # Plain HTTP on a network name is a deliberate, acknowledged choice (Service Manager "HTTP" mode), never a silent default or downgrade.
+        allow_http = os.environ.get('SAP_LENS_ALLOW_HTTP', '').strip().lower() in {'1', 'true', 'yes'}
+        if url.scheme != 'https' and url.hostname not in {'localhost','127.0.0.1','::1'} and not (allow_http and auth == 'users'):
+            raise ValueError('Network browser origins require HTTPS termination, or HTTP mode with the explicit unencrypted-traffic acknowledgement and account authentication.')
         secret = ''
         if auth in {'basic', 'proxy'}:
             path = Path(os.environ.get('SAP_LENS_AUTH_SECRET_FILE',''))
@@ -117,29 +145,38 @@ class ServerSettings:
         lockout = bounded_int('SAP_LENS_AUTH_LOCKOUT_SECONDS', 60, 10, 3600)
         cert = os.environ.get('SAP_LENS_TLS_CERT_FILE', '')
         key = os.environ.get('SAP_LENS_TLS_KEY_FILE', '')
+        mark('TLS certificate and key files')
         if bool(cert) != bool(key): raise ValueError('Provide both TLS certificate and private key.')
         if cert:
             import ssl
-            if url.scheme != 'https' or any(not Path(p).is_absolute() or not Path(p).is_file() for p in (cert,key)):
-                raise ValueError('Direct TLS requires HTTPS and absolute certificate/key files.')
+            if url.scheme != 'https':
+                raise ValueError('A TLS certificate is configured but the public origin is not https://. HTTP mode must not carry a certificate.')
+            missing = [label for label, p in (('certificate', cert), ('private key', key)) if not Path(p).is_absolute() or not Path(p).is_file()]
+            if missing: raise ValueError('The TLS ' + ' and '.join(missing) + ' must be absolute paths to existing files.')
             context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             context.minimum_version = ssl.TLSVersion.TLSv1_2
+            mark('TLS certificate and private key (load and match)')
             context.load_cert_chain(cert, key)
+            mark('TLS certificate decoding')
             # Validate every advertised alias, not just the primary URL. An untrusted
             # self-signed issuer is allowed; mismatched or expired certificates are not.
             certificate = ssl._ssl._test_decode_cert(cert)
             import time as _time
+            mark('TLS certificate validity period')
             if not ssl.cert_time_to_seconds(certificate['notBefore']) <= _time.time() < ssl.cert_time_to_seconds(certificate['notAfter']):
                 raise ValueError('The TLS certificate is not currently valid.')
-            for name in hosts:
-                if not certificate_has_name(certificate, name):
-                    raise ValueError('The TLS certificate SANs do not cover every allowed host.')
+            mark('TLS certificate names (SAN)')
+            uncovered = [name for name in hosts if not certificate_has_name(certificate, name)]
+            if uncovered:
+                raise ValueError('The TLS certificate SANs do not cover: ' + ', '.join(uncovered) + '. Present: ' + (', '.join(f'{kind}={value}' for kind, value in certificate.get('subjectAltName', ())) or 'no SAN entries') + '.')
+        mark('account file')
         accounts = os.environ.get('SAP_LENS_USERS_FILE', '')
         if auth == 'users':
             from server_access import read_accounts
             if not Path(accounts).is_absolute(): raise ValueError('Configure an absolute account file.')
             read_accounts(accounts)
-            if not address.is_loopback and not cert: raise ValueError('Direct network account access requires TLS.')
+            if not address.is_loopback and not cert and not (allow_http and url.scheme == 'http'):
+                raise ValueError('Direct network account access requires TLS, or HTTP mode with the explicit unencrypted-traffic acknowledgement.')
         return cls(host,port,data.resolve(),sources.resolve(),origin,hosts,auth,secret,username,proxies,level,max_failures,lockout,cert,key,accounts)
 
     def authorized(self, request):

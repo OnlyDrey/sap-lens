@@ -158,7 +158,7 @@ namespace SapLens {
         }
         static void WriteConfig(Dictionary<string,string> settings) {
             var service = new XElement("service", new XElement("id", "SAPLens"), new XElement("name", "SAP Lens Server"),
-                new XElement("description", "SAP Lens shared HTTPS server"), new XElement("executable", @"%BASE%\app\SAP-Lens.exe"),
+                new XElement("description", "SAP Lens shared server"), new XElement("executable", @"%BASE%\app\SAP-Lens.exe"),
                 new XElement("workingdirectory", @"%BASE%\app"), new XElement("startmode", "Automatic"),
                 new XElement("serviceaccount", new XElement("username", @"NT AUTHORITY\LocalService")),
                 new XElement("stoptimeout", "25 sec"), new XElement("stopparentprocessfirst", "true"),
@@ -175,10 +175,15 @@ namespace SapLens {
             Run(Path.Combine(Root, @"app\SAP-Lens.exe"), "--manage-user " + Quote(Users), Json.Serialize(payload));
             if (Status() != "Not registered") Acl(Users, false, false);
         }
-        public static void Save(string hostsText, int port, string data, string listener, string cert, string key, bool generate, string admin, string password) {
+        public const string ModeHttp = "http", ModeSelfSigned = "selfsigned", ModeCustom = "custom";
+        public static bool IsLoopbackName(string host) { IPAddress ip; return host == "localhost" || (IPAddress.TryParse(host, out ip) && IPAddress.IsLoopback(ip)); }
+        // HTTP carries passwords and data unencrypted: binding it beyond this computer needs an explicit acknowledgement. It is never chosen for an existing HTTPS installation automatically.
+        public static bool HttpNeedsAcknowledgement(string listener, string[] hosts) { IPAddress address; return !(IPAddress.TryParse(listener, out address) && IPAddress.IsLoopback(address)) || hosts.Any(h => !IsLoopbackName(h)); }
+        public static void Save(string hostsText, int port, string data, string listener, string mode, string cert, string key, string admin, string password, bool acknowledgeHttp) {
             VerifyBundle(); string state = Status(); bool installed = state != "Not registered";
             if (port < 1 || port > 65535) throw new ArgumentException("Use a port from 1 to 65535.");
             if (installed && state != "Stopped") throw new InvalidOperationException("Stop the service before changing its configuration.");
+            if (mode != ModeHttp && mode != ModeSelfSigned && mode != ModeCustom) throw new ArgumentException("Choose HTTP, HTTPS with a self-signed certificate, or HTTPS with an existing certificate.");
             string[] hosts = ValidateHosts(hostsText);
             IPAddress address;
             if (!IPAddress.TryParse(listener, out address) || address.AddressFamily != AddressFamily.InterNetwork) throw new ArgumentException("Listen address must be an IPv4 address (0.0.0.0 listens on all IPv4 interfaces).");
@@ -196,7 +201,11 @@ namespace SapLens {
                 if (String.IsNullOrWhiteSpace(admin) || password.Length < 14) throw new ArgumentException("Create an initial administrator with a password of at least 14 characters.");
                 User(admin, password, "administrator", true);
             }
-            if (generate) {
+            bool https = mode != ModeHttp;
+            if (!https) {
+                if (HttpNeedsAcknowledgement(listener, hosts) && !acknowledgeHttp) throw new ArgumentException("HTTP is not encrypted: passwords and data cross the network in clear text. Confirm the acknowledgement to bind HTTP beyond this computer.");
+                cert = ""; key = "";  // HTTP mode never carries or generates a certificate
+            } else if (mode == ModeSelfSigned) {
                 string id = Guid.NewGuid().ToString("N"); cert = Path.Combine(PrivateRoot, "server-" + id + ".crt"); key = Path.Combine(PrivateRoot, "server-" + id + ".key");
                 GenerateCertificate(hosts, cert, key);
             } else {
@@ -206,9 +215,11 @@ namespace SapLens {
                 File.Copy(cert, copyCert); File.Copy(key, copyKey); cert = copyCert; key = copyKey;
             }
             var settings = new Dictionary<string,string> { {"SAP_LENS_DEPLOYMENT_MODE","server"}, {"SAP_LENS_HOST",listener}, {"SAP_LENS_PORT",port.ToString()},
-                {"SAP_LENS_DATA_DIR",data}, {"SAP_LENS_SOURCE_DIR",Path.Combine(data,"sources")}, {"SAP_LENS_PUBLIC_ORIGIN","https://" + hosts[0] + ":" + port},
+                {"SAP_LENS_DATA_DIR",data}, {"SAP_LENS_SOURCE_DIR",Path.Combine(data,"sources")}, {"SAP_LENS_PUBLIC_ORIGIN",(https ? "https://" : "http://") + hosts[0] + ":" + port},
                 {"SAP_LENS_ALLOWED_HOSTS",String.Join(",",hosts)}, {"SAP_LENS_AUTH","users"}, {"SAP_LENS_USERS_FILE",Users},
-                {"SAP_LENS_TLS_CERT_FILE",cert}, {"SAP_LENS_TLS_KEY_FILE",key}, {"SAP_LENS_LOG_LEVEL","info"} };
+                {"SAP_LENS_LOG_LEVEL","info"} };
+            if (https) { settings["SAP_LENS_TLS_CERT_FILE"] = cert; settings["SAP_LENS_TLS_KEY_FILE"] = key; }
+            else if (HttpNeedsAcknowledgement(listener, hosts)) settings["SAP_LENS_ALLOW_HTTP"] = "1";
             // Validate TLS key/certificate matching and all SANs with the actual packaged runtime before activation.
             var old = File.Exists(Config) ? File.ReadAllText(Config) : null;
             WriteConfig(settings);
@@ -216,7 +227,7 @@ namespace SapLens {
             catch { if (old == null) File.Delete(Config); else File.WriteAllText(Config, old); throw; }
             if (!installed) { Run(Wrapper, "install", null); Run("sc.exe", "sidtype SAPLens unrestricted", null); }
             Directory.CreateDirectory(data); Directory.CreateDirectory(Path.Combine(data,"logs")); Directory.CreateDirectory(Path.Combine(data,"sources"));
-            Acl(data, true, true); Acl(PrivateRoot, false, true); Acl(Users, false, false); Acl(key, false, false);
+            Acl(data, true, true); Acl(PrivateRoot, false, true); Acl(Users, false, false); if (https) Acl(key, false, false);
             ProtectProgramDirectory();
         }
         public static void SelfTest() {
@@ -243,7 +254,7 @@ namespace SapLens {
 
     public class Manager : Form {
         TextBox hosts = new TextBox(), data = new TextBox(), listener = new TextBox(), cert = new TextBox(), key = new TextBox(), user = new TextBox(), password = new TextBox();
-        NumericUpDown port = new NumericUpDown(); CheckBox generate = new CheckBox(), enabled = new CheckBox(); ComboBox role = new ComboBox();
+        NumericUpDown port = new NumericUpDown(); CheckBox acknowledge = new CheckBox(), enabled = new CheckBox(); ComboBox role = new ComboBox(), mode = new ComboBox(); Label httpWarning = new Label();
         Label status = new Label(); TextBox urls = new TextBox();
         public Manager() {
             Text = "SAP Lens Service Manager"; ClientSize = new Size(780, 670); MinimumSize = new Size(780, 700); StartPosition = FormStartPosition.CenterScreen;
@@ -254,28 +265,32 @@ namespace SapLens {
             hosts.Text = String.Join(",",ServiceSetup.Addresses()); Add(table,"Enabled names / IPv4s",hosts);
             var note = new Label { Text="Comma-separated hostname, FQDN, DNS aliases or IPv4 addresses. Certificate SANs must match all entries.", AutoSize=true, MaximumSize=new Size(550,0) }; Add(table,"",note);
             listener.Text="0.0.0.0"; Add(table,"Listen IPv4 address",listener);
-            port.Minimum=1; port.Maximum=65535; port.Value=18743; Add(table,"HTTPS port",port);
+            port.Minimum=1; port.Maximum=65535; port.Value=18743; Add(table,"Port",port);
             data.Text=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),"SAP Lens Server"); Add(table,"Data directory",data);
-            generate.Text="Generate a self-signed certificate (365 days)"; generate.Checked=true; generate.AutoSize=true; Add(table,"Certificate",generate);
+            mode.DropDownStyle=ComboBoxStyle.DropDownList; mode.Items.AddRange(new object[]{"HTTPS - generate a self-signed certificate (default)","HTTPS - use an existing certificate","HTTP - no certificate (unencrypted)"}); mode.SelectedIndex=0; Add(table,"Connection mode",mode);
             Add(table,"Existing PEM certificate",cert); Add(table,"Existing PEM private key",key);
-            generate.CheckedChanged += (s,e) => { cert.Enabled=key.Enabled=!generate.Checked; }; cert.Enabled=key.Enabled=false;
+            httpWarning.Text="Warning: HTTP is not encrypted. Passwords and SAP role data cross the network in clear text. Use it only on loopback or a trusted, isolated network; account authentication and the firewall restriction still apply."; httpWarning.AutoSize=true; httpWarning.MaximumSize=new Size(550,0); httpWarning.ForeColor=Color.DarkRed; Add(table,"",httpWarning);
+            acknowledge.Text="I understand that HTTP traffic is unencrypted"; acknowledge.AutoSize=true; Add(table,"",acknowledge);
+            mode.SelectedIndexChanged += (s,e) => ApplyMode(); ApplyMode();
             Add(table,"Account username",user); password.UseSystemPasswordChar=true; Add(table,"Password",password);
             role.DropDownStyle=ComboBoxStyle.DropDownList; role.Items.AddRange(new object[]{"administrator","reviewer","read-only"}); role.SelectedIndex=0; Add(table,"Account role",role);
             enabled.Text="Account enabled"; enabled.Checked=true; enabled.AutoSize=true; Add(table,"",enabled);
             var actions=new FlowLayoutPanel {AutoSize=true,WrapContents=true,Dock=DockStyle.Fill};
-            Button(actions,"Register / save",()=>{ ServiceSetup.Save(hosts.Text,(int)port.Value,data.Text,listener.Text,cert.Text,key.Text,generate.Checked,user.Text,password.Text); password.Clear(); LoadConfig(); });
+            Button(actions,"Register / save",()=>{ ServiceSetup.Save(hosts.Text,(int)port.Value,data.Text,listener.Text,ModeKey(),cert.Text,key.Text,user.Text,password.Text,acknowledge.Checked); password.Clear(); LoadConfig(); });
             Button(actions,"Start",()=>ServiceSetup.Control("start")); Button(actions,"Stop",()=>ServiceSetup.Control("stop")); Button(actions,"Restart",()=>ServiceSetup.Control("restart"));
             Button(actions,"Refresh",()=>{}); Button(actions,"Unregister",()=>{ if(MessageBox.Show("Unregister this service? Application files, accounts, certificates and data will be retained.",Text,MessageBoxButtons.YesNo)==DialogResult.Yes)ServiceSetup.Control("uninstall"); });
             Button(actions,"Save account",()=>{ if(ServiceSetup.Status()=="Not registered")throw new InvalidOperationException("Register the service with an initial administrator first."); ServiceSetup.User(user.Text,password.Text,Convert.ToString(role.SelectedItem),enabled.Checked);password.Clear(); });
             Button(actions,"Open logs",()=>Process.Start("explorer.exe",ServiceSetup.Quote(Path.Combine(data.Text,"logs")))); Add(table,"Actions",actions);
             urls.Multiline=true;urls.ReadOnly=true;urls.Height=85;Add(table,"Configured URLs",urls);
-            Add(table,"Deployment",new Label{AutoSize=true,MaximumSize=new Size(550,0),Text="Keep this extracted folder in its permanent location. Restrict the HTTPS port in Windows Firewall to approved machines/subnets. No firewall rule is opened automatically. Self-signed certificates show a browser trust warning. Stop the service before changing configuration. Data relocation requires a separate backup/migration."});
+            Add(table,"Deployment",new Label{AutoSize=true,MaximumSize=new Size(550,0),Text="Keep this extracted folder in its permanent location. Restrict the port in Windows Firewall to approved machines/subnets. No firewall rule is opened automatically. Self-signed certificates show a browser trust warning. Stop the service before changing configuration. Data relocation requires a separate backup/migration."});
             LoadConfig(); RefreshStatus();
         }
+        string ModeKey(){return mode.SelectedIndex==2?ServiceSetup.ModeHttp:mode.SelectedIndex==1?ServiceSetup.ModeCustom:ServiceSetup.ModeSelfSigned;}
+        void ApplyMode(){bool custom=mode.SelectedIndex==1,http=mode.SelectedIndex==2;cert.Enabled=key.Enabled=custom;httpWarning.Visible=acknowledge.Visible=http;if(!http)acknowledge.Checked=false;}
         void Add(TableLayoutPanel t,string label,Control control){ int row=t.RowCount++;t.RowStyles.Add(new RowStyle(SizeType.AutoSize));t.Controls.Add(new Label{Text=label,AutoSize=true,Margin=new Padding(0,8,8,6)},0,row);control.Dock=DockStyle.Fill;control.Margin=new Padding(0,4,0,6);t.Controls.Add(control,1,row); }
         void Button(FlowLayoutPanel p,string title,Action action){var b=new Button{Text=title,AutoSize=true};b.Click+=(s,e)=>{Enabled=false;UseWaitCursor=true;try{action();RefreshStatus();}catch(Exception error){MessageBox.Show(error.Message,Text,MessageBoxButtons.OK,MessageBoxIcon.Error);}finally{Enabled=true;UseWaitCursor=false;}};p.Controls.Add(b);}
-        void LoadConfig(){if(!File.Exists(ServiceSetup.Config))return;try{var v=ServiceSetup.Settings();hosts.Text=v["SAP_LENS_ALLOWED_HOSTS"];listener.Text=v["SAP_LENS_HOST"];port.Value=int.Parse(v["SAP_LENS_PORT"]);data.Text=v["SAP_LENS_DATA_DIR"];cert.Text=v.ContainsKey("SAP_LENS_TLS_CERT_FILE")?v["SAP_LENS_TLS_CERT_FILE"]:"";key.Text=v.ContainsKey("SAP_LENS_TLS_KEY_FILE")?v["SAP_LENS_TLS_KEY_FILE"]:"";generate.Checked=cert.Text.Length==0;}catch(Exception e){MessageBox.Show("Existing configuration could not be loaded: "+e.Message,Text);}}
-        void RefreshStatus(){try{status.Text=ServiceSetup.Status();if(File.Exists(ServiceSetup.Config)){var v=ServiceSetup.Settings();urls.Lines=ServiceSetup.ValidateHosts(v["SAP_LENS_ALLOWED_HOSTS"]).Select(h=>"https://"+h+":"+v["SAP_LENS_PORT"]).ToArray();}else urls.Text="Register the service to configure access URLs.";}catch(Exception e){status.Text=e.Message;}}
+        void LoadConfig(){if(!File.Exists(ServiceSetup.Config))return;try{var v=ServiceSetup.Settings();hosts.Text=v["SAP_LENS_ALLOWED_HOSTS"];listener.Text=v["SAP_LENS_HOST"];port.Value=int.Parse(v["SAP_LENS_PORT"]);data.Text=v["SAP_LENS_DATA_DIR"];cert.Text=v.ContainsKey("SAP_LENS_TLS_CERT_FILE")?v["SAP_LENS_TLS_CERT_FILE"]:"";key.Text=v.ContainsKey("SAP_LENS_TLS_KEY_FILE")?v["SAP_LENS_TLS_KEY_FILE"]:"";mode.SelectedIndex=v["SAP_LENS_PUBLIC_ORIGIN"].StartsWith("http://",StringComparison.OrdinalIgnoreCase)?2:cert.Text.Length>0?1:0;acknowledge.Checked=v.ContainsKey("SAP_LENS_ALLOW_HTTP");ApplyMode();}catch(Exception e){MessageBox.Show("Existing configuration could not be loaded: "+e.Message,Text);}}
+        void RefreshStatus(){try{status.Text=ServiceSetup.Status();if(File.Exists(ServiceSetup.Config)){var v=ServiceSetup.Settings();urls.Lines=ServiceSetup.ValidateHosts(v["SAP_LENS_ALLOWED_HOSTS"]).Select(h=>(v["SAP_LENS_PUBLIC_ORIGIN"].StartsWith("http://",StringComparison.OrdinalIgnoreCase)?"http://":"https://")+h+":"+v["SAP_LENS_PORT"]).ToArray();}else urls.Text="Register the service to configure access URLs.";}catch(Exception e){status.Text=e.Message;}}
         [STAThread] public static int Main(string[] args){try{if(args.Length==1&&args[0]=="--self-test"){ServiceSetup.SelfTest();return 0;}Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);Application.Run(new Manager());return 0;}catch(Exception e){if(args.Length==0)MessageBox.Show(e.Message,"SAP Lens Service Manager");return 1;}}
     }
 }

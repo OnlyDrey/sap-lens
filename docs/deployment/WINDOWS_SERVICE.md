@@ -284,3 +284,17 @@ purge under the runtime storage lease. Back up first. It refuses unknown stores,
 links or an active writer. The nonprivate lock stub, configuration XML, previous
 binaries, external sources/secrets and private backups remain for an explicit
 administrator retention decision. There is no automatic global directory removal.
+
+## Connection modes and registration diagnostics
+
+The Service Manager offers three explicit modes (default: HTTPS with a generated self-signed certificate):
+
+| Mode | Certificate | Notes |
+|---|---|---|
+| HTTPS, generate a self-signed certificate | generated and validated | SANs contain every enabled DNS name and IPv4 address; a wildcard listen address such as `0.0.0.0` is never a name |
+| HTTPS, use an existing certificate | PEM certificate and unencrypted PEM key | validity period, key match and SAN coverage of every enabled name are checked before activation |
+| HTTP, no certificate | none; nothing is generated | unencrypted. Binding HTTP beyond this computer needs the explicit acknowledgement in the Service Manager (`SAP_LENS_ALLOW_HTTP=1`); account authentication and the firewall restriction still apply. HTTPS is never downgraded automatically: an existing HTTPS installation opens in an HTTPS mode. |
+
+The access URLs shown by the Service Manager use the configured scheme. A failed registration now reports the validation step and the underlying error, for example `Invalid server configuration at step "TLS certificate names (SAN)": The TLS certificate SANs do not cover: 127.0.0.1. Present: DNS=localhost.` The steps are listen address, port, data and source directories, public origin, allowed hosts, authentication boundary, TLS certificate and key files, TLS certificate and private key (load and match), TLS certificate decoding, TLS certificate validity period, TLS certificate names (SAN) and account file. The same check can be run by hand with `SAP-Lens.exe --check-server-config` (with the service environment).
+
+The command-line `manage-server-service.ps1` keeps its stricter rule: network public origins require HTTPS there; HTTP on the network is a Service Manager decision with acknowledgement.
