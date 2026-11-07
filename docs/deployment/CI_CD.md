@@ -119,7 +119,7 @@ overwrite using local bytes, without a GitHub Actions build.
 Manual only. Runs `Backend & Repository` and `Frontend & Browser` in parallel: complete backend suite, workflow contracts,
 audits, type check, build, ESLint, the complete browser suite, with reports uploaded as 7-day artifacts. Use it before large
 merges, after shared or security-sensitive changes, or when diagnosing a regression. Local equivalent:
-`python scripts/run-tests.py regression --browser-jobs 3 --report <file>`.
+`python scripts/run-tests.py full --browser-jobs 3 --report <file>`.
 
 ## Caching and artifacts
 
@@ -174,7 +174,8 @@ Stable from any other ref, and a build-only run is unaffected.
 | `python scripts/testing/ci.py lint` | actionlint |
 | `python scripts/run-tests.py changed --plan` | Fast Validation selection |
 | `python scripts/run-tests.py targeted <feature>...` | Feature tests |
-| `python scripts/run-tests.py regression` | Full Regression |
+| `python scripts/run-tests.py regression` | Curated critical regression (about 5 minutes) |
+| `python scripts/run-tests.py full` | Full Regression |
 
 ## Runtime validation status
 

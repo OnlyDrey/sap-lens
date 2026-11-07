@@ -9,7 +9,7 @@ targeted run is not a regression result.
 
 | Layer | Where | What it proves | Theme / viewport |
 | --- | --- | --- | --- |
-| Backend unit and integration | `backend/tests/test_*.py` (`unittest`, 1,760 tests) | Business rules, import, storage, security, SoD governance, packaging scripts | n/a |
+| Backend unit and integration | `backend/tests/test_*.py` (`unittest`, 1,763 tests) | Business rules, import, storage, security, SoD governance, packaging scripts | n/a |
 | Frontend unit | `frontend/tests/unit/*.test.ts` (`node --test`) | Pure client logic (formatting, session, bulk selection) | n/a |
 | Component behavior `@component` | `frontend/tests/component-library.spec.ts` against Settings > Component Library | Generic behavior of shared production components: selection, removal, toggling, validation, confirmation, focus, ARIA | Behavior once in light; focus ring and fit in both themes at 375 and 1280 px |
 | Functional page tests (untagged) | `frontend/tests/*.spec.ts` | How each screen uses its data: filters, decisions, exports, navigation, persistence | Default theme, one width, unless the behavior depends on width |
@@ -55,7 +55,7 @@ names and, when they have interactive behavior, a test in `component-library.spe
 
 | Question | Command |
 | --- | --- |
-| Run only backend tests | `python scripts/run-tests.py regression --backend` (quiet, three processes) |
+| Run only backend tests | `python scripts/run-tests.py full --backend` (quiet, three processes) |
 | Run one failing backend test | `python scripts/run-tests.py targeted --test test_sod_reports.FormalReportTests.test_status_labels_distinguish_draft_reviewed_approved_and_external_signature` (module, class or method; repeat `--test`) |
 | Plain `unittest`, without the runner | `cd backend/tests && python -m unittest -b --durations 10 test_sod_reports` (`-b` buffers output like the runner) |
 | Only frontend functional tests | `npm --prefix frontend run test:functional` (everything not tagged `@visual`, `@a11y` or `@component`) |
@@ -63,9 +63,10 @@ names and, when they have interactive behavior, a test in `component-library.spe
 | Accessibility tests | `npm --prefix frontend run test:a11y` |
 | Layout and visual QA | `npm --prefix frontend run test:visual` |
 | Critical workflows | `npm --prefix frontend run test:workflow` |
-| The complete suite | `python scripts/run-tests.py regression` (add `--browser-jobs auto` on 4+ CPUs) |
+| What did my change reach? | `python scripts/run-tests.py targeted --plan` (add `--base origin/work` for committed work) |
+| The complete suite | `python scripts/run-tests.py full` (add `--browser-jobs auto` on 4+ CPUs) |
 | Keep a log | add `--log build/test-logs/run.log`; `validate.py` writes `build/validation/<UTC timestamp>/` |
-| Find slow tests | `--slowest 20` (backend and browser; regression lists 10 by default) |
+| Find slow tests | `--slowest 20` (backend and browser; `regression` and `full` list 10 by default) |
 | Which tests need native Windows | the platform rows of the [validation matrix](../deployment/README.md#validation-status); Linux runs never prove them |
 
 Browser commands need a current build (`npm --prefix frontend run build`) and, on a prepared host, `PLAYWRIGHT_EXECUTABLE_PATH`.
@@ -78,37 +79,63 @@ Run `--workers=1 --retries=0` while investigating; never add retries to hide a f
 
 ## Profiles
 
-One entry point, `scripts/run-tests.py` (standard library only; Windows and Linux),
-selects tests from [`scripts/test-map.json`](../../scripts/test-map.json).
+One entry point, `scripts/run-tests.py` (standard library only; Windows and Linux), four profiles. `validate.py --level` is the same
+four levels with isolated storage, a log directory and a timeout (`fast` = quick, `feature` = targeted).
 
-| Profile | Run it | Covers | Typical use |
-| --- | --- | --- | --- |
-| `fast` | `python scripts/run-tests.py fast [feature ...]` | The cheap checks of one phase: `git diff --check`, documentation links, workflow contracts, Ruff, ESLint, the TypeScript check, then `smoke`, then `targeted` for the features you name | After every phase, before committing (about 2 to 4 minutes) |
-| `smoke` | `python scripts/run-tests.py smoke` | Critical backend tests (startup, import, role/user lookup, access package, SoD, security boundary, privacy) and browser tests tagged `@smoke` (launch/import, navigation, dashboard, investigation, comparison, package, SoD, account review) | Seconds-to-a-minute check after any edit |
-| `targeted` | `python scripts/run-tests.py targeted sod access-package` | Backend modules and browser specs owned by the named features | While changing a feature |
-| `regression` | `python scripts/run-tests.py regression` | Every backend module and browser spec, TypeScript check and production build, documentation links, workflow contracts, icon catalog, whitespace, `pip check` | Before a push of a finished phase or PR |
-| `release` | `python scripts/run-tests.py release` | Regression plus `npm audit`, `pip-audit`, PowerShell and workflow lint when those tools exist | Before a release decision |
+| Profile | Run it | Covers | When | Measured (Linux, 4 vCPUs, `--browser-jobs auto`) |
+| --- | --- | --- | --- | --- |
+| `quick` | `python scripts/run-tests.py quick` | Whitespace, docs links, workflow contracts, test map, Ruff; ESLint and the TypeScript check when frontend files changed; frontend unit tests; the backend modules the change reaches (release/packaging modules only when the change touches packaging). **No browser.** | After every edit | 35 to 50 s for a test-infrastructure change (96 to 439 backend tests) |
+| `targeted` | `python scripts/run-tests.py targeted` (or `targeted FEATURE ...`) | The backend modules and browser specs the change reaches, browser smoke, the security modules for security-sensitive paths | Before committing a change | Backend source change: 2 min 27 s (1,285 backend + 45 browser tests). SoD frontend change: 5 min 24 s (488 + 215) |
+| `regression` | `python scripts/run-tests.py regression` | Every backend module except release/packaging (1,431 tests), the non-matrix tests of 16 critical specs, every `@smoke`, `@workflow`, `@component` and `@regression` test (123 browser tests), static checks, unit tests | Before pushing a finished phase | 4 min 42 s |
+| `full` | `python scripts/run-tests.py full` | Everything: all backend modules, all browser tests including the theme/viewport matrices, unit tests, build, static checks, and `npm audit`/`pip-audit`/PowerShell checks where available (a NOTE names each check this machine cannot run) | Before a merge or release, and in Full Validation | See the latest result in [PROGRESS.md](PROGRESS.md) |
 
-Useful switches: `--backend` / `--browser` (one side), `--jobs N` (parallel processes;
-`auto` by default, `1` disables), `--browser-jobs N|auto` (browser processes, at most 3; see below), `--grep TEXT` (Playwright title filter), `--no-build`
-(trust an existing `frontend/dist`), `--list-tests`, `--report FILE` (JSON summary), `--test NAME` (backend unittest names, with `targeted`),
-`--verbose`, `--slowest N`, `--log FILE`.
-`python scripts/run-tests.py list` shows the features; `check` validates the map.
-The runner rebuilds the frontend for browser profiles only when sources are newer than
-`frontend/dist`. Skipped tests and their reasons are printed with every run, and
-`smoke`/`targeted` always state that they are partial.
+QUICK and TARGETED compare with `HEAD` by default (uncommitted and untracked changes); `--base origin/work` covers committed work.
+`--plan` prints the selection and the reason for each path without running anything. Earlier names still work and say so: `fast`
+is `quick`, `release` is `full`. `changed` is the conservative CI selection (whole backend for any backend change) and `smoke` the
+`@smoke` subset; neither is a development profile.
 
-`release` runs only what this machine can run and prints a NOTE for the rest. Docker
-image build/run, Windows installer/service/WebView2, native Linux package and systemd
-acceptance belong to the manual build workflows and the
-[validation matrix](../deployment/README.md#validation-status); a Linux run never
-proves them.
+**How QUICK and TARGETED select** (`plan_targeted` in `run-tests.py`, tested by `test_test_profiles.RiskBasedSelectionTests`):
+
+- A backend file selects every test module that imports it, directly or through other modules (the Python import graph), plus the
+  browser specs of its feature in `validation_sources`. `main.py` imports every router, so most backend changes reach about 75 of
+  109 modules; the selection is exact, not small.
+- A frontend file selects the specs that import it and the specs of the features whose files import it (the TypeScript import
+  graph). A file used by more than four features, a stylesheet, a toolchain file or a new file with no consumer yet selects the
+  REGRESSION browser set instead; a Shared component also runs `component-library`.
+- A test file runs itself; a test helper runs the tests that import it (a browser helper used by more than 25 specs selects the
+  REGRESSION browser set).
+- Security-sensitive paths (`profiles.security_sensitive`: server, deployment, routers, storage, backups, Windows identity) always add
+  `profiles.security_modules`. Changes to the selection system (`test-map.json`, `run-tests.py`, `validate.py`, the Playwright
+  configuration) run its own tests.
+- Documentation selects only the repository-integrity modules. Anything else that cannot be resolved runs the whole backend and the
+  REGRESSION browser set. Nothing is skipped silently: every broadening is printed as a NOTE.
+
+Useful switches: `--backend` / `--browser` (one side), `--jobs N` (backend processes; `auto` = min(3, CPUs)), `--browser-jobs N|auto`
+(at most 3 isolated browser processes), `--grep TEXT`, `--no-build`, `--list-tests`, `--plan`, `--report FILE` (JSON),
+`--test NAME` (backend unittest names, with `targeted`), `--verbose`, `--slowest N`, `--log FILE`. `list` shows the features;
+`check` validates the map. The runner rebuilds the frontend only when sources are newer than `frontend/dist`, prints skipped tests with
+their reasons, and every partial profile says that it is partial and what it left out.
+
+A Linux run never proves Docker image runs, the Windows installer, service, WebView2, native Linux packages or systemd; those belong to
+the manual build workflows and the [validation matrix](../deployment/README.md#validation-status).
 
 Underlying commands (still valid on their own): `python -m unittest -b discover -s backend/tests` (`-b` keeps expected diagnostics out of a passing run),
-`npm --prefix frontend run build`, `npm --prefix frontend run test:browser -- tests/<file>.spec.ts --grep <title>`,
-`python scripts/check-docs.py`, `python scripts/check-workflows.py`,
-`node scripts/sync-lucide-catalog.mjs --check`, `git diff --check`. A prepared host may
-need `PLAYWRIGHT_EXECUTABLE_PATH` for Chromium; report that override.
+`npm --prefix frontend run test:unit`, `npm --prefix frontend run build`, `npm --prefix frontend run test:browser -- tests/<file>.spec.ts --grep <title>`,
+`python scripts/check-docs.py`, `python scripts/check-workflows.py`, `node scripts/sync-lucide-catalog.mjs --check`, `git diff --check`.
+A prepared host may need `PLAYWRIGHT_EXECUTABLE_PATH` for Chromium; report that override.
+
+### Test ownership and the coverage map
+
+Test behavior in the layer that implements it: pure frontend functions in `frontend/tests/unit` (`node --test`), business rules and API
+contracts in backend `unittest` modules, generic component behavior in `component-library.spec.ts`, page integration and user journeys
+in Playwright, installer and service behavior in native platform tests. A browser test that never touches the page belongs in a lower
+layer (nine such tests moved to `frontend/tests/unit` in November 2026).
+
+`scripts/test-map.json` is the coverage map. Each feature lists its backend modules and browser specs (each file belongs to exactly one
+feature), its primary test `owner` layer (`backend`, `browser`, `component`, `platform`), `criticality` (`critical`, `standard`, `release`)
+and `platform`. `validation_sources` maps source paths to features, `validation_dependencies` the features a change also reaches, and
+`profiles` holds the release features excluded from REGRESSION, the REGRESSION browser specs and tags, and the security rules.
+`test_test_profiles` fails when a file is unmapped, a critical feature is excluded from REGRESSION, or a listed spec or module is missing.
 
 ## Ownership and adding tests
 
@@ -179,12 +206,9 @@ sharding was no faster than file-level sharding.
 
 ## CI
 
-[CI](CI.md) runs the same runner: Fast Validation runs the full backend through
-`regression --backend` plus type checks on every push and PR; Full Validation (PRs to
-`main`) runs `regression --backend` and, after one install, type check, catalog check
-and production build, `regression --browser --no-build` with dependency audits. CI never
-runs `smoke` or `targeted`: path-based selection is not reliable enough to replace
-the full backend gate. Deployment package workflows stay manual.
+[CI](CI.md) runs only on push to `main`. Fast Validation uses the conservative `changed` selection (whole backend for any backend
+change, browser smoke and changed specs for frontend changes); the manual Full Validation runs `full --backend` and
+`full --browser --no-build`. Deployment package workflows stay manual and may not run the complete suites.
 
 ## Troubleshooting
 
@@ -208,31 +232,6 @@ changes. Linux unit/browser tests and mocked native bridges do not prove
 Windows/WebView2, SCM, installer, real systemd boot/recovery or UNC behavior. Never
 dispatch expensive builds or publish artifacts without approval.
 
-## Fast Validation per phase
-
-About 1.5 to 3 minutes: `git diff --check`, `python scripts/check-docs.py` when docs changed, `python -m ruff check backend scripts` and `npm run lint` in `frontend` (a few seconds each), `npm run check:types` (20 s),
-`python scripts/run-tests.py smoke` (44 s), and `python scripts/run-tests.py targeted <feature>...` for what the phase touched
-(build first when the UI changed). The full backend and browser suites run once, after the final phase; use the default
-`auto` jobs (backend 65 s instead of 170 s) and reserve `--jobs 1` for reproducing a failure.
-
-## Risk-based selection
-
-Run targeted checks while editing, Fast Validation at each phase boundary and Full
-Validation once after the final phase ([repository guidance](../../AGENTS.md)).
-
-| Changed area | Targeted coverage |
-| --- | --- |
-| UI component or filter | Owning feature (`shared-ui`, `role-lookup`, ...), keyboard behavior, type check |
-| CSS, layout, theme | `shared-ui` plus the screens changed, representative screenshots |
-| Backend API | The feature's backend modules and its browser consumers |
-| CSV import | `data-sources`: validation, atomic replacement, failure preservation, persistence, dependent views |
-| Authentication/access | `platform` and `repository` plus affected integration tests |
-| Shared infrastructure | `regression`; broaden when impact is uncertain |
-| Documentation only | `python scripts/check-docs.py` and the `repository` feature |
-
-Inspect imports, callers and fixtures before selecting; this table is guidance, not a
-filename-based exemption.
-
 ## Linting
 
 - **Python:** `python -m ruff check backend scripts` (Ruff pinned in `backend/requirements-dev.txt`, configured in `ruff.toml`). The baseline selects correctness rules only
@@ -242,56 +241,24 @@ filename-based exemption.
 - **Frontend:** `npm run lint` in `frontend` (ESLint 10, flat config in `eslint.config.js`): recommended JavaScript and TypeScript rules, `react-hooks/rules-of-hooks` as an error,
   `react-hooks/exhaustive-deps` as a warning, and two type-aware rules (`no-floating-promises`, `no-misused-promises`) for `src`. The script is `eslint . --max-warnings N`, where N is the
   current backlog (30 hook-dependency warnings in `src`, 81 `any` uses in `tests`): fixing warnings lets you lower N, adding one fails the run. Errors fail it outright.
-- Both run in Fast and Full Validation (`ruff`, `eslint` steps), in the `regression` profile's static stage and belong in every phase's Fast Validation.
+- Both run in QUICK (ESLint when frontend files changed), REGRESSION and FULL, and in CI Fast and Full Validation.
 
-## Lean local validation (preferred for development)
+## Isolated local validation (`validate.py`)
 
-One policy layer delegates to the existing test engine and ownership map; it does
-not replace CI or create a second suite.
-
-| Level | Scope | Default browser behavior |
-| --- | --- | --- |
-| FAST | Changed-area backend plus relevant type/static checks | No browser |
-| FEATURE | Affected area and declared dependency integration tests | Targeted workflows; use `--grep` to narrow |
-| FULL | Existing release-validation profile: regression plus security/platform checks | Only when explicitly selected |
+`scripts/validate.py --level quick|targeted|regression|full` (also `fast` and `feature`) runs the same profile with disposable
+configuration, data and source directories, no inherited server, authentication or source settings, a log directory and a timeout:
 
 ```sh
-python scripts/validate.py --level fast --area sod
-python scripts/validate.py --level feature --area sod --grep 'activity matrix'
-python scripts/validate.py --level fast --base origin/work --plan
+python scripts/validate.py --level quick
+python scripts/validate.py --level targeted --area sod --grep 'activity matrix'
+python scripts/validate.py --level targeted --base origin/work --plan
 python scripts/validate.py --level full --reports
 ```
 
-The same commands run in Windows PowerShell (`python scripts\validate.py --level fast --area sod`).
-
-Run `.\scripts\build.ps1 -Mode prerequisites` once (no activation needed; the runners resolve Python 3.12 themselves),
-install the pinned frontend/dev requirements and Playwright Chromium as described
-above. No Codex session is needed. FULL uses the existing `release` validation profile; it does not create tags, publish releases or dispatch workflows. With no area, Git diff against `HEAD` includes
-working-tree/untracked changes. `--base origin/work` compares against that ref;
-it does not fetch or alter Git history. An unrecognized path fails closed and
-requires an explicit area or mapping update; it never silently selects FULL.
-Source rules and dependency expansion are in `scripts/test-map.json`.
-
-The wrapper removes inherited server/auth/source settings and creates disposable
-configuration/data/source directories. SAP Lens uses private JSON/snapshot stores,
-not a production test database. Existing browser processes have distinct servers,
-ports and storage. Browser **workers remain one**. Optional `--jobs` and
-`--browser-jobs` process counts are bounded to 1–3, default one; benchmark CPU/memory
-before opting into browser process parallelism. Windows uses `-Jobs`/`-BrowserJobs`.
-
-Concise results point to `build/validation/<UTC timestamp>/validation.log` and JSON
-summaries. Traces and browser JSON remain there; `--reports` also retains HTML/JUnit.
-Commands are bounded by `--timeout` (seconds); nonzero child/timeout codes propagate.
-These directories contain synthetic test artifacts and must not be committed.
-
-Functional grouping already follows feature ownership. Keep semantic/edge-case
-checks in backend or focused browser tests; retain meaningful release visual
-coverage. During development select the changed workflow rather than repeating
-all themes/viewports or the whole SoD area. Shared helpers reduce repeated fixture
-setup, but stateful browser workers must not share a backend. The historical full
-run's 120-second obsolete-locator failures were wasted time, not evidence that more
-workers would help. Full visual matrices remain available for release validation;
-no tests were removed to reduce counts.
+The same commands run in Windows PowerShell (`python scripts\validate.py --level quick`). Run `.\scripts\build.ps1 -Mode prerequisites`
+once first. Results go to `build/validation/<UTC timestamp>/` (`validation.log`, `run-tests.log`, JSON summary, traces; `--reports`
+also keeps HTML/JUnit). These are synthetic artifacts and are never committed. REGRESSION and FULL cannot be narrowed with
+`--area`, `--grep` or `--no-build`. Browser workers stay at one per process; `--jobs`/`--browser-jobs` are bounded to 1 to 3.
 
 ### Focused SoD reference and navigation checks
 
@@ -341,7 +308,7 @@ disposable storage: `import`, `startup` / `startup-warm` (sources dynamic, the d
 
 ## CI policy and local validation
 
-GitHub Actions CI runs only on push to `main`; pushes to `work`, feature branches and pull requests do not trigger it ([CI policy](CI.md)). Run the Fast/FEATURE validation locally after every phase and the full regression (`python scripts/run-tests.py regression` and the complete browser suite) before merging into `main`.
+GitHub Actions CI runs only on push to `main`; pushes to `work`, feature branches and pull requests do not trigger it ([CI policy](CI.md)). Run QUICK/TARGETED during a phase, REGRESSION before pushing a finished phase and FULL (`python scripts/run-tests.py full`) before merging into `main`.
 
 
 ## Revision consistency

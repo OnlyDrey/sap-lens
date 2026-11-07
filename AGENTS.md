@@ -39,10 +39,10 @@ Verified against `backend/requirements*.txt`, `frontend/package.json` and config
 From the repository root (full list and risk-based selection:
 [Testing](docs/development/TESTING.md)).
 
-- Profiles: `python scripts/run-tests.py smoke | targeted <feature>... | regression | release`; browser categories by tag
-  (`@visual`, `@a11y`, `@workflow`, `@component`, `@smoke`) and theme/viewport rules are in [Testing](docs/development/TESTING.md#test-architecture)
+- Profiles: `python scripts/run-tests.py quick | targeted [feature...] | regression | full`; browser categories by tag
+  (`@visual`, `@a11y`, `@workflow`, `@component`, `@smoke`, `@regression`) and theme/viewport rules are in [Testing](docs/development/TESTING.md#test-architecture)
   (`list` shows features; ownership in `scripts/test-map.json`, see [Testing](docs/development/TESTING.md)).
-- Backend: `python scripts/run-tests.py regression --backend` (quiet, buffered; `--test NAME` for one test) or
+- Backend: `python scripts/run-tests.py full --backend` (quiet, buffered; `--test NAME` for one test) or
   `python -m unittest discover -s backend/tests -v` in a Python 3.12 venv
   with `backend/requirements-dev.txt`; one module with `-p test_<name>.py`.
 - Frontend, in `frontend`: `npm ci`, `npm run check:types`, `npm run lint`, `npm run build`,
@@ -88,8 +88,8 @@ From the repository root (full list and risk-based selection:
   indirectly from them (no `workflow_run`, `workflow_call`, `schedule`, `pull_request(_target)` or repository-event triggers anywhere).
 - Intermediate and final development pushes to `work` do not trigger CI. Do not run CI manually (`workflow_dispatch` of Full Validation, Build Windows
   Application or Build Deployment Packages) unless the repository owner explicitly authorizes it for that run.
-- Validation moves local: run Fast Validation (`python scripts/validate.py --level fast|feature`, targeted tests) after each development phase, and the full local
-  regression (`python scripts/run-tests.py regression` plus the complete browser suite) before merging into `main`.
+- Validation moves local: run QUICK/TARGETED (`python scripts/run-tests.py quick|targeted`) during a phase, REGRESSION
+  (`python scripts/run-tests.py regression`) before pushing a finished phase, and FULL (`python scripts/run-tests.py full`) before merging into `main`.
 - Existing validation jobs, security checks and release protections stay in place; they only run on `main` pushes or on an authorized manual dispatch.
   `scripts/check-workflows.py` and `backend/tests/test_workflows.py` enforce the trigger policy; changing a trigger requires updating those contracts deliberately.
 - Never merge into `main`, publish a release or tag without explicit authorization. When a commit that only changes workflows must be pushed to `work`,
@@ -120,10 +120,10 @@ From the repository root (full list and risk-based selection:
   and browser suites, production build, security/static and available platform checks.
   Never run FULL automatically during ordinary development. A failure normally requires
   only its root-cause fix and affected recheck; broader reruns need a concrete impact reason.
-- Local entry point: `python scripts/validate.py --level fast|feature|full --area sod`
-  (the same command on Windows and Linux). Mapping and dependencies live
-  in `scripts/test-map.json`; unknown changes fail closed rather than silently omitting tests
-  or escalating to FULL. See [Testing](docs/development/TESTING.md).
+- Local entry points: `python scripts/run-tests.py quick|targeted|regression|full` or, with isolated storage and logs,
+  `python scripts/validate.py --level quick|targeted|regression|full` (FAST = quick, FEATURE = targeted; the same command on
+  Windows and Linux). Selection follows the import graphs and `scripts/test-map.json`; unknown changes broaden the run, never
+  silently omit tests. See [Testing](docs/development/TESTING.md#profiles).
 - Commit and push validated, independently functional phases to `origin/work`; do not wait
   for full regression. Preserve user instructions that explicitly delay a push. Report
   targeted checks separately from pending full regression and automatic GitHub Actions.

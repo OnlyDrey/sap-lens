@@ -6,8 +6,8 @@ Fast Validation is triggered **only** by a push to `main` (a completed merge). P
 repository events never start a workflow, so development pushes consume no Actions minutes. The trigger is `push` to `main`, not `pull_request`.
 Full Validation and the two Build workflows are `workflow_dispatch` only and are run by hand only when the repository owner explicitly authorizes it.
 
-Validation therefore happens locally: Fast Validation after each development phase (`python scripts/validate.py --level fast`, targeted tests per
-[Testing](TESTING.md)) and the complete local regression (`python scripts/run-tests.py regression` and the full browser suite) before merging into `main`.
+Validation therefore happens locally: QUICK and TARGETED during a phase, REGRESSION before pushing a finished phase, and FULL (`python scripts/run-tests.py full`) before merging
+into `main` ([profiles](TESTING.md#profiles)).
 `scripts/check-workflows.py` and `backend/tests/test_workflows.py` fail on any other trigger, so the policy cannot drift unnoticed. Merging into `main` and
 publishing releases still require explicit authorization.
 
