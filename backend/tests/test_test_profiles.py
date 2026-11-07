@@ -176,6 +176,12 @@ class QuietBackendRunnerTests(unittest.TestCase):
                                   cwd=ROOT, capture_output=True, text=True, timeout=300)
             self.assertEqual(done.returncode, 0, done.stdout[-2000:] + done.stderr[-2000:])
             self.assertIn('backend selected tests', log.read_text(encoding='utf-8'))
+        with tempfile.TemporaryDirectory() as folder:                                  # failure details written to stderr reach the log as well
+            log = Path(folder) / 'failed.log'
+            done = subprocess.run([sys.executable, str(ROOT / 'scripts' / 'run-tests.py'), 'targeted', '--test', 'no_such_module_for_log_test', '--log', str(log)],
+                                  cwd=ROOT, capture_output=True, text=True, timeout=120)
+            self.assertNotEqual(done.returncode, 0)
+            self.assertIn('no_such_module_for_log_test', log.read_text(encoding='utf-8'))
         refused = subprocess.run([sys.executable, str(ROOT / 'scripts' / 'run-tests.py'), 'regression', '--test', 'x'], cwd=ROOT, capture_output=True, text=True, timeout=60)
         self.assertNotEqual(refused.returncode, 0)
 

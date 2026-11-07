@@ -824,6 +824,7 @@ def main(argv: list[str]) -> int:
         Path(args.log).parent.mkdir(parents=True, exist_ok=True)
         _LOG = open(args.log, 'w', encoding='utf-8')
         sys.stdout = Tee(sys.stdout, _LOG)
+        sys.stderr = Tee(sys.stderr, _LOG)      # failure details (step output, shard log tails) must reach the log too
     renamed = {'fast': 'quick', 'release': 'full'}
     if args.profile in renamed:
         print(f'NOTE: `{args.profile}` is now `{renamed[args.profile]}`.', flush=True)
