@@ -184,7 +184,7 @@ def validate(workflows):
     # Full Regression is evidence, never a prerequisite: nothing that builds or publishes may run the complete suites or consult a regression result.
     for name in ('build-deployments.yml', 'build-windows.yml'):
         text = '\n'.join(str(step) for job in workflows[name]['jobs'].values() for step in job['steps'])
-        require('run-tests.py regression' not in text and 'unittest discover' not in text and 'test:browser' not in text and '-Stage Backend' not in text and '-Stage Browser' not in text and '--scope full' not in text and '--level full' not in text,
+        require('run-tests.py regression' not in text and 'run-tests.py full' not in text and 'unittest discover' not in text and 'test:browser' not in text and '-Stage Backend' not in text and '-Stage Browser' not in text and '--scope full' not in text and '--level full' not in text,
                 f'{name} may not run the complete backend or browser suites')
         require(all('workflow_run' not in job.get('if', '') and 'full-validation' not in str(job).lower() for job in workflows[name]['jobs'].values()), f'{name} may not depend on a Full Regression result')
         require('workflow_run' not in workflows[name]['on'] and 'workflow_call' not in workflows[name]['on'], f'{name} is dispatched by hand only')

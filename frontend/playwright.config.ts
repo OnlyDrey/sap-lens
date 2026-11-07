@@ -5,6 +5,8 @@ const port = Number(process.env.SAP_LENS_BROWSER_TEST_PORT || 18745)
 
 export default defineConfig({
   testDir: './tests',
+  // Only Playwright specs. tests/unit/*.test.ts are node:test files (npm run test:unit); the default pattern would import and run them here too.
+  testMatch: '**/*.spec.ts',
   // Aggregate E2E budget includes browser/page fixtures and full user workflows.
   // Assertion timeouts and production startup deadlines remain independent.
   timeout: 120_000,

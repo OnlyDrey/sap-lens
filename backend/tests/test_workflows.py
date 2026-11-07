@@ -65,6 +65,7 @@ class WorkflowTests(unittest.TestCase):
 
     def test_full_regression_is_never_a_prerequisite_of_building_or_publishing(self):
         for filename, job, step in [('build-deployments.yml', 'validation', {'name': 'x', 'run': 'python scripts/run-tests.py regression --backend'}),
+                                    ('build-deployments.yml', 'validation', {'name': 'x', 'run': 'python scripts/run-tests.py full --backend'}),
                                     ('build-deployments.yml', 'validation', {'name': 'x', 'run': 'python -m unittest discover -s backend/tests -v'}),
                                     ('build-deployments.yml', 'desktop', {'name': 'x', 'run': 'npm --prefix frontend run test:browser'}),
                                     ('build-windows.yml', 'windows-exe', {'name': 'x', 'run': './scripts/build-windows.ps1 -Stage Backend'}),

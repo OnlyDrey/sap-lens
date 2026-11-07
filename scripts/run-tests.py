@@ -7,7 +7,9 @@ scripts/test-map.json. See docs/development/TESTING.md.
 from __future__ import annotations
 
 import argparse
+import ast
 from contextlib import contextmanager, nullcontext
+import fnmatch
 import json
 import os
 import re
@@ -171,6 +173,210 @@ def plan_changes(files: list[str] | None) -> dict:
             reasons.append(f'{path}: core (backend source, script, workflow, dependency or unmapped path)')
     return dict(backend='full' if backend_full else 'modules' if len(modules) > len(always) else 'repository',
                 modules=sorted(modules), frontend=frontend, browser=frontend, specs=sorted(specs), reasons=reasons[:12], files=files)
+
+
+# ---------------------------------------------------------------------------- change selection for QUICK and TARGETED
+# CI keeps the conservative `changed` plan above (whole backend for any backend change). Local QUICK and TARGETED resolve what a change
+# reaches from the import graphs of the code itself, then from test-map.json validation_sources; anything unresolved selects broadly.
+
+BROAD_SPECS = 25        # a browser helper used by more specs than this selects the regression browser set rather than nearly the whole suite
+BROAD_FEATURES = 4      # a frontend file whose consumers span more features than this is "widely shared": run the regression browser set
+
+
+def _matches(path: str, patterns: list[str]) -> bool:
+    return any(fnmatch.fnmatchcase(path, pattern) for pattern in patterns)
+
+
+def features_for(path: str) -> set[str]:
+    mapping = load_map()
+    return {area for rule in mapping['validation_sources'] if _matches(path, rule['patterns']) for area in rule['areas']}
+
+
+def python_module(path: str) -> str | None:
+    parts = Path(path).parts
+    if len(parts) == 2 and parts[0] == 'backend' and path.endswith('.py'):
+        return Path(path).stem
+    if len(parts) == 3 and parts[:2] in (('backend', 'routers'), ('backend', 'tests')) and path.endswith('.py'):
+        return ('routers.' if parts[1] == 'routers' else '') + Path(path).stem
+    return None
+
+
+def python_import_graph() -> dict[str, set[str]]:
+    """module -> modules that import it, over backend/, backend/routers/ and backend/tests/ (static imports, including function-level ones)."""
+    paths = {}
+    for path in [*(ROOT / 'backend').glob('*.py'), *(ROOT / 'backend' / 'routers').glob('*.py'), *BACKEND_TESTS.glob('*.py')]:
+        paths[python_module(path.relative_to(ROOT).as_posix())] = path
+    reverse: dict[str, set[str]] = {name: set() for name in paths}
+    for name, path in paths.items():
+        try:
+            tree = ast.parse(path.read_text(encoding='utf-8'))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        for node in ast.walk(tree):
+            targets: list[str] = []
+            if isinstance(node, ast.Import):
+                targets = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom):
+                base = node.module or ''
+                if node.level and name.startswith('routers.'):
+                    base = 'routers' + ('.' + base if base else '')
+                targets = [base, *(f'{base}.{alias.name}' if base else alias.name for alias in node.names)]
+            for target in targets:
+                if target in reverse and target != name:
+                    reverse[target].add(name)
+    return reverse
+
+
+def dependents(start: set[str], reverse: dict[str, set[str]]) -> set[str]:
+    seen, pending = set(start), list(start)
+    while pending:
+        for importer in reverse.get(pending.pop(), ()):
+            if importer not in seen:
+                seen.add(importer); pending.append(importer)
+    return seen
+
+
+TS_IMPORT = re.compile(r"""(?:\bfrom\s*|\bimport\s*\(?\s*)['"]([^'"]+)['"]""")
+
+
+def ts_import_graph() -> dict[str, set[str]]:
+    """file -> files that import it, over frontend/src and frontend/tests (paths relative to the repository root)."""
+    files = [p for p in [*(FRONTEND / 'src').rglob('*'), *BROWSER_TESTS.rglob('*')] if p.suffix in ('.ts', '.tsx') and 'node_modules' not in p.parts]
+    known = {p.relative_to(ROOT).as_posix() for p in files}
+    reverse: dict[str, set[str]] = {name: set() for name in known}
+    for path in files:
+        importer = path.relative_to(ROOT).as_posix()
+        for spec in TS_IMPORT.findall(path.read_text(encoding='utf-8', errors='replace')):
+            if spec.startswith('@/'):
+                base = (FRONTEND / 'src' / spec[2:]).as_posix()
+            elif spec.startswith('.'):
+                base = os.path.normpath(path.parent / spec).replace(os.sep, '/')
+            else:
+                continue
+            for candidate in (base, base + '.ts', base + '.tsx', base + '/index.ts', base + '/index.tsx'):
+                rel = os.path.relpath(candidate, ROOT).replace(os.sep, '/')
+                if rel in reverse:
+                    reverse[rel].add(importer)
+                    break
+    return reverse
+
+
+def plan_targeted(files: list[str]) -> dict:
+    """What QUICK and TARGETED run for these changed paths. Never silent: every path is either resolved, documentation, or broadens the run."""
+    mapping = load_map()
+    profiles = mapping['profiles']
+    py: dict | None = None
+    ts: dict | None = None
+    modules: set[str] = set()
+    specs: set[str] = set()
+    features: set[str] = set()
+    reasons: list[str] = []
+    broad_backend = broad_browser = frontend = security = False
+    for path in files:
+        category = classify(path)
+        if category == 'docs':
+            continue
+        if _matches(path, profiles['selection_system']):
+            features.add('repository')
+            reasons.append(f'{path}: test selection system; its own tests run')
+            if path.startswith('frontend/'):
+                frontend = broad_browser = True
+            continue
+        if _matches(path, profiles['security_sensitive']):
+            security = True
+        module = python_module(path)
+        if category == 'backend_tests':
+            if module and module.startswith('test_'):
+                if (BACKEND_TESTS / f'{module}.py').exists():
+                    modules.add(module)
+                continue
+            py = py if py is not None else python_import_graph()
+            users = {name for name in dependents({module}, py) if name.startswith('test_')} if module in (py or {}) else set()
+            if users:
+                modules |= users; reasons.append(f'{path}: test helper imported by {len(users)} test modules')
+            else:
+                broad_backend = True; reasons.append(f'{path}: shared backend fixture with unknown users: whole backend')
+            continue
+        if category == 'frontend_tests':
+            frontend = True
+            if path.endswith('.spec.ts'):
+                if (ROOT / path).exists():
+                    specs.add(Path(path).name[:-len('.spec.ts')])
+            elif '/unit/' not in path:
+                ts = ts if ts is not None else ts_import_graph()
+                users = {Path(name).name[:-len('.spec.ts')] for name in dependents({path}, ts) if name.endswith('.spec.ts')}
+                if len(users) > BROAD_SPECS:
+                    broad_browser = True; reasons.append(f'{path}: browser helper used by {len(users)} specs: regression browser set (FULL runs them all)')
+                elif users:
+                    specs |= users; reasons.append(f'{path}: browser helper imported by {len(users)} specs')
+                else:
+                    broad_browser = True; reasons.append(f'{path}: browser helper with unknown users: regression browser set')
+            continue
+        if module is not None:                                                   # backend source
+            py = py if py is not None else python_import_graph()
+            users = {name for name in dependents({module}, py) if name.startswith('test_')}
+            owners = features_for(path)
+            modules |= users
+            features |= owners
+            if users or owners:
+                reasons.append(f'{path}: {len(users)} test modules import it' + (f'; features {", ".join(sorted(owners))}' if owners else ''))
+            else:
+                broad_backend = True; reasons.append(f'{path}: not imported by any test and not mapped: whole backend')
+            continue
+        if path.startswith('frontend/src/'):
+            frontend = True
+            if not path.endswith(('.ts', '.tsx')):
+                broad_browser = True; reasons.append(f'{path}: stylesheet or asset used everywhere: regression browser set')
+                continue
+            ts = ts if ts is not None else ts_import_graph()
+            reached = dependents({path}, ts)
+            specs |= {Path(name).name[:-len('.spec.ts')] for name in reached if name.endswith('.spec.ts')}
+            owners = set().union(*(features_for(name) for name in reached)) - {'shared-ui'}
+            if '/components/Shared/' in path or '/components/Settings/ComponentLibrary' in path:
+                specs.add('component-library')
+            if len(owners) > BROAD_FEATURES:
+                broad_browser = True; reasons.append(f'{path}: used by {len(owners)} features: regression browser set')
+            elif not owners and not any(name.endswith('.spec.ts') for name in reached) and '/components/Shared/' not in path:
+                broad_browser = True; reasons.append(f'{path}: no known consumer or owning feature yet: regression browser set')
+            else:
+                features |= owners; reasons.append(f'{path}: consumers in {", ".join(sorted(owners)) or "no feature"}')
+            continue
+        if category == 'frontend':                                               # package manifests, Vite/TS config, icon catalogue
+            frontend = broad_browser = True; reasons.append(f'{path}: frontend toolchain: regression browser set')
+            continue
+        owners = features_for(path)
+        if owners:
+            features |= owners; reasons.append(f'{path}: features {", ".join(sorted(owners))}')
+        else:
+            broad_backend = broad_browser = True; reasons.append(f'{path}: unmapped: whole backend and the regression browser set')
+    if security:
+        modules |= set(profiles['security_modules']); reasons.append('security-sensitive path: the security modules always run')
+    expanded, pending = set(features), list(features)
+    while pending:
+        for dependency in mapping.get('validation_dependencies', {}).get(pending.pop(), []):
+            if dependency not in expanded:
+                expanded.add(dependency); pending.append(dependency)
+    for name in expanded:
+        modules |= set(mapping['features'][name]['backend'])
+    for name in features - {'shared-ui'}:
+        specs |= set(mapping['features'][name]['browser'])
+    modules |= {m for name in mapping['change_rules']['always'] for m in mapping['features'][name]['backend']}
+    return dict(modules=sorted(modules), specs=sorted(specs), features=sorted(features), broad_backend=broad_backend, broad_browser=broad_browser,
+                browser=frontend or bool(specs) or broad_browser, frontend=frontend, security=security, reasons=reasons)
+
+
+def local_changes(base: str) -> list[str] | None:
+    """Changed paths against `base` for QUICK and TARGETED, including untracked files; None when the base is unusable."""
+    files = changed_files(base)
+    if files is None:
+        return None
+    untracked = subprocess.run(['git', 'ls-files', '--others', '--exclude-standard'], cwd=ROOT, capture_output=True, text=True).stdout.split()
+    return sorted(set(files) | set(untracked))
+
+
+def release_modules() -> set[str]:
+    mapping = load_map()
+    return {m for name in mapping['profiles']['release_features'] for m in mapping['features'][name]['backend']}
 
 
 # ---------------------------------------------------------------------------- backend
@@ -390,7 +596,7 @@ def playwright_tests(report: dict) -> list[tuple[float, str, str, str]]:
     return found
 
 
-def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str, extra: list[str]) -> dict:
+def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str, extra: list[str], grep_invert: str | None = None) -> dict:
     """Run the browser tests in `jobs` independent Playwright processes, each with its own server, port and storage."""
     started = time.perf_counter()
     names = specs if specs is not None else browser_specs()
@@ -416,6 +622,8 @@ def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str
                 if os.environ.get('SAP_LENS_TEST_REPORTERS')=='html,junit': command=[arg.replace('--reporter=line,json','--reporter=line,json,html,junit') for arg in command]
                 if grep:
                     command += ['--grep', grep]
+                if grep_invert:
+                    command += ['--grep-invert', grep_invert]
                 env = {**os.environ, 'SAP_LENS_BROWSER_TEST_PORT': str(BASE_PORT + index), 'PLAYWRIGHT_JSON_OUTPUT_NAME': str(report)}
                 env.update(PLAYWRIGHT_HTML_OPEN='never',PLAYWRIGHT_HTML_REPORT=str(Path(scratch)/f'html-{index}'),PLAYWRIGHT_JUNIT_OUTPUT_NAME=str(Path(scratch)/f'junit-{index}.xml'))
                 handle = None if jobs == 1 else log.open('w', encoding='utf-8')  # a single process streams its progress live (CI logs, local feedback)
@@ -458,6 +666,15 @@ def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str
     return merged
 
 
+def regression_browser(jobs: int, extra: list[str]) -> list[dict]:
+    """REGRESSION browser set in two disjoint runs: the non-matrix tests of the critical specs, then every test tagged as critical elsewhere."""
+    profile = load_map()['profiles']
+    tags = profile['regression_browser_tags']
+    specs = profile['regression_browser_specs']
+    return [run_browser(specs, None, min(jobs, len(specs)), f'browser regression: critical specs ({len(specs)})', extra, grep_invert=f'@visual|{tags}'),
+            run_browser(None, tags, jobs, f'browser regression: tests tagged {tags}', extra)]
+
+
 # ---------------------------------------------------------------------------- static and release
 
 def fast_static_checks() -> list[dict]:
@@ -470,6 +687,21 @@ def fast_static_checks() -> list[dict]:
         ('Python lint (ruff)', [py, '-m', 'ruff', 'check', 'backend', 'scripts']),
         ('frontend lint (ESLint)', [npm(), '--prefix', str(FRONTEND), 'run', 'lint']),
         ('TypeScript check', [npm(), '--prefix', str(FRONTEND), 'run', 'check:types']))]
+
+
+def quick_static_checks(frontend: bool) -> list[dict]:
+    """QUICK: the checks that take seconds; ESLint and the TypeScript check only when frontend files changed."""
+    py = python_exe()
+    checks = [('whitespace (git diff --check)', ['git', 'diff', '--check']), ('documentation links', [py, 'scripts/check-docs.py']),
+              ('workflow contracts', [py, 'scripts/check-workflows.py']), ('test ownership map', [py, str(Path(__file__).resolve()), 'check']),
+              ('Python lint (ruff)', [py, '-m', 'ruff', 'check', 'backend', 'scripts'])]
+    if frontend:
+        checks += [('frontend lint (ESLint)', [npm(), '--prefix', str(FRONTEND), 'run', 'lint']), ('TypeScript check', [npm(), '--prefix', str(FRONTEND), 'run', 'check:types'])]
+    return [step(name, command) for name, command in checks]
+
+
+def unit_tests() -> dict:
+    return step('frontend unit tests (node --test)', [npm(), '--prefix', str(FRONTEND), 'run', 'test:unit'])
 
 
 def static_checks() -> list[dict]:
@@ -544,13 +776,15 @@ def report(profile: str, scope: str, stages: list[dict], notes: list[str], outpu
                 print(f'          skipped: {test.split(" ")[0]} ({reason})')
         for leak in stage.get('resource_warnings', []):
             print(f'          resource warning: {leak}')
-        for seconds, file, title in stage.get('slowest', [])[:SLOWEST] if (profile in ('regression', 'release') or SLOWEST_REQUESTED) else []:
+        for seconds, file, title in stage.get('slowest', [])[:SLOWEST] if (profile in ('regression', 'full') or SLOWEST_REQUESTED) else []:
             print(f'          slowest: {seconds:6.1f}s  {file} :: {title[:80]}')
         ok &= stage['ok']
     for note in notes:
         print(f'  NOTE  {note}')
-    if profile in ('smoke', 'targeted', 'fast', 'changed'):
-        print(f'  NOTE  {profile} is a partial run and is not a regression result; run `regression` before release.')
+    if profile in ('smoke', 'targeted', 'quick', 'changed'):
+        print(f'  NOTE  {profile} is a partial run; run `regression` before pushing a finished phase and `full` before a merge or release.')
+    elif profile == 'regression':
+        print('  NOTE  regression is the curated critical set, not the complete collection; `full` runs everything.')
     print(f"  total {fmt(sum(s['seconds'] for s in stages))}  ->  {'OK' if ok else 'FAILED'}")
     if output:
         Path(output).write_text(json.dumps({'profile': profile, 'scope': scope, 'ok': ok, 'stages': stages, 'notes': notes}, indent=1, default=str), encoding='utf-8')
@@ -561,7 +795,8 @@ def main(argv: list[str]) -> int:
     if len(argv) > 2 and argv[0] == '_backend':
         return run_backend_worker(argv[2:], Path(argv[1]))
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('profile', choices=['changed', 'fast', 'smoke', 'targeted', 'regression', 'release', 'list', 'check'])
+    parser.add_argument('profile', choices=['quick', 'targeted', 'regression', 'full', 'changed', 'smoke', 'fast', 'release', 'list', 'check'],
+                        help='quick | targeted | regression | full (see docs/development/TESTING.md#profiles); changed is the CI selection, smoke a sub-check; fast and release are earlier names of quick and full')
     parser.add_argument('features', nargs='*', help='features for the targeted profile (see `list`)')
     side = parser.add_mutually_exclusive_group()
     side.add_argument('--backend', action='store_true', help='backend tests only')
@@ -569,7 +804,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument('--jobs', default='auto', help='parallel processes (default auto: backend min(3, CPUs), browser 1; 1 disables)')
     parser.add_argument('--browser-jobs', help='browser processes: a number up to 3 or `auto` (one per spare CPU, 1 to 3); default 1 or SAP_LENS_BROWSER_JOBS')
     parser.add_argument('--grep', help='additional Playwright title filter for browser tests')
-    parser.add_argument('--base', default=os.environ.get('BASE_SHA', 'HEAD~1'), help='changed profile: commit to compare with (default BASE_SHA or HEAD~1)')
+    parser.add_argument('--base', help='commit to compare with: quick/targeted default HEAD (uncommitted and untracked changes); changed default BASE_SHA or HEAD~1')
     parser.add_argument('--plan', action='store_true', help='changed profile: print the selection (and write GitHub outputs) without running tests')
     parser.add_argument('--stage', choices=['backend', 'browser'], help='changed profile: run only this part of the selection')
     parser.add_argument('--no-build', action='store_true', help='skip the frontend build even if sources changed')
@@ -589,6 +824,11 @@ def main(argv: list[str]) -> int:
         Path(args.log).parent.mkdir(parents=True, exist_ok=True)
         _LOG = open(args.log, 'w', encoding='utf-8')
         sys.stdout = Tee(sys.stdout, _LOG)
+    renamed = {'fast': 'quick', 'release': 'full'}
+    if args.profile in renamed:
+        print(f'NOTE: `{args.profile}` is now `{renamed[args.profile]}`.', flush=True)
+        args.profile = renamed[args.profile]
+    base = args.base or (os.environ.get('BASE_SHA', 'HEAD~1') if args.profile == 'changed' else 'HEAD')
     backend_jobs = jobs_value(args.jobs, 'backend')
     browser_jobs = browser_jobs_value(args.browser_jobs, jobs_value(args.jobs, 'browser'))
     want_backend, want_browser = not args.browser, not args.backend
@@ -633,14 +873,14 @@ def main(argv: list[str]) -> int:
         stages.append(run_backend(args.test, 1, 'backend selected tests', split=False))
         return report('targeted', ', '.join(args.test), stages, notes, args.report)
     if args.profile == 'changed':
-        plan = plan_changes(changed_files(args.base))
+        plan = plan_changes(changed_files(base))
         print(json.dumps({key: value for key, value in plan.items() if key != 'files'}, indent=1))
         if args.plan:
             if os.environ.get('GITHUB_OUTPUT'):
                 with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as stream:
                     stream.write(f"backend={plan['backend']}\nfrontend={'true' if plan['frontend'] else 'false'}\nbrowser={'true' if plan['browser'] else 'false'}\n")
             return 0
-        scope = f"changes since {args.base}: backend {plan['backend']}, frontend {'yes' if plan['frontend'] else 'no'}"
+        scope = f"changes since {base}: backend {plan['backend']}, frontend {'yes' if plan['frontend'] else 'no'}"
         if args.stage in (None, 'backend'):
             everything = plan['backend'] == 'full'
             stages.append(run_backend(backend_modules() if everything else plan['modules'], backend_jobs, f"backend {'regression' if everything else 'selection'}", split=True))
@@ -660,47 +900,111 @@ def main(argv: list[str]) -> int:
             print('\n'.join(smoke['backend']) + f"\nbrowser: --grep {smoke['browser_tag']}")
             return 0
         smoke_stages()
-    elif args.profile == 'fast':
-        scope = 'static checks + critical smoke tests' + (f" + targeted {', '.join(args.features)}" if args.features else '')
-        modules, specs = selection(args.features) if args.features else ([], [])
-        if args.list_tests:
-            print('static: whitespace, docs, workflows, ruff, eslint, tsc\nsmoke: see `smoke --list-tests`\nbackend: ' + ' '.join(modules) + '\nbrowser: ' + ' '.join(specs))
+    elif args.profile in ('quick', 'targeted') and not args.features:
+        files = local_changes(base)
+        if files is None:
+            raise SystemExit(f'Cannot compare with {base}; pass --base COMMIT or name features (targeted FEATURE ...).')
+        plan = plan_targeted(files)
+        mapping = load_map()
+        if args.list_tests or args.plan:
+            print(json.dumps({key: plan[key] for key in ('modules', 'specs', 'features', 'broad_backend', 'broad_browser', 'security', 'reasons')}, indent=1))
             return 0
-        stages += fast_static_checks()
-        smoke_stages()
-        targeted_stages(modules, specs)
-    elif args.profile == 'targeted':
-        if not args.features:
-            raise SystemExit('targeted needs at least one feature; run `list` to see them')
+        if args.profile == 'quick':
+            scope = f'{len(files)} changed path(s) since {base}: static checks, frontend unit tests, backend modules the change reaches; no browser'
+            if want_backend:
+                stages += quick_static_checks(plan['frontend'])
+                stages.append(unit_tests())
+                direct = {m for m in plan['modules'] if any(f'backend/tests/{m}.py' == path for path in files)}
+                if plan['broad_backend']:
+                    stages.append(run_backend(mapping['smoke']['backend'], 1, 'backend smoke (the change is too broad for QUICK)', split=False))
+                    notes.append('The change reaches beyond any mapped area; QUICK ran the backend smoke set. Run TARGETED or REGRESSION next.')
+                else:
+                    # Release/packaging modules are deferred only when the change reaches them indirectly; a change to packaging itself runs them.
+                    direct_release = set(plan['features']) & set(mapping['profiles']['release_features'])
+                    deferred = set() if direct_release else release_modules() - direct
+                    modules = sorted(set(plan['modules']) - deferred)
+                    skipped = sorted(set(plan['modules']) - set(modules))
+                    stages.append(run_backend(modules, backend_jobs, f'backend modules reached by the change ({len(modules)})', split=True))
+                    if skipped:
+                        notes.append(f'Release/packaging modules left to TARGETED/FULL: {len(skipped)} ({", ".join(skipped[:6])}{", ..." if len(skipped) > 6 else ""}).')
+            notes.append('QUICK never starts a browser; browser tests the change reaches run in TARGETED.')
+        else:
+            scope = f'{len(files)} changed path(s) since {base}: backend modules and browser specs the change reaches, browser smoke'
+            if want_backend:
+                if plan['broad_backend']:
+                    stages.append(run_backend(backend_modules(), backend_jobs, 'backend (whole suite: unresolved change)', split=True))
+                elif plan['modules']:
+                    stages.append(run_backend(plan['modules'], backend_jobs, f"backend modules reached by the change ({len(plan['modules'])})", split=True))
+            if want_browser and plan['browser']:
+                built = None if args.no_build else build_frontend()
+                if built:
+                    stages.append(built)
+                stages.append(run_browser(None, mapping['smoke']['browser_tag'], 1, 'browser smoke', extra))
+                if plan['broad_browser']:
+                    stages += regression_browser(browser_jobs, extra)
+                    notes.append('A widely shared frontend file or helper changed: the regression browser set ran instead of every consumer; FULL runs all specs.')
+                elif plan['specs']:
+                    stages.append(run_browser(plan['specs'], args.grep, min(browser_jobs, len(plan['specs'])), f"browser specs reached by the change ({len(plan['specs'])})", extra))
+        for reason in plan['reasons'][:12]:
+            notes.append(reason)
+        if not files or all(classify(path) == 'docs' for path in files):
+            notes.append('Only documentation changed (or nothing): the repository integrity modules and static checks cover it.')
+    elif args.profile in ('quick', 'targeted'):
         modules, specs = selection(args.features)
-        scope = ', '.join(args.features)
+        if args.profile == 'quick':
+            specs = []
+        scope = ', '.join(args.features) + (' (no browser)' if args.profile == 'quick' else '')
         if args.list_tests:
             print('backend: ' + ' '.join(modules) + '\nbrowser: ' + ' '.join(specs))
             return 0
+        if args.profile == 'quick' and want_backend:
+            stages += quick_static_checks(True)
+            stages.append(unit_tests())
         targeted_stages(modules, specs)
         if not stages:
             notes.append('The selected features have no tests for the chosen side.')
+    elif args.profile == 'regression':
+        mapping = load_map()
+        excluded = release_modules()
+        modules = [m for m in backend_modules() if m not in excluded]
+        scope = 'critical backend contracts (all modules except release/packaging), critical browser workflows, core accessibility, static checks'
+        if args.list_tests:
+            print(f"backend: {len(modules)} of {len(backend_modules())} modules (excluded: release features {', '.join(mapping['profiles']['release_features'])})\n"
+                  f"browser: non-@visual tests of {', '.join(mapping['profiles']['regression_browser_specs'])} + tests tagged {mapping['profiles']['regression_browser_tags']}")
+            return 0
+        if want_backend:
+            stages.append(run_backend(modules, backend_jobs, f'backend regression ({len(modules)} modules, {backend_jobs} process(es))', split=True))
+        if want_browser:
+            built = None if args.no_build else build_frontend()
+            if built:
+                stages.append(built)
+            stages += regression_browser(browser_jobs, extra)
+        if want_backend and want_browser:
+            stages += quick_static_checks(True)
+            stages.append(unit_tests())
+        notes.append(f'Not in REGRESSION (run FULL): release/packaging modules ({len(excluded)}), @visual theme/viewport matrices, the remaining browser specs, '
+                     'npm/pip audits and platform-specific checks.')
     else:
-        scope = 'all backend and browser tests, build, static checks' + (' and release checks' if args.profile == 'release' else '')
+        scope = 'every backend module, browser test and frontend unit test, build, static checks and the release checks this machine can run'
         modules, specs = backend_modules(), browser_specs()
         if args.list_tests:
             print(f'backend: {len(modules)} modules\nbrowser: {len(specs)} specs')
             return 0
         if want_backend:
-            stages.append(run_backend(modules, backend_jobs, f'backend regression ({backend_jobs} process(es))', split=True))
+            stages.append(run_backend(modules, backend_jobs, f'backend full ({backend_jobs} process(es))', split=True))
         if want_browser:
             built = None if args.no_build else build_frontend(force=True)
             if built:
                 stages.append(built)
-            stages.append(run_browser(None, args.grep, browser_jobs, f'browser regression ({browser_jobs} process(es))', extra))
+            stages.append(run_browser(None, args.grep, browser_jobs, f'browser full ({browser_jobs} process(es))', extra))
         if want_backend and want_browser:
             stages += static_checks()
-        if args.profile == 'release':
+            stages.append(unit_tests())
             extra_stages, unavailable = release_checks()
             stages += extra_stages
             notes += unavailable
         if args.backend or args.browser:
-            notes.append('Only one side was selected; this is not a complete regression.')
+            notes.append('Only one side was selected; this is not a complete FULL run.')
     return report(args.profile, scope, stages, notes, args.report)
 
 

@@ -3,6 +3,9 @@
  "features": {
   "dashboard": {
    "description": "Dashboard metrics, drill-downs and SoD summary",
+   "owner": "browser",
+   "criticality": "standard",
+   "platform": "any",
    "backend": [],
    "browser": [
     "dashboard-user-transactions",
@@ -11,6 +14,9 @@
   },
   "role-lookup": {
    "description": "Role Lookup, catalogue and transaction filters, wildcard matching",
+   "owner": "backend",
+   "criticality": "critical",
+   "platform": "any",
    "backend": [
     "test_search_matching",
     "test_role_negative_tcode",
@@ -26,6 +32,9 @@
   },
   "role-comparison": {
    "description": "Role comparison and similarity",
+   "owner": "backend",
+   "criticality": "standard",
+   "platform": "any",
    "backend": [
     "test_investigation_tools"
    ],
@@ -35,6 +44,9 @@
   },
   "user-comparison": {
    "description": "User comparison and investigation tools",
+   "owner": "browser",
+   "criticality": "standard",
+   "platform": "any",
    "backend": [],
    "browser": [
     "investigation-tools"
@@ -42,6 +54,9 @@
   },
   "user-access": {
    "description": "User Access, Release Roles, assignment evidence and exports",
+   "owner": "backend",
+   "criticality": "critical",
+   "platform": "any",
    "backend": [
     "test_user_access",
     "test_assignment_exports",
@@ -60,6 +75,9 @@
   },
   "access-package": {
    "description": "Role cart, access package naming and users lacking roles",
+   "owner": "backend",
+   "criticality": "critical",
+   "platform": "any",
    "backend": [
     "test_access_package",
     "test_missing_roles",
@@ -73,6 +91,9 @@
   },
   "account-review": {
    "description": "Account Review decisions and position-change priority review",
+   "owner": "backend",
+   "criticality": "critical",
+   "platform": "any",
    "backend": [
     "test_account_review",
     "test_functional_groups",
@@ -87,6 +108,9 @@
   },
   "employee-directory": {
    "description": "Employee Directory import and enrichment",
+   "owner": "backend",
+   "criticality": "standard",
+   "platform": "any",
    "backend": [
     "test_employee_directory",
     "test_directory_cache"
@@ -97,6 +121,9 @@
   },
   "data-sources": {
    "description": "CSV import, source lifecycle, refresh and snapshots",
+   "owner": "backend",
+   "criticality": "critical",
+   "platform": "any",
    "backend": [
     "test_import_checks",
     "test_data_revision",
@@ -128,6 +155,9 @@
   },
   "settings": {
    "description": "Settings, modules, theme, scheduled refresh, maintenance",
+   "owner": "backend",
+   "criticality": "standard",
+   "platform": "any",
    "backend": [
     "test_configuration",
     "test_refresh_schedule",
@@ -146,6 +176,9 @@
   },
   "sod": {
    "description": "Segregation of Duties analysis, governance, periods and reports",
+   "owner": "backend",
+   "criticality": "critical",
+   "platform": "any",
    "backend": [
     "test_sod_analysis",
     "test_sod_analysis_api",
@@ -208,6 +241,9 @@
   },
   "shared-ui": {
    "description": "Shared components, navigation, accessibility, visual consistency",
+   "owner": "component",
+   "criticality": "standard",
+   "platform": "any",
    "backend": [],
    "browser": [
     "role-codeblocks",
@@ -257,6 +293,9 @@
   },
   "platform": {
    "description": "Desktop and server runtime, process lifecycle, native bridge contracts",
+   "owner": "backend",
+   "criticality": "critical",
+   "platform": "windows+linux",
    "backend": [
     "test_desktop",
     "test_desktop_browser",
@@ -286,6 +325,9 @@
   },
   "deployment": {
    "description": "Packaging, build metadata and release contracts",
+   "owner": "platform",
+   "criticality": "release",
+   "platform": "windows+linux",
    "backend": [
     "test_build_diagnostics",
     "test_artifact_zip",
@@ -309,6 +351,9 @@
   },
   "repository": {
    "description": "Documentation, workflow contracts, privacy and test-profile integrity",
+   "owner": "backend",
+   "criticality": "critical",
+   "platform": "any",
    "backend": [
     "test_ci_report",
     "test_documentation",
@@ -321,6 +366,62 @@
    ],
    "browser": []
   }
+ },
+ "profiles": {
+  "_comment": "Profiles of run-tests.py (docs/development/TESTING.md#profiles). quick: static checks, frontend unit tests and the backend modules a change reaches, never a browser. targeted: the backend modules and browser specs a change reaches (import graphs plus validation_sources), browser smoke, and the security modules for security-sensitive paths. regression: every backend module except the release features, plus the curated browser set below. full: everything, including release-only checks. Unresolvable changes fall back to the whole backend and the regression browser set.",
+  "release_features": [
+   "deployment"
+  ],
+  "regression_browser_specs": [
+   "access-package",
+   "account-review-refinement",
+   "application-backups",
+   "automatic-import",
+   "csv-lifecycle",
+   "data-aware-ux",
+   "enterprise",
+   "functional-groups",
+   "import-checks",
+   "navigation-a11y",
+   "revision-consistency",
+   "server-deployment",
+   "sod-bulk-review",
+   "sod-complete-bulk",
+   "sod-governance",
+   "sod-periods"
+  ],
+  "regression_browser_tags": "@smoke|@workflow|@component|@regression",
+  "security_sensitive": [
+   "backend/main.py",
+   "backend/deployment.py",
+   "backend/server*.py",
+   "backend/request_limits.py",
+   "backend/windows_identity.py",
+   "backend/maintenance.py",
+   "backend/application_backups.py",
+   "backend/storage*.py",
+   "backend/routers/*.py",
+   "scripts/manage-server-service.ps1",
+   "deploy/windows/ServiceManager.cs"
+  ],
+  "security_modules": [
+   "test_security_surface",
+   "test_server",
+   "test_server_setup",
+   "test_server_connection_modes",
+   "test_auth_throttle",
+   "test_application",
+   "test_secret_file_policy",
+   "test_startup_session",
+   "test_windows_identity",
+   "test_repository_privacy"
+  ],
+  "selection_system": [
+   "scripts/test-map.json",
+   "scripts/run-tests.py",
+   "scripts/validate.py",
+   "frontend/playwright.config.ts"
+  ]
  },
  "smoke": {
   "backend": [

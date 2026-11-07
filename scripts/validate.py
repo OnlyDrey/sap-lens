@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""FAST/FEATURE/FULL local policy over the existing run-tests.py engine."""
+"""Isolated local validation over run-tests.py: QUICK (fast), TARGETED (feature), REGRESSION and FULL with private storage, a log directory and a timeout."""
 import argparse
 from datetime import datetime, timezone
-import fnmatch
 import json
 import os
 from pathlib import Path
@@ -21,42 +20,28 @@ def python_exe():
 ALIASES={'reviews':['sod','account-review'],'imports':['data-sources'],'users':['user-access'],'shared-frontend':['shared-ui'], 'storage':['platform','sod','account-review'],'packaging':['deployment'],'SoD':['sod']}
 
 
-def changed(base):
-    result=subprocess.run(['git','diff','--name-only',base],cwd=ROOT,capture_output=True,text=True)
-    if result.returncode: raise ValueError('Unusable base commit. Choose --base or an explicit --area; FULL is never selected automatically.')
-    extra=subprocess.check_output(['git','ls-files','--others','--exclude-standard'],cwd=ROOT,text=True)
-    return sorted(set(result.stdout.splitlines()+extra.splitlines()))
+LEVELS={'fast':'quick','quick':'quick','feature':'targeted','targeted':'targeted','regression':'regression','full':'full'}
 
 
-def areas_for(paths,mapping):
-    areas=set();unknown=[]
-    for path in paths:
-        if path.startswith('docs/') or path.endswith('.md'): continue
-        owners=[name for name,feature in mapping['features'].items() if path in [f'backend/tests/{m}.py' for m in feature['backend']]+[f'frontend/tests/{s}.spec.ts' for s in feature['browser']]]
-        if owners: areas.update(owners);continue
-        match=next((rule for rule in mapping['validation_sources'] if any(fnmatch.fnmatchcase(path,pattern) for pattern in rule['patterns'])),None)
-        if match:areas.update(match['areas'])
-        else:unknown.append(path)
-    if unknown:raise ValueError('Unmapped changes: '+', '.join(unknown)+'. Select --area explicitly, extend test-map.json, or request --level full. No tests silently omitted.')
-    return sorted(areas)
-
-
-def plan(level,areas,paths,mapping):
+def plan(level,areas,base,mapping):
+    """run-tests.py arguments for a level. Selection itself lives in run-tests.py (import graphs and test-map.json); this wrapper adds
+    isolated storage, a log directory and a timeout. Unmapped changes broaden the run there; they never skip tests."""
+    profile=LEVELS[level]
+    if profile in ('regression','full'):return [profile]
+    if not areas:return [profile,'--base',base]
     selected=[]
     for area in areas:
         names=ALIASES.get(area,[area.lower()])
         if any(name not in mapping['features'] for name in names):raise ValueError('Unknown area: '+area)
         selected.extend(names)
-    selected=sorted(set(selected)) or areas_for(paths,mapping)
-    if level=='feature':
+    selected=sorted(set(selected))
+    if profile=='targeted':
         pending=list(selected)
         while pending:
             for dependency in mapping.get('validation_dependencies',{}).get(pending.pop(),[]):
                 if dependency not in selected:selected.append(dependency);pending.append(dependency)
         selected.sort()
-    if level=='full':return ['release'] # existing regression + security/platform checks; no publication
-    if not selected:return []
-    return ['targeted',*selected,*(['--backend'] if level=='fast' else [])]
+    return [profile,*selected]
 
 
 def isolated_environment(folder):
@@ -83,7 +68,7 @@ def execute(command,log,env,timeout):
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--level',choices=['fast','feature','full'],default='fast',type=str.lower)
+    parser.add_argument('--level',choices=sorted(LEVELS),default='quick',type=str.lower,help='quick (fast), targeted (feature), regression or full; see docs/development/TESTING.md#profiles')
     parser.add_argument('--area',action='append',default=[])
     parser.add_argument('--base',default='HEAD')
     parser.add_argument('--jobs',type=int,choices=[1,2,3],default=1)
@@ -94,16 +79,15 @@ def main(argv=None):
     parser.add_argument('--reports',action='store_true',help='Preserve browser HTML and JUnit alongside JSON/traces')
     parser.add_argument('--timeout',type=int,help='Per-stage limit; defaults FAST 600, FEATURE 1800, FULL 7200 seconds')
     args=parser.parse_args(argv)
-    if args.level=='full' and (args.area or args.grep or args.no_build):parser.error('FULL cannot filter areas/tests or skip the build; use FEATURE for partial validation')
+    if LEVELS[args.level] in ('regression','full') and (args.area or args.grep or args.no_build):parser.error('REGRESSION and FULL cannot filter areas/tests or skip the build; use TARGETED for partial validation')
     if args.timeout is not None and args.timeout<1:parser.error('--timeout must be positive')
-    args.timeout=args.timeout or {'fast':600,'feature':1800,'full':7200}[args.level]
+    args.timeout=args.timeout or {'quick':600,'targeted':1800,'regression':3600,'full':7200}[LEVELS[args.level]]
     mapping=json.loads((ROOT/'scripts/test-map.json').read_text())
     try:
-        paths=changed(args.base) if not args.area and args.level!='full' else []
-        selection=plan(args.level,args.area,paths,mapping)
+        selection=plan(args.level,args.area,args.base,mapping)
     except ValueError as error:print(error,file=sys.stderr);return 2
     if args.plan:
-        print(json.dumps(dict(level=args.level,paths=paths,profile=selection),indent=2));return 0
+        print(json.dumps(dict(level=args.level,profile=selection),indent=2));return 0
     stamp=datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
     output=ROOT/'build'/'validation'/stamp;output.mkdir(parents=True)
     log=output/'validation.log'
@@ -111,23 +95,14 @@ def main(argv=None):
         env=isolated_environment(Path(temporary))
         env['SAP_LENS_TEST_ARTIFACTS']=str(output/'browser')
         if args.reports:env['SAP_LENS_TEST_REPORTERS']='html,junit'
-        commands=[]
-        if selection:
-            command=[python_exe(),str(ROOT/'scripts/run-tests.py'),*selection,'--jobs',str(args.jobs),'--browser-jobs',str(args.browser_jobs),'--report',str(output/'summary.json')]
-            if args.grep:command+=['--grep',args.grep]
-            if args.no_build:command+=['--no-build']
-            commands.append(command)
-        else:commands.append([python_exe(),'scripts/check-docs.py'])
-        if args.level=='fast':
-            commands.append([python_exe(),'-m','ruff','check','backend','scripts'])
-            if any(path.startswith('frontend/src/') for path in paths) or args.area:
-                import shutil
-                commands.append([shutil.which('npm') or 'npm','--prefix','frontend','run','check:types'])
-                commands.append([shutil.which('npm') or 'npm','--prefix','frontend','run','test:unit'])
+        command=[python_exe(),str(ROOT/'scripts/run-tests.py'),*selection,'--jobs',str(args.jobs),'--browser-jobs',str(args.browser_jobs),'--report',str(output/'summary.json'),'--log',str(output/'run-tests.log')]
+        if args.grep:command+=['--grep',args.grep]
+        if args.no_build:command+=['--no-build']
+        commands=[command]
         for command in commands:
             code=execute(command,log,env,args.timeout)
-            if code:print(f'{args.level.upper()}: FAILED ({code}); details: {log}');return code
-    print(f'{args.level.upper()}: PASSED; summary/logs: {output}')
+            if code:print(f'{LEVELS[args.level].upper()}: FAILED ({code}); details: {log}');return code
+    print(f'{LEVELS[args.level].upper()}: PASSED; summary/logs: {output}')
     return 0
 
 

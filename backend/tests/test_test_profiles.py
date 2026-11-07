@@ -52,6 +52,86 @@ class TestProfileTests(unittest.TestCase):
             self.assertTrue(feature['backend'] or feature['browser'], name)
 
 
+class RiskBasedSelectionTests(unittest.TestCase):
+    """QUICK/TARGETED selection for realistic changed-file sets (scripts/run-tests.py plan_targeted). Nothing runs; only the plan is checked."""
+    def plan(self, *paths):
+        return runner.plan_targeted(list(paths))
+
+    def repository(self):
+        return set(runner.load_map()['features']['repository']['backend'])
+
+    def test_backend_source_selects_the_test_modules_that_import_it_and_its_feature_specs(self):
+        plan = self.plan('backend/sod_governance.py')
+        self.assertIn('test_sod_governance', plan['modules']); self.assertIn('sod-governance', plan['specs'])
+        self.assertFalse(plan['broad_backend'] or plan['broad_browser'] or plan['security'])
+        self.assertLessEqual(self.repository(), set(plan['modules']))
+
+    def test_security_sensitive_change_cannot_bypass_the_security_modules(self):
+        for path in ('backend/deployment.py', 'backend/routers/sod.py', 'backend/server_access.py', 'backend/windows_identity.py'):
+            plan = self.plan(path)
+            self.assertTrue(plan['security'], path)
+            self.assertLessEqual(set(runner.load_map()['profiles']['security_modules']), set(plan['modules']), path)
+
+    def test_feature_frontend_change_runs_that_features_specs_without_widening(self):
+        plan = self.plan('frontend/src/components/Sod/SodWorkQueue.tsx')
+        self.assertIn('sod-bulk-review', plan['specs']); self.assertFalse(plan['broad_browser']); self.assertTrue(plan['browser'])
+
+    def test_widely_shared_component_change_runs_the_component_tests_and_the_regression_browser_set(self):
+        plan = self.plan('frontend/src/components/Shared/Button.tsx')
+        self.assertIn('component-library', plan['specs']); self.assertTrue(plan['broad_browser'])
+
+    def test_stylesheets_and_frontend_toolchain_select_broadly(self):
+        for path in ('frontend/src/index.css', 'frontend/package.json'):
+            self.assertTrue(self.plan(path)['broad_browser'], path)
+
+    def test_unknown_paths_broaden_instead_of_skipping(self):
+        plan = self.plan('unmapped-schema.new')
+        self.assertTrue(plan['broad_backend'] and plan['broad_browser'])
+        self.assertTrue(self.plan('frontend/src/components/UnknownBusiness/New.tsx')['broad_browser'])
+        self.assertTrue(self.plan('backend/tests/fixtures/roles.csv')['broad_backend'])
+
+    def test_documentation_only_changes_run_the_repository_integrity_modules_and_no_browser(self):
+        plan = self.plan('docs/development/TESTING.md', 'README.md')
+        self.assertEqual(set(plan['modules']), self.repository()); self.assertFalse(plan['browser'])
+
+    def test_changes_to_the_selection_system_run_its_own_tests(self):
+        for path in ('scripts/test-map.json', 'scripts/run-tests.py', 'scripts/validate.py'):
+            self.assertIn('test_test_profiles', self.plan(path)['modules'], path)
+        self.assertTrue(self.plan('frontend/playwright.config.ts')['broad_browser'])
+
+    def test_test_files_and_helpers_select_their_users(self):
+        self.assertEqual(self.plan('frontend/tests/sod-periods.spec.ts')['specs'], ['sod-periods'])
+        self.assertIn('test_backup_retention', self.plan('backend/tests/links.py')['modules'])
+        self.assertTrue(self.plan('frontend/tests/support.ts')['broad_browser'])        # used by most specs: regression set, FULL runs all
+        narrow = self.plan('frontend/tests/source-activation-fixture.ts')                 # imported by a handful of specs: exactly those run
+        self.assertIn('csv-lifecycle', narrow['specs']); self.assertFalse(narrow['broad_browser'])
+        self.assertTrue(self.plan('frontend/tests/sod-fixture.ts')['broad_browser'])      # 50 specs: regression set instead
+
+    def test_profile_configuration_is_consistent_and_never_excludes_critical_features_from_regression(self):
+        mapping = runner.load_map(); profiles = mapping['profiles']
+        for name, feature in mapping['features'].items():
+            self.assertIn(feature.get('criticality'), {'critical', 'standard', 'release'}, name)
+            self.assertIn(feature.get('owner'), {'backend', 'browser', 'component', 'platform'}, name)
+            self.assertTrue(feature.get('platform'), name)
+        for name in profiles['release_features']:
+            self.assertEqual(mapping['features'][name]['criticality'], 'release', f'{name} is excluded from REGRESSION, so it must be classified release')
+        self.assertFalse({n for n, f in mapping['features'].items() if f['criticality'] == 'critical'} & set(profiles['release_features']))
+        for spec in profiles['regression_browser_specs']:
+            self.assertTrue((ROOT / 'frontend' / 'tests' / f'{spec}.spec.ts').exists(), spec)
+        for module in profiles['security_modules']:
+            self.assertTrue((ROOT / 'backend' / 'tests' / f'{module}.py').exists(), module)
+
+    def test_quick_defers_packaging_only_when_the_change_does_not_touch_packaging(self):
+        source = (ROOT / 'scripts' / 'run-tests.py').read_text(encoding='utf-8')
+        self.assertIn("direct_release = set(plan['features']) & set(mapping['profiles']['release_features'])", source)
+        self.assertIn('deployment', self.plan('scripts/deployment/build-deployments.py')['features'])
+        self.assertNotIn('deployment', self.plan('backend/sod_governance.py')['features'])
+
+    def test_renamed_profiles_still_work_and_say_so(self):
+        done = subprocess.run([sys.executable, str(ROOT / 'scripts' / 'run-tests.py'), 'fast', '--list-tests', '--base', 'HEAD'], cwd=ROOT, capture_output=True, text=True, timeout=120)
+        self.assertEqual(done.returncode, 0, done.stderr[-2000:]); self.assertIn('`fast` is now `quick`', done.stdout)
+
+
 class QuietBackendRunnerTests(unittest.TestCase):
     """The backend worker is quiet on success, keeps every diagnostic of a failing test, reports leaks and fails with a non-zero exit code."""
     PROBE = (

@@ -100,7 +100,7 @@ const GROUPS = {
   },
 }
 
-for (const width of WIDTHS) for (const [group, walk] of Object.entries(GROUPS)) test(`major views have names, sane tab order and visible, unclipped focus indicators: ${group} at ${width}px`, { tag: ['@visual', '@a11y'] }, async ({ page }) => {
+for (const width of WIDTHS) for (const [group, walk] of Object.entries(GROUPS)) test(`major views have names, sane tab order and visible, unclipped focus indicators: ${group} at ${width}px`, { tag: width === 1280 ? ['@visual', '@a11y', '@regression'] : ['@visual', '@a11y'] }, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 })
   const unique = [...new Set(await walk(page, (label) => `${label}@${width}`))]
   console.log('A11Y_PROBLEMS', unique.length)
@@ -108,7 +108,7 @@ for (const width of WIDTHS) for (const [group, walk] of Object.entries(GROUPS)) 
   expect(unique).toEqual([])
 })
 
-test('dialogs trap and restore focus, popovers return focus on Escape, sidebars are keyboard operable', { tag: '@a11y' }, async ({ page, request }) => {
+test('dialogs trap and restore focus, popovers return focus on Escape, sidebars are keyboard operable', { tag: ['@a11y', '@regression'] }, async ({ page, request }) => {
   await createPeriod(request, 'Focus period')
   await openSod(page, 'Review Periods')
   const trigger = page.getByRole('button', { name: 'Create review period', exact: true })
