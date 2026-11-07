@@ -51,6 +51,54 @@ class TestProfileTests(unittest.TestCase):
             self.assertTrue(feature['backend'] or feature['browser'], name)
 
 
+class QuietBackendRunnerTests(unittest.TestCase):
+    """The backend worker is quiet on success, keeps every diagnostic of a failing test, reports leaks and fails with a non-zero exit code."""
+    PROBE = (
+        "import unittest\n"
+        "class Probe(unittest.TestCase):\n"
+        "    def test_expected_diagnostic(self):\n"
+        "        print('EXPECTED-NOISE from a passing negative test')\n"
+        "        import logging; logging.getLogger('sap-lens').warning('EXPECTED-WARNING retained previous data')\n"
+        "    def test_failure_keeps_its_output(self):\n"
+        "        print('FAILURE-CONTEXT printed before the failure')\n"
+        "        self.fail('deliberate probe failure')\n"
+        "    def test_leak(self):\n"
+        "        open(__file__); import gc; gc.collect()\n")
+
+    def run_worker(self, **env):
+        with tempfile.TemporaryDirectory() as folder:
+            Path(folder, 'probe_quiet_runner.py').write_text(self.PROBE, encoding='utf-8')
+            out = Path(folder) / 'result.json'
+            done = subprocess.run([sys.executable, str(ROOT / 'scripts' / 'run-tests.py'), '_backend', str(out), 'probe_quiet_runner'],
+                                  cwd=ROOT, capture_output=True, text=True, timeout=120, env={**os.environ, 'PYTHONPATH': folder, **env})
+            import json
+            return done, json.loads(out.read_text(encoding='utf-8'))
+
+    def test_quiet_mode_hides_passing_output_but_keeps_failures_leaks_and_the_exit_code(self):
+        done, data = self.run_worker()
+        output = done.stdout + done.stderr
+        self.assertNotIn('EXPECTED-NOISE', output); self.assertNotIn('EXPECTED-WARNING', output)
+        self.assertIn('FAILURE-CONTEXT', output); self.assertIn('deliberate probe failure', output)
+        self.assertEqual(done.returncode, 1); self.assertEqual((data['tests'], data['failures'], data['errors']), (3, 1, 0))
+        self.assertTrue(any('unclosed file' in leak for leak in data['resource_warnings']), data['resource_warnings'])
+        self.assertEqual(len(data['slowest']), 3)
+
+    def test_verbose_mode_shows_everything(self):
+        done, _ = self.run_worker(SAP_LENS_TEST_VERBOSE='1')
+        output = done.stdout + done.stderr
+        self.assertIn('EXPECTED-NOISE', output); self.assertIn('test_expected_diagnostic', output)
+
+    def test_single_test_selection_and_log_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            log = Path(folder) / 'run.log'
+            done = subprocess.run([sys.executable, str(ROOT / 'scripts' / 'run-tests.py'), 'targeted', '--test', 'test_test_profiles.TestProfileTests', '--log', str(log)],
+                                  cwd=ROOT, capture_output=True, text=True, timeout=300)
+            self.assertEqual(done.returncode, 0, done.stdout[-2000:] + done.stderr[-2000:])
+            self.assertIn('backend selected tests', log.read_text(encoding='utf-8'))
+        refused = subprocess.run([sys.executable, str(ROOT / 'scripts' / 'run-tests.py'), 'regression', '--test', 'x'], cwd=ROOT, capture_output=True, text=True, timeout=60)
+        self.assertNotEqual(refused.returncode, 0)
+
+
 class BrowserProcessHygieneTests(unittest.TestCase):
     """Test processes clean up after themselves and the tooling never signals processes it does not own."""
 
@@ -152,6 +200,7 @@ class BrowserProcessHygieneTests(unittest.TestCase):
             finally:
                 if parent.poll() is None:
                     parent.kill(); parent.wait()
+                parent.stdout.close()                                                                # no unclosed pipe (ResourceWarning)
 
     @unittest.skipIf(sys.platform == 'win32', 'signals differ on Windows')
     def test_runner_stops_the_processes_it_started_when_it_receives_SIGTERM(self):
@@ -182,6 +231,7 @@ class BrowserProcessHygieneTests(unittest.TestCase):
         finally:
             if process.poll() is None:
                 process.kill(); process.wait()
+            process.stdout.close()
 
     def test_parallel_jobs_use_distinct_ports_and_storage(self):
         ports = [runner.BASE_PORT + index for index in range(runner.BROWSER_JOBS_MAX)]

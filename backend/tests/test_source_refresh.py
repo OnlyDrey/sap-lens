@@ -5,6 +5,7 @@ import sqlite3
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -143,17 +144,24 @@ class Refresh(unittest.TestCase):
         self.assertNotEqual(source_store.fingerprint('users', reference.snapshot), '')
 
     def test_readers_never_observe_a_partially_activated_dataset(self):
-        problems, stop = [], threading.Event()
-        def reader():
-            while not stop.is_set():
-                state = cache.get_snapshot()
-                users = state.users
-                # A dataset is internally consistent: the user index, the records and the report describe the same revision.
-                if len(users.source_records) != users.report.get('parsed_rows', len(users.source_records)) or len({r['USERNAME'] for r in users.source_records}) != len(users.users):
-                    problems.append('torn users')
-                if users.source_records and not state.roles:
-                    problems.append('users without catalogue')
-        threads = [threading.Thread(target=reader) for _ in range(3)]
+        problems, stop, samples = [], threading.Event(), [0, 0, 0]
+        def reader(index):
+            try:
+                while not stop.is_set():
+                    state = cache.get_snapshot()
+                    users = state.users
+                    # A dataset is internally consistent: the user index, the records and the report describe the same revision.
+                    if len(users.source_records) != users.report.get('parsed_rows', len(users.source_records)) or len({r['USERNAME'] for r in users.source_records}) != len(users.users):
+                        problems.append('torn users')
+                    if users.source_records and not state.roles:
+                        problems.append('users without catalogue')
+                    samples[index] += 1
+                    # Yield the GIL between samples: three busy loops otherwise starve the refresh being observed (27-30 s instead of
+                    # well under a second) without sampling any finer, because a reader only runs while it holds the GIL anyway.
+                    time.sleep(0)
+            except Exception as error:  # noqa: BLE001 - a dead reader must fail the test, never pass it silently
+                problems.append(f'reader {index} failed: {type(error).__name__}: {error}')
+        threads = [threading.Thread(target=reader, args=(index,)) for index in range(3)]
         for item in threads: item.start()
         try:
             for count, role_text in ((41, ROLES), (42, ROLES.replace('FB03', 'FB04')), (43, ROLES)):
@@ -163,6 +171,7 @@ class Refresh(unittest.TestCase):
             stop.set()
             for item in threads: item.join(timeout=30)
         self.assertEqual(problems, [])
+        self.assertTrue(all(count >= 100 for count in samples), f'every reader sampled throughout the refreshes: {samples}')
         self.assertEqual(len(cache.get_snapshot().users.users), 43)
 
     def test_concurrent_loaders_never_leave_two_active_revisions_or_a_corrupt_store(self):

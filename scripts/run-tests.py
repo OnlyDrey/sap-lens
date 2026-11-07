@@ -36,6 +36,29 @@ BACKEND_TESTS = ROOT / 'backend' / 'tests'
 BROWSER_TESTS = FRONTEND / 'tests'
 MAP = ROOT / 'scripts' / 'test-map.json'
 BASE_PORT = 18745
+SLOWEST_REQUESTED = False
+SLOWEST = 10            # --slowest N: how many of the slowest tests the summary lists (0 hides them)
+_LOG = None             # --log FILE: a copy of everything this runner prints, including relayed worker output
+
+
+class Tee:
+    """Write to the console and the --log file."""
+    def __init__(self, console, log):
+        self.console, self.log = console, log
+
+    def write(self, text):
+        self.console.write(text)
+        self.log.write(text)
+        return len(text)
+
+    def flush(self):
+        self.console.flush()
+        self.log.flush()
+
+
+def emit(text: str) -> None:
+    sys.stdout.write(text)          # a Tee when --log is set, so the copy happens there
+    sys.stdout.flush()
 
 
 def load_map() -> dict:
@@ -152,15 +175,54 @@ def plan_changes(files: list[str] | None) -> dict:
 
 # ---------------------------------------------------------------------------- backend
 
+class QuietResult(unittest.TextTestResult):
+    """unittest's own result with a periodic heartbeat instead of one line or dot per test. Output a test prints is buffered by the runner
+    (`buffer=True`) and shown only with that test's failure, so expected diagnostics of negative tests stay out of a passing run."""
+    heartbeat = float(os.environ.get('SAP_LENS_TEST_HEARTBEAT', '30'))
+    label = os.environ.get('SAP_LENS_TEST_LABEL', 'backend')
+
+    def startTestRun(self):
+        super().startTestRun()
+        self._started = self._last = time.perf_counter()
+
+    def stopTest(self, test):
+        super().stopTest(test)
+        now = time.perf_counter()
+        if self.heartbeat and now - self._last >= self.heartbeat:
+            self._last = now
+            failed = len(self.failures) + len(self.errors)
+            self.stream.write(f'[{self.label}] {self.testsRun} tests, {failed} failed, {now - self._started:.0f}s\n')
+            self.stream.flush()
+
+
 def run_backend_worker(names: list[str], output: Path) -> int:
-    """Run unittest names in this process and write a JSON result (used as a subprocess)."""
+    """Run unittest names in this process and write a JSON result (used as a subprocess).
+
+    Default: quiet and buffered (captured output printed only for failing tests). SAP_LENS_TEST_VERBOSE=1: one line per test, unbuffered,
+    which is the mode to use when debugging what a test prints."""
     sys.path.insert(0, str(BACKEND_TESTS))
+    verbose = os.environ.get('SAP_LENS_TEST_VERBOSE') == '1'
     suite = unittest.TestLoader().loadTestsFromNames(names)
+    # Leaked files, sockets and processes are reported in the summary instead of disappearing into the per-test output buffer.
+    import warnings
+    leaks: list[str] = []
+    warnings.simplefilter('default', ResourceWarning)
+    original_show = warnings.showwarning
+    def show(message, category, filename, lineno, file=None, line=None):
+        if issubclass(category, ResourceWarning):
+            leaks.append(f'{Path(filename).name}:{lineno}: {str(message)[:160]}')
+        else:
+            original_show(message, category, filename, lineno, file, line)
+    warnings.showwarning = show
     started = time.perf_counter()
-    result = unittest.TextTestRunner(verbosity=0, stream=sys.stderr).run(suite)
+    runner = unittest.TextTestRunner(verbosity=2 if verbose else 0, stream=sys.stderr, buffer=not verbose, durations=None,
+                                     resultclass=unittest.TextTestResult if verbose else QuietResult)
+    result = runner.run(suite)
+    slowest = sorted(((round(seconds, 2), str(test)) for test, seconds in getattr(result, 'collectedDurations', [])), reverse=True)[:25]
     output.write_text(json.dumps({
         'tests': result.testsRun, 'failures': len(result.failures), 'errors': len(result.errors),
-        'skipped': [[str(test), reason] for test, reason in result.skipped], 'seconds': time.perf_counter() - started,
+        'skipped': [[str(test), reason] for test, reason in result.skipped], 'seconds': time.perf_counter() - started, 'slowest': slowest,
+        'resource_warnings': sorted(set(leaks)),
     }), encoding='utf-8')
     return 0 if result.wasSuccessful() else 1
 
@@ -186,17 +248,25 @@ def run_backend(names: list[str], jobs: int, label: str, split: bool) -> dict:
             index, group = index_group
             out = Path(scratch) / f'{index}.json'
             command = [python_exe(), '-W', 'error::DeprecationWarning', str(Path(__file__).resolve()), '_backend', str(out), *group]
-            code = subprocess.run(command, cwd=ROOT).returncode
+            env = dict(os.environ, SAP_LENS_TEST_LABEL=f'backend {index + 1}/{len(groups)}' if len(groups) > 1 else 'backend')
+            # Relay the worker's lines through this process so they can also go to --log; a killed worker still ends the loop.
+            with subprocess.Popen(command, cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace') as process:
+                for line in process.stdout:
+                    emit(line)
+                code = process.wait()
             return code, out
         with ThreadPoolExecutor(len(groups)) as pool:
             outcomes = list(pool.map(launch, enumerate(groups)))
-        merged = {'tests': 0, 'failures': 0, 'errors': 0, 'skipped': [], 'shards': []}
+        merged = {'tests': 0, 'failures': 0, 'errors': 0, 'skipped': [], 'shards': [], 'slowest': []}
         for code, out in outcomes:
             data = json.loads(out.read_text(encoding='utf-8')) if out.exists() else {'tests': 0, 'failures': 0, 'errors': 1, 'skipped': [], 'seconds': 0.0}
             merged['shards'].append(round(data.get('seconds', 0.0), 1))
             for key in ('tests', 'failures', 'errors'):
                 merged[key] += data[key]
             merged['skipped'] += data['skipped']
+            merged['slowest'] += [[seconds, 'backend', name] for seconds, name in data.get('slowest', [])]
+            merged.setdefault('resource_warnings', []).extend(data.get('resource_warnings', []))
+        merged['slowest'] = sorted(merged['slowest'], reverse=True)[:SLOWEST]
     merged.update(name=label, seconds=time.perf_counter() - started, ok=not merged['failures'] and not merged['errors'] and all(c == 0 for c, _ in outcomes))
     # Aggregate lines in unittest's own format keep scripts/testing/ci.py counts correct after parallel workers.
     print(f"\nRan {merged['tests']} tests in {merged['seconds']:.3f}s")
@@ -382,7 +452,7 @@ def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str
                 sys.stderr.write(f'{where} failed' + (':\n  ' + '\n  '.join(f'{file} :: {title}' for file, title in failed) if failed else '') + '\n')
                 if log.exists():  # a single streamed process has already printed its own output
                     sys.stderr.write(log.read_text(encoding='utf-8', errors='replace')[-6000:])
-        merged['slowest'] = [[round(seconds, 1), file, title] for seconds, file, title, _ in sorted(every, reverse=True)[:10]]
+        merged['slowest'] = [[round(seconds, 1), file, title] for seconds, file, title, _ in sorted(every, reverse=True)[:max(SLOWEST, 10)]]
     merged.update(name=label, seconds=time.perf_counter() - started, ok=ok and not merged['failures'])
     print(f"\n{merged['tests'] - merged['failures']} passed ({merged['seconds']:.0f}s)" + (f", {merged['failures']} failed" if merged['failures'] else ''), flush=True)
     return merged
@@ -472,7 +542,9 @@ def report(profile: str, scope: str, stages: list[dict], notes: list[str], outpu
         for test, reason in stage.get('skipped', []):
             if reason != 'skipped':
                 print(f'          skipped: {test.split(" ")[0]} ({reason})')
-        for seconds, file, title in stage.get('slowest', []) if profile in ('regression', 'release') else []:
+        for leak in stage.get('resource_warnings', []):
+            print(f'          resource warning: {leak}')
+        for seconds, file, title in stage.get('slowest', [])[:SLOWEST] if (profile in ('regression', 'release') or SLOWEST_REQUESTED) else []:
             print(f'          slowest: {seconds:6.1f}s  {file} :: {title[:80]}')
         ok &= stage['ok']
     for note in notes:
@@ -503,7 +575,20 @@ def main(argv: list[str]) -> int:
     parser.add_argument('--no-build', action='store_true', help='skip the frontend build even if sources changed')
     parser.add_argument('--report', help='write a JSON summary to this file')
     parser.add_argument('--list-tests', action='store_true', help='print the selected files and exit')
+    parser.add_argument('--verbose', action='store_true', help='backend: one line per test and unbuffered test output (default: quiet; output of a test is shown only when it fails)')
+    parser.add_argument('--slowest', type=int, metavar='N', help='list the N slowest tests in the summary (default 10 for regression/release, 0 otherwise)')
+    parser.add_argument('--test', action='append', metavar='NAME', help='backend: run only this unittest name (module, module.Class or module.Class.test); repeatable; use with the targeted profile')
+    parser.add_argument('--log', metavar='FILE', help='also write everything this run prints to FILE')
     args, extra = parser.parse_known_args(argv)
+    global SLOWEST, SLOWEST_REQUESTED, _LOG
+    if args.verbose:
+        os.environ['SAP_LENS_TEST_VERBOSE'] = '1'
+    if args.slowest is not None:
+        SLOWEST, SLOWEST_REQUESTED = max(0, args.slowest), args.slowest > 0
+    if args.log:
+        Path(args.log).parent.mkdir(parents=True, exist_ok=True)
+        _LOG = open(args.log, 'w', encoding='utf-8')
+        sys.stdout = Tee(sys.stdout, _LOG)
     backend_jobs = jobs_value(args.jobs, 'backend')
     browser_jobs = browser_jobs_value(args.browser_jobs, jobs_value(args.jobs, 'browser'))
     want_backend, want_browser = not args.browser, not args.backend
@@ -542,6 +627,11 @@ def main(argv: list[str]) -> int:
                 stages.append(built)
             stages.append(run_browser(specs, args.grep, min(browser_jobs, len(specs)), 'browser targeted', extra))
 
+    if args.test:
+        if args.profile != 'targeted' or args.features or args.browser:
+            raise SystemExit('--test runs backend unittest names and is used as: run-tests.py targeted --test NAME [--test NAME ...]')
+        stages.append(run_backend(args.test, 1, 'backend selected tests', split=False))
+        return report('targeted', ', '.join(args.test), stages, notes, args.report)
     if args.profile == 'changed':
         plan = plan_changes(changed_files(args.base))
         print(json.dumps({key: value for key, value in plan.items() if key != 'files'}, indent=1))
