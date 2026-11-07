@@ -132,6 +132,16 @@ class RiskBasedSelectionTests(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr[-2000:]); self.assertIn('`fast` is now `quick`', done.stdout)
 
 
+class BrowserFailureReportingTests(unittest.TestCase):
+    def test_failure_details_come_from_the_json_report_not_a_log_tail(self):
+        report = {'suites': [{'file': 'a.spec.ts', 'specs': [
+            {'file': 'a.spec.ts', 'title': 'fails', 'tests': [{'status': 'unexpected', 'results': [{'status': 'failed', 'error': {'message': '\x1b[31mExpected: 2\x1b[39m\nReceived: 3', 'location': {'file': '/x/a.spec.ts', 'line': 12}}}]}]},
+            {'file': 'a.spec.ts', 'title': 'passes', 'tests': [{'status': 'expected', 'results': [{'status': 'passed'}]}]}]}]}
+        messages = runner.playwright_failures(report)
+        self.assertEqual(len(messages), 1)
+        self.assertIn('a.spec.ts :: fails (a.spec.ts:12)', messages[0]); self.assertIn('Received: 3', messages[0]); self.assertNotIn('\x1b', messages[0])
+
+
 class QuietBackendRunnerTests(unittest.TestCase):
     """The backend worker is quiet on success, keeps every diagnostic of a failing test, reports leaks and fails with a non-zero exit code."""
     PROBE = (

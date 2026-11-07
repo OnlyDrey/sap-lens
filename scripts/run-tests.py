@@ -596,6 +596,27 @@ def playwright_tests(report: dict) -> list[tuple[float, str, str, str]]:
     return found
 
 
+def playwright_failures(report: dict) -> list[str]:
+    """The error of every failed test, from the JSON report: a shard log tail can miss it, the report cannot."""
+    messages: list[str] = []
+    def walk(suite: dict) -> None:
+        for spec in suite.get('specs', []):
+            for test in spec.get('tests', []):
+                if test.get('status') not in {'unexpected', 'flaky'}:
+                    continue
+                for result in test.get('results', []):
+                    error = result.get('error') or {}
+                    text = re.sub(r'\x1b\[[0-9;]*m', '', error.get('message') or error.get('stack') or result.get('status', ''))
+                    location = error.get('location') or {}
+                    where = f" ({Path(location.get('file', '')).name}:{location.get('line')})" if location.get('file') else ''
+                    messages.append(f"{spec.get('file', '')} :: {spec.get('title', '')}{where}\n    " + '\n    '.join(text.strip().splitlines()[:20]))
+        for child in suite.get('suites', []):
+            walk(child)
+    for suite in report.get('suites', []):
+        walk(suite)
+    return messages
+
+
 def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str, extra: list[str], grep_invert: str | None = None) -> dict:
     """Run the browser tests in `jobs` independent Playwright processes, each with its own server, port and storage."""
     started = time.perf_counter()
@@ -658,6 +679,8 @@ def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str
             if code:
                 ok = False
                 sys.stderr.write(f'{where} failed' + (':\n  ' + '\n  '.join(f'{file} :: {title}' for file, title in failed) if failed else '') + '\n')
+                for message in playwright_failures(data):
+                    sys.stderr.write(f'  ERROR {message}\n')
                 if log.exists():  # a single streamed process has already printed its own output
                     sys.stderr.write(log.read_text(encoding='utf-8', errors='replace')[-6000:])
         merged['slowest'] = [[round(seconds, 1), file, title] for seconds, file, title, _ in sorted(every, reverse=True)[:max(SLOWEST, 10)]]
