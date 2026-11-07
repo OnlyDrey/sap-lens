@@ -13,7 +13,7 @@ test.beforeEach(async ({ request }) => {
 const workspace = (page: import('@playwright/test').Page) =>
   page.getByRole('region', { name: 'SAP Lens settings', exact: true })
 
-test('shared navigation and dropdown geometry retain keyboard access', async ({
+test('shared navigation and dropdown geometry retain keyboard access', { tag: '@a11y' }, async ({
   page
 }) => {
   await page.goto('/#session=browser-test-session')

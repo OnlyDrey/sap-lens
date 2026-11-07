@@ -105,7 +105,7 @@ test('a temporary connection loss is explained once and recovers with Retry', as
   await expect(notice(page)).toHaveCount(0)
 })
 
-test('the notification is compact, keyboard operable, readable in dark mode and does not overflow at 375px', async ({ page, request }) => {
+test('the notification is compact, keyboard operable, readable in dark mode and does not overflow at 375px', { tag: '@a11y' }, async ({ page, request }) => {
   await restoredRecently(page)
   await openUser(page)
   await page.route('**/api/**', (route) => route.fulfill({ status: 403, json: STALE }))

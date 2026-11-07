@@ -8,7 +8,7 @@ test.beforeEach(async ({ request }) => { sources = await seedSources(request, { 
 test.afterEach(async () => { await sources.cleanup() })
 
 for (const [width, height] of [[375, 800], [800, 900], [1280, 900], [1600, 900]] as const)
-  test(`user directory table scrolls inside itself at ${width}px`, async ({ page }) => {
+  test(`user directory table scrolls inside itself at ${width}px`, { tag: '@visual' }, async ({ page }) => {
     await page.setViewportSize({ width, height })
     await page.goto('/#session=browser-test-session')
     await goTo(page, 'User Access')

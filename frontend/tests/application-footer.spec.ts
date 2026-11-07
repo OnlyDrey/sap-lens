@@ -1,9 +1,10 @@
 import {test,expect} from '@playwright/test'
 import {headers,seedGovernance,cleanup} from './sod-fixture'
+import { layoutMatrix } from './matrix'
 let directory=''
 test.beforeEach(async({request})=>{directory=await seedGovernance(request)})
 test.afterEach(async({request})=>{await cleanup(request,directory)})
-for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`application footer ${theme} ${width}`,async({page,request})=>{
+for (const { theme, width } of layoutMatrix([375,800,1280,1600]))test(`application footer ${theme} ${width}`,{ tag: '@visual' }, async({page,request})=>{
  await request.post('/api/configuration/theme',{headers,data:{theme}})
  await page.setViewportSize({width,height:1000});await page.goto('/#session=browser-test-session')
  const footer=page.locator('footer:visible');await expect(footer.getByLabel('Application version')).toContainText('SAP Lens v')

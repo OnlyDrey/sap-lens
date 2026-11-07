@@ -38,7 +38,7 @@ test('navbar retains lists, scoped detail boundaries and one assignment status f
   await expect(search).toHaveValue('DEMO_ALFA')
 })
 
-test('combobox keyboard, outside click, clearing, empty results and viewport anchoring', async ({ page }) => {
+test('combobox keyboard, outside click, clearing, empty results and viewport anchoring', { tag: '@a11y' }, async ({ page }) => {
   await page.goto('/#session=browser-test-session')
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Release Roles', exact: true }).click()
   const combo = page.getByRole('combobox', { name: 'Release SAP User Group', exact: true })
@@ -69,7 +69,7 @@ test('combobox keyboard, outside click, clearing, empty results and viewport anc
 })
 
 for (const theme of ['dark', 'light']) for (const width of [1280, 800]) {
-  test(`visual investigation surfaces ${theme} ${width}`, async ({ page, request }, info) => {
+  test(`visual investigation surfaces ${theme} ${width}`, { tag: '@visual' }, async ({ page, request }, info) => {
     const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
     settings.theme = theme
     await request.post('/api/configuration', { headers, data: settings })
@@ -214,7 +214,7 @@ test('mapping popup scrolls selected long options into view and reopens by mouse
   await expect(combo).toHaveValue(columns.at(-1)!)
 })
 
-for (const theme of ['dark', 'light']) test(`account evidence and keyboard comparison investigation ${theme}`, async ({ page, request }, info) => {
+for (const theme of ['dark', 'light']) test(`account evidence and keyboard comparison investigation ${theme}`, { tag: ['@visual', '@a11y'] }, async ({ page, request }, info) => {
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
   settings.theme = theme
   settings.data_csv_path = path.join(directory, 'three-role-catalogue.csv')

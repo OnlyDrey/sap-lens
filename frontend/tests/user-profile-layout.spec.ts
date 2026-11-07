@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { goTo, seedSources, type SeededSources } from './support'
+import { DEFAULT_THEME_ONLY } from './matrix'
 
 const long = 'ZC:VERY_LONG_USERNAME_WITHOUT_ANY_BREAK_OPPORTUNITY_FOR_THE_GRID_TO_HANDLE_0123456789'
 const roles = 'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,TCODE\nMM,ZC:MM:A,Role A,ZS:A,MIGO\n'
@@ -18,7 +19,7 @@ async function open(page: Page, width: number, theme = 'light') {
   return page.getByRole('region', { name: 'User profile', exact: true })
 }
 
-for (const theme of ['light', 'dark']) test(`desktop profile layout ${theme}`, async ({ page }) => {
+for (const theme of DEFAULT_THEME_ONLY) test(`desktop profile layout ${theme}`, async ({ page }) => {
   const profile = await open(page, 1280, theme)
   const [identity, account, org, group] = await Promise.all(['SAP Identity', 'Account Status', 'Organization', 'Functional Group'].map(n => profile.getByRole('region', { name: n, exact: true }).boundingBox()))
   // three equal columns on one row, Functional Group last and full width
@@ -40,7 +41,7 @@ for (const theme of ['light', 'dark']) test(`desktop profile layout ${theme}`, a
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
-for (const width of [375, 800]) test(`profile stacks without overflow at ${width}px`, async ({ page }) => {
+for (const width of [375, 800]) test(`profile stacks without overflow at ${width}px`, { tag: '@visual' }, async ({ page }) => {
   const profile = await open(page, width)
   const identity = (await profile.getByRole('region', { name: 'SAP Identity', exact: true }).boundingBox())!
   const account = (await profile.getByRole('region', { name: 'Account Status', exact: true }).boundingBox())!

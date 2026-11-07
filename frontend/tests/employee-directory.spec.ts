@@ -9,6 +9,7 @@ import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { headers } from './support'
+import { layoutMatrix } from './matrix'
 const columns =
   'Site;Name;SamAccountName;UserPrincipalName;Mail;Department;Title;Enabled;DistinguishedName;ManagerDN;ManagerName;ManagerSamAccountName;ManagerMail;ManagerDepartment;ManagerTitle;ManagerLookupStatus'
 let directory: string, csv: string
@@ -206,9 +207,8 @@ test('search, manager navigation, clear confirmation and data preservation', asy
   expect((await settings(request)).features.employee_directory).toBe(true)
 })
 
-for (const theme of ['light', 'dark'] as const)
-  for (const width of [800, 1280]) {
-    test(`directory settings visual and keyboard QA ${theme} ${width}`, async ({
+for (const { theme, width } of layoutMatrix([800, 1280])) {
+    test(`directory settings visual and keyboard QA ${theme} ${width}`, { tag: ['@visual', '@a11y'] }, async ({
       page,
       request,
     }, info) => {
@@ -396,8 +396,8 @@ for (const [state,message] of [['unmatched','SAP user not found'],['ambiguous','
   })
 }
 
-for (const theme of ['light','dark'] as const) for (const width of [375,800,1280]) {
-  test(`employee profile and compact date calendar visual QA ${theme} ${width}`,async({page,request},info)=>{
+for (const { theme, width } of layoutMatrix([375,800,1280])) {
+  test(`employee profile and compact date calendar visual QA ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
     await importDirectory(request); await enable(request)
     const current=await settings(request); current.theme=theme
     expect((await request.post('/api/configuration',{headers,data:current})).ok()).toBeTruthy()

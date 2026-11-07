@@ -1,5 +1,6 @@
 import {test,expect} from '@playwright/test'
 import {cleanup,seedGovernance,openSod,names,headers,decide} from './sod-fixture'
+import { layoutMatrix } from './matrix'
 test.setTimeout(45_000)
 let directory=''
 test.beforeEach(async({request})=>{directory=await seedGovernance(request)})
@@ -17,7 +18,7 @@ test('review tabs preserve shared reviewer, unsaved input and match derived queu
  await page.reload();await expect(page.getByRole('table',{name:'SoD review work queue'}).locator('tbody tr').filter({hasText:names.a})).toContainText('9/9')
  await expect(page.getByRole('dialog').getByRole('tab',{name:'Activities 3/3',exact:true})).toBeVisible();await page.getByRole('tab',{name:'Risks 2/2',exact:true}).click();await expect(page.getByRole('dialog').getByRole('button',{name:'Review method for R1',exact:true})).toHaveText('Pending');await page.getByRole('button',{name:'Review method for R1',exact:true}).click();const method=page.getByRole('dialog',{name:'Review method for R1',exact:true});await expect(method).toContainText('Removal planned');await expect(method).toContainText('does not grant formal acceptance')
 })
-for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`review coverage tabs ${theme} ${width}`,async({page,request},info)=>{
+for (const { theme, width } of layoutMatrix([375,800,1280,1600]))test(`review coverage tabs ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
  await request.post('/api/configuration/theme',{headers,data:{theme}});await page.setViewportSize({width,height:950});await openSod(page,'Reviews');await page.getByRole('button',{name:`Open review for ${names.a}`,exact:true}).click();const panel=page.getByRole('dialog');await expect(panel.getByRole('tab',{name:'Roles 0/4',exact:true})).toBeVisible();await panel.getByRole('tab',{name:'Roles 0/4',exact:true}).focus();await page.keyboard.press('ArrowRight');await expect(panel.getByRole('tab',{name:'Activities 0/3',exact:true})).toBeFocused();const trigger=panel.getByRole('button',{name:'Review method for A',exact:true});await trigger.focus();await page.keyboard.press('Enter');const popover=page.getByRole('dialog',{name:'Review method for A',exact:true});await expect(popover).toContainText('Not reviewed');const bounds=await popover.boundingBox();expect(bounds!.x).toBeGreaterThanOrEqual(0);expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(width);await page.screenshot({path:info.outputPath(`review-tabs-${theme}-${width}.png`)});await page.keyboard.press('Escape');await expect(trigger).toBeFocused();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
  await panel.getByRole('tab',{name:/^Risks/}).click()
  const riskRow=panel.locator('.sod-review-row').filter({has:page.getByRole('button',{name:'Review risk R1',exact:true})})

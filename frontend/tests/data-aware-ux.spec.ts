@@ -112,7 +112,7 @@ test('loading and reconnect stay contextual during Back and Forward', async ({ p
   await expect(page.getByRole('heading',{name:'User Access',exact:true})).toBeVisible()
 })
 
-for (const theme of ['dark','light']) for (const width of [1280,800]) test(`data-aware visual QA ${theme} ${width}`, async ({page,request}, info) => {
+for (const theme of ['dark','light']) for (const width of [1280,800]) test(`data-aware visual QA ${theme} ${width}`, { tag: '@visual' }, async ({page,request}, info) => {
   const settings = (await (await request.get('/api/configuration',{headers})).json()).settings
   settings.theme = theme; await request.post('/api/configuration',{headers,data:settings})
   await page.setViewportSize({width,height:900})

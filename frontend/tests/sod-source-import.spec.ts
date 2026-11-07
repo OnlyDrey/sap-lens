@@ -87,7 +87,7 @@ test('the existing source actions stay available next to the new section', async
   await expect(page.getByRole('dialog', { name: 'SoD Matrix source inspection', exact: true })).toContainText('Validation results')
 })
 
-for (const theme of ['light', 'dark']) for (const width of [375, 1280]) test(`the SoD import section keeps the page free of horizontal scrolling in ${theme} at ${width}px`, async ({ page, request }) => {
+for (const theme of ['light', 'dark']) for (const width of [375, 1280]) test(`the SoD import section keeps the page free of horizontal scrolling in ${theme} at ${width}px`, { tag: '@visual' }, async ({ page, request }) => {
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings; settings.theme = theme
   await request.post('/api/configuration', { headers, data: settings })
   await page.setViewportSize({ width, height: 900 })

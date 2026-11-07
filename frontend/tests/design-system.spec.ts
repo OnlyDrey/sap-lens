@@ -37,7 +37,7 @@ test.afterEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
   rmSync(directory, { recursive: true, force: true })
 })
-test('compact navbar has labeled icon utilities, focus tooltips and refresh feedback without timestamps', async ({
+test('compact navbar has labeled icon utilities, focus tooltips and refresh feedback without timestamps', { tag: '@a11y' }, async ({
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
@@ -155,7 +155,7 @@ test('Account Review keeps investigation controls across secondary navigation an
   ).toHaveValue('Alpha')
 })
 
-test('role content tabs have keyboard semantics and associated assignment panel', async ({
+test('role content tabs have keyboard semantics and associated assignment panel', { tag: '@a11y' }, async ({
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
@@ -289,7 +289,7 @@ test('component library previews are isolated, interactive and use canonical com
     page.getByRole('button', { name: 'Save and load CSV', exact: true }),
   ).toBeHidden()
 })
-test('saved filters portal handles keyboard, outside dismissal and neutral clear actions', async ({
+test('saved filters portal handles keyboard, outside dismissal and neutral clear actions', { tag: '@a11y' }, async ({
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
@@ -335,7 +335,7 @@ test('saved filters portal handles keyboard, outside dismissal and neutral clear
 })
 for (const theme of ['light', 'dark'])
   for (const width of [375, 800, 1280])
-    test(`canonical component visual contracts ${theme} ${width}`, async ({
+    test(`canonical component visual contracts ${theme} ${width}`, { tag: '@visual' }, async ({
       page,
       request,
     }, info) => {
@@ -449,7 +449,7 @@ test('shared import controls and nested date drafts use isolated showcase state'
 })
 
 for(const theme of ['light','dark']) for(const width of [375,800,1280])
- test(`import settings visual contracts ${theme} ${width}`,async({page,request},info)=>{
+ test(`import settings visual contracts ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
   const settings=(await(await request.get('/api/configuration',{headers})).json()).settings
   settings.theme=theme
   await request.post('/api/configuration',{headers,data:settings})
@@ -482,7 +482,7 @@ for(const theme of ['light','dark']) for(const width of [375,800,1280])
   await page.screenshot({path:info.outputPath('sap-modules.png')})
  })
 
-test('library matrix grid and side panel are isolated, keyboard operable and never rely on color alone', async ({ page, request }) => {
+test('library matrix grid and side panel are isolated, keyboard operable and never rely on color alone', { tag: '@a11y' }, async ({ page, request }) => {
   await page.goto('/#session=browser-test-session')
   await library(page)
   const writes: string[] = []

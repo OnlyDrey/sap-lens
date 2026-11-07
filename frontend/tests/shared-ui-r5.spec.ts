@@ -5,7 +5,7 @@ let directory = ''
 test.beforeEach(async ({ request }) => { directory = await seedGovernance(request, 'static') })
 test.afterEach(async ({ request }) => { await cleanup(request, directory) })
 
-for (const width of [375, 800, 1280]) test(`Review Context: the evaluation information is vertically centered on the dropdown (${width}px)`, async ({ page }) => {
+for (const width of [375, 800, 1280]) test(`Review Context: the evaluation information is vertically centered on the dropdown (${width}px)`, { tag: '@visual' }, async ({ page }) => {
   await page.setViewportSize({ width, height: 800 })
   await openSod(page, 'Risk Matrix')
   const bar = page.getByRole('toolbar', { name: 'Review context' }).or(page.locator('.sod-context-bar'))

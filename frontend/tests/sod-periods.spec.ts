@@ -5,7 +5,7 @@ test.beforeEach(async({request})=>{directory=await seedGovernance(request)})
 test.afterEach(async({request})=>{await cleanup(request,directory)})
 void _bridge
 
-test('review period is gated, approved by a different person, then frozen; deletion is still possible with a reason and is an audited archive',async({page,request})=>{
+test('review period is gated, approved by a different person, then frozen; deletion is still possible with a reason and is an audited archive',{ tag: '@workflow' }, async({page,request})=>{
  await openSod(page,'Review Periods');await page.getByRole('button',{name:'Create review period',exact:true}).click();const create=page.getByRole('dialog',{name:'Create SoD review period',exact:true});await create.getByRole('textbox',{name:'Review period name',exact:true}).fill('Synthetic Browser Period');await create.getByRole('button',{name:'Capture review period',exact:true}).click()
  const dialog=page.getByRole('dialog',{name:'SoD period',exact:true});await expect(dialog.getByRole('heading',{name:'Synthetic Browser Period'})).toBeVisible()
  await dialog.getByRole('textbox',{name:/Recorded by/}).fill('Synthetic Actor');await dialog.getByRole('button',{name:'Start review',exact:true}).click();await expect(dialog.getByText('In review',{exact:true}).first()).toBeVisible()

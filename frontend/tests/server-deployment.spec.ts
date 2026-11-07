@@ -4,6 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'nod
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createServer, type AddressInfo } from 'node:net'
+import { layoutMatrix } from './matrix'
 
 // A real headless server, separate from the desktop-capability browser fixture.
 let process:ChildProcess, root:string
@@ -29,8 +30,8 @@ test.afterAll(async()=>{
   if(process&&process.exitCode===null){const stopped=new Promise(resolve=>process.once('exit',resolve));process.kill('SIGTERM');await stopped}
   if(root)rmSync(root,{recursive:true,force:true})
 })
-for(const theme of ['light','dark'])for(const width of [375,800,1280]){
-  test(`headless browser automatic upload and download ${theme} ${width}`,async({browser},testInfo)=>{
+for (const { theme, width } of layoutMatrix([375,800,1280])){
+  test(`headless browser automatic upload and download ${theme} ${width}`,{ tag: '@visual' }, async({browser},testInfo)=>{
     const context=await browser.newContext({httpCredentials:{username:'saplens',password},viewport:{width,height:900}})
     const page=await context.newPage()
     try{

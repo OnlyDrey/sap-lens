@@ -47,7 +47,7 @@ test('data warning follows the content container at wide and narrow desktop widt
 })
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`navigation has no vertical selection marker and module hues remain varied and readable in ${theme}`, async ({ page, request }, testInfo) => {
+  test(`navigation has no vertical selection marker and module hues remain varied and readable in ${theme}`, { tag: '@visual' }, async ({ page, request }, testInfo) => {
     expect((await request.post('/api/configuration/theme', { headers, data: { theme } })).ok()).toBeTruthy()
     await page.goto('/#session=browser-test-session')
     const tab = page.getByRole('tab', { name: 'SAP Modules', exact: true })
@@ -83,7 +83,7 @@ for (const theme of ['light', 'dark'] as const) {
   })
 }
 
-test('filter availability is keyboard accessible, persists and preserves explicit color and role data', async ({ page, request }) => {
+test('filter availability is keyboard accessible, persists and preserves explicit color and role data', { tag: '@a11y' }, async ({ page, request }) => {
   const directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-ui-filter-'))
   const file = path.join(directory, 'role-catalogue.csv')
   writeFileSync(file, 'FUNCTION_KEY,AGR_NAME,TCODE\nFI,Z_UI_FINANCE,FB03\nMM,Z_UI_BUYER,ME23N\nLOCAL_FIN,Z_UI_LOCAL,FB03\n')
@@ -128,7 +128,7 @@ test('filter availability is keyboard accessible, persists and preserves explici
 })
 
 for (const theme of ['light', 'dark'] as const) for (const width of [1280, 390]) {
-  test(`import source controls and review action are accessible in ${theme} at ${width}px`, async ({ page, request }, info) => {
+  test(`import source controls and review action are accessible in ${theme} at ${width}px`, { tag: ['@visual', '@a11y'] }, async ({ page, request }, info) => {
     expect((await request.post('/api/configuration/theme', { headers, data: { theme } })).ok()).toBeTruthy()
     await page.setViewportSize({ width, height: 900 })
     await page.goto('/#session=browser-test-session')

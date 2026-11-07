@@ -40,7 +40,7 @@ test('role options show the complete name on the first line and the description 
 })
 
 for (const width of [375, 800]) {
-  test(`the popup stays inside a ${width}px viewport without page overflow`, async ({ page }) => {
+  test(`the popup stays inside a ${width}px viewport without page overflow`, { tag: '@visual' }, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 })
     await open(page)
     const box = (await popup(page).boundingBox())!
@@ -68,7 +68,7 @@ test('several roles can be chosen without closing, search covers descriptions, c
   await expect(page.getByRole('group', { name: 'Selected Filter users by role' })).toHaveCount(0)
 })
 
-test('keyboard: arrows move, Enter toggles, Escape closes and focus returns to the field', async ({ page }) => {
+test('keyboard: arrows move, Enter toggles, Escape closes and focus returns to the field', { tag: '@a11y' }, async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 })
   const input = await open(page)
   await input.press('ArrowDown')

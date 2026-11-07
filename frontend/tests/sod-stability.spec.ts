@@ -72,7 +72,7 @@ test('opening a user from the panel and returning keeps the investigation and fi
   await expect(page.getByRole('button', { name: 'Remove SAP User Group FIN', exact: true })).toBeVisible()
 })
 
-for (const width of [375, 800]) test(`long roles never widen the page or break table actions at ${width}`, async ({ page }) => {
+for (const width of [375, 800]) test(`long roles never widen the page or break table actions at ${width}`, { tag: '@visual' }, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 })
   const noOverflow = () => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)
   await openSod(page, 'Access Explorer')

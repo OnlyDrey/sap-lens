@@ -53,7 +53,7 @@ test.beforeEach(async ({ request }) => {
   ).toBeTruthy()
 })
 for (const theme of ['dark', 'light'] as const) {
-  test(`exact identifier copy, long wrapping, circular icons and detail rows in ${theme}`, async ({
+  test(`exact identifier copy, long wrapping, circular icons and detail rows in ${theme}`, { tag: '@visual' }, async ({
     page,
     context,
     request
@@ -195,7 +195,7 @@ test('module status separates saved state from unsaved preview and persists only
   await expect(row.locator('.status-pill')).toHaveText('Disabled')
 })
 for (const theme of ['light', 'dark'] as const) {
-  test(`module icon colors remain readable for extreme, invalid and default colors in ${theme}`, async ({
+  test(`module icon colors remain readable for extreme, invalid and default colors in ${theme}`, { tag: '@visual' }, async ({
     page
   }, testInfo) => {
     await page.goto('/#session=browser-test-session')
@@ -287,7 +287,7 @@ test('clipboard denial is announced and leaves exact identifier selectable', asy
 })
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`copy success overlays the identifier for exactly two seconds without resizing in ${theme}`, async ({ page, context, request }, info) => {
+  test(`copy success overlays the identifier for exactly two seconds without resizing in ${theme}`, { tag: '@visual' }, async ({ page, context, request }, info) => {
     const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
     expect((await request.post('/api/configuration', { headers, data: { ...settings,
       data_csv_path: path.resolve('tests/fixtures/role-catalogue-minimal.csv'), theme } })).ok()).toBeTruthy()

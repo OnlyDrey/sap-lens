@@ -17,7 +17,7 @@ test.afterEach(async({request})=>{await request.post('/api/configuration/reset',
 test('comparison metric distinguishes symmetric similarity from directional containment',()=>{
  expect(jaccard(2,2,2)).toBe(100);expect(jaccard(1,1,2)).toBe(50);expect(jaccard(1,2,2)).toBe(33);expect(jaccard(0,2,3)).toBe(0);expect(jaccard(0,0,0)).toBe(0);expect(containment(1,1)).toBe(100);expect(containment(1,2)).toBe(50)
 })
-test('catalogue search visual order matches keyboard order and cards contain long identifiers',async({page})=>{
+test('catalogue search visual order matches keyboard order and cards contain long identifiers',{ tag: '@a11y' }, async({page})=>{
  await page.goto('/#session=browser-test-session');await goTo(page,'Role Lookup')
  const tc=page.getByRole('textbox',{name:'Filter catalogue by transaction',exact:true}),name=page.getByPlaceholder('Search roles by name or description...')
  await expect(tc).not.toBeFocused();expect((await tc.boundingBox())!.x).toBeLessThan((await name.boundingBox())!.x)
@@ -55,7 +55,7 @@ test('library categories remain isolated and anchored controls are measured befo
  await trigger.click();await expect.poll(()=>page.evaluate(()=>(window as any).visibleFrames.length)).toBeGreaterThanOrEqual(3);const anchor=(await trigger.boundingBox())!;for(const box of await page.evaluate(()=>(window as any).visibleFrames)){expect(box.x).toBeGreaterThanOrEqual(7);expect(Math.min(Math.abs(box.y-anchor.y-anchor.height),Math.abs(anchor.y-box.y-box.height))).toBeLessThan(10);expect(box.y).toBeGreaterThan(0)}
  await page.keyboard.press('Escape');await expect(trigger).toBeFocused();expect((await config(request)).revision).toBe(before.revision)
 })
-for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`refinement visual ${theme} ${width}`,async({page,request},info)=>{
+for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`refinement visual ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
  await page.addInitScript(()=>{(window as any).pywebview={api:{choose_csv:async()=>null,desktop_runtime:async()=>({windows:true,startup_supported:true,tray_available:false,warning:null})}}})
  const value=await config(request);value.theme=theme;await request.post('/api/configuration',{headers,data:value});await page.setViewportSize({width,height:1000});await page.goto('/#session=browser-test-session')
  const capture=async(name:string)=>{expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();await page.screenshot({path:info.outputPath(name+'.png'),fullPage:true})}

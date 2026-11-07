@@ -39,7 +39,7 @@ test('every SoD page has the same toolbar and only the filters it needs', async 
   await expect(page.getByRole('combobox', { name: 'Sort', exact: true })).toBeVisible()
 })
 
-for (const width of [375, 800]) test(`narrow screens use a drawer without horizontal overflow at ${width}`, async ({ page }) => {
+for (const width of [375, 800]) test(`narrow screens use a drawer without horizontal overflow at ${width}`, { tag: '@visual' }, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 })
   for (const view of views) {
     await openSod(page, view)
@@ -65,7 +65,7 @@ test('risk and activity identifiers render as pills in the explorer', async ({ p
   await expect(page.locator('.id-pill-activity').first()).toBeVisible()
 })
 
-for (const width of [375, 800, 1280]) test(`overview tiles and review periods fit without horizontal overflow at ${width}`, async ({ page, request }) => {
+for (const width of [375, 800, 1280]) test(`overview tiles and review periods fit without horizontal overflow at ${width}`, { tag: '@visual' }, async ({ page, request }) => {
   const periodName = `Layout period ${width}-${Date.now()}`
   await createPeriod(request, periodName)
   await page.setViewportSize({ width, height: 900 })
@@ -102,7 +102,7 @@ test('matrix cells are compact, column pills use configured colors and scroll po
   await expect(page.getByText('Scope: activities that contribute to at least one potential conflict', { exact: false })).toBeVisible()
 })
 
-for (const width of [375, 800]) test(`the review workspace is usable without horizontal overflow at ${width}`, async ({ page }) => {
+for (const width of [375, 800]) test(`the review workspace is usable without horizontal overflow at ${width}`, { tag: '@visual' }, async ({ page }) => {
   await page.setViewportSize({ width, height: 800 })
   await openSod(page, 'Reviews')
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()

@@ -16,7 +16,7 @@ test.beforeEach(async({request})=>{
  expect((await request.post('/api/configuration',{headers,data:settings})).ok()).toBeTruthy()
 })
 test.afterEach(async({request})=>{await request.post('/api/configuration/reset',{headers});rmSync(root,{recursive:true,force:true})})
-for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`dashboard settings navigation and source layout ${theme} ${width}`,async({page,request},info)=>{
+for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`dashboard settings navigation and source layout ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
  const settings=(await(await request.get('/api/configuration',{headers})).json()).settings;settings.theme=theme;await request.post('/api/configuration',{headers,data:settings})
  await page.setViewportSize({width,height:900});await page.goto('/#session=browser-test-session')
  await expect(page.getByRole('region',{name:'Assignment Distribution',exact:true})).toBeVisible()

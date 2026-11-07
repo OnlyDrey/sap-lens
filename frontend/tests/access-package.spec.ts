@@ -41,7 +41,7 @@ test('Add to access package and Add to comparison are independent toggles on eac
   await expect(buyer.getByRole('button', { name: 'Remove from comparison' })).toHaveAttribute('aria-pressed', 'true')
 })
 
-test('package: default suffix, per-role override, validation, copy, CSV, persistence and clearing', async ({ page, context }) => {
+test('package: default suffix, per-role override, validation, copy, CSV, persistence and clearing', { tag: '@workflow' }, async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await page.goto('/#session=browser-test-session')
   await goTo(page, 'Role Lookup')

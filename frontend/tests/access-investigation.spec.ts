@@ -3,6 +3,7 @@ import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { headers, backendFixture, saveConfiguration } from './support'
+import { DEFAULT_THEME_ONLY } from './matrix'
 const fixture = backendFixture("user-access.csv");
 const catalogue =
   "FUNCTION_KEY,AGR_NAME,CHILD_AGR,TCODE,CHILD_AGR_TEXT,TTEXT\nMM,ZC:MM:BUY:EN*,ZS:BUY,ME23N,Synthetic purchasing display role,Display purchase order\nFI,ZC:FI:VIEW:*,ZS:VIEW,ME23N,Synthetic accounting display role with a longer description that remains readable when the window is narrow,Display purchase order\nFI,ZC:FI:VIEW:*,ZS:VIEW,FB03,Synthetic accounting display role with a longer description that remains readable when the window is narrow,Display accounting document\n";
@@ -284,8 +285,8 @@ test("user CSV detection preview and independent custom preset create rename dup
   ).toBeVisible();
 });
 
-for (const theme of ["light", "dark"] as const) {
-  test(`access pages render with keyboard navigation in ${theme} at narrow desktop width`, async ({
+for (const theme of DEFAULT_THEME_ONLY) {
+  test(`access pages render with keyboard navigation in ${theme} at narrow desktop width`, { tag: '@a11y' }, async ({
     page,
     request,
   }, info) => {
@@ -383,7 +384,7 @@ test("a partial matrix never presents off-page cells as zero users", async ({
 });
 
 for (const theme of ['light', 'dark'] as const) for (const width of [1280, 600]) {
-  test(`copyable users and compact role transactions in ${theme} at ${width}px`, async ({ page, request }, info) => {
+  test(`copyable users and compact role transactions in ${theme} at ${width}px`, { tag: '@visual' }, async ({ page, request }, info) => {
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
     expect((await request.post('/api/configuration/theme', { headers, data: { theme } })).ok()).toBeTruthy()
     await page.setViewportSize({ width, height: 1000 })

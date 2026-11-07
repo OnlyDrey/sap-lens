@@ -1,9 +1,10 @@
 import {test,expect} from '@playwright/test'
 import {cleanup,seedGovernance,openSod,headers} from './sod-fixture'
+import { layoutMatrix } from './matrix'
 let directory=''
 test.beforeEach(async({request})=>{directory=await seedGovernance(request)})
 test.afterEach(async({request})=>{await cleanup(request,directory)})
-for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`Work Queue bulk review ${theme} ${width}`,async({page,request},info)=>{
+for (const { theme, width } of layoutMatrix([375,800,1280,1600]))test(`Work Queue bulk review ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
  await request.post('/api/configuration/theme',{headers,data:{theme}})
  await page.setViewportSize({width,height:1000});await openSod(page,'Reviews')
  const queue=page.getByRole('table',{name:'SoD review work queue',exact:true})

@@ -4,6 +4,7 @@ import {randomUUID} from 'node:crypto'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import { headers, goTo } from './support'
+import { layoutMatrix } from './matrix'
 test.setTimeout(45_000)
 const columns='Site;Name;SamAccountName;UserPrincipalName;Mail;Department;Title;Enabled;DistinguishedName;ManagerDN;ManagerName;ManagerSamAccountName;ManagerMail;ManagerDepartment;ManagerTitle;ManagerLookupStatus'
 let root:string,users:string,roles:string,userA:string,userB:string
@@ -34,7 +35,7 @@ test('tasks 15–16: assignment AND/OR and export use the same scope without rep
  await detail.getByRole('button',{name:'Export CSV',exact:true}).click();await expect.poll(()=>page.evaluate(()=>(window as any).exported)).toContain('Ålpha')
  const text=await page.evaluate(()=>(window as any).exported as string);expect(text.split('\r\n').filter(Boolean)).toHaveLength(4);expect(text.match(/ZC:SYN:B/g)).toHaveLength(2)
 })
-test('tasks 17–18: directory evidence opens in a labeled modal and restores focus',async({page})=>{
+test('tasks 17–18: directory evidence opens in a labeled modal and restores focus',{ tag: '@a11y' }, async({page})=>{
  await page.goto('/#session=browser-test-session');const detail=await openUser(page),trigger=detail.getByRole('button',{name:'Directory matching details · Matched',exact:true});await trigger.click()
  const dialog=page.getByRole('dialog',{name:'Directory matching details',exact:true});await expect(dialog).toContainText('alpha@example.test');await expect(dialog.getByRole('table',{name:'Directory matching source records',exact:true})).toBeVisible()
  await page.keyboard.press('Escape');await expect(dialog).toBeHidden();await expect(trigger).toBeFocused();await expect(detail.locator('.profile-group, .profile-functional-group')).toHaveCount(4)
@@ -73,7 +74,7 @@ test('tasks 27 and 29: change list has readable records, real before/after modal
  const dialog=page.getByRole('dialog',{name:'CSV data changes',exact:true});await expect(dialog.getByRole('table',{name:'CSV record changes',exact:true}).getByRole('columnheader')).toHaveText(['Source','Record','Change','Details'])
  await dialog.getByRole('button',{name:'View details for Synthetic updated Alpha',exact:true}).first().click();const record=page.getByRole('dialog',{name:'Change details',exact:true});await expect(record).toContainText('Before:');await expect(record).toContainText('Synthetic Alpha');await expect(record).toContainText('After:');await expect(record).toContainText('Synthetic updated Alpha');await record.getByRole('button',{name:'Back to changes',exact:true}).click();await expect(dialog).toBeVisible()
 })
-for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`round 2 visual ${theme} ${width}`,async({page,request},info)=>{
+for (const { theme, width } of layoutMatrix([375,800,1280,1600]))test(`round 2 visual ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
  const config=await settings(request);config.theme=theme;await request.post('/api/configuration',{headers,data:config});await page.setViewportSize({width,height:1000});await page.goto('/#session=browser-test-session')
  await page.screenshot({path:info.outputPath('dashboard.png'),fullPage:true});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
  const risk=(await page.getByRole('region',{name:'Access & Risk',exact:true}).boundingBox())!,health=(await page.getByRole('region',{name:'Review Progress',exact:true}).boundingBox())!;if(width>=800){expect(Math.abs(risk.y-health.y)).toBeLessThan(2);expect(health.x).toBeGreaterThan(risk.x)}else expect(health.y).toBeGreaterThan(risk.y)
@@ -82,7 +83,7 @@ for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(
  await goTo(page,'User Access');const back=page.getByRole('button',{name:'Back to users',exact:true});if(await back.count())await back.click();await mode(page,'Account Review');const row=page.getByRole('row').filter({has:page.getByRole('link',{name:userA,exact:true})});await row.getByRole('button',{name:'Needs review',exact:true}).click();const modal=page.getByRole('dialog',{name:`Review account · ${userA}`,exact:true});const box=(await modal.boundingBox())!;expect(box.width).toBeLessThanOrEqual(width-16);expect(box.y).toBeGreaterThanOrEqual(7);expect(box.y+box.height).toBeLessThanOrEqual(993);await page.screenshot({path:info.outputPath('review-dialog.png')})
 })
 
-for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`task 30 first-open date position ${theme} ${width}`,async({page,request},info)=>{
+for (const { theme, width } of layoutMatrix([375,800,1280,1600]))test(`task 30 first-open date position ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
  const config=await settings(request);config.theme=theme;await request.post('/api/configuration',{headers,data:config})
  let releaseMatch!:()=>void;const gate=new Promise<void>(resolve=>{releaseMatch=resolve})
  await page.route('**/api/employees/match/**',async route=>{const response=await route.fetch();await gate;await route.fulfill({response})})
@@ -171,7 +172,7 @@ test('task 31 filter changes cancel an in-flight export',async({page})=>{
  await page.getByLabel('Search users',{exact:true}).fill('NO_SYNTHETIC_RESULT');await expect(page.locator('.user-directory-table tbody tr')).toHaveCount(0);release()
  await expect(page.getByRole('button',{name:'Export CSV',exact:true})).not.toHaveAttribute('aria-busy','true');expect(downloads).toBe(0)
 })
-for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`task 31 export toolbars ${theme} ${width}`,async({page,request},info)=>{
+for (const { theme, width } of layoutMatrix([375,800,1280,1600]))test(`task 31 export toolbars ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
  await prepareAssignmentExport(request);const config=await settings(request);config.theme=theme;await request.post('/api/configuration',{headers,data:config});await page.setViewportSize({width,height:1000});await page.goto('/#session=browser-test-session');await goTo(page,'User Access')
  const action=page.getByRole('button',{name:'Export CSV',exact:true});await expect(action).toBeEnabled();await page.locator('.results-toolbar:visible').screenshot({path:info.outputPath('directory-export-toolbar.png')});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
  await goTo(page,'Release Roles');await expect(action).toBeEnabled();await page.locator('.results-toolbar:visible').screenshot({path:info.outputPath('release-export-toolbar.png')});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()

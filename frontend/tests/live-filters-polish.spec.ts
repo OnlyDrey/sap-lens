@@ -164,7 +164,7 @@ test('data status badges retain availability distinction and format timestamps i
     if (state === 'error') { await expect(source).toContainText('Previously validated data is retained'); await expect(source).toContainText('File missing on last attempt') }
   }
 })
-for (const theme of ['light', 'dark']) for (const width of [800, 1280]) test(`live filter visual QA ${theme} ${width}`, async ({ page, request }, info) => {
+for (const theme of ['light', 'dark']) for (const width of [800, 1280]) test(`live filter visual QA ${theme} ${width}`, { tag: '@visual' }, async ({ page, request }, info) => {
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
   settings.theme = theme; await request.post('/api/configuration', { headers, data: settings })
   await page.setViewportSize({ width, height: 900 })

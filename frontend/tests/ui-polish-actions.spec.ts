@@ -55,7 +55,7 @@ test('Settings navigation: active item is one filled rounded surface with no und
   }
 })
 
-test('Settings navigation: keyboard focus is a separate outline and arrow keys move the selection', async ({ page }) => {
+test('Settings navigation: keyboard focus is a separate outline and arrow keys move the selection', { tag: '@a11y' }, async ({ page }) => {
   await openSettings(page, 'Features')
   const active = page.getByRole('tab', { name: 'Features', exact: true })
   await active.focus()
@@ -108,7 +108,7 @@ test('no rounded underlines or double borders on Settings sections and main scre
   expect(defects).toEqual([])
 })
 
-test('keyboard: identifiers are not tab stops, only their copy and open controls are, and small targets stay at least 24px', async ({ page, request }) => {
+test('keyboard: identifiers are not tab stops, only their copy and open controls are, and small targets stay at least 24px', { tag: '@a11y' }, async ({ page, request }) => {
   await seedGovernance(request, 'static', undefined, true)
   await page.goto('/#session=browser-test-session')
   await page.getByRole('navigation', { name: 'Main navigation', exact: true }).getByRole('link', { name: 'Role Lookup', exact: true }).click()
@@ -128,7 +128,7 @@ test('keyboard: identifiers are not tab stops, only their copy and open controls
   }
 })
 
-test('keyboard focus is fully revealed inside scrolling navigation strips at 375px', async ({ page, request }) => {
+test('keyboard focus is fully revealed inside scrolling navigation strips at 375px', { tag: '@a11y' }, async ({ page, request }) => {
   await seedGovernance(request, 'static')
   await page.setViewportSize({ width: 375, height: 900 })
   await page.goto('/#session=browser-test-session')
@@ -150,7 +150,7 @@ test('keyboard focus is fully revealed inside scrolling navigation strips at 375
   expect(seen).toEqual(expect.arrayContaining(['Activity Matrix', 'Reviews', 'Reports']))
 })
 
-test('skip link is fully visible when focused', async ({ page }) => {
+test('skip link is fully visible when focused', { tag: '@a11y' }, async ({ page }) => {
   await page.goto('/#session=browser-test-session')
   await page.keyboard.press('Tab')
   const skip = page.getByRole('link', { name: 'Skip to main content' })
@@ -158,7 +158,7 @@ test('skip link is fully visible when focused', async ({ page }) => {
   await expect.poll(async () => (await skip.boundingBox())!.y).toBeGreaterThanOrEqual(5)
 })
 
-test('access package panel takes focus when opened, stays non-modal, and returns focus to the trigger on Escape', async ({ page }) => {
+test('access package panel takes focus when opened, stays non-modal, and returns focus to the trigger on Escape', { tag: '@a11y' }, async ({ page }) => {
   await page.goto('/#session=browser-test-session')
   await page.getByRole('navigation', { name: 'Main navigation', exact: true }).getByRole('link', { name: 'Role Lookup', exact: true }).click()
   await page.getByRole('article', { name: /Buyer plant/ }).getByRole('button', { name: 'Add to access package' }).click()
@@ -185,7 +185,7 @@ const contrastOf = (foreground: string, background: string) => {
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
 }
 
-test('selected Settings item and active role card toggles meet 4.5:1 text and 3:1 icon contrast in both themes', async ({ page, request }) => {
+test('selected Settings item and active role card toggles meet 4.5:1 text and 3:1 icon contrast in both themes', { tag: '@a11y' }, async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' }) // the app zeroes transitions, so colors are final immediately
   for (const theme of ['light', 'dark']) {
     const settings = (await (await request.get('/api/configuration', { headers })).json()).settings

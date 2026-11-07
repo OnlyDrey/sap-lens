@@ -46,7 +46,7 @@ test('package rows show one codeblock, the suffix field right of it and a compac
   expect(await item.locator('.package-status').evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeLessThanOrEqual(14)
 })
 
-test('exact roles without suffix variants keep their name and disable suffix editing with an explanation', async ({ page }) => {
+test('exact roles without suffix variants keep their name and disable suffix editing with an explanation', { tag: '@a11y' }, async ({ page }) => {
   const panel = await open(page, ['Human resources exact', 'Buyer plant'])
   await panel.getByRole('combobox', { name: 'Package default suffix' }).fill('ens')
   const exact = row(panel, page, 'ZC:HR:MISC:XYZ')

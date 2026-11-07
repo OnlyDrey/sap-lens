@@ -111,7 +111,7 @@ test('a configuration failure is reported as such, is not retried automatically 
 })
 
 for (const width of [375, 800, 1280]) {
-  test(`the recovery screen stays inside the card without horizontal scroll at ${width}px`, async ({ page }) => {
+  test(`the recovery screen stays inside the card without horizontal scroll at ${width}px`, { tag: '@visual' }, async ({ page }) => {
     await page.setViewportSize({ width, height: 700 })
     await page.route('**/api/configuration', (route) => route.fulfill({ status: 500, json: { detail: 'Settings storage could not be opened.' } }))
     await page.goto('/#session=browser-test-session')

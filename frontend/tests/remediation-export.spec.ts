@@ -26,7 +26,7 @@ async function openRemediation(page: Page) {
 }
 const parse = (path: string) => readFileSync(path, 'utf8').replace(/^\uFEFF/, '').split('\r\n').filter(Boolean).map((line) => line.split(';').map((cell) => cell.replace(/^"|"$/g, '').replace(/""/g, '"')))
 
-test('Export CSV is a dropdown with two formats, keyboard operable, and closes after a choice', async ({ page }) => {
+test('Export CSV is a dropdown with two formats, keyboard operable, and closes after a choice', { tag: '@a11y' }, async ({ page }) => {
   await openRemediation(page)
   const trigger = page.getByRole('button', { name: 'Export CSV', exact: true })
   await expect(trigger).toHaveAttribute('aria-haspopup', 'dialog'); await expect(trigger).toHaveAttribute('aria-expanded', 'false')

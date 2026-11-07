@@ -30,7 +30,7 @@ test('risk matrix counts distinct users and findings and opens the investigation
   await expect(cell).toBeFocused()
 })
 
-test('activity, role assignment and risk acceptance are separate decisions and never change detection', async ({ page, request }) => {
+test('activity, role assignment and risk acceptance are separate decisions and never change detection', { tag: '@workflow' }, async ({ page, request }) => {
   await openSod(page, 'Risk Matrix')
   await cellButton(page, `${names.a}`, 'R1').click()
   const panel = page.getByRole('dialog', { name: `${names.a} · R1` })
@@ -96,7 +96,7 @@ test('what-if removal is non-destructive and shows before and after', async ({ p
   await expect(cellButton(page, `${names.a}`, 'R1')).toBeVisible()
 })
 
-test('matrix cells are reachable with the keyboard and open with Enter', async ({ page }) => {
+test('matrix cells are reachable with the keyboard and open with Enter', { tag: '@a11y' }, async ({ page }) => {
   await openSod(page, 'Risk Matrix')
   await cellButton(page, `${names.a}`, 'R1').focus()
   await page.keyboard.press('ArrowRight')
@@ -280,7 +280,7 @@ test('overview shows actionable counts and links into the matrices', async ({ pa
   await expect(page.getByText('No users match this scope.', { exact: false })).toBeVisible()
 })
 
-test('wide matrices render a window of columns and keep keyboard access to every column', async ({ page, request }) => {
+test('wide matrices render a window of columns and keep keyboard access to every column', { tag: '@a11y' }, async ({ page, request }) => {
   await cleanup(request, directory)
   directory = await seedGovernance(request, 'static', wideMatrix)
   await openSod(page, 'Risk Matrix')

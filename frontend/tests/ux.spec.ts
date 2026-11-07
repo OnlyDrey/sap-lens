@@ -32,7 +32,7 @@ test('full-window navigation preserves draft and main analysis state and warns b
  await expect(page.getByRole('tab',{name:'Appearance & Branding'})).toHaveAttribute('aria-selected','true')
 })
 
-test('theme preview, accessible validation, custom preset persistence, system appearance and cancel',async({page,request})=>{
+test('theme preview, accessible validation, custom preset persistence, system appearance and cancel',{ tag: '@a11y' }, async({page,request})=>{
  await page.emulateMedia({colorScheme:'dark'})
  await page.goto('/#session=browser-test-session')
  await page.getByRole('tab',{name:'Appearance & Branding'}).click()
@@ -72,7 +72,7 @@ test('theme preview, accessible validation, custom preset persistence, system ap
  await expect(page.locator('html')).toHaveClass(/dark/)
 })
 
-test('empty organization fallback, icon search and keyboard selection', async ({ page }) => {
+test('empty organization fallback, icon search and keyboard selection', { tag: '@a11y' }, async ({ page }) => {
  await page.goto('/#session=browser-test-session')
  await page.getByRole('tab',{name:'Organization & SAP System'}).click()
  await page.getByLabel('Organization name',{exact:true}).fill('')

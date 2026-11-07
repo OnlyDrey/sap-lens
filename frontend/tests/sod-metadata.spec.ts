@@ -68,7 +68,7 @@ test('an existing CSV without optional columns works and its pills carry only ne
   await expect(page.getByRole('dialog', { name: 'Risk R1 details' })).toContainText('No description available')
 })
 
-test('pill details are keyboard operable, return focus and never nest interactive elements', async ({ page, request }) => {
+test('pill details are keyboard operable, return focus and never nest interactive elements', { tag: '@a11y' }, async ({ page, request }) => {
   await reseed(request, extended)
   await explorer(page)
   const risk = pill(page, 'Risk', 'R1')

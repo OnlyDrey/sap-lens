@@ -58,7 +58,7 @@ test('both pages keep the shared SoD filters', async ({ page }) => {
   await expect(page.getByRole('complementary', { name: 'Filters', exact: true }).getByRole('group', { name: 'Selected SAP User Group' })).toContainText('P2P')
 })
 
-for (const width of [375, 800, 1280]) test(`the Active period badge sits 8px after the period name and wraps cleanly (${width}px)`, async ({ page, request }) => {
+for (const width of [375, 800, 1280]) test(`the Active period badge sits 8px after the period name and wraps cleanly (${width}px)`, { tag: '@visual' }, async ({ page, request }) => {
   const id = await createPeriod(request, 'Badge spacing period with a rather long descriptive name')
   await page.setViewportSize({ width, height: 900 })
   await openSod(page, 'Risk Matrix')

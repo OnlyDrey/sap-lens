@@ -7,7 +7,7 @@ test.afterEach(async ({ request }) => { await cleanup(request, directory) })
 
 const icon = (button: ReturnType<Page['locator']>) => expect(button.locator('svg').first()).toBeVisible()
 
-for (const width of [375, 800, 1280]) test(`Create review period uses a responsive two-column grid with icons on its actions (${width}px)`, async ({ page }) => {
+for (const width of [375, 800, 1280]) test(`Create review period uses a responsive two-column grid with icons on its actions (${width}px)`, { tag: '@visual' }, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 })
   await openSod(page, 'Review Periods')
   await page.getByRole('button', { name: 'Create review period', exact: true }).click()
@@ -35,7 +35,7 @@ for (const width of [375, 800, 1280]) test(`Create review period uses a responsi
   await expect(page.getByRole('dialog', { name: 'SoD period', exact: true }).getByRole('heading', { name: `Grid period ${width}` })).toBeVisible()
 })
 
-for (const width of [375, 1280]) test(`Delete review period: confirmation fields share a grid, consequences stay full width, actions carry icons (${width}px)`, async ({ page, request }) => {
+for (const width of [375, 1280]) test(`Delete review period: confirmation fields share a grid, consequences stay full width, actions carry icons (${width}px)`, { tag: '@visual' }, async ({ page, request }) => {
   const draft = `Empty draft ${width}`
   await createPeriod(request, draft)
   await page.setViewportSize({ width, height: 900 })

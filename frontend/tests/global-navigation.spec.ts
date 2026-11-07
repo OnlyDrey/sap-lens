@@ -88,7 +88,7 @@ for (const descending of [false, true]) test(`user global navigation crosses bou
   expect(lookups.every(url => url.searchParams.get('search') === 'DEMO_' && url.searchParams.get('limit') === '1' && url.searchParams.getAll('groups').join() === 'GROUP_KEEP' && url.searchParams.get('sort') === 'first_name' && url.searchParams.get('descending') === String(descending))).toBeTruthy()
 })
 
-test('complete release list preserves descending tie order and returns focus to the origin', async ({ page }) => {
+test('complete release list preserves descending tie order and returns focus to the origin', { tag: '@a11y' }, async ({ page }) => {
   await page.goto('/#session=browser-test-session'); await destination(page, 'Release Roles')
   const list = page.getByRole('region', { name: 'Release Roles', exact: true })
   await pickMulti(list, 'Release SAP User Group', 'GROUP_KEEP', page)

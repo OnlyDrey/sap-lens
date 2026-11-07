@@ -3,6 +3,7 @@ import {mkdtempSync,writeFileSync,rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import { headers } from './support'
+import { layoutMatrix, DEFAULT_THEME_ONLY } from './matrix'
 let directory:string
 const matrix='RISK,CRITICITY,TYPE,TEXT,ACTVT1,ACTVT2,ACTIVITY_SLOT,ACTIVITY,TCODE,TTEXT\nSYN01,H,S,Synthetic incompatible activities,CREATE,APPROVE,ACTVT1,CREATE,X001,Synthetic creation\nSYN01,H,S,Synthetic incompatible activities,CREATE,APPROVE,ACTVT2,APPROVE,X002,Synthetic approval\n'
 test.beforeEach(async({request})=>{
@@ -68,7 +69,7 @@ test('SoD catalogue is filtered by search only and the search is clearable',asyn
  await page.getByRole('button',{name:/^Clear .*Search SoD risks/}).click();await expect(search).toHaveValue('');await expect(page.getByRole('button',{name:'Edit SoD risk SYN01',exact:true})).toBeVisible()
  await search.fill('SYN01');await expect(page.getByRole('button',{name:'Edit SoD risk SYN01',exact:true})).toBeVisible()
 })
-for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`SoD settings responsive ${theme} ${width}`,async({page,request},info)=>{
+for (const { theme, width } of layoutMatrix([375,800,1280,1600]))test(`SoD settings responsive ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
  await request.post('/api/configuration/theme',{headers,data:{theme}});await page.setViewportSize({width,height:950});await settings(page);await expect(page.getByRole('button',{name:'Edit SoD risk SYN01',exact:true})).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();await page.screenshot({path:info.outputPath(`sod-catalogue-${theme}-${width}.png`)})
 })
 
@@ -95,7 +96,7 @@ test('risk and activity tables use icon Edit buttons and a consistent actionable
  await expect(page.getByRole('dialog',{name:/transactions$/})).toBeVisible()
 })
 
-for(const theme of ['light','dark'])test(`transaction count icons stay consistent in Risk source and Activity views (${theme})`,async({page,request})=>{
+for (const theme of DEFAULT_THEME_ONLY)test(`transaction count icons stay consistent in Risk source and Activity views (${theme})`,async({page,request})=>{
  await request.post('/api/configuration/theme',{headers,data:{theme}})
  await settings(page)
  await page.getByRole('button',{name:'Edit SoD risk SYN01',exact:true}).click()
@@ -159,7 +160,7 @@ test('Previous and Next navigate the complete filtered catalogue across table pa
  await dialog.getByRole('button',{name:'Cancel',exact:true}).click();await expect(page.getByRole('searchbox',{name:'Search SoD risks',exact:true})).toHaveValue('NAV')
 })
 
-for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`shared entity configuration layout ${theme} ${width}`,async({page,request},info)=>{
+for (const { theme, width } of layoutMatrix([375,800,1280,1600]))test(`shared entity configuration layout ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
  await request.post('/api/configuration/theme',{headers,data:{theme}});await page.setViewportSize({width,height:1000});await settings(page);await page.getByRole('searchbox',{name:'Search SoD risks',exact:true}).fill('SYN01')
  const risks=page.getByRole('table',{name:'SoD risk configurations',exact:true});await expect(risks.locator('thead th')).toHaveText(['Risk','Related Activities','Status','Description Review','Modified','Actions'])
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()

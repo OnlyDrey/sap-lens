@@ -4,6 +4,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { headers, goTo, setDescending, sortDirection, openFilters } from './support'
+import { layoutMatrix } from './matrix'
 let directory: string, roles: string, users: string
 const roleCSV =
   'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,TCODE\nMM,ZC:DEMO:A,Demo purchasing,ZS:A,MIGO\n'
@@ -225,9 +226,8 @@ test('Dashboard is the default landing route and configuration links target thei
   ).toBeVisible()
 })
 
-for (const theme of ['light', 'dark'] as const)
-  for (const width of [375, 800, 1280])
-    test(`consolidated routes visual QA ${theme} ${width}`, async ({
+for (const { theme, width } of layoutMatrix([375, 800, 1280]))
+    test(`consolidated routes visual QA ${theme} ${width}`, { tag: '@visual' }, async ({
       page,
       request,
     }, info) => {

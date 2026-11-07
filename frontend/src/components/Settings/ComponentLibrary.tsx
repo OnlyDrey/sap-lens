@@ -28,6 +28,7 @@ import {
   ContentTabs,
 } from '@/components/Shared/Navigation'
 import { ComponentLibraryPatterns } from './ComponentLibraryPatterns'
+import { ComponentLibraryStates } from './ComponentLibraryStates'
 import { Popover } from '@/components/Shared/Popover'
 import { Dialog } from '@/components/Shared/Dialog'
 import { SidePanel } from '@/components/Shared/SidePanel'
@@ -413,6 +414,7 @@ export function ComponentLibrary() {
           onSelect={(row,column)=>setMatrixPick(`${row}/${column}`)}/>
         <p role="status">{matrixPick?`Selected ${matrixPick}`:'No cell selected'}</p>
       </Card>}
+      {(category==='all'||category==='status')&&<ComponentLibraryStates />}
       {(category==='all'||category==='status')&&<Card>
         <h2>Status &amp; feedback</h2>
         <Toolbar>

@@ -38,7 +38,7 @@ async function openSettings(page: Page) {
 const organization = (page: Page) => settings(page).getByRole('textbox', { name: 'Organization name', exact: true })
 
 test.describe('main navigation from Settings', () => {
-  test('destinations are links and navigate immediately when nothing changed', { tag: '@smoke' }, async ({ page }) => {
+  test('destinations are links and navigate immediately when nothing changed', { tag: ['@smoke', '@a11y'] }, async ({ page }) => {
     await openSettings(page)
     await expect(main(page).getByRole('link')).toHaveCount(4)
     for (const [name, hash] of [['Role Lookup', '#/role-lookup'], ['User Access', '#/user-access'], ['Release Roles', '#/release-roles'], ['Dashboard', '#/dashboard']] as const) {
@@ -52,7 +52,7 @@ test.describe('main navigation from Settings', () => {
     }
   })
 
-  test('unsaved edits ask first: Cancel keeps the draft, confirming discards it', async ({ page }) => {
+  test('unsaved edits ask first: Cancel keeps the draft, confirming discards it', { tag: '@a11y' }, async ({ page }) => {
     await openSettings(page)
     await organization(page).fill('Draft Organization')
     const prompts: string[] = []
@@ -69,7 +69,7 @@ test.describe('main navigation from Settings', () => {
     await expect(organization(page)).not.toHaveValue('Draft Organization')
   })
 
-  test('modified clicks open a new tab and leave the Settings draft untouched; Back and Forward work', async ({ page, context }) => {
+  test('modified clicks open a new tab and leave the Settings draft untouched; Back and Forward work', { tag: '@a11y' }, async ({ page, context }) => {
     await openSettings(page)
     await organization(page).fill('Draft Organization')
     let dialogs = 0
@@ -91,7 +91,7 @@ test.describe('main navigation from Settings', () => {
     await expect(organization(page)).toHaveValue('Draft Organization')
   })
 
-  test('Back and Forward move between Settings and the destination', async ({ page }) => {
+  test('Back and Forward move between Settings and the destination', { tag: '@a11y' }, async ({ page }) => {
     await openSettings(page)
     await main(page).getByRole('link', { name: 'Role Lookup', exact: true }).click()
     await expect(page).toHaveURL(/#\/role-lookup$/)
@@ -114,7 +114,7 @@ test.describe('User Directory keyboard order', () => {
   // Reading order = DOM order: page toolbar, then the filter sidebar (wide) or no sidebar stops (narrow drawer is closed), then the results.
   const wide = ['Hide filters', 'Sort users', 'Ascending order, switch to descending', 'Clear filters', 'Close filters', 'Saved filters', 'SAP User Group', 'Functional Group', 'Manager', 'Filter users by role', 'Roles the user must lack', 'Filter users by transaction', 'Exclude users by transaction', 'Currently valid roles', 'Show expired assignments', 'Search users']
   const narrow = ['Filters', 'Sort users', 'Ascending order, switch to descending', 'Search users']
-  for (const width of [375, 800, 1280, 1600]) test(`Tab and Shift+Tab follow the reading order at ${width}`, async ({ page }) => {
+  for (const width of [375, 800, 1280, 1600]) test(`Tab and Shift+Tab follow the reading order at ${width}`, { tag: ['@visual', '@a11y'] }, async ({ page }) => {
     const order = width >= 1024 ? wide : narrow
     await page.setViewportSize({ width, height: 900 })
     await page.goto('/#session=browser-test-session')
@@ -131,7 +131,7 @@ test.describe('User Directory keyboard order', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
   })
 
-  test('the expired checkbox label is clickable and keyboard operable; dropdowns do not move focus into other controls', async ({ page }) => {
+  test('the expired checkbox label is clickable and keyboard operable; dropdowns do not move focus into other controls', { tag: '@a11y' }, async ({ page }) => {
     await page.goto('/#session=browser-test-session')
     await main(page).getByRole('link', { name: 'User Access', exact: true }).click()
     const expired = page.getByRole('checkbox', { name: 'Show expired assignments', exact: true })
@@ -150,7 +150,7 @@ test.describe('User Directory keyboard order', () => {
   })
 })
 
-test('identifier codeblocks add no keyboard stop: Tab goes from the username link through its open action to its copy button', async ({ page }) => {
+test('identifier codeblocks add no keyboard stop: Tab goes from the username link through its open action to its copy button', { tag: '@a11y' }, async ({ page }) => {
   await page.goto('/#session=browser-test-session')
   await main(page).getByRole('link', { name: 'User Access', exact: true }).click()
   const link = page.getByRole('link', { name: 'DEMO_ONE', exact: true })
@@ -165,7 +165,7 @@ test('identifier codeblocks add no keyboard stop: Tab goes from the username lin
 })
 
 test.describe('SAP username deep links', () => {
-  test('usernames are links with the user route; a plain click opens the user, modified clicks open a tab', async ({ page, context }) => {
+  test('usernames are links with the user route; a plain click opens the user, modified clicks open a tab', { tag: '@a11y' }, async ({ page, context }) => {
     await page.goto('/#session=browser-test-session')
     await main(page).getByRole('link', { name: 'User Access', exact: true }).click()
     const link = page.getByRole('link', { name: 'DEMO_TWO', exact: true })
@@ -183,7 +183,7 @@ test.describe('SAP username deep links', () => {
     await expect(page.getByRole('link', { name: 'DEMO_ONE', exact: true })).toBeVisible()
   })
 
-  test('direct URL loading opens the user; an unknown user is handled gracefully', async ({ page }) => {
+  test('direct URL loading opens the user; an unknown user is handled gracefully', { tag: '@a11y' }, async ({ page }) => {
     await page.goto('/#session=browser-test-session')
     await page.goto('/#/user-access/user/DEMO_ONE')
     await page.reload()
@@ -197,7 +197,7 @@ test.describe('SAP username deep links', () => {
   })
 })
 
-test('SoD secondary navigation shows an icon for every view', async ({ page, request }) => {
+test('SoD secondary navigation shows an icon for every view', { tag: '@a11y' }, async ({ page, request }) => {
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
   settings.features.sod = true
   await request.post('/api/configuration', { headers, data: settings })

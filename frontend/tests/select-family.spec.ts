@@ -18,7 +18,7 @@ const setTheme = async (request: APIRequestContext, theme: string) => {
   await request.post('/api/configuration', { headers, data: settings })
 }
 
-for (const theme of ['light', 'dark']) for (const width of [375, 1280]) test(`standard, searchable and multi-select dropdowns share one surface in ${theme} at ${width}px`, async ({ page, request }) => {
+for (const theme of ['light', 'dark']) for (const width of [375, 1280]) test(`standard, searchable and multi-select dropdowns share one surface in ${theme} at ${width}px`, { tag: '@visual' }, async ({ page, request }) => {
   await setTheme(request, theme)
   await page.setViewportSize({ width, height: 900 })
   await open(page)
@@ -51,7 +51,7 @@ for (const theme of ['light', 'dark']) for (const width of [375, 1280]) test(`st
   if (process.env.SHOTS) { await select.scrollIntoViewIfNeeded(); await select.click(); await page.screenshot({ path: `${process.env.SHOTS}/select-${theme}-${width}.png` }) }
 })
 
-test('standard select: mouse selection, disabled options, long labels, ARIA and no browser popup', async ({ page }) => {
+test('standard select: mouse selection, disabled options, long labels, ARIA and no browser popup', { tag: '@a11y' }, async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 })
   await open(page)
   const select = page.getByRole('combobox', { name: 'Demo select', exact: true })
@@ -78,7 +78,7 @@ test('standard select: mouse selection, disabled options, long labels, ARIA and 
   await expect(page.locator('.select-popup')).toHaveCount(0); await expect(select).toHaveValue('active')
 })
 
-test('standard select: keyboard operation, Escape stays local and typing jumps to a label', async ({ page }) => {
+test('standard select: keyboard operation, Escape stays local and typing jumps to a label', { tag: '@a11y' }, async ({ page }) => {
   await open(page)
   const select = page.getByRole('combobox', { name: 'Demo select', exact: true })
   await select.scrollIntoViewIfNeeded(); await page.keyboard.press('Shift'); await select.focus()

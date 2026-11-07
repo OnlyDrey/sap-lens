@@ -171,7 +171,7 @@ test('a selection is an explicit list: changing filters never adds assignments t
   await expect(table(page).getByRole('checkbox', { name: /^Select assignment ZC:MM:BUY:EMS/ })).not.toBeChecked()
 })
 
-test('batch Keep is confirmed with a summary, persists per assignment and keeps individual history', async ({ page }) => {
+test('batch Keep is confirmed with a summary, persists per assignment and keeps individual history', { tag: '@workflow' }, async ({ page }) => {
   const before = sourceHashes()
   await openAssignments(page)
   await pick(page, 'Role suffix', 'CDK')
@@ -331,7 +331,7 @@ test('the bulk toolbar stays usable with the filter sidebar open at 800 px and w
   }
 })
 
-test('multi-select and bulk selection are keyboard operable with visible focus', async ({ page }) => {
+test('multi-select and bulk selection are keyboard operable with visible focus', { tag: '@a11y' }, async ({ page }) => {
   await openAssignments(page)
   const box = page.getByRole('combobox', { name: 'Role suffix', exact: true })
   await box.focus()

@@ -6,7 +6,7 @@ import path from 'node:path'
 import { headers } from './support'
 test.beforeEach(async ({request}) => { expect((await request.post('/api/configuration/reset',{headers})).ok()).toBeTruthy() })
 
-test('system identity, private logo storage, persisted theme and portable backup/restore',async ({page}) => {
+test('system identity, private logo storage, persisted theme and portable backup/restore',{ tag: '@workflow' }, async ({page}) => {
   const directory=mkdtempSync(path.join(tmpdir(),'sap-lens-test-logo-'))
   const logoPath=path.join(directory,'synthetic-logo.png')
   const logoData=await page.evaluate(()=>{const canvas=document.createElement('canvas');canvas.width=320;canvas.height=80;const context=canvas.getContext('2d')!;context.fillStyle='#123456';context.fillRect(0,0,320,80);return canvas.toDataURL('image/png').split(',')[1]})

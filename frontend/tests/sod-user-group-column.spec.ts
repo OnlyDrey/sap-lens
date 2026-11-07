@@ -49,7 +49,7 @@ for (const kind of ['risk', 'activity'] as const) {
   })
 }
 
-test('a user without a SAP User Group shows an accessible dash', async ({ page, request }) => {
+test('a user without a SAP User Group shows an accessible dash', { tag: '@a11y' }, async ({ page, request }) => {
   const users = `USERNAME,ROLE_NAME,USER_GROUP,ROLE_VALID_FROM,ROLE_VALID_TO\n${names.a},ROLE_A1,,20000101,99991231\n${names.a},ROLE_A2,,20000101,99991231\n${names.a},ROLE_B,,20000101,99991231\n${names.a},ROLE_C,,20000101,99991231\n${names.b},ROLE_AB,P2P,20000101,99991231\n`
   writeFileSync(`${directory}/users.csv`, users)
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings

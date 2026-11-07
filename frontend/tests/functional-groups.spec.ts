@@ -181,7 +181,7 @@ test('Access analysis is advisory, shows limitations for a small group and links
 })
 
 for (const scheme of ['light', 'dark'] as const) {
-  test(`User Details classification dialog is responsive and keyboard operable in ${scheme} mode at 375px`, async ({ page, request }) => {
+  test(`User Details classification dialog is responsive and keyboard operable in ${scheme} mode at 375px`, { tag: ['@visual', '@a11y'] }, async ({ page, request }) => {
     const name = `Responsive ${scheme} ${unique}`
     await request.post('/api/functional-groups', { headers, data: { name, description: '' } })
     await page.emulateMedia({ colorScheme: scheme })

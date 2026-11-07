@@ -41,7 +41,7 @@ test('sidebar wildcard filters rows as well as roles and restores the original c
  await input.fill('');await expect(dialog.locator('.single-role-entry:visible')).toHaveCount(2);await expect(shared.getByRole('button',{name:'Expand single role ZS:SYN:SHARED',exact:true})).toHaveAttribute('aria-expanded','false')
  await shared.getByRole('button',{name:'Expand single role ZS:SYN:SHARED',exact:true}).click();await expect(shared.locator('tbody tr')).toHaveCount(3)
 })
-for(const theme of ['light','dark'])test(`restored shared surfaces spacing and navigation ${theme}`,async({page,request})=>{
+for(const theme of ['light','dark'])test(`restored shared surfaces spacing and navigation ${theme}`,{ tag: '@visual' }, async({page,request})=>{
  await request.post('/api/configuration/theme',{headers,data:{theme}});await page.goto('/#session=browser-test-session')
  for(const name of ['Role Distribution','Assignment Distribution']){const card=page.getByRole('region',{name,exact:true});await expect(card).toHaveCSS('padding','16px');await expect(card).toHaveCSS('border-radius','12px');await expect(card).not.toHaveCSS('background-color','rgba(0, 0, 0, 0)')}
  await expect(page.locator('.dashboard-section .info-row').first()).toHaveCSS('padding-left','8px')
@@ -98,7 +98,7 @@ test('theme colors are an editable grid that shows every color together and edit
  await colors.getByRole('button',{name:'Reset Primary color',exact:true}).click()
  const live=page.getByAltText('Header logo preview',{exact:true}),local=page.getByAltText('Selected header logo preview',{exact:true});await local.scrollIntoViewIfNeeded();await expect(local).toBeVisible();expect(await local.getAttribute('src')).toBe(await live.getAttribute('src'));expect((await(await request.get('/api/configuration',{headers})).json()).settings.theme_colors).toEqual(before.theme_colors)
 })
-for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`stabilization visual ${theme} ${width}`,async({page,request},info)=>{
+for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`stabilization visual ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
  await request.post('/api/configuration/theme',{headers,data:{theme}});const settings=(await(await request.get('/api/configuration',{headers})).json()).settings;appendFileSync(settings.user_csv_path,'SYN_VIEW,ZO:MM:M:PR_REL_ST_G1_N1:ALL,synthetic@example.test,20000101,99991231,20000101,99991231\nSYN_VIEW,ZO:MM:M:PO_REL_ST_G2_N2:ALL,synthetic@example.test,20000101,99991231,20000101,99991231\n');expect((await request.post('/api/data-sources/users/select',{headers,data:{path:settings.user_csv_path,revision:settings.revision,mode:'dynamic'}})).ok()).toBeTruthy();await page.setViewportSize({width,height:950});await page.goto('/#session=browser-test-session')
  const capture=async(name:string)=>{expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();await page.screenshot({path:info.outputPath(`${name}-${theme}-${width}.png`)})}
  await expect(page.getByRole('region',{name:'Role Distribution',exact:true})).not.toHaveCSS('background-color','rgba(0, 0, 0, 0)');await capture('dashboard')

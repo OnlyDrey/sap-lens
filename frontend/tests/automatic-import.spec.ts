@@ -16,7 +16,7 @@ test.beforeEach(async({request,page})=>{
  await page.goto('/#session=browser-test-session');await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:'Data Sources',exact:true}).click()
 })
 test.afterEach(async({request})=>{await request.post('/api/configuration/reset',{headers});rmSync(root,{recursive:true,force:true})})
-test('file selection activates all three sources without confirmation and keeps disabled modules disabled', { tag: '@smoke' },async({page,request})=>{
+test('file selection activates all three sources without confirmation and keeps disabled modules disabled', { tag: ['@smoke', '@workflow'] },async({page,request})=>{
  const initial=await settings(request)
  for(const [label,file,source] of [['Role Catalogue',roles,'roles'],['User Access',users,'users'],['Employee Directory',employees,'employees']] as const){
   await page.getByRole('tab',{name:label,exact:true}).click()

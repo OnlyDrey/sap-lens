@@ -205,7 +205,7 @@ test('large bulk additions require confirmation and filters with no match disabl
   await expect(actions.getByRole('button', { name: 'Export role list' })).toBeDisabled()
 })
 
-test('Release Roles filters work from the keyboard and without horizontal scroll at 375 px', async ({ page }) => {
+test('Release Roles filters work from the keyboard and without horizontal scroll at 375 px', { tag: '@a11y' }, async ({ page }) => {
   await open(page)
   const area = page.getByRole('combobox', { name: 'Release Area', exact: true })
   await area.focus(); await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter')

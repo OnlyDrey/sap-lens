@@ -29,7 +29,7 @@ test('the SoD Review action tooltip is not clipped by the scrolling table region
   await expectVisible(page, page.getByRole('tooltip', { name: 'Open in SoD Review' }).first())
 })
 
-test('the tooltip flips above the anchor near the bottom of the viewport and follows keyboard focus', async ({ page }) => {
+test('the tooltip flips above the anchor near the bottom of the viewport and follows keyboard focus', { tag: '@a11y' }, async ({ page }) => {
   await page.setViewportSize({ width: 1000, height: 420 })
   await openUsers(page)
   await action(page).scrollIntoViewIfNeeded()

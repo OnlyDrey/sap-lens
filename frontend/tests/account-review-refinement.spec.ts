@@ -9,6 +9,7 @@ import {
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { headers, goTo, openFilters, closeFilters, setDescending, sortDirection, pickMulti } from './support'
+import { DEFAULT_THEME_ONLY } from './matrix'
 const fields =
   'Site;Name;SamAccountName;UserPrincipalName;Mail;Department;Title;Enabled;DistinguishedName;ManagerDN;ManagerName;ManagerSamAccountName;ManagerMail;ManagerDepartment;ManagerTitle;ManagerLookupStatus'.split(
     ';',
@@ -140,7 +141,7 @@ test('profile header, status pills, mismatch warning and manager card keep SAP i
   ).toContainText('DEMO_OPEN')
 })
 
-test('review findings, license filter, local decision persistence and spreadsheet-safe export', { tag: '@smoke' }, async ({
+test('review findings, license filter, local decision persistence and spreadsheet-safe export', { tag: ['@smoke', '@workflow'] }, async ({
   page,
   request,
 }) => {
@@ -435,7 +436,7 @@ test('source snapshot recovery persists records after removal and reload with co
 
 for (const theme of ['light', 'dark'])
   for (const width of [375, 800, 1280])
-    test(`operational review visual QA ${theme} ${width}`, async ({
+    test(`operational review visual QA ${theme} ${width}`, { tag: '@visual' }, async ({
       page,
       request,
     }, info) => {
@@ -618,7 +619,7 @@ test('calendar reopening restores the selected day and Back dismisses its portal
   await expect(calendar).toHaveCount(0)
 })
 
-for(const theme of ['light','dark']) test(`directory conflict evidence identifies source records without selecting an identity ${theme}`,async({page,request},info)=>{
+for (const theme of DEFAULT_THEME_ONLY) test(`directory conflict evidence identifies source records without selecting an identity ${theme}`,async({page,request},info)=>{
   const settings=await current(request);settings.theme=theme
   await request.post('/api/configuration',{headers,data:settings})
   const rows=[{Name:'Demo Conflict A',Mail:'open@example.test',SamAccountName:'DEMO_AD_A',Enabled:''},{Name:'Demo Conflict B',Mail:'open@example.test',SamAccountName:'DEMO_AD_B',Enabled:'false'}]
@@ -732,7 +733,7 @@ test('Account Review shows review progress beside a compact review attention lis
   await expect(page.getByRole('button', { name: 'Remove review finding Pending reviews', exact: true })).toHaveCount(0)
 })
 
-for (const theme of ['light', 'dark']) test(`Review progress takes a third and review attention two thirds of one row in ${theme}, and stack on narrow screens`, async ({ page, request }) => {
+for (const theme of ['light', 'dark']) test(`Review progress takes a third and review attention two thirds of one row in ${theme}, and stack on narrow screens`, { tag: '@visual' }, async ({ page, request }) => {
   const settings = await current(request); settings.theme = theme
   await request.post('/api/configuration', { headers, data: settings })
   await page.setViewportSize({ width: 1280, height: 900 })
@@ -770,7 +771,7 @@ for (const theme of ['light', 'dark']) test(`Review progress takes a third and r
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
 })
 
-test('review attention KPIs filter the list, combine and are keyboard operable', async ({ page }) => {
+test('review attention KPIs filter the list, combine and are keyboard operable', { tag: '@a11y' }, async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto('/#session=browser-test-session')
   await review(page)

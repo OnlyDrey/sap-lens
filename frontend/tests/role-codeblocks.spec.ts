@@ -68,7 +68,7 @@ test.describe('role codeblocks with synthetic names', () => {
   test.afterEach(async () => { await seeded.cleanup() })
 
   for (const width of [375, 800, 1280]) {
-    test(`Role Lookup cards, role details and the Access Package keep every name on one visible line at ${width}px`, async ({ page }) => {
+    test(`Role Lookup cards, role details and the Access Package keep every name on one visible line at ${width}px`, { tag: '@visual' }, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })
       await page.goto('/#session=browser-test-session'); await goTo(page, 'Role Lookup')
       await expect(shown(page, MEDIUM)).toBeVisible()
@@ -114,7 +114,7 @@ test.describe('role codeblocks with synthetic names', () => {
   })
 
   for (const width of [375, 1280]) {
-    test(`User Access and the role comparison keep names single-line at ${width}px`, async ({ page }) => {
+    test(`User Access and the role comparison keep names single-line at ${width}px`, { tag: '@visual' }, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })
       await page.goto('/#session=browser-test-session'); await goTo(page, 'User Access')
       await page.getByRole('link', { name: 'U2', exact: true }).click()
@@ -131,7 +131,7 @@ test.describe('role codeblocks in the SoD workspace', () => {
   test.afterEach(async ({ request }) => { await cleanup(request, directory) })
 
   for (const width of [375, 800, 1280]) {
-    test(`Access Explorer and Reviews show ${longRoleName.length}-character names on one line at ${width}px`, async ({ page }) => {
+    test(`Access Explorer and Reviews show ${longRoleName.length}-character names on one line at ${width}px`, { tag: '@visual' }, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })
       await openSod(page, 'Access Explorer')
       await expect(page.locator('.role-identifier code').first()).toBeVisible()

@@ -65,7 +65,7 @@ test('Dashboard and Account Review use the same mapping', async ({ page, request
   await expect(sodCard.getByRole('button', { name: 'Open remediation actions', exact: true })).toHaveAttribute('data-tone', 'warning')
 })
 
-for (const theme of ['light', 'dark']) test(`warning, danger and success values keep readable contrast in ${theme}`, async ({ page, request }) => {
+for (const theme of ['light', 'dark']) test(`warning, danger and success values keep readable contrast in ${theme}`, { tag: ['@visual', '@a11y'] }, async ({ page, request }) => {
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings; settings.theme = theme
   await request.post('/api/configuration', { headers, data: settings })
   await overview(page, POPULATED, { enabled: 5 })

@@ -40,7 +40,7 @@ test('multi-select Clear sits at the right of the field label, only shows with a
   await expect(page.getByRole('group', { name: 'Selected Risk ID', exact: true })).toBeVisible()
 })
 
-test('Clear never overlaps a long label or leaves a narrow sidebar at 375px, and is keyboard operable', async ({ page }) => {
+test('Clear never overlaps a long label or leaves a narrow sidebar at 375px, and is keyboard operable', { tag: '@a11y' }, async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 })
   await openSod(page, 'Access Explorer')
   await openFilters(page)

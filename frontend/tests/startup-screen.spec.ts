@@ -26,7 +26,7 @@ const expectCentred = (found: Awaited<ReturnType<typeof centres>>) => {
 
 test.describe('web startup document (before the application script runs)', () => {
   test.use({ javaScriptEnabled: false })
-  for (const width of WIDTHS) test(`logo, name and status share one centre at ${width}px`, async ({ page }) => {
+  for (const width of WIDTHS) test(`logo, name and status share one centre at ${width}px`, { tag: '@visual' }, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 })
     await page.goto('/')
     await expect(page.locator('[role="status"]')).toHaveText('Connecting to local service…')
@@ -44,7 +44,7 @@ test.describe('desktop startup document', () => {
     } catch { file = '' }
   })
   test.afterAll(() => rmSync(directory, { recursive: true, force: true }))
-  for (const width of WIDTHS) test(`logo, name and status share one centre at ${width}px, also while the status changes`, async ({ page }) => {
+  for (const width of WIDTHS) test(`logo, name and status share one centre at ${width}px, also while the status changes`, { tag: '@visual' }, async ({ page }) => {
     test.skip(!file, 'The desktop startup document needs the Python backend with Pillow')
     await page.setViewportSize({ width, height: 800 })
     await page.setContent(readFileSync(file,'utf8')) // same startup document; no file:// policy dependency
