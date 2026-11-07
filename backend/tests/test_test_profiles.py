@@ -40,7 +40,8 @@ class TestProfileTests(unittest.TestCase):
         for feature, entry in runner.load_map()['features'].items():
             for spec_name in entry['browser']:
                 text = (ROOT / 'frontend' / 'tests' / f'{spec_name}.spec.ts').read_text(encoding='utf-8')
-                if re.search(rf"tag:\s*'{re.escape(tag)}'", text):
+                # `tag: '@smoke'` or a list that includes it (`tag: ['@smoke', '@workflow']`), as Playwright accepts both
+                if re.search(rf"tag:\s*(?:'{re.escape(tag)}'|\[[^\]]*'{re.escape(tag)}'[^\]]*\])", text):
                     owners.setdefault(feature, []).append(spec_name)
         for feature in ('dashboard', 'role-lookup', 'user-access', 'access-package', 'account-review', 'data-sources', 'sod', 'shared-ui', 'platform', 'role-comparison'):
             self.assertIn(feature, owners, f'no {tag} browser test for {feature}')
