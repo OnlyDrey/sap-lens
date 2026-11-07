@@ -261,6 +261,28 @@ def ts_import_graph() -> dict[str, set[str]]:
     return reverse
 
 
+def page_roots_reached(path: str, ts: dict[str, set[str]]) -> set[str] | None:
+    """Page roots (profiles.page_specs) that render `path`, walking the import graph up and stopping at each root. None when the
+    file is shared: it reaches the area's container, App.tsx or any file outside the area without passing through a page root."""
+    page_specs = load_map()['profiles'].get('page_specs', {})
+    area = next((prefix for prefix in load_map()['profiles'].get('page_core_specs', {}) if path.startswith(prefix)), None)
+    if area is None:
+        return None
+    if path in page_specs:
+        return {path}
+    pages: set[str] = set()
+    seen, pending = {path}, [path]
+    while pending:
+        for importer in ts.get(pending.pop(), ()):
+            if importer in page_specs:
+                pages.add(importer)
+            elif importer not in seen:
+                if not importer.startswith(area) or not ts.get(importer):
+                    return None                                                  # escapes the area or reaches a top-level container
+                seen.add(importer); pending.append(importer)
+    return pages or None
+
+
 def plan_targeted(files: list[str]) -> dict:
     """What QUICK and TARGETED run for these changed paths. Never silent: every path is either resolved, documentation, or broadens the run."""
     mapping = load_map()
@@ -271,6 +293,7 @@ def plan_targeted(files: list[str]) -> dict:
     specs: set[str] = set()
     features: set[str] = set()
     reasons: list[str] = []
+    backend_only: set[str] = set()                                               # features reached through a page map: their backend modules, not every spec
     broad_backend = broad_browser = frontend = security = False
     for path in files:
         category = classify(path)
@@ -334,6 +357,14 @@ def plan_targeted(files: list[str]) -> dict:
             owners = set().union(*(features_for(name) for name in reached)) - {'shared-ui'}
             if '/components/Shared/' in path or '/components/Settings/ComponentLibrary' in path:
                 specs.add('component-library')
+            pages = page_roots_reached(path, ts) if len(owners) <= BROAD_FEATURES else None
+            if pages:
+                profile = mapping['profiles']
+                area = next(prefix for prefix in profile['page_core_specs'] if path.startswith(prefix))
+                page_selection = set(profile['page_core_specs'][area]).union(*(profile['page_specs'][page] for page in pages))
+                specs |= page_selection; backend_only |= owners
+                reasons.append(f"{path}: renders on {', '.join(sorted(Path(page).stem for page in pages))}: {len(page_selection)} specs")
+                continue
             if len(owners) > BROAD_FEATURES:
                 broad_browser = True; reasons.append(f'{path}: used by {len(owners)} features: regression browser set')
             elif not owners and not any(name.endswith('.spec.ts') for name in reached) and '/components/Shared/' not in path:
@@ -351,7 +382,7 @@ def plan_targeted(files: list[str]) -> dict:
             broad_backend = broad_browser = True; reasons.append(f'{path}: unmapped: whole backend and the regression browser set')
     if security:
         modules |= set(profiles['security_modules']); reasons.append('security-sensitive path: the security modules always run')
-    expanded, pending = set(features), list(features)
+    expanded, pending = features | backend_only, list(features | backend_only)
     while pending:
         for dependency in mapping.get('validation_dependencies', {}).get(pending.pop(), []):
             if dependency not in expanded:
@@ -361,7 +392,7 @@ def plan_targeted(files: list[str]) -> dict:
     for name in features - {'shared-ui'}:
         specs |= set(mapping['features'][name]['browser'])
     modules |= {m for name in mapping['change_rules']['always'] for m in mapping['features'][name]['backend']}
-    return dict(modules=sorted(modules), specs=sorted(specs), features=sorted(features), broad_backend=broad_backend, broad_browser=broad_browser,
+    return dict(modules=sorted(modules), specs=sorted(specs), features=sorted(features | backend_only), broad_backend=broad_backend, broad_browser=broad_browser,
                 browser=frontend or bool(specs) or broad_browser, frontend=frontend, security=security, reasons=reasons)
 
 

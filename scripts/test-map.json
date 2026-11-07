@@ -392,6 +392,73 @@
   ],
   "regression_browser_tags": "@smoke|@workflow|@component|@regression",
   "full_only_tags": "@integration",
+  "page_specs_comment": "TARGETED for a page-level frontend file: the import graph is walked up to these page roots; the change selects the specs that open those pages plus page_core_specs of the area. A file that reaches the container, App.tsx or files outside the area before a page root is shared and selects the whole feature.",
+  "page_specs": {
+   "frontend/src/components/Sod/SodOverview.tsx": [
+    "sod-overview-heatmap",
+    "sod-overview-actionable",
+    "sod-dashboard-startup",
+    "sod-work-queue-visual",
+    "sod-complete-bulk"
+   ],
+   "frontend/src/components/Sod/SodMatrices.tsx": [
+    "sod-assignment-decisions",
+    "sod-export-ux",
+    "sod-filters-tiles",
+    "sod-integration",
+    "sod-layout",
+    "sod-periods",
+    "sod-shared-heatmap",
+    "sod-matrix-grouping",
+    "sod-matrix-paging",
+    "sod-shared-filters",
+    "sod-reviews-r6",
+    "sod-evidence-modals",
+    "sod-user-group-column",
+    "sod-metadata"
+   ],
+   "frontend/src/components/Sod/SodExplorer.tsx": [
+    "sod-analysis",
+    "sod-assignment-decisions",
+    "sod-bulk-review",
+    "sod-filters-tiles",
+    "sod-integration",
+    "sod-layout",
+    "sod-evidence-modals",
+    "sod-complete-bulk",
+    "sod-role-evidence-review",
+    "sod-user-group-column",
+    "sod-metadata"
+   ],
+   "frontend/src/components/Sod/SodReviews.tsx": [
+    "sod-exact-groups",
+    "sod-review-coverage",
+    "sod-layout",
+    "sod-reviews-r6",
+    "sod-evidence-modals",
+    "sod-work-queue-visual",
+    "sod-review-performance",
+    "sod-complete-bulk",
+    "remediation-export",
+    "sod-bulk-review",
+    "sod-user-group-column"
+   ],
+   "frontend/src/components/Sod/SodPeriods.tsx": [
+    "sod-periods",
+    "sod-periods-dialogs",
+    "sod-shared-heatmap"
+   ],
+   "frontend/src/components/Sod/SodReports.tsx": [
+    "sod-reports",
+    "sod-export-ux",
+    "sod-shared-heatmap"
+   ],
+   "frontend/src/components/Sod/SodGroupHeatmap.tsx": [
+    "sod-shared-heatmap",
+    "sod-overview-heatmap"
+   ]
+  },
+  "page_core_specs": {"frontend/src/components/Sod/": ["sod-feature", "sod-governance", "sod-stability"]},
   "security_sensitive": [
    "backend/main.py",
    "backend/deployment.py",

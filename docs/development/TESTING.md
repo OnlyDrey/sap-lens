@@ -15,6 +15,7 @@ targeted run is not a regression result.
 | Functional page tests (untagged) | `frontend/tests/*.spec.ts` | How each screen uses its data: filters, decisions, exports, navigation, persistence | Default theme, one width, unless the behavior depends on width |
 | Layout and visual QA `@visual` | tests generated from `tests/matrix.ts` | No horizontal overflow, wrapping, geometry and placement per width; colors, contrast and focus appearance per theme | See the matrix policy below |
 | Accessibility `@a11y` | `a11y-audit`, `navigation-a11y` and tests about keyboard, focus, names, contrast | Names, tab order, visible unclipped focus, modal focus, keyboard operation | Where appearance differs, both themes |
+| API integration `@integration` | 2 tests that call the API through the real test server (`revision-consistency`, `sod-user-group-column`) | Complements backend contract tests | TARGETED and FULL only |
 | Critical workflows `@workflow` | 9 end-to-end tests (import to package, account review decisions, SoD decisions, period approval, backup/restore, saved filters across reload, bulk review history) | Complete user flows across screens and the server | Default |
 | Smoke `@smoke` | 12 tests | The fastest critical path per feature | Default |
 
@@ -85,7 +86,7 @@ four levels with isolated storage, a log directory and a timeout (`fast` = quick
 | Profile | Run it | Covers | When | Measured (Linux, 4 vCPUs, `--browser-jobs auto`) |
 | --- | --- | --- | --- | --- |
 | `quick` | `python scripts/run-tests.py quick` | Whitespace, docs links, workflow contracts, test map, Ruff; ESLint and the TypeScript check when frontend files changed; frontend unit tests; the backend modules the change reaches (release/packaging modules only when the change touches packaging). **No browser.** | After every edit | 35 to 50 s for a test-infrastructure change (96 to 439 backend tests) |
-| `targeted` | `python scripts/run-tests.py targeted` (or `targeted FEATURE ...`) | The backend modules and browser specs the change reaches, browser smoke, the security modules for security-sensitive paths | Before committing a change | Backend source change: 2 min 27 s (1,285 backend + 45 browser tests). SoD frontend change: 5 min 24 s (488 + 215) |
+| `targeted` | `python scripts/run-tests.py targeted` (or `targeted FEATURE ...`) | The backend modules and browser specs the change reaches, browser smoke, the security modules for security-sensitive paths | Before committing a change | Backend source change: 2 min 27 s (1,285 backend + 45 browser tests). SoD page change: 2 min 6 s (Periods, 6 specs) to 4 min 11 s (bulk review on Explorer and Reviews, 20 specs); a shared SoD file still runs all 31 SoD specs (5 min 24 s) |
 | `regression` | `python scripts/run-tests.py regression` | Every backend module except release/packaging (1,431 tests), the non-matrix tests of 16 critical specs, every `@smoke`, `@workflow`, `@component` and `@regression` test (123 browser tests), static checks, unit tests | Before pushing a finished phase | 4 min 42 s |
 | `full` | `python scripts/run-tests.py full` | Everything: all backend modules, all browser tests including the theme/viewport matrices, unit tests, build, static checks, and `npm audit`/`pip-audit`/PowerShell checks where available (a NOTE names each check this machine cannot run) | Before a merge or release, and in Full Validation | 17 min 42 s with 3 browser processes; the browser half alone takes 26 min with 1 process (the CI setting) |
 
@@ -102,6 +103,10 @@ is `quick`, `release` is `full`. `changed` is the conservative CI selection (who
 - A frontend file selects the specs that import it and the specs of the features whose files import it (the TypeScript import
   graph). A file used by more than four features, a stylesheet, a toolchain file or a new file with no consumer yet selects the
   REGRESSION browser set instead; a Shared component also runs `component-library`.
+- A frontend file inside a mapped area (`profiles.page_specs`, currently SoD) is walked up the import graph to the page roots that
+  render it, and selects the specs that open those pages plus the area's core specs (`page_core_specs`). A file that reaches the
+  area's container, `App.tsx` or anything outside the area first (the shared module, the investigation panel, decision status) is
+  shared and selects the whole feature. Keep the page lists current when a spec starts or stops opening a page.
 - A test file runs itself; a test helper runs the tests that import it (a browser helper used by more than 25 specs selects the
   REGRESSION browser set).
 - Security-sensitive paths (`profiles.security_sensitive`: server, deployment, routers, storage, backups, Windows identity) always add

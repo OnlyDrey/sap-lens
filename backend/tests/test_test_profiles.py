@@ -123,6 +123,29 @@ class RiskBasedSelectionTests(unittest.TestCase):
         full_only = set(filter(None, profiles.get('full_only_tags', '').split('|')))
         self.assertFalse(full_only & set(profiles['regression_browser_tags'].split('|')), 'a full-only tag cannot also select REGRESSION tests')
 
+    def test_sod_page_changes_select_that_pages_specs_and_shared_files_select_all(self):
+        mapping = runner.load_map(); everything = set(mapping['features']['sod']['browser'])
+        core = set(mapping['profiles']['page_core_specs']['frontend/src/components/Sod/'])
+        periods = self.plan('frontend/src/components/Sod/SodLegacyReview.tsx')                 # imported only by the Periods page
+        self.assertEqual(set(periods['specs']), core | set(mapping['profiles']['page_specs']['frontend/src/components/Sod/SodPeriods.tsx']))
+        bulk = set(self.plan('frontend/src/components/Sod/SodBulkReview.tsx')['specs'])      # renders on Access Explorer and Reviews
+        self.assertIn('sod-bulk-review', bulk); self.assertIn('remediation-export', bulk); self.assertLess(len(bulk), len(everything))
+        self.assertIn('test_sod_governance', periods['modules'])                              # backend coverage of the feature is unchanged
+        for shared in ('frontend/src/components/Sod/SodShared.tsx', 'frontend/src/components/Sod/SodWorkspace.tsx', 'frontend/src/components/Sod/SodRemediation.tsx'):
+            self.assertLessEqual(everything, set(self.plan(shared)['specs']), shared)           # container, shared module, investigation panel
+        self.assertLessEqual(everything, set(self.plan('frontend/src/components/Sod/SodPeriods.tsx', 'backend/sod_periods.py')['specs']))
+
+    def test_page_map_names_existing_roots_and_specs(self):
+        profiles = runner.load_map()['profiles']
+        for root, specs in profiles['page_specs'].items():
+            self.assertTrue((ROOT / root).exists(), root)
+            self.assertTrue(any(root.startswith(area) for area in profiles['page_core_specs']), root)
+            for spec in specs:
+                self.assertTrue((ROOT / 'frontend' / 'tests' / f'{spec}.spec.ts').exists(), spec)
+        for specs in profiles['page_core_specs'].values():
+            for spec in specs:
+                self.assertTrue((ROOT / 'frontend' / 'tests' / f'{spec}.spec.ts').exists(), spec)
+
     def test_quick_defers_packaging_only_when_the_change_does_not_touch_packaging(self):
         source = (ROOT / 'scripts' / 'run-tests.py').read_text(encoding='utf-8')
         self.assertIn("direct_release = set(plan['features']) & set(mapping['profiles']['release_features'])", source)
