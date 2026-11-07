@@ -392,7 +392,7 @@ else is an internal helper and is not a supported entrypoint.
 | Orchestrators | package-windows-deployment.ps1 | KEEP | Windows desktop/service packaging steps shared by local and CI builds |
 | Windows helpers | build-desktop-installer.ps1, build-server-windows.ps1, build-service-manager.ps1, manage-server-service.ps1 | KEEP | Inno installer, service bundle, service-manager compile and the shipped service management script (need Windows/.NET) |
 | Windows tests | test-windows-exe.ps1, test-desktop-installer.ps1, test-server-service.ps1 | KEEP | Native EXE, installer and service smoke tests run by the packaging scripts |
-| Windows tests | test-service-management.ps1 | KEEP (debt) | Portable service-helper regression test; only parse-checked by check-powershell.ps1 and not executed by any build step. Wire it into the service stage on a Windows host before relying on it |
+| Windows tests | test-service-management.ps1 | KEEP | Portable service-helper regression test (state transitions, configuration reading, secret-repair guards); executed by check-powershell.ps1, so it runs wherever that check runs, including PowerShell 7 on Linux (`backend/tests/test_powershell.py`). No SCM operation is executed |
 | Linux/Docker | deployment-package.py, install-linux-server.py, run-installed-server.py, testing/test-native-deployment.py | KEEP | Native Linux archive, installer, runtime launcher and offline install smoke test (Python only) |
 | Linux/Docker | deployment/package-docker.py, testing/test-docker-deployment.py, testing/test-docker-lifecycle.py | KEEP | Docker image archive and its runtime/persistence smoke tests |
 | Release | deployment/deployment-release.py, deployment/check-deployment-download.py | KEEP | Plan/preflight/publish gates and downloaded-artifact check for the deployment workflow |
@@ -401,7 +401,7 @@ else is an internal helper and is not a supported entrypoint.
 | Validation | testing/serve-browser-tests.py, sync-lucide-catalog.mjs, frontend-licenses.mjs, product-version.mjs, requirements-audit.txt | KEEP | Browser test server, icon catalogue check, license and version generators, audit tooling pins |
 | Development | maintenance/validation_tracker.py, maintenance/generate-examples.py, maintenance/reference-template.py, benchmarks/profile-sod.py, benchmarks/data_benchmark.py | KEEP | Tracker tooling, deterministic example generator, SoD profiling and reference template; separate from the build engine by design |
 
-Remaining debt: `test-service-management.ps1` is not executed by any build step; the legacy `build-windows.ps1` stage engine and the deployment
+Remaining debt: the legacy `build-windows.ps1` stage engine and the deployment
 builder still own sequencing that could later move into Python, which needs real Windows parity testing first.
 
 ## Python ports of the Windows build scripts and their validation checklist

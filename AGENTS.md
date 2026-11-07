@@ -39,9 +39,11 @@ Verified against `backend/requirements*.txt`, `frontend/package.json` and config
 From the repository root (full list and risk-based selection:
 [Testing](docs/development/TESTING.md)).
 
-- Profiles: `python scripts/run-tests.py smoke | targeted <feature>... | regression | release`
+- Profiles: `python scripts/run-tests.py smoke | targeted <feature>... | regression | release`; browser categories by tag
+  (`@visual`, `@a11y`, `@workflow`, `@component`, `@smoke`) and theme/viewport rules are in [Testing](docs/development/TESTING.md#test-architecture)
   (`list` shows features; ownership in `scripts/test-map.json`, see [Testing](docs/development/TESTING.md)).
-- Backend: `python -m unittest discover -s backend/tests -v` in a Python 3.12 venv
+- Backend: `python scripts/run-tests.py regression --backend` (quiet, buffered; `--test NAME` for one test) or
+  `python -m unittest discover -s backend/tests -v` in a Python 3.12 venv
   with `backend/requirements-dev.txt`; one module with `-p test_<name>.py`.
 - Frontend, in `frontend`: `npm ci`, `npm run check:types`, `npm run lint`, `npm run build`,
   `npm run test:browser`. Build first: Playwright serves `dist` through

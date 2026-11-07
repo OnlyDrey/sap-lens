@@ -5,9 +5,77 @@ repository root. Never report a check as passed unless it executed; a smoke or
 targeted run is not a regression result.
 
 
+## Test architecture
+
+| Layer | Where | What it proves | Theme / viewport |
+| --- | --- | --- | --- |
+| Backend unit and integration | `backend/tests/test_*.py` (`unittest`, 1,760 tests) | Business rules, import, storage, security, SoD governance, packaging scripts | n/a |
+| Frontend unit | `frontend/tests/unit/*.test.ts` (`node --test`) | Pure client logic (formatting, session, bulk selection) | n/a |
+| Component behavior `@component` | `frontend/tests/component-library.spec.ts` against Settings > Component Library | Generic behavior of shared production components: selection, removal, toggling, validation, confirmation, focus, ARIA | Behavior once in light; focus ring and fit in both themes at 375 and 1280 px |
+| Functional page tests (untagged) | `frontend/tests/*.spec.ts` | How each screen uses its data: filters, decisions, exports, navigation, persistence | Default theme, one width, unless the behavior depends on width |
+| Layout and visual QA `@visual` | tests generated from `tests/matrix.ts` | No horizontal overflow, wrapping, geometry and placement per width; colors, contrast and focus appearance per theme | See the matrix policy below |
+| Accessibility `@a11y` | `a11y-audit`, `navigation-a11y` and tests about keyboard, focus, names, contrast | Names, tab order, visible unclipped focus, modal focus, keyboard operation | Where appearance differs, both themes |
+| Critical workflows `@workflow` | 9 end-to-end tests (import to package, account review decisions, SoD decisions, period approval, backup/restore, saved filters across reload, bulk review history) | Complete user flows across screens and the server | Default |
+| Smoke `@smoke` | 12 tests | The fastest critical path per feature | Default |
+
+There is no screenshot-comparison (pixel) regression: `page.screenshot({ path })` in visual QA tests only writes review artifacts to
+`frontend/test-results`. What a visual test proves is in its assertions (overflow, geometry, computed colors, focus outline).
+
+### Theme and viewport matrix policy
+
+The Playwright configuration has no projects; each test chooses its own variants, explicitly, from `frontend/tests/matrix.ts`:
+
+- **Theme-sensitive assertions** (computed colors, contrast, borders, focus outline): an explicit `for (const theme of THEMES)` loop.
+- **Theme-independent layout** (overflow, geometry, wrapping, behavior at a width): `for (const { theme, width } of layoutMatrix([375, 800, 1280, 1600]))`,
+  which runs every width in light and dark once at 1280 px (or the widest width) so dark rendering of that screen stays exercised.
+- **Theme-independent behavior without a width dimension**: `DEFAULT_THEME_ONLY` or no loop at all.
+
+Before choosing, read what the test asserts, not its title. In November 2026, 25 generated groups whose bodies never read the theme
+(only applied it) moved to `layoutMatrix`/`DEFAULT_THEME_ONLY`: 909 to 857 executions, all four widths and dark rendering retained.
+
+### Component Library as the shared-component fixture
+
+Settings > Component Library renders the **production** Shared components (no demo copies) with synthetic data. Generic behavior of a shared
+component is tested there once (`component-library.spec.ts`, previews in `ComponentLibraryStates.tsx` and `ComponentLibrary.tsx`); a page
+spec tests only what the page adds (its data, filter semantics, decisions). New shared components get a preview with stable accessible
+names and, when they have interactive behavior, a test in `component-library.spec.ts`. The library is part of Settings and holds no real data.
+
+### Backend output and logging policy
+
+- `run-tests.py` runs backend tests **buffered**: a test's stdout, stderr and application log lines are shown only when that test fails, with
+  its traceback. Expected diagnostics of negative tests (CSV retained, retention retried, synthetic packaging and release reports) therefore
+  stay out of a passing run, and nothing is suppressed globally: application logging is unchanged.
+- Negative tests whose purpose is a logged diagnostic assert it with `self.assertLogs(logger, level)` (example: the CSV preservation tests in
+  `test_application.py`), which both proves the message and keeps it off the console.
+- `ResourceWarning`s (unclosed files, sockets, pipes) are collected and listed in the summary instead of disappearing in the buffer.
+- A worker prints a heartbeat (`[backend 2/3] 812 tests, 0 failed, 90s`) every 30 s (`SAP_LENS_TEST_HEARTBEAT`, `0` disables).
+- `--verbose` shows one line per test and unbuffered output, the mode for debugging what a test prints.
+
+## Common tasks
+
+| Question | Command |
+| --- | --- |
+| Run only backend tests | `python scripts/run-tests.py regression --backend` (quiet, three processes) |
+| Run one failing backend test | `python scripts/run-tests.py targeted --test test_sod_reports.FormalReportTests.test_status_labels_distinguish_draft_reviewed_approved_and_external_signature` (module, class or method; repeat `--test`) |
+| Plain `unittest`, without the runner | `cd backend/tests && python -m unittest -b --durations 10 test_sod_reports` (`-b` buffers output like the runner) |
+| Only frontend functional tests | `npm --prefix frontend run test:functional` (everything not tagged `@visual`, `@a11y` or `@component`) |
+| Validate the Component Library | `npm --prefix frontend run test:component` |
+| Accessibility tests | `npm --prefix frontend run test:a11y` |
+| Layout and visual QA | `npm --prefix frontend run test:visual` |
+| Critical workflows | `npm --prefix frontend run test:workflow` |
+| The complete suite | `python scripts/run-tests.py regression` (add `--browser-jobs auto` on 4+ CPUs) |
+| Keep a log | add `--log build/test-logs/run.log`; `validate.py` writes `build/validation/<UTC timestamp>/` |
+| Find slow tests | `--slowest 20` (backend and browser; regression lists 10 by default) |
+| Which tests need native Windows | the platform rows of the [validation matrix](../deployment/README.md#validation-status); Linux runs never prove them |
+
+Browser commands need a current build (`npm --prefix frontend run build`) and, on a prepared host, `PLAYWRIGHT_EXECUTABLE_PATH`.
+Run `--workers=1 --retries=0` while investigating; never add retries to hide a flaky test.
+
+
 ## PowerShell 7 on Linux
 
 `backend/tests/test_powershell.py` runs when `pwsh` is installed (Microsoft's `packages-microsoft-prod` apt repository for Ubuntu/Debian, `apt-get install powershell`) and is skipped otherwise. It checks that every `.ps1` parses, `build.ps1` parameter binding (including `-CheckOnly`, `-Repair`, `-Json`), interpreter probing with paths containing spaces, exit-code propagation, a bounded hung child, and that `prerequisites --check-only` through PowerShell is read-only. It does not cover Windows PowerShell 5.1, Windows APIs or native paths; those stay in the native Windows acceptance list. Hosted Linux runners ship `pwsh`, so the file adds about ten seconds to the existing backend job and needs no extra workflow. `scripts/check-powershell-compat.ps1` (also run by `check-powershell.ps1`) is a built-in AST analysis, with no extra module, for constructs Windows PowerShell 5.1 lacks: ternary, `??`, `?.`, `&&`/`||`, PowerShell 7-only parameters, cmdlets, variables (`$IsWindows`) and .NET Core-only APIs, plus warnings for encoding defaults, `Start-Process -ArgumentList` quoting and literal quotes in native arguments. Errors fail, warnings inform. It is static: it cannot prove that 5.1 runs a script, and successful PowerShell 7 execution is not evidence for 5.1. PSScriptAnalyzer was not available in the sandbox (PowerShell Gallery blocked) and has not been run.
+
 ## Profiles
 
 One entry point, `scripts/run-tests.py` (standard library only; Windows and Linux),
@@ -23,7 +91,8 @@ selects tests from [`scripts/test-map.json`](../../scripts/test-map.json).
 
 Useful switches: `--backend` / `--browser` (one side), `--jobs N` (parallel processes;
 `auto` by default, `1` disables), `--browser-jobs N|auto` (browser processes, at most 3; see below), `--grep TEXT` (Playwright title filter), `--no-build`
-(trust an existing `frontend/dist`), `--list-tests`, `--report FILE` (JSON summary).
+(trust an existing `frontend/dist`), `--list-tests`, `--report FILE` (JSON summary), `--test NAME` (backend unittest names, with `targeted`),
+`--verbose`, `--slowest N`, `--log FILE`.
 `python scripts/run-tests.py list` shows the features; `check` validates the map.
 The runner rebuilds the frontend for browser profiles only when sources are newer than
 `frontend/dist`. Skipped tests and their reasons are printed with every run, and
@@ -35,7 +104,7 @@ acceptance belong to the manual build workflows and the
 [validation matrix](../deployment/README.md#validation-status); a Linux run never
 proves them.
 
-Underlying commands (still valid on their own): `python -m unittest discover -s backend/tests -v`,
+Underlying commands (still valid on their own): `python -m unittest -b discover -s backend/tests` (`-b` keeps expected diagnostics out of a passing run),
 `npm --prefix frontend run build`, `npm --prefix frontend run test:browser -- tests/<file>.spec.ts --grep <title>`,
 `python scripts/check-docs.py`, `python scripts/check-workflows.py`,
 `node scripts/sync-lucide-catalog.mjs --check`, `git diff --check`. A prepared host may

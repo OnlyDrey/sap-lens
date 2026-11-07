@@ -273,3 +273,11 @@ Staged migration, each stage gated on evidence from a Windows host (a local Wind
   into `build.log` instead of `Start-Transcript`). The environment is private to the children instead of modified and restored.
 * Tests: 8 more cases in `test_windows_ports.py` (full stage sequence of every mode, stage runner arguments, receipts, service bundle step, guards, Node/npm versions, held lock, cleanup guard, failure summary and lock release).
 * **Result of the staged migration: six build scripts have verified-by-contract Python ports; none is verified on Windows, so all six PowerShell originals remain.** The PowerShell file count stays at 13 until the checklist is run.
+
+## Follow-up: test architecture (November 2026)
+
+- L8 resolved: `check-powershell.ps1` executes `test-service-management.ps1`, so the portable service helpers run wherever that check runs
+  (including PowerShell 7 on Linux); the native SCM path still needs Windows.
+- The test architecture, matrix policy, component testing and output policy are documented in [TESTING.md](TESTING.md#test-architecture).
+- `.gitignore` now also covers `.venv.broken-*` (environments set aside by the prerequisites repair) and Playwright blob reports.
+

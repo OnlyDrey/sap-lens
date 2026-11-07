@@ -21,6 +21,8 @@ __pycache__/
 .ruff_cache/
 .venv/
 venv/
+# Environments set aside by `build.ps1 -Mode prerequisites -Repair` (kept for inspection, never committed)
+.venv.broken-*/
 
 # PyInstaller
 backend/build/
@@ -55,6 +57,7 @@ htmlcov/
 # Browser test artifacts
 /frontend/test-results/
 /frontend/playwright-report/
+/frontend/blob-report/
 
 # User-owned application data (generic fixtures remain versioned)
 *.csv
