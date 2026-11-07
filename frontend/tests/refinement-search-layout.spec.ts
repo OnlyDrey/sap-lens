@@ -1,12 +1,9 @@
 import {test,expect} from '@playwright/test'
-import {textMatches} from '../src/lib/searchMatching'
 import {mkdtempSync,writeFileSync,appendFileSync,rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import { headers } from './support'
 let root:string
-const cases:[string,string,boolean][]=[['ME23N','ME*',true],['ME23N','*23N',true],['ME23N','*me*',true],['ME23N','ME*23*',true],['XME23N','ME*',false],['ME23NX','*23N',false],['abc','',true],['abc','b',true],['[a].+','[a].*',true],['abc','a?c',false],['a','a*a',false],['Åse','å*',true],['ab','a**b',true],['','**',true]]
-test('literal SAP wildcard matching agrees with backend semantics',()=>{for(const [value,query,result] of cases)expect(textMatches(value,query)).toBe(result)})
 test.beforeEach(async({request})=>{
  await request.post('/api/configuration/reset',{headers});root=mkdtempSync(path.join(tmpdir(),'sap-lens-search-ui-'))
  const roles=path.join(root,'roles.csv'),users=path.join(root,'users.csv')

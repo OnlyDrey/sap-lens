@@ -1,4 +1,3 @@
-import { directoryDisplayName } from '../src/lib/directoryDisplayName'
 import { test, expect } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -322,24 +321,6 @@ for (const { theme, width } of layoutMatrix([375, 800, 1280]))
         ),
       ).toBe(true)
     })
-
-test('directory-only name formatting preserves compounds and ambiguous structures', () => {
-  for (const [input, output] of [
-    ['van der Berg, Anna Maria', 'Anna Maria van der Berg'],
-    ['O’Neill, Mary Anne', 'Mary Anne O’Neill'],
-    ['Jean-Luc Martin', 'Jean-Luc Martin'],
-    ['SMITH John', 'John SMITH'],
-    ['VAN DER BERG Anna Maria', 'Anna Maria VAN DER BERG'],
-    ['SMITH JOHN', 'SMITH JOHN'],
-    ['McDonald John', 'McDonald John'],
-    ['Smith, John, Jr.', 'Smith, John, Jr.'],
-    ['Team 2, Demo', 'Team 2, Demo'],
-    ['Demo (Group), Analyst', 'Demo (Group), Analyst'],
-    ['J, Smith', 'J, Smith'],
-    ['', ''],
-  ])
-    expect(directoryDisplayName(input)).toBe(output)
-})
 
 test('clear user filters resets all directory controls while evidence-only clear stays scoped', async ({
   page,

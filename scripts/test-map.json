@@ -17,7 +17,6 @@
     "test_investigation_filters"
    ],
    "browser": [
-    "saved-filter-migration",
     "consolidated-role-ui",
     "investigation-filter-refinement",
     "live-filters-polish",
@@ -398,7 +397,6 @@
   "remediation-export": 12,
   "role-codeblocks": 16,
   "role-visuals": 19,
-  "saved-filter-migration": 0,
   "scheduled-refresh": 9,
   "secondary-navigation-icons": 11,
   "select-family": 25,

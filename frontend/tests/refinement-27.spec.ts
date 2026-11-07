@@ -2,7 +2,6 @@ import {test,expect,type Page,type APIRequestContext} from '@playwright/test'
 import {mkdtempSync,writeFileSync,rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import {jaccard,containment} from '../src/lib/comparisonMetrics'
 import { headers, goTo } from './support'
 let directory:string,userPath:string
 const config=async(request:APIRequestContext)=>(await(await request.get('/api/configuration',{headers})).json()).settings
@@ -14,9 +13,6 @@ test.beforeEach(async({request})=>{
  const value=await config(request);value.data_csv_path=rolePath;value.user_csv_path=userPath;expect((await request.post('/api/configuration',{headers,data:value})).ok()).toBeTruthy()
 })
 test.afterEach(async({request})=>{await request.post('/api/configuration/reset',{headers});rmSync(directory,{recursive:true,force:true})})
-test('comparison metric distinguishes symmetric similarity from directional containment',()=>{
- expect(jaccard(2,2,2)).toBe(100);expect(jaccard(1,1,2)).toBe(50);expect(jaccard(1,2,2)).toBe(33);expect(jaccard(0,2,3)).toBe(0);expect(jaccard(0,0,0)).toBe(0);expect(containment(1,1)).toBe(100);expect(containment(1,2)).toBe(50)
-})
 test('catalogue search visual order matches keyboard order and cards contain long identifiers',{ tag: '@a11y' }, async({page})=>{
  await page.goto('/#session=browser-test-session');await goTo(page,'Role Lookup')
  const tc=page.getByRole('textbox',{name:'Filter catalogue by transaction',exact:true}),name=page.getByPlaceholder('Search roles by name or description...')

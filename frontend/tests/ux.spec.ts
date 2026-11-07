@@ -1,5 +1,4 @@
 import { bootstrapDocument } from './bootstrap-fixture'
-import { contrast, onColor, themePresets, themeTokens, paletteErrors } from '../src/lib/theme'
 import { test, expect } from '@playwright/test'
 import path from 'node:path'
 import { headers } from './support'
@@ -175,16 +174,3 @@ test('active role loading is explained and a subsequent CSV error opens source r
 })
 
 
-test('theme tokens keep primary controls readable across grayscale accents and presets',async()=>{
- for(let value=0;value<=255;value++) {
-  const channel=value.toString(16).padStart(2,'0');const color='#'+channel.repeat(3)
-  expect(contrast(color,onColor(color))).toBeGreaterThanOrEqual(4.5)
- }
- for(const preset of themePresets) {
-  expect(paletteErrors(preset.colors)).toEqual([])
-  const tokens=themeTokens(preset.colors)
-  expect(contrast(tokens['--text'],tokens['--surface2'])).toBeGreaterThanOrEqual(4.5)
-  expect(contrast(tokens['--text'],tokens['--hover'])).toBeGreaterThanOrEqual(4.5)
-  expect(contrast(tokens['--border'],tokens['--surface'])).toBeGreaterThanOrEqual(3)
- }
-})

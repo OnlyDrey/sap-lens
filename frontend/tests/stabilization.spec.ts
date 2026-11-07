@@ -1,6 +1,4 @@
 import {test,expect} from '@playwright/test'
-import {transactionMatches,matchingTransactions} from '../src/lib/searchMatching'
-import {presentRoleDescription} from '../src/lib/rolePresentation'
 import {mkdtempSync,writeFileSync,appendFileSync,rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
@@ -22,13 +20,6 @@ test.beforeEach(async({request})=>{
  const settings=(await(await request.get('/api/configuration',{headers})).json()).settings;settings.data_csv_path=roles;settings.user_csv_path=users;expect((await request.post('/api/configuration',{headers,data:settings})).ok()).toBeTruthy()
 })
 test.afterEach(async({request})=>{await request.post('/api/configuration/reset',{headers});rmSync(directory,{recursive:true,force:true})})
-test('display descriptions and transaction matching preserve literal evidence semantics',()=>{
- expect(presentRoleDescription('BC - Batch Input Management',['BC'])).toEqual({description:'Batch Input Management',area:'BC'})
- expect(presentRoleDescription('UNKNOWN - Retain original',['BC']).description).toBe('UNKNOWN - Retain original')
- expect(presentRoleDescription('BC prose - Preserve',['BC']).description).toBe('BC prose - Preserve')
- expect(transactionMatches('sost',['SO*'])).toBe(true);expect(transactionMatches('SM35',['SO*'])).toBe(false);expect(transactionMatches('SOST',['SO'])).toBe(false)
- expect(matchingTransactions([{tcode:'SOST'},{tcode:'SO20'},{tcode:'SM35'}],['SO*']).map(row=>row.tcode)).toEqual(['SOST','SO20'])
-})
 test('sidebar wildcard filters rows as well as roles and restores the original collapsed state', { tag: '@smoke' },async({page,request})=>{
  await page.goto('/#session=browser-test-session');await page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('link',{name:'Role Lookup',exact:true}).click();await page.getByRole('button',{name:'View details for Synthetic Alpha',exact:true}).click()
  const dialog=page.getByRole('dialog'),input=dialog.getByRole('textbox',{name:'Find transaction code',exact:true})

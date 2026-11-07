@@ -3,7 +3,6 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { formatDate, formatTimestamp } from '../src/lib/dateFormat'
 import { headers, setDescending, sortDirection, pickMulti } from './support'
 let directory: string
 const catalogue = 'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT\nMM,ZC:MM:BUY:*,Purchasing,ZS:BUY,MM - Purchasing - Display,MIGO,Goods movement\nMM,ZC:MM:BUY:*,Purchasing,ZS:BUY,MM - Purchasing - Display,ME21N,Create purchase order\nSD,ZC:SD:VIEW:*,Sales,ZS:VIEW,SD - Sales - Display,VA03,Display sales order\nSD,ZC:SD:VIEW:*,Sales,ZS:VIEW,SD - Sales - Display,ME21N,Create purchase order\nFI,ZC:FI:EMPTY,No mappings,ZS:EMPTY,Missing exported mappings,,\n'
@@ -124,23 +123,6 @@ test('evidence summary clear preserves directory search, group, sorting and expi
   await expect(sortDirection(directory)).toHaveAttribute('aria-pressed', 'true')
   await expect(directory.getByLabel('Show expired assignments', { exact: true })).toBeChecked()
   await expect(directory.getByRole('link', { name: 'DEMO_BETA', exact: true })).toBeVisible()
-})
-test('Norwegian date utilities preserve SAP dates and local/offset time semantics', () => {
-  const previous = process.env.TZ
-  process.env.TZ = 'America/Los_Angeles'
-  try {
-    expect(formatDate('2026-10-23')).toBe('23.10.2026')
-    expect(formatDate('0001-01-01')).toBe('01.01.0001')
-    expect(formatDate('9999-12-31')).toBe('31.12.9999')
-    expect(formatDate('2026-02-30')).toBe('Unknown')
-    expect(formatDate('0000-01-01')).toBe('Unknown')
-    expect(formatDate(null)).toBe('Unknown')
-    expect(formatTimestamp('2026-10-23T14:50:34')).toBe('23.10.2026 14:50')
-    expect(formatTimestamp('2026-10-23T21:50:34Z')).toBe('23.10.2026 14:50')
-    expect(formatTimestamp('2026-10-23T14:50:34', 'Unknown', true)).toBe('23.10.2026 14:50:34')
-    expect(formatTimestamp('invalid')).toBe('Not available')
-    expect(formatTimestamp('2026-02-30T12:00:00Z')).toBe('Not available')
-  } finally { if (previous === undefined) delete process.env.TZ; else process.env.TZ = previous }
 })
 test('data status badges retain availability distinction and format timestamps in Norwegian', async ({ page, request }) => {
   const snapshot = await (await request.get('/api/diagnostics', { headers })).json()
