@@ -222,6 +222,11 @@ change, browser smoke and changed specs for frontend changes); the manual Full V
   `test-results` directory.
 - *Timing failures under load*: replace sleeps with assertions, the clock or reduced
   motion; do not add retries.
+- *Failure only in a 3-process run*: look for a one-shot read after an asynchronous action (`expect(await x.count())`,
+  `await x.textContent()` used as a baseline, reading the clipboard right after a click) and wait for the application's own signal
+  instead (`toHaveCount`, `expect.poll`, the status message the action announces). To reproduce, copy the spec to a temporary file
+  and add `test.beforeEach` with CDP CPU throttling (`Emulation.setCPUThrottlingRate`, rate 6 to 10) plus a `page.route('**/api/**')`
+  that delays each request randomly before `route.fallback()`; run it with `--repeat-each`. Delete the copy afterwards.
 
 ## Evidence and limits
 

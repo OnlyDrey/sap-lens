@@ -166,6 +166,8 @@ test('bulk actions add, copy and export distinct filtered roles without changing
   const actions = page.getByRole('group', { name: 'Release actions' })
   await expect(actions.getByRole('button', { name: 'Add filtered roles' })).toBeEnabled()
   await actions.getByRole('button', { name: 'Copy role names' }).click()
+  // Copying fetches the filtered roles and writes the clipboard asynchronously; read it only after the application reports completion.
+  await expect(page.getByRole('status').filter({ hasText: 'Copied 2 release role names.' })).toBeVisible()
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`${E3}\n${E2}`.split('\n').sort((a, b) => a.localeCompare(b)).join('\n'))
   await actions.getByRole('button', { name: 'Add filtered roles' }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Added 2 release roles to the access package; 0 already selected.' })).toBeVisible()
