@@ -43,7 +43,7 @@ Windows regression follow-up (backend run 1,724 tests, 5 failures, 3 errors, 46 
 
 | Environment | Verified | Not verified |
 | --- | --- | --- |
-| Linux native (Python 3.12.3, Node 22 in the sandbox) | Full regression (7 Nov 2026, `run-tests.py regression --browser-jobs auto`): backend 1,763 tests OK, 2 skipped (build-only PyInstaller / PE-resource tests); browser 867 tests OK, 0 skipped, 3 processes; build with TypeScript check, docs, workflow contracts, Lucide catalog, ruff, ESLint (0 errors, 115 warnings), `pip check`; frontend unit 27 OK | Node 24 LTS |
+| Linux native (Python 3.12.3, Node 22 in the sandbox) | FULL (7 Nov 2026, `run-tests.py full`): backend 1,774 tests OK, 2 skipped (build-only PyInstaller / PE-resource tests); build, docs, workflow contracts, Lucide, ruff, ESLint (0 errors, 115 warnings), `pip check`, frontend unit 36 OK, `npm audit`, `pip-audit`, PowerShell checks; browser 858 tests OK with 1 process after the count-race fix (`4d46ea9`). Earlier 3-process runs had one intermittent browser failure each (see PROGRESS.md) | Node 24 LTS; actionlint |
 | PowerShell 7.6.9 on Linux | Parse of every `.ps1`, parameter binding, argument forwarding, paths with spaces, exit codes, bounded hung child, read-only `prerequisites --check-only`, real `--repair` | PSScriptAnalyzer (PowerShell Gallery blocked) |
 | PowerShell 5.1, static | `check-powershell-compat.ps1`: 0 errors, 9 warnings (encoding defaults/BOM, redirection, `Start-Process` quoting) | Any 5.1 execution; static analysis cannot prove runtime behavior |
 | Simulated Windows | DACL policy, secret lifecycle, tie-sensitive clocks, symlink skip, `.cmd` probe stub, `nt` branches with mocked APIs | The real APIs these mock |

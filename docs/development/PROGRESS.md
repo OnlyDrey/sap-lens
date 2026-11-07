@@ -325,3 +325,21 @@ The daily backup time is a fixed-format `HH:mm` text field (`TimeInput24`) inste
   PowerShell check 0 errors. Earlier reference (1 Nov, same runner type, different test set): 731 browser tests in 4,265 process-seconds.
   Backend log of a passing run: 40 lines, none of them test output.
 - **Not verified:** native Windows (backend and browser), Windows PowerShell 5.1 execution; Node 24 (the sandbox has Node 22).
+
+## Test suite consolidation and risk-based profiles (November 2026)
+
+- **Audit (measured):** backend 1,763 tests in 109 modules, 234.6 s on one process (92 s on three); browser 867 executions, 625 unique
+  scenarios, 2,811 process-seconds. No literal duplicates in either suite (AST and normalized-body comparison). Screenshots cost about
+  31 s per run (1%). Nine Playwright tests exercised pure `src/lib` functions without a page; two others checked only the API.
+- **Profiles:** `quick` (no browser, change-aware), `targeted` (import-graph selection), `regression` (curated, 1,431 backend + 123 browser
+  tests), `full` (everything, release checks included). `fast`/`release` remain aliases; CI `changed` is unchanged; `validate.py` delegates.
+  Coverage map fields (owner, criticality, platform) and a `profiles` block in `test-map.json`.
+- **Moved:** 9 Playwright tests to `frontend/tests/unit` with one-to-one assertions; `saved-filter-migration.spec.ts` removed.
+- **Fixed on the way:** Playwright imported and ran the `node:test` files (testMatch); `--log` missed stderr; parallel shard failures could
+  print no error (now taken from the JSON report); nine one-shot `count()` reads raced rendering under load (one confirmed failure).
+- **Measured (Linux, 4 vCPUs, 3 browser processes unless noted):** QUICK 11 to 50 s (old per-edit `fast`: 65 s, smoke only); TARGETED
+  2 min 27 s (backend change) and 5 min 24 s (SoD frontend change); REGRESSION 4 min 42 s (the old `regression` was the complete suite,
+  18 min 11 s); FULL 17 min 42 s, with one intermittent browser failure in each of three 3-process runs (different tests; one root-caused
+  and fixed, two not reproducible alone or under a 3-process stress run); browser half with 1 process after the fix: 858/858, 26 min.
+- **Open:** confirmation for removing two API-only browser tests with near-equivalent backend tests; 1600 px variants are only partly
+  redundant (Diagnostics changes layout at 1400 px); native Windows unverified.
