@@ -343,3 +343,16 @@ The daily backup time is a fixed-format `HH:mm` text field (`TimeInput24`) inste
   and fixed, two not reproducible alone or under a 3-process stress run); browser half with 1 process after the fix: 858/858, 26 min.
 - **Open:** confirmation for removing two API-only browser tests with near-equivalent backend tests; 1600 px variants are only partly
   redundant (Diagnostics changes layout at 1400 px); native Windows unverified.
+
+## Follow-up: integration tests, 3-process stability and SoD selection (November 2026)
+
+- `revision-consistency` (API revision through `/api/refresh`) and the SoD export group-column check stay: tagged `@integration`,
+  excluded from REGRESSION through `profiles.full_only_tags`, run by TARGETED and FULL.
+- 3-process intermittents: `release-roles` read the clipboard before the asynchronous copy finished (reproduced 4 of 6 runs with CDP
+  CPU throttling and random API latency; fixed by waiting for the application's announcement, 10 of 10 under the same load);
+  `sod-reviews-r6` counted tiles before they rendered (fixed earlier). `session-recovery` and `investigation-filter-refinement`
+  did not reproduce under x10 throttling and 1.5 s latency; no speculative change, and failures now print their error.
+- SoD TARGETED: page-level selection through the import graph (`profiles.page_specs`); Periods change 2 min 6 s, bulk review 4 min 11 s,
+  shared SoD files still all 31 specs.
+- FULL, one uninterrupted run with 3 browser processes: backend 1,776 OK (2 skipped), browser 858 OK, all static, unit, audit and
+  PowerShell checks OK, 18 min 11 s. Native Windows unverified.
