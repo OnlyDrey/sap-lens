@@ -43,7 +43,7 @@ Windows regression follow-up (backend run 1,724 tests, 5 failures, 3 errors, 46 
 
 | Environment | Verified | Not verified |
 | --- | --- | --- |
-| Linux native (Python 3.12.3, Node 22 in the sandbox) | Backend 1,760 tests OK, 2 skipped (build-only PyInstaller / PE-resource tests); ruff, docs, test-map, workflow contracts, tsc, ESLint (0 errors, 115 warnings), production build; 107 targeted Playwright tests, one worker | Node 24 LTS; full 909-test Playwright suite not rerun |
+| Linux native (Python 3.12.3, Node 22 in the sandbox) | Full regression (7 Nov 2026, `run-tests.py regression --browser-jobs auto`): backend 1,763 tests OK, 2 skipped (build-only PyInstaller / PE-resource tests); browser 867 tests OK, 0 skipped, 3 processes; build with TypeScript check, docs, workflow contracts, Lucide catalog, ruff, ESLint (0 errors, 115 warnings), `pip check`; frontend unit 27 OK | Node 24 LTS |
 | PowerShell 7.6.9 on Linux | Parse of every `.ps1`, parameter binding, argument forwarding, paths with spaces, exit codes, bounded hung child, read-only `prerequisites --check-only`, real `--repair` | PSScriptAnalyzer (PowerShell Gallery blocked) |
 | PowerShell 5.1, static | `check-powershell-compat.ps1`: 0 errors, 9 warnings (encoding defaults/BOM, redirection, `Start-Process` quoting) | Any 5.1 execution; static analysis cannot prove runtime behavior |
 | Simulated Windows | DACL policy, secret lifecycle, tie-sensitive clocks, symlink skip, `.cmd` probe stub, `nt` branches with mocked APIs | The real APIs these mock |

@@ -305,3 +305,23 @@ The daily backup time is a fixed-format `HH:mm` text field (`TimeInput24`) inste
 - Windows secret ACLs: `--init-secret` now restricts the new file on Windows (deleted if that fails); `manage-server-service.ps1` refuses link/directory secret paths, `Upgrade` checks the installed configuration before changing files, and `-Action RepairSecret [-ConfirmSecretRepair]` repairs only the configured secret. A mask bug (READ_CONTROL/SYNCHRONIZE counted as access) was found and fixed by the new lifecycle tests.
 - Backend regression on Python 3.12: 1,760 tests OK, 2 skipped. One intermediate failure (script inventory table missing the new script) was fixed and the whole suite rerun.
 - Playwright: Windows failure details were not recoverable from the repository or logs; nothing was changed speculatively.
+
+## Test architecture optimization (November 2026)
+
+- **Audit (measured unless noted):** 1,760 backend tests in 109 modules; 909 browser tests in 111 specs, no Playwright projects, so every theme/viewport
+  expansion lived inside specs: 62 generated groups, 295 executions, 31 of them (161 executions) without theme-dependent assertions; no pixel
+  comparison exists (screenshots are review artifacts only). A passing Linux backend run printed 250 lines from 111 tests (release/packaging
+  script output, expected `sap-lens` warnings, 2 ResourceWarnings).
+- **Backend:** `run-tests.py` workers buffer output per test (shown only on failure), print a heartbeat, list ResourceWarnings and the slowest
+  tests; `--verbose`, `--test NAME`, `--slowest N`, `--log FILE`. CSV preservation tests assert their warning with `assertLogs`. Two unclosed
+  pipes fixed. `test_source_refresh` readers yield the GIL: 27-30 s to 0.4 s, plus a guard that a dead reader fails the test (it previously
+  passed with crashed readers). `test_sod_reports.test_status_labels_*` (the interrupted Windows test) takes 0.8 s on Linux and has no
+  blocking code; the Windows traceback only shows where Ctrl+C landed, so no hang is claimed or fixed.
+- **Browser:** `tests/matrix.ts` (`layoutMatrix`, `THEMES`, `DEFAULT_THEME_ONLY`) for 25 theme-independent groups (909 to 857 executions;
+  every width kept, dark kept once per screen); tags `@visual` (298), `@a11y` (79), `@workflow` (9), `@component` (10), `@smoke` (12) with npm
+  scripts; Component Library previews for eight shared components and `component-library.spec.ts`.
+- **Full regression (Linux, 4 vCPUs, 18 min 11 s wall):** backend 1,763 OK, 2 skipped (92 s, 3 processes); browser 867 OK, 0 skipped (971 s, 3
+  processes, 2,811 process-seconds); build, docs, workflows, Lucide, ruff, ESLint (115 warnings), whitespace, `pip check`; unit 27 OK;
+  PowerShell check 0 errors. Earlier reference (1 Nov, same runner type, different test set): 731 browser tests in 4,265 process-seconds.
+  Backend log of a passing run: 40 lines, none of them test output.
+- **Not verified:** native Windows (backend and browser), Windows PowerShell 5.1 execution; Node 24 (the sandbox has Node 22).
