@@ -20,5 +20,6 @@ export function layoutMatrix(widths: readonly number[]): Variant[] {
 }
 
 /** Playwright tags (filter with `--grep @visual` etc.). Categories are documented in docs/development/TESTING.md. */
-/** `@regression` marks a test that REGRESSION must run although its spec is not in test-map.json profiles.regression_browser_specs. */
-export const TAGS = { visual: '@visual', a11y: '@a11y', workflow: '@workflow', component: '@component', smoke: '@smoke', regression: '@regression' } as const
+/** `@regression` marks a test that REGRESSION must run although its spec is not in test-map.json profiles.regression_browser_specs.
+ *  `@integration` marks an API-level browser-server integration test that complements a backend test; it runs in TARGETED and FULL only. */
+export const TAGS = { visual: '@visual', a11y: '@a11y', workflow: '@workflow', component: '@component', smoke: '@smoke', regression: '@regression', integration: '@integration' } as const

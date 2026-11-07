@@ -694,7 +694,9 @@ def regression_browser(jobs: int, extra: list[str]) -> list[dict]:
     profile = load_map()['profiles']
     tags = profile['regression_browser_tags']
     specs = profile['regression_browser_specs']
-    return [run_browser(specs, None, min(jobs, len(specs)), f'browser regression: critical specs ({len(specs)})', extra, grep_invert=f'@visual|{tags}'),
+    full_only = profile.get('full_only_tags', '')
+    excluded = '|'.join(item for item in ('@visual', tags, full_only) if item)
+    return [run_browser(specs, None, min(jobs, len(specs)), f'browser regression: critical specs ({len(specs)})', extra, grep_invert=excluded),
             run_browser(None, tags, jobs, f'browser regression: tests tagged {tags}', extra)]
 
 
@@ -1006,8 +1008,8 @@ def main(argv: list[str]) -> int:
         if want_backend and want_browser:
             stages += quick_static_checks(True)
             stages.append(unit_tests())
-        notes.append(f'Not in REGRESSION (run FULL): release/packaging modules ({len(excluded)}), @visual theme/viewport matrices, the remaining browser specs, '
-                     'npm/pip audits and platform-specific checks.')
+        notes.append(f'Not in REGRESSION (run FULL): release/packaging modules ({len(excluded)}), @visual theme/viewport matrices, '
+                     f"full-only integration tests ({mapping['profiles'].get('full_only_tags', 'none')}), the remaining browser specs, npm/pip audits and platform-specific checks.")
     else:
         scope = 'every backend module, browser test and frontend unit test, build, static checks and the release checks this machine can run'
         modules, specs = backend_modules(), browser_specs()

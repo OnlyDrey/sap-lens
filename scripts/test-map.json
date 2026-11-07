@@ -391,6 +391,7 @@
    "sod-periods"
   ],
   "regression_browser_tags": "@smoke|@workflow|@component|@regression",
+  "full_only_tags": "@integration",
   "security_sensitive": [
    "backend/main.py",
    "backend/deployment.py",

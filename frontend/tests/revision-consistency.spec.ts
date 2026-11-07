@@ -31,7 +31,8 @@ async function open(page: Page) {
   await expect(page.getByText('DEMO_ONE', { exact: true }).first()).toBeVisible()
 }
 
-test('every API response names the data revision and a refresh that publishes data advances it', async ({ request }) => {
+// API-level integration through the real test server and /api/refresh; complements test_data_revision (cache.load_cache), FULL only.
+test('every API response names the data revision and a refresh that publishes data advances it', { tag: '@integration' }, async ({ request }) => {
   const before = (await request.get('/api/access/users?limit=5', { headers })).headers()['x-data-revision']
   expect(before).toMatch(/^[a-f0-9]+\.\d+\.\d+$/)
   writeFileSync(usersPath, userCsv(['DEMO_ONE', 'DEMO_TWO', 'DEMO_THREE']))

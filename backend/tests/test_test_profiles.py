@@ -120,6 +120,8 @@ class RiskBasedSelectionTests(unittest.TestCase):
             self.assertTrue((ROOT / 'frontend' / 'tests' / f'{spec}.spec.ts').exists(), spec)
         for module in profiles['security_modules']:
             self.assertTrue((ROOT / 'backend' / 'tests' / f'{module}.py').exists(), module)
+        full_only = set(filter(None, profiles.get('full_only_tags', '').split('|')))
+        self.assertFalse(full_only & set(profiles['regression_browser_tags'].split('|')), 'a full-only tag cannot also select REGRESSION tests')
 
     def test_quick_defers_packaging_only_when_the_change_does_not_touch_packaging(self):
         source = (ROOT / 'scripts' / 'run-tests.py').read_text(encoding='utf-8')

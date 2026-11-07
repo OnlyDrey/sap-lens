@@ -96,7 +96,8 @@ test('Reviews: the work queue and remediation show the group next to the user an
   expect((await request.get('/api/sod/queue/users', { headers })).ok()).toBeTruthy()
 })
 
-test('CSV exports carry the group whatever the page shows and keep the filters', async ({ request }) => {
+// API-level integration over every SoD export endpoint through the real test server; complements test_sod_governance, FULL only.
+test('CSV exports carry the group whatever the page shows and keep the filters', { tag: '@integration' }, async ({ request }) => {
   for (const [path, column, user] of [['/api/sod/explorer/user_risk/export', 'USER_GROUPS', 'USERNAME'], ['/api/sod/explorer/user_activity/export', 'USER_GROUPS', 'USERNAME'], ['/api/sod/explorer/access_list/export', 'USER_GROUP', 'USERNAME'], ['/api/sod/queue/export', 'USER_GROUPS', 'USERNAME']]) {
     const text = (await (await request.get(path, { headers, params: { groups: 'P2P', group_by: 'user_group', limit: '1', offset: '5' } })).text()).replace('﻿', '')
     const lines = text.trim().split('\r\n').map((line) => line.split(';').map((item) => item.replace(/^"|"$/g, '')))
