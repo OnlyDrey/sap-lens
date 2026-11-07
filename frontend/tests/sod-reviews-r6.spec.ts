@@ -19,13 +19,13 @@ test('Work Queue and Remediation filter tiles are the same shared KPI control wi
   await openSod(page)
   await workQueue(page)
   const queueTiles = page.getByRole('region', { name: 'Review progress' }).locator('.ui-kpi')
-  expect(await queueTiles.count()).toBeGreaterThan(2)
+  await expect.poll(() => queueTiles.count()).toBeGreaterThan(2)
   const queueFirst = queueTiles.first(), queueLook = await look(queueFirst)
   await expect(queueFirst).toHaveAttribute('aria-pressed', 'true') // the selected default
   await remediation(page)
   const handling = page.getByRole('region', { name: 'Recommended handling' })
   const tiles = handling.locator('button.ui-kpi')
-  expect(await tiles.count()).toBe(6) // All handling and the five handling groups
+  await expect(tiles).toHaveCount(6) // All handling and the five handling groups
   expect(await look(tiles.first())).toEqual(queueLook) // identical size, radius, padding and type
   await expect(tiles.first()).toHaveAttribute('aria-pressed', 'true')
   const remove = handling.getByRole('button', { name: /^Remove assignment/ })

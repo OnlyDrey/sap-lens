@@ -19,9 +19,9 @@ for (const width of [375, 1280]) test(`new risks carry a compact amber badge bes
   await open(page, 'Risks')
   const table = page.getByRole('table', { name: 'SoD risk configurations' })
   const rows = table.locator('tbody tr')
-  expect(await rows.count()).toBeGreaterThanOrEqual(2)
+  await expect.poll(() => rows.count()).toBeGreaterThanOrEqual(2)
   const badges = table.locator('.sod-new-badge')
-  expect(await badges.count()).toBeGreaterThanOrEqual(2) // consecutive new risks
+  await expect.poll(() => badges.count()).toBeGreaterThanOrEqual(2) // consecutive new risks
   for (let index = 0; index < await rows.count(); index++) {
     const row = rows.nth(index), badge = row.locator('.sod-new-badge'), pill = row.locator('.sod-id-line > *').first()
     if (!(await badge.count())) continue
@@ -42,7 +42,7 @@ test('Enabled and Disabled carry icons, the table has no per-row Source details,
   await open(page, 'Risks')
   const table = page.getByRole('table', { name: 'SoD risk configurations' })
   const status = table.locator('.evidence-badge', { hasText: /^(Enabled|Disabled)$/ })
-  expect(await status.count()).toBeGreaterThan(0)
+  await expect.poll(() => status.count()).toBeGreaterThan(0)
   for (let index = 0; index < await status.count(); index++) await expect(status.nth(index).locator('svg')).toHaveCount(1)
   await expect(table.getByRole('button', { name: /^Source details/ })).toHaveCount(0)
   await table.getByRole('button', { name: /^Edit SoD risk / }).first().click()

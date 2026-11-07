@@ -123,7 +123,7 @@ test('comparison difference and evidence indicators start at the same vertical p
   const table = page.getByRole('table', { name: 'User comparison evidence' })
   const rows = table.locator('tbody tr')
   await expect(rows.first()).toBeVisible()
-  expect(await rows.count()).toBeGreaterThan(0)
+  await expect.poll(() => rows.count()).toBeGreaterThan(0)
   for (const row of await rows.all()) {
     const difference = (await row.locator('.evidence-difference').boundingBox())!
     for (const index of [2, 3]) {

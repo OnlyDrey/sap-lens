@@ -38,7 +38,7 @@ test('status labels are never lowercase enum values and Enabled, Disabled, Stati
   await page.getByRole('button', { name: 'Open settings', exact: true }).click()
   await page.getByRole('tab', { name: 'Health & Diagnostics', exact: true }).click(); await check()
   const enabled = page.locator('.evidence-badge', { hasText: /^(Enabled|Disabled)$/ })
-  expect(await enabled.count()).toBeGreaterThan(0)
+  await expect.poll(() => enabled.count()).toBeGreaterThan(0)
   for (let index = 0; index < await enabled.count(); index++) await expect(enabled.nth(index).locator('svg')).toHaveCount(1)
   await page.getByRole('tab', { name: 'SoD Risk Configuration', exact: true }).click(); await check()
 })
