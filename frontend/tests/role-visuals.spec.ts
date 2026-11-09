@@ -3,7 +3,7 @@ import { test, expect, type Locator } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers } from './support'
+import { headers, recordClipboard, copiedText } from './support'
 // Capture brief feedback in the browser at the moment it appears. A slow
 // automation round-trip must not miss a correctly expiring confirmation.
 const observeCopy = async (button: Locator) => {
@@ -55,7 +55,6 @@ test.beforeEach(async ({ request }) => {
 for (const theme of ['dark', 'light'] as const) {
   test(`exact identifier copy, long wrapping, circular icons and detail rows in ${theme}`, { tag: '@visual' }, async ({
     page,
-    context,
     request
   }, testInfo) => {
     const directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-identifiers-'))
@@ -79,7 +78,7 @@ for (const theme of ['dark', 'light'] as const) {
           })
         ).ok()
       ).toBeTruthy()
-      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+      await recordClipboard(page)
       await page.goto('/#session=browser-test-session')
       await page.getByRole('navigation', {name:'Main navigation'}).getByRole('link',{name:'Role Lookup',exact:true}).click()
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
@@ -98,7 +97,7 @@ for (const theme of ['dark', 'light'] as const) {
       await expect
         .poll(confirmation)
         .toEqual({ message: 'Copied', inside: true })
-      expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      await expect.poll(() => copiedText(page)).toBe(
         identifier
       )
       await expect(page.getByRole('dialog')).toBeHidden()
@@ -130,7 +129,7 @@ for (const theme of ['dark', 'light'] as const) {
         message: 'Copied',
         inside: true
       })
-      expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      await expect.poll(() => copiedText(page)).toBe(
         'DEMO_CHILD'
       )
       await detail
@@ -287,11 +286,11 @@ test('clipboard denial is announced and leaves exact identifier selectable', asy
 })
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`copy success overlays the identifier for exactly two seconds without resizing in ${theme}`, { tag: '@visual' }, async ({ page, context, request }, info) => {
+  test(`copy success overlays the identifier for exactly two seconds without resizing in ${theme}`, { tag: '@visual' }, async ({ page, request }, info) => {
     const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
     expect((await request.post('/api/configuration', { headers, data: { ...settings,
       data_csv_path: path.resolve('tests/fixtures/role-catalogue-minimal.csv'), theme } })).ok()).toBeTruthy()
-    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+    await recordClipboard(page)
     await page.goto('/#session=browser-test-session')
     await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'Role Lookup',exact:true}).click()
     const identifier = page.getByRole('article').first().locator('.role-identifier').first()
@@ -313,7 +312,7 @@ for (const theme of ['light', 'dark'] as const) {
         clearsButton: feedback.right <= button.left }
     })
     expect(overlap).toEqual({ overText: true, clearsButton: true })
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(value)
+    await expect.poll(() => copiedText(page)).toBe(value)
     await identifier.screenshot({ path: info.outputPath('copy-overlay.png'), animations: 'disabled' })
     await page.clock.runFor(1999)
     await expect(status).toHaveText('Copied')

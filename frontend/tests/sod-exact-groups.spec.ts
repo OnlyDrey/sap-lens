@@ -2,6 +2,7 @@ import {test,expect} from '@playwright/test'
 import {writeFileSync} from 'node:fs'
 import path from 'node:path'
 import {cleanup,seedGovernance,openSod,headers,names} from './sod-fixture'
+import { recordClipboard, copiedText } from './support'
 let directory=''
 const username=(index:number)=>`${names.a}_FILTER_${index}`
 const groups=['SYN-GROUP','SYN-GROUP-ONE','SYN-GROUP-TWO','SYN-GROUP-THREE']
@@ -26,7 +27,7 @@ test('exact group selections stay independent, Select All is scoped, and Clear p
 test('queue header sorting persists through review and user navigation; username copy stays independent',async({page})=>{
  await openSod(page,'Reviews');const table=page.getByRole('table',{name:'SoD review work queue',exact:true});await table.getByRole('button',{name:'Sort by SAP user',exact:true}).click();await expect(table.locator('tbody tr').first()).toContainText(username(0));await table.getByRole('button',{name:'Sort by SAP user',exact:true}).click();await expect(table.locator('tbody tr').first()).toContainText(username(3));await expect(table.getByRole('columnheader',{name:/SAP user/}).first()).toHaveAttribute('aria-sort','descending')
  await page.getByRole('button',{name:`Open review for ${username(3)}`,exact:true}).click();await page.getByRole('button',{name:'Close panel',exact:true}).click();await expect(table.locator('tbody tr').first()).toContainText(username(3))
- const before=page.url();await page.context().grantPermissions(['clipboard-read','clipboard-write']);await table.locator('tbody tr').first().getByRole('button',{name:`Copy SAP username ${username(3)}`,exact:true}).click();expect(await page.evaluate(()=>navigator.clipboard.readText())).toBe(username(3));expect(page.url()).toBe(before)
+ const before=page.url();await recordClipboard(page);await table.locator('tbody tr').first().getByRole('button',{name:`Copy SAP username ${username(3)}`,exact:true}).click();await expect.poll(() => copiedText(page)).toBe(username(3));expect(page.url()).toBe(before)
  const link=table.locator('tbody tr').first().getByRole('link',{name:`Open SAP user ${username(3)}`,exact:true});await expect(link).toHaveAttribute('href',new RegExp(username(3)));await link.click();await expect(page).toHaveURL(new RegExp(username(3)));await page.goBack();await expect(table.locator('tbody tr').first()).toContainText(username(3))
 })
 test('Work Queue bulk preview excludes existing decisions and records explicit atomic replacements',async({page,request})=>{

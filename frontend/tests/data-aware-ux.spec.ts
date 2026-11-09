@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { bootstrapDocument } from './bootstrap-fixture'
-import { headers, backendFixture } from './support'
+import { headers, backendFixture, recordClipboard, copiedText } from './support'
 let directory = '', userSource = ''
 const navigate = (page: Page, name: string) => page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name, exact:true }).click()
 test.beforeEach(async ({ request }) => {
@@ -19,8 +19,8 @@ test.beforeEach(async ({ request }) => {
 })
 test.afterEach(async ({ request }) => { await request.post('/api/configuration/reset', { headers }); rmSync(directory, { recursive:true, force:true }) })
 
-test('Back and Forward preserve meaningful views and detail state without reloading startup', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read','clipboard-write'])
+test('Back and Forward preserve meaningful views and detail state without reloading startup', async ({ page }) => {
+  await recordClipboard(page)
   const documents:string[] = []
   page.on('request', request => { if (request.isNavigationRequest() && request.frame() === page.mainFrame()) documents.push(request.url()) })
   await page.goto('/#session=browser-test-session')
@@ -37,7 +37,7 @@ test('Back and Forward preserve meaningful views and detail state without reload
   await expect(detail.getByText('Unlocked', {exact:true})).toHaveCount(1)
   await detail.getByRole('button',{name:'Copy username DEMO_OTHER',exact:true}).click()
   await expect(detail.getByText('Copied',{exact:true})).toBeVisible()
-  expect(await page.evaluate(()=>navigator.clipboard.readText())).toBe('DEMO_OTHER')
+  await expect.poll(() => copiedText(page)).toBe('DEMO_OTHER')
   await expect(page.getByRole('navigation', {name:'Account evidence pages'})).toHaveCount(0)
   await expect(detail.locator('details').filter({ hasText: 'User validity and account evidence' })).toHaveCount(0)
   await page.goBack()

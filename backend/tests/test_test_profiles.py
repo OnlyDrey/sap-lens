@@ -160,6 +160,19 @@ class RiskBasedSelectionTests(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr[-2000:]); self.assertIn('`fast` is now `quick`', done.stdout)
 
 
+class BrowserIsolationGuardTests(unittest.TestCase):
+    """Specs never read the shared browser clipboard back; they assert the page's recorded writeText value (tests/support.ts)."""
+    def test_no_spec_reads_the_system_clipboard(self):
+        offenders = sorted(path.name for path in (ROOT / 'frontend' / 'tests').glob('*.ts') if 'clipboard.readText(' in path.read_text(encoding='utf-8'))
+        self.assertEqual(offenders, [])
+
+    def test_specs_that_copy_record_the_clipboard_first(self):
+        for path in sorted((ROOT / 'frontend' / 'tests').glob('*.spec.ts')):
+            text = path.read_text(encoding='utf-8')
+            if 'copiedText(page)' in text:
+                self.assertIn('recordClipboard(page)', text, path.name)
+
+
 class InterpreterConsistencyTests(unittest.TestCase):
     """Every Python subprocess of the browser tests uses the runner's interpreter (frontend/tests/python.ts), never PATH's first python."""
     def test_no_spec_or_fixture_spawns_a_bare_python(self):

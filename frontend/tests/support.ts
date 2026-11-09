@@ -90,3 +90,21 @@ export async function pickMulti(scope: Page | Locator, label: string, option: st
   await (page ?? (scope as Page)).getByRole('option', { name: option, exact: true }).click()
   await box.press('Escape')
 }
+
+/** Clipboard evidence for one page. The system clipboard belongs to the whole browser (and on Windows to every browser process of a parallel
+ *  run), and `writeText` resolves after the click that started it, so reading the clipboard back can return another test's value. The
+ *  recorder keeps the real `navigator.clipboard.writeText` call (permissions, failures) and stores each value that was written successfully in
+ *  this page; `copiedText` returns the latest one and is polled with `expect.poll`. Install it before the copy, ideally before navigating. */
+const installClipboardRecorder = () => {
+  const target = window as Window & { __sapLensCopied?: string[] }, clipboard = navigator.clipboard
+  if (!clipboard || target.__sapLensCopied) return
+  const write = clipboard.writeText.bind(clipboard), copied: string[] = []
+  target.__sapLensCopied = copied
+  clipboard.writeText = async (text: string) => { await write(text); copied.push(text) }
+}
+export async function recordClipboard(page: Page) {
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.addInitScript(installClipboardRecorder)
+  await page.evaluate(installClipboardRecorder)
+}
+export const copiedText = (page: Page) => page.evaluate(() => (window as Window & { __sapLensCopied?: string[] }).__sapLensCopied?.at(-1) ?? null)

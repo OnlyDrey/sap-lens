@@ -248,6 +248,13 @@ change, browser smoke and changed specs for frontend changes); the manual Full V
   instead (`toHaveCount`, `expect.poll`, the status message the action announces). To reproduce, copy the spec to a temporary file
   and add `test.beforeEach` with CDP CPU throttling (`Emulation.setCPUThrottlingRate`, rate 6 to 10) plus a `page.route('**/api/**')`
   that delays each request randomly before `route.fallback()`; run it with `--repeat-each`. Delete the copy afterwards.
+- *Clipboard assertions*: never read `navigator.clipboard.readText()` back. The clipboard belongs to the whole browser (on Windows
+  possibly to every browser process of a parallel run) and `writeText` finishes after the click, so a read can return an earlier
+  test's value. Call `recordClipboard(page)` from `tests/support.ts` before the copy (it also grants the permissions) and assert
+  with `await expect.poll(() => copiedText(page)).toBe(...)`; the real `writeText` still runs.
+- *`route.fulfill: Route is already handled!`*: `page.unroute()` does not wait for a handler that is still awaiting
+  `route.fetch()`; Playwright continues that request underneath it and the handler's later `fulfill` fails. When a handler is
+  asynchronous, remove it with `await page.unrouteAll({ behavior: 'wait' })` (or keep it for the whole test).
 
 ## Evidence and limits
 

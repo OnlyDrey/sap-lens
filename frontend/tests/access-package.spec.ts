@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
-import { goTo, seedSources, type SeededSources } from './support'
+import { goTo, seedSources, type SeededSources, recordClipboard, copiedText } from './support'
 let seeded: SeededSources
 const roles = `FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT
 MM,ZC:MM:BUY:ENP,Buyer plant,ZS:SH,MM - Shared purchasing,MIGO,Goods movement
@@ -41,8 +41,8 @@ test('Add to access package and Add to comparison are independent toggles on eac
   await expect(buyer.getByRole('button', { name: 'Remove from comparison' })).toHaveAttribute('aria-pressed', 'true')
 })
 
-test('package: default suffix, per-role override, validation, copy, CSV, persistence and clearing', { tag: '@workflow' }, async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+test('package: default suffix, per-role override, validation, copy, CSV, persistence and clearing', { tag: '@workflow' }, async ({ page }) => {
+  await recordClipboard(page)
   await page.goto('/#session=browser-test-session')
   await goTo(page, 'Role Lookup')
   for (const title of ['Buyer plant', 'Finance view$', 'Buyer wildcard', 'Orders ENK']) await tile(page, title).getByRole('button', { name: 'Add to access package' }).click()
@@ -69,9 +69,9 @@ test('package: default suffix, per-role override, validation, copy, CSV, persist
   await expect(row('ZC:MM:BUY:ENP')).toContainText('Pattern match')
   await expect(panel.locator('.package-summary')).toContainText(/4 roles.*4 valid names.*2 pattern matches.*2 to check/)
   await panel.getByRole('button', { name: 'Copy all names' }).click()
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('ZC:FI:VIEW:ENS\nZC:MM:BUY:ENO\nZC:MM:BUY:ENS\nZC:SD:ORD:ENS')
+  await expect.poll(() => copiedText(page)).toBe('ZC:FI:VIEW:ENS\nZC:MM:BUY:ENO\nZC:MM:BUY:ENS\nZC:SD:ORD:ENS')
   await row('ZC:MM:BUY:ENP').getByRole('button', { name: 'Copy generated SAP role name ZC:MM:BUY:ENS' }).click()
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('ZC:MM:BUY:ENS')
+  await expect.poll(() => copiedText(page)).toBe('ZC:MM:BUY:ENS')
   const download = page.waitForEvent('download')
   await panel.getByRole('button', { name: /Export CSV/ }).click()
   const file = await download

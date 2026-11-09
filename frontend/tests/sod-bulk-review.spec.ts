@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { enableSod, headers } from './sod-fixture'
+import { recordClipboard, copiedText } from './support'
 
 /** Suffix CDK, EMS, ES2, ENO, ESH and ENP are all catalogue roles of the same two families, so a pattern-level filter would mix them. */
 const SUFFIXES = ['CDK', 'EMS', 'ES2', 'ENO', 'ESH', 'ENP']
@@ -357,8 +358,8 @@ test('multi-select and bulk selection are keyboard operable with visible focus',
   expect(seen).toEqual(names)
 })
 
-test('the removal recommendation modal is compact: four metrics, a details line and a short copyable source revision', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+test('the removal recommendation modal is compact: four metrics, a details line and a short copyable source revision', async ({ page }) => {
+  await recordClipboard(page)
   for (const width of [1280, 375]) {
     await page.setViewportSize({ width, height: 800 })
     await openAssignments(page)
@@ -380,7 +381,7 @@ test('the removal recommendation modal is compact: four metrics, a details line 
     expect(shown).toContain('…'); expect(shown.length).toBeLessThan((full || '').length)
     expect(await code.evaluate((element) => element.getBoundingClientRect().height)).toBeLessThan(30) // one line
     await summary.getByRole('button', { name: 'Copy source revision' }).click()
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(full)   // the complete value is copied
+    await expect.poll(() => copiedText(page)).toBe(full)   // the complete value is copied
     await expect(summary.getByText('Full source revision:', { exact: false })).toBeAttached()
     await expect(dialog).toContainText('no role is removed from SAP')
     const overflow = await dialog.evaluate((element) => element.scrollWidth > element.clientWidth + 1)

@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
-import { goTo, seedSources, type SeededSources } from './support'
+import { goTo, seedSources, type SeededSources, recordClipboard, copiedText } from './support'
 let seeded: SeededSources
 const roles = `FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT
 MM,ZC:MM:BUY:ENP,Buyer plant,ZS:SH,MM - Shared purchasing,MIGO,Goods movement
@@ -104,8 +104,8 @@ test('Saved Filters live in the sidebar and restore Release Area and Release Gro
   await expect.poll(() => tableRoles(page)).toEqual([E3])
 })
 
-test('release roles join the shared access package with exact names next to catalogue roles', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+test('release roles join the shared access package with exact names next to catalogue roles', async ({ page }) => {
+  await recordClipboard(page)
   await open(page)
   const add = (role: string) => page.getByRole('button', { name: `Add ${role} to access package`, exact: true })
   await add(E2).click()
@@ -126,7 +126,7 @@ test('release roles join the shared access package with exact names next to cata
   await expect(row(E2).getByRole('textbox')).toHaveCount(0) // a package suffix never rewrites a release role
   await expect(row('ZC:MM:BUY:ENP')).toContainText('ZC:MM:BUY:ENS')
   await panel.getByRole('button', { name: 'Copy all names' }).click()
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`ZC:MM:BUY:ENS\n${E2}`)
+  await expect.poll(() => copiedText(page)).toBe(`ZC:MM:BUY:ENS\n${E2}`)
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: `Remove ${E2} from access package`, exact: true }).click()
   await expect(page.getByRole('button', { name: 'Access package (1)' })).toBeVisible()
@@ -159,8 +159,8 @@ test('Table pagination offers 10, 20, 50 and 100 rows, resets to the first page 
   await expect(pager.getByRole('status')).toHaveText('1–25 of 25')
 })
 
-test('bulk actions add, copy and export distinct filtered roles without changing the assignment export', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+test('bulk actions add, copy and export distinct filtered roles without changing the assignment export', async ({ page }) => {
+  await recordClipboard(page)
   await open(page)
   await pick(page, 'Release Area', 'E')
   const actions = page.getByRole('group', { name: 'Release actions' })
@@ -168,7 +168,7 @@ test('bulk actions add, copy and export distinct filtered roles without changing
   await actions.getByRole('button', { name: 'Copy role names' }).click()
   // Copying fetches the filtered roles and writes the clipboard asynchronously; read it only after the application reports completion.
   await expect(page.getByRole('status').filter({ hasText: 'Copied 2 release role names.' })).toBeVisible()
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`${E3}\n${E2}`.split('\n').sort((a, b) => a.localeCompare(b)).join('\n'))
+  await expect.poll(() => copiedText(page)).toBe(`${E3}\n${E2}`.split('\n').sort((a, b) => a.localeCompare(b)).join('\n'))
   await actions.getByRole('button', { name: 'Add filtered roles' }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Added 2 release roles to the access package; 0 already selected.' })).toBeVisible()
   await page.getByRole('button', { name: `Remove ${E3} from access package`, exact: true }).click()

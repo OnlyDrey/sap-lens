@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { cleanup, longRoleName, openSod, seedGovernance } from './sod-fixture'
-import { goTo, seedSources, type SeededSources } from './support'
+import { goTo, seedSources, type SeededSources, recordClipboard, copiedText } from './support'
 
 /** A SAP role name is always one complete line: no wrapping, scrolling, clipping or ellipsis; the copy icon stays beside it. */
 const MEDIUM = 'ZC:SYN:LONG_ROLE_IDENTIFIER_FOR_LAYOUT:ENP'
@@ -91,12 +91,12 @@ test.describe('role codeblocks with synthetic names', () => {
     })
   }
 
-  test('copying still writes the exact role name', async ({ page, context }) => {
-    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  test('copying still writes the exact role name', async ({ page }) => {
+    await recordClipboard(page)
     await page.setViewportSize({ width: 375, height: 900 })
     await page.goto('/#session=browser-test-session'); await goTo(page, 'Role Lookup')
     await page.getByRole('button', { name: `Copy role identifier ${LONG}`, exact: true }).first().click()
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(LONG)
+    await expect.poll(() => copiedText(page)).toBe(LONG)
   })
 
   test('narrow containers scale the font instead of wrapping, and a wide container keeps the normal size', async ({ page }) => {
