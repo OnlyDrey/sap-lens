@@ -4,7 +4,7 @@
 - Each cloud task is isolated. Use the existing checkout; do not create a Git worktree unless requested.
 - SAP role exports, local settings, logs, .env files and credentials must not be committed or included in release artifacts.
 - The desktop server binds only to 127.0.0.1, preferring port 18743 and securely falling back to an OS-assigned port. Do not weaken local host/origin checks, expose the API to a LAN, or cache role data in a service worker.
-- Validate ordinary changes with the FAST/FEATURE policy below. `python -m unittest discover -s backend/tests -v` and the complete browser suite are explicit FULL checks, not automatic development steps. Keep frontend type/build checks proportional to affected code.
+- Validate every change with the Progressive test validation policy below (Level 1 and 2 during development). `python -m unittest discover -s backend/tests -v` and the complete browser suite are explicit FULL checks, not automatic development steps. Keep frontend type/build checks proportional to affected code.
 - Windows packaging and desktop lifecycle checks run in `.github/workflows/build-windows.yml`.
 
 ## Stack and conventions
@@ -75,7 +75,7 @@ From the repository root (full list and risk-based selection:
   explicit authorization.
 - Deliver in logically complete, validated increments with conventional subjects
   (`feat(scope):`, `fix(scope):`, `docs:`). Push each phase to `origin/work` once its
-  targeted FEATURE validation passes (see Lean development and validation policy), never force-push or rewrite
+  Level 2 validation passes (see Progressive test validation), never force-push or rewrite
   history, and verify the result with `git ls-remote origin work`. Do not tag,
   release or manually dispatch workflows without authorization. A passing Fast
   Validation run is not proof that deployment packages were built; report package
@@ -104,33 +104,60 @@ From the repository root (full list and risk-based selection:
   match the dense style of neighboring code.
 - Add no dependencies, frameworks or styling systems, and refactor nothing beyond the
   request. Update the canonical guide instead of writing new reports.
-- Run the smallest sufficient checks (see Lean development and validation policy and Efficiency below);
+- Run the smallest sufficient checks (see Progressive test validation and Efficiency below);
   documentation-only changes need `check-docs.py` and the affected documentation tests.
 
-## Lean development and validation policy
+## Progressive test validation (mandatory default for every change)
 
-- Prefer focused changes and existing components; no unrelated cleanup or dependencies.
-- Use 3–4 logical phases where practical, the lowest sufficient reasoning/check scope,
-  short command output and milestone-only reporting. Do not repeatedly read unchanged files.
-- **FAST** during implementation: directly affected backend tests and targeted type/static
-  checks. Browser checks are opt-in when the behavior needs a browser.
-- **FEATURE** after a functional change: affected backend modules/integration tests,
-  targeted Playwright workflows and critical edge cases.
-- **FULL** only before releases/major merges or explicit user requests: complete backend
-  and browser suites, production build, security/static and available platform checks.
-  Never run FULL automatically during ordinary development. A failure normally requires
-  only its root-cause fix and affected recheck; broader reruns need a concrete impact reason.
-- Local entry points: `python scripts/run-tests.py quick|targeted|regression|full` or, with isolated storage and logs,
-  `python scripts/validate.py --level quick|targeted|regression|full` (FAST = quick, FEATURE = targeted; the same command on
-  Windows and Linux). Selection follows the import graphs and `scripts/test-map.json`; unknown changes broaden the run, never
-  silently omit tests. See [Testing](docs/development/TESTING.md#profiles).
-- Commit and push validated, independently functional phases to `origin/work`; do not wait
-  for full regression. Preserve user instructions that explicitly delay a push. Report
-  targeted checks separately from pending full regression and automatic GitHub Actions.
-- Test storage is disposable and isolated from configured production paths. Browser workers
-  stay at one; optional bounded *process* parallelism uses distinct servers/ports/storage.
-- Native Windows/WebView2/SCM, real systemd, reboot/recovery and UNC acceptance must be
-  reported separately. Do not dispatch remote workflows without explicit authorization.
+Applies to every change: features, fixes, refactoring, UI, backend and test infrastructure. Agents apply it automatically; nobody
+has to ask for it. The normal loop is *change -> relevant tests -> fix -> affected tests -> continue*; broad regression happens at
+planned checkpoints, never after every correction. Commands and selection rules: [Testing](docs/development/TESTING.md#progressive-validation).
+
+1. **Level 1, direct (seconds to minutes, always):** run only the tests of the changed code plus the matching static checks
+   (TypeScript, ESLint, ruff). Browser: `python scripts/run-tests.py targeted --spec NAME [--grep TEXT]`; backend:
+   `targeted --test module[.Class[.test]]`; type/lint: `npm run check:types`, `npx eslint <files>`, `python -m ruff check <files>`.
+   One browser process. After a fix, rerun only what failed or what the fix touches.
+2. **Level 2, affected functionality:** the complete affected spec files and backend modules plus direct dependents
+   (`python scripts/run-tests.py quick`, or `targeted` without features, selects them from the import graphs). No unrelated suites.
+3. **Level 3, stability and integration, when warranted:** repeat previously intermittent tests (`--repeat-each 3` to `5`), test the
+   integration boundary, and use several browser processes only when concurrency is part of the behaviour, with the smallest group.
+4. **Level 4, checkpoints:** TARGETED (`targeted <feature>...`) after Level 2 when the change crosses components; REGRESSION at the end
+   of a development phase or before delivering a substantial set of changes; FULL before a merge or release, or when explicitly asked,
+   never automatically. Passing small selections never replaces FULL before a merge or release.
+
+- **Fail fast:** when a test fails, stop widening the scope; find the root cause, fix it, rerun that test, then its group, and only then
+  continue. Never run a 20 to 40 minute suite to check a single correction, and never rerun FULL while known targeted tests fail.
+- Do not rerun passed tests unless a later change can affect them. Reuse build outputs (the runner rebuilds only stale assets).
+- Record which tests ran and why; when a change has no relevant automated test, say so and report the coverage gap.
+- Never substitute longer timeouts, sleeps, retries or weaker assertions for a fix. Isolation and correctness come before speed.
+- Commit and push validated, independently functional phases to `origin/work`; report targeted results separately from pending
+  REGRESSION/FULL and from GitHub Actions. Preserve user instructions that explicitly delay a push.
+- Test storage is disposable and isolated from production paths. One browser worker per Playwright process; parallelism uses
+  separate processes with their own server, port and storage. `python scripts/validate.py --level quick|targeted|regression|full`
+  runs the same profiles with isolated storage and keeps a log under `build/validation/`.
+- Native Windows/WebView2/SCM, real systemd, reboot/recovery and UNC acceptance are reported separately from Linux results. Never claim
+  Windows validation that did not run on Windows.
+
+## Test execution and output
+
+- Every run shows live progress in the terminal (profile header, stage start/end, each finished browser test or, with
+  `SAP_LENS_TEST_PROGRESS=summary`, only failures, a periodic `completed/total | passed | failed | skipped` summary per process, failures
+  as soon as they happen) and ends with `Summary`, `Result`, duration and exit code. Do not hide output to save it in a file.
+- Keep complete logs and machine-readable results: `--log FILE` (UTF-8 copy of everything printed), `--report FILE` (JSON), per-process
+  Playwright logs, JSON reports, traces and error contexts preserved under `build/test-artifacts/` for a failed run.
+- Exit codes: 0 passed, 1 tests failed, 2 infrastructure only. The runner prints only to stdout, so Windows PowerShell 5.1 shows no
+  `NativeCommandError` for ordinary subprocess stderr; a redirected Windows console gets readable ASCII while logs keep UTF-8. Use the
+  runner's `--log` instead of `*>`, `Out-File` or `Tee-Object` wrappers.
+- Same commands on Windows PowerShell 5.1, PowerShell 7 and Linux.
+
+## Failure investigation
+
+- Inspect the error and call log, the JSON report, the shard logs (including test-server lines), error contexts and traces before
+  changing code. A failure's page snapshot is taken after `afterEach` cleanup; judge it by the error, not by a cleanup banner.
+- Classify each failure as an application defect, a test defect (timing, isolation, wrong assumption) or infrastructure, with evidence.
+- Reproduce before changing assertions (single process first; for load-dependent failures CPU throttling or delayed responses), and
+  show the fix against the original reproduction. Never weaken a meaningful assertion or change an expected value to get green.
+- Keep diagnostic artifacts; record root causes in the canonical guide, not in new report files.
 
 ## Architecture and documentation map
 
@@ -171,7 +198,7 @@ From the repository root (full list and risk-based selection:
   authorization/license entitlement from role/T-code mappings.
 - Native Windows installer/SCM/WebView2, real systemd, reboot/recovery and UNC
   acceptance must be reported separately from Linux unit/browser/static checks.
-  Keep the Lean development and validation policy and its platform limits in force.
+  Keep the Progressive test validation policy and its platform limits in force.
 
 ## Planning, continuous execution and progress reporting
 
@@ -195,7 +222,7 @@ From the repository root (full list and risk-based selection:
   **Status:** In progress / Completed / Blocked
   **Completed in this phase:** actual functionality and important corrections
   **Remaining in this phase:** specific unfinished requirements
-  **Validation:** FAST/FEATURE Passed/Failed/Pending; targeted results;
+  **Validation:** Level 1/2 (exact tests run) Passed/Failed/Pending; Level 3/4 results;
   FULL pending unless explicitly requested or required for release
   **Git:** Commit SHA or Not committed; Push Verified/Pending; Branch `work`
   **Next:** next concrete milestone
@@ -211,7 +238,7 @@ From the repository root (full list and risk-based selection:
 
 ## Efficiency
 
-Use the smallest sufficient check while implementing, FEATURE validation at phase
+Use Level 1 checks while implementing, Level 2 validation at phase
 boundaries; FULL only for an explicit request, release or major merge. Never trade correctness, data
 integrity, security or required functionality for speed.
 

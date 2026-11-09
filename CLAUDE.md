@@ -13,6 +13,6 @@ Follow the shared instructions in AGENTS.md; they are authoritative and are not 
 
 - Before implementation, inspect `git status` and safely fast-forward `work` from `origin/work`.
 - Preserve local changes and existing functionality.
-- Use targeted validation during development. Do not run full regression without explicit authorization.
+- Follow Progressive test validation (AGENTS.md): Level 1 direct tests after each change, Level 2 affected files, broad profiles only at checkpoints. Do not run full regression without explicit authorization.
 - Commit and push completed phases to `origin/work`.
 - Never force-push, modify `main`, dispatch workflows or publish releases without authorization. CI runs only on push to `main` (see AGENTS.md, GitHub Actions CI policy); pushes to `work` do not trigger it, so validate locally.

@@ -52,6 +52,21 @@ names and, when they have interactive behavior, a test in `component-library.spe
 - A worker prints a heartbeat (`[backend 2/3] 812 tests, 0 failed, 90s`) every 30 s (`SAP_LENS_TEST_HEARTBEAT`, `0` disables).
 - `--verbose` shows one line per test and unbuffered output, the mode for debugging what a test prints.
 
+## Progressive validation
+
+The default for every change (policy in [AGENTS.md](../../AGENTS.md)). Start small, widen only after the smaller set is green, stop
+widening at the first failure and fix it there.
+
+| Level | When | Command (Windows PowerShell 5.1, PowerShell 7 and Linux alike) |
+| --- | --- | --- |
+| 1 Direct | after every change | `python scripts/run-tests.py targeted --spec session-recovery --grep "Retry"` (browser, one process); `targeted --test test_sod_periods_v2.WorkflowTests` (backend); `npm --prefix frontend run check:types`; `python -m ruff check <files>` |
+| 1 Repeat | a test that failed or was intermittent | add `--repeat-each 5` (passed through to Playwright) |
+| 2 Affected | Level 1 green | the complete spec files (`--spec` without `--grep`); `python scripts/run-tests.py quick` selects the backend modules and specs the change reaches through the import graphs |
+| 3 Stability | when concurrency or load is part of the behaviour | the smallest group with `--browser-jobs 2` or `3`; load reproduction under Troubleshooting |
+| 4 Checkpoint | phase end, cross-component change, before delivery, before merge | `targeted <feature>...`, `regression`, `full` (FULL only before a merge or release or when asked) |
+
+Report which tests ran, why, and the counts. A change without a relevant automated test is reported as a coverage gap.
+
 ## Common tasks
 
 | Question | Command |
@@ -131,12 +146,21 @@ A prepared host may need `PLAYWRIGHT_EXECUTABLE_PATH` for Chromium; report that 
 
 ### Runner output, exit codes and artifacts
 
-- Every stage prints `[start]` and `[done]` lines; parallel browser processes print one start and one completion line each and a
-  heartbeat with each shard's position (`[browser full] 120s; shard 1: test 45/280; ...`, every `SAP_LENS_TEST_HEARTBEAT` seconds, 30 by default).
+- The run starts with a header (profile, backend and browser processes, log file). Every stage prints `[start]` and `[done]` lines.
+- Browser tests report live through `frontend/tests/progress-reporter.ts`: each finished test (`[02:31] PASS    file.spec.ts:12 > title (1.4s)`),
+  each failure with its first error lines as soon as it happens (`FAIL`, `TIMEOUT`, `FLAKY`), and every `SAP_LENS_TEST_HEARTBEAT` seconds
+  (30 by default) `[05:00] 191/666 completed | passed 190 | failed 1 | skipped 0` with each process's position. `SAP_LENS_TEST_PROGRESS=summary`
+  hides the passing tests. Backend workers print a heartbeat with failed and skipped counts and a `FAIL:`/`ERROR:` line the moment a test fails.
+- The run ends with `Summary: P passed | F failed | S skipped` and `Result: PASSED|FAILED... | Duration | Exit code | Log | Report`, plus the
+  failed test names.
+- Console encoding: the runner prints to stdout only (stderr made Windows PowerShell 5.1 show `NativeCommandError` when output was
+  redirected). A terminal and a UTF-8 pipe get the text unchanged; a redirected Windows console, whose bytes PowerShell 5.1 decodes in
+  another code page (`›` became `ΓÇ║`), gets readable ASCII (`>`); `SAP_LENS_TEST_ASCII=1|0` forces it. `--log FILE` keeps UTF-8.
+  Prefer `--log` over `*>`, `Out-File` or `Tee-Object`.
 - The summary counts passed, failed and skipped tests per stage and in total. Exit codes: `0` everything passed, `1` a test or check
   failed, `2` only infrastructure failed (a busy port, a test server or Playwright that did not start, a worker or process without a
   report, a timeout); infrastructure problems are listed separately and never counted as test results.
-- Each Playwright process writes stdout and stderr to separate files, which are closed before they are read or deleted. A process
+- Each Playwright process (also a single one) writes stdout and stderr to separate UTF-8 files (`log-N.out.txt`, `log-N.err.txt`, with the test server's lines), which are closed before they are read or deleted. A process
   that runs longer than `SAP_LENS_BROWSER_TIMEOUT` seconds (5,400 by default) is stopped with its last position and log tail.
 - The runner stops only the process trees it started: on POSIX the process group, on Windows Ctrl+Break to the group and then
   `taskkill /PID <pid> /T /F` (never by name), so no node, Chromium or test server keeps files or ports open. Scratch directories are
