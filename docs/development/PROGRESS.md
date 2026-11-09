@@ -356,3 +356,16 @@ The daily backup time is a fixed-format `HH:mm` text field (`TimeInput24`) inste
   shared SoD files still all 31 specs.
 - FULL, one uninterrupted run with 3 browser processes: backend 1,776 OK (2 skipped), browser 858 OK, all static, unit, audit and
   PowerShell checks OK, 18 min 11 s. Native Windows unverified.
+
+## Windows test infrastructure and regression stabilization (November 2026)
+
+- One interpreter: the test server and every spec subprocess use the runner's Python (`frontend/tests/python.ts`), never PATH's first
+  `python` (the Windows FULL had spawned a global Python 3.15).
+- Runner lifecycle: Windows-safe process-tree termination, handles closed before bounded cleanup retries, failed runs keep their
+  artifacts in `build/test-artifacts/`, stage/heartbeat/shard output, exit codes 0 (pass), 1 (tests failed), 2 (infrastructure only).
+- Root causes fixed: Capture sent `expected_revision` 0 while the period list was still loading (409, the created period never opened;
+  application fix plus regression test); clipboard read-backs returned an earlier test's copy (specs now assert the page's recorded
+  `writeText`); `page.unroute()` continued an in-flight request under an asynchronous handler ("Route is already handled!"; now
+  `unrouteAll({ behavior: 'wait' })`). Each was reproduced before and verified after its fix.
+- Verified on Linux with Chromium 1248: REGRESSION (3 processes) 1,566 passed, 2 skipped, 4 min 38 s; the 17 previously failing spec
+  files 161 passed in 3 processes; FULL 2,645 passed, 0 failed, 2 skipped, 15 min 45 s; `pip-audit` clean. Native Windows unverified.
