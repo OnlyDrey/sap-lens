@@ -194,7 +194,14 @@ test('selected Settings item and active role card toggles meet 4.5:1 text and 3:
     await page.goto('about:blank'); await page.goto('/#session=browser-test-session')
     await page.getByRole('navigation', { name: 'Main navigation', exact: true }).getByRole('link', { name: 'Role Lookup', exact: true }).click()
     const card = page.getByRole('article', { name: /Buyer plant/ })
-    for (const name of ['Add to access package', 'Add to comparison']) if (await card.getByRole('button', { name, exact: true }).count()) await card.getByRole('button', { name, exact: true }).click()
+    for (const target of ['access package', 'comparison']) {
+      // The card renders its toggles once the catalogue has loaded; a toggle kept from the previous theme pass already reads "Remove from".
+      // Decide only after the toggle is there: a count taken earlier reads 0, adds nothing and leaves the contrast check waiting for a toggle that never appears.
+      await expect(card.getByRole('button', { name: new RegExp(`^(Add to|Remove from) ${target}$`) })).toBeVisible()
+      const add = card.getByRole('button', { name: `Add to ${target}`, exact: true })
+      if (await add.count()) await add.click()
+      await expect(card.getByRole('button', { name: `Remove from ${target}`, exact: true })).toBeVisible()
+    }
     await page.mouse.move(2, 2)
     for (const name of ['Remove from access package', 'Remove from comparison']) {
       const colors = await card.getByRole('button', { name }).evaluate(el => { const s = getComputedStyle(el); return [s.color, s.backgroundColor] })

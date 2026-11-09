@@ -84,25 +84,37 @@ test('unsaved input is protected before a reconnect and nothing is replayed', as
 
 test('a restarted backend is restored automatically when nothing typed would be lost', async ({ page }) => {
   await openUser(page)
+  // The person moves on to user B before the backend restarts. (Navigating at the moment of the restart is not deterministic: any request
+  // of the previous view, such as the configuration poll, can meet the restarted backend first and start the restore on that view.)
+  await page.goto(`/#/user-access/user/${names.b}`)
+  await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(names.b)
   let restarted = false
   page.on('request', (request) => { if (request.isNavigationRequest()) restarted = true })        // the guarded document is requested: from then on the "new backend" answers
   await page.route('**/api/**', (route) => (restarted ? route.fallback() : route.fulfill({ status: 403, json: STALE })))
-  await page.goto(`/#/user-access/user/${names.b}`)
-  await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toBeVisible()
+  await expect.poll(() => restarted, { message: 'the stale session is detected and restored without a click' }).toBe(true)
+  await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(names.b)
   await expect(notice(page)).toHaveCount(0)
   await expect(page).toHaveURL(new RegExp(`#/user-access/user/${names.b}`))                       // the view is kept
 })
 
 test('a temporary connection loss is explained once and recovers with Retry', async ({ page }) => {
   await openUser(page)
-  await page.route('**/api/**', (route) => route.abort('connectionrefused'))
+  // The service comes back only with the Retry click. Restoring it earlier lets the application's background poll recover on its own (also
+  // correct) and remove the Retry button before it is clicked. A capture listener marks the click before the application's handler sends
+  // its request, so every request up to the click is refused and the recovery is caused by Retry.
+  await page.evaluate(() => document.addEventListener('click', (event) => {
+    if ((event.target as Element | null)?.closest('button')?.textContent?.includes('Retry connection')) (window as Window & { retried?: boolean }).retried = true
+  }, true))
+  await page.route('**/api/**', async (route) => (await page.evaluate(() => Boolean((window as Window & { retried?: boolean }).retried)).catch(() => false) ? route.fallback() : route.abort('connectionrefused')))
   await page.goto(`/#/user-access/user/${names.b}`)
   await expect(notice(page)).toHaveCount(1)
   await expect(notice(page)).toContainText('Connection lost')
   await expect(page.getByRole('button', { name: 'Reconnect session' })).toHaveCount(0)               // only actions that work in this state
-  await page.unroute('**/api/**')
   await page.getByRole('button', { name: 'Retry connection' }).click()
   await expect(notice(page)).toHaveCount(0)
+  await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(names.b)          // the view the person was on is kept
+  await expect(page).toHaveURL(new RegExp(`#/user-access/user/${names.b}`))
+  await page.unrouteAll({ behavior: 'wait' })
 })
 
 test('the notification is compact, keyboard operable, readable in dark mode and does not overflow at 375px', { tag: '@a11y' }, async ({ page, request }) => {
