@@ -157,6 +157,24 @@ class RiskBasedSelectionTests(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr[-2000:]); self.assertIn('`fast` is now `quick`', done.stdout)
 
 
+class InterpreterConsistencyTests(unittest.TestCase):
+    """Every Python subprocess of the browser tests uses the runner's interpreter (frontend/tests/python.ts), never PATH's first python."""
+    def test_no_spec_or_fixture_spawns_a_bare_python(self):
+        offenders = []
+        for path in sorted((ROOT / 'frontend' / 'tests').glob('*.ts')):
+            text = path.read_text(encoding='utf-8')
+            if re.search(r"""(execFileSync|execFile|spawn|spawnSync|exec)\(\s*['"`]python3?['"`]""", text) or "process.env.PYTHON" in text and path.name != 'python.ts':
+                offenders.append(path.name)
+        self.assertEqual(offenders, [])
+
+    def test_the_test_server_and_the_runner_pass_the_interpreter_explicitly(self):
+        config = (ROOT / 'frontend' / 'playwright.config.ts').read_text(encoding='utf-8')
+        self.assertIn("from './tests/python'", config); self.assertNotIn("'python ../scripts", config); self.assertNotIn("exec python ", config)
+        self.assertIn("'SAP_LENS_TEST_PYTHON': python_exe()", (ROOT / 'scripts' / 'run-tests.py').read_text(encoding='utf-8'))
+        resolver = (ROOT / 'frontend' / 'tests' / 'python.ts').read_text(encoding='utf-8')
+        self.assertLess(resolver.index('SAP_LENS_TEST_PYTHON'), resolver.index("'.venv'"))
+
+
 class BrowserFailureReportingTests(unittest.TestCase):
     def test_failure_details_come_from_the_json_report_not_a_log_tail(self):
         report = {'suites': [{'file': 'a.spec.ts', 'specs': [

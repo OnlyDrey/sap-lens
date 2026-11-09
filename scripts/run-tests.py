@@ -676,7 +676,9 @@ def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str
                     command += ['--grep', grep]
                 if grep_invert:
                     command += ['--grep-invert', grep_invert]
-                env = {**os.environ, 'SAP_LENS_BROWSER_TEST_PORT': str(BASE_PORT + index), 'PLAYWRIGHT_JSON_OUTPUT_NAME': str(report)}
+                # SAP_LENS_TEST_PYTHON: the test server and every Python subprocess of a spec use this runner's Python 3.12, not PATH's first python.
+                env = {**os.environ, 'SAP_LENS_BROWSER_TEST_PORT': str(BASE_PORT + index), 'PLAYWRIGHT_JSON_OUTPUT_NAME': str(report),
+                       'SAP_LENS_TEST_PYTHON': python_exe()}
                 env.update(PLAYWRIGHT_HTML_OPEN='never',PLAYWRIGHT_HTML_REPORT=str(Path(scratch)/f'html-{index}'),PLAYWRIGHT_JUNIT_OUTPUT_NAME=str(Path(scratch)/f'junit-{index}.xml'))
                 handle = None if jobs == 1 else log.open('w', encoding='utf-8')  # a single process streams its progress live (CI logs, local feedback)
                 process = subprocess.Popen(command + extra, cwd=FRONTEND, env=env, stdout=handle, stderr=subprocess.STDOUT if handle else None, text=True, start_new_session=True)

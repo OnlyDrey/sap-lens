@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
+import { PYTHON } from './python'
 import path from 'node:path'
 import { cleanup, enableSod, headers, openSod, seedGovernance } from './sod-fixture'
 import { openSettings } from './support'
@@ -127,7 +128,7 @@ test('an existing file shows absent optional columns as normal, and the candidat
 
 test('reference workbook upload enriches exact active IDs with provenance and coverage without activating unmatched definitions @repository-only', async ({ page, request }, testInfo) => {
   await reseed(request, plain)
-  const workbook = (inactive = false) => execFileSync(process.env.PYTHON || 'python', ['-c',
+  const workbook = (inactive = false) => execFileSync(PYTHON, ['-c',
     "import sys;sys.path[:0]=['backend','backend/tests'];from test_sod_reference import workbook;sys.stdout.buffer.write(workbook(risks=[('REF_UNUSED','Unused')] if sys.argv[1]=='yes' else [('R1','Curated risk'),('REF_UNUSED','Unused')],activities=[('REF_UNUSED_ACTIVITY','Unused')] if sys.argv[1]=='yes' else [('A','Curated activity')]))", inactive ? 'yes' : 'no'], { cwd: path.resolve('..'), env: { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('SAP_LENS_') && key !== 'DATA_CSV_PATH')), SAP_LENS_CONFIG_DIR: path.join(directory, 'reference-generator'), DATA_CSV_PATH: '' } })
   try {
     await openSettings(page, 'SoD Risk Configuration')
@@ -176,7 +177,7 @@ test('reference workbook upload enriches exact active IDs with provenance and co
 
 test('risk and activity dialogs inherit reference fields without creating overrides and safely refresh unsaved drafts @repository-only', async ({page,request})=>{
   await reseed(request, plain.replaceAll('R1','F019').replaceAll(',A,',',AP01,'))
-  const referenceFile=(name='Synthetic reference risk')=>execFileSync(process.env.PYTHON||'python',['-c',"import sys;sys.path[:0]=['backend','backend/tests'];from test_sod_reference import workbook;sys.stdout.buffer.write(workbook(risks=[('F019',sys.argv[1])],activities=[('AP01','Synthetic reference activity')]))",name],{cwd:path.resolve('..'),env:{...Object.fromEntries(Object.entries(process.env).filter(([key])=>!key.startsWith('SAP_LENS_')&&key!=='DATA_CSV_PATH')),SAP_LENS_CONFIG_DIR:path.join(directory,'effective-generator'),DATA_CSV_PATH:''}})
+  const referenceFile=(name='Synthetic reference risk')=>execFileSync(PYTHON,['-c',"import sys;sys.path[:0]=['backend','backend/tests'];from test_sod_reference import workbook;sys.stdout.buffer.write(workbook(risks=[('F019',sys.argv[1])],activities=[('AP01','Synthetic reference activity')]))",name],{cwd:path.resolve('..'),env:{...Object.fromEntries(Object.entries(process.env).filter(([key])=>!key.startsWith('SAP_LENS_')&&key!=='DATA_CSV_PATH')),SAP_LENS_CONFIG_DIR:path.join(directory,'effective-generator'),DATA_CSV_PATH:''}})
   try{
     await openSettings(page,'SoD Risk Configuration')
     const library=page.getByRole('region',{name:'SoD reference library'})
@@ -245,7 +246,7 @@ test('risk and activity dialogs inherit reference fields without creating overri
   }finally{
     const current=await(await request.get('/api/sod/reference',{headers})).json()
     // Leave no active reference matches for unrelated tests sharing this disposable server.
-    const unused=execFileSync(process.env.PYTHON||'python',['-c',"import sys;sys.path[:0]=['backend','backend/tests'];from test_sod_reference import workbook;sys.stdout.buffer.write(workbook(risks=[('REF_UNUSED','Unused')],activities=[('REF_UNUSED_ACTIVITY','Unused')]))"],{cwd:path.resolve('..'),env:{...Object.fromEntries(Object.entries(process.env).filter(([key])=>!key.startsWith('SAP_LENS_')&&key!=='DATA_CSV_PATH')),SAP_LENS_CONFIG_DIR:path.join(directory,'effective-generator'),DATA_CSV_PATH:''}})
+    const unused=execFileSync(PYTHON,['-c',"import sys;sys.path[:0]=['backend','backend/tests'];from test_sod_reference import workbook;sys.stdout.buffer.write(workbook(risks=[('REF_UNUSED','Unused')],activities=[('REF_UNUSED_ACTIVITY','Unused')]))"],{cwd:path.resolve('..'),env:{...Object.fromEntries(Object.entries(process.env).filter(([key])=>!key.startsWith('SAP_LENS_')&&key!=='DATA_CSV_PATH')),SAP_LENS_CONFIG_DIR:path.join(directory,'effective-generator'),DATA_CSV_PATH:''}})
     expect((await request.put('/api/sod/reference',{headers,data:{expected_revision:current.revision,workbook_base64:unused.toString('base64')}})).ok()).toBeTruthy()
   }
 })

@@ -1,9 +1,10 @@
 import {test,expect} from '@playwright/test'
 import {execFileSync} from 'node:child_process'
+import { PYTHON } from './python'
 import path from 'node:path'
 import { layoutMatrix } from './matrix'
 const headers={'X-SAP-Lens':'browser-test-session'}
-function archive(){return execFileSync('python',['-c',`import sys,tempfile,json
+function archive(){return execFileSync(PYTHON,['-c',`import sys,tempfile,json
 from pathlib import Path
 sys.path.insert(0,'backend')
 from config_models import AppConfig
