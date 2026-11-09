@@ -457,7 +457,9 @@ for(const theme of ['light','dark']) for(const width of [375,800,1280])
   await page.goto('/#session=browser-test-session')
   await page.getByRole('button',{name:'Open settings',exact:true}).click()
   const tabs=page.getByRole('tab')
+  await expect(tabs.filter({hasText:'About SAP Lens'})).toBeVisible() // the tab list renders after the dialog opens; read it once it is there
   const names=await tabs.allTextContents()
+  expect(names).toContain('Component Library')
   expect(names.indexOf('Component Library')).toBeLessThan(names.indexOf('About SAP Lens'))
   await page.getByRole('tab',{name:'Data Sources',exact:true}).click()
   for(const source of ['Role Catalogue','User Access','Employee Directory']){

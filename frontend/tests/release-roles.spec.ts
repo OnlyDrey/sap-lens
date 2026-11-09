@@ -210,7 +210,10 @@ test('large bulk additions require confirmation and filters with no match disabl
 test('Release Roles filters work from the keyboard and without horizontal scroll at 375 px', { tag: '@a11y' }, async ({ page }) => {
   await open(page)
   const area = page.getByRole('combobox', { name: 'Release Area', exact: true })
-  await area.focus(); await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter')
+  await area.focus(); await page.keyboard.press('ArrowDown')
+  // the options are read from the data; keyboard selection is checked once they are listed (Enter on an empty list selects nothing)
+  await expect(page.getByRole('listbox', { name: 'Release Area options' }).getByRole('option')).toHaveText(['E', 'N'])
+  await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter')
   await expect(page.getByRole('button', { name: /^Remove Release Area/ })).toHaveCount(1)
   await page.setViewportSize({ width: 375, height: 800 })
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()

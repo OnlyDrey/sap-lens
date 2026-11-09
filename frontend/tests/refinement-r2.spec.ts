@@ -270,7 +270,10 @@ test('User Access role rows keep a compact module badge beside the description a
   await page.getByRole('link', { name: 'U2', exact: true }).click()
   const head = page.locator('.assigned-role-head').first()
   await expect(head).toBeVisible()
-  const badge = await head.locator('.module-badge').first().boundingBox(), description = await head.locator('.assigned-role-description').boundingBox(), cell = await head.locator('xpath=../..').boundingBox()
+  const measure = async () => ({ badge: await head.locator('.module-badge').first().boundingBox(), description: await head.locator('.assigned-role-description').boundingBox(), cell: await head.locator('xpath=../..').boundingBox() })
+  // the row can still reflow while the user's assignments finish loading; measure once badge and description share a line
+  await expect.poll(async () => { const m = await measure(); return m.badge && m.description ? Math.abs(m.badge.y - m.description.y) : Infinity }).toBeLessThan(14)
+  const { badge, description, cell } = await measure()
   expect(badge!.width).toBeLessThan(cell!.width * 0.4) // never a full-width badge
   expect(Math.abs(badge!.y - description!.y)).toBeLessThan(14) // description adjacent, same line
   expect(description!.x).toBeGreaterThanOrEqual(badge!.x + badge!.width - 1)

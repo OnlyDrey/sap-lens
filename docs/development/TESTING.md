@@ -252,6 +252,16 @@ change, browser smoke and changed specs for frontend changes); the manual Full V
   possibly to every browser process of a parallel run) and `writeText` finishes after the click, so a read can return an earlier
   test's value. Call `recordClipboard(page)` from `tests/support.ts` before the copy (it also grants the permissions) and assert
   with `await expect.poll(() => copiedText(page)).toBe(...)`; the real `writeText` still runs.
+- *Reading a failure's page snapshot*: `error-context.md` and the failure screenshot are taken when the `page` fixture closes, after
+  `afterEach` has run. Fixtures reset the server there, so the snapshot usually shows "Choose a SAP role catalogue or user access CSV in
+  Settings" or an empty source even when the data was loaded while the test ran. Judge the failure by the error and call log, not by that banner.
+- *Server diagnostics*: every test server reports on stderr (kept in the shard's `log-N.err.txt` of a failed run) its start and stop, requests
+  slower than 2 s (`SAP_LENS_TEST_SLOW_MS` changes the threshold), server errors and requests that ended without a response.
+  `SAP_LENS_TEST_REQUEST_LOG=<file>` appends every request with its duration (paths only, no query strings) for latency analysis.
+  Failed CSV loads log their operation, source, category and exception class or OS error code, never the path or content.
+- *`socket hang up` / `ECONNRESET` on API requests*: the test server keeps idle connections for 150 s, longer than the test timeout,
+  because Playwright's API client reuses keep-alive connections without an idle limit; a shorter server timeout closes a connection the
+  client is reusing at that moment.
 - *`route.fulfill: Route is already handled!`*: `page.unroute()` does not wait for a handler that is still awaiting
   `route.fetch()`; Playwright continues that request underneath it and the handler's later `fulfill` fails. When a handler is
   asynchronous, remove it with `await page.unrouteAll({ behavior: 'wait' })` (or keep it for the whole test).
