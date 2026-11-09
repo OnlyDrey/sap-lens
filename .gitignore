@@ -102,6 +102,7 @@ sod-periods.json
 
 # Local validation reports, traces and synthetic browser artifacts
 /build/validation/
+/build/test-artifacts/
 
 # Every generated distributable (scripts/build_system/layout.py): local, deployment, server, publication, versioned outputs and the cleanup lock
 /dist/

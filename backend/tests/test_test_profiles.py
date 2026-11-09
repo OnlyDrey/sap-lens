@@ -1,5 +1,6 @@
 """Integrity of the test profiles: no test file may be silently left out of regression."""
 import importlib.util
+import io
 import os
 from pathlib import Path
 import re
@@ -10,6 +11,8 @@ import sys
 import tempfile
 import time
 import unittest
+import unittest.mock
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location('run_tests_script', ROOT / 'scripts' / 'run-tests.py')
@@ -173,6 +176,103 @@ class InterpreterConsistencyTests(unittest.TestCase):
         self.assertIn("'SAP_LENS_TEST_PYTHON': python_exe()", (ROOT / 'scripts' / 'run-tests.py').read_text(encoding='utf-8'))
         resolver = (ROOT / 'frontend' / 'tests' / 'python.ts').read_text(encoding='utf-8')
         self.assertLess(resolver.index('SAP_LENS_TEST_PYTHON'), resolver.index("'.venv'"))
+
+
+FAKE_PLAYWRIGHT = r"""#!/usr/bin/env python3
+import json, os, sys, time
+mode = os.environ.get('FAKE_MODE', 'pass')
+print('[1/2] fake a.spec.ts', flush=True); print('[2/2] fake b.spec.ts', flush=True)
+sys.stderr.write('fake diagnostics on stderr\n')
+if mode == 'hang':
+    time.sleep(120)
+if mode == 'noreport':
+    sys.exit(3)
+failed = mode == 'fail'
+test = lambda title, status: {'title': title, 'file': 'a.spec.ts', 'tests': [{'status': status, 'results': [{'duration': 5, 'status': 'failed' if status == 'unexpected' else 'passed',
+                               'error': {'message': 'Expected: 1\nReceived: 2'} if status == 'unexpected' else None}]}]}
+report = {'stats': {'expected': 1 if failed else 2, 'unexpected': 1 if failed else 0, 'flaky': 0, 'skipped': 1, 'duration': 1000},
+          'suites': [{'file': 'a.spec.ts', 'specs': [test('one', 'expected'), test('two', 'unexpected' if failed else 'expected')]}], 'errors': []}
+open(os.environ['PLAYWRIGHT_JSON_OUTPUT_NAME'], 'w').write(json.dumps(report))
+sys.exit(1 if failed else 0)
+"""
+
+
+@unittest.skipIf(os.name == 'nt', 'the fake Playwright is a POSIX executable script; Windows behaviour of the same code paths is covered by the mocked tests below')
+class BrowserLifecycleTests(unittest.TestCase):
+    """run_browser against a fake Playwright: logs are closed before cleanup, failures keep their artifacts, infrastructure problems are
+    classified and the exit codes are 0 (pass), 1 (tests failed) and 2 (infrastructure only)."""
+    def setUp(self):
+        self.folder = tempfile.TemporaryDirectory(); self.addCleanup(self.folder.cleanup)
+        fake = Path(self.folder.name) / 'fake-playwright'
+        fake.write_text(FAKE_PLAYWRIGHT, encoding='utf-8'); fake.chmod(0o755)
+        with socket.socket() as probe:
+            probe.bind(('127.0.0.1', 0)); port = probe.getsockname()[1]
+        self.patches = [patch.object(runner, 'BASE_PORT', port), patch.object(runner, 'ROOT', Path(self.folder.name)),
+                        patch.dict(os.environ, {'SAP_LENS_NPM': str(fake), 'SAP_LENS_TEST_HEARTBEAT': '0'})]
+        for item in self.patches:
+            item.start(); self.addCleanup(item.stop)
+        self.specs = [p.name[:-len('.spec.ts')] for p in sorted((ROOT / 'frontend' / 'tests').glob('*.spec.ts'))[:4]]
+
+    def run_browser(self, mode, jobs=2):
+        with patch.dict(os.environ, {'FAKE_MODE': mode}), patch('sys.stdout', new=io.StringIO()), patch('sys.stderr', new=io.StringIO()) as err:
+            return runner.run_browser(self.specs, None, jobs, f'fake {mode}', []), err.getvalue()
+
+    def open_logs(self):
+        fd = Path('/proc/self/fd')
+        return [str(link.resolve()) for link in fd.iterdir() if 'sap-lens-browser-' in str(link.resolve())] if fd.exists() else []
+
+    def test_a_passing_run_closes_its_logs_and_removes_the_scratch_directory(self):
+        result, _ = self.run_browser('pass')
+        self.assertTrue(result['ok']); self.assertEqual((result['passed'], result['failures'], len(result['skipped'])), (4, 0, 2))
+        self.assertEqual(self.open_logs(), [], 'no log handle may stay open (WinError 32 on Windows)')
+        self.assertFalse(result.get('artifacts')); self.assertEqual(result['infrastructure'], [])
+        self.assertEqual(runner.report('targeted', 'x', [result], [], None), 0)
+
+    def test_failed_tests_keep_artifacts_report_errors_and_exit_1(self):
+        result, err = self.run_browser('fail')
+        self.assertFalse(result['ok']); self.assertEqual(result['failures'], 2); self.assertEqual(result['infrastructure'], [])
+        self.assertIn('Received: 2', err); self.assertIn('fake diagnostics on stderr', err)
+        self.assertTrue(Path(result['artifacts']).is_dir()); self.assertTrue(any(Path(result['artifacts']).glob('log-*.err.txt')))
+        with patch('sys.stdout', new=io.StringIO()):
+            self.assertEqual(runner.report('targeted', 'x', [result], [], None), 1)
+
+    def test_a_process_without_a_report_is_an_infrastructure_failure_with_exit_2(self):
+        result, err = self.run_browser('noreport')
+        self.assertFalse(result['ok']); self.assertEqual(result['failures'], 0)
+        self.assertTrue(result['infrastructure']); self.assertIn('without a test report', result['infrastructure'][0])
+        self.assertIn('fake diagnostics on stderr', err)
+        with patch('sys.stdout', new=io.StringIO()):
+            self.assertEqual(runner.report('targeted', 'x', [result], [], None), 2)
+
+    def test_a_hung_process_is_stopped_diagnosed_and_classified(self):
+        started = time.perf_counter()
+        with patch.object(runner, 'BROWSER_TIMEOUT', 3):
+            result, _ = self.run_browser('hang', jobs=1)
+        self.assertLess(time.perf_counter() - started, 60)
+        self.assertFalse(result['ok']); self.assertTrue(any('stopped after 3s' in item for item in result['infrastructure']))
+        self.assertEqual(runner.OWNED, [])
+
+
+class WindowsCleanupTests(unittest.TestCase):
+    """Windows-specific lifecycle code driven with mocks (no Windows host here): tree termination and bounded cleanup retries."""
+    def test_windows_termination_kills_the_whole_tree_by_process_id(self):
+        process = unittest.mock.Mock(pid=4242)
+        with patch.object(runner.os, 'name', 'nt'), patch.object(runner.subprocess, 'run') as run:
+            runner._terminate_tree(process, force=True)
+        self.assertEqual(run.call_args.args[0], ['taskkill', '/PID', '4242', '/T', '/F'])
+
+    def test_cleanup_retries_transient_locks_and_never_raises(self):
+        calls = {'n': 0}
+        def locked(path):
+            calls['n'] += 1
+            if calls['n'] < 3:
+                raise PermissionError(32, 'The process cannot access the file because it is being used by another process', 'log-2.txt')
+        with patch.object(runner.shutil, 'rmtree', side_effect=locked), patch.object(runner.time, 'sleep'):
+            self.assertIsNone(runner.remove_tree(Path('x')))
+        self.assertEqual(calls['n'], 3)
+        with patch.object(runner.shutil, 'rmtree', side_effect=PermissionError(32, 'locked')), patch.object(runner.time, 'sleep'):
+            note = runner.remove_tree(Path('x'), attempts=3)
+        self.assertIn('after 3 attempts', note)
 
 
 class BrowserFailureReportingTests(unittest.TestCase):

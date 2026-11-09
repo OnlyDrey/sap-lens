@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import argparse
 import ast
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 import fnmatch
 import json
 import os
@@ -480,6 +480,7 @@ def split_modules(modules: list[str], jobs: int) -> list[list[str]]:
 def run_backend(names: list[str], jobs: int, label: str, split: bool) -> dict:
     started = time.perf_counter()
     groups = split_modules(names, jobs) if split else [names]
+    print(f'[start] {label}: {len(names)} module(s) or name(s) in {len(groups)} process(es)', flush=True)
     with tempfile.TemporaryDirectory(prefix='sap-lens-backend-') as scratch:
         def launch(index_group: tuple[int, list[str]]) -> tuple[int, Path]:
             index, group = index_group
@@ -496,6 +497,8 @@ def run_backend(names: list[str], jobs: int, label: str, split: bool) -> dict:
             outcomes = list(pool.map(launch, enumerate(groups)))
         merged = {'tests': 0, 'failures': 0, 'errors': 0, 'skipped': [], 'shards': [], 'slowest': []}
         for code, out in outcomes:
+            if not out.exists():                                         # the worker died before writing its result: infrastructure
+                merged.setdefault('infrastructure', []).append(f'backend worker exited with code {code} without a result')
             data = json.loads(out.read_text(encoding='utf-8')) if out.exists() else {'tests': 0, 'failures': 0, 'errors': 1, 'skipped': [], 'seconds': 0.0}
             merged['shards'].append(round(data.get('seconds', 0.0), 1))
             for key in ('tests', 'failures', 'errors'):
@@ -514,7 +517,8 @@ def run_backend(names: list[str], jobs: int, label: str, split: bool) -> dict:
 # ---------------------------------------------------------------------------- browser
 
 def npm() -> str:
-    return shutil.which('npm') or shutil.which('npm.cmd') or 'npm'
+    # SAP_LENS_NPM replaces npm with another executable (the runner's own tests use a fake Playwright to exercise lifecycle and reporting).
+    return os.environ.get('SAP_LENS_NPM') or shutil.which('npm') or shutil.which('npm.cmd') or 'npm'
 
 
 def dist_is_stale() -> bool:
@@ -528,10 +532,17 @@ def dist_is_stale() -> bool:
 
 def step(name: str, command: list[str], cwd: Path = ROOT, env: dict | None = None, quiet: bool = True) -> dict:
     started = time.perf_counter()
-    done = subprocess.run(command, cwd=cwd, env={**os.environ, **(env or {})}, capture_output=quiet, text=True)
+    print(f'[start] {name}', flush=True)
+    try:
+        done = subprocess.run(command, cwd=cwd, env={**os.environ, **(env or {})}, capture_output=quiet, text=True, encoding='utf-8', errors='replace')
+    except OSError as error:                                           # the tool itself is missing or cannot start: infrastructure, not a finding
+        print(f'[done] {name}: could not start ({error})', flush=True)
+        return {'name': name, 'seconds': time.perf_counter() - started, 'ok': False, 'tests': None, 'infrastructure': [f'{name}: could not start ({error})']}
     if quiet and done.returncode:
-        sys.stderr.write((done.stdout or '')[-4000:] + (done.stderr or '')[-2000:])
-    return {'name': name, 'seconds': time.perf_counter() - started, 'ok': done.returncode == 0, 'tests': None}
+        sys.stderr.write(f'--- {name}: stdout ---\n' + (done.stdout or '')[-4000:] + f'\n--- {name}: stderr ---\n' + (done.stderr or '')[-2000:] + '\n')
+    seconds = time.perf_counter() - started
+    print(f"[done] {name}: {'PASS' if done.returncode == 0 else f'FAIL (exit code {done.returncode})'} ({seconds:.1f}s)", flush=True)
+    return {'name': name, 'seconds': seconds, 'ok': done.returncode == 0, 'tests': None}
 
 
 def build_frontend(force: bool = False) -> dict | None:
@@ -575,24 +586,68 @@ def split_specs(files: list[str], jobs: int) -> list[list[str]]:
     return [sorted(group) for group in groups if group]
 
 
+def _terminate_tree(process: subprocess.Popen, force: bool) -> None:
+    """Stop a child and everything it started. POSIX: its process group. Windows: Ctrl+Break to its group first (graceful), then
+    `taskkill /T /F` by process id, because terminating npm.cmd alone leaves node, Chromium and the test server running and holding files."""
+    try:
+        if os.name == 'nt':
+            if force:
+                subprocess.run(['taskkill', '/PID', str(process.pid), '/T', '/F'], capture_output=True, timeout=30)
+            else:
+                process.send_signal(signal.CTRL_BREAK_EVENT)
+        elif hasattr(os, 'killpg'):
+            os.killpg(process.pid, signal.SIGKILL if force else signal.SIGTERM)
+        else:
+            process.kill() if force else process.terminate()
+    except (ProcessLookupError, PermissionError, OSError, subprocess.SubprocessError, ValueError):
+        pass
+
+
 def stop_owned(grace: float = 20.0) -> None:
-    """Terminate the process groups this runner started (SIGTERM first so servers clean up, then SIGKILL); nothing else is touched."""
+    """Terminate the process trees this runner started (graceful first so servers clean up, then forced); nothing else is touched."""
     for process in OWNED:
         if process.poll() is None:
-            try:
-                os.killpg(process.pid, signal.SIGTERM) if hasattr(os, 'killpg') else process.terminate()
-            except (ProcessLookupError, PermissionError):
-                pass
+            _terminate_tree(process, force=False)
     deadline = time.monotonic() + grace
     for process in OWNED:
         try:
             process.wait(max(0.0, deadline - time.monotonic()))
         except subprocess.TimeoutExpired:
+            _terminate_tree(process, force=True)
             try:
-                os.killpg(process.pid, signal.SIGKILL) if hasattr(os, 'killpg') else process.kill()
-            except (ProcessLookupError, PermissionError):
+                process.wait(10)
+            except subprocess.TimeoutExpired:
                 pass
+        if os.name == 'nt':
+            _terminate_tree(process, force=True)          # the npm.cmd shell may be gone while its node and Chromium children remain
     OWNED.clear()
+
+
+def remove_tree(path: Path, attempts: int = 6, delay: float = 0.5) -> str | None:
+    """Delete a scratch directory, retrying transient Windows locks (WinError 32/5) a bounded number of times. Never raises: a cleanup
+    problem is reported as a note and can never replace the result of the tests."""
+    last: Exception | None = None
+    for attempt in range(attempts):
+        try:
+            shutil.rmtree(path)
+            return None
+        except FileNotFoundError:
+            return None
+        except OSError as error:
+            last = error
+            time.sleep(delay * (attempt + 1))
+    return f'Could not remove {path} after {attempts} attempts ({last}); it was left in place.'
+
+
+def preserve_artifacts(scratch: Path, label: str) -> str:
+    """Move a failed run's reports, logs and traces to build/test-artifacts/ (ignored by Git); fall back to leaving them where they are."""
+    target = ROOT / 'build' / 'test-artifacts' / f"{re.sub(r'[^A-Za-z0-9_.-]+', '-', label).strip('-')}-{time.strftime('%Y%m%dT%H%M%S')}"
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(scratch), str(target))
+        return str(target)
+    except OSError:
+        return str(scratch)
 
 
 @contextmanager
@@ -648,77 +703,166 @@ def playwright_failures(report: dict) -> list[str]:
     return messages
 
 
+BROWSER_TIMEOUT = int(os.environ.get('SAP_LENS_BROWSER_TIMEOUT', '5400'))   # seconds per Playwright process before it is stopped and diagnosed
+
+
+def _progress(path: Path) -> str:
+    """The last `[n/m]` position Playwright's line reporter wrote to a shard log, or '' before the first test."""
+    try:
+        with path.open('rb') as stream:
+            stream.seek(max(0, path.stat().st_size - 8192))
+            found = re.findall(rb'\[(\d+)/(\d+)\]', stream.read())
+        return f'test {int(found[-1][0])}/{int(found[-1][1])}' if found else ''
+    except OSError:
+        return ''
+
+
+def _tail(path: Path, characters: int) -> str:
+    try:
+        return path.read_text(encoding='utf-8', errors='replace')[-characters:] if path.exists() else ''
+    except OSError:
+        return ''
+
+
+def _wait_for_shards(launched: list, label: str, timeout: int) -> dict[int, tuple[int, float, bool]]:
+    """Wait for every Playwright process with a heartbeat, a completion line per shard and a per-process timeout.
+    Returns {index: (exit code, seconds, timed out)}."""
+    heartbeat = float(os.environ.get('SAP_LENS_TEST_HEARTBEAT', '30'))
+    started, last_beat, done = time.perf_counter(), time.perf_counter(), {}
+    total = len(launched)
+    while len(done) < total:
+        now = time.perf_counter()
+        for index, _, process, _, out, _, _ in launched:
+            if index in done:
+                continue
+            code = process.poll()
+            if code is not None:
+                done[index] = (code, now - started, False)
+                print(f'[done] {label} shard {index + 1}/{total}: exit code {code} after {now - started:.0f}s', flush=True)
+            elif now - started > timeout:
+                done[index] = (124, now - started, True)
+                print(f'[timeout] {label} shard {index + 1}/{total} exceeded {timeout}s at {_progress(out) or "startup"}; stopping it.', flush=True)
+                _terminate_tree(process, force=True)
+        if heartbeat and total > 1 and now - last_beat >= heartbeat and len(done) < total:
+            last_beat = now
+            states = [f"shard {index + 1}: {'done' if index in done else (_progress(out) or 'starting')}" for index, _, _, _, out, _, _ in launched]
+            print(f"[{label}] {now - started:.0f}s; " + '; '.join(states), flush=True)
+        time.sleep(0.5)
+    return done
+
+
 def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str, extra: list[str], grep_invert: str | None = None) -> dict:
-    """Run the browser tests in `jobs` independent Playwright processes, each with its own server, port and storage."""
+    """Run the browser tests in `jobs` independent Playwright processes, each with its own server, port and storage.
+
+    Failures are classified: `failures` are tests that failed; `infrastructure` lists problems that stopped tests from running or reporting
+    (a busy port, a server that did not start, a process without a report, a timeout). Cleanup never raises and never hides either."""
     started = time.perf_counter()
     names = specs if specs is not None else browser_specs()
     files = [f'tests/{name}.spec.ts' for name in names]
+    empty = {'name': label, 'tests': 0, 'passed': 0, 'failures': 0, 'errors': 0, 'skipped': [], 'seconds': 0.0, 'ok': True, 'infrastructure': []}
     if specs is not None and not files:
-        return {'name': label, 'tests': 0, 'failures': 0, 'errors': 0, 'skipped': [], 'seconds': 0.0, 'ok': True}
+        return empty
     jobs = max(1, min(jobs, len(files) or 1, BROWSER_JOBS_MAX))
     if (busy := busy_ports(jobs)):
-        sys.stderr.write(f"Browser test port(s) {', '.join(map(str, busy))} already in use by another process (a stale test server?). "
-                         "Stop that process yourself (find it with `ss -ltnp`); the runner never signals processes it did not start.\n")
-        return {'name': label, 'tests': 0, 'failures': 0, 'errors': 1, 'skipped': [], 'seconds': 0.0, 'ok': False}
+        problem = (f"Browser test port(s) {', '.join(map(str, busy))} already in use by another process (a stale test server?). Stop that process "
+                   "yourself (find it with `ss -ltnp`, or `Get-NetTCPConnection -LocalPort 18745` in PowerShell); the runner never signals processes it did not start.")
+        sys.stderr.write(problem + '\n')
+        return {**empty, 'errors': 1, 'ok': False, 'infrastructure': [problem]}
     groups = split_specs(files, jobs) if jobs > 1 else [files if specs is not None else []]
-    kept=Path(os.environ['SAP_LENS_TEST_ARTIFACTS'])/label.replace(' ','-') if os.environ.get('SAP_LENS_TEST_ARTIFACTS') else None
-    if kept: kept.mkdir(parents=True,exist_ok=True)
-    with nullcontext(str(kept)) if kept else tempfile.TemporaryDirectory(prefix='sap-lens-browser-') as scratch:
-        launched: list[tuple[int, int, subprocess.Popen, Path, Path, list[str]]] = []
-        signals = cleanup_on_signals()
-        signals.__enter__()
-        try:
+    kept = Path(os.environ['SAP_LENS_TEST_ARTIFACTS']) / label.replace(' ', '-') if os.environ.get('SAP_LENS_TEST_ARTIFACTS') else None
+    if kept:
+        kept.mkdir(parents=True, exist_ok=True)
+    scratch = kept or Path(tempfile.mkdtemp(prefix='sap-lens-browser-'))
+    print(f"[start] {label}: {len(groups)} Playwright process(es), {len(files) if specs is not None else 'all'} spec files", flush=True)
+    launched: list = []
+    handles: list = []
+    outcome: dict[int, tuple[int, float, bool]] = {}
+    try:
+        with cleanup_on_signals():
             for index, group in enumerate(groups):
-                report, log = Path(scratch) / f'report-{index}.json', Path(scratch) / f'log-{index}.txt'
-                command = [npm(), '--prefix', str(FRONTEND), 'run', 'test:browser', '--', *group, '--reporter=line,json', f'--output={Path(scratch) / f"results-{index}"}']
-                if os.environ.get('SAP_LENS_TEST_REPORTERS')=='html,junit': command=[arg.replace('--reporter=line,json','--reporter=line,json,html,junit') for arg in command]
+                report, out, err = scratch / f'report-{index}.json', scratch / f'log-{index}.out.txt', scratch / f'log-{index}.err.txt'
+                command = [npm(), '--prefix', str(FRONTEND), 'run', 'test:browser', '--', *group, '--reporter=line,json', f'--output={scratch / f"results-{index}"}']
+                if os.environ.get('SAP_LENS_TEST_REPORTERS') == 'html,junit':
+                    command = [arg.replace('--reporter=line,json', '--reporter=line,json,html,junit') for arg in command]
                 if grep:
                     command += ['--grep', grep]
                 if grep_invert:
                     command += ['--grep-invert', grep_invert]
                 # SAP_LENS_TEST_PYTHON: the test server and every Python subprocess of a spec use this runner's Python 3.12, not PATH's first python.
                 env = {**os.environ, 'SAP_LENS_BROWSER_TEST_PORT': str(BASE_PORT + index), 'PLAYWRIGHT_JSON_OUTPUT_NAME': str(report),
-                       'SAP_LENS_TEST_PYTHON': python_exe()}
-                env.update(PLAYWRIGHT_HTML_OPEN='never',PLAYWRIGHT_HTML_REPORT=str(Path(scratch)/f'html-{index}'),PLAYWRIGHT_JUNIT_OUTPUT_NAME=str(Path(scratch)/f'junit-{index}.xml'))
-                handle = None if jobs == 1 else log.open('w', encoding='utf-8')  # a single process streams its progress live (CI logs, local feedback)
-                process = subprocess.Popen(command + extra, cwd=FRONTEND, env=env, stdout=handle, stderr=subprocess.STDOUT if handle else None, text=True, start_new_session=True)
+                       'SAP_LENS_TEST_PYTHON': python_exe(), 'PLAYWRIGHT_HTML_OPEN': 'never', 'PLAYWRIGHT_HTML_REPORT': str(scratch / f'html-{index}'),
+                       'PLAYWRIGHT_JUNIT_OUTPUT_NAME': str(scratch / f'junit-{index}.xml')}
+                if jobs == 1:
+                    stdout = stderr = None                                   # a single process streams its progress live (CI logs, local feedback)
+                else:
+                    stdout, stderr = out.open('w', encoding='utf-8'), err.open('w', encoding='utf-8')
+                    handles += [stdout, stderr]
+                group_options = {'creationflags': subprocess.CREATE_NEW_PROCESS_GROUP} if os.name == 'nt' else {'start_new_session': True}
+                process = subprocess.Popen(command + extra, cwd=FRONTEND, env=env, stdout=stdout, stderr=stderr, text=True, **group_options)
                 OWNED.append(process)
-                launched.append((index, BASE_PORT + index, process, report, log, group))
-            codes = [(item, item[2].wait()) for item in launched]
-        finally:
-            stop_owned()  # an interrupt, a signal or an error must not leave our own Chromium or test servers behind
-            signals.__exit__(None, None, None)
-        merged = {'tests': 0, 'failures': 0, 'errors': 0, 'skipped': [], 'shards': [], 'shard_detail': [], 'slowest': [], 'failed': []}
-        ok, every = True, []
-        for (index, port, _, report, log, group), code in codes:
-            where = f'shard {index + 1}/{len(groups)} (port {port}, {len(group) or "all"} spec files)'
-            if not report.exists():
-                ok = False
-                merged['errors'] += 1
-                sys.stderr.write(f'{where} produced no report.\n')
-                if log.exists():
-                    sys.stderr.write(log.read_text(encoding='utf-8', errors='replace')[-3000:])
-                continue
-            data = json.loads(report.read_text(encoding='utf-8'))
-            stats, tests = data['stats'], playwright_tests(data)
-            every += tests
-            merged['shards'].append(round(stats['duration'] / 1000, 1))
-            merged['shard_detail'].append({'shard': index + 1, 'port': port, 'spec_files': len(group), 'seconds': round(stats['duration'] / 1000, 1), 'tests': stats['expected'] + stats['unexpected'] + stats['flaky']})
-            merged['tests'] += stats['expected'] + stats['unexpected'] + stats['flaky']
-            merged['failures'] += stats['unexpected'] + stats['flaky']
-            merged['skipped'] += [['browser test', 'skipped']] * stats['skipped']
-            failed = [(file, title) for _, file, title, status in tests if status in {'unexpected', 'flaky'}]
-            merged['failed'] += [f'{file} :: {title} [{where}]' for file, title in failed]
-            if code:
-                ok = False
-                sys.stderr.write(f'{where} failed' + (':\n  ' + '\n  '.join(f'{file} :: {title}' for file, title in failed) if failed else '') + '\n')
-                for message in playwright_failures(data):
-                    sys.stderr.write(f'  ERROR {message}\n')
-                if log.exists():  # a single streamed process has already printed its own output
-                    sys.stderr.write(log.read_text(encoding='utf-8', errors='replace')[-6000:])
-        merged['slowest'] = [[round(seconds, 1), file, title] for seconds, file, title, _ in sorted(every, reverse=True)[:max(SLOWEST, 10)]]
-    merged.update(name=label, seconds=time.perf_counter() - started, ok=ok and not merged['failures'])
-    print(f"\n{merged['tests'] - merged['failures']} passed ({merged['seconds']:.0f}s)" + (f", {merged['failures']} failed" if merged['failures'] else ''), flush=True)
+                launched.append((index, BASE_PORT + index, process, report, out, err, group))
+                print(f"[start] {label} shard {index + 1}/{len(groups)}: port {BASE_PORT + index}, {len(group) or 'all'} spec files, pid {process.pid}", flush=True)
+            outcome = _wait_for_shards(launched, label, BROWSER_TIMEOUT)
+    finally:
+        stop_owned()          # an interrupt, a signal, a timeout or an error must not leave our own Chromium or test servers behind
+        for handle in handles:
+            handle.close()    # before anything reads or deletes the logs: an open handle is what made Windows refuse the cleanup (WinError 32)
+    merged = {'tests': 0, 'passed': 0, 'failures': 0, 'errors': 0, 'skipped': [], 'shards': [], 'shard_detail': [], 'slowest': [], 'failed': [], 'infrastructure': []}
+    every = []
+    for index, port, _, report, out, err, group in launched:
+        code, seconds, timed_out = outcome.get(index, (1, 0.0, False))
+        where = f'shard {index + 1}/{len(groups)} (port {port}, {len(group) or "all"} spec files)'
+        detail = {'shard': index + 1, 'port': port, 'spec_files': len(group), 'seconds': round(seconds, 1), 'exit_code': code, 'tests': 0}
+        merged['shard_detail'].append(detail)
+        data = None
+        if report.exists():
+            try:
+                data = json.loads(report.read_text(encoding='utf-8'))
+            except (OSError, ValueError) as error:
+                merged['infrastructure'].append(f'{where}: unreadable report ({error})')
+        if timed_out:
+            merged['infrastructure'].append(f'{where}: stopped after {BROWSER_TIMEOUT}s at {_progress(out) or "startup"} (SAP_LENS_BROWSER_TIMEOUT)')
+        if data is None:
+            merged['errors'] += 1
+            if not timed_out:
+                merged['infrastructure'].append(f'{where}: exit code {code} without a test report (the server or Playwright did not start)')
+            sys.stderr.write(f'{where} produced no report.\n' + _tail(err, 3000) + _tail(out, 3000))
+            continue
+        stats, tests = data['stats'], playwright_tests(data)
+        every += tests
+        ran = stats['expected'] + stats['unexpected'] + stats['flaky']
+        detail['tests'] = ran
+        merged['shards'].append(round(stats['duration'] / 1000, 1))
+        merged['tests'] += ran
+        merged['passed'] += stats['expected']
+        merged['failures'] += stats['unexpected'] + stats['flaky']
+        merged['skipped'] += [['browser test', 'skipped']] * stats['skipped']
+        failed = [(file, title) for _, file, title, status in tests if status in {'unexpected', 'flaky'}]
+        merged['failed'] += [f'{file} :: {title} [{where}]' for file, title in failed]
+        top_errors = [re.sub(r'\x1b\[[0-9;]*m', '', (item.get('message') or '')).strip() for item in data.get('errors', [])]
+        if code and not failed:
+            merged['errors'] += 1
+            merged['infrastructure'].append(f'{where}: exit code {code} with no failed test' + (f": {top_errors[0].splitlines()[0][:300]}" if top_errors and top_errors[0] else ''))
+        if code:
+            sys.stderr.write(f'{where} failed' + (':\n  ' + '\n  '.join(f'{file} :: {title}' for file, title in failed) if failed else '') + '\n')
+            for message in playwright_failures(data):
+                sys.stderr.write(f'  ERROR {message}\n')
+            if handles:                                                  # a single streamed process has already printed its own output
+                sys.stderr.write(_tail(err, 4000) + _tail(out, 2000))
+    merged['slowest'] = [[round(seconds, 1), file, title] for seconds, file, title, _ in sorted(every, reverse=True)[:max(SLOWEST, 10)]]
+    ok = not merged['failures'] and not merged['infrastructure'] and all(outcome.get(item[0], (1,))[0] == 0 for item in launched)
+    if not kept and ok:
+        note = remove_tree(scratch)
+        if note:
+            merged.setdefault('notes', []).append(note)
+    elif not kept:
+        merged['artifacts'] = preserve_artifacts(scratch, label)
+        print(f"Artifacts of the failed run (reports, logs, traces): {merged['artifacts']}", flush=True)
+    merged.update(name=label, seconds=time.perf_counter() - started, ok=ok)
+    # Keep the established `N passed (Ns)` line: scripts/testing/ci.py reads the test count from it.
+    print(f"\n{merged['passed']} passed ({merged['seconds']:.0f}s)" + (f", {merged['failures']} failed" if merged['failures'] else ''), flush=True)
+    print(f"[done] {label}: {merged['passed']} passed, {merged['failures']} failed, {len(merged['skipped'])} skipped"
+          + (f", {len(merged['infrastructure'])} infrastructure problem(s)" if merged['infrastructure'] else '') + f" ({merged['seconds']:.0f}s)", flush=True)
     return merged
 
 
@@ -820,15 +964,29 @@ def fmt(seconds: float) -> str:
 
 
 def report(profile: str, scope: str, stages: list[dict], notes: list[str], output: str | None) -> int:
+    """Summary of every stage. Exit code: 0 everything passed; 1 at least one test or check failed; 2 only infrastructure failed
+    (a test server, Playwright, a worker or a tool could not run or report), so a red run always says which kind it is."""
     print(f'\nSAP Lens test profile: {profile.upper()} ({scope})')
-    ok = True
+    ok, test_failure, infrastructure = True, False, []
+    totals = {'passed': 0, 'failed': 0, 'skipped': 0}
     for stage in stages:
-        counts = ''
+        counts, failed = '', 0
+        problems = stage.get('infrastructure', [])
         if stage.get('tests') is not None:
-            counts = f"{stage['tests']} tests, {len(stage['skipped'])} skipped, {stage['failures'] + stage['errors']} failed"
+            failed = stage['failures'] + (0 if problems else stage['errors'])
+            passed = stage.get('passed', stage['tests'] - stage['failures'] - stage['errors'])
+            totals['passed'] += passed; totals['failed'] += failed; totals['skipped'] += len(stage['skipped'])
+            counts = f"{passed} passed, {failed} failed, {len(stage['skipped'])} skipped"
             if stage.get('shards') and len(stage['shards']) > 1:
                 counts += f"; process seconds {stage['shards']}"
-        print(f"  {'PASS' if stage['ok'] else 'FAIL'}  {fmt(stage['seconds'])}  {stage['name']}  {counts}")
+            test_failure |= failed > 0
+        elif not stage['ok'] and not problems:
+            test_failure = True                                          # a static check that ran and found something
+        status = 'PASS' if stage['ok'] else ('FAIL' if (failed or not problems) else 'FAIL (infrastructure)')
+        print(f"  {status}  {fmt(stage['seconds'])}  {stage['name']}  {counts}")
+        for problem in problems:
+            print(f'          infrastructure: {problem}')
+        infrastructure += problems
         for test, reason in stage.get('skipped', []):
             if reason != 'skipped':
                 print(f'          skipped: {test.split(" ")[0]} ({reason})')
@@ -836,6 +994,10 @@ def report(profile: str, scope: str, stages: list[dict], notes: list[str], outpu
             print(f'          resource warning: {leak}')
         for seconds, file, title in stage.get('slowest', [])[:SLOWEST] if (profile in ('regression', 'full') or SLOWEST_REQUESTED) else []:
             print(f'          slowest: {seconds:6.1f}s  {file} :: {title[:80]}')
+        if stage.get('artifacts'):
+            print(f"          artifacts: {stage['artifacts']}")
+        for note in stage.get('notes', []):
+            print(f'          note: {note}')
         ok &= stage['ok']
     for note in notes:
         print(f'  NOTE  {note}')
@@ -843,10 +1005,14 @@ def report(profile: str, scope: str, stages: list[dict], notes: list[str], outpu
         print(f'  NOTE  {profile} is a partial run; run `regression` before pushing a finished phase and `full` before a merge or release.')
     elif profile == 'regression':
         print('  NOTE  regression is the curated critical set, not the complete collection; `full` runs everything.')
-    print(f"  total {fmt(sum(s['seconds'] for s in stages))}  ->  {'OK' if ok else 'FAILED'}")
+    verdict = 'OK' if ok else ('FAILED (tests)' if test_failure else 'FAILED (infrastructure only: no test failed, but not everything ran)')
+    print(f"  tests: {totals['passed']} passed, {totals['failed']} failed, {totals['skipped']} skipped")
+    print(f"  total {fmt(sum(s['seconds'] for s in stages))}  ->  {verdict}")
+    code = 0 if ok else (1 if test_failure else 2)
     if output:
-        Path(output).write_text(json.dumps({'profile': profile, 'scope': scope, 'ok': ok, 'stages': stages, 'notes': notes}, indent=1, default=str), encoding='utf-8')
-    return 0 if ok else 1
+        Path(output).write_text(json.dumps({'profile': profile, 'scope': scope, 'ok': ok, 'exit_code': code, 'infrastructure': infrastructure,
+                                            'stages': stages, 'notes': notes}, indent=1, default=str), encoding='utf-8')
+    return code
 
 
 def main(argv: list[str]) -> int:

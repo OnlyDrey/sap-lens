@@ -129,6 +129,22 @@ Underlying commands (still valid on their own): `python -m unittest -b discover 
 `python scripts/check-docs.py`, `python scripts/check-workflows.py`, `node scripts/sync-lucide-catalog.mjs --check`, `git diff --check`.
 A prepared host may need `PLAYWRIGHT_EXECUTABLE_PATH` for Chromium; report that override.
 
+### Runner output, exit codes and artifacts
+
+- Every stage prints `[start]` and `[done]` lines; parallel browser processes print one start and one completion line each and a
+  heartbeat with each shard's position (`[browser full] 120s; shard 1: test 45/280; ...`, every `SAP_LENS_TEST_HEARTBEAT` seconds, 30 by default).
+- The summary counts passed, failed and skipped tests per stage and in total. Exit codes: `0` everything passed, `1` a test or check
+  failed, `2` only infrastructure failed (a busy port, a test server or Playwright that did not start, a worker or process without a
+  report, a timeout); infrastructure problems are listed separately and never counted as test results.
+- Each Playwright process writes stdout and stderr to separate files, which are closed before they are read or deleted. A process
+  that runs longer than `SAP_LENS_BROWSER_TIMEOUT` seconds (5,400 by default) is stopped with its last position and log tail.
+- The runner stops only the process trees it started: on POSIX the process group, on Windows Ctrl+Break to the group and then
+  `taskkill /PID <pid> /T /F` (never by name), so no node, Chromium or test server keeps files or ports open. Scratch directories are
+  removed with bounded retries for transient Windows locks; a cleanup problem is a note and never replaces the test result.
+- A failed browser stage keeps its reports, logs and traces in `build/test-artifacts/<stage>-<time>/` (ignored by Git).
+- The test server and every Python subprocess of a spec use the runner's interpreter (`SAP_LENS_TEST_PYTHON`, resolved in
+  `frontend/tests/python.ts`; without the runner the project `.venv`), never the first `python` on PATH.
+
 ### Test ownership and the coverage map
 
 Test behavior in the layer that implements it: pure frontend functions in `frontend/tests/unit` (`node --test`), business rules and API
