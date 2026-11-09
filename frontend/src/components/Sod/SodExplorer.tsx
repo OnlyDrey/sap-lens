@@ -183,6 +183,9 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
   }
   const rowPick = (row: Row): AssignmentPick => ({ key: row.id!, user: row.user!, ref: row.role!, suffix: row.suffix || '', evidence_version: row.evidence_version!, decision: row.decision || 'Pending', user_group: row.user_group || '' })
   const pageRows = table === 'access_list' && data ? data.items : []
+  // While a filter or page change loads, the previous rows stay visible as placeholders. They no longer match the active filters, so they
+  // cannot be selected: a bulk decision must only ever cover assignments the reviewer sees under the filters that are applied.
+  const staleRows = result.isPlaceholderData
   const pageSelected = pageRows.filter((row) => selection.has(row.id!)).length
   const selectAllMatching = async () => {
     setGathering(true); setGatherNote('')
@@ -248,9 +251,9 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
             <tbody>{data.items.map((row) => { const id = `${row.user}:${row.activity}`; return <tr key={id}><td><SAPUserLink username={row.user!} /></td><td><UserGroupCell groups={row.groups} /></td><td>{pills('activity', row.activity)}</td><td>{pills('risk', row.risks)}</td>
               <td><EvidenceButton label={`${row.user} ${row.activity}`} summary={`${String(row.roles)} role assignment${row.roles === 1 ? '' : 's'}`} onOpen={() => setEvidence({ kind: 'transactions', user: row.user!, activity: row.activity!, risks: row.risks ?? [], tcodes: row.tcodes ?? [], roles: Number(row.roles) || 0 })} />{row.duplicate && <StatusBadge tone="info">Overlap</StatusBadge>}</td><td><PrimaryDecisionBadge summary={row.decision_summary}/></td>
               <td><Button size="compact" onClick={() => setSelected({ user: row.user!, activity: row.activity })} aria-label={`Investigate ${row.user} ${row.activity}`}><ScanSearch size={14} aria-hidden="true" />Investigate</Button></td></tr> })}</tbody></>}
-          {table === 'access_list' && <><thead><tr><th className="col-select"><PageCheckbox label="Select all assignments on this page" selected={pageSelected} total={pageRows.length} onChange={(select) => select ? selection.add(pageRows.map(rowPick)) : selection.remove(pageRows.map((row) => row.id!))} /></th><th>SAP user</th><th>SAP User Group</th><th>Role assignment</th><th>Risks</th><th>Activities</th><th>Review</th><th className="col-actions">Open</th></tr></thead>
+          {table === 'access_list' && <><thead><tr><th className="col-select"><PageCheckbox label="Select all assignments on this page" selected={pageSelected} total={pageRows.length} disabled={staleRows} onChange={(select) => select ? selection.add(pageRows.map(rowPick)) : selection.remove(pageRows.map((row) => row.id!))} /></th><th>SAP user</th><th>SAP User Group</th><th>Role assignment</th><th>Risks</th><th>Activities</th><th>Review</th><th className="col-actions">Open</th></tr></thead>
             <tbody>{data.items.map((row) => <tr key={`${row.user}:${row.id}`} data-selected={selection.has(row.id!) || undefined}>
-              <td className="col-select"><RowCheckbox label={`Select assignment ${row.role} for ${row.user}`} checked={selection.has(row.id!)} onChange={() => selection.toggle(rowPick(row))} /></td>
+              <td className="col-select"><RowCheckbox label={`Select assignment ${row.role} for ${row.user}`} checked={selection.has(row.id!)} disabled={staleRows} onChange={() => selection.toggle(rowPick(row))} /></td>
               <td><SAPUserLink username={row.user!} /></td>
               <td><UserGroupCell groups={row.user_group} /></td>
               <td className="col-role"><RoleIdentifier value={row.role!} label="assigned role" />{row.interval_status && row.interval_status !== 'active' && <p><AssignmentStatus value={row.interval_status} /></p>}</td>

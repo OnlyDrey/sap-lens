@@ -288,10 +288,32 @@ test('partial failures are reported accurately and failed assignments stay selec
   await expect(toolbar(page)).toContainText('2 assignments selected')
 })
 
+test('rows of the previous filter cannot be selected while the filtered rows load', async ({ page }) => {
+  await openAssignments(page)
+  const before = await roles(page)
+  expect(before.length).toBeGreaterThan(1)
+  let release = () => {}
+  const held = new Promise<void>((resolve) => { release = resolve })
+  await page.route('**/api/sod/explorer/access_list?*', async (route) => { if (new URL(route.request().url()).searchParams.toString().includes('ENO')) await held; await route.fallback() })
+  await pick(page, 'Role suffix', 'ENO')
+  await page.keyboard.press('Escape')
+  // the unfiltered rows stay visible while the filtered page loads, but none of them can be selected
+  expect(await roles(page)).toEqual(before)
+  await expect(page.getByRole('checkbox', { name: 'Select all assignments on this page' })).toBeDisabled()
+  await expect(table(page).getByRole('checkbox', { name: /^Select assignment / }).first()).toBeDisabled()
+  await expect(toolbar(page)).toHaveCount(0) // nothing was selected
+  release()
+  await expect.poll(() => roles(page)).toHaveLength(1)
+  await page.getByRole('checkbox', { name: 'Select all assignments on this page' }).check()
+  await expect(toolbar(page)).toContainText('1 assignment selected') // exactly the filtered assignment
+  await page.unrouteAll({ behavior: 'wait' })
+})
+
 test('a rejected request never reports success', async ({ page }) => {
   await openAssignments(page)
   await pick(page, 'Role suffix', 'ENO')
   await page.keyboard.press('Escape')
+  await expect.poll(() => roles(page)).toHaveLength(1) // select the filtered page, not rows of the previous filter
   await page.getByRole('checkbox', { name: 'Select all assignments on this page' }).check()
   await page.route('**/api/sod/decisions/assignment/bulk', (route) => route.fulfill({ status: 409, json: { detail: 'SoD evidence changed. Reload before reviewing.' } }))
   await toolbar(page).getByRole('button', { name: 'Recommend removal', exact: true }).click()

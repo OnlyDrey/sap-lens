@@ -21,10 +21,10 @@ export function RowCheckbox({ label, checked, onChange, disabled=false }: { labe
 }
 
 /** Header checkbox for the rows currently visible; indeterminate when only some of them are selected. */
-export function PageCheckbox({ label, selected, total, onChange }: { label: string; selected: number; total: number; onChange: (select: boolean) => void }) {
+export function PageCheckbox({ label, selected, total, onChange, disabled = false }: { label: string; selected: number; total: number; onChange: (select: boolean) => void; disabled?: boolean }) {
   const ref = useRef<HTMLInputElement>(null)
   useEffect(() => { if (ref.current) ref.current.indeterminate = selected > 0 && selected < total }, [selected, total])
-  return <input ref={ref} type="checkbox" className="bulk-checkbox" aria-label={label} disabled={!total} checked={total > 0 && selected === total} onChange={(event) => onChange(event.target.checked)} />
+  return <input ref={ref} type="checkbox" className="bulk-checkbox" aria-label={label} disabled={disabled || !total} checked={total > 0 && selected === total} onChange={(event) => onChange(event.target.checked)} />
 }
 
 /** Contextual toolbar shown while something is selected: count and scope first, then selection and review actions. */
