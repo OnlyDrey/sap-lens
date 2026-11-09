@@ -152,10 +152,15 @@ class ApplicationTests(unittest.TestCase):
         self.assertIn('NEW', cache.get_snapshot().tcode_index)
 
     def test_corrupt_settings_do_not_block_first_run(self):
+        # A real first run starts with the corrupt file already in place. The application started in setUp creates its data directory
+        # within milliseconds (scheduler: backups, retention), so stop it, prepare the file and start it again.
+        self.client_context.__exit__(None, None, None)
         folder = self.root / 'config'
-        folder.mkdir()
+        folder.mkdir(parents=True, exist_ok=True)
         (folder / 'settings.json').write_text('{invalid')
         config.get_settings.cache_clear()
+        self.client_context = TestClient(app, base_url='http://127.0.0.1:18743')
+        self.client = self.client_context.__enter__()
         self.assertEqual(config.get_settings().data_csv_path, '')
         self.assertEqual(self.save().status_code, 200)
         self.assertEqual(json.loads((folder / 'settings.json').read_text())['data_csv_path'], str(self.csv))
