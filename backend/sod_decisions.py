@@ -183,6 +183,16 @@ def _path():
     return config_dir() / 'sod-decisions.json'
 
 
+def fingerprint():
+    """Identity of the stored decision history (directory, file modification time, size and inode); it changes with every write or restore."""
+    path = _path()
+    try:
+        stat = path.stat()
+    except OSError:
+        return (str(path), None)
+    return (str(path), stat.st_mtime_ns, stat.st_size, stat.st_ino)
+
+
 def read():
     path = _path()
     if not path.exists():

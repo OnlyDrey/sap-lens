@@ -184,6 +184,33 @@ class DeletionTests(PeriodV2Case):
         # Formal gates are satisfied, but untouched role assignments remain unreviewed.
         self.assertEqual((done['decided'],done['total'],done['blocking']),(8,14,0))
 
+    def test_listing_progress_is_memoized_on_its_inputs_and_recomputed_when_one_changes(self):
+        import csv_lifecycle
+        import sod_periods
+        pid = self.new_period('Memoized progress')
+        progress = lambda: next(item for item in self.get('/api/sod/periods')['items'] if item['id'] == pid)['progress']
+        first = progress()
+        reads = []
+        original = csv_lifecycle.read_private
+        def counting(kind, identity):
+            reads.append(identity)
+            return original(kind, identity)
+        try:
+            sod_periods.read_private = counting
+            self.assertEqual(progress(), first)
+            self.assertEqual(reads, [], 'an unchanged period is not recomputed from its snapshot')
+            self.decide('activity', [self.activity_item('SYN_A', 'A', pid)], 'Approved', context=pid)
+            reads.clear()
+            decided = progress()
+            self.assertEqual(decided['decided'], first['decided'] + 1)   # a new decision is reflected at once
+            self.assertTrue(reads, 'a changed decision history computes progress again')
+            self.move(pid, 'In review')
+            reads.clear()
+            self.assertEqual(progress(), decided)                         # same coverage after a state change ...
+            self.assertTrue(reads, '... but computed again, because the state is an input')
+        finally:
+            sod_periods.read_private = original
+
     def test_period_with_recorded_work_is_archived_not_destroyed(self):
         pid = self.new_period('In progress')
         self.decide('activity', [self.activity_item('SYN_A', 'A', pid)], 'Approved', context=pid)

@@ -165,8 +165,31 @@ def outstanding(period):
     result['blocking']=sum(result[kind].get(name,0) for kind in ('activity','acceptance') for name in ('Pending','Outdated'))
     return result
 
+_progress_cache={}
+_progress_lock=threading.Lock()
+PROGRESS_CACHE_LIMIT=1024
+
 def progress(period):
-    """Canonical assessment coverage; formal approval blockers stay independent."""
+    """Canonical assessment coverage; formal approval blockers stay independent.
+
+    Listings and the Overview ask for every period on every request. Each computation reads the period index, the period snapshot
+    (twice), the decision history and the assignment lifecycle and derives the period's conflict model, so the cost grew with the
+    number of retained periods and with file-system latency. The result is memoized on all of its inputs: the immutable snapshot
+    identity, the period's state, approval date and modification time, the identities of the decision and lifecycle stores, and
+    today's date (acceptances expire). Any change to one of them computes it again; an unavailable snapshot is never cached."""
+    import assignment_lifecycle
+    key=(period.id,period.snapshot,period.state,period.approval_date,period.modified,decisions.fingerprint(),assignment_lifecycle.fingerprint(),date.today())
+    with _progress_lock:
+        hit=_progress_cache.get(key)
+    if hit is not None:return dict(hit)
+    result=_progress(period)
+    if result is not None:
+        with _progress_lock:
+            if len(_progress_cache)>=PROGRESS_CACHE_LIMIT:_progress_cache.clear()
+            _progress_cache[key]=dict(result)
+    return result
+
+def _progress(period):
     try:
         if snapshot(period).get('model')!=2:return None
         gaps=outstanding(period)

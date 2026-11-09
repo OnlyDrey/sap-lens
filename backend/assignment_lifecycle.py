@@ -179,6 +179,17 @@ def read():
     return load()[0]
 
 
+def fingerprint():
+    """Changes whenever applicability() can change: the stored file's identity and the newest revision this installation recorded."""
+    _scope()
+    try:
+        stat = _path().stat()
+        stored = (stat.st_mtime_ns, stat.st_size, stat.st_ino)
+    except OSError:
+        stored = None
+    return (_established.get('dir'), stored, _meta())
+
+
 def _write(data):
     data = data.model_copy(update=dict(digest=''))
     data = data.model_copy(update=dict(digest=data.sealed()))
