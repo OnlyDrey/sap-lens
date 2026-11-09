@@ -369,3 +369,16 @@ The daily backup time is a fixed-format `HH:mm` text field (`TimeInput24`) inste
   `unrouteAll({ behavior: 'wait' })`). Each was reproduced before and verified after its fix.
 - Verified on Linux with Chromium 1248: REGRESSION (3 processes) 1,566 passed, 2 skipped, 4 min 38 s; the 17 previously failing spec
   files 161 passed in 3 processes; FULL 2,645 passed, 0 failed, 2 skipped, 15 min 45 s; `pip-audit` clean. Native Windows unverified.
+
+## Windows TARGETED follow-up: stale-row bulk selection (November 2026)
+
+- Windows TARGETED (5 features, 3 processes): 664 passed, 1 failed (`sod-bulk-review` "a rejected request never reports success").
+- Root cause, application: while a filter change loads, Access Explorer Assignments keeps the previous rows visible as placeholders and the
+  page and row checkboxes stayed enabled. "Select all assignments on this page" then selected rows outside the new filter (reproduced on
+  Linux with a delayed filtered response: 14 instead of 1, "Recommend removal for 14 assignments"). Selection is now disabled while rows
+  are placeholders; a regression test holds the filtered response and checks that nothing stale can be selected.
+- Slow SoD endpoints (Windows request log, single process, 24,942 requests): no 5xx and no unanswered requests. `GET /api/sod/periods`
+  p50 14 ms, p95 2.4 s; `GET /api/sod/overview` p50 240 ms, p95 3.1 s; the slow cases follow data changes (new seeds, decisions).
+  `GET /api/sod/filter-options` is the largest total (757 calls, 116 s). Performance, not faults; no further change without a profile.
+- `WinError 10054` (3 per run): asyncio's Proactor transport logs a `ConnectionResetError` when it shuts down a socket the client already
+  reset (pages closing, aborted requests). Every request in the log has a response, so these are expected client cancellations.
