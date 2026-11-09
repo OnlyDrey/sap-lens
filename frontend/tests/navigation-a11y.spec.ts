@@ -77,14 +77,13 @@ test.describe('main navigation from Settings', () => {
     const opened = context.waitForEvent('page')
     await main(page).getByRole('link', { name: 'User Access', exact: true }).click({ modifiers: ['Control'] })
     const tab = await opened
-    await tab.waitForLoadState()
-    expect(tab.url()).toContain('#/user-access')
+    // a new tab starts at about:blank and waitForLoadState() can resolve for it; wait for the address the click opened instead of reading it once
+    await expect(tab).toHaveURL(/#\/user-access/)
     await tab.close()
     const middle = context.waitForEvent('page')
     await main(page).getByRole('link', { name: 'Release Roles', exact: true }).click({ button: 'middle' })
     const second = await middle
-    await second.waitForLoadState()
-    expect(second.url()).toContain('#/release-roles')
+    await expect(second).toHaveURL(/#\/release-roles/)
     await second.close()
     expect(dialogs).toBe(0)
     await expect(settings(page)).toBeVisible()
