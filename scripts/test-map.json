@@ -488,7 +488,8 @@
    "scripts/test-map.json",
    "scripts/run-tests.py",
    "scripts/validate.py",
-   "frontend/playwright.config.ts"
+   "frontend/playwright.config.ts",
+   "frontend/tests/progress-reporter.ts"
   ]
  },
  "smoke": {

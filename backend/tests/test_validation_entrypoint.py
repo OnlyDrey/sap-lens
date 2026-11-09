@@ -49,6 +49,22 @@ class LeanValidationTests(unittest.TestCase):
             self.assertTrue(log.is_relative_to(root/'build'))
             self.assertGreater(timeout,0)
 
+    def test_progress_is_streamed_to_the_terminal_and_the_utf8_log_and_the_exit_code_is_kept(self):
+        import io
+        import sys
+        child=[sys.executable,'-c',"import sys;print('[00:01] PASS a.spec.ts > one \u203a d\u00e9j\u00e0',flush=True);sys.stderr.write('server note\\n');sys.exit(3)"]
+        with tempfile.TemporaryDirectory() as folder:
+            log=Path(folder)/'validation.log'
+            buffer=io.BytesIO();terminal=io.TextIOWrapper(buffer,encoding='utf-8',newline='')
+            with patch.object(validation.sys,'stdout',terminal):
+                code=validation.execute(child,log,dict(os.environ),30)
+            terminal.flush()
+            self.assertEqual(code,3)
+            self.assertIn('PASS a.spec.ts > one \u203a d\u00e9j\u00e0',log.read_text(encoding='utf-8'))
+            self.assertIn('server note',log.read_text(encoding='utf-8'))
+            shown=buffer.getvalue().decode('utf-8')
+            self.assertIn('PASS a.spec.ts > one',shown);self.assertIn('server note',shown)
+
     def test_full_cannot_be_silently_narrowed_or_skip_its_build(self):
         for level in ('full','regression'):
             for option in [['--grep','one'],['--area','sod'],['--no-build']]:

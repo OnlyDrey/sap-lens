@@ -58,6 +58,50 @@ class Tee:
         self.log.flush()
 
 
+# Glyphs that test titles and Playwright output use, spelled in ASCII for a console that cannot show them (Windows PowerShell 5.1 with a
+# redirected or piped stdout uses the ANSI code page and showed `›` as `ΓÇ║`). The --log copy keeps the original UTF-8 text.
+ASCII_GLYPHS = str.maketrans({'›': '>', '»': '>', '✘': 'x', '✓': '+', '✔': '+', '─': '-', '│': '|', '–': '-', '—': '-', '…': '...',
+                              '·': '.', '→': '->', '←': '<-', '×': 'x', '“': '"', '”': '"', '‘': "'", '’': "'"})
+
+
+def ascii_text(text: str) -> str:
+    """Readable ASCII: known glyphs spelled out, accents dropped (déjà -> deja), anything else `?`."""
+    import unicodedata
+    decomposed = unicodedata.normalize('NFKD', text.translate(ASCII_GLYPHS))
+    return ''.join(char for char in decomposed if not unicodedata.combining(char)).encode('ascii', 'replace').decode('ascii')
+
+
+class SafeConsole:
+    """Console stream that never fails on a character and never shows mojibake.
+
+    A real console (Windows console API, a Linux terminal) and a UTF-8 pipe get the text unchanged. A redirected or piped stdout on
+    Windows is written in the ANSI code page while Windows PowerShell 5.1 reads native output in the OEM code page, so any non-ASCII
+    character arrives garbled (`›` became `ΓÇ║`); there, and for any non-UTF-8 stream, the console gets readable ASCII. The --log copy
+    always keeps the original UTF-8 text. SAP_LENS_TEST_ASCII=1 or 0 forces the choice."""
+    def __init__(self, stream):
+        self.stream = stream
+        self.encoding = getattr(stream, 'encoding', None) or 'utf-8'
+        forced = os.environ.get('SAP_LENS_TEST_ASCII')
+        utf8 = self.encoding.lower().replace('-', '').replace('_', '') in {'utf8', 'utf8sig'}
+        redirected_on_windows = os.name == 'nt' and not self.isatty()
+        self.ascii = forced == '1' if forced in {'0', '1'} else (redirected_on_windows or not utf8)
+
+    def write(self, text):
+        if self.ascii:
+            text = ascii_text(text)
+        try:
+            self.stream.write(text)
+        except UnicodeEncodeError:
+            self.stream.write(ascii_text(text))
+        return len(text)
+
+    def flush(self):
+        self.stream.flush()
+
+    def isatty(self):
+        return getattr(self.stream, 'isatty', lambda: False)()
+
+
 def emit(text: str) -> None:
     sys.stdout.write(text)          # a Tee when --log is set, so the copy happens there
     sys.stdout.flush()
@@ -422,13 +466,30 @@ class QuietResult(unittest.TextTestResult):
         super().startTestRun()
         self._started = self._last = time.perf_counter()
 
+    def _failed_now(self, test, kind):
+        self.stream.write(f'[{self.label}] {kind}: {test.id()}\n')    # at once; the traceback follows in the summary
+        self.stream.flush()
+
+    def addFailure(self, test, err):
+        super().addFailure(test, err)
+        self._failed_now(test, 'FAIL')
+
+    def addError(self, test, err):
+        super().addError(test, err)
+        self._failed_now(test, 'ERROR')
+
+    def addSubTest(self, test, subtest, err):
+        super().addSubTest(test, subtest, err)
+        if err is not None:
+            self._failed_now(subtest, 'FAIL')
+
     def stopTest(self, test):
         super().stopTest(test)
         now = time.perf_counter()
         if self.heartbeat and now - self._last >= self.heartbeat:
             self._last = now
             failed = len(self.failures) + len(self.errors)
-            self.stream.write(f'[{self.label}] {self.testsRun} tests, {failed} failed, {now - self._started:.0f}s\n')
+            self.stream.write(f'[{self.label}] {self.testsRun} tests, {failed} failed, {len(self.skipped)} skipped, {clock(now - self._started)}\n')
             self.stream.flush()
 
 
@@ -486,7 +547,8 @@ def run_backend(names: list[str], jobs: int, label: str, split: bool) -> dict:
             index, group = index_group
             out = Path(scratch) / f'{index}.json'
             command = [python_exe(), '-W', 'error::DeprecationWarning', str(Path(__file__).resolve()), '_backend', str(out), *group]
-            env = dict(os.environ, SAP_LENS_TEST_LABEL=f'backend {index + 1}/{len(groups)}' if len(groups) > 1 else 'backend')
+            env = dict(os.environ, SAP_LENS_TEST_LABEL=f'backend {index + 1}/{len(groups)}' if len(groups) > 1 else 'backend',
+                       PYTHONIOENCODING='utf-8')   # the runner reads the worker as UTF-8; a test name or traceback never fails to encode
             # Relay the worker's lines through this process so they can also go to --log; a killed worker still ends the loop.
             with subprocess.Popen(command, cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace') as process:
                 for line in process.stdout:
@@ -539,7 +601,7 @@ def step(name: str, command: list[str], cwd: Path = ROOT, env: dict | None = Non
         print(f'[done] {name}: could not start ({error})', flush=True)
         return {'name': name, 'seconds': time.perf_counter() - started, 'ok': False, 'tests': None, 'infrastructure': [f'{name}: could not start ({error})']}
     if quiet and done.returncode:
-        sys.stderr.write(f'--- {name}: stdout ---\n' + (done.stdout or '')[-4000:] + f'\n--- {name}: stderr ---\n' + (done.stderr or '')[-2000:] + '\n')
+        emit(f'--- {name}: stdout ---\n' + (done.stdout or '')[-4000:] + f'\n--- {name}: stderr ---\n' + (done.stderr or '')[-2000:] + '\n')
     seconds = time.perf_counter() - started
     print(f"[done] {name}: {'PASS' if done.returncode == 0 else f'FAIL (exit code {done.returncode})'} ({seconds:.1f}s)", flush=True)
     return {'name': name, 'seconds': seconds, 'ok': done.returncode == 0, 'tests': None}
@@ -703,6 +765,7 @@ def playwright_failures(report: dict) -> list[str]:
     return messages
 
 
+REPORTERS = 'line,json,./tests/progress-reporter.ts'   # line: the per-process log; json: the merged report; progress-reporter: live console events
 BROWSER_TIMEOUT = int(os.environ.get('SAP_LENS_BROWSER_TIMEOUT', '5400'))   # seconds per Playwright process before it is stopped and diagnosed
 
 
@@ -724,7 +787,94 @@ def _tail(path: Path, characters: int) -> str:
         return ''
 
 
-def _wait_for_shards(launched: list, label: str, timeout: int) -> dict[int, tuple[int, float, bool]]:
+def clock(seconds: float) -> str:
+    seconds = int(seconds)
+    return f'{seconds // 3600}:{seconds // 60 % 60:02d}:{seconds % 60:02d}' if seconds >= 3600 else f'{seconds // 60:02d}:{seconds % 60:02d}'
+
+
+class LiveProgress:
+    """Renders the events of frontend/tests/progress-reporter.ts while the Playwright processes run: a line per finished test (or only
+    failures with SAP_LENS_TEST_PROGRESS=summary), each failure with its first error lines as soon as it happens, and a periodic summary
+    with completed/total, passed, failed and skipped counts per process. Shards without events fall back to the line reporter's position."""
+    def __init__(self, label: str, files: list[Path], logs: list[Path], started: float):
+        self.label, self.files, self.logs, self.started = label, files, logs, started
+        self.offsets = [0] * len(files)
+        self.partial = [b''] * len(files)
+        self.total: list[int | None] = [None] * len(files)
+        self.done = [0] * len(files)
+        self.counts = {'passed': 0, 'failed': 0, 'skipped': 0, 'flaky': 0}
+        self.failures: list[str] = []
+        self.announced = False
+        self.mode = os.environ.get('SAP_LENS_TEST_PROGRESS', 'tests')
+
+    def _events(self, index: int) -> list[dict]:
+        path = self.files[index]
+        try:
+            with path.open('rb') as stream:
+                stream.seek(self.offsets[index])
+                chunk = stream.read()
+        except OSError:
+            return []
+        self.offsets[index] += len(chunk)
+        data = self.partial[index] + chunk
+        lines = data.split(b'\n')
+        self.partial[index] = lines.pop()                              # an incomplete last line is completed by the next read
+        events = []
+        for line in lines:
+            try:
+                events.append(json.loads(line.decode('utf-8')))
+            except ValueError:
+                continue
+        return events
+
+    def where(self, index: int) -> str:
+        return f'[shard {index + 1}] ' if len(self.files) > 1 else ''
+
+    def poll(self) -> None:
+        for index in range(len(self.files)):
+            for event in self._events(index):
+                kind = event.get('type')
+                if kind == 'begin':
+                    self.total[index] = int(event.get('total') or 0)
+                elif kind == 'test-end' and event.get('outcome') != 'retrying':
+                    self.done[index] += 1
+                    outcome, status = event.get('outcome'), event.get('status')
+                    key = 'skipped' if outcome == 'skipped' else 'flaky' if outcome == 'flaky' else 'passed' if outcome == 'expected' else 'failed'
+                    self.counts[key] += 1
+                    name = f"{event.get('file')}:{event.get('line')} > {event.get('title')}"
+                    elapsed = clock(time.perf_counter() - self.started)
+                    if key in {'failed', 'flaky'}:
+                        word = 'FLAKY' if key == 'flaky' else 'TIMEOUT' if status == 'timedOut' else 'FAIL'
+                        self.failures.append(name)
+                        detail = '\n'.join('         ' + line for line in str(event.get('error') or '').splitlines()[:4])
+                        emit(f'[{elapsed}] {word:7} {self.where(index)}{name} ({event.get("duration", 0) / 1000:.1f}s)\n' + (detail + '\n' if detail else ''))
+                    elif self.mode == 'tests':
+                        word = 'SKIP' if key == 'skipped' else 'PASS'
+                        emit(f'[{elapsed}] {word:7} {self.where(index)}{name} ({event.get("duration", 0) / 1000:.1f}s)\n')
+                elif kind == 'error':
+                    emit(f'[{clock(time.perf_counter() - self.started)}] ERROR   {self.where(index)}{str(event.get("error"))[:600]}\n')
+        if not self.announced and all(total is not None for total in self.total):
+            self.announced = True
+            emit(f'[{self.label}] {sum(t or 0 for t in self.total)} tests in {len(self.files)} Playwright process(es)\n')
+
+    def summary(self, finished: set[int]) -> str:
+        known = all(total is not None for total in self.total)
+        total = sum(t or 0 for t in self.total)
+        head = (f"[{clock(time.perf_counter() - self.started)}] {sum(self.done)}/{total if known else '?'} completed | passed {self.counts['passed']}"
+                f" | failed {self.counts['failed']}" + (f" | flaky {self.counts['flaky']}" if self.counts['flaky'] else '') + f" | skipped {self.counts['skipped']}")
+        if len(self.files) == 1:
+            return head
+        shards = []
+        for index in range(len(self.files)):
+            if self.total[index] is not None:
+                state = f'{self.done[index]}/{self.total[index]}' + (' done' if index in finished else '')
+            else:
+                state = 'done' if index in finished else (_progress(self.logs[index]) or 'starting')
+            shards.append(f'shard {index + 1}: {state}')
+        return head + '\n         ' + ' | '.join(shards)
+
+
+def _wait_for_shards(launched: list, label: str, timeout: int, live: 'LiveProgress | None' = None) -> dict[int, tuple[int, float, bool]]:
     """Wait for every Playwright process with a heartbeat, a completion line per shard and a per-process timeout.
     Returns {index: (exit code, seconds, timed out)}."""
     heartbeat = float(os.environ.get('SAP_LENS_TEST_HEARTBEAT', '30'))
@@ -732,21 +882,28 @@ def _wait_for_shards(launched: list, label: str, timeout: int) -> dict[int, tupl
     total = len(launched)
     while len(done) < total:
         now = time.perf_counter()
+        if live:
+            live.poll()
         for index, _, process, _, out, _, _ in launched:
             if index in done:
                 continue
             code = process.poll()
             if code is not None:
+                if live:
+                    live.poll()                                       # the process has exited: render its last events before its completion line
                 done[index] = (code, now - started, False)
-                print(f'[done] {label} shard {index + 1}/{total}: exit code {code} after {now - started:.0f}s', flush=True)
+                print(f'[done] {label} shard {index + 1}/{total}: exit code {code} after {clock(now - started)}', flush=True)
             elif now - started > timeout:
                 done[index] = (124, now - started, True)
                 print(f'[timeout] {label} shard {index + 1}/{total} exceeded {timeout}s at {_progress(out) or "startup"}; stopping it.', flush=True)
                 _terminate_tree(process, force=True)
-        if heartbeat and total > 1 and now - last_beat >= heartbeat and len(done) < total:
+        if heartbeat and now - last_beat >= heartbeat and len(done) < total:
             last_beat = now
-            states = [f"shard {index + 1}: {'done' if index in done else (_progress(out) or 'starting')}" for index, _, _, _, out, _, _ in launched]
-            print(f"[{label}] {now - started:.0f}s; " + '; '.join(states), flush=True)
+            if live:
+                emit(live.summary(set(done)) + '\n')
+            else:
+                states = [f"shard {index + 1}: {'done' if index in done else (_progress(out) or 'starting')}" for index, _, _, _, out, _, _ in launched]
+                print(f"[{label}] {clock(now - started)}; " + '; '.join(states), flush=True)
         time.sleep(0.5)
     return done
 
@@ -766,7 +923,7 @@ def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str
     if (busy := busy_ports(jobs)):
         problem = (f"Browser test port(s) {', '.join(map(str, busy))} already in use by another process (a stale test server?). Stop that process "
                    "yourself (find it with `ss -ltnp`, or `Get-NetTCPConnection -LocalPort 18745` in PowerShell); the runner never signals processes it did not start.")
-        sys.stderr.write(problem + '\n')
+        emit(problem + '\n')
         return {**empty, 'errors': 1, 'ok': False, 'infrastructure': [problem]}
     groups = split_specs(files, jobs) if jobs > 1 else [files if specs is not None else []]
     kept = Path(os.environ['SAP_LENS_TEST_ARTIFACTS']) / label.replace(' ', '-') if os.environ.get('SAP_LENS_TEST_ARTIFACTS') else None
@@ -781,9 +938,9 @@ def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str
         with cleanup_on_signals():
             for index, group in enumerate(groups):
                 report, out, err = scratch / f'report-{index}.json', scratch / f'log-{index}.out.txt', scratch / f'log-{index}.err.txt'
-                command = [npm(), '--prefix', str(FRONTEND), 'run', 'test:browser', '--', *group, '--reporter=line,json', f'--output={scratch / f"results-{index}"}']
+                command = [npm(), '--prefix', str(FRONTEND), 'run', 'test:browser', '--', *group, f'--reporter={REPORTERS}', f'--output={scratch / f"results-{index}"}']
                 if os.environ.get('SAP_LENS_TEST_REPORTERS') == 'html,junit':
-                    command = [arg.replace('--reporter=line,json', '--reporter=line,json,html,junit') for arg in command]
+                    command = [arg.replace(f'--reporter={REPORTERS}', f'--reporter={REPORTERS},html,junit') for arg in command]
                 if grep:
                     command += ['--grep', grep]
                 if grep_invert:
@@ -791,18 +948,19 @@ def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str
                 # SAP_LENS_TEST_PYTHON: the test server and every Python subprocess of a spec use this runner's Python 3.12, not PATH's first python.
                 env = {**os.environ, 'SAP_LENS_BROWSER_TEST_PORT': str(BASE_PORT + index), 'PLAYWRIGHT_JSON_OUTPUT_NAME': str(report),
                        'SAP_LENS_TEST_PYTHON': python_exe(), 'PLAYWRIGHT_HTML_OPEN': 'never', 'PLAYWRIGHT_HTML_REPORT': str(scratch / f'html-{index}'),
-                       'PLAYWRIGHT_JUNIT_OUTPUT_NAME': str(scratch / f'junit-{index}.xml')}
-                if jobs == 1:
-                    stdout = stderr = None                                   # a single process streams its progress live (CI logs, local feedback)
-                else:
-                    stdout, stderr = out.open('w', encoding='utf-8'), err.open('w', encoding='utf-8')
-                    handles += [stdout, stderr]
+                       'PLAYWRIGHT_JUNIT_OUTPUT_NAME': str(scratch / f'junit-{index}.xml'), 'SAP_LENS_PROGRESS_FILE': str(scratch / f'progress-{index}.jsonl'),
+                       'FORCE_COLOR': '0', 'PYTHONIOENCODING': 'utf-8'}
+                # Every process writes to its own UTF-8 log; the console shows the runner's rendering of the progress events instead of raw
+                # Playwright output (its terminal glyphs and the test server's stderr made PowerShell 5.1 show mojibake and NativeCommandError).
+                stdout, stderr = out.open('w', encoding='utf-8', errors='replace'), err.open('w', encoding='utf-8', errors='replace')
+                handles += [stdout, stderr]
                 group_options = {'creationflags': subprocess.CREATE_NEW_PROCESS_GROUP} if os.name == 'nt' else {'start_new_session': True}
-                process = subprocess.Popen(command + extra, cwd=FRONTEND, env=env, stdout=stdout, stderr=stderr, text=True, **group_options)
+                process = subprocess.Popen(command + extra, cwd=FRONTEND, env=env, stdout=stdout, stderr=stderr, text=True, encoding='utf-8', errors='replace', **group_options)
                 OWNED.append(process)
                 launched.append((index, BASE_PORT + index, process, report, out, err, group))
                 print(f"[start] {label} shard {index + 1}/{len(groups)}: port {BASE_PORT + index}, {len(group) or 'all'} spec files, pid {process.pid}", flush=True)
-            outcome = _wait_for_shards(launched, label, BROWSER_TIMEOUT)
+            live = LiveProgress(label, [scratch / f'progress-{item[0]}.jsonl' for item in launched], [item[4] for item in launched], started)
+            outcome = _wait_for_shards(launched, label, BROWSER_TIMEOUT, live)
     finally:
         stop_owned()          # an interrupt, a signal, a timeout or an error must not leave our own Chromium or test servers behind
         for handle in handles:
@@ -826,7 +984,7 @@ def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str
             merged['errors'] += 1
             if not timed_out:
                 merged['infrastructure'].append(f'{where}: exit code {code} without a test report (the server or Playwright did not start)')
-            sys.stderr.write(f'{where} produced no report.\n' + _tail(err, 3000) + _tail(out, 3000))
+            emit(f'{where} produced no report.\n' + _tail(err, 3000) + _tail(out, 3000))
             continue
         stats, tests = data['stats'], playwright_tests(data)
         every += tests
@@ -844,11 +1002,11 @@ def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str
             merged['errors'] += 1
             merged['infrastructure'].append(f'{where}: exit code {code} with no failed test' + (f": {top_errors[0].splitlines()[0][:300]}" if top_errors and top_errors[0] else ''))
         if code:
-            sys.stderr.write(f'{where} failed' + (':\n  ' + '\n  '.join(f'{file} :: {title}' for file, title in failed) if failed else '') + '\n')
+            emit(f'{where} failed' + (':\n  ' + '\n  '.join(f'{file} :: {title}' for file, title in failed) if failed else '') + '\n')
             for message in playwright_failures(data):
-                sys.stderr.write(f'  ERROR {message}\n')
-            if handles:                                                  # a single streamed process has already printed its own output
-                sys.stderr.write(_tail(err, 4000) + _tail(out, 2000))
+                emit(f'  ERROR {message}\n')
+            emit(f'  Playwright and test-server output of {where} (last lines; complete in log-{index}.out.txt and log-{index}.err.txt):\n'
+                 + _tail(err, 4000) + _tail(out, 2000) + '\n')
     merged['slowest'] = [[round(seconds, 1), file, title] for seconds, file, title, _ in sorted(every, reverse=True)[:max(SLOWEST, 10)]]
     ok = not merged['failures'] and not merged['infrastructure'] and all(outcome.get(item[0], (1,))[0] == 0 for item in launched)
     if not kept and ok:
@@ -1008,7 +1166,17 @@ def report(profile: str, scope: str, stages: list[dict], notes: list[str], outpu
     verdict = 'OK' if ok else ('FAILED (tests)' if test_failure else 'FAILED (infrastructure only: no test failed, but not everything ran)')
     print(f"  tests: {totals['passed']} passed, {totals['failed']} failed, {totals['skipped']} skipped")
     print(f"  total {fmt(sum(s['seconds'] for s in stages))}  ->  {verdict}")
+    failed_tests = [name for stage in stages for name in stage.get('failed', [])]
+    if failed_tests:
+        print('  failed tests:')
+        for name in failed_tests[:30]:
+            print(f'    {name}')
+        if len(failed_tests) > 30:
+            print(f'    ... {len(failed_tests) - 30} more in the JSON report')
     code = 0 if ok else (1 if test_failure else 2)
+    print(f'Summary: {totals["passed"]} passed | {totals["failed"]} failed | {totals["skipped"]} skipped')
+    print(f'Result: {"PASSED" if ok else verdict} | Duration: {clock(sum(s["seconds"] for s in stages))} | Exit code: {code}'
+          + (f' | Log: {_LOG.name}' if _LOG else '') + (f' | Report: {output}' if output else ''), flush=True)
     if output:
         Path(output).write_text(json.dumps({'profile': profile, 'scope': scope, 'ok': ok, 'exit_code': code, 'infrastructure': infrastructure,
                                             'stages': stages, 'notes': notes}, indent=1, default=str), encoding='utf-8')
@@ -1036,6 +1204,8 @@ def main(argv: list[str]) -> int:
     parser.add_argument('--list-tests', action='store_true', help='print the selected files and exit')
     parser.add_argument('--verbose', action='store_true', help='backend: one line per test and unbuffered test output (default: quiet; output of a test is shown only when it fails)')
     parser.add_argument('--slowest', type=int, metavar='N', help='list the N slowest tests in the summary (default 10 for regression/release, 0 otherwise)')
+    parser.add_argument('--spec', action='append', metavar='NAME', help='browser: run only this spec file (name without .spec.ts, repeatable); '
+                        'with --grep and Playwright options such as --repeat-each 5 this is Level 1 of the progressive validation')
     parser.add_argument('--test', action='append', metavar='NAME', help='backend: run only this unittest name (module, module.Class or module.Class.test); repeatable; use with the targeted profile')
     parser.add_argument('--log', metavar='FILE', help='also write everything this run prints to FILE')
     args, extra = parser.parse_known_args(argv)
@@ -1044,11 +1214,20 @@ def main(argv: list[str]) -> int:
         os.environ['SAP_LENS_TEST_VERBOSE'] = '1'
     if args.slowest is not None:
         SLOWEST, SLOWEST_REQUESTED = max(0, args.slowest), args.slowest > 0
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(line_buffering=True, errors='replace')   # progress appears as it is printed, also through a pipe
+        except (AttributeError, ValueError):
+            pass
+    # Everything the runner prints goes to stdout. Writing to stderr made Windows PowerShell 5.1 wrap ordinary progress in NativeCommandError
+    # records when the output was redirected; the exit code alone says whether the run failed.
+    sys.stdout = SafeConsole(sys.stdout)
+    sys.stderr = sys.stdout
     if args.log:
         Path(args.log).parent.mkdir(parents=True, exist_ok=True)
         _LOG = open(args.log, 'w', encoding='utf-8')
         sys.stdout = Tee(sys.stdout, _LOG)
-        sys.stderr = Tee(sys.stderr, _LOG)      # failure details (step output, shard log tails) must reach the log too
+        sys.stderr = sys.stdout                 # failure details (step output, shard log tails) must reach the log too
     renamed = {'fast': 'quick', 'release': 'full'}
     if args.profile in renamed:
         print(f'NOTE: `{args.profile}` is now `{renamed[args.profile]}`.', flush=True)
@@ -1057,6 +1236,9 @@ def main(argv: list[str]) -> int:
     backend_jobs = jobs_value(args.jobs, 'backend')
     browser_jobs = browser_jobs_value(args.browser_jobs, jobs_value(args.jobs, 'browser'))
     want_backend, want_browser = not args.browser, not args.backend
+    if args.profile not in ('list', 'check'):
+        print(f"SAP Lens {args.profile.upper()}: backend processes {backend_jobs}, browser processes {browser_jobs}"
+              + (f', log {args.log}' if args.log else '') + ' (live progress below; SAP_LENS_TEST_PROGRESS=summary shows only failures and summaries)', flush=True)
 
     if args.profile == 'check':
         problems = coverage_problems()
@@ -1092,6 +1274,20 @@ def main(argv: list[str]) -> int:
                 stages.append(built)
             stages.append(run_browser(specs, args.grep, min(browser_jobs, len(specs)), 'browser targeted', extra))
 
+    if args.spec:
+        known = set(browser_specs())
+        names = [name[:-len('.spec.ts')] if name.endswith('.spec.ts') else name for name in (Path(item).name for item in args.spec)]
+        if args.profile != 'targeted' or args.features or args.backend:
+            raise SystemExit('--spec runs browser spec files and is used as: run-tests.py targeted --spec NAME [--spec NAME ...] [--grep TEXT] [--test NAME]')
+        if unknown := [name for name in names if name not in known]:
+            raise SystemExit(f"Unknown spec file(s): {', '.join(unknown)} (names of frontend/tests/*.spec.ts without .spec.ts)")
+        if args.test:
+            stages.append(run_backend(args.test, 1, 'backend selected tests', split=False))
+        built = None if args.no_build else build_frontend()
+        if built:
+            stages.append(built)
+        stages.append(run_browser(names, args.grep, min(browser_jobs, len(names)), f'browser selected specs ({len(names)})', extra))
+        return report('targeted', ', '.join(names) + (f' --grep {args.grep}' if args.grep else ''), stages, notes, args.report)
     if args.test:
         if args.profile != 'targeted' or args.features or args.browser:
             raise SystemExit('--test runs backend unittest names and is used as: run-tests.py targeted --test NAME [--test NAME ...]')

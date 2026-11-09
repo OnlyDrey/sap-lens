@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import threading
 import sys
 import tempfile
 
@@ -51,19 +52,40 @@ def isolated_environment(folder):
     return env
 
 
+def console():
+    """The runner's console writer: unchanged text on a terminal or UTF-8 pipe, readable ASCII where Windows PowerShell 5.1 would garble it."""
+    import importlib.util
+    spec=importlib.util.spec_from_file_location('sap_lens_run_tests',ROOT/'scripts'/'run-tests.py')
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+    return module.SafeConsole(sys.stdout)
+
+
 def execute(command,log,env,timeout):
+    """Run one run-tests.py command: its progress appears live in the terminal and, unchanged, in the UTF-8 log; its exit code is returned."""
+    screen=console()
     with log.open('a',encoding='utf-8') as stream:
-        process=subprocess.Popen(command,cwd=ROOT,env=env,stdout=stream,stderr=subprocess.STDOUT)
-        try:return process.wait(timeout=timeout)
+        # The child always writes UTF-8 (the log keeps every character); this process decides what the terminal can show.
+        process=subprocess.Popen(command,cwd=ROOT,env={**env,'PYTHONIOENCODING':'utf-8','SAP_LENS_TEST_ASCII':'0'},stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT,text=True,encoding='utf-8',errors='replace',bufsize=1)
+        def relay():
+            for line in process.stdout:
+                stream.write(line);stream.flush()
+                screen.write(line);screen.flush()
+        reader=threading.Thread(target=relay,daemon=True);reader.start()
+        try:
+            code=process.wait(timeout=timeout)
+            reader.join()
+            return code
         except subprocess.TimeoutExpired:
             # run-tests owns its children and handles termination. Escalate only
             # our process tree if graceful cleanup cannot finish.
             process.terminate()
             try:process.wait(timeout=15)
             except subprocess.TimeoutExpired:
-                if os.name=='nt':subprocess.run(['taskkill','/PID',str(process.pid),'/T','/F'],stdout=stream,stderr=stream)
+                if os.name=='nt':subprocess.run(['taskkill','/PID',str(process.pid),'/T','/F'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
                 process.kill();process.wait()
-            stream.write('\nValidation timed out.\n');return 124
+            reader.join(timeout=5)
+            stream.write('\nValidation timed out.\n');screen.write('\nValidation timed out.\n');return 124
 
 
 def main(argv=None):

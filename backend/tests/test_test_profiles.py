@@ -201,6 +201,15 @@ if mode == 'hang':
 if mode == 'noreport':
     sys.exit(3)
 failed = mode == 'fail'
+events = os.environ.get('SAP_LENS_PROGRESS_FILE')
+def event(**item):
+    if events:
+        with open(events, 'a', encoding='utf-8') as stream: stream.write(json.dumps(item) + '\n')
+event(type='begin', total=2)
+event(type='test-end', file='a.spec.ts', line=1, title='one › déjà vu', status='passed', outcome='expected', duration=5, error='')
+event(type='test-end', file='a.spec.ts', line=2, title='two', status='failed' if failed else 'passed', outcome='unexpected' if failed else 'expected',
+      duration=5, error='Expected: 1\nReceived: 2' if failed else '')
+time.sleep(0.8)                                   # the runner renders the events while the process is still running
 test = lambda title, status: {'title': title, 'file': 'a.spec.ts', 'tests': [{'status': status, 'results': [{'duration': 5, 'status': 'failed' if status == 'unexpected' else 'passed',
                                'error': {'message': 'Expected: 1\nReceived: 2'} if status == 'unexpected' else None}]}]}
 report = {'stats': {'expected': 1 if failed else 2, 'unexpected': 1 if failed else 0, 'flaky': 0, 'skipped': 1, 'duration': 1000},
@@ -227,8 +236,10 @@ class BrowserLifecycleTests(unittest.TestCase):
         self.specs = [p.name[:-len('.spec.ts')] for p in sorted((ROOT / 'frontend' / 'tests').glob('*.spec.ts'))[:4]]
 
     def run_browser(self, mode, jobs=2):
-        with patch.dict(os.environ, {'FAKE_MODE': mode}), patch('sys.stdout', new=io.StringIO()), patch('sys.stderr', new=io.StringIO()) as err:
-            return runner.run_browser(self.specs, None, jobs, f'fake {mode}', []), err.getvalue()
+        with patch.dict(os.environ, {'FAKE_MODE': mode}), patch('sys.stdout', new=io.StringIO()) as out, patch('sys.stderr', new=io.StringIO()) as err:
+            result = runner.run_browser(self.specs, None, jobs, f'fake {mode}', [])
+        self.assertEqual(err.getvalue(), '', 'the runner prints to stdout only: stderr made PowerShell 5.1 report NativeCommandError')
+        return result, out.getvalue()
 
     def open_logs(self):
         fd = Path('/proc/self/fd')
@@ -240,6 +251,15 @@ class BrowserLifecycleTests(unittest.TestCase):
         self.assertEqual(self.open_logs(), [], 'no log handle may stay open (WinError 32 on Windows)')
         self.assertFalse(result.get('artifacts')); self.assertEqual(result['infrastructure'], [])
         self.assertEqual(runner.report('targeted', 'x', [result], [], None), 0)
+
+    def test_progress_is_live_per_test_and_failures_are_reported_before_the_process_ends(self):
+        result, out = self.run_browser('fail', jobs=1)
+        self.assertIn('PASS    a.spec.ts:1 > one › déjà vu', out)
+        failure = out.index('FAIL    a.spec.ts:2 > two')
+        self.assertIn('Received: 2', out[failure:failure + 200])
+        self.assertLess(failure, out.index('[done] fake fail shard 1/1'), 'a failure is shown when it happens, not after the process exits')
+        self.assertIn('[fake fail] 2 tests in 1 Playwright process(es)', out)
+        self.assertEqual(result['failures'], 1)
 
     def test_failed_tests_keep_artifacts_report_errors_and_exit_1(self):
         result, err = self.run_browser('fail')
@@ -264,6 +284,80 @@ class BrowserLifecycleTests(unittest.TestCase):
         self.assertLess(time.perf_counter() - started, 60)
         self.assertFalse(result['ok']); self.assertTrue(any('stopped after 3s' in item for item in result['infrastructure']))
         self.assertEqual(runner.OWNED, [])
+
+
+class TerminalOutputTests(unittest.TestCase):
+    """Console output that works on Windows PowerShell 5.1, PowerShell 7 and Linux: nothing fails on an unencodable glyph, the --log copy keeps
+    UTF-8, backend failures appear when they happen and the exit code is the runner's own."""
+    def console(self, encoding):
+        raw = io.BytesIO()
+        stream = io.TextIOWrapper(raw, encoding=encoding, errors='strict', newline='')
+        return raw, stream, runner.SafeConsole(stream)
+
+    def test_a_console_that_cannot_encode_a_glyph_gets_ascii_and_never_an_error(self):
+        raw, stream, console = self.console('cp1252')                # a redirected Windows stdout: ANSI encoder, OEM decoder in PowerShell 5.1
+        console.write('a.spec.ts:1 > one › two – déjà ✘ Ω\n'); console.flush()
+        self.assertEqual(raw.getvalue().decode('ascii'), 'a.spec.ts:1 > one > two - deja x ?\n')
+
+    def test_a_redirected_windows_console_gets_ascii_even_when_its_code_page_could_encode_the_text(self):
+        raw, stream, console = self.console('utf-8')
+        with patch.object(runner.os, 'name', 'nt'):
+            console = runner.SafeConsole(stream)                       # not a TTY: PowerShell 5.1 would decode it in another code page
+        console.write('one › déjà\n'); console.flush()
+        self.assertEqual(raw.getvalue().decode('ascii'), 'one > deja\n')
+
+    def test_a_utf8_console_and_the_log_keep_the_original_text(self):
+        raw, stream, console = self.console('utf-8')
+        log = io.StringIO()
+        tee = runner.Tee(console, log)
+        tee.write('one › déjà vu\n'); tee.flush()
+        self.assertEqual(raw.getvalue().decode('utf-8'), 'one › déjà vu\n')
+        self.assertEqual(log.getvalue(), 'one › déjà vu\n')
+
+    def test_backend_failures_are_reported_when_they_happen(self):
+        class Sample(unittest.TestCase):
+            def test_a_fails(self):
+                self.fail('synthetic')
+
+            def test_b_passes(self):
+                pass
+        stream = io.StringIO()
+        result = runner.QuietResult(unittest.runner._WritelnDecorator(stream), True, 0)
+        result.startTestRun()
+        unittest.defaultTestLoader.loadTestsFromTestCase(Sample).run(result)
+        self.assertIn('FAIL: ', stream.getvalue()); self.assertIn('test_a_fails', stream.getvalue())
+        self.assertNotIn('test_b_passes', stream.getvalue())
+
+    def test_a_piped_ascii_console_keeps_the_exit_code_and_a_utf8_log(self):
+        with tempfile.TemporaryDirectory() as folder:
+            log = Path(folder) / 'out.log'
+            env = {**os.environ, 'PYTHONIOENCODING': 'ascii'}        # what a redirected PowerShell 5.1 console may offer
+            done = subprocess.run([sys.executable, str(ROOT / 'scripts' / 'run-tests.py'), 'nonsense-profile', '--log', str(log)],
+                                  cwd=ROOT, env=env, capture_output=True, text=True, encoding='ascii', errors='strict')
+            self.assertEqual(done.returncode, 2)                       # argparse's own exit code passes through unchanged
+            ok = subprocess.run([sys.executable, str(ROOT / 'scripts' / 'run-tests.py'), 'list', '--log', str(log)],
+                                cwd=ROOT, env=env, capture_output=True, text=True, encoding='ascii', errors='strict')
+            self.assertEqual(ok.returncode, 0, ok.stdout[-1000:])
+            self.assertEqual(ok.stderr, '')
+            self.assertIn('sod', log.read_text(encoding='utf-8'))
+
+    def test_live_summary_counts_come_from_reporter_events(self):
+        with tempfile.TemporaryDirectory() as folder:
+            files = [Path(folder) / f'progress-{index}.jsonl' for index in range(2)]
+            files[0].write_text('{"type":"begin","total":2}\n{"type":"test-end","file":"a.spec.ts","line":1,"title":"x","status":"passed","outcome":"expected","duration":1}\n', encoding='utf-8')
+            files[1].write_text('{"type":"begin","total":3}\n{"type":"test-end","file":"b.spec.ts","line":1,"title":"y","status":"skipped","outcome":"skipped","duration":0}\n{"type":"test-e', encoding='utf-8')
+            live = runner.LiveProgress('demo', files, [Path(folder) / 'none.txt'] * 2, time.perf_counter())
+            with patch('sys.stdout', new=io.StringIO()):
+                live.poll()
+                summary = live.summary(set())
+            self.assertIn('2/5 completed | passed 1 | failed 0 | skipped 1', summary)
+            self.assertIn('shard 1: 1/2 | shard 2: 1/3', summary)
+            with files[1].open('a', encoding='utf-8') as stream:      # the incomplete line is completed by a later write
+                stream.write('nd","file":"b.spec.ts","line":2,"title":"z","status":"failed","outcome":"unexpected","duration":3,"error":"boom"}\n')
+            with patch('sys.stdout', new=io.StringIO()) as out:
+                live.poll()
+            self.assertIn('FAIL    [shard 2] b.spec.ts:2 > z', out.getvalue()); self.assertIn('boom', out.getvalue())
+            self.assertEqual(live.counts['failed'], 1)
 
 
 class WindowsCleanupTests(unittest.TestCase):
