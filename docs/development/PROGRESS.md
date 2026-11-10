@@ -590,3 +590,50 @@ unit checks all passed. A non-blocking ResourceWarning was recorded at
 cleanup was added. FULL, dependency audits, packaging and native Windows
 acceptance were not executed. The PowerShell commands above remain required
 before declaring the Windows failures resolved on their target platform.
+
+
+### Native Windows follow-up: newline policy and history-transfer fixture
+
+Two remaining native Windows failures were traced to test fixtures, not to
+UTF-8 degradation or changed maintenance safety:
+
+- `PlaywrightCommandTests.test_utf8_pipe_on_windows_preserves_unicode` built
+  a UTF-8 TextIOWrapper with the default `newline=None`. Windows translated
+  the written LF into CRLF; the Unicode bytes were already correct. This test
+  calls SafeConsole directly, not a subprocess. It now explicitly exercises
+  both LF and CRLF output policies on every host and compares the complete
+  output bytes against the exact UTF-8 encoding, preserving the accents and
+  arrow assertion. Production stream/subprocess handling is unchanged.
+- `ReviewHistoryTransferTests` inherits `PeriodV2Case`, not `BackupTests`, so
+  the isolation added to BackupTests never ran for it. Its desktop backup
+  therefore used the production session mutex and could conflict with a running
+  desktop application or another maintenance fixture. Its own setUp now installs
+  the existing UUID-scoped real Windows mutex factory before parent setup.
+  A regression test verifies this fixture calls that factory with a test name
+  rather than the production name. The factory owns no persistent kernel
+  handles; maintenance's existing finally blocks close acquired handles, and
+  unittest cleanup restores the factory even on failure. Production mutex
+  defaults, per-store leases and live-store refusal checks are unchanged.
+
+Focused Linux checks: 3 tests passed (the Unicode case includes LF/CRLF
+subtests), including the byte-for-byte approved review history transfer.
+Focused Ruff and whitespace checks passed. Native Windows execution is still
+required; Linux uses the POSIX store lease rather than Windows kernel locking.
+
+Windows PowerShell 5.1/7, after synchronizing a clean `work` checkout:
+
+```powershell
+git fetch origin
+git switch work
+git merge --ff-only origin/work
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --test test_test_profiles.PlaywrightCommandTests.test_utf8_pipe_on_windows_preserves_unicode --test test_application_backups.ReviewHistoryTransferTests --jobs 1 --log build/windows-newline-history-focused.log --report build/windows-newline-history-focused.json
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --test test_application_backups --test test_maintenance --test test_storage_migration --test test_test_profiles.PlaywrightCommandTests --test test_test_profiles.TerminalOutputTests --test test_test_profiles.ColorOutputTests --jobs 1 --log build/windows-newline-history-dependent.log --report build/windows-newline-history-dependent.json
+```
+
+Stop at the first failure. These commands use new artifact names and do not
+run FULL, browser regression or GitHub Actions. Explicit `--test` selections
+are executed together in one backend process by the current runner.
+
+Direct-dependent Linux validation completed: **84 passed, 0 failed, 0 skipped**.
+Documentation links: 62 files, zero failures. No FULL, REGRESSION, production
+build or browser suite was rerun for these test-only changes.

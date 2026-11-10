@@ -426,6 +426,22 @@ from test_sod_periods_v2 import PeriodV2Case
 
 
 class ReviewHistoryTransferTests(PeriodV2Case):
+    def setUp(self):
+        from windows_test_instance import isolate_desktop_instance
+        isolate_desktop_instance(self)
+        super().setUp()
+
+    def test_history_transfer_uses_an_isolated_desktop_mutex(self):
+        import instance
+        # The fixture must use the namespaced real-lock factory, even though its parent is not BackupTests.
+        with patch('windows_test_instance.WindowsInstance') as native:
+            guard = instance.WindowsInstance()
+            native.assert_called_once()
+            name = native.call_args.kwargs['name']
+            self.assertTrue(name.startswith('Local\\SAPLensTest-'))
+            self.assertNotEqual(name, 'Local\\SAPLensDesktop')
+            guard.close()
+
     def test_approved_period_and_append_only_history_transfer_byte_for_byte(self):
         pid=self.new_period();self.decide_everything(pid)
         self.move(pid,'In review');self.move(pid,'Ready for approval');self.approve(pid)

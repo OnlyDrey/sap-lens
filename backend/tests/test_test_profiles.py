@@ -876,10 +876,12 @@ class PlaywrightCommandTests(unittest.TestCase):
         self.assertEqual(json.loads(result.stdout), arguments)
 
     def test_utf8_pipe_on_windows_preserves_unicode(self):
-        raw = io.BytesIO()
-        stream = io.TextIOWrapper(raw, encoding='utf-8')
-        with patch.object(runner.os, 'name', 'nt'), patch.dict(os.environ, {}, clear=False):
-            os.environ.pop('SAP_LENS_TEST_ASCII', None)
-            console = runner.SafeConsole(stream)
-        console.write('one › déjà vu\n'); console.flush()
-        self.assertEqual(raw.getvalue().decode('utf-8'), 'one › déjà vu\n')
+        # Exercise both output policies explicitly; the host default translates LF to CRLF on Windows.
+        for newline in ('\n', '\r\n'):
+            with self.subTest(newline=repr(newline)), io.BytesIO() as raw:
+                with io.TextIOWrapper(raw, encoding='utf-8', newline=newline) as stream:
+                    with patch.object(runner.os, 'name', 'nt'), patch.dict(os.environ, {}, clear=False):
+                        os.environ.pop('SAP_LENS_TEST_ASCII', None)
+                        console = runner.SafeConsole(stream)
+                    console.write('one › déjà vu\n'); console.flush()
+                    self.assertEqual(raw.getvalue(), ('one › déjà vu' + newline).encode('utf-8'))
