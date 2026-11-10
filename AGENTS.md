@@ -148,6 +148,8 @@ planned checkpoints, never after every correction. Commands and selection rules:
 - Exit codes: 0 passed, 1 tests failed, 2 infrastructure only. The runner prints only to stdout, so Windows PowerShell 5.1 shows no
   `NativeCommandError` for ordinary subprocess stderr; a redirected Windows console gets readable ASCII while logs keep UTF-8. Use the
   runner's `--log` instead of `*>`, `Out-File` or `Tee-Object` wrappers.
+- Status words are coloured on an interactive terminal only (green pass, red failure, yellow warning, gray skip); redirected output, logs
+  and reports stay plain, and `NO_COLOR` is respected. Never parse colours: the exit code and the JSON report are the results.
 - Same commands on Windows PowerShell 5.1, PowerShell 7 and Linux.
 
 ## Failure investigation

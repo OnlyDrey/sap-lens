@@ -233,6 +233,8 @@ class BrowserLifecycleTests(unittest.TestCase):
                         patch.dict(os.environ, {'SAP_LENS_NPM': str(fake), 'SAP_LENS_TEST_HEARTBEAT': '0'})]
         for item in self.patches:
             item.start(); self.addCleanup(item.stop)
+        for name in ('SAP_LENS_TEST_ARTIFACTS', 'SAP_LENS_TEST_ASCII', 'SAP_LENS_TEST_COLOR', 'SAP_LENS_TEST_PROGRESS'):
+            os.environ.pop(name, None)       # validate.py sets these for its own run; these tests check the defaults (restored by patch.dict)
         self.specs = [p.name[:-len('.spec.ts')] for p in sorted((ROOT / 'frontend' / 'tests').glob('*.spec.ts'))[:4]]
 
     def run_browser(self, mode, jobs=2):
@@ -289,6 +291,12 @@ class BrowserLifecycleTests(unittest.TestCase):
 class TerminalOutputTests(unittest.TestCase):
     """Console output that works on Windows PowerShell 5.1, PowerShell 7 and Linux: nothing fails on an unencodable glyph, the --log copy keeps
     UTF-8, backend failures appear when they happen and the exit code is the runner's own."""
+    def setUp(self):
+        environment = patch.dict(os.environ, {})
+        environment.start(); self.addCleanup(environment.stop)
+        for name in ('SAP_LENS_TEST_ASCII', 'SAP_LENS_TEST_COLOR', 'SAP_LENS_TEST_COLOR_MARKERS'):
+            os.environ.pop(name, None)       # validate.py sets SAP_LENS_TEST_ASCII=0 for its child run; these tests check the defaults
+
     def console(self, encoding):
         raw = io.BytesIO()
         stream = io.TextIOWrapper(raw, encoding=encoding, errors='strict', newline='')
@@ -358,6 +366,113 @@ class TerminalOutputTests(unittest.TestCase):
                 live.poll()
             self.assertIn('FAIL    [shard 2] b.spec.ts:2 > z', out.getvalue()); self.assertIn('boom', out.getvalue())
             self.assertEqual(live.counts['failed'], 1)
+
+
+class ColorOutputTests(unittest.TestCase):
+    """Status colours: only on an interactive terminal (ANSI, or Windows console attributes when ANSI is unavailable), never in redirected
+    output, logs or reports, NO_COLOR respected; with colours removed the text is exactly what an uncoloured run prints."""
+    class Terminal(io.StringIO):
+        def __init__(self, tty):
+            super().__init__(); self.tty = tty
+
+        def isatty(self):
+            return self.tty
+
+    def mode(self, tty=True, env=None, nt=False, ansi_ok=True):
+        environment = {key: value for key, value in os.environ.items() if key not in {'NO_COLOR', 'SAP_LENS_TEST_COLOR', 'TERM'}}
+        environment.update(env or {})
+        with patch.dict(os.environ, environment, clear=True), patch.object(runner.os, 'name', 'nt' if nt else 'posix'):
+            return runner.color_mode(self.Terminal(tty), enable_windows_ansi=lambda stream: ansi_ok)
+
+    def test_colours_only_on_an_interactive_terminal(self):
+        self.assertEqual(self.mode(tty=True, env={'TERM': 'xterm-256color'}), 'ansi')
+        self.assertEqual(self.mode(tty=False), '', 'redirected output and pipes get no escape sequences')
+        self.assertEqual(self.mode(tty=True, env={'TERM': 'dumb'}), '', 'a terminal without colour support')
+
+    def test_no_color_and_the_explicit_switch_win(self):
+        self.assertEqual(self.mode(env={'NO_COLOR': '1'}), '')
+        self.assertEqual(self.mode(env={'NO_COLOR': '1', 'SAP_LENS_TEST_COLOR': 'always'}), '', 'NO_COLOR is never overridden')
+        self.assertEqual(self.mode(env={'SAP_LENS_TEST_COLOR': 'never'}), '')
+        self.assertEqual(self.mode(tty=False, env={'SAP_LENS_TEST_COLOR': 'always'}), 'ansi')
+
+    def test_windows_uses_ansi_when_the_console_accepts_it_and_console_attributes_otherwise(self):
+        self.assertEqual(self.mode(nt=True, ansi_ok=True), 'ansi')      # Windows 10+ conhost (PowerShell 5.1 and 7), Windows Terminal
+        self.assertEqual(self.mode(nt=True, ansi_ok=False), 'native')   # older consoles: SetConsoleTextAttribute
+        self.assertEqual(self.mode(nt=True, tty=False), '', 'a redirected PowerShell 5.1 console stays plain')
+
+    def painted(self, text_factory):
+        with patch.object(runner, 'PAINT', True):
+            return text_factory()
+
+    def test_ansi_colours_only_the_status_word_and_keeps_the_columns(self):
+        line = self.painted(lambda: f"[00:01] {runner.status('PASS', 'pass', 7)} a.spec.ts:1 > one\n")
+        terminal = self.Terminal(True)
+        runner.SafeConsole(terminal, 'ansi').write(line)
+        self.assertEqual(terminal.getvalue(), '[00:01] \x1b[32mPASS\x1b[0m    a.spec.ts:1 > one\n')
+        self.assertEqual(re.sub('\x1b\\[[0-9;]*m', '', terminal.getvalue()), '[00:01] PASS    a.spec.ts:1 > one\n')
+
+    def test_each_status_has_its_colour(self):
+        codes = {kind: runner.COLORS[kind][0] for kind in ('pass', 'fail', 'warn', 'skip', 'info')}
+        self.assertEqual(codes, {'pass': '32', 'fail': '31', 'warn': '33', 'skip': '90', 'info': '36'})   # green, red, yellow, gray, cyan
+
+    def test_plain_terminals_logs_and_redirected_output_never_see_markers_or_escapes(self):
+        line = self.painted(lambda: f"Summary: {runner.count(3, 'pass')} passed | {runner.count(1, 'fail')} failed | {runner.count(0, 'skip')} skipped\n")
+        console, log = self.Terminal(False), io.StringIO()
+        runner.Tee(runner.SafeConsole(console, ''), log).write(line)
+        expected = 'Summary: 3 passed | 1 failed | 0 skipped\n'
+        self.assertEqual(console.getvalue(), expected); self.assertEqual(log.getvalue(), expected)
+        coloured, log = self.Terminal(True), io.StringIO()
+        runner.Tee(runner.SafeConsole(coloured, 'ansi'), log).write(line)
+        self.assertIn('\x1b[31m1\x1b[0m', coloured.getvalue()); self.assertNotIn('\x1b[', log.getvalue().replace('', ''))
+        self.assertEqual(log.getvalue(), expected, 'the log copy is plain even when the terminal is coloured')
+        self.assertNotIn('\x1b[', coloured.getvalue().split('|')[2], 'zero skipped stays neutral')
+
+    def test_windows_console_attributes_wrap_only_the_status_word(self):
+        terminal, calls = self.Terminal(True), []
+        console = runner.SafeConsole(terminal, 'native')
+        console.set_attribute = lambda attribute: calls.append((attribute, terminal.getvalue()))
+        console.write(self.painted(lambda: f"[done] build: {runner.paint('FAIL (exit code 2)', 'fail')} (1.0s)\n"))
+        self.assertEqual(terminal.getvalue(), '[done] build: FAIL (exit code 2) (1.0s)\n')
+        self.assertEqual(calls, [(0x0C, '[done] build: '), (None, '[done] build: FAIL (exit code 2)')])
+
+    def test_markers_pass_through_to_the_process_that_owns_the_terminal(self):
+        line = self.painted(lambda: runner.paint('FAIL', 'fail'))
+        pipe = self.Terminal(False)
+        runner.SafeConsole(pipe, 'markers').write(line)
+        self.assertEqual(pipe.getvalue(), line); self.assertEqual(runner.plain(pipe.getvalue()), 'FAIL')
+
+    def test_importing_the_runner_never_paints_even_inside_a_coloured_worker(self):
+        with patch.dict(os.environ, {'SAP_LENS_TEST_COLOR_MARKERS': '1'}):
+            spec = importlib.util.spec_from_file_location('runner_copy', ROOT / 'scripts' / 'run-tests.py')
+            module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        self.assertFalse(module.PAINT)
+        self.assertEqual(module.status('PASS', 'pass', 7), 'PASS   ')
+
+    def test_without_colours_paint_changes_nothing(self):
+        with patch.object(runner, 'PAINT', False):
+            self.assertEqual(runner.status('FAIL', 'fail', 7), 'FAIL   ')
+            self.assertEqual(runner.count(2, 'fail'), '2')
+
+    def test_ascii_consoles_keep_colours_and_readable_text(self):
+        terminal = self.Terminal(True)
+        console = runner.SafeConsole(terminal, 'ansi'); console.ascii = True
+        console.write(self.painted(lambda: f"{runner.status('PASS', 'pass', 7)} one › déjà\n"))
+        self.assertEqual(terminal.getvalue(), '\x1b[32mPASS\x1b[0m    one > deja\n')
+
+    def test_live_failures_and_summaries_are_coloured(self):
+        with tempfile.TemporaryDirectory() as folder:
+            files = [Path(folder) / 'progress-0.jsonl']
+            files[0].write_text('{"type":"begin","total":2}\n{"type":"test-end","file":"a.spec.ts","line":3,"title":"x","status":"failed","outcome":"unexpected","duration":10,"error":"boom"}\n'
+                                '{"type":"test-end","file":"a.spec.ts","line":4,"title":"y","status":"passed","outcome":"expected","duration":5}\n', encoding='utf-8')
+            terminal = self.Terminal(True)
+            with patch.object(runner, 'PAINT', True), patch('sys.stdout', new=runner.SafeConsole(terminal, 'ansi')):
+                live = runner.LiveProgress('demo', files, [Path(folder) / 'none.txt'], time.perf_counter())
+                live.poll()
+                summary = live.summary(set())
+            self.assertIn('\x1b[31mFAIL\x1b[0m    a.spec.ts:3 > x', terminal.getvalue())
+            self.assertIn('\x1b[32mPASS\x1b[0m    a.spec.ts:4 > y', terminal.getvalue())
+            self.assertEqual(runner.plain(summary).split('] ', 1)[1], '2/2 completed | passed 1 | failed 1 | skipped 0')
+            self.assertIn('\x02fail\x1f1\x03', summary); self.assertIn('\x02pass\x1f1\x03', summary)
 
 
 class WindowsCleanupTests(unittest.TestCase):

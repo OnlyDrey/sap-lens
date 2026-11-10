@@ -157,6 +157,11 @@ A prepared host may need `PLAYWRIGHT_EXECUTABLE_PATH` for Chromium; report that 
   redirected). A terminal and a UTF-8 pipe get the text unchanged; a redirected Windows console, whose bytes PowerShell 5.1 decodes in
   another code page (`›` became `ΓÇ║`), gets readable ASCII (`>`); `SAP_LENS_TEST_ASCII=1|0` forces it. `--log FILE` keeps UTF-8.
   Prefer `--log` over `*>`, `Out-File` or `Tee-Object`.
+- Status colours on an interactive terminal: PASS green; FAIL, ERROR, TIMEOUT and infrastructure problems red; FLAKY, NOTE and warnings
+  yellow; SKIP gray; `[start]` and the profile header cyan; non-zero counts in the summaries and the final `Result` in the matching colour.
+  Only the status word or value is coloured. Windows uses ANSI where the console accepts it (Windows 10+ console, Windows Terminal,
+  PowerShell 5.1 and 7) and console text attributes otherwise. Redirected or piped output, `--log`, JSON reports and `TERM=dumb` stay
+  plain; `NO_COLOR` (any value) or `SAP_LENS_TEST_COLOR=never` switches colours off, `SAP_LENS_TEST_COLOR=always` forces ANSI.
 - The summary counts passed, failed and skipped tests per stage and in total. Exit codes: `0` everything passed, `1` a test or check
   failed, `2` only infrastructure failed (a busy port, a test server or Playwright that did not start, a worker or process without a
   report, a timeout); infrastructure problems are listed separately and never counted as test results.

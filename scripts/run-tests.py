@@ -50,7 +50,7 @@ class Tee:
 
     def write(self, text):
         self.console.write(text)
-        self.log.write(text)
+        self.log.write(plain(text))                                     # the log never contains colour markers or escape sequences
         return len(text)
 
     def flush(self):
@@ -71,6 +71,70 @@ def ascii_text(text: str) -> str:
     return ''.join(char for char in decomposed if not unicodedata.combining(char)).encode('ascii', 'replace').decode('ascii')
 
 
+# Status colours, for the terminal only. Status words and counts are wrapped in invisible markers (STX kind US text ETX). The console
+# renders them as ANSI sequences or Windows console attributes, or drops them; the --log copy, JSON reports and plain streams never
+# contain them. A child process (backend worker, run-tests.py under validate.py) passes the markers up when SAP_LENS_TEST_COLOR_MARKERS=1.
+COLOR_MARK = re.compile('\x02([a-z]+)\x1f(.*?)\x03', re.S)
+COLORS = {'pass': ('32', 0x0A), 'fail': ('31', 0x0C), 'warn': ('33', 0x0E), 'skip': ('90', 0x08), 'info': ('36', 0x0B)}
+PAINT = False   # main() decides for the runner, run_backend_worker() for a worker; importing the module never paints
+
+
+def paint(text, kind: str) -> str:
+    """`text` in the colour of `kind` (pass, fail, warn, skip, info) when the terminal shows colours; unchanged otherwise."""
+    text = str(text)
+    return f'\x02{kind}\x1f{text}\x03' if PAINT and text else text
+
+
+def plain(text: str) -> str:
+    return COLOR_MARK.sub(r'\2', text)
+
+
+def status(word: str, kind: str, width: int = 0) -> str:
+    """A coloured status word padded to `width` with uncoloured spaces, so columns stay aligned."""
+    return paint(word, kind) + ' ' * max(0, width - len(word))
+
+
+def count(value: int, kind: str) -> str:
+    """A count coloured only when it is not zero (zero failures stay neutral)."""
+    return paint(value, kind) if value else str(value)
+
+
+def _windows_handle(stream):
+    import ctypes
+    import msvcrt
+    return ctypes.windll.kernel32, msvcrt.get_osfhandle(stream.fileno())
+
+
+def _enable_windows_ansi(stream) -> bool:
+    """Turn on ANSI processing for this console (Windows 10+, Windows Terminal, PowerShell 5.1 and 7 alike); False when unavailable."""
+    try:
+        import ctypes
+        kernel32, handle = _windows_handle(stream)
+        mode = ctypes.c_uint32()
+        if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            return False
+        return bool(mode.value & 0x0004) or bool(kernel32.SetConsoleMode(handle, mode.value | 0x0004))
+    except (AttributeError, OSError, ValueError, ImportError):
+        return False
+
+
+def color_mode(stream, enable_windows_ansi=_enable_windows_ansi) -> str:
+    """'ansi', 'native' (Windows console attributes) or '' (no colour).
+
+    NO_COLOR (any value) and SAP_LENS_TEST_COLOR=never switch colours off; SAP_LENS_TEST_COLOR=always forces ANSI. Otherwise only an
+    interactive terminal gets colours: redirected output, files and pipes stay free of escape sequences, and TERM=dumb has none."""
+    choice = os.environ.get('SAP_LENS_TEST_COLOR', 'auto').strip().lower()
+    if os.environ.get('NO_COLOR') or choice in {'never', 'no', '0', 'off'}:
+        return ''
+    if choice in {'always', 'yes', '1', 'on'}:
+        return 'ansi'
+    if not getattr(stream, 'isatty', lambda: False)():
+        return ''
+    if os.name != 'nt':
+        return '' if os.environ.get('TERM', '') == 'dumb' else 'ansi'
+    return 'ansi' if enable_windows_ansi(stream) else 'native'
+
+
 class SafeConsole:
     """Console stream that never fails on a character and never shows mojibake.
 
@@ -78,8 +142,9 @@ class SafeConsole:
     Windows is written in the ANSI code page while Windows PowerShell 5.1 reads native output in the OEM code page, so any non-ASCII
     character arrives garbled (`›` became `ΓÇ║`); there, and for any non-UTF-8 stream, the console gets readable ASCII. The --log copy
     always keeps the original UTF-8 text. SAP_LENS_TEST_ASCII=1 or 0 forces the choice."""
-    def __init__(self, stream):
+    def __init__(self, stream, colors: str | None = None):
         self.stream = stream
+        self.colors = color_mode(stream) if colors is None else colors   # 'ansi', 'native', 'markers' (pass them up) or ''
         self.encoding = getattr(stream, 'encoding', None) or 'utf-8'
         forced = os.environ.get('SAP_LENS_TEST_ASCII')
         utf8 = self.encoding.lower().replace('-', '').replace('_', '') in {'utf8', 'utf8sig'}
@@ -88,12 +153,46 @@ class SafeConsole:
 
     def write(self, text):
         if self.ascii:
-            text = ascii_text(text)
+            text = ascii_text(text)                                     # the markers are ASCII control characters and survive
+        if self.colors == 'ansi':
+            text = COLOR_MARK.sub(lambda match: f'\x1b[{COLORS[match[1]][0]}m{match[2]}\x1b[0m', text)
+        elif self.colors == 'native':
+            self._native(text)
+            return len(text)
+        elif self.colors != 'markers':
+            text = plain(text)
+        self._raw(text)
+        return len(text)
+
+    def _raw(self, text):
         try:
             self.stream.write(text)
         except UnicodeEncodeError:
             self.stream.write(ascii_text(text))
-        return len(text)
+
+    def set_attribute(self, attribute: int | None) -> None:
+        """Windows console text attribute; None restores the colour the console had when the runner started."""
+        try:
+            import ctypes
+            kernel32, handle = _windows_handle(self.stream)
+            if not hasattr(self, '_default'):
+                info = ctypes.create_string_buffer(22)                  # CONSOLE_SCREEN_BUFFER_INFO; wAttributes at offset 8
+                self._default = int.from_bytes(info.raw[8:10], 'little') if kernel32.GetConsoleScreenBufferInfo(handle, info) else 0x07
+            kernel32.SetConsoleTextAttribute(handle, self._default if attribute is None else attribute)
+        except (AttributeError, OSError, ValueError, ImportError):
+            pass
+
+    def _native(self, text):
+        position = 0
+        for match in COLOR_MARK.finditer(text):
+            self._raw(text[position:match.start()])
+            self.stream.flush()
+            self.set_attribute(COLORS[match[1]][1])
+            self._raw(match[2])
+            self.stream.flush()
+            self.set_attribute(None)
+            position = match.end()
+        self._raw(text[position:])
 
     def flush(self):
         self.stream.flush()
@@ -467,7 +566,7 @@ class QuietResult(unittest.TextTestResult):
         self._started = self._last = time.perf_counter()
 
     def _failed_now(self, test, kind):
-        self.stream.write(f'[{self.label}] {kind}: {test.id()}\n')    # at once; the traceback follows in the summary
+        self.stream.write(f'[{self.label}] {paint(kind, "fail")}: {test.id()}\n')    # at once; the traceback follows in the summary
         self.stream.flush()
 
     def addFailure(self, test, err):
@@ -489,7 +588,7 @@ class QuietResult(unittest.TextTestResult):
         if self.heartbeat and now - self._last >= self.heartbeat:
             self._last = now
             failed = len(self.failures) + len(self.errors)
-            self.stream.write(f'[{self.label}] {self.testsRun} tests, {failed} failed, {len(self.skipped)} skipped, {clock(now - self._started)}\n')
+            self.stream.write(f'[{self.label}] {self.testsRun} tests, {count(failed, "fail")} failed, {count(len(self.skipped), "skip")} skipped, {clock(now - self._started)}\n')
             self.stream.flush()
 
 
@@ -498,6 +597,10 @@ def run_backend_worker(names: list[str], output: Path) -> int:
 
     Default: quiet and buffered (captured output printed only for failing tests). SAP_LENS_TEST_VERBOSE=1: one line per test, unbuffered,
     which is the mode to use when debugging what a test prints."""
+    global PAINT
+    # The parent passes colour markers through when its terminal shows colours. Read and drop the switch here, so that tests importing
+    # this module or starting run-tests.py themselves see exactly what an uncoloured run prints.
+    PAINT = os.environ.pop('SAP_LENS_TEST_COLOR_MARKERS', '0') == '1'
     sys.path.insert(0, str(BACKEND_TESTS))
     verbose = os.environ.get('SAP_LENS_TEST_VERBOSE') == '1'
     suite = unittest.TestLoader().loadTestsFromNames(names)
@@ -541,14 +644,14 @@ def split_modules(modules: list[str], jobs: int) -> list[list[str]]:
 def run_backend(names: list[str], jobs: int, label: str, split: bool) -> dict:
     started = time.perf_counter()
     groups = split_modules(names, jobs) if split else [names]
-    print(f'[start] {label}: {len(names)} module(s) or name(s) in {len(groups)} process(es)', flush=True)
+    print(f'{paint("[start]", "info")} {label}: {len(names)} module(s) or name(s) in {len(groups)} process(es)', flush=True)
     with tempfile.TemporaryDirectory(prefix='sap-lens-backend-') as scratch:
         def launch(index_group: tuple[int, list[str]]) -> tuple[int, Path]:
             index, group = index_group
             out = Path(scratch) / f'{index}.json'
             command = [python_exe(), '-W', 'error::DeprecationWarning', str(Path(__file__).resolve()), '_backend', str(out), *group]
             env = dict(os.environ, SAP_LENS_TEST_LABEL=f'backend {index + 1}/{len(groups)}' if len(groups) > 1 else 'backend',
-                       PYTHONIOENCODING='utf-8')   # the runner reads the worker as UTF-8; a test name or traceback never fails to encode
+                       PYTHONIOENCODING='utf-8', SAP_LENS_TEST_COLOR_MARKERS='1' if PAINT else '0')   # the runner reads the worker as UTF-8; a test name or traceback never fails to encode
             # Relay the worker's lines through this process so they can also go to --log; a killed worker still ends the loop.
             with subprocess.Popen(command, cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace') as process:
                 for line in process.stdout:
@@ -572,7 +675,7 @@ def run_backend(names: list[str], jobs: int, label: str, split: bool) -> dict:
     merged.update(name=label, seconds=time.perf_counter() - started, ok=not merged['failures'] and not merged['errors'] and all(c == 0 for c, _ in outcomes))
     # Aggregate lines in unittest's own format keep scripts/testing/ci.py counts correct after parallel workers.
     print(f"\nRan {merged['tests']} tests in {merged['seconds']:.3f}s")
-    print(('OK' if merged['ok'] else 'FAILED') + (f" (skipped={len(merged['skipped'])})" if merged['skipped'] else ''), flush=True)
+    print((paint('OK', 'pass') if merged['ok'] else paint('FAILED', 'fail')) + (f" (skipped={len(merged['skipped'])})" if merged['skipped'] else ''), flush=True)
     return merged
 
 
@@ -594,16 +697,16 @@ def dist_is_stale() -> bool:
 
 def step(name: str, command: list[str], cwd: Path = ROOT, env: dict | None = None, quiet: bool = True) -> dict:
     started = time.perf_counter()
-    print(f'[start] {name}', flush=True)
+    print(f'{paint("[start]", "info")} {name}', flush=True)
     try:
         done = subprocess.run(command, cwd=cwd, env={**os.environ, **(env or {})}, capture_output=quiet, text=True, encoding='utf-8', errors='replace')
     except OSError as error:                                           # the tool itself is missing or cannot start: infrastructure, not a finding
-        print(f'[done] {name}: could not start ({error})', flush=True)
+        print(f'[done] {name}: {paint("could not start", "fail")} ({error})', flush=True)
         return {'name': name, 'seconds': time.perf_counter() - started, 'ok': False, 'tests': None, 'infrastructure': [f'{name}: could not start ({error})']}
     if quiet and done.returncode:
         emit(f'--- {name}: stdout ---\n' + (done.stdout or '')[-4000:] + f'\n--- {name}: stderr ---\n' + (done.stderr or '')[-2000:] + '\n')
     seconds = time.perf_counter() - started
-    print(f"[done] {name}: {'PASS' if done.returncode == 0 else f'FAIL (exit code {done.returncode})'} ({seconds:.1f}s)", flush=True)
+    print(f"[done] {name}: {paint('PASS', 'pass') if done.returncode == 0 else paint(f'FAIL (exit code {done.returncode})', 'fail')} ({seconds:.1f}s)", flush=True)
     return {'name': name, 'seconds': seconds, 'ok': done.returncode == 0, 'tests': None}
 
 
@@ -838,21 +941,21 @@ class LiveProgress:
                     self.total[index] = int(event.get('total') or 0)
                 elif kind == 'test-end' and event.get('outcome') != 'retrying':
                     self.done[index] += 1
-                    outcome, status = event.get('outcome'), event.get('status')
+                    outcome, result = event.get('outcome'), event.get('status')
                     key = 'skipped' if outcome == 'skipped' else 'flaky' if outcome == 'flaky' else 'passed' if outcome == 'expected' else 'failed'
                     self.counts[key] += 1
                     name = f"{event.get('file')}:{event.get('line')} > {event.get('title')}"
                     elapsed = clock(time.perf_counter() - self.started)
                     if key in {'failed', 'flaky'}:
-                        word = 'FLAKY' if key == 'flaky' else 'TIMEOUT' if status == 'timedOut' else 'FAIL'
+                        word = 'FLAKY' if key == 'flaky' else 'TIMEOUT' if result == 'timedOut' else 'FAIL'
                         self.failures.append(name)
                         detail = '\n'.join('         ' + line for line in str(event.get('error') or '').splitlines()[:4])
-                        emit(f'[{elapsed}] {word:7} {self.where(index)}{name} ({event.get("duration", 0) / 1000:.1f}s)\n' + (detail + '\n' if detail else ''))
+                        emit(f'[{elapsed}] {status(word, "warn" if key == "flaky" else "fail", 7)} {self.where(index)}{name} ({event.get("duration", 0) / 1000:.1f}s)\n' + (detail + '\n' if detail else ''))
                     elif self.mode == 'tests':
                         word = 'SKIP' if key == 'skipped' else 'PASS'
-                        emit(f'[{elapsed}] {word:7} {self.where(index)}{name} ({event.get("duration", 0) / 1000:.1f}s)\n')
+                        emit(f'[{elapsed}] {status(word, "skip" if key == "skipped" else "pass", 7)} {self.where(index)}{name} ({event.get("duration", 0) / 1000:.1f}s)\n')
                 elif kind == 'error':
-                    emit(f'[{clock(time.perf_counter() - self.started)}] ERROR   {self.where(index)}{str(event.get("error"))[:600]}\n')
+                    emit(f'[{clock(time.perf_counter() - self.started)}] {status("ERROR", "fail", 7)} {self.where(index)}{str(event.get("error"))[:600]}\n')
         if not self.announced and all(total is not None for total in self.total):
             self.announced = True
             emit(f'[{self.label}] {sum(t or 0 for t in self.total)} tests in {len(self.files)} Playwright process(es)\n')
@@ -860,14 +963,15 @@ class LiveProgress:
     def summary(self, finished: set[int]) -> str:
         known = all(total is not None for total in self.total)
         total = sum(t or 0 for t in self.total)
-        head = (f"[{clock(time.perf_counter() - self.started)}] {sum(self.done)}/{total if known else '?'} completed | passed {self.counts['passed']}"
-                f" | failed {self.counts['failed']}" + (f" | flaky {self.counts['flaky']}" if self.counts['flaky'] else '') + f" | skipped {self.counts['skipped']}")
+        head = (f"[{clock(time.perf_counter() - self.started)}] {sum(self.done)}/{total if known else '?'} completed | passed {count(self.counts['passed'], 'pass')}"
+                f" | failed {count(self.counts['failed'], 'fail')}" + (f" | flaky {paint(self.counts['flaky'], 'warn')}" if self.counts['flaky'] else '')
+                + f" | skipped {count(self.counts['skipped'], 'skip')}")
         if len(self.files) == 1:
             return head
         shards = []
         for index in range(len(self.files)):
             if self.total[index] is not None:
-                state = f'{self.done[index]}/{self.total[index]}' + (' done' if index in finished else '')
+                state = f'{self.done[index]}/{self.total[index]}' + (f' {paint("done", "info")}' if index in finished else '')
             else:
                 state = 'done' if index in finished else (_progress(self.logs[index]) or 'starting')
             shards.append(f'shard {index + 1}: {state}')
@@ -892,10 +996,10 @@ def _wait_for_shards(launched: list, label: str, timeout: int, live: 'LiveProgre
                 if live:
                     live.poll()                                       # the process has exited: render its last events before its completion line
                 done[index] = (code, now - started, False)
-                print(f'[done] {label} shard {index + 1}/{total}: exit code {code} after {clock(now - started)}', flush=True)
+                print(f'[done] {label} shard {index + 1}/{total}: {paint(f"exit code {code}", "pass" if code == 0 else "fail")} after {clock(now - started)}', flush=True)
             elif now - started > timeout:
                 done[index] = (124, now - started, True)
-                print(f'[timeout] {label} shard {index + 1}/{total} exceeded {timeout}s at {_progress(out) or "startup"}; stopping it.', flush=True)
+                print(f'{paint("[timeout]", "fail")} {label} shard {index + 1}/{total} exceeded {timeout}s at {_progress(out) or "startup"}; stopping it.', flush=True)
                 _terminate_tree(process, force=True)
         if heartbeat and now - last_beat >= heartbeat and len(done) < total:
             last_beat = now
@@ -923,14 +1027,14 @@ def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str
     if (busy := busy_ports(jobs)):
         problem = (f"Browser test port(s) {', '.join(map(str, busy))} already in use by another process (a stale test server?). Stop that process "
                    "yourself (find it with `ss -ltnp`, or `Get-NetTCPConnection -LocalPort 18745` in PowerShell); the runner never signals processes it did not start.")
-        emit(problem + '\n')
+        emit(paint('infrastructure:', 'fail') + ' ' + problem + '\n')
         return {**empty, 'errors': 1, 'ok': False, 'infrastructure': [problem]}
     groups = split_specs(files, jobs) if jobs > 1 else [files if specs is not None else []]
     kept = Path(os.environ['SAP_LENS_TEST_ARTIFACTS']) / label.replace(' ', '-') if os.environ.get('SAP_LENS_TEST_ARTIFACTS') else None
     if kept:
         kept.mkdir(parents=True, exist_ok=True)
     scratch = kept or Path(tempfile.mkdtemp(prefix='sap-lens-browser-'))
-    print(f"[start] {label}: {len(groups)} Playwright process(es), {len(files) if specs is not None else 'all'} spec files", flush=True)
+    print(f"{paint('[start]', 'info')} {label}: {len(groups)} Playwright process(es), {len(files) if specs is not None else 'all'} spec files", flush=True)
     launched: list = []
     handles: list = []
     outcome: dict[int, tuple[int, float, bool]] = {}
@@ -958,7 +1062,7 @@ def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str
                 process = subprocess.Popen(command + extra, cwd=FRONTEND, env=env, stdout=stdout, stderr=stderr, text=True, encoding='utf-8', errors='replace', **group_options)
                 OWNED.append(process)
                 launched.append((index, BASE_PORT + index, process, report, out, err, group))
-                print(f"[start] {label} shard {index + 1}/{len(groups)}: port {BASE_PORT + index}, {len(group) or 'all'} spec files, pid {process.pid}", flush=True)
+                print(f"{paint('[start]', 'info')} {label} shard {index + 1}/{len(groups)}: port {BASE_PORT + index}, {len(group) or 'all'} spec files, pid {process.pid}", flush=True)
             live = LiveProgress(label, [scratch / f'progress-{item[0]}.jsonl' for item in launched], [item[4] for item in launched], started)
             outcome = _wait_for_shards(launched, label, BROWSER_TIMEOUT, live)
     finally:
@@ -1002,9 +1106,9 @@ def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str
             merged['errors'] += 1
             merged['infrastructure'].append(f'{where}: exit code {code} with no failed test' + (f": {top_errors[0].splitlines()[0][:300]}" if top_errors and top_errors[0] else ''))
         if code:
-            emit(f'{where} failed' + (':\n  ' + '\n  '.join(f'{file} :: {title}' for file, title in failed) if failed else '') + '\n')
+            emit(f'{where} {paint("failed", "fail")}' + (':\n  ' + '\n  '.join(f'{file} :: {title}' for file, title in failed) if failed else '') + '\n')
             for message in playwright_failures(data):
-                emit(f'  ERROR {message}\n')
+                emit(f'  {paint("ERROR", "fail")} {message}\n')
             emit(f'  Playwright and test-server output of {where} (last lines; complete in log-{index}.out.txt and log-{index}.err.txt):\n'
                  + _tail(err, 4000) + _tail(out, 2000) + '\n')
     merged['slowest'] = [[round(seconds, 1), file, title] for seconds, file, title, _ in sorted(every, reverse=True)[:max(SLOWEST, 10)]]
@@ -1019,8 +1123,8 @@ def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str
     merged.update(name=label, seconds=time.perf_counter() - started, ok=ok)
     # Keep the established `N passed (Ns)` line: scripts/testing/ci.py reads the test count from it.
     print(f"\n{merged['passed']} passed ({merged['seconds']:.0f}s)" + (f", {merged['failures']} failed" if merged['failures'] else ''), flush=True)
-    print(f"[done] {label}: {merged['passed']} passed, {merged['failures']} failed, {len(merged['skipped'])} skipped"
-          + (f", {len(merged['infrastructure'])} infrastructure problem(s)" if merged['infrastructure'] else '') + f" ({merged['seconds']:.0f}s)", flush=True)
+    print(f"[done] {label}: {count(merged['passed'], 'pass')} passed, {count(merged['failures'], 'fail')} failed, {count(len(merged['skipped']), 'skip')} skipped"
+          + (f", {paint(len(merged['infrastructure']), 'fail')} infrastructure problem(s)" if merged['infrastructure'] else '') + f" ({merged['seconds']:.0f}s)", flush=True)
     return merged
 
 
@@ -1134,22 +1238,22 @@ def report(profile: str, scope: str, stages: list[dict], notes: list[str], outpu
             failed = stage['failures'] + (0 if problems else stage['errors'])
             passed = stage.get('passed', stage['tests'] - stage['failures'] - stage['errors'])
             totals['passed'] += passed; totals['failed'] += failed; totals['skipped'] += len(stage['skipped'])
-            counts = f"{passed} passed, {failed} failed, {len(stage['skipped'])} skipped"
+            counts = f"{count(passed, 'pass')} passed, {count(failed, 'fail')} failed, {count(len(stage['skipped']), 'skip')} skipped"
             if stage.get('shards') and len(stage['shards']) > 1:
                 counts += f"; process seconds {stage['shards']}"
             test_failure |= failed > 0
         elif not stage['ok'] and not problems:
             test_failure = True                                          # a static check that ran and found something
-        status = 'PASS' if stage['ok'] else ('FAIL' if (failed or not problems) else 'FAIL (infrastructure)')
-        print(f"  {status}  {fmt(stage['seconds'])}  {stage['name']}  {counts}")
+        word = 'PASS' if stage['ok'] else ('FAIL' if (failed or not problems) else 'FAIL (infrastructure)')
+        print(f"  {status(word, 'pass' if stage['ok'] else 'fail')}  {fmt(stage['seconds'])}  {stage['name']}  {counts}")
         for problem in problems:
-            print(f'          infrastructure: {problem}')
+            print(f"          {paint('infrastructure:', 'fail')} {problem}")
         infrastructure += problems
         for test, reason in stage.get('skipped', []):
             if reason != 'skipped':
-                print(f'          skipped: {test.split(" ")[0]} ({reason})')
+                print(f'          {paint("skipped:", "skip")} {test.split(" ")[0]} ({reason})')
         for leak in stage.get('resource_warnings', []):
-            print(f'          resource warning: {leak}')
+            print(f'          {paint("resource warning:", "warn")} {leak}')
         for seconds, file, title in stage.get('slowest', [])[:SLOWEST] if (profile in ('regression', 'full') or SLOWEST_REQUESTED) else []:
             print(f'          slowest: {seconds:6.1f}s  {file} :: {title[:80]}')
         if stage.get('artifacts'):
@@ -1158,24 +1262,24 @@ def report(profile: str, scope: str, stages: list[dict], notes: list[str], outpu
             print(f'          note: {note}')
         ok &= stage['ok']
     for note in notes:
-        print(f'  NOTE  {note}')
+        print(f'  {paint("NOTE", "warn")}  {note}')
     if profile in ('smoke', 'targeted', 'quick', 'changed'):
-        print(f'  NOTE  {profile} is a partial run; run `regression` before pushing a finished phase and `full` before a merge or release.')
+        print(f'  {paint("NOTE", "warn")}  {profile} is a partial run; run `regression` before pushing a finished phase and `full` before a merge or release.')
     elif profile == 'regression':
-        print('  NOTE  regression is the curated critical set, not the complete collection; `full` runs everything.')
+        print(f'  {paint("NOTE", "warn")}  regression is the curated critical set, not the complete collection; `full` runs everything.')
     verdict = 'OK' if ok else ('FAILED (tests)' if test_failure else 'FAILED (infrastructure only: no test failed, but not everything ran)')
-    print(f"  tests: {totals['passed']} passed, {totals['failed']} failed, {totals['skipped']} skipped")
-    print(f"  total {fmt(sum(s['seconds'] for s in stages))}  ->  {verdict}")
+    print(f"  tests: {count(totals['passed'], 'pass')} passed, {count(totals['failed'], 'fail')} failed, {count(totals['skipped'], 'skip')} skipped")
+    print(f"  total {fmt(sum(s['seconds'] for s in stages))}  ->  {paint(verdict, 'pass' if ok else 'fail')}")
     failed_tests = [name for stage in stages for name in stage.get('failed', [])]
     if failed_tests:
-        print('  failed tests:')
+        print(f'  {paint("failed tests:", "fail")}')
         for name in failed_tests[:30]:
             print(f'    {name}')
         if len(failed_tests) > 30:
             print(f'    ... {len(failed_tests) - 30} more in the JSON report')
     code = 0 if ok else (1 if test_failure else 2)
-    print(f'Summary: {totals["passed"]} passed | {totals["failed"]} failed | {totals["skipped"]} skipped')
-    print(f'Result: {"PASSED" if ok else verdict} | Duration: {clock(sum(s["seconds"] for s in stages))} | Exit code: {code}'
+    print(f'Summary: {count(totals["passed"], "pass")} passed | {count(totals["failed"], "fail")} failed | {count(totals["skipped"], "skip")} skipped')
+    print(f'Result: {paint("PASSED", "pass") if ok else paint(verdict, "fail")} | Duration: {clock(sum(s["seconds"] for s in stages))} | Exit code: {code}'
           + (f' | Log: {_LOG.name}' if _LOG else '') + (f' | Report: {output}' if output else ''), flush=True)
     if output:
         Path(output).write_text(json.dumps({'profile': profile, 'scope': scope, 'ok': ok, 'exit_code': code, 'infrastructure': infrastructure,
@@ -1221,7 +1325,10 @@ def main(argv: list[str]) -> int:
             pass
     # Everything the runner prints goes to stdout. Writing to stderr made Windows PowerShell 5.1 wrap ordinary progress in NativeCommandError
     # records when the output was redirected; the exit code alone says whether the run failed.
-    sys.stdout = SafeConsole(sys.stdout)
+    global PAINT
+    colors = 'markers' if os.environ.pop('SAP_LENS_TEST_COLOR_MARKERS', '0') == '1' else color_mode(sys.stdout)   # set by validate.py
+    PAINT = bool(colors)
+    sys.stdout = SafeConsole(sys.stdout, colors)
     sys.stderr = sys.stdout
     if args.log:
         Path(args.log).parent.mkdir(parents=True, exist_ok=True)
@@ -1237,7 +1344,7 @@ def main(argv: list[str]) -> int:
     browser_jobs = browser_jobs_value(args.browser_jobs, jobs_value(args.jobs, 'browser'))
     want_backend, want_browser = not args.browser, not args.backend
     if args.profile not in ('list', 'check'):
-        print(f"SAP Lens {args.profile.upper()}: backend processes {backend_jobs}, browser processes {browser_jobs}"
+        print(f"{paint('SAP Lens ' + args.profile.upper(), 'info')}: backend processes {backend_jobs}, browser processes {browser_jobs}"
               + (f', log {args.log}' if args.log else '') + ' (live progress below; SAP_LENS_TEST_PROGRESS=summary shows only failures and summaries)', flush=True)
 
     if args.profile == 'check':

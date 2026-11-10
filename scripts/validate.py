@@ -52,24 +52,25 @@ def isolated_environment(folder):
     return env
 
 
-def console():
-    """The runner's console writer: unchanged text on a terminal or UTF-8 pipe, readable ASCII where Windows PowerShell 5.1 would garble it."""
+def runner_module():
+    """run-tests.py, for its console writer (colours, readable ASCII where Windows PowerShell 5.1 would garble text) and plain()."""
     import importlib.util
     spec=importlib.util.spec_from_file_location('sap_lens_run_tests',ROOT/'scripts'/'run-tests.py')
     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
-    return module.SafeConsole(sys.stdout)
+    return module
 
 
 def execute(command,log,env,timeout):
     """Run one run-tests.py command: its progress appears live in the terminal and, unchanged, in the UTF-8 log; its exit code is returned."""
-    screen=console()
+    runner=runner_module();screen=runner.SafeConsole(sys.stdout)
     with log.open('a',encoding='utf-8') as stream:
-        # The child always writes UTF-8 (the log keeps every character); this process decides what the terminal can show.
-        process=subprocess.Popen(command,cwd=ROOT,env={**env,'PYTHONIOENCODING':'utf-8','SAP_LENS_TEST_ASCII':'0'},stdout=subprocess.PIPE,
+        # The child always writes UTF-8 (the log keeps every character) and colour markers when this terminal shows colours; this process
+        # decides what the terminal can show and keeps the log plain.
+        process=subprocess.Popen(command,cwd=ROOT,env={**env,'PYTHONIOENCODING':'utf-8','SAP_LENS_TEST_ASCII':'0','SAP_LENS_TEST_COLOR_MARKERS':'1' if screen.colors else '0'},stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT,text=True,encoding='utf-8',errors='replace',bufsize=1)
         def relay():
             for line in process.stdout:
-                stream.write(line);stream.flush()
+                stream.write(runner.plain(line));stream.flush()
                 screen.write(line);screen.flush()
         reader=threading.Thread(target=relay,daemon=True);reader.start()
         try:
