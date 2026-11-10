@@ -97,11 +97,12 @@ def rows(state, directory, saved, groups, today=None, position=None, managers=No
         stale = bool(stored and (stored.get('absent_since') or stored['evidence_version'] != (version if stored.get('evidence_schema')==2 else legacy_version)))
         decision = {k:v for k,v in stored.items() if k!='history'} if stored else None
         change = position.get(normalize_text(employee['email'])) if employee and match['status'] == 'matched' and employee.get('email') else None
-        # A decision recorded after the change reviews it; reusing the Account Review decision avoids a second record.
-        open_change = bool(change and (not stored or datetime.fromisoformat(stored['timestamp']) < datetime.fromisoformat(change['detected_at'])))
+        # New decisions capture the event ID they reviewed: a later event can share the same Windows clock tick.
+        # Legacy decisions retain timestamp comparison; reusing Account Review avoids a second decision system.
+        open_change = bool(change and (not stored or (stored['position_change_id'] != change['id'] if 'position_change_id' in stored else datetime.fromisoformat(stored['timestamp']) < datetime.fromisoformat(change['detected_at']))))
         mgr_event = managers.get(normalize_text(employee['email'])) if employee and match['status'] == 'matched' and employee.get('email') else None
         # Like a position change, a manager change is reviewed by any later decision. It is an organizational review signal only.
-        open_manager = bool(mgr_event and (not stored or datetime.fromisoformat(stored['timestamp']) < datetime.fromisoformat(mgr_event['detected_at'])))
+        open_manager = bool(mgr_event and (not stored or (stored['manager_change_id'] != mgr_event['id'] if 'manager_change_id' in stored else datetime.fromisoformat(stored['timestamp']) < datetime.fromisoformat(mgr_event['detected_at']))))
         classified = classifications.get(user['username'].strip().upper())
         classification_review = bool(classified and classified['status'] == 'Needs review')
         needs = bool(findings or stale or open_change or open_manager or classification_review)

@@ -507,3 +507,86 @@ Three-process request measurements (combined independent server logs):
 
 These are Linux observations, not a Windows benchmark or proof of native
 resolution. Uploaded artifacts and generated results remain outside Git.
+
+
+### Windows REGRESSION repair following the green 80-test verification
+
+The supplied Windows verification-3 reports 80/80 passed. The subsequent
+REGRESSION reports backend 1431 passed, 37 failed, 50 skipped; browser stages
+executed no tests because CMD treated regex pipes as commands. Static checks
+passed. Artifacts were inspected outside Git; original files were preserved.
+
+- **Invocation:** launching `npm.cmd` lets Windows CMD interpret unquoted
+  regex `|` operators. Browser stages now invoke the installed Playwright CLI
+  through Node directly, with an argv list and no shell. Selection, reporters,
+  isolated ports/storage and process cleanup are unchanged. The executable
+  lifecycle-test double remains supported. A new argv round-trip test includes
+  pipes, ampersands, spaces and parentheses and executes Node on either OS.
+- **Maintenance isolation:** desktop maintenance checks both the global session
+  mutex and the per-store lease. Separate temporary stores did not isolate the
+  global Windows mutex across test workers or an open desktop application.
+  Maintenance fixture families now select a UUID-scoped real Windows mutex.
+  Production retains `Local\SAPLensDesktop` by default and every per-store
+  lease check. No lock is bypassed. Tests cover default/custom kernel names and
+  existing running-store refusal. Native Windows contention still needs rerun.
+- **Console:** SafeConsole previously forced ASCII on every redirected Windows
+  stream, even an explicitly UTF-8 stream. UTF-8 streams now preserve Unicode;
+  legacy code-page streams retain ASCII fallback. Log/colour tests remain intact.
+- **Position Changes:** a fixed-clock reproduction confirmed reliance on strict
+  timestamp ordering. Windows can record a decision and the next change on the
+  same clock tick; sorting tied events by hash also loses publication order.
+  Stable timestamp sorting preserves append order. New Account Review decisions
+  capture the exact position/manager change IDs they reviewed; later IDs reopen
+  review even with equal timestamps. Old decisions keep their timestamp fallback.
+  No old decisions/history are rewritten. Tests freeze both clocks and verify
+  later-change reopening and expiry, plus reverse-hash equal-time ordering.
+
+Focused Linux checks: 81 affected tests passed; 160 direct-dependent tests
+passed, including runner, Account Review, position changes and desktop tests.
+The stricter equal-clock case passed separately after freezing both clocks.
+Ruff and whitespace checks passed. These counts overlap; they are not a unique
+combined test total. Native Windows verification remains pending.
+
+Windows PowerShell 5.1/7 follow-up, with the existing prepared `.venv`:
+
+```powershell
+git fetch origin
+git switch work
+git merge --ff-only origin/work
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --test test_test_profiles --test test_application_backups --test test_maintenance --test test_storage_migration --test test_position_changes --test test_account_review --test test_desktop --jobs 1 --log build/windows-repair-focused.log --report build/windows-repair-focused.json
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --test test_application_backups --test test_maintenance --test test_storage_migration --jobs 3 --log build/windows-repair-locks.log --report build/windows-repair-locks.json
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --spec session-recovery --grep "a clean start|a temporary connection loss" --browser-jobs 1 --log build/windows-repair-browser.log --report build/windows-repair-browser.json
+```
+
+Stop on any failure. After these pass, run the existing REGRESSION command with
+new log/report names. No FULL, CI dispatch, main change or release is required.
+
+
+The first local REGRESSION attempt exposed a source-contract dependency:
+`tests/instance_name.py` parsed the literal CreateMutexW call. It now reads the
+constructor's production default using AST, keeping the smoke-script match
+assertion intact. Its 13 tests passed. That run was interrupted before browser
+expansion and is not a passing REGRESSION result; its separate log is preserved.
+The final run uses `windows-regression-repair-final.log` and the matching JSON.
+
+
+After the focused Windows commands pass, the requested native checkpoint is:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/run-tests.py regression --jobs 3 --browser-jobs 3 --log build/windows-repair-regression.log --report build/windows-repair-regression.json
+```
+
+The browser check includes a literal pipe expression to verify argument
+transport. No CMD quoting workaround or shell retry is needed. Original
+Windows artifacts stay outside Git and are not overwritten by these commands.
+
+
+Final local Linux REGRESSION completed successfully in **7:52**: backend
+**1472 passed**, critical browser **90 passed**, tagged browser **33 passed**;
+aggregate **1595 passed, 0 failed, 0 skipped**. Whitespace, documentation,
+workflow contracts, ownership map, Python/frontend lint, TypeScript and frontend
+unit checks all passed. A non-blocking ResourceWarning was recorded at
+`test_validation_entrypoint.py:60` for an unclosed text stream. No unrelated
+cleanup was added. FULL, dependency audits, packaging and native Windows
+acceptance were not executed. The PowerShell commands above remain required
+before declaring the Windows failures resolved on their target platform.

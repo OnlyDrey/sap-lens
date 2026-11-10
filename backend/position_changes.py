@@ -175,10 +175,10 @@ def record(previous, current, now=None):
         known = {event['id'] for event in stored['events']}
         added = [event for event in events if event['id'] not in known]
         merged = [*stored['events'], *added]
-        merged = sorted(merged, key=lambda event: (event['detected_at'], event['id']))[-MAX_EVENTS:]
+        merged = sorted(merged, key=lambda event: event['detected_at'])[-MAX_EVENTS:]
         stored_managers = read_manager_events()
         known_managers = {event['id'] for event in stored_managers}
-        managers = sorted([*stored_managers, *(e for e in manager_events if e['id'] not in known_managers)], key=lambda event: (event['detected_at'], event['id']))[-MAX_EVENTS:]
+        managers = sorted([*stored_managers, *(e for e in manager_events if e['id'] not in known_managers)], key=lambda event: event['detected_at'])[-MAX_EVENTS:]
         raw = json.dumps(dict(format=1, events=merged, manager_events=managers, notice=' '.join(notices) or None), ensure_ascii=False, separators=(',', ':')).encode()
         if len(raw) <= MAX_BYTES:
             atomic_write(config_dir() / 'position-changes.json', raw)
@@ -195,10 +195,10 @@ def record_safely(previous, current):
 
 
 def latest_recent(events, today=None):
-    """Newest recent change per employee e-mail."""
+    """Newest recent change per employee e-mail; stable ordering preserves publication order on clock ties."""
     cutoff = datetime.combine(today or datetime.now(timezone.utc).date(), datetime.min.time(), tzinfo=timezone.utc) - timedelta(days=RECENT_DAYS)
     latest = {}
-    for event in sorted(events, key=lambda event: (event['detected_at'], event['id'])):
+    for event in sorted(events, key=lambda event: event['detected_at']):
         if datetime.fromisoformat(event['detected_at']) >= cutoff:
             latest[event['key']] = event
     return latest
@@ -208,7 +208,7 @@ def latest_managers(events, today=None):
     """Newest recent manager change per employee e-mail."""
     cutoff = datetime.combine(today or datetime.now(timezone.utc).date(), datetime.min.time(), tzinfo=timezone.utc) - timedelta(days=RECENT_DAYS)
     latest = {}
-    for event in sorted(events, key=lambda event: (event['detected_at'], event['id'])):
+    for event in sorted(events, key=lambda event: event['detected_at']):
         if datetime.fromisoformat(event['detected_at']) >= cutoff:
             latest[event['key']] = event
     return latest

@@ -3,6 +3,7 @@ import hashlib
 import json
 import sys
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -32,6 +33,11 @@ NOW = datetime(2026, 10, 28, 12, tzinfo=timezone.utc).isoformat()
 class DetectionRules(unittest.TestCase):
     def detect(self, before, after):
         return changes.detect(directory(*before), directory(*after), NOW)
+
+    def test_equal_clock_ticks_preserve_publication_order_not_hash_order(self):
+        first = dict(id='z', key='a@example.test', detected_at=NOW, fields=['department'])
+        second = dict(id='a', key='a@example.test', detected_at=NOW, fields=['title'])
+        self.assertEqual(changes.latest_recent([first, second], datetime.fromisoformat(NOW).date())['a@example.test'], second)
 
     def test_department_and_title_changes_keep_previous_current_values_and_generations(self):
         before = [person('a@example.test'), person('b@example.test'), person('c@example.test')]
@@ -119,6 +125,11 @@ class ReviewIntegration(unittest.TestCase):
         self.assertEqual(dashboard['position_changes']['value'], 0)
 
     def test_a_later_change_reopens_the_review_and_old_changes_expire(self):
+        clock = patch.object(changes, 'datetime', wraps=datetime)
+        fixed = clock.start(); self.addCleanup(clock.stop)
+        fixed.now.return_value = datetime.now(timezone.utc)
+        decision_clock = patch('routers.account_review.datetime', fixed)
+        decision_clock.start(); self.addCleanup(decision_clock.stop)
         self.record(department='Procurement')
         _, row = self.row()
         self.client.post('/api/account-review/decision/DEMO_OPEN', headers=H, json=dict(state='No action required', reviewer='R', rationale='ok', evidence_version=row['evidence_version']))

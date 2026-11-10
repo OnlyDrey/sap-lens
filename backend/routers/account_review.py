@@ -136,7 +136,7 @@ def decision(username: str, request: Decision):
         with cache._load_lock:
             if cache.get_snapshot() is not snapshot:
                 raise HTTPException(409, 'Source data changed while saving. Refresh the review before saving.')
-            review.save_decision(row['username'], dict(**request.model_dump(exclude={'expected_decision'}), evidence_schema=2, identity_version=row['identity_version'], timestamp=datetime.now(timezone.utc).isoformat()))
+            review.save_decision(row['username'], dict(**request.model_dump(exclude={'expected_decision'}), evidence_schema=2, identity_version=row['identity_version'], position_change_id=(row.get('position_change') or {}).get('id'), manager_change_id=(row.get('manager_change') or {}).get('id'), timestamp=datetime.now(timezone.utc).isoformat()))
     return {'status': 'saved'}
 
 
