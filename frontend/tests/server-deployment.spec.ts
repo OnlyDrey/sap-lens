@@ -1,14 +1,15 @@
 import { test, expect } from '@playwright/test'
-import { spawn, type ChildProcess } from 'node:child_process'
+import { spawn } from 'node:child_process'
+import { observeTestServer, stopTestServer, removeTestServerDirectory, type OwnedTestServer } from './server-process'
 import { PYTHON } from './python'
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createServer, type AddressInfo } from 'node:net'
 import { layoutMatrix } from './matrix'
 
 // A real headless server, separate from the desktop-capability browser fixture.
-let process:ChildProcess, root:string
+let server:OwnedTestServer, root:string
 let origin:string
 const password='synthetic-browser-server-'+ 'a'.repeat(40)
 test.beforeAll(async()=>{
@@ -20,16 +21,20 @@ test.beforeAll(async()=>{
   root=mkdtempSync(path.join(tmpdir(),'sap-lens-server-'))
   mkdirSync(path.join(root,'sources'))
   writeFileSync(path.join(root,'access.secret'),password,{mode:0o600})
-  process=spawn(PYTHON,['../backend/server.py'],{env:{...globalThis.process.env,
+  server=observeTestServer(spawn(PYTHON,['../backend/server.py'],{env:{...globalThis.process.env,
     SAP_LENS_DEPLOYMENT_MODE:'server',SAP_LENS_DATA_DIR:path.join(root,'data'),SAP_LENS_CONFIG_DIR:path.join(root,'data'),
     SAP_LENS_SOURCE_DIR:path.join(root,'sources'),SAP_LENS_PORT:String(port),SAP_LENS_HOST:'127.0.0.1',
     SAP_LENS_PUBLIC_ORIGIN:origin,SAP_LENS_ALLOWED_HOSTS:'127.0.0.1',SAP_LENS_AUTH:'basic',
-    SAP_LENS_AUTH_SECRET_FILE:path.join(root,'access.secret'),SAP_LENS_TRUSTED_PROXIES:''},stdio:'ignore'})
-  await expect.poll(async()=>{try{return (await fetch(origin+'/health/ready')).status}catch{return 0}},{timeout:10000}).toBe(200)
+    SAP_LENS_AUTH_SECRET_FILE:path.join(root,'access.secret'),SAP_LENS_TRUSTED_PROXIES:''},stdio:'ignore',detached:globalThis.process.platform!=='win32',windowsHide:true}))
+  await expect.poll(async()=>{if(server.startupError())throw server.startupError();try{return (await fetch(origin+'/health/ready')).status}catch{return 0}},{timeout:10000}).toBe(200)
 })
 test.afterAll(async()=>{
-  if(process&&process.exitCode===null){const stopped=new Promise(resolve=>process.once('exit',resolve));process.kill('SIGTERM');await stopped}
-  if(root)rmSync(root,{recursive:true,force:true})
+  try {
+    if(server)await stopTestServer(server)
+    if(root)await removeTestServerDirectory(root)
+  } catch(error) {
+    throw new Error(`Test server cleanup failed; temporary directory retained: ${root}`, {cause:error})
+  }
 })
 for (const { theme, width } of layoutMatrix([375,800,1280])){
   test(`headless browser automatic upload and download ${theme} ${width}`,{ tag: '@visual' }, async({browser},testInfo)=>{

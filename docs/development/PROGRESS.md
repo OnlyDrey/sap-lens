@@ -703,3 +703,85 @@ checks passed. The known non-blocking unclosed-stream ResourceWarning at
 `test_validation_entrypoint.py:60` remains outside this fix. Native Windows
 kernel contention and the same three-process native run remain unexecuted
 here; no FULL, packaging, release or GitHub Actions workflow was run.
+
+
+### Functional Group reconfirmation and Windows server-fixture teardown
+
+The reported native run passed 1474 backend tests (50 skipped), 88/90 critical
+browser tests and 33/33 tagged tests. The current workspace did not contain its
+failure artifacts. The old synchronization warning deliberately omitted the
+exception: its exact native category cannot be recovered from that text. Logs
+and traces were requested; native failure correlation remains pending.
+
+**Functional Group storage:** public read() opened the JSON file without the
+RLock used by mutators. Windows read handles can prevent atomic os.replace,
+so concurrent request reads and review synchronization could conflict within
+the same backend even though the update itself is transactional. A new direct
+lock-ownership regression failed against the old code and passed after read()
+and write() were protected by the same reentrant lock, including handle close.
+Existing load/modify/write mutation boundaries remain protected. No blanket
+save retries or reconfirmation-rule change was introduced. This is a confirmed
+storage synchronization gap; matching it to the original native exception
+still requires the native diagnostic evidence.
+
+Synchronization failures now record only operation, root exception category,
+errno and winerror, including a wrapped I/O cause. Exception messages, paths,
+identities and payloads are excluded. A simulated sharing violation verifies
+that failed persistence changes neither classifications nor history, logs the
+safe category, and a later successful synchronization flags the Department
+change exactly once. The browser test now also asserts the classification API
+requires review before keeping all its original UI reconfirmation assertions.
+
+**Server cleanup:** the fixture previously sent SIGTERM to one spawned process,
+waited only for exit, then immediately called rmSync. On Windows this does not
+establish descendant termination (notably with a Python venv launcher), close
+completion or file-handle release. The new test-only server-process helper
+observes close from spawn time and terminates the owned Windows PID tree with
+bounded taskkill /PID /T /F before waiting for close. POSIX uses an isolated
+process group, graceful termination and bounded force escalation. No process
+is selected by name. Windows directory deletion then uses Node's bounded
+transient-error handling (five retries, 100 ms linear backoff, at most 1.5 s
+added delay). Persistent EPERM still fails teardown and reports the retained
+temporary directory. Neither the error nor a leftover directory is suppressed.
+The original native EPERM handle owner cannot be proven without its artifacts;
+no Defender/permission-policy cause is assumed.
+
+Four node tests cover owned PID targeting, exit versus close ordering, already
+closed children, termination errors, shutdown deadlines and deletion failure
+propagation. The original server upload/metadata assertions are unchanged.
+Linux focused evidence: both original scenarios passed individually before the
+fixes; the lock regression reproduced the unprotected read; Functional Group
+backend module 53/53 passed; direct-dependent modules 94/94 passed; cleanup
+unit tests 4/4 passed. Complete browser specs passed independently (Functional
+Groups 9/9, server-deployment 5/5). Three-process relevant browser selection
+passed 7/7. Ruff passed; focused ESLint had no errors and one pre-existing any
+warning in server-deployment.spec.ts. No unrelated files were removed or edited.
+
+Native PowerShell 5.1/7 follow-up (prepared .venv; retain old artifacts):
+
+```powershell
+git fetch origin
+git switch work
+git merge --ff-only origin/work
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --test test_functional_groups --test test_position_changes --test test_account_review --jobs 1 --log build/windows-fg-storage.log --report build/windows-fg-storage.json
+node --test frontend/tests/unit/server-process.test.ts
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --spec functional-groups --browser-jobs 1 --log build/windows-fg-spec.log --report build/windows-fg-spec.json
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --spec server-deployment --browser-jobs 1 --log build/windows-server-cleanup-spec.log --report build/windows-server-cleanup-spec.json
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --spec functional-groups --spec server-deployment --spec account-review-refinement --grep "Department|headless browser|browser uploads|review findings" --browser-jobs 3 --log build/windows-fg-cleanup-parallel.log --report build/windows-fg-cleanup-parallel.json
+```
+
+Stop at any failure and preserve the complete shard output/traces, including
+any new organizational_sync category/errno/winerror. Only after these pass,
+run the requested REGRESSION with fresh log/report names. Native kernel/file
+locking and three-process Windows cleanup remain unexecuted here. FULL,
+packaging, releases and GitHub Actions are excluded from this task.
+
+
+Requested final local Linux REGRESSION passed in **6:08**: backend **1476/1476**,
+critical browser **90/90**, tagged browser **33/33**; aggregate **1599 passed,
+0 failed, 0 skipped**. Both affected critical workflows and fixture teardown
+passed. All included static, documentation, workflow, lint, TypeScript and
+frontend unit checks passed. These are Linux results, not proof of native
+Windows file sharing or descendant termination. No FULL, packaging, release
+or GitHub Actions workflow was executed. Original native exception correlation
+and the PowerShell checks above remain outstanding.
