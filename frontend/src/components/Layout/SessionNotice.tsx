@@ -12,8 +12,9 @@ export function hasUnsavedInput(root: ParentNode = document): boolean {
     .some((field) => !field.readOnly && !field.disabled && !['checkbox', 'radio', 'button', 'submit', 'hidden', 'search'].includes((field as HTMLInputElement).type) && field.value.trim() !== '' && field.value !== field.defaultValue)
 }
 
+// One line at the 680px cap in the brand font (Montserrat runs ~12% wider than the Arial fallback); the action sits in the header, so the text does not repeat it.
 const COPY = {
-  manual: { title: 'Session disconnected', text: 'SAP Lens restarted and your previous local session is no longer valid. Reconnect to continue.' },
+  manual: { title: 'Session disconnected', text: 'SAP Lens restarted, so your previous local session is no longer valid.' },
   failed: { title: 'Reconnection failed', text: 'The local session could not be re-established. Retry, and use the technical details if it keeps failing.' },
   reconnecting: { title: 'Reconnecting…', text: 'Re-establishing the local session.' },
   disconnected: { title: 'Connection lost', text: 'SAP Lens cannot reach its local service right now. Data on screen may be out of date until it reconnects.' },

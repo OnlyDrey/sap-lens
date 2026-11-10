@@ -91,15 +91,17 @@ for (const { theme, width } of layoutMatrix([375,800,1280,1600]))test(`task 30 f
  await page.setViewportSize({width,height:2200});await page.goto('/#session=browser-test-session');const detail=await openUser(page)
  const trigger=detail.getByRole('button',{name:'Assignment date filters',exact:true}),panel=page.getByRole('dialog',{name:'Assignment date controls',exact:true})
  await trigger.click();await expect(panel).toBeVisible()
- const anchored=async()=>{const a=(await trigger.boundingBox())!,p=(await panel.boundingBox())!,profile=(await detail.getByRole('region',{name:'User profile',exact:true}).boundingBox())!;return {gap:p.y-a.y-a.height,belowProfile:p.y>=profile.y+profile.height,inside:p.x>=7&&p.x+p.width<=width-7&&p.y>=7&&p.y+p.height<=2200-7}}
- await expect.poll(async()=>{const box=await anchored();return box.gap>=4&&box.gap<=9&&box.belowProfile&&box.inside}).toBeTruthy()
+ // Shared Popover rule: below the trigger when the panel fits there, otherwise above it. Which side applies depends on how tall the
+ // profile renders (font metrics wrap it differently), so the expected side is derived from the measured room, never assumed.
+ const anchored=async()=>{const a=(await trigger.boundingBox())!,p=(await panel.boundingBox())!,profile=(await detail.getByRole('region',{name:'User profile',exact:true}).boundingBox())!,below=2200-(a.y+a.height)-12>=p.height,gap=below?p.y-a.y-a.height:a.y-p.y-p.height,inside=p.x>=7&&p.x+p.width<=width-7&&p.y>=7&&p.y+p.height<=2200-7;return {ok:gap>=4&&gap<=9&&inside&&(!below||p.y>=profile.y+profile.height)}}
+ await expect.poll(async()=>{const box=await anchored();return box.ok}).toBeTruthy()
  // Reproduce the first-open race: real matching data expands the profile after
  // the portal's initial measurement, without a window scroll/resize event.
  releaseMatch();await expect(detail.getByRole('region',{name:'Organization',exact:true})).toContainText('Analyst')
- await expect.poll(async()=>{const box=await anchored();return box.gap>=4&&box.gap<=9&&box.belowProfile&&box.inside}).toBeTruthy()
+ await expect.poll(async()=>{const box=await anchored();return box.ok}).toBeTruthy()
  await panel.screenshot({path:info.outputPath('first-open-date-controls.png')})
  await page.setViewportSize({width,height:1200});await trigger.scrollIntoViewIfNeeded();const inResizedViewport=async()=>{const a=(await trigger.boundingBox())!,p=(await panel.boundingBox())!;return Math.min(Math.abs(p.y-a.y-a.height),Math.abs(a.y-p.y-p.height))<10&&p.y>=7&&p.y+p.height<=1193&&p.x>=7&&p.x+p.width<=width-7};await expect.poll(inResizedViewport).toBeTruthy();await page.evaluate(()=>window.scrollBy(0,32));await expect.poll(inResizedViewport).toBeTruthy();await page.setViewportSize({width,height:2200})
- await page.keyboard.press('Escape');await expect(trigger).toBeFocused();await trigger.click();await expect.poll(async()=>{const box=await anchored();return box.gap>=4&&box.gap<=9&&box.belowProfile&&box.inside}).toBeTruthy()
+ await page.keyboard.press('Escape');await expect(trigger).toBeFocused();await trigger.click();await expect.poll(async()=>{const box=await anchored();return box.ok}).toBeTruthy()
  await panel.getByText('Advanced interval filtering',{exact:true}).click();await panel.getByLabel('Start date from',{exact:true}).fill('01.01.2000');await panel.getByRole('button',{name:'Apply date filters',exact:true}).click();await expect(panel).toBeHidden()
  const active=detail.getByRole('button',{name:'Assignment date filters (1 active)',exact:true});await active.click();await panel.getByRole('button',{name:'Clear date filters',exact:true}).click();await panel.getByRole('button',{name:'Cancel date changes',exact:true}).click();await expect(active).toBeVisible()
 })

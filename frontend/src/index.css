@@ -52,9 +52,11 @@
 }
 /* A single administration workspace; only its content pane scrolls. */
 .settings-workspace { display:flex; flex:1 1 0%; overflow:hidden; width:100%; min-height:0; color:var(--text); background:var(--bg); }
-.settings-sidebar { width:260px; flex-shrink:0; display:flex; flex-direction:column; padding:24px 16px; border-right:1px solid var(--border); background:var(--surface); overflow-y:auto; }
+.settings-sidebar { width:280px; flex-shrink:0; display:flex; flex-direction:column; padding:24px 16px; border-right:1px solid var(--border); background:var(--surface); overflow-y:auto; }
 .settings-nav-item { border:0; display:flex; align-items:center; gap:var(--space-3); min-height:var(--control-height); padding:10px 12px; border-radius:var(--radius-control); text-align:left; font-size:var(--font-label); font-weight:500; color:var(--text2); background:transparent; transition:background-color .12s,color .12s; }
 .settings-nav-item svg { flex-shrink:0; }
+/* One line per item in any installed font: selection (bold) or a wider brand font never changes an item's height. The sidebar fits the longest label in Montserrat at desktop widths; narrower layouts truncate with the full label as tooltip. */
+.settings-nav-item span { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .settings-nav-item:hover { background:var(--hover); color:var(--text); }
 .settings-nav-item.active,.settings-nav-item.active:hover { background:color-mix(in srgb,var(--accent2) 14%,var(--surface)); color:var(--text); font-weight:600; }
 .settings-nav-item.active svg { color:var(--accent2); }

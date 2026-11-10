@@ -500,6 +500,7 @@ export function SettingsView({
               <div key={label}>{[0,1,5].includes(index)&&<p className="settings-nav-category">{index===0?'GENERAL':index===1?'DATA & MODULES':'APPLICATION'}</p>}<button
                 role="tab"
                 aria-label={label}
+                title={label}
                 id={`settings-tab-${index}`}
                 aria-selected={section === index}
                 aria-controls={`settings-panel-${index}`}

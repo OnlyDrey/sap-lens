@@ -3,6 +3,8 @@ import { DataTable, StatusBadge } from '@/components/Shared/Presentation'
 export interface MetadataIndicator {
   id: string; label: string; column: string; total: number; imported: number; local_fallback: number; available: number; missing: number
   reference?: number; percent: number; column_present: boolean; differing: number; state: 'complete' | 'values_missing' | 'column_absent' | 'empty'
+  /** The SAP source alone: imported values only, never local overrides or curated reference text. */
+  imported_percent?: number; source_state?: 'complete' | 'values_missing' | 'column_absent' | 'empty'
 }
 export interface MetadataCoverage {
   indicators: MetadataIndicator[]
@@ -24,6 +26,7 @@ const ORIGIN = { imported: 'Imported', local: 'Local override', reference: 'Cura
 /**
  * Descriptive-metadata completeness of the SoD dataset over distinct risks, activities and transaction codes (not CSV rows). It separates a column the
  * CSV does not carry (normal, never an error) from a column whose values are missing, and imported values from explicit local overrides and curated reference guidance.
+ * Imported coverage (what the source contains, and the Status) and available coverage (after local and reference text) are separate columns.
  */
 export function SodMetadataCoverage({ data }: { data?: MetadataCoverage | null }) {
   if (!data) return <p className="ui-description" role="status">Metadata coverage is unavailable until the local annotations can be read.</p>
@@ -32,14 +35,15 @@ export function SodMetadataCoverage({ data }: { data?: MetadataCoverage | null }
       <h3 className="text-base font-semibold">Metadata coverage</h3>
       <p className="ui-description">{data.note} Optional columns are never required: a missing column is not an import error.</p>
       <DataTable caption="SoD metadata coverage" density="compact">
-        <thead><tr><th scope="col">Metadata</th><th scope="col">Available / total</th><th scope="col">Coverage</th><th scope="col">Missing</th><th scope="col">Source</th><th scope="col">Status</th></tr></thead>
+        <thead><tr><th scope="col">Metadata</th><th scope="col">Imported / total</th><th scope="col">Available / total</th><th scope="col">Coverage</th><th scope="col">Missing</th><th scope="col">Source</th><th scope="col">Status</th></tr></thead>
         <tbody>{data.indicators.map((item) => <tr key={item.id}>
           <td>{item.label}<small className="block text-muted"><code>{item.column}</code></small></td>
+          <td className="whitespace-nowrap">{item.imported.toLocaleString()} / {item.total.toLocaleString()}</td>
           <td className="whitespace-nowrap">{item.available.toLocaleString()} / {item.total.toLocaleString()}</td>
           <td className="whitespace-nowrap">{item.percent.toFixed(1)}%</td>
           <td className="whitespace-nowrap">{item.missing.toLocaleString()}</td>
           <td>{item.imported.toLocaleString()} imported{item.local_fallback > 0 && <> · {item.local_fallback.toLocaleString()} local override</>}{(item.reference ?? 0) > 0 && <> · {item.reference} curated reference</>}{item.differing > 0 && <small className="block text-muted">{item.differing.toLocaleString()} differ from local text (both kept)</small>}</td>
-          <td><StatusBadge tone={STATE[item.state].tone}>{STATE[item.state].label}</StatusBadge></td>
+          <td><StatusBadge tone={STATE[item.source_state ?? item.state].tone}>{STATE[item.source_state ?? item.state].label}</StatusBadge>{item.source_state && item.source_state !== 'complete' && item.available > item.imported && <small className="block text-muted">Gaps filled by local or reference text</small>}</td>
         </tr>)}</tbody>
       </DataTable>
       {data.reference && <p className="ui-description">Reference revision {data.reference.revision}: {data.reference.matched_risks} active risks and {data.reference.matched_activities} active activities matched. Unmatched reference IDs (inactive): {data.reference.unmatched_risks.concat(data.reference.unmatched_activities).join(', ') || 'None'}.</p>}

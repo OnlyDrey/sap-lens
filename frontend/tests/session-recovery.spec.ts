@@ -129,6 +129,13 @@ test('the notification is compact, keyboard operable, readable in dark mode and 
     const box = await notice(page).boundingBox()
     expect(box!.height).toBeLessThan(width === 375 ? 220 : 120)                                          // compact
     if (width >= 1280) expect(box!.width).toBeLessThanOrEqual(681)                                      // capped, not viewport wide
+    if (width >= 1280) {                                                                                 // one line in the brand font, installed or not
+      const fit = await notice(page).evaluate(el => { const text = el.querySelector('.session-notice-body > span')!, c = document.createElement('canvas').getContext('2d')!, s = getComputedStyle(text)
+        const measure = (font: string) => { c.font = font; return c.measureText(text.textContent!).width }
+        const brand = measure(`${s.fontSize} Montserrat, monospace`) !== measure(`${s.fontSize} monospace`)   // without it, allow Montserrat's ~12% extra width
+        return { needed: measure(s.font) * (brand ? 1 : 1.12), room: text.getBoundingClientRect().width } })
+      expect(fit.needed, 'message fits one line').toBeLessThanOrEqual(fit.room)
+    }
     else expect(box!.width).toBeGreaterThan(width * 0.9)                                                 // fills a narrow container
     const head = await notice(page).locator('.session-notice-head').boundingBox()
     const action = await page.getByRole('button', { name: 'Reconnect session' }).boundingBox()

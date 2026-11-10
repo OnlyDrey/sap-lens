@@ -53,6 +53,20 @@ test('Settings navigation: active item is one filled rounded surface with no und
     const heights = await page.getByRole('tab').evaluateAll(els => els.map(el => Math.round(el.getBoundingClientRect().height)))
     expect(new Set(heights).size, theme).toBe(1)
   }
+  // The geometry must not depend on the installed font: the longest label, selected (bold), stays one line at desktop and at the
+  // narrower sidebar breakpoint, and is shown whole at desktop in the brand font. Without Montserrat installed (the Linux runs) the
+  // fallback is measured with Montserrat's ~12% extra width, so the check does not depend on the machine's fonts.
+  await page.getByRole('tab', { name: 'Organization & SAP System', exact: true }).click()
+  for (const width of [1280, 1000]) {
+    await page.setViewportSize({ width, height: 800 })
+    const items = await page.getByRole('tab').evaluateAll(els => els.map(el => { const label = el.querySelector('span')!, c = document.createElement('canvas').getContext('2d')!, s = getComputedStyle(label)
+      const measure = (font: string) => { c.font = font; return c.measureText(label.textContent!).width }
+      const brand = measure(`600 ${s.fontSize} Montserrat, monospace`) !== measure(`600 ${s.fontSize} monospace`)
+      return { height: Math.round(el.getBoundingClientRect().height), room: label.clientWidth, needed: measure(`600 ${s.fontSize} ${s.fontFamily}`) * (brand ? 1 : 1.12), title: el.getAttribute('title') === label.textContent } }))
+    expect(new Set(items.map(item => item.height)).size, `${width}px heights`).toBe(1)
+    expect(items.every(item => item.title), `${width}px full label tooltip`).toBe(true)
+    if (width === 1280) expect(items.filter(item => item.needed > item.room + 1).map(item => item.needed), 'labels fit at desktop').toEqual([])
+  }
 })
 
 test('Settings navigation: keyboard focus is a separate outline and arrow keys move the selection', { tag: '@a11y' }, async ({ page }) => {

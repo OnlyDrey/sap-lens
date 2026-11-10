@@ -16,10 +16,23 @@ const plain = `${HEAD}\n${rowsFor().join('\n')}\n`
 const extended = `${HEAD},RISK_NAME,RISK_DESCRIPTION,ACTIVITY_NAME,ACTIVITY_DESCRIPTION,RULESET_ID\n${rowsFor((risk, activity) => [risk === 'R1' ? 'Duplicate payments' : 'Unnamed approval', risk === 'R1' ? 'A user can post and approve the same payment' : '', activity === 'A' ? 'Create invoice' : '', activity === 'A' ? 'Creates a vendor invoice' : '', 'RS-SYN']).join('\n')}\n`
 let directory = ''
 test.setTimeout(120_000)
-test.afterEach(async ({ request }) => { await cleanup(request, directory) })
+/** Local annotations survive configuration resets by design. A test that writes one registers how to clear it here, so it is removed even
+ *  when the test fails midway (otherwise the next test of the run sees an unexpected local override). Runs before the reset. */
+let restoreLocal: (() => Promise<void>)[] = []
+const clearLocalRisk = (request: Parameters<typeof seedGovernance>[0], id: string) => async () => {
+  const latest = await (await request.get('/api/sod/catalogue', { headers, params: { search: id, current: 'current', limit: '100' } })).json(), item = latest.items.find((entry: { risk_id: string }) => entry.risk_id === id)
+  if (item) expect((await request.post(`/api/sod/catalogue/${id}`, { headers, data: { expected_revision: latest.revision, definition_version: item.definition_version, metadata: { ...item.local, explanation_en: '', display_name: '' } } })).ok()).toBeTruthy()
+}
+test.afterEach(async ({ request }) => {
+  for (const restore of restoreLocal.reverse()) await restore()
+  restoreLocal = []
+  await cleanup(request, directory)
+})
 
 const reseed = async (request: Parameters<typeof seedGovernance>[0], matrix: string) => { directory = await seedGovernance(request, 'static', matrix) }
 const pill = (page: Page, kind: string, id: string) => page.getByRole('button', { name: new RegExp(`^${kind} ${id} `) }).first()
+/** Columns of the SoD metadata coverage table: Metadata, Imported / total, Available / total, Coverage, Missing, Source, Status. */
+const cell = (row: ReturnType<Page['getByRole']>, column: 'imported' | 'available' | 'source' | 'status') => row.getByRole('cell').nth({ imported: 1, available: 2, source: 5, status: 6 }[column])
 async function explorer(page: Page) { await openSod(page, 'Access Explorer'); await expect(page.getByRole('table', { name: 'User risk table' })).toBeVisible() }
 
 test('pills show concise descriptions without repeated provenance and retain full source details', async ({ page, request }) => {
@@ -42,6 +55,7 @@ test('a risk without any description says so neutrally and local business text f
   await reseed(request, extended)
   const initial=await(await request.get('/api/sod/catalogue',{headers,params:{search:'R2',limit:'100'}})).json(), initialRisk=initial.items.find((item:{risk_id:string})=>item.risk_id==='R2')
   expect((await request.post('/api/sod/catalogue/R2',{headers,data:{expected_revision:initial.revision,definition_version:initialRisk.definition_version,metadata:{...initialRisk.local,display_name:'',explanation_en:''}}})).ok()).toBeTruthy()
+  restoreLocal.push(clearLocalRisk(request, 'R2'))
   await explorer(page)
   await pill(page, 'Risk', 'R2').click()
   const dialog = page.getByRole('dialog', { name: 'Risk R2 details' })
@@ -56,9 +70,7 @@ test('a risk without any description says so neutrally and local business text f
   await expect(again).toContainText('Local business description'); await expect(again).not.toContainText('Local business text')
   await expect(again).toContainText('Local name'); await expect(again).not.toContainText('differs: Unnamed approval')
   await page.keyboard.press('Escape');await openSettings(page,'SoD Risk Configuration');await page.getByRole('searchbox',{name:'Search SoD risks',exact:true}).fill('R2');await page.getByRole('button',{name:'Edit SoD risk R2',exact:true}).click();await page.getByRole('button',{name:'Source details for risk R2',exact:true}).click();const source=page.getByRole('dialog',{name:'Source details for risk R2',exact:true});await expect(source).toContainText('differs: Unnamed approval');await expect(source).toContainText('Local business text')
-  // local annotations survive configuration resets by design, so leave none behind for the other tests
-  const latest = await (await request.get('/api/sod/catalogue', { headers, params: { search: 'R2', current: 'current', limit: '100' } })).json(), current = latest.items.find((item: { risk_id: string }) => item.risk_id === 'R2')
-  expect((await request.post('/api/sod/catalogue/R2', { headers, data: { expected_revision: latest.revision, definition_version: current.definition_version, metadata: { ...current.local, explanation_en: '', display_name: '' } } })).ok()).toBeTruthy()
+  // the local annotations this test wrote are cleared in afterEach, also when an assertion above fails
 })
 
 test('an existing CSV without optional columns works and its pills carry only neutral wording', async ({ page, request }) => {
@@ -96,12 +108,29 @@ test('the SoD source diagnostics show metadata coverage over distinct entities a
   const table = dialog.getByRole('table', { name: 'SoD metadata coverage' })
   const row = (label: string) => table.getByRole('row', { name: new RegExp(`^${label}`) })
   await expect(row('Risk display names')).toContainText('2 / 2'); await expect(row('Risk display names')).toContainText('100.0%')
-  await expect(row('Risk descriptions')).toContainText('1 / 2'); await expect(row('Risk descriptions')).toContainText('Values missing') // column present, one value missing
+  await expect(cell(row('Risk descriptions'), 'imported')).toHaveText('1 / 2'); await expect(cell(row('Risk descriptions'), 'available')).toHaveText('1 / 2')
+  await expect(row('Risk descriptions')).toContainText('Values missing') // column present, one value missing
   await expect(row('Activity descriptions')).toContainText('1 / 3') // three distinct activities however many rows repeat them
   await expect(row('Transaction descriptions')).toContainText('3 / 3')
   await expect(dialog.getByText('RULESET_ID', { exact: false }).first()).toBeVisible(); await expect(dialog).toContainText('RS-SYN')
   await expect(dialog).toContainText('Optional columns not in the CSV')
   await expect(dialog.getByRole('table', { name: 'Resolved metadata sample' })).toContainText('Duplicate payments')
+})
+
+test('a local business description fills the effective coverage but never counts as imported SAP metadata', async ({ page, request }) => {
+  await reseed(request, extended)
+  const catalogue = await (await request.get('/api/sod/catalogue', { headers, params: { search: 'R2', current: 'current', limit: '100' } })).json(), r2 = catalogue.items.find((item: { risk_id: string }) => item.risk_id === 'R2')
+  expect((await request.post('/api/sod/catalogue/R2', { headers, data: { expected_revision: catalogue.revision, definition_version: r2.definition_version, metadata: { ...r2.local, explanation_en: 'Local business description' } } })).ok()).toBeTruthy()
+  restoreLocal.push(clearLocalRisk(request, 'R2'))
+  await openSettings(page, 'Data Sources')
+  await page.getByRole('tab', { name: 'SoD Matrix', exact: true }).click()
+  await page.getByRole('region', { name: 'SoD Matrix source management', exact: true }).getByRole('button', { name: 'Preview data', exact: true }).click()
+  const descriptions = page.getByRole('dialog', { name: 'SoD Matrix source inspection' }).getByRole('table', { name: 'SoD metadata coverage' }).getByRole('row', { name: /^Risk descriptions/ })
+  await expect(cell(descriptions, 'imported')).toHaveText('1 / 2')      // the SAP source still lacks one description
+  await expect(cell(descriptions, 'available')).toHaveText('2 / 2')     // the effective text is complete through the local description
+  await expect(cell(descriptions, 'source')).toContainText('1 imported · 1 local override')
+  await expect(cell(descriptions, 'status')).toContainText('Values missing') // the status describes the source, not the fallback
+  await expect(cell(descriptions, 'status')).toContainText('Gaps filled by local or reference text')
 })
 
 test('an existing file shows absent optional columns as normal, and the candidate inspection reports the same coverage without importing', async ({ page, request }) => {

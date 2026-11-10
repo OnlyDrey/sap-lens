@@ -88,12 +88,18 @@ def lookup(snapshot=None, saved=None, reference=None):
 
 
 def _indicator(label, total, imported_count, local_count, column_present, differing=0):
-    """Distinct entities only. `local_count` counts entities that have no imported value but do have a local one."""
+    """Distinct entities only. `local_count` counts entities that have no imported value but do have a local one.
+
+    Two coverages, never mixed: `imported`/`imported_percent`/`source_state` describe the SAP source alone (what the CSV contains);
+    `available`/`percent`/`state` describe the effective text after local business text and curated reference text fill gaps."""
     missing = total - imported_count - local_count
     available = imported_count + local_count
     state = 'complete' if total and not missing else 'column_absent' if not column_present and not imported_count else 'values_missing' if total else 'empty'
+    source_state = ('complete' if total and imported_count == total else 'column_absent' if not column_present and not imported_count
+                    else 'values_missing' if total else 'empty')
     return dict(label=label, total=total, imported=imported_count, local_fallback=local_count, available=available, missing=missing,
-                percent=round(100 * available / total, 1) if total else 0.0, column_present=column_present, state=state, differing=differing)
+                percent=round(100 * available / total, 1) if total else 0.0, imported_percent=round(100 * imported_count / total, 1) if total else 0.0,
+                column_present=column_present, state=state, source_state=source_state, differing=differing)
 
 
 def coverage(snapshot=None, saved=None):

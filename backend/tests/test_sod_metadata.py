@@ -191,6 +191,9 @@ class ResolutionTests(Case):
         self.assertEqual((by['activity_descriptions']['total'], by['activity_descriptions']['imported'], by['activity_descriptions']['local_fallback']), (5, 4, 1))  # five activities, however often they repeat
         self.assertEqual((by['transaction_descriptions']['total'], by['transaction_descriptions']['available']), (11, 11))  # distinct transaction codes
         self.assertEqual(by['risk_descriptions']['state'], 'complete')
+        # local text fills the gap for the effective description, but is never counted as imported SAP metadata
+        self.assertEqual((by['risk_descriptions']['source_state'], by['risk_descriptions']['imported_percent']), ('values_missing', 66.7))
+        self.assertEqual((by['risk_names']['source_state'], by['risk_names']['imported_percent']), ('complete', 100.0))
 
     def test_coverage_separates_absent_columns_from_missing_values(self):
         partial = sod_metadata.coverage(self.snapshot(lambda row: dict(RISK_DESCRIPTION='Words' if row['RISK'] == 'R1' else '')), self.local())
@@ -201,6 +204,7 @@ class ResolutionTests(Case):
         plain = sod_metadata.coverage(self.snapshot(), self.local())
         self.assertEqual(plain['optional_columns']['detected'], [])
         self.assertTrue(all(item['state'] in {'column_absent', 'complete'} for item in plain['indicators']))
+        self.assertEqual(by['risk_names']['source_state'], 'column_absent')   # absent stays absent, also when local text exists
 
 
 class LifecycleAndApiTests(Case):

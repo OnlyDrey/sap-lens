@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
-import { goTo, seedSources, type SeededSources, recordClipboard, copiedText } from './support'
+import { goTo, headers, seedSources, type SeededSources, recordClipboard, copiedText } from './support'
 let seeded: SeededSources
 const roles = `FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT
 MM,ZC:MM:BUY:ENP,Buyer plant,ZS:SH,MM - Shared purchasing,MIGO,Goods movement
@@ -18,7 +18,14 @@ U3,ZO:UNKNOWN,G2,20200101,99991231
 U3,ZC:MM:BUY:ENP,G2,20200101,99991231
 `
 test.beforeEach(async ({ request }) => { seeded = await seedSources(request, { roles, users }) })
-test.afterEach(async () => { await seeded.cleanup() })
+// Saved filters are user data outside the seeded sources: remove the one this spec creates, so a retry or a later spec in the same
+// process starts without it (a duplicate name is rejected, and other specs expect an empty list).
+const savedName = 'East'
+test.afterEach(async ({ request }) => {
+  const items = (await (await request.get('/api/saved-filters', { headers })).json()).items as { id: string; name: string; view: string; modified: string }[]
+  for (const item of items.filter(entry => entry.view === 'release' && entry.name === savedName)) await request.post('/api/saved-filters/delete', { headers, data: { id: item.id, expected: item.modified } })
+  await seeded.cleanup()
+})
 
 const open = async (page: Page, view: 'Table' | 'Matrix' = 'Table') => {
   await page.goto('/#session=browser-test-session'); await goTo(page, 'Release Roles')
@@ -92,9 +99,12 @@ test('Saved Filters live in the sidebar and restore Release Area and Release Gro
   await pick(page, 'Release Area', 'E'); await pick(page, 'Release Group', 'E3')
   await toolbar.getByRole('button', { name: /Saved filters/ }).click()
   const dialog = page.getByRole('dialog', { name: 'release saved filters', exact: true })
-  await dialog.getByLabel('Saved filter name').fill('East')
+  await dialog.getByLabel('Saved filter name').fill(savedName)
   await dialog.getByRole('button', { name: 'Save as new', exact: true }).click()
-  await expect(toolbar).toContainText('East')
+  await expect(toolbar).toContainText(savedName)
+  // The non-modal panel grows after saving and, with less room below (a wider font), flips above its trigger over the sidebar
+  // controls; a person closes it before using them, so the test does too instead of relying on where it happened to open.
+  await page.keyboard.press('Escape'); await expect(dialog).toBeHidden()
   await page.getByRole('complementary', { name: 'Filters' }).getByRole('button', { name: 'Clear filters', exact: true }).click()
   await expect.poll(() => tableRoles(page)).toHaveLength(4)
   await toolbar.getByRole('button', { name: /Saved filters/ }).click()

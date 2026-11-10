@@ -277,6 +277,16 @@ change, browser smoke and changed specs for frontend changes); the manual Full V
   instead (`toHaveCount`, `expect.poll`, the status message the action announces). To reproduce, copy the spec to a temporary file
   and add `test.beforeEach` with CDP CPU throttling (`Emulation.setCPUThrottlingRate`, rate 6 to 10) plus a `page.route('**/api/**')`
   that delays each request randomly before `route.fallback()`; run it with `--repeat-each`. Delete the copy afterwards.
+- *Layout failure only on one machine (fonts)*: the UI font is `'Montserrat',Arial,sans-serif` and Montserrat is not bundled, so a machine
+  with Montserrat installed (seen on Windows) renders text about 12% wider than the Arial-metric fallback that Linux and CI use. Wrapped
+  labels and taller panels then change heights, popover sides and hit targets. Reproduce on Linux by routing a same-origin URL to the
+  Montserrat woff2 files and injecting `@font-face` rules with `addInitScript` in a temporary spec copy (`font-src 'self'` blocks `data:` fonts;
+  attach the style once `document.documentElement` exists). Fix the component when it breaks its own contract; assertions that depend on text
+  width measure the brand font when it is present and otherwise allow the 12% (see `session-recovery` and `ui-polish-actions`), and assertions
+  on popover placement derive the expected side from the measured room instead of assuming one.
+- *State left by a test*: saved filters and local SoD annotations are user data that a configuration reset keeps. A spec that creates them
+  deletes exactly what it created in `afterEach` (see `release-roles` and `sod-metadata`), so a repeat, a retry or a later spec in the same
+  process starts clean.
 - *Clipboard assertions*: never read `navigator.clipboard.readText()` back. The clipboard belongs to the whole browser (on Windows
   possibly to every browser process of a parallel run) and `writeText` finishes after the click, so a read can return an earlier
   test's value. Call `recordClipboard(page)` from `tests/support.ts` before the copy (it also grants the permissions) and assert
