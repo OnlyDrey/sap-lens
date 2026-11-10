@@ -284,9 +284,10 @@ change, browser smoke and changed specs for frontend changes); the manual Full V
   attach the style once `document.documentElement` exists). Fix the component when it breaks its own contract; assertions that depend on text
   width measure the brand font when it is present and otherwise allow the 12% (see `session-recovery` and `ui-polish-actions`), and assertions
   on popover placement derive the expected side from the measured room instead of assuming one.
-- *State left by a test*: saved filters and local SoD annotations are user data that a configuration reset keeps. A spec that creates them
-  deletes exactly what it created in `afterEach` (see `release-roles` and `sod-metadata`), so a repeat, a retry or a later spec in the same
-  process starts clean.
+- *State left by a test*: saved filters, local SoD annotations, review decisions and review periods are user data that a configuration
+  reset keeps. A spec deletes what it can delete in `afterEach` (`cleanup()` in `sod-fixture.ts` removes SoD saved filters; see also
+  `release-roles` and `sod-metadata`) and gives immutable records unique names (`uniqueName()` for periods, unique users for decisions),
+  and audit-log assertions filter to the records the test created. Check with `--repeat-each 2`: a leak fails the second repetition.
 - *Settings Apply*: Settings count as unsaved until Apply completes. Navigating meanwhile opens the discard prompt (Playwright dismisses it,
   so the view stays where Settings opened), a reload cancels the save, and a configuration read can still return the old values. After
   `Apply settings`, wait for `getByRole('status').filter({ hasText: 'Settings saved successfully.' })` before the next step.

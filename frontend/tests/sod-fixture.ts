@@ -41,7 +41,13 @@ export async function seedGovernance(request: APIRequestContext, sodMode: 'stati
   return directory
 }
 
+/** Review periods are immutable audit data that survive reset: a test names its periods uniquely so a repeat, a retry or another spec never finds them. */
+export const uniqueName = (label: string) => `${label} ${Math.random().toString(36).slice(2, 8)}`
+
 export async function cleanup(request: APIRequestContext, directory: string) {
+  // Saved filters are user data that survive reset; SoD specs create them under fixed names, so remove the SoD ones the test left.
+  const saved = (await (await request.get('/api/saved-filters', { headers })).json()).items as { id: string; view: string; modified: string }[]
+  for (const item of saved.filter(entry => entry.view.startsWith('sod_'))) await request.post('/api/saved-filters/delete', { headers, data: { id: item.id, expected: item.modified } })
   await request.post('/api/configuration/reset', { headers })
   rmSync(directory, { recursive: true, force: true })
 }

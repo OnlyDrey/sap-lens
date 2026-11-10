@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { cleanup, createPeriod, openSod, seedGovernance } from './sod-fixture'
+import { cleanup, createPeriod, openSod, seedGovernance, uniqueName } from './sod-fixture'
 
 let directory = ''
 test.beforeEach(async ({ request }) => { directory = await seedGovernance(request, 'static') })
@@ -36,7 +36,7 @@ for (const width of [375, 800, 1280]) test(`Create review period uses a responsi
 })
 
 for (const width of [375, 1280]) test(`Delete review period: confirmation fields share a grid, consequences stay full width, actions carry icons (${width}px)`, { tag: '@visual' }, async ({ page, request }) => {
-  const draft = `Empty draft ${width}`
+  const draft = uniqueName(`Empty draft ${width}`)
   await createPeriod(request, draft)
   await page.setViewportSize({ width, height: 900 })
   await openSod(page, 'Review Periods')
