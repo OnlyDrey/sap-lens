@@ -140,7 +140,7 @@ class SafeConsole:
 
     A real console (Windows console API, a Linux terminal) and a UTF-8 pipe get the text unchanged. A redirected or piped stdout on
     Windows is written in the ANSI code page while Windows PowerShell 5.1 reads native output in the OEM code page, so any non-ASCII
-    character arrives garbled (`›` became `ΓÇ║`); there, and for any non-UTF-8 stream, the console gets readable ASCII. The --log copy
+    character arrives garbled (`›` became `ΓÇ║`); non-UTF-8 streams get readable ASCII, while UTF-8 pipes preserve Unicode. The --log copy
     always keeps the original UTF-8 text. SAP_LENS_TEST_ASCII=1 or 0 forces the choice."""
     def __init__(self, stream, colors: str | None = None):
         self.stream = stream
@@ -148,8 +148,7 @@ class SafeConsole:
         self.encoding = getattr(stream, 'encoding', None) or 'utf-8'
         forced = os.environ.get('SAP_LENS_TEST_ASCII')
         utf8 = self.encoding.lower().replace('-', '').replace('_', '') in {'utf8', 'utf8sig'}
-        redirected_on_windows = os.name == 'nt' and not self.isatty()
-        self.ascii = forced == '1' if forced in {'0', '1'} else (redirected_on_windows or not utf8)
+        self.ascii = forced == '1' if forced in {'0', '1'} else not utf8
 
     def write(self, text):
         if self.ascii:
@@ -686,6 +685,13 @@ def npm() -> str:
     return os.environ.get('SAP_LENS_NPM') or shutil.which('npm') or shutil.which('npm.cmd') or 'npm'
 
 
+def playwright_command(arguments: list[str]) -> list[str]:
+    """Invoke the installed CLI without npm.cmd/CMD interpreting grep pipes as commands."""
+    if os.environ.get('SAP_LENS_NPM'):  # executable test double for process lifecycle tests
+        return [npm(), '--prefix', str(FRONTEND), 'run', 'test:browser', '--', *arguments]
+    return [shutil.which('node') or 'node', str(FRONTEND / 'node_modules' / '@playwright' / 'test' / 'cli.js'), 'test', *arguments]
+
+
 def dist_is_stale() -> bool:
     built = FRONTEND / 'dist' / 'index.html'
     if not built.exists():
@@ -1042,7 +1048,7 @@ def run_browser(specs: list[str] | None, grep: str | None, jobs: int, label: str
         with cleanup_on_signals():
             for index, group in enumerate(groups):
                 report, out, err = scratch / f'report-{index}.json', scratch / f'log-{index}.out.txt', scratch / f'log-{index}.err.txt'
-                command = [npm(), '--prefix', str(FRONTEND), 'run', 'test:browser', '--', *group, f'--reporter={REPORTERS}', f'--output={scratch / f"results-{index}"}']
+                command = playwright_command([*group, f'--reporter={REPORTERS}', f'--output={scratch / f"results-{index}"}'])
                 if os.environ.get('SAP_LENS_TEST_REPORTERS') == 'html,junit':
                     command = [arg.replace(f'--reporter={REPORTERS}', f'--reporter={REPORTERS},html,junit') for arg in command]
                 if grep:

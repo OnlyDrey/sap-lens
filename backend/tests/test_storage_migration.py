@@ -38,6 +38,8 @@ class Installation(unittest.TestCase):
     """An installation as the previous version left it: JSON stores and snapshots, no SQLite store."""
 
     def setUp(self):
+        from windows_test_instance import isolate_desktop_instance
+        isolate_desktop_instance(self)
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.data = self.root / 'private'

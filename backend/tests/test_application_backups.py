@@ -17,6 +17,8 @@ from version import VERSION
 
 class BackupTests(unittest.TestCase):
     def setUp(self):
+        from windows_test_instance import isolate_desktop_instance
+        isolate_desktop_instance(self)
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
         self.root=Path(self.temp.name);self.source=self.root/'source';self.data=self.root/'destination'
         for root,mode in ((self.source,'desktop'),(self.data,'server')):

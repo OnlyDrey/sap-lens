@@ -701,6 +701,19 @@ class DesktopTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 create_app(origin=origin)
 
+    def test_custom_mutex_namespace_preserves_real_kernel_ownership_calls(self):
+        kernel = MagicMock()
+        kernel.CreateMutexW.return_value = 123
+        with patch('ctypes.get_last_error', return_value=0, create=True):
+            default = WindowsInstance(kernel)
+            self.assertTrue(default.acquire())
+            kernel.CreateMutexW.assert_called_with(None, False, 'Local\\SAPLensDesktop')
+            default.close()
+            isolated = WindowsInstance(kernel, name='Local\\SAPLensTest-synthetic')
+            self.assertTrue(isolated.acquire())
+            kernel.CreateMutexW.assert_called_with(None, False, 'Local\\SAPLensTest-synthetic')
+            isolated.close()
+
     def test_windows_mutex_new_duplicate_and_release(self):
         kernel = MagicMock()
         kernel.CreateMutexW.return_value = 123

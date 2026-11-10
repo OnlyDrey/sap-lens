@@ -309,7 +309,7 @@ class TerminalOutputTests(unittest.TestCase):
         self.assertEqual(raw.getvalue().decode('ascii'), 'a.spec.ts:1 > one > two - deja x ?\n')
 
     def test_a_redirected_windows_console_gets_ascii_even_when_its_code_page_could_encode_the_text(self):
-        raw, stream, console = self.console('utf-8')
+        raw, stream, console = self.console('cp1252')
         with patch.object(runner.os, 'name', 'nt'):
             console = runner.SafeConsole(stream)                       # not a TTY: PowerShell 5.1 would decode it in another code page
         console.write('one › déjà\n'); console.flush()
@@ -860,3 +860,26 @@ class ReportOutputTests(unittest.TestCase):
             parent = Path(directory) / 'file'
             parent.write_text('occupied', encoding='utf-8')
             self.assertEqual(runner.report('targeted', 'report', [stage], [], str(parent / 'report.json')), 1)
+
+
+class PlaywrightCommandTests(unittest.TestCase):
+    def test_direct_node_invocation_preserves_cmd_metacharacters(self):
+        arguments = ['--grep', '@smoke|@workflow|@component|@regression', '--grep-invert', 'a&b (space)']
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop('SAP_LENS_NPM', None)
+            command = runner.playwright_command(arguments)
+        self.assertEqual(command[2:], ['test', *arguments])
+        self.assertTrue(command[1].endswith('cli.js'))
+        self.assertFalse(command[0].lower().endswith('.cmd'))
+        # Execute the actual interpreter, including on Windows: each regex must arrive as one literal argv entry.
+        result = subprocess.run([command[0], '-e', 'console.log(JSON.stringify(process.argv.slice(1)))', '--', *arguments], capture_output=True, text=True, check=True)
+        self.assertEqual(json.loads(result.stdout), arguments)
+
+    def test_utf8_pipe_on_windows_preserves_unicode(self):
+        raw = io.BytesIO()
+        stream = io.TextIOWrapper(raw, encoding='utf-8')
+        with patch.object(runner.os, 'name', 'nt'), patch.dict(os.environ, {}, clear=False):
+            os.environ.pop('SAP_LENS_TEST_ASCII', None)
+            console = runner.SafeConsole(stream)
+        console.write('one › déjà vu\n'); console.flush()
+        self.assertEqual(raw.getvalue().decode('utf-8'), 'one › déjà vu\n')

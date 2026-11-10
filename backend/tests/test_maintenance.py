@@ -16,6 +16,8 @@ from storage_lease import StorageLease
 
 class MaintenanceTests(unittest.TestCase):
     def setUp(self):
+        from windows_test_instance import isolate_desktop_instance
+        isolate_desktop_instance(self)
         self.temporary=tempfile.TemporaryDirectory();self.addCleanup(self.temporary.cleanup)
         self.root=Path(self.temporary.name);self.data=self.root/'data';self.data.mkdir()
         (self.data/'deployment.json').write_text(json.dumps({'version':1,'mode':'server'}))
