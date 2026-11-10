@@ -382,3 +382,43 @@ The daily backup time is a fixed-format `HH:mm` text field (`TimeInput24`) inste
   `GET /api/sod/filter-options` is the largest total (757 calls, 116 s). Performance, not faults; no further change without a profile.
 - `WinError 10054` (3 per run): asyncio's Proactor transport logs a `ConnectionResetError` when it shuts down a socket the client already
   reset (pages closing, aborted requests). Every request in the log has a response, so these are expected client cancellations.
+
+
+### Windows regression handover: report persistence follow-up
+
+Resumed from synchronized `ef0c303`, preserving `935611b`, `3a79e41`,
+`deb84da` and terminal colours from `0de47c2`. No current final FULL log or
+JSON report was available in the accessible handover material; historical
+FULL counts above are not evidence for this checkout. Native Windows
+acceptance remains pending. No broad regression or CI dispatch was run.
+
+A focused run passed all 18 SoD metadata tests, but its JSON report failed
+because the requested parent directory did not exist. The runner printed a
+successful result before raising `FileNotFoundError`. Reporting now creates
+parent directories and handles destination I/O failures as infrastructure
+failures (exit 2), preserving exit 1 when tests actually failed. Final status
+is printed after report persistence. Three direct regression tests passed;
+18 terminal/logging tests passed. Search-matching unit tests: 3 passed.
+Focused ESLint: no errors, five existing warnings. Frontend production build
+including TypeScript passed. Period deletion browser test: 1 passed on Linux
+Chromium; two subsequent repeated-isolation executions also passed (2/2).
+Generated logs/reports stay under ignored `build/` and are not committed.
+
+Windows follow-up (PowerShell 5.1 or 7; stop if synchronization fails):
+
+```powershell
+git fetch origin
+git switch work
+git merge --ff-only origin/work
+py -3.12 --version
+node --version
+.\.venv\Scripts\python.exe -m pip check
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --spec sod-periods --grep "period deletion requires the typed name" --repeat-each=2 --browser-jobs 1 --log build/test-logs/windows-periods.log --report build/test-artifacts/windows-periods.json
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --base ef0c303 --browser-jobs 3 --log build/test-logs/windows-targeted.log --report build/test-artifacts/windows-targeted.json
+```
+
+Use the equals form `--repeat-each=2` with this runner: the separated numeric
+value can be parsed as a feature name by argparse. TARGETED selects changes
+against the explicit baseline; inspect with `--plan` first. The three browser
+processes use the runner's separate ports and storage. These are follow-up
+commands, not a claim that Windows or broad TARGETED validation has passed.

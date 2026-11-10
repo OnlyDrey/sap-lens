@@ -1,6 +1,7 @@
 """Integrity of the test profiles: no test file may be silently left out of regression."""
 import importlib.util
 import io
+import json
 import os
 from pathlib import Path
 import re
@@ -833,3 +834,29 @@ class FrontendUnitTestWiringTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class ReportOutputTests(unittest.TestCase):
+    def test_nested_report_destination_is_created(self):
+        with tempfile.TemporaryDirectory() as directory, patch('sys.stdout', new=io.StringIO()):
+            output = Path(directory) / 'new' / 'nested' / 'report.json'
+            self.assertEqual(runner.report('targeted', 'report', [], [], str(output)), 0)
+            payload = json.loads(output.read_text(encoding='utf-8'))
+            self.assertTrue(payload['ok'])
+            self.assertEqual(payload['exit_code'], 0)
+
+    def test_invalid_destination_is_infrastructure_failure_without_false_success(self):
+        with tempfile.TemporaryDirectory() as directory, patch('sys.stdout', new=io.StringIO()) as console:
+            parent = Path(directory) / 'file'
+            parent.write_text('occupied', encoding='utf-8')
+            self.assertEqual(runner.report('targeted', 'report', [], [], str(parent / 'report.json')), 2)
+            self.assertIn('JSON report could not be saved', console.getvalue())
+            self.assertNotIn('Result: PASSED', console.getvalue())
+            self.assertIn('Exit code: 2', console.getvalue())
+
+    def test_test_failure_retains_exit_one_when_report_cannot_be_saved(self):
+        stage = {'ok': False, 'name': 'check', 'seconds': 0}
+        with tempfile.TemporaryDirectory() as directory, patch('sys.stdout', new=io.StringIO()):
+            parent = Path(directory) / 'file'
+            parent.write_text('occupied', encoding='utf-8')
+            self.assertEqual(runner.report('targeted', 'report', [stage], [], str(parent / 'report.json')), 1)

@@ -1267,6 +1267,17 @@ def report(profile: str, scope: str, stages: list[dict], notes: list[str], outpu
         print(f'  {paint("NOTE", "warn")}  {profile} is a partial run; run `regression` before pushing a finished phase and `full` before a merge or release.')
     elif profile == 'regression':
         print(f'  {paint("NOTE", "warn")}  regression is the curated critical set, not the complete collection; `full` runs everything.')
+    code = 0 if ok else (1 if test_failure else 2)
+    if output:
+        try:
+            destination = Path(output)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(json.dumps({'profile': profile, 'scope': scope, 'ok': ok, 'exit_code': code, 'infrastructure': infrastructure,
+                                               'stages': stages, 'notes': notes}, indent=1, default=str), encoding='utf-8')
+        except OSError as error:
+            ok = False
+            code = 1 if test_failure else 2
+            print(f"  {paint('infrastructure:', 'fail')} JSON report could not be saved ({type(error).__name__}); check the report destination and permissions.")
     verdict = 'OK' if ok else ('FAILED (tests)' if test_failure else 'FAILED (infrastructure only: no test failed, but not everything ran)')
     print(f"  tests: {count(totals['passed'], 'pass')} passed, {count(totals['failed'], 'fail')} failed, {count(totals['skipped'], 'skip')} skipped")
     print(f"  total {fmt(sum(s['seconds'] for s in stages))}  ->  {paint(verdict, 'pass' if ok else 'fail')}")
@@ -1281,9 +1292,6 @@ def report(profile: str, scope: str, stages: list[dict], notes: list[str], outpu
     print(f'Summary: {count(totals["passed"], "pass")} passed | {count(totals["failed"], "fail")} failed | {count(totals["skipped"], "skip")} skipped')
     print(f'Result: {paint("PASSED", "pass") if ok else paint(verdict, "fail")} | Duration: {clock(sum(s["seconds"] for s in stages))} | Exit code: {code}'
           + (f' | Log: {_LOG.name}' if _LOG else '') + (f' | Report: {output}' if output else ''), flush=True)
-    if output:
-        Path(output).write_text(json.dumps({'profile': profile, 'scope': scope, 'ok': ok, 'exit_code': code, 'infrastructure': infrastructure,
-                                            'stages': stages, 'notes': notes}, indent=1, default=str), encoding='utf-8')
     return code
 
 
