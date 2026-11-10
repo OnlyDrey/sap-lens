@@ -50,8 +50,129 @@ function Get-SmokeConfigurationSummary($directory) {
         if ($configured) { $exists = Test-Path -LiteralPath ([string]$settings.data_csv_path) }
         $mode = 'unspecified'
         if ($settings.source_modes.roles -in @('static', 'dynamic')) { $mode = $settings.source_modes.roles }
-        return "settings_present=True; source_configured=$configured; source_exists=$exists; source_mode=$mode"
+        $expectedFile = Join-SafePath $directory 'role-catalogue.csv'
+        $fixtureMatches = $configured -and [string]::Equals([System.IO.Path]::GetFullPath([string]$settings.data_csv_path), $expectedFile, [System.StringComparison]::OrdinalIgnoreCase)
+        $readable = $false
+        $bytes = 0
+        $readError = 'none'
+        if ($exists) {
+            $stream = $null
+            try { $stream = [System.IO.File]::OpenRead([string]$settings.data_csv_path); $bytes = $stream.Length; $readable = $true }
+            catch { $readError = $_.Exception.GetType().Name }
+            finally { if ($stream) { $stream.Dispose() } }
+        }
+        return "settings_present=True; source_configured=$configured; source_exists=$exists; source_mode=$mode; schema_current=$($settings.schema_version -eq 3); fixture_path_matches=$fixtureMatches; source_readable=$readable; source_bytes=$bytes; source_read_error=$readError"
     } catch { return "configuration summary unavailable ($($_.Exception.GetType().Name))" }
+}
+
+function Get-SmokeLoadSummary($directory) {
+    $log = Join-SafePath $directory 'sap-lens.log'
+    if (-not $log -or -not (Test-Path -LiteralPath $log)) { return 'No application initialization/import evidence.' }
+    try {
+        $events = @()
+        $csvFailure = $false
+        foreach ($line in @(Get-Content -LiteralPath $log -Tail 400 -ErrorAction Stop)) {
+            if ($line -match 'CSV load unsuccessful; previous data retained') { $csvFailure = $true }
+            if ($line -match 'desktop_startup (\{.*\})$') {
+                try {
+                    $entry = $Matches[1] | ConvertFrom-Json
+                    # Allowlist fields and values: never output original JSON, exceptions, paths or settings.
+                    if ($entry.stage -match '^[a-z_]{1,40}$' -and $entry.result -in @('starting', 'ready', 'failed', 'unavailable')) {
+                        $events += "stage=$($entry.stage), result=$($entry.result)"
+                    }
+                } catch { }
+            }
+        }
+        return "csv_failure_seen=$csvFailure; startup_events(last 400 log lines): $(($events | Select-Object -Last 12) -join '; ')"
+    } catch { return "Initialization/import evidence unavailable ($($_.Exception.GetType().Name))." }
+}
+
+function Get-LaunchNativeErrorCode($exception) {
+    # Start-Process wraps Win32Exception in PowerShell exceptions. Do not classify translated messages.
+    for ($depth = 0; $exception -and $depth -lt 12; $depth++) {
+        if ($exception -is [System.ComponentModel.Win32Exception]) { return [int]$exception.NativeErrorCode }
+        $exception = $exception.InnerException
+    }
+    return $null
+}
+
+function Get-DosDeviceName([string]$drive) {
+    # Read-only drive mapping, needed because Code Integrity normally records NT device paths.
+    # Constrained Language/App Control may forbid Add-Type; callers report that limitation.
+    if (-not ('SAPLensSmoke.NativePaths' -as [type])) {
+        Add-Type -ErrorAction Stop -TypeDefinition @'
+using System;
+using System.Text;
+using System.Runtime.InteropServices;
+namespace SAPLensSmoke {
+    public static class NativePaths {
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern uint QueryDosDevice(string name, StringBuilder target, int size);
+    }
+}
+'@
+    }
+    $buffer = New-Object System.Text.StringBuilder 32768
+    if ([SAPLensSmoke.NativePaths]::QueryDosDevice($drive, $buffer, $buffer.Capacity) -eq 0) { throw 'Drive mapping unavailable.' }
+    return $buffer.ToString()
+}
+
+function Get-ApplicationControlEvidence([string]$path, [datetime]$attemptedAt, [datetime]$failedAt) {
+    $correlated = @()
+    $limitations = @()
+    $expected = [System.IO.Path]::GetFullPath($path)
+    $devicePath = $null
+    try {
+        $drive = [System.IO.Path]::GetPathRoot($expected).TrimEnd('\')
+        if ($drive -match '^[A-Za-z]:$') { $devicePath = (Get-DosDeviceName $drive) + $expected.Substring(2) }
+    } catch { $limitations += "NT path correlation unavailable ($($_.Exception.GetType().Name))" }
+    try {
+        # No message-text parsing or broad historical log dump. Audit-only event 3076 is not a block.
+        $events = @(Get-WinEvent -FilterHashtable @{
+            LogName = 'Microsoft-Windows-CodeIntegrity/Operational'; Id = @(3077, 3033)
+            StartTime = $attemptedAt.AddSeconds(-2); EndTime = $failedAt.AddSeconds(2)
+        } -MaxEvents 128 -ErrorAction Stop)
+        if ($events.Count -eq 128) { $limitations += 'Event query limit reached; evidence may be incomplete.' }
+        foreach ($event in $events) {
+            if ($event.Id -notin @(3077, 3033) -or $event.TimeCreated -lt $attemptedAt.AddSeconds(-2) -or $event.TimeCreated -gt $failedAt.AddSeconds(2)) { continue }
+            try {
+                [xml]$xml = $event.ToXml()
+                $fields = @{}
+                foreach ($field in $xml.Event.EventData.Data) { $fields[[string]$field.Name] = [string]$field.'#text' }
+                $file = [string]$fields['FileName']
+                if ($file.StartsWith('\??\')) { $file = $file.Substring(4) }
+                if ($file.StartsWith('\\?\')) { $file = $file.Substring(4) }
+                # Exact full-path comparison, never basename/suffix matching (nor ProcessName, which may be the parent).
+                if (-not [string]::Equals($file, $expected, [System.StringComparison]::OrdinalIgnoreCase) -and
+                    -not ($devicePath -and [string]::Equals($file, $devicePath, [System.StringComparison]::OrdinalIgnoreCase))) { continue }
+                $policy = 'not recorded'
+                foreach ($key in @('PolicyID', 'PolicyId', 'PolicyGUID')) {
+                    if ([string]$fields[$key] -match '^\{?[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\}?$') { $policy = [string]$fields[$key]; break }
+                }
+                $correlated += "event_id=$($event.Id); policy_id=$policy"
+            } catch { $limitations += "An event could not be parsed ($($_.Exception.GetType().Name))." }
+        }
+    } catch {
+        if ($_.FullyQualifiedErrorId -notlike 'NoMatchingEventsFound*') { $limitations += "Code Integrity log unavailable ($($_.Exception.GetType().Name))." }
+    }
+    return @{ Matches = $correlated; Limitations = $limitations }
+}
+
+function Get-LaunchFailureDiagnostic($exception, [string]$path, [datetime]$attemptedAt, [datetime]$failedAt) {
+    $code = Get-LaunchNativeErrorCode $exception
+    $evidence = Get-ApplicationControlEvidence $path $attemptedAt $failedAt
+    $signature = 'unavailable'
+    try { $signature = [string](Get-AuthenticodeSignature -LiteralPath $path -ErrorAction Stop).Status }
+    catch { $evidence.Limitations += "Authenticode inspection unavailable ($($_.Exception.GetType().Name))." }
+    $class = 'process_creation_failed'
+    # ERROR_ACCESS_DISABLED_BY_POLICY is definitive; invalid-image-hash 577 alone is not proof of WDAC.
+    if ($code -eq 1260 -or $evidence.Matches.Count -gt 0) { $class = 'windows_application_control_blocked' }
+    $codeText = if ($null -eq $code) { 'unavailable' } else { [string]$code }
+    $eventsText = if ($evidence.Matches.Count) { $evidence.Matches -join '; ' } else { 'No correlated blocking events found.' }
+    $next = if ($class -eq 'windows_application_control_blocked') {
+        'Ask your security administrator for organization-approved signing/deployment. Do not disable or bypass App Control. Desktop verification did not run.'
+    } else { 'Inspect the original process creation error. No application startup or health verification was completed.' }
+    return @{ Class = $class; Text = "Process creation failed; executable_started=False; native_error_code=$codeText; Authenticode=$signature`n$eventsText`n$($evidence.Limitations -join ' ')`nNext: $next" }
 }
 
 function Format-DiagnosticsCore([string]$class, [string]$detail, $application) {
@@ -60,6 +181,7 @@ function Format-DiagnosticsCore([string]$class, [string]$detail, $application) {
     $lines.Add("SMOKE FAILURE [$class] $detail")
     $lines.Add("Scenario: $($state.Scenario)    Elapsed: $([int]((Get-Date) - $script:ScenarioStart).TotalSeconds) s in scenario, $([int]((Get-Date) - $script:SmokeStart).TotalSeconds) s in total")
     $lines.Add("Executable: $executable")
+    if ($state.LaunchDiagnostics) { $lines.Add($state.LaunchDiagnostics) }
     $exit = 'running'
     if ($application) { try { if ($application.HasExited) { $exit = [string]$application.ExitCode } } catch { $exit = 'unavailable' } }
     $lines.Add("Launcher PID: $($state.Launcher)    Runtime PID (runtime.json): $($state.Runtime)    Launcher exit code: $exit")
@@ -84,6 +206,7 @@ function Format-DiagnosticsCore([string]$class, [string]$detail, $application) {
     $lines.Add("Process readiness: $($state.Readiness); application configuration status is checked separately.")
     $lines.Add("Last readiness condition: $($state.Condition)")
     $lines.Add('Configuration summary (no values or paths): ' + (Get-SmokeConfigurationSummary $state.Directory))
+    $lines.Add('Initialization/import summary (allowlisted fields only): ' + (Get-SmokeLoadSummary $state.Directory))
     $lines.Add("Single-instance guard $($script:InstanceMutexName) currently held: $(Test-InstanceHeld). SAP-Lens processes: $((Get-RunningSapLens) -join '; ')")
     $lines.Add('Application log (last lines, secrets redacted):')
     $lines.Add((Get-SafeLogTail $state.Directory))
@@ -153,7 +276,22 @@ function Start-Application([string]$directory) {
         $env:SAP_LENS_DATA_DIR = $directory
         $env:SAP_LENS_DEPLOYMENT_MODE = 'desktop'
         $env:DATA_CSV_PATH = ''
-        return Start-Process -FilePath $executable -PassThru
+        $attemptedAt = Get-Date
+        try { return Start-Process -FilePath $executable -PassThru -ErrorAction Stop }
+        catch {
+            $original = $_.Exception
+            $failedAt = Get-Date
+            $diagnostic = @{ Class = 'process_creation_failed'; Text = 'Process creation failed; executable_started=False; launch diagnostics unavailable.' }
+            try { $diagnostic = Get-LaunchFailureDiagnostic $original $executable $attemptedAt $failedAt }
+            catch {
+                $code = Get-LaunchNativeErrorCode $original
+                if ($code -eq 1260) { $diagnostic.Class = 'windows_application_control_blocked' }
+                if ($null -ne $code) { $diagnostic.Text += " native_error_code=$code;" }
+                $diagnostic.Text += " ($($_.Exception.GetType().Name))"
+            }
+            $script:State.LaunchDiagnostics = $diagnostic.Text
+            throw (New-SmokeException $diagnostic.Class $original.Message $null $original)
+        }
     } finally {
         $env:PATH = $originalPath
         $env:SAP_LENS_CONFIG_DIR = $originalConfig

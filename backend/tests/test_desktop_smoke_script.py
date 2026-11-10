@@ -1,7 +1,12 @@
 """Static contracts of scripts/test-windows-exe.ps1 and the root causes behind the Desktop smoke failures. Linux evidence only: the script itself
 runs on native Windows."""
 import re
+import base64
+import json
+import os
 from pathlib import Path
+import shutil
+import subprocess
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -12,7 +17,7 @@ class SmokeScriptContracts(unittest.TestCase):
     def test_every_failure_class_is_distinguished(self):
         for name in ('process_exited_before_readiness', 'runtime_record_missing', 'runtime_not_owned', 'http_unavailable', 'instance_id_mismatch',
                      'health_status_incorrect', 'configuration_required', 'service_identity_incorrect', 'cached_roles_incorrect', 'window_initialization_failed', 'readiness_timeout',
-                     'prerequisite_existing_instance', 'instance_not_released'):
+                     'prerequisite_existing_instance', 'instance_not_released', 'process_creation_failed', 'windows_application_control_blocked'):
             self.assertIn(f"'{name}'", SCRIPT, name)
 
     def test_diagnostics_carry_the_required_facts(self):
@@ -33,6 +38,27 @@ class SmokeScriptContracts(unittest.TestCase):
         self.assertIn('$health.cached_roles -ne $contract.Roles', SCRIPT)
         self.assertIn("$health.app -ne 'sap-lens'", SCRIPT)
         self.assertIn('AddSeconds(60)', SCRIPT, 'the readiness timeout is unchanged')
+
+    def test_application_control_uses_structured_correlated_bounded_evidence(self):
+        helper = SCRIPT[SCRIPT.index('function Get-ApplicationControlEvidence'):SCRIPT.index('function Format-DiagnosticsCore')]
+        for contract in ('Microsoft-Windows-CodeIntegrity/Operational', 'Id = @(3077, 3033)', 'StartTime = $attemptedAt.AddSeconds(-2)',
+                         'EndTime = $failedAt.AddSeconds(2)', '-MaxEvents 128', '[xml]$xml = $event.ToXml()', "['FileName']",
+                         '[System.StringComparison]::OrdinalIgnoreCase', "$code -eq 1260 -or $evidence.Matches.Count -gt 0",
+                         'Get-AuthenticodeSignature -LiteralPath $path', 'NoMatchingEventsFound', 'Code Integrity log unavailable'):
+            self.assertIn(contract, helper)
+        self.assertNotIn('$event.Message', helper)
+        self.assertIn('$correlated = @()', helper, 'PowerShell regex matching must not replace the event accumulator via automatic $Matches')
+        self.assertNotIn('-like', helper[:helper.index('} catch {\n        if ($_.FullyQualifiedErrorId')])
+        self.assertIn('QueryDosDevice', SCRIPT, 'NT paths must use an actual drive mapping, not a suffix guess')
+
+    def test_startup_diagnostics_preserve_original_error_and_success_path(self):
+        launch = SCRIPT[SCRIPT.index('function Start-Application'):SCRIPT.index('function Get-ScenarioContract')]
+        self.assertIn('try { return Start-Process -FilePath $executable -PassThru -ErrorAction Stop }', launch)
+        self.assertIn('$original = $_.Exception', launch)
+        self.assertIn('New-SmokeException $diagnostic.Class $original.Message $null $original', launch)
+        self.assertIn('Get-LaunchNativeErrorCode $original', launch, 'diagnostic failure cannot erase a known policy block')
+        self.assertIn('$script:State.LaunchDiagnostics = $diagnostic.Text', launch)
+        self.assertIn('foreach ($process in $owned.Values)', SCRIPT, 'a failed start has no handle to clean up')
 
     def test_fresh_and_configured_scenarios_have_exact_health_contracts(self):
         policy = SCRIPT[SCRIPT.index('function Get-ScenarioContract'):SCRIPT.index('function Wait-Ready')]
@@ -69,14 +95,24 @@ class SmokeScriptContracts(unittest.TestCase):
         self.assertIn('source_configured=$configured; source_exists=$exists; source_mode=$mode', helper)
         self.assertNotIn('$($settings.data_csv_path)', helper)
         self.assertIn('Configuration summary (no values or paths)', SCRIPT)
+        for item in ('fixture_path_matches=$fixtureMatches', 'source_readable=$readable', 'source_bytes=$bytes', 'source_read_error=$readError', '$stream.Dispose()'):
+            self.assertIn(item, helper)
+        summary = SCRIPT[SCRIPT.index('function Get-SmokeLoadSummary'):SCRIPT.index('function Get-LaunchNativeErrorCode')]
+        self.assertIn('-Tail 400', summary)
+        self.assertIn('csv_failure_seen=$csvFailure', summary)
+        self.assertIn('stage=$($entry.stage), result=$($entry.result)', summary)
+        self.assertNotIn('$entry.error', summary)
+        self.assertNotIn('$entry.traceback', summary)
 
     def test_existing_instance_is_reported_before_any_launch(self):
         self.assertLess(SCRIPT.index("'prerequisite_existing_instance'"), SCRIPT.index("foreach ($scenario in"))
 
     def test_original_exception_is_preserved_and_windows_powershell_51_syntax_only(self):
         self.assertIn('New-Object System.Exception($message, $inner)', SCRIPT)
+        # NT path prefixes and regex quantifiers inside single-quoted literals are not language operators.
+        syntax = re.sub(r"'(?:[^']|'')*'", "''", SCRIPT)
         for token in (r'\?\?', r'\?\.', r'-AsHashtable', r'-Parallel', r'\$IsWindows', r'\s&&\s', r'\?\s*\$'):
-            self.assertIsNone(re.search(token, SCRIPT), token)
+            self.assertIsNone(re.search(token, syntax), token)
 
 
 class DiagnosticsAreSafeWithPartialState(unittest.TestCase):
@@ -132,6 +168,105 @@ class PackagedPathContract(unittest.TestCase):
         for name in ('maintenance.py', 'application_backups.py'):
             text = (ROOT / 'backend' / name).read_text(encoding='utf-8')
             self.assertNotIn("['powershell'", text, name)
+
+
+POWERSHELL = shutil.which('powershell') or shutil.which('pwsh')
+
+
+@unittest.skipUnless(POWERSHELL and os.name == 'nt', 'Windows PowerShell unavailable; mocked launch/event behavior uses Windows paths (native EXE acceptance remains separate)')
+class LaunchDiagnosticBehavior(unittest.TestCase):
+    """Execute the actual functions with mocked OS calls; never launch an EXE or change host policy."""
+
+    def invoke(self, body):
+        names = ('Get-LaunchNativeErrorCode', 'Get-DosDeviceName', 'Get-ApplicationControlEvidence', 'Get-LaunchFailureDiagnostic', 'Start-Application')
+        functions = '\n'.join(re.search(r'^function ' + re.escape(name) + r'\b.*?(?=^function |\Z)', SCRIPT, re.M | re.S)[0] for name in names)
+        setup = r'''
+$ErrorActionPreference = 'Stop'
+$executable = 'C:\synthetic\SAP-Lens.exe'
+$script:State = @{}
+function Get-DosDeviceName { param($drive) return '\Device\HarddiskVolume7' }
+function Get-AuthenticodeSignature { param($LiteralPath, $ErrorAction) return @{Status='NotSigned'} }
+function Get-WinEvent { param($FilterHashtable, $MaxEvents, $ErrorAction) return @() }
+function New-SmokeException { param($class, $detail, $application, $inner)
+    $failure = New-Object System.Exception($detail, $inner)
+    $failure.Data['SmokeClass'] = $class
+    return $failure
+}
+function New-TestEvent { param($file, $id=3077, $time=(Get-Date))
+    $row = [pscustomobject]@{Id=$id;TimeCreated=$time;RawXml="<Event><EventData><Data Name='FileName'>$file</Data><Data Name='PolicyID'>{00000000-0000-0000-0000-000000000001}</Data></EventData></Event>"}
+    $row | Add-Member -MemberType ScriptMethod -Name ToXml -Value { return $this.RawXml }
+    return $row
+}
+'''
+        source = functions + setup + '\n' + body + '\n$result | ConvertTo-Json -Depth 6 -Compress'
+        encoded = base64.b64encode(source.encode('utf-16-le')).decode('ascii')
+        process = subprocess.run([POWERSHELL, '-NoProfile', '-NonInteractive', '-EncodedCommand', encoded],
+                                 capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=30)
+        self.assertEqual(process.returncode, 0, process.stderr + process.stdout)
+        return json.loads(process.stdout.strip().splitlines()[-1])
+
+    def test_success_returns_the_process_and_restores_environment_without_diagnostics(self):
+        result = self.invoke(r'''
+function Start-Process { param($FilePath, [switch]$PassThru, $ErrorAction) return @{Id=42} }
+function Get-LaunchFailureDiagnostic { throw 'must not run on success' }
+$env:SAP_LENS_CONFIG_DIR = 'original'
+$process = Start-Application 'C:\isolated'
+$result = @{Id=$process.Id; Restored=$env:SAP_LENS_CONFIG_DIR; Diagnostics=$script:State.LaunchDiagnostics}
+''')
+        self.assertEqual(result, {'Id': 42, 'Restored': 'original', 'Diagnostics': None})
+
+    def test_wrapped_policy_failure_keeps_native_code_and_original_exception(self):
+        result = self.invoke(r'''
+function Start-Process { throw (New-Object System.InvalidOperationException('synthetic outer', (New-Object System.ComponentModel.Win32Exception(1260)))) }
+try { Start-Application 'C:\isolated'; throw 'unexpected success' }
+catch { $result = @{Class=$_.Exception.Data['SmokeClass']; Inner=$_.Exception.InnerException.Message; Text=$script:State.LaunchDiagnostics} }
+''')
+        self.assertEqual(result['Class'], 'windows_application_control_blocked')
+        self.assertIn('synthetic outer', result['Inner'])
+        self.assertIn('native_error_code=1260', result['Text'])
+        self.assertIn('Authenticode=NotSigned', result['Text'])
+        self.assertIn('executable_started=False', result['Text'])
+
+    def test_missing_event_log_never_erases_native_policy_error(self):
+        result = self.invoke(r'''
+function Get-WinEvent { throw (New-Object System.UnauthorizedAccessException('synthetic denied')) }
+$result = Get-LaunchFailureDiagnostic (New-Object System.ComponentModel.Win32Exception(1260)) $executable (Get-Date) (Get-Date)
+''')
+        self.assertEqual(result['Class'], 'windows_application_control_blocked')
+        self.assertIn('Code Integrity log unavailable', result['Text'])
+
+    def test_correlated_device_path_and_policy_id_classify_localized_error(self):
+        result = self.invoke(r'''
+function Get-WinEvent { return @(New-TestEvent '\Device\HarddiskVolume7\synthetic\SAP-Lens.exe') }
+$result = Get-LaunchFailureDiagnostic (New-Object System.Exception('localized launch error')) $executable (Get-Date) (Get-Date)
+''')
+        self.assertEqual(result['Class'], 'windows_application_control_blocked')
+        self.assertIn('event_id=3077', result['Text'])
+        self.assertIn('policy_id={00000000-0000-0000-0000-000000000001}', result['Text'])
+
+    def test_unrelated_old_and_audit_only_events_do_not_classify_unsigned_file_as_blocked(self):
+        result = self.invoke(r'''
+function Get-WinEvent { return @(
+    (New-TestEvent 'C:\other\SAP-Lens.exe'),
+    (New-TestEvent '\Device\HarddiskVolume8\synthetic\SAP-Lens.exe'),
+    (New-TestEvent 'C:\synthetic\SAP-Lens.exe' 3077 (Get-Date).AddMinutes(-1)),
+    (New-TestEvent 'C:\synthetic\SAP-Lens.exe' 3076)
+) }
+$result = Get-LaunchFailureDiagnostic (New-Object System.ComponentModel.Win32Exception(577)) $executable (Get-Date) (Get-Date)
+''')
+        self.assertEqual(result['Class'], 'process_creation_failed')
+        self.assertIn('No correlated blocking events found', result['Text'])
+        self.assertIn('Authenticode=NotSigned', result['Text'])
+
+    def test_diagnostic_failure_preserves_original_policy_error_without_a_process(self):
+        result = self.invoke(r'''
+function Start-Process { throw (New-Object System.ComponentModel.Win32Exception(1260, 'original launch failure')) }
+function Get-LaunchFailureDiagnostic { throw 'secondary diagnostic failure' }
+$owned = @{}
+try { $process = Start-Application 'C:\isolated'; $owned[$process.Id] = $process }
+catch { $result = @{Class=$_.Exception.Data['SmokeClass']; Inner=$_.Exception.InnerException.Message; Owned=$owned.Count} }
+''')
+        self.assertEqual(result, {'Class': 'windows_application_control_blocked', 'Inner': 'original launch failure', 'Owned': 0})
 
 
 if __name__ == '__main__':
